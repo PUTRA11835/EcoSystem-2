@@ -1,0 +1,212 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+/* --- RESET & BASE --- */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    height: 100%;
+    width: 100%;
+    font-family: 'Poppins', sans-serif;
+    background-color: #F9FAFB;
+    color: #1F2937;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden; /* hilangkan scroll */
+}
+
+/* --- MAIN WRAPPER --- */
+.login-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100vw;
+    height: 100vh;
+}
+
+/* --- CONTAINER --- */
+.login-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 90%;
+    max-width: 960px;
+    background-color: #ffffff;
+    border-radius: 1rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+/* --- LEFT SECTION (INFO) --- */
+.info-section {
+    padding: 3rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: #fff;
+}
+
+.info-section h1 {
+    font-size: 2.25rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+}
+
+.info-section h1 span {
+    color: #A7262D;
+}
+
+.info-section .subtitle {
+    color: #4B5563;
+    font-size: 1rem;
+    margin-bottom: 2rem;
+    line-height: 1.5;
+}
+
+.info-section .contact-note {
+    font-size: 0.875rem;
+    color: #6B7280;
+}
+
+/* --- RIGHT SECTION (FORM) --- */
+.form-section {
+    background-color: #A7262D;
+    padding: 2rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.form-card {
+    background-color: #ffffff;
+    padding: 2.5rem;
+    border-radius: 0.75rem;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+}
+
+/* --- LOGO --- */
+.logo {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.logo img {
+    width: 120px;
+    height: auto; /* biar proporsional */
+    object-fit: contain; /* menjaga proporsi asli logo */
+}
+
+/* --- TEXT --- */
+.form-card h2 {
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.form-card .form-subtitle {
+    text-align: center;
+    font-size: 0.9rem;
+    color: #6B7280;
+    margin-bottom: 1.5rem;
+}
+
+/* --- FORM --- */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 0.25rem;
+    display: block;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #D1D5DB;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.form-group input:focus {
+    border-color: #A7262D;
+    box-shadow: 0 0 0 2px rgba(167, 38, 45, 0.2);
+    outline: none;
+}
+
+/* --- OPTIONS --- */
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.875rem;
+    margin-bottom: 1.5rem;
+}
+
+.form-options .checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.form-options a {
+    color: #A7262D;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.form-options a:hover {
+    text-decoration: underline;
+}
+
+/* --- BUTTON --- */
+.submit-btn {
+    width: 100%;
+    padding: 0.75rem;
+    background-color: #A7262D;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 1rem;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.submit-btn:hover {
+    background-color: #8E2026;
+}
+
+/* --- RESPONSIVE --- */
+@media (max-width: 900px) {
+    .login-container {
+        grid-template-columns: 1fr;
+        max-width: 450px;
+        width: 90%;
+        height: auto;
+    }
+
+    .info-section {
+        display: none;
+    }
+
+    .form-section {
+        background: none;
+        padding: 1rem;
+    }
+
+    .form-card {
+        box-shadow: none;
+        padding: 2rem;
+        border: 1px solid #e5e7eb;
+    }
+}
