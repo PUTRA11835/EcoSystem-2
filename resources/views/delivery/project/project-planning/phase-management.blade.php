@@ -380,9 +380,6 @@
         console.error('❌ Could not determine project ID!');
     }
 
-    // ==========================================
-    // Initialize all global variables
-    // ==========================================
     
     // Stage Modal Variables
     window.currentActivityId = null;
@@ -471,14 +468,10 @@ console.log('✅ editItem function loaded');
     'use strict';
     console.log('🚀 Step 3: Loading main functions...');
 
-    // ==========================================
-    // ADD FLAG TO TRACK IF DATA IS LOADED
-    // ==========================================
+
     window.tableDataLoaded = false;
 
-    // ==========================================
-    // SHOW NOTIFICATION
-    // ==========================================
+
     window.showNotification = function(message, type) {
         type = type || 'info';
         console.log('📢 Notification [' + type + ']:', message);
@@ -590,9 +583,7 @@ console.log('✅ editItem function loaded');
         // Keep for backward compatibility but don't do anything
     };
 
-    // ==========================================
-    // OPEN PHASE CONFIG MODAL
-    // ==========================================
+
     window.openPhaseConfigModal = function() {
         const modal = document.getElementById('phaseConfigModal');
         if (modal) {
@@ -804,7 +795,7 @@ document.addEventListener('click', function(e) {
 })();
 </script>
 
-{{-- ✅ EXPORT MENU TOGGLE --}}
+
 <script>
 function toggleExportMenu() {
     const menu = document.getElementById('exportMenu');
@@ -824,7 +815,7 @@ document.addEventListener('click', function(e) {
 });
 </script>
 
-{{-- ✅ VERIFICATION SCRIPT --}}
+
 <script>
 (function() {
     console.log('=== VERIFYING ALL FUNCTIONS ===');
@@ -873,7 +864,7 @@ document.addEventListener('click', function(e) {
 })();
 </script>
 
-{{-- ✅ CSS FOR SMOOTH ANIMATION --}}
+
 <style>
 #descriptionTooltip {
     opacity: 0;

@@ -253,3 +253,7 @@ Route::get('/', function () {
     }
     return redirect()->route('login');
 });
+
+// ==================== DELIVERY PLANNING ROUTES ====================
+// Include delivery planning module routes
+require __DIR__ . '/delivery.php';

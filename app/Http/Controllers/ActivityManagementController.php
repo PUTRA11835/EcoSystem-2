@@ -232,20 +232,60 @@ class ActivityManagementController extends Controller
     /**
      * Get activity details
      */
-    public function show(Project $project, $activityId)
+    public function show(Request $request, Project $project, $activityId)
     {
         try {
             Log::info('=== GET ACTIVITY START ===', [
                 'project_id' => $project->id,
-                'activity_id' => $activityId
+                'activity_id' => $activityId,
+                'type' => $request->query('type')
             ]);
 
+            // ✅ If type=activity, search ProjectActivity first to avoid ID conflicts
+            if ($request->query('type') === 'activity') {
+                Log::info('Type=activity specified, searching ProjectActivity first...');
+                $activity = ProjectActivity::with('stage')->find($activityId);
+
+                if ($activity) {
+                    $responseData = [
+                        'success' => true,
+                        'id' => $activity->id,
+                        'name' => $activity->name,
+                        'is_group' => false,
+                        'parent_id' => null,
+                        'stage_id' => $activity->stage_id,
+                        'phase_id' => $activity->stage->planning->phase_id ?? null,
+                        'start_date' => $activity->start_date?->format('Y-m-d'),
+                        'end_date' => $activity->end_date?->format('Y-m-d'),
+                        'actual_start_date' => $activity->actual_start_date?->format('Y-m-d'),
+                        'actual_end_date' => $activity->actual_end_date?->format('Y-m-d'),
+                        'weight' => $activity->weight,
+                        'status' => $activity->status,
+                        'progress_percentage' => $activity->progress_percentage,
+                        'notes' => $activity->notes,
+                        'module' => $activity->module,
+                        'tcode' => $activity->tcode,
+                        'deliverable' => $activity->deliverable,
+                        'complexity' => $activity->complexity,
+                        'receive_type' => $activity->receive_type,
+                        'new_requirement' => $activity->new_requirement,
+                        'functional_sinergi' => $activity->functional_sinergi,
+                        'technical_sinergi' => $activity->technical_sinergi,
+                    ];
+
+                    return response()->json($responseData);
+                }
+
+                throw new \Exception("Activity not found with ID: {$activityId}");
+            }
+
+            // Default behavior: check ProjectPlanning first (for groups/planning items)
             $planning = ProjectPlanning::with(['activity', 'customActivity', 'extended', 'stage'])->find($activityId);
 
             if (!$planning) {
                 Log::info('Planning not found, searching in ProjectActivity...');
                 $activity = ProjectActivity::with('stage')->find($activityId);
-                
+
                 if (!$activity) {
                     throw new \Exception("Activity not found with ID: {$activityId}");
                 }
@@ -275,7 +315,7 @@ class ActivityManagementController extends Controller
                     'functional_sinergi' => $activity->functional_sinergi,
                     'technical_sinergi' => $activity->technical_sinergi,
                 ];
-                
+
                 return response()->json($responseData);
             }
 

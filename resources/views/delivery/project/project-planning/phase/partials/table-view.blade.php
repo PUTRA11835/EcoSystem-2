@@ -627,17 +627,16 @@
                         <span class="text-xs font-medium text-gray-900 truncate">${escapedName}</span>
                     </div>
                     <div class="hidden group-hover:flex items-center space-x-1 ml-2 flex-shrink-0">
-                        <button onclick="editItem(${activity.id})" 
+                        <button onclick="editActivity(${activity.id}, ${stageId})"
                                 class="p-1 text-blue-600 hover:bg-blue-100 rounded transition"
                                 title="Edit Activity">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                             </svg>
                         </button>
-                        <button class="delete-btn p-1 text-red-600 hover:bg-red-100 rounded transition"
-                                data-item-id="${activity.id}"
-                                data-item-name="${escapedName}"
-                                data-is-group="false"
+                        <button class="delete-activity-btn p-1 text-red-600 hover:bg-red-100 rounded transition"
+                                data-activity-id="${activity.id}"
+                                data-activity-name="${escapedName}"
                                 title="Delete Activity">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -767,40 +766,82 @@
             openQuickModal('group', phaseId, parentGroupId);
         }
     };
-    
+
+    // =========================================================================
+    // EDIT ACTIVITY (direct call to activity modal, bypasses editItem)
+    // =========================================================================
+
+    window.editActivity = function(activityId, stageId) {
+        console.log('✏️ Edit activity directly:', { activityId, stageId });
+
+        if (!activityId || activityId <= 0) {
+            console.error('❌ Invalid activity ID:', activityId);
+            if (typeof showNotification === 'function') {
+                showNotification('Invalid activity ID', 'error');
+            }
+            return;
+        }
+
+        if (typeof window.openActivityModal === 'function') {
+            window.openActivityModal(stageId, null, activityId);
+        } else {
+            console.error('❌ openActivityModal not loaded!');
+            alert('Activity modal not ready. Please refresh.');
+        }
+    };
+
     // =========================================================================
     // EVENT DELEGATION untuk Delete Buttons
     // =========================================================================
     
     document.addEventListener('click', function(e) {
-        // Delete item (group/activity)
+        // Delete item (group only - uses is_group=true)
         const deleteBtn = e.target.closest('.delete-btn');
         if (deleteBtn) {
             e.preventDefault();
             e.stopPropagation();
-            
+
             const itemId = deleteBtn.dataset.itemId;
             const itemName = deleteBtn.dataset.itemName;
             const isGroup = deleteBtn.dataset.isGroup === 'true';
-            
-            console.log('🗑️ Delete clicked:', { itemId, itemName, isGroup });
-            
+
+            console.log('🗑️ Delete group clicked:', { itemId, itemName, isGroup });
+
             if (typeof deleteItem === 'function') {
                 deleteItem(itemId, isGroup, itemName);
             }
         }
-        
+
+        // Delete activity (separate handler for activities)
+        const deleteActivityBtn = e.target.closest('.delete-activity-btn');
+        if (deleteActivityBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const activityId = deleteActivityBtn.dataset.activityId;
+            const activityName = deleteActivityBtn.dataset.activityName;
+
+            console.log('🗑️ Delete activity clicked:', { activityId, activityName });
+
+            if (typeof deleteActivity === 'function') {
+                deleteActivity(activityId, activityName);
+            } else if (typeof deleteItem === 'function') {
+                // Fallback to deleteItem with isGroup=false
+                deleteItem(activityId, false, activityName);
+            }
+        }
+
         // Delete stage
         const deleteStageBtn = e.target.closest('.delete-stage-btn');
         if (deleteStageBtn) {
             e.preventDefault();
             e.stopPropagation();
-            
+
             const stageId = deleteStageBtn.dataset.stageId;
             const stageName = deleteStageBtn.dataset.stageName;
-            
+
             console.log('🗑️ Delete stage clicked:', { stageId, stageName });
-            
+
             if (typeof deleteStage === 'function') {
                 deleteStage(stageId, stageName);
             }

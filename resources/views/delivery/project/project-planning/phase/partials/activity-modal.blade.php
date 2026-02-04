@@ -441,10 +441,11 @@ function updateWeightInfo(stage) {
 function loadActivityData(activityId) {
     const form = document.getElementById('activityForm');
     form.classList.add('opacity-50', 'pointer-events-none');
-    
+
     console.log('📥 Loading activity data for ID:', activityId);
 
-    axios.get(`/planning/${window.projectId}/activities/${activityId}`)
+    // ✅ Add type=activity to ensure we fetch from ProjectActivity table first
+    axios.get(`/planning/${window.projectId}/activities/${activityId}?type=activity`)
         .then(response => {
             const activity = response.data;
 
