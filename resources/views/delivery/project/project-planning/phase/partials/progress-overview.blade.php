@@ -5,8 +5,7 @@
     
     // Get visible phases
     $visiblePhases = $project->phases()
-        ->withPivot(['weight', 'is_visible', 'orientation'])
-        ->wherePivot('is_visible', true)
+        ->where('is_visible', true)
         ->get();
     
     // Calculate overall progress
@@ -16,7 +15,7 @@
     $phaseProgressData = [];
     
     foreach ($visiblePhases as $phase) {
-        $phaseWeight = $phase->pivot->weight ?? 0;
+        $phaseWeight = $phase->weight ?? 0;
         
         // Calculate phase progress from groups
         $phaseGroups = $groups->where('phase_id', $phase->id);
@@ -78,7 +77,7 @@
             ]);
 
             // Add all activities in this stage
-            $activities = \App\Models\ProjectActivity::where('stage_id', $stage->id)->get();
+            $activities = \App\Models\DeliveryProjectActivity::where('stage_id', $stage->id)->get();
             foreach ($activities as $activity) {
                 $allItems->push([
                     'type' => 'activity',

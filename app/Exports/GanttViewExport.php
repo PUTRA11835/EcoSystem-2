@@ -2,7 +2,7 @@
 
 namespace App\Exports;
 
-use App\Models\Project;
+use App\Models\DeliveryProject;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
@@ -21,7 +21,7 @@ class GanttViewExport implements FromCollection, WithHeadings, WithStyles, WithC
     protected $rows = [];
     protected $dates = [];
 
-    public function __construct(Project $project)
+    public function __construct(DeliveryProject $project)
     {
         $this->project = $project;
         $this->prepareGanttData();
@@ -29,9 +29,10 @@ class GanttViewExport implements FromCollection, WithHeadings, WithStyles, WithC
 
     private function prepareGanttData()
     {
+        // One-to-Many relationship (phases belong to project)
         $phases = $this->project->phases()
-            ->wherePivot('orientation', 'vertical')
-            ->wherePivot('is_visible', true)
+            ->where('orientation', 'vertical')
+            ->where('is_visible', true)
             ->orderBy('order_sequence')
             ->get();
 

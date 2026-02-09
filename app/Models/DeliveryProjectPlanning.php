@@ -10,17 +10,16 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
-class ProjectPlanning extends Model
+class DeliveryProjectPlanning extends Model
 {
     use HasFactory;
 
-    protected $table = 'project_planning';
+    protected $table = 'delivery_project_planning';
 
     protected $fillable = [
-        'project_id',
+        'delivery_projects_id',
         'phase_id',
-        'activity_id',              // ✅ UPDATED: Now references project_activities.id
-        'project_custom_activity_id',
+        'activity_id',              
         'parent_id',
         'stage_id',
         'is_group',
@@ -33,8 +32,8 @@ class ProjectPlanning extends Model
         'status',
         'progress_percentage',
         'notes',
-        'deliverable',              // ✅ Added
-        'name',                     // ✅ Added
+        'deliverable',
+        'name',
         'level',
         'order_sequence',
     ];
@@ -65,14 +64,22 @@ class ProjectPlanning extends Model
     // RELATIONSHIPS (ALL ORIGINAL + UPDATED activity relationship)
     // =========================================================================
 
+    public function delivery_project(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryProject::class, 'delivery_projects_id');
+    }
+
+    /**
+     * Alias for delivery_project relationship
+     */
     public function project(): BelongsTo
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(DeliveryProject::class, 'delivery_projects_id');
     }
 
     public function phase(): BelongsTo
     {
-        return $this->belongsTo(ProjectPhase::class, 'phase_id');
+        return $this->belongsTo(DeliveryProjectPhase::class, 'phase_id');
     }
 
     /**
@@ -81,15 +88,7 @@ class ProjectPlanning extends Model
      */
     public function activity(): BelongsTo
     {
-        return $this->belongsTo(ProjectActivity::class, 'activity_id');
-    }
-
-    /**
-     * ✅ ORIGINAL: Custom activity relationship (preserved)
-     */
-    public function customActivity(): BelongsTo
-    {
-        return $this->belongsTo(ProjectCustomActivity::class, 'project_custom_activity_id');
+        return $this->belongsTo(DeliveryProjectActivity::class, 'activity_id');
     }
 
     /**
@@ -97,7 +96,7 @@ class ProjectPlanning extends Model
      */
     public function plannings(): HasMany
     {
-        return $this->hasMany(ProjectPlanning::class, 'phase_id')
+        return $this->hasMany(DeliveryProjectPlanning::class, 'phase_id')
             ->orderBy('order_sequence');
     }
 
@@ -123,7 +122,7 @@ class ProjectPlanning extends Model
      */
     public function children(): HasMany
     {
-        return $this->hasMany(ProjectPlanning::class, 'parent_id')
+        return $this->hasMany(DeliveryProjectPlanning::class, 'parent_id')
                     ->orderBy('order_sequence');
     }
 
@@ -132,16 +131,7 @@ class ProjectPlanning extends Model
      */
     public function parent(): BelongsTo
     {
-        return $this->belongsTo(ProjectPlanning::class, 'parent_id');
-    }
-
-    /**
-     * ✅ ORIGINAL: Get extended data (preserved for backward compatibility)
-     * NOTE: This will be phased out as we migrate to project_activities
-     */
-    public function extended(): HasOne
-    {
-        return $this->hasOne(ProjectPlanningExtended::class, 'project_planning_id');
+        return $this->belongsTo(DeliveryProjectPlanning::class, 'parent_id');
     }
 
     // =========================================================================
@@ -175,7 +165,7 @@ class ProjectPlanning extends Model
 
     public function scopeByProject($query, $projectId)
     {
-        return $query->where('project_id', $projectId);
+        return $query->where('delivery_projects_id', $projectId);
     }
 
     public function scopeByPhase($query, $phaseId)
@@ -298,16 +288,11 @@ class ProjectPlanning extends Model
             return $this->activity->name;
         }
 
-        // Fallback to custom activity
-        if ($this->customActivity) {
-            return $this->customActivity->name;
-        }
-
         return 'Unknown Activity';
     }
 
     /**
-     * ✅ UPDATED: Get description (works with both old and new structure)
+     * Get description from linked activity
      */
     public function getDescriptionAttribute(): ?string
     {
@@ -315,19 +300,9 @@ class ProjectPlanning extends Model
             return null;
         }
 
-        // ✅ NEW: Try activity from project_activities first
+        // Get description from project_activities
         if ($this->activity_id && $this->activity) {
             return $this->activity->description;
-        }
-
-        // Fallback to custom activity
-        if ($this->customActivity) {
-            return $this->customActivity->description;
-        }
-
-        // Fallback to extended (old structure)
-        if ($this->extended) {
-            return $this->extended->deliverable;
         }
 
         return null;
@@ -677,7 +652,7 @@ class ProjectPlanning extends Model
     }
 
     /**
-     * ✅ NEW: Get activity details (works with both old and new structure)
+     * Get activity details from linked project activity
      */
     public function getActivityDetails()
     {
@@ -685,29 +660,16 @@ class ProjectPlanning extends Model
             return null;
         }
 
-        // Try new structure first
+        // Get details from project_activities
         if ($this->activity_id && $this->activity) {
             return [
-                'source' => 'project_activities',
+                'source' => 'delivery_project_activities',
                 'id' => $this->activity->id,
                 'name' => $this->activity->name,
                 'description' => $this->activity->description,
                 'module' => $this->activity->module,
                 'complexity' => $this->activity->complexity,
                 'deliverable' => $this->activity->deliverable,
-                // ... other fields from project_activities
-            ];
-        }
-
-        // Fallback to old structure
-        if ($this->extended) {
-            return [
-                'source' => 'project_planning_extended',
-                'id' => $this->extended->id,
-                'module' => $this->extended->module,
-                'complexity' => $this->extended->complexity,
-                'deliverable' => $this->extended->deliverable,
-                // ... other fields from extended
             ];
         }
 
@@ -805,10 +767,6 @@ class ProjectPlanning extends Model
                     $stage->updateProgressFromActivities();
                 }
             }
-
-            // ✅ NEW: Don't delete from project_activities (only delete reference)
-            // The actual activity remains in project_activities table
-            // This allows the same activity to be used in multiple contexts
         });
     }
 }

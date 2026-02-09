@@ -2,16 +2,16 @@
 
 namespace App\Observers;
 
-use App\Models\ProjectPlanning;
+use App\Models\DeliveryProjectPlanning;
 use Illuminate\Support\Facades\Log;
 
-class ProjectPlanningObserver
+class DeliveryProjectPlanningObserver
 {
     /**
      * Handle the ProjectPlanning "saved" event.
      * Dipanggil setiap kali planning di-save (baik create maupun update)
      */
-    public function saved(ProjectPlanning $planning)
+    public function saved(DeliveryProjectPlanning $planning)
     {
         // ✅ Jika ini activity (bukan group) dan punya parent
         if (!$planning->is_group && $planning->parent_id) {
@@ -35,7 +35,7 @@ class ProjectPlanningObserver
      * Handle the ProjectPlanning "updated" event.
      * Dipanggil setiap kali planning di-update
      */
-    public function updated(ProjectPlanning $planning)
+    public function updated(DeliveryProjectPlanning $planning)
     {
         // ✅ Jika ini activity (bukan group) dan punya parent
         if (!$planning->is_group && $planning->parent_id) {
@@ -60,7 +60,7 @@ class ProjectPlanningObserver
      * Handle the ProjectPlanning "deleted" event.
      * Dipanggil setiap kali planning dihapus
      */
-    public function deleted(ProjectPlanning $planning)
+    public function deleted(DeliveryProjectPlanning $planning)
     {
         // ✅ Jika activity yang dihapus punya parent, update parent
         if (!$planning->is_group && $planning->parent_id) {
@@ -70,7 +70,7 @@ class ProjectPlanningObserver
                 'parent_id' => $planning->parent_id
             ]);
 
-            $parent = ProjectPlanning::find($planning->parent_id);
+            $parent = DeliveryProjectPlanning::find($planning->parent_id);
             if ($parent && $parent->is_group) {
                 $parent->updateGroupStatus();
             }

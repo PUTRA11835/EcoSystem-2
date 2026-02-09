@@ -2,23 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Project;
+use App\Models\DeliveryProject;
 use App\Models\ActivityStage;
-use App\Models\ProjectPlanning;
+use App\Models\DeliveryProjectPlanning;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
-class StageManagementController extends Controller
+class DeliveryProjectStageManagementController extends Controller
 {
     /**
      * Create new stage
      */
-    public function store(Request $request, Project $project)
+    public function store(Request $request, DeliveryProject $project)
     {
         $validated = $request->validate([
-            'planning_id' => 'required|exists:project_planning,id',
+            'planning_id' => 'required|exists:delivery_project_planning,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'weight' => 'nullable|numeric|min:0|max:100',
@@ -29,7 +29,7 @@ class StageManagementController extends Controller
 
         try {
             return DB::transaction(function () use ($validated, $project) {
-                $planning = ProjectPlanning::findOrFail($validated['planning_id']);
+                $planning = DeliveryProjectPlanning::findOrFail($validated['planning_id']);
                 
                 // Validate total weight
                 if (isset($validated['weight'])) {
@@ -93,7 +93,7 @@ class StageManagementController extends Controller
     /**
      * Get stage details
      */
-    public function show(Project $project, ActivityStage $stage)
+    public function show(DeliveryProject $project, ActivityStage $stage)
     {
         try {
             $stage->load([
@@ -139,7 +139,7 @@ class StageManagementController extends Controller
     /**
      * Update stage
      */
-    public function update(Request $request, Project $project, ActivityStage $stage)
+    public function update(Request $request, DeliveryProject $project, ActivityStage $stage)
     {
         $validated = $request->validate([
             'name' => 'nullable|string|max:255',
@@ -231,7 +231,7 @@ class StageManagementController extends Controller
     /**
      * Delete stage
      */
-    public function destroy(Project $project, ActivityStage $stage)
+    public function destroy(DeliveryProject $project, ActivityStage $stage)
     {
         try {
             return DB::transaction(function () use ($stage) {
@@ -244,7 +244,7 @@ class StageManagementController extends Controller
                 $stage->delete();
 
                 // Update parent group
-                $planning = ProjectPlanning::find($planningId);
+                $planning = DeliveryProjectPlanning::find($planningId);
                 if ($planning) {
                     $planning->updateGroupStatus();
                 }
@@ -276,7 +276,7 @@ class StageManagementController extends Controller
     /**
      * Reorder stages
      */
-    public function reorder(Request $request, Project $project, ActivityStage $stage)
+    public function reorder(Request $request, DeliveryProject $project, ActivityStage $stage)
     {
         $validated = $request->validate([
             'new_sequence' => 'required|integer|min:1',

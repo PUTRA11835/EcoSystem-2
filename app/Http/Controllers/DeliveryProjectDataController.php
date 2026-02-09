@@ -2,26 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Project;
-use App\Models\ProjectPhase;
-use App\Models\ProjectPlanning;
+use App\Models\DeliveryProject;
+use App\Models\DeliveryProjectPhase;
+use App\Models\DeliveryProjectPlanning;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
-class ProjectDataController extends Controller
+class DeliveryProjectDataController extends Controller
 {
     /**
      * Get hierarchical data untuk table view
      */
-    public function getTableData(Project $project)
+    public function getTableData(DeliveryProject $project)
     {
-        Log::info('📊 Getting table data', ['project_id' => $project->id]);
+        Log::info('📊 Getting table data', ['delivery_projects_id' => $project->id]);
         
+        // One-to-Many relationship (phases belong to project)
         $phases = $project->phases()
-            ->withPivot(['weight', 'is_visible', 'orientation', 'order_sequence'])
-            ->wherePivot('is_visible', true)
-            ->orderBy(DB::raw('project_project_phase.order_sequence'), 'asc')
+            ->where('is_visible', true)
+            ->orderBy('order_sequence', 'asc')
             ->get();
         
         $data = [];
@@ -30,7 +30,7 @@ class ProjectDataController extends Controller
             $groups = $this->getPhaseGroupsHierarchical($project, $phase);
             
             $phaseDates = $this->calculatePhaseDates($groups);
-            $phaseProgress = $this->calculatePhaseProgress($groups, $phase->pivot->weight);
+            $phaseProgress = $this->calculatePhaseProgress($groups, $phase->weight);
             $phaseStatus = $this->calculatePhaseStatus($groups, $phaseProgress);
             
             $data[] = [
@@ -38,8 +38,8 @@ class ProjectDataController extends Controller
                     'id' => $phase->id,
                     'name' => $phase->name,
                     'color' => $phase->color ?? '#6366f1',
-                    'orientation' => $phase->pivot->orientation,
-                    'weight' => $phase->pivot->weight,
+                    'orientation' => $phase->orientation,
+                    'weight' => $phase->weight,
                     'start_date' => $phaseDates['start'] ? $phaseDates['start']->format('d M Y') : '-',
                     'end_date' => $phaseDates['end'] ? $phaseDates['end']->format('d M Y') : '-',
                     'duration_in_days' => $phaseDates['duration'],
@@ -61,13 +61,15 @@ class ProjectDataController extends Controller
     public function getGanttData($projectId)
     {
         try {
-            $project = Project::findOrFail($projectId);
+            $project = DeliveryProject::findOrFail($projectId);
             
+            // One-to-Many relationship (phases belong to project)
             $phases = $project->phases()
-                ->wherePivot('orientation', 'vertical')
+                ->where('orientation', 'vertical')
+                ->where('is_visible', true)
                 ->with([
                     'plannings' => function($query) use ($projectId) {
-                        $query->where('project_id', $projectId)
+                        $query->where('delivery_projects_id', $projectId)
                             ->where('is_group', true)
                             ->whereNull('parent_id')
                             ->with($this->getGanttRelations())
@@ -87,7 +89,7 @@ class ProjectDataController extends Controller
                     $phaseTasks[] = $this->formatGroupForGantt($group, $allDates);
                 }
                 
-                $phaseWeight = $phase->pivot->weight ?? 0;
+                $phaseWeight = $phase->weight ?? 0;
                 $phaseProgress = $this->calculatePhaseProgressFromGroups($phaseTasks);
                 
                 $verticalGroups[] = [
@@ -118,7 +120,7 @@ class ProjectDataController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error getting gantt data', [
-                'project_id' => $projectId,
+                'delivery_projects_id' => $projectId,
                 'error' => $e->getMessage()
             ]);
 
@@ -135,14 +137,15 @@ class ProjectDataController extends Controller
     public function getSCurveData($projectId)
     {
         try {
-            $project = Project::findOrFail($projectId);
+            $project = DeliveryProject::findOrFail($projectId);
             
+            // One-to-Many relationship (phases belong to project)
             $phases = $project->phases()
-                ->wherePivot('orientation', 'vertical')
-                ->wherePivot('is_visible', true)
+                ->where('orientation', 'vertical')
+                ->where('is_visible', true)
                 ->with([
                     'plannings' => function($query) use ($projectId) {
-                        $query->where('project_id', $projectId)
+                        $query->where('delivery_projects_id', $projectId)
                             ->where('is_group', true)
                             ->whereNull('parent_id')
                             ->with($this->getSCurveRelations())
@@ -184,7 +187,7 @@ class ProjectDataController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error getting S-curve data', [
-                'project_id' => $projectId,
+                'delivery_projects_id' => $projectId,
                 'error' => $e->getMessage()
             ]);
 
@@ -234,9 +237,9 @@ class ProjectDataController extends Controller
         ];
     }
 
-    private function getPhaseGroupsHierarchical(Project $project, ProjectPhase $phase)
+    private function getPhaseGroupsHierarchical(DeliveryProject $project, DeliveryProjectPhase $phase)
     {
-        $groups = ProjectPlanning::where('project_id', $project->id)
+        $groups = DeliveryProjectPlanning::where('delivery_projects_id', $project->id)
             ->where('phase_id', $phase->id)
             ->where('is_group', true)
             ->whereNull('parent_id')
@@ -267,17 +270,9 @@ class ProjectDataController extends Controller
                             if (method_exists($activity, 'children') && !$activity->relationLoaded('children')) {
                                 $activity->load('children');
                             }
-                            
-                            if (!$activity->activity_id && method_exists($activity, 'extended') && !$activity->relationLoaded('extended')) {
-                                $activity->load('extended');
-                            }
-                            
+
                             if ($activity->activity_id && method_exists($activity, 'activity') && !$activity->relationLoaded('activity')) {
                                 $activity->load('activity');
-                            }
-                            
-                            if ($activity->project_custom_activity_id && method_exists($activity, 'customActivity') && !$activity->relationLoaded('customActivity')) {
-                                $activity->load('customActivity');
                             }
                         }
                     }
@@ -370,7 +365,7 @@ class ProjectDataController extends Controller
 
     private function formatActivityForHierarchy($activity, $level = 0)
     {
-        $isProjectActivity = $activity instanceof \App\Models\ProjectActivity;
+        $isProjectActivity = $activity instanceof \App\Models\DeliveryProjectActivity;
         
         $formatted = [
             'id' => $activity->id,
@@ -405,13 +400,11 @@ class ProjectDataController extends Controller
             }
             
             $formatted['module'] = $activity->module;
-            $formatted['tcode'] = $activity->tcode;
+            $formatted['object'] = $activity->object;
             $formatted['deliverable'] = $activity->deliverable;
             $formatted['complexity'] = $activity->complexity;
             $formatted['receive_type'] = $activity->receive_type;
             $formatted['new_requirement'] = $activity->new_requirement;
-            $formatted['functional_sinergi'] = $activity->functional_sinergi;
-            $formatted['technical_sinergi'] = $activity->technical_sinergi;
         } else {
             $formatted['progress_percentage'] = $activity->calculated_progress ?? $activity->progress_percentage ?? 0;
             $formatted['start_date'] = $activity->start_date ? $activity->start_date->format('d M Y') : '-';
@@ -422,24 +415,21 @@ class ProjectDataController extends Controller
             $formatted['status_badge'] = $activity->status_badge ?? $this->getStatusBadgeClass($activity->status ?? 'not_started');
             $formatted['is_overdue'] = $activity->is_overdue ?? false;
 
-            if ($activity->extended) {
-                $formatted['module'] = $activity->extended->module;
-                $formatted['tcode'] = $activity->extended->tcode;
-                $formatted['deliverable'] = $activity->extended->deliverable;
-                $formatted['complexity'] = $activity->extended->complexity ?? null;
-                $formatted['receive_type'] = $activity->extended->receive_type ?? null;
-                $formatted['new_requirement'] = $activity->extended->new_requirement ?? false;
-                $formatted['functional_sinergi'] = $activity->extended->functional_sinergi ?? null;
-                $formatted['technical_sinergi'] = $activity->extended->technical_sinergi ?? null;
+            // Get extended fields from linked activity if exists
+            if ($activity->activity_id && $activity->activity) {
+                $formatted['module'] = $activity->activity->module ?? null;
+                $formatted['object'] = $activity->activity->object ?? null;
+                $formatted['deliverable'] = $activity->activity->deliverable ?? null;
+                $formatted['complexity'] = $activity->activity->complexity ?? null;
+                $formatted['receive_type'] = $activity->activity->receive_type ?? null;
+                $formatted['new_requirement'] = $activity->activity->new_requirement ?? false;
             } else {
                 $formatted['module'] = null;
-                $formatted['tcode'] = null;
+                $formatted['object'] = null;
                 $formatted['deliverable'] = null;
                 $formatted['complexity'] = null;
                 $formatted['receive_type'] = null;
                 $formatted['new_requirement'] = false;
-                $formatted['functional_sinergi'] = null;
-                $formatted['technical_sinergi'] = null;
             }
 
             if ($activity->children && $activity->children->isNotEmpty()) {
@@ -826,7 +816,7 @@ class ProjectDataController extends Controller
             'status_color' => $this->getStatusColor($activity->status ?? 'not_started'),
             'custom_class' => $activity->status ?? 'not_started',
             'module' => $activity->module,
-            'tcode' => $activity->tcode,
+            'object' => $activity->object,
             'deliverable' => $activity->deliverable,
         ];
     }
@@ -1073,7 +1063,7 @@ class ProjectDataController extends Controller
                 'id' => $phase->id,
                 'name' => $phase->name,
                 'color' => $phase->color ?? '#6366f1',
-                'weight' => $phase->pivot->weight ?? 0,
+                'weight' => $phase->weight ?? 0,
             ];
         });
     }

@@ -16,7 +16,7 @@ return new class extends Migration
             
             // UPDATE: Gunakan employee_id sebagai foreign key
             $table->unsignedBigInteger('employee_id');
-            $table->unsignedBigInteger('project_id')->nullable();
+            $table->unsignedBigInteger('delivery_projects_id')->nullable();
             $table->unsignedBigInteger('ticket_id')->nullable();
             
             $table->date('date');
@@ -38,7 +38,7 @@ return new class extends Migration
             // Foreign keys
             $table->foreign('employee_id')->references('employee_id')->on('employee')->onDelete('cascade');
             $table->foreign('approved_by')->references('employee_id')->on('employee')->onDelete('set null');
-            $table->foreign('project_id')->references('id')->on('projects')->onDelete('set null');
+            $table->foreign('delivery_projects_id')->references('id')->on('delivery_projects')->onDelete('set null');
             $table->foreign('ticket_id')->references('ticket_id')->on('ticket')->onDelete('set null');
             
             // Indexes

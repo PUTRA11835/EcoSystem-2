@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Delivery;
 
 use App\Http\Controllers\Controller;
-use App\Models\Project;
+use App\Models\DeliveryProject;
 use App\Models\DeliveryActivity;
 use App\Models\DeliveryGroup;
 use App\Models\DeliveryStage;
@@ -24,7 +24,7 @@ class DeliveryActivityController extends Controller
     /**
      * Get all activities for a stage
      */
-    public function indexByStage(Project $project, DeliveryStage $stage)
+    public function indexByStage(DeliveryProject $project, DeliveryStage $stage)
     {
         try {
             $activities = DeliveryActivity::forStage($stage->id)
@@ -53,7 +53,7 @@ class DeliveryActivityController extends Controller
     /**
      * Get all direct activities for a group (tanpa stage)
      */
-    public function indexByGroup(Project $project, DeliveryGroup $group)
+    public function indexByGroup(DeliveryProject $project, DeliveryGroup $group)
     {
         try {
             $activities = DeliveryActivity::directlyInGroup($group->id)
@@ -83,7 +83,7 @@ class DeliveryActivityController extends Controller
      * Create new activity
      * Mendukung parent_type: stage atau group
      */
-    public function store(Request $request, Project $project)
+    public function store(Request $request, DeliveryProject $project)
     {
         $validated = $request->validate([
             'parent_type' => 'required|in:stage,group',
@@ -101,7 +101,6 @@ class DeliveryActivityController extends Controller
 
         try {
             return DB::transaction(function () use ($validated, $project) {
-                // Determine parent and get phase_id if not provided
                 $parentType = $validated['parent_type'];
                 $phaseId = $validated['phase_id'] ?? null;
                 $groupId = null;
@@ -112,7 +111,6 @@ class DeliveryActivityController extends Controller
                     $groupId = $stage->group_id;
                     $phaseId = $phaseId ?? $group->phase_id;
 
-                    // Validate weight sum for stage activities
                     if (isset($validated['weight'])) {
                         $currentTotal = DeliveryActivity::forStage($stage->id)->sum('weight');
                         if (($currentTotal + $validated['weight']) > 100.01) {
@@ -122,16 +120,13 @@ class DeliveryActivityController extends Controller
                         }
                     }
 
-                    // Get max sequence
                     $maxSequence = DeliveryActivity::forStage($stage->id)->max('order_sequence') ?? 0;
 
                 } else {
-                    // parent_type = 'group'
                     $group = DeliveryGroup::findOrFail($validated['group_id']);
                     $groupId = $group->id;
                     $phaseId = $phaseId ?? $group->phase_id;
 
-                    // Validate weight sum for group direct activities
                     if (isset($validated['weight'])) {
                         $currentTotal = DeliveryActivity::directlyInGroup($group->id)->sum('weight');
                         if (($currentTotal + $validated['weight']) > 100.01) {
@@ -141,12 +136,11 @@ class DeliveryActivityController extends Controller
                         }
                     }
 
-                    // Get max sequence
                     $maxSequence = DeliveryActivity::directlyInGroup($group->id)->max('order_sequence') ?? 0;
                 }
 
                 $activity = DeliveryActivity::create([
-                    'project_id' => $project->id,
+                    'delivery_projects_id' => $project->id,
                     'phase_id' => $phaseId,
                     'parent_type' => $parentType,
                     'stage_id' => $parentType === 'stage' ? $validated['stage_id'] : null,
@@ -169,7 +163,6 @@ class DeliveryActivityController extends Controller
                     'name' => $activity->name
                 ]);
 
-                // Update parent progress
                 if ($parentType === 'stage' && isset($stage)) {
                     $stage->updateProgressFromActivities();
                     $stage->updateDatesFromActivities();
@@ -202,7 +195,7 @@ class DeliveryActivityController extends Controller
     /**
      * Get activity details
      */
-    public function show(Project $project, DeliveryActivity $activity)
+    public function show(DeliveryProject $project, DeliveryActivity $activity)
     {
         try {
             $activity->load(['stage', 'group', 'phase', 'assignedEmployees']);
@@ -228,7 +221,7 @@ class DeliveryActivityController extends Controller
     /**
      * Update activity
      */
-    public function update(Request $request, Project $project, DeliveryActivity $activity)
+    public function update(Request $request, DeliveryProject $project, DeliveryActivity $activity)
     {
         $validated = $request->validate([
             'name' => 'nullable|string|max:255',
@@ -246,7 +239,6 @@ class DeliveryActivityController extends Controller
 
         try {
             return DB::transaction(function () use ($validated, $activity) {
-                // Validate weight if changed
                 if (isset($validated['weight']) && $validated['weight'] != $activity->weight) {
                     if ($activity->parent_type === 'stage') {
                         $currentTotal = DeliveryActivity::forStage($activity->stage_id)
@@ -265,7 +257,6 @@ class DeliveryActivityController extends Controller
                     }
                 }
 
-                // Update fields
                 if (isset($validated['name'])) $activity->name = $validated['name'];
                 if (isset($validated['code'])) $activity->code = $validated['code'];
                 if (isset($validated['description'])) $activity->description = $validated['description'];
@@ -298,7 +289,6 @@ class DeliveryActivityController extends Controller
                     'changes' => $validated
                 ]);
 
-                // Update parent progress
                 if ($activity->parent_type === 'stage' && $activity->stage) {
                     $activity->stage->updateProgressFromActivities();
                     $activity->stage->updateDatesFromActivities();
@@ -331,7 +321,7 @@ class DeliveryActivityController extends Controller
     /**
      * Delete activity
      */
-    public function destroy(Project $project, DeliveryActivity $activity)
+    public function destroy(DeliveryProject $project, DeliveryActivity $activity)
     {
         try {
             return DB::transaction(function () use ($activity) {
@@ -339,14 +329,12 @@ class DeliveryActivityController extends Controller
                 $stageId = $activity->stage_id;
                 $groupId = $activity->group_id;
 
-                // Remove employee assignments
                 $activity->assignedEmployees()->detach();
 
                 $activity->delete();
 
                 Log::info('Delivery activity deleted', ['activity_id' => $activity->id]);
 
-                // Update parent progress
                 if ($parentType === 'stage' && $stageId) {
                     $stage = DeliveryStage::find($stageId);
                     if ($stage) {
@@ -384,7 +372,7 @@ class DeliveryActivityController extends Controller
     /**
      * Move activity to different parent
      */
-    public function move(Request $request, Project $project, DeliveryActivity $activity)
+    public function move(Request $request, DeliveryProject $project, DeliveryActivity $activity)
     {
         $validated = $request->validate([
             'parent_type' => 'required|in:stage,group',
@@ -400,7 +388,6 @@ class DeliveryActivityController extends Controller
 
                 $newParentType = $validated['parent_type'];
 
-                // Update activity
                 $activity->parent_type = $newParentType;
 
                 if ($newParentType === 'stage') {
@@ -426,7 +413,6 @@ class DeliveryActivityController extends Controller
                     'new_parent_type' => $newParentType
                 ]);
 
-                // Update old parent
                 if ($oldParentType === 'stage' && $oldStageId) {
                     $oldStage = DeliveryStage::find($oldStageId);
                     if ($oldStage) {
@@ -442,7 +428,6 @@ class DeliveryActivityController extends Controller
                     }
                 }
 
-                // Update new parent
                 if ($newParentType === 'stage' && isset($newStage)) {
                     $newStage->updateProgressFromActivities();
                     $newStage->updateDatesFromActivities();
@@ -475,7 +460,7 @@ class DeliveryActivityController extends Controller
     /**
      * Reorder activities
      */
-    public function reorder(Request $request, Project $project)
+    public function reorder(Request $request, DeliveryProject $project)
     {
         $validated = $request->validate([
             'activities' => 'required|array',
@@ -487,7 +472,7 @@ class DeliveryActivityController extends Controller
             return DB::transaction(function () use ($validated, $project) {
                 foreach ($validated['activities'] as $item) {
                     DeliveryActivity::where('id', $item['id'])
-                        ->where('project_id', $project->id)
+                        ->where('delivery_projects_id', $project->id)
                         ->update(['order_sequence' => $item['order_sequence']]);
                 }
 
@@ -510,7 +495,7 @@ class DeliveryActivityController extends Controller
     /**
      * Bulk update progress
      */
-    public function bulkUpdateProgress(Request $request, Project $project)
+    public function bulkUpdateProgress(Request $request, DeliveryProject $project)
     {
         $validated = $request->validate([
             'activities' => 'required|array',
@@ -581,7 +566,7 @@ class DeliveryActivityController extends Controller
     /**
      * Get assigned employees for an activity
      */
-    public function getAssignedEmployees(Project $project, DeliveryActivity $activity)
+    public function getAssignedEmployees(DeliveryProject $project, DeliveryActivity $activity)
     {
         try {
             $employees = $activity->assignedEmployees()
@@ -621,7 +606,7 @@ class DeliveryActivityController extends Controller
     /**
      * Assign employee to activity
      */
-    public function assignEmployee(Request $request, Project $project, DeliveryActivity $activity)
+    public function assignEmployee(Request $request, DeliveryProject $project, DeliveryActivity $activity)
     {
         $validated = $request->validate([
             'employee_id' => 'required|exists:employee,employee_id',
@@ -631,7 +616,6 @@ class DeliveryActivityController extends Controller
         ]);
 
         try {
-            // Check if already assigned
             if ($activity->assignedEmployees()->where('employee.employee_id', $validated['employee_id'])->exists()) {
                 return response()->json([
                     'success' => false,
@@ -673,7 +657,7 @@ class DeliveryActivityController extends Controller
     /**
      * Update employee assignment
      */
-    public function updateAssignment(Request $request, Project $project, DeliveryActivity $activity, $employeeId)
+    public function updateAssignment(Request $request, DeliveryProject $project, DeliveryActivity $activity, $employeeId)
     {
         $validated = $request->validate([
             'role' => 'nullable|in:lead,member,reviewer,support',
@@ -712,7 +696,7 @@ class DeliveryActivityController extends Controller
     /**
      * Unassign employee from activity
      */
-    public function unassignEmployee(Project $project, DeliveryActivity $activity, $employeeId)
+    public function unassignEmployee(DeliveryProject $project, DeliveryActivity $activity, $employeeId)
     {
         try {
             $activity->assignedEmployees()->detach($employeeId);
@@ -762,7 +746,7 @@ class DeliveryActivityController extends Controller
     {
         $formatted = [
             'id' => $activity->id,
-            'project_id' => $activity->project_id,
+            'delivery_projects_id' => $activity->project_id,
             'phase_id' => $activity->phase_id,
             'parent_type' => $activity->parent_type,
             'stage_id' => $activity->stage_id,
@@ -793,7 +777,6 @@ class DeliveryActivityController extends Controller
             $formatted['parent_name'] = $activity->parent_name;
             $formatted['hierarchy_path'] = $activity->hierarchy_path;
 
-            // Include parent info
             if ($activity->relationLoaded('stage') && $activity->stage) {
                 $formatted['stage'] = [
                     'id' => $activity->stage->id,
@@ -808,7 +791,6 @@ class DeliveryActivityController extends Controller
                 ];
             }
 
-            // Include assigned employees
             if ($activity->relationLoaded('assignedEmployees')) {
                 $formatted['assigned_employees'] = $activity->assignedEmployees->map(function($emp) {
                     return [

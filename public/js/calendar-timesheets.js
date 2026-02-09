@@ -86,26 +86,17 @@ function handleTimesheetTypeChange() {
     let fieldsHTML = '';
 
     if (selectedType === 'project') {
-        // ✅ Project type: Project dropdown + Activity dropdown + Presence + Location
+        // Project type: Activity dropdown (grouped by project) + Presence + Location
         fieldsHTML = `
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    Project Title <span class="text-red-600">*</span>
-                </label>
-                <select id="timesheetProject" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent" onchange="loadAssignedActivities()">
-                    <option value="">Select a Project Title</option>
-                </select>
-                <p class="mt-1 text-xs text-gray-500">Only projects where you are a team member</p>
-            </div>
-
-            <div id="activityFieldContainer" class="hidden">
-                <label class="block text-sm font-semibold text-gray-700 mb-2">
                     Activity <span class="text-red-600">*</span>
                 </label>
-                <select id="timesheetActivity" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <select id="timesheetActivity" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent" onchange="onActivitySelected()">
                     <option value="">Select an Activity</option>
                 </select>
                 <p class="mt-1 text-xs text-gray-500">Only activities assigned to you</p>
+                <input type="hidden" id="timesheetProjectId" value="">
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -133,8 +124,6 @@ function handleTimesheetTypeChange() {
             billableSection.classList.remove('hidden');
         }
 
-        loadMyProjectsForDropdown();
-        
     } else if (selectedType === 'support') {
         // ✅ Support type: Ticket dropdown + Presence + Location (NO Activity)
         fieldsHTML = `
@@ -171,10 +160,7 @@ function handleTimesheetTypeChange() {
         if (billableSection) {
             billableSection.classList.add('hidden');
         }
-        
-        // ✅ Load USER'S tickets only
-        loadTicketsForDropdown();
-        
+
     } else if (selectedType === 'office') {
         // ✅ Office type: Only Presence + Location
         fieldsHTML = `
@@ -203,8 +189,16 @@ function handleTimesheetTypeChange() {
             billableSection.classList.add('hidden');
         }
     }
-    
+
+    // Set the HTML first
     dynamicFieldsContainer.innerHTML = fieldsHTML;
+
+    // Now load data based on type (after DOM is updated)
+    if (selectedType === 'project') {
+        loadAllMyActivities();
+    } else if (selectedType === 'support') {
+        loadTicketsForDropdown();
+    }
 }
 
 async function loadProjectsForDropdown() {
@@ -337,7 +331,106 @@ async function loadAssignedActivities() {
     }
 }
 
-// ✅ UPDATED: Load only USER'S tickets (like support.blade.php)
+// Store activities data for lookup
+let allActivitiesData = [];
+
+// Load ALL activities assigned to the logged-in employee (across all projects)
+async function loadAllMyActivities() {
+    const activitySelect = document.getElementById('timesheetActivity');
+
+    if (!activitySelect) {
+        console.error('Activity select element not found');
+        return;
+    }
+
+    console.log('Loading all my activities...');
+
+    try {
+        const response = await fetch('/api/timesheets/my-activities/all', {
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            }
+        });
+
+        console.log('Response status:', response.status);
+        const data = await response.json();
+        console.log('Response data:', data);
+
+        if (!response.ok) {
+            console.error('API error:', data.message);
+            activitySelect.innerHTML = `<option value="">Error: ${data.message || 'Failed to load'}</option>`;
+            return;
+        }
+
+        activitySelect.innerHTML = '<option value="">Select an Activity</option>';
+
+        if (data.success && data.data && data.data.length > 0) {
+            allActivitiesData = data.data;
+            console.log('Found activities:', data.data.length);
+
+            // Group activities by project
+            const groupedByProject = {};
+            data.data.forEach(activity => {
+                const projectName = activity.project_name || 'Unknown Project';
+                if (!groupedByProject[projectName]) {
+                    groupedByProject[projectName] = [];
+                }
+                groupedByProject[projectName].push(activity);
+            });
+
+            // Create optgroups for each project
+            Object.keys(groupedByProject).forEach(projectName => {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = projectName;
+
+                groupedByProject[projectName].forEach(activity => {
+                    const option = document.createElement('option');
+                    option.value = activity.id;
+                    option.dataset.projectId = activity.delivery_projects_id;
+
+                    // Show activity name with phase/stage and status
+                    const phaseName = activity.phase_name || '';
+                    const stageName = activity.stage_name || '';
+                    const status = activity.status ? ` [${activity.status}]` : '';
+                    let label = activity.name;
+                    if (phaseName) label += ` - ${phaseName}`;
+                    if (stageName) label += ` > ${stageName}`;
+                    label += status;
+
+                    option.textContent = label;
+                    optgroup.appendChild(option);
+                });
+
+                activitySelect.appendChild(optgroup);
+            });
+        } else {
+            console.log('No activities found or data.success is false');
+            activitySelect.innerHTML = '<option value="">No activities assigned to you</option>';
+        }
+    } catch (error) {
+        console.error('Error loading all assigned activities:', error);
+        activitySelect.innerHTML = '<option value="">Failed to load activities</option>';
+    }
+}
+
+// Handle activity selection - set the project ID automatically
+function onActivitySelected() {
+    const activitySelect = document.getElementById('timesheetActivity');
+    const projectIdInput = document.getElementById('timesheetProjectId');
+
+    if (!activitySelect || !projectIdInput) return;
+
+    const selectedOption = activitySelect.options[activitySelect.selectedIndex];
+
+    if (selectedOption && selectedOption.dataset.projectId) {
+        projectIdInput.value = selectedOption.dataset.projectId;
+    } else {
+        projectIdInput.value = '';
+    }
+}
+
+// Load only USER'S tickets (like support.blade.php)
 async function loadTicketsForDropdown() {
     try {
         // ✅ Use /api/tickets/my to get only user's tickets
@@ -483,7 +576,7 @@ function renderTimesheets() {
         const canEdit = ['draft', 'rejected'].includes(timesheet.status);
         
         let typeInfo = '';
-        if (timesheet.project_id) {
+        if (timesheet.delivery_projects_id) {
             typeInfo = '<span class="text-blue-600 text-xs font-medium">Project</span>';
         } else if (timesheet.ticket_id) {
             typeInfo = '<span class="text-purple-600 text-xs font-medium">Support</span>';
@@ -508,9 +601,9 @@ function renderTimesheets() {
                 </td>
                 <td class="px-6 py-4">
                     <div class="text-sm text-gray-900">
-                        ${timesheet.project_id ? `<i class="fas fa-project-diagram mr-1"></i>Project #${timesheet.project_id}` : ''}
+                        ${timesheet.delivery_projects_id ? `<i class="fas fa-project-diagram mr-1"></i>Project #${timesheet.delivery_projects_id}` : ''}
                         ${timesheet.ticket_id ? `<i class="fas fa-ticket-alt mr-1"></i>Ticket #${timesheet.ticket_id}` : ''}
-                        ${!timesheet.project_id && !timesheet.ticket_id ? '<i class="fas fa-building mr-1"></i>Office/Idle' : ''}
+                        ${!timesheet.delivery_projects_id && !timesheet.ticket_id ? '<i class="fas fa-building mr-1"></i>Office/Idle' : ''}
                     </div>
                     ${timesheet.activity ? `<div class="text-xs text-gray-500 mt-1"><i class="fas fa-tasks mr-1"></i>${timesheet.activity.name}</div>` : ''}
                 </td>
@@ -653,7 +746,7 @@ function editTimesheet(id) {
     if (timesheetEndTime) timesheetEndTime.value = timesheet.end_time;
     if (timesheetDescription) timesheetDescription.value = timesheet.description || '';
     
-    const timesheetType = timesheet.project_id ? 'project' : 
+    const timesheetType = timesheet.delivery_projects_id ? 'project' :
                          (timesheet.ticket_id ? 'support' : 'office');
     const typeRadio = document.querySelector(`input[name="timesheetType"][value="${timesheetType}"]`);
     if (typeRadio) {
@@ -666,28 +759,32 @@ function editTimesheet(id) {
     handleTimesheetTypeChange();
     
     setTimeout(async () => {
-        const projectSelect = document.getElementById('timesheetProject');
+        const activitySelect = document.getElementById('timesheetActivity');
+        const projectIdInput = document.getElementById('timesheetProjectId');
         const ticketSelect = document.getElementById('timesheetTicket');
         const presence = document.getElementById('timesheetPresence');
         const location = document.getElementById('timesheetLocation');
         const billable = document.getElementById('timesheetBillable');
 
-        if (projectSelect) projectSelect.value = timesheet.project_id || '';
         if (ticketSelect) ticketSelect.value = timesheet.ticket_id || '';
         if (presence) presence.value = timesheet.presence || '';
         if (location) location.value = timesheet.location || '';
         if (billable) billable.checked = timesheet.is_billable || false;
 
-        // ✅ NEW: Load activities if project is selected
-        if (timesheet.project_id && projectSelect) {
-            await loadAssignedActivities();
-            // Set activity value after activities are loaded
+        // For project type: wait for activities to load, then set the selected activity
+        if (timesheet.delivery_projects_id && activitySelect) {
+            // Wait for activities to be loaded
             setTimeout(() => {
-                const activitySelect = document.getElementById('timesheetActivity');
                 if (activitySelect && timesheet.activity_id) {
                     activitySelect.value = timesheet.activity_id;
+                    // Trigger change to set the hidden project ID
+                    onActivitySelected();
                 }
-            }, 200);
+                // Also set hidden project ID directly as backup
+                if (projectIdInput) {
+                    projectIdInput.value = timesheet.delivery_projects_id;
+                }
+            }, 300);
         }
     }, 150);
 }
@@ -1026,26 +1123,27 @@ async function handleFormSubmit(e) {
         description: document.getElementById('timesheetDescription')?.value,
     };
     
-    // ✅ Type-specific data
+    // Type-specific data
     if (selectedType === 'project') {
-        timesheetData.project_id = document.getElementById('timesheetProject')?.value || null;
-        timesheetData.activity_id = document.getElementById('timesheetActivity')?.value || null; // ✅ NEW: Link to activity
+        // Get project ID from hidden input (set when activity is selected)
+        timesheetData.delivery_projects_id = document.getElementById('timesheetProjectId')?.value || null;
+        timesheetData.activity_id = document.getElementById('timesheetActivity')?.value || null;
         timesheetData.ticket_id = null;
         timesheetData.activity_type = 'development'; // Default for project
         timesheetData.presence = document.getElementById('timesheetPresence')?.value || null;
         timesheetData.location = document.getElementById('timesheetLocation')?.value || null;
         timesheetData.is_billable = document.getElementById('timesheetBillable')?.checked || false;
-        
+
     } else if (selectedType === 'support') {
-        timesheetData.project_id = null;
+        timesheetData.delivery_projects_id = null;
         timesheetData.ticket_id = document.getElementById('timesheetTicket')?.value || null;
         timesheetData.activity_type = 'support'; // Default for support
         timesheetData.presence = document.getElementById('timesheetPresence')?.value || null;
         timesheetData.location = document.getElementById('timesheetLocation')?.value || null;
         timesheetData.is_billable = false;
-        
+
     } else if (selectedType === 'office') {
-        timesheetData.project_id = null;
+        timesheetData.delivery_projects_id = null;
         timesheetData.ticket_id = null;
         timesheetData.activity_type = 'other'; // Default for office
         timesheetData.presence = document.getElementById('timesheetPresence')?.value || null;

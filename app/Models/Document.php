@@ -16,8 +16,8 @@ class Document extends Model
         'document_type',
     ];
 
-    public function project()
+    public function delivery_project()
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(DeliveryProject::class);
     }
 }

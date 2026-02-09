@@ -18,9 +18,7 @@ class DatabaseSeeder extends Seeder
             EmployeeSeeder::class,
             CustomerSeeder::class,
 
-            // Project Delivery Module Seeders
-            ProjectPhaseSeeder::class,
-            ProjectSeeder::class,
+            DeliveryProjectSeeder::class,
         ]);
     }
 }

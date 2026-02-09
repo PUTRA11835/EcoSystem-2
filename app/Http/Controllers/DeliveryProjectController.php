@@ -3,23 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
-use App\Models\Project;
+use App\Models\DeliveryProject;
 use App\Models\Employee;
 use App\Models\Document;
-use App\Models\ProjectPlanning;
-use App\Models\ProjectPhase;
-use App\Models\ProjectActivity;
-use App\Models\ProjectCustomActivity;
+use App\Models\DeliveryProjectPlanning;
+use App\Models\DeliveryProjectPhase;
+use App\Models\DeliveryProjectActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
-class ProjectController extends Controller
+class DeliveryProjectController extends Controller
 {
     public function index()
     {
-        $projects = Project::with('client.basicData')->latest()->get();
+        $projects = DeliveryProject::with('client.basicData')->latest()->get();
         return view('delivery.project.projects.index', compact('projects'));
     }
 
@@ -84,22 +83,24 @@ class ProjectController extends Controller
             'delivery_method', 'warranty_period', 'total_mandays'
         ]));
 
-        $project = Project::create($projectData);
+        $project = DeliveryProject::create($projectData);
 
         return redirect()->route('projects.index')
                          ->with('success', 'Project successfully created.');
     }
 
-    public function show(Project $project)
+    public function show(DeliveryProject $project)
     {
         $project->load([
             'client.basicData',
+            'phases',
             'updates',
             'deliveryOwner.basicData',
             'deliveryManager.basicData',
             'createdBy',
             'documents',
-            'teamMembers.basicData'
+            'teamMembers.basicData',
+            'plannings.phase'
         ]);
 
         $planning = $project->plannings()
@@ -125,7 +126,7 @@ class ProjectController extends Controller
                 }
             }
 
-            if ($plan->activity_name === 'System Go-Live') {
+            if ($plan->phase && $plan->phase->is_golive_phase) {
                 $goLiveDate = $plan->end_date;
             }
         }
@@ -146,46 +147,46 @@ class ProjectController extends Controller
 
         $employees = Employee::with(['basicData', 'addresses'])->get();
 
-        // Get only Consultants for Team Member dropdown
         $consultants = Employee::with(['basicData', 'addresses'])
             ->whereHas('basicData', function($query) {
                 $query->where('position', 'Consultant');
             })
             ->get();
 
-        // Get only Project Managers for PIC dropdown
         $projectManagers = Employee::with('basicData')
             ->whereHas('basicData', function($query) {
                 $query->where('position', 'Project Manager');
             })
             ->get();
 
-        $hasPlanning = ProjectPlanning::where('project_id', $project->id)->exists();
+        $hasPlanning = DeliveryProjectPlanning::where('delivery_projects_id', $project->id)->exists();
 
         $phases = collect();
         $customActivities = collect();
         $finalPhaseWeights = [];
 
         if ($hasPlanning) {
-            $phases = ProjectPhase::with(['activities' => function ($query) use ($project) {
-                $query->with(['plannings' => function ($q) use ($project) {
-                    $q->where('project_id', $project->id);
-                }]);
-            }])->ordered()->get();
+            $phases = $project->phases()->with([
+                'activities' => function ($query) use ($project) {
+                    $query->with(['plannings' => function ($q) use ($project) {
+                        $q->where('delivery_projects_id', $project->id);
+                    }]);
+                }
+            ])->get();
 
-            $customActivities = ProjectCustomActivity::where('project_id', $project->id)
+            $customActivities = $project->customActivities()
                 ->with(['plannings' => function ($q) use ($project) {
-                    $q->where('project_id', $project->id);
+                    $q->where('delivery_projects_id', $project->id);
                 }])
                 ->get()
-                ->groupBy('project_phase_id');
+                ->groupBy('delivery_project_phase_id');
 
-            $phaseWeights = DB::table('project_project_phase')
-                ->where('project_id', $project->id)
-                ->pluck('weight', 'project_phase_id')
+            $phaseWeights = $project->phases()
+                ->pluck('weight', 'id')
                 ->toArray();
 
-            $defaultPhaseWeights = ProjectPhase::ordered()
+            $defaultPhaseWeights = DeliveryProjectPhase::where('is_system_default', true)
+                ->whereNull('delivery_projects_id')
                 ->pluck('weight', 'id')
                 ->toArray();
 
@@ -204,7 +205,7 @@ class ProjectController extends Controller
         ));
     }
 
-    public function updateField(Request $request, Project $project)
+    public function updateField(Request $request, DeliveryProject $project)
     {
         $field = $request->input('field');
         $value = $request->input('value');
@@ -219,7 +220,6 @@ class ProjectController extends Controller
         } elseif ($field === 'pic') {
             $rules['value'] = 'nullable|string|max:255';
         } elseif ($field === 'description') {
-            // ✅ BARU: Validasi untuk description
             $rules['value'] = 'nullable|string|max:5000';
         } else {
             $rules['value'] = 'nullable|string|max:255';
@@ -231,8 +231,7 @@ class ProjectController extends Controller
             $project->update(['pic' => $value]);
             return back()->with('success', 'PIC updated successfully.');
         }
-        
-        // ✅ BARU: Handle description update
+
         if ($field === 'description') {
             $project->update(['description' => $value]);
             return back()->with('success', 'Description updated successfully.');
@@ -244,7 +243,7 @@ class ProjectController extends Controller
         return back()->with('success', 'Project ' . ucfirst($field) . ' updated successfully.');
     }
 
-    public function updateDeliveryInfo(Request $request, Project $project)
+    public function updateDeliveryInfo(Request $request, DeliveryProject $project)
     {
         $validatedData = $request->validate([
             'delivery_type' => 'nullable|in:Project,Support',
@@ -267,7 +266,7 @@ class ProjectController extends Controller
         return back()->with('success', 'Delivery information updated successfully.');
     }
 
-    public function updateLocationInfo(Request $request, Project $project)
+    public function updateLocationInfo(Request $request, DeliveryProject $project)
     {
         $validatedData = $request->validate([
             'location_name' => 'nullable|string|max:255',
@@ -290,7 +289,7 @@ class ProjectController extends Controller
     // DOCUMENT MANAGEMENT WITH AJAX SUPPORT
     // ============================================
     
-    public function storeDocument(Request $request, Project $project)
+    public function storeDocument(Request $request, DeliveryProject $project)
     {
         $request->validate([
             'document_name' => 'required|string|max:255',
@@ -353,7 +352,7 @@ class ProjectController extends Controller
     /**
      * Get all team members for a project (API endpoint)
      */
-    public function getTeamMembers(Project $project)
+    public function getTeamMembers(DeliveryProject $project)
     {
         $teamMembers = $project->teamMembers()
             ->with('basicData')
@@ -365,7 +364,7 @@ class ProjectController extends Controller
         ]);
     }
 
-    public function storeTeamMember(Request $request, Project $project)
+    public function storeTeamMember(Request $request, DeliveryProject $project)
     {
         $request->validate([
             'employee_id' => 'required|exists:employee,employee_id',
@@ -407,7 +406,7 @@ class ProjectController extends Controller
         return back()->with('success', 'Team member added successfully.');
     }
 
-    public function destroyTeamMember(Project $project, $employeeId)
+    public function destroyTeamMember(DeliveryProject $project, $employeeId)
     {
         $project->teamMembers()->detach($employeeId);
 
@@ -421,7 +420,7 @@ class ProjectController extends Controller
         return back()->with('success', 'Team member removed successfully.');
     }
 
-    public function updateTeamMember(Request $request, Project $project, $employeeId)
+    public function updateTeamMember(Request $request, DeliveryProject $project, $employeeId)
     {
         $request->validate([
             'module' => 'nullable|string|max:50',
@@ -447,7 +446,7 @@ class ProjectController extends Controller
         return back()->with('success', 'Team member updated successfully.');
     }
 
-    public function destroy(Project $project)
+    public function destroy(DeliveryProject $project)
     {
         $project->delete();
         return redirect()->route('projects.index')->with('success', 'Project deleted successfully.');

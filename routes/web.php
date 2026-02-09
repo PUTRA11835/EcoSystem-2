@@ -7,19 +7,19 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\SettingsController;
-use App\Http\Controllers\IssueController;
+use App\Http\Controllers\DeliveryProjectIssueController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\ProjectController;
-use App\Http\Controllers\ProjectUpdateController;
-use App\Http\Controllers\ProjectPlanController;
-use App\Http\Controllers\ProjectPlanningController;
-use App\Http\Controllers\ProjectGanttController;
-use App\Http\Controllers\DynamicPhaseController;
+use App\Http\Controllers\DeliveryProjectController;
+use App\Http\Controllers\DeliveryProjectUpdateController;
+use App\Http\Controllers\DeliveryProjectPlanController;
+use App\Http\Controllers\DeliveryProjectPlanningController;
+use App\Http\Controllers\DeliveryProjectGanttController;
+use App\Http\Controllers\DeliveryDynamicPhaseController;
 use App\Http\Controllers\ActivityStageController;
 use App\Http\Controllers\ActivityManagementController;
-use App\Http\Controllers\ProjectDataController;
-use App\Http\Controllers\StageManagementController;
-use App\Http\Controllers\ProjectPlanningExportController;
+use App\Http\Controllers\DeliveryProjectDataController;
+use App\Http\Controllers\DeliveryProjectStageManagementController;
+use App\Http\Controllers\DeliveryProjectPlanningExportController;
 use App\Http\Middleware\CheckAuthToken;
 
 // ==================== PUBLIC ROUTES ====================
@@ -131,35 +131,35 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // ==================== PROJECT DELIVERY ROUTES ====================
 
     // Project routes (CRUD)
-    Route::resource('projects', ProjectController::class)->except(['edit', 'update']);
-    Route::patch('/projects/{project}/update-field', [ProjectController::class, 'updateField'])->name('projects.updateField');
-    Route::patch('/projects/{project}/delivery-info', [ProjectController::class, 'updateDeliveryInfo'])->name('projects.updateDeliveryInfo');
-    Route::patch('/projects/{project}/location-info', [ProjectController::class, 'updateLocationInfo'])->name('projects.updateLocationInfo');
+    Route::resource('projects', DeliveryProjectController::class)->except(['edit', 'update']);
+    Route::patch('/projects/{project}/update-field', [DeliveryProjectController::class, 'updateField'])->name('projects.updateField');
+    Route::patch('/projects/{project}/delivery-info', [DeliveryProjectController::class, 'updateDeliveryInfo'])->name('projects.updateDeliveryInfo');
+    Route::patch('/projects/{project}/location-info', [DeliveryProjectController::class, 'updateLocationInfo'])->name('projects.updateLocationInfo');
 
     // Document management routes
-    Route::post('/projects/{project}/documents', [ProjectController::class, 'storeDocument'])->name('project.documents.store');
-    Route::patch('/project/documents/{document}', [ProjectController::class, 'updateDocument'])->name('project.documents.update');
-    Route::delete('/project/documents/{document}', [ProjectController::class, 'destroyDocument'])->name('project.documents.destroy');
+    Route::post('/projects/{project}/documents', [DeliveryProjectController::class, 'storeDocument'])->name('project.documents.store');
+    Route::patch('/project/documents/{document}', [DeliveryProjectController::class, 'updateDocument'])->name('project.documents.update');
+    Route::delete('/project/documents/{document}', [DeliveryProjectController::class, 'destroyDocument'])->name('project.documents.destroy');
 
     // Team member management routes
-    Route::get('/projects/{project}/team-members', [ProjectController::class, 'getTeamMembers'])->name('projects.team.index');
-    Route::post('/projects/{project}/team-members', [ProjectController::class, 'storeTeamMember'])->name('projects.team.store');
-    Route::put('/projects/{project}/team-members/{employee}', [ProjectController::class, 'updateTeamMember'])->name('projects.team.update');
-    Route::delete('/projects/{project}/team-members/{employee}', [ProjectController::class, 'destroyTeamMember'])->name('projects.team.destroy');
+    Route::get('/projects/{project}/team-members', [DeliveryProjectController::class, 'getTeamMembers'])->name('projects.team.index');
+    Route::post('/projects/{project}/team-members', [DeliveryProjectController::class, 'storeTeamMember'])->name('projects.team.store');
+    Route::put('/projects/{project}/team-members/{employee}', [DeliveryProjectController::class, 'updateTeamMember'])->name('projects.team.update');
+    Route::delete('/projects/{project}/team-members/{employee}', [DeliveryProjectController::class, 'destroyTeamMember'])->name('projects.team.destroy');
 
     // Project updates/issues routes
-    Route::post('/projects/{project}/updates', [ProjectUpdateController::class, 'store'])->name('project.updates.store');
-    Route::patch('/project-updates/{project_update}', [ProjectUpdateController::class, 'update'])->name('project.updates.update');
-    Route::delete('/project-updates/{project_update}', [ProjectUpdateController::class, 'destroy'])->name('project.updates.destroy');
-    Route::get('/project-updates/{project_update}/edit', [ProjectUpdateController::class, 'edit'])->name('project.updates.edit');
+    Route::post('/projects/{project}/updates', [DeliveryProjectUpdateController::class, 'store'])->name('project.updates.store');
+    Route::patch('/project-updates/{project_update}', [DeliveryProjectUpdateController::class, 'update'])->name('project.updates.update');
+    Route::delete('/project-updates/{project_update}', [DeliveryProjectUpdateController::class, 'destroy'])->name('project.updates.destroy');
+    Route::get('/project-updates/{project_update}/edit', [DeliveryProjectUpdateController::class, 'edit'])->name('project.updates.edit');
 
     // API routes for regions/cities
-    Route::get('/api/regions', [ProjectController::class, 'getRegions'])->name('api.regions');
-    Route::get('/api/cities', [ProjectController::class, 'getCities'])->name('api.cities');
+    Route::get('/api/regions', [DeliveryProjectController::class, 'getRegions'])->name('api.regions');
+    Route::get('/api/cities', [DeliveryProjectController::class, 'getCities'])->name('api.cities');
 
     // Issues routes
-    Route::get('/issues', [IssueController::class, 'index'])->name('issues.index');
-    Route::get('/issues/{project}', [IssueController::class, 'show'])->name('issues.show');
+    Route::get('/issues', [DeliveryProjectIssueController::class, 'index'])->name('issues.index');
+    Route::get('/issues/{project}', [DeliveryProjectIssueController::class, 'show'])->name('issues.show');
 
     // Profile routes
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -169,7 +169,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // ==================== PROJECT PLANNING ROUTES ====================
 
     // Planning index - list all projects
-    Route::get('/planning', [ProjectPlanningController::class, 'index'])->name('planning.index');
+    Route::get('/planning', [DeliveryProjectPlanningController::class, 'index'])->name('planning.index');
 
     // Backward compatibility redirect
     Route::redirect('/projects-planning', '/planning')->name('projects-planning.index');
@@ -178,24 +178,24 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::prefix('planning/{project}')->name('planning.')->group(function () {
 
         // Main planning page
-        Route::get('/', [ProjectPlanningController::class, 'show'])->name('show');
-        Route::get('/gantt', [ProjectPlanningController::class, 'gantt'])->name('gantt');
-        Route::get('/scurve', [ProjectPlanningController::class, 'scurve'])->name('scurve');
-        Route::get('/phases-list', [ProjectPlanningController::class, 'getPhases'])->name('phases-list');
+        Route::get('/', [DeliveryProjectPlanningController::class, 'show'])->name('show');
+        Route::get('/gantt', [DeliveryProjectPlanningController::class, 'gantt'])->name('gantt');
+        Route::get('/scurve', [DeliveryProjectPlanningController::class, 'scurve'])->name('scurve');
+        Route::get('/phases-list', [DeliveryProjectPlanningController::class, 'getPhases'])->name('phases-list');
 
         // Phase Management
         Route::prefix('phases')->name('phases.')->group(function () {
-            Route::get('/', [DynamicPhaseController::class, 'index'])->name('index');
-            Route::post('/create-custom', [DynamicPhaseController::class, 'createCustomPhase'])->name('create');
-            Route::post('/add', [DynamicPhaseController::class, 'addPhase'])->name('add');
-            Route::put('/{phase}', [DynamicPhaseController::class, 'updatePhase'])->name('update');
-            Route::delete('/{phase}', [DynamicPhaseController::class, 'removePhase'])->name('remove');
-            Route::post('/reorder', [DynamicPhaseController::class, 'reorderPhases'])->name('reorder');
-            Route::post('/{phase}/toggle', [DynamicPhaseController::class, 'togglePhaseVisibility'])->name('toggle');
+            Route::get('/', [DeliveryDynamicPhaseController::class, 'index'])->name('index');
+            Route::post('/create-custom', [DeliveryDynamicPhaseController::class, 'createCustomPhase'])->name('create');
+            Route::post('/add', [DeliveryDynamicPhaseController::class, 'addPhase'])->name('add');
+            Route::put('/{phase}', [DeliveryDynamicPhaseController::class, 'updatePhase'])->name('update');
+            Route::delete('/{phase}', [DeliveryDynamicPhaseController::class, 'removePhase'])->name('remove');
+            Route::post('/reorder', [DeliveryDynamicPhaseController::class, 'reorderPhases'])->name('reorder');
+            Route::post('/{phase}/toggle', [DeliveryDynamicPhaseController::class, 'togglePhaseVisibility'])->name('toggle');
         });
 
         // View configuration
-        Route::post('/view-config', [DynamicPhaseController::class, 'updateViewConfig'])->name('view-config');
+        Route::post('/view-config', [DeliveryDynamicPhaseController::class, 'updateViewConfig'])->name('view-config');
 
         // Activity Management
         Route::prefix('activities')->name('activities.')->group(function () {
@@ -213,31 +213,31 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
         // Stage Management
         Route::prefix('stages')->name('stages.')->group(function () {
-            Route::post('/', [StageManagementController::class, 'store'])->name('store');
-            Route::get('/{stage}', [StageManagementController::class, 'show'])->name('show');
-            Route::put('/{stage}', [StageManagementController::class, 'update'])->name('update');
-            Route::delete('/{stage}', [StageManagementController::class, 'destroy'])->name('destroy');
-            Route::post('/{stage}/reorder', [StageManagementController::class, 'reorder'])->name('reorder');
+            Route::post('/', [DeliveryProjectStageManagementController::class, 'store'])->name('store');
+            Route::get('/{stage}', [DeliveryProjectStageManagementController::class, 'show'])->name('show');
+            Route::put('/{stage}', [DeliveryProjectStageManagementController::class, 'update'])->name('update');
+            Route::delete('/{stage}', [DeliveryProjectStageManagementController::class, 'destroy'])->name('destroy');
+            Route::post('/{stage}/reorder', [DeliveryProjectStageManagementController::class, 'reorder'])->name('reorder');
         });
 
         // Data endpoints
         Route::prefix('data')->name('data.')->group(function () {
-            Route::get('/table', [ProjectDataController::class, 'getTableData'])->name('table');
-            Route::get('/gantt', [ProjectDataController::class, 'getGanttData'])->name('gantt');
-            Route::get('/scurve', [ProjectDataController::class, 'getSCurveData'])->name('scurve');
+            Route::get('/table', [DeliveryProjectDataController::class, 'getTableData'])->name('table');
+            Route::get('/gantt', [DeliveryProjectDataController::class, 'getGanttData'])->name('gantt');
+            Route::get('/scurve', [DeliveryProjectDataController::class, 'getSCurveData'])->name('scurve');
         });
 
         // Export routes
         Route::prefix('export')->name('export.')->group(function () {
-            Route::get('/planning-pdf', [ProjectPlanningExportController::class, 'exportPlanningPDF'])->name('planning-pdf');
-            Route::get('/table-pdf', [ProjectPlanningExportController::class, 'exportPlanningPDF'])->name('table-pdf');
-            Route::get('/gantt-pdf', [ProjectPlanningExportController::class, 'exportGanttPDF'])->name('gantt-pdf');
-            Route::get('/scurve-pdf', [ProjectPlanningExportController::class, 'exportSCurvePDF'])->name('scurve-pdf');
+            Route::get('/planning-pdf', [DeliveryProjectPlanningExportController::class, 'exportPlanningPDF'])->name('planning-pdf');
+            Route::get('/table-pdf', [DeliveryProjectPlanningExportController::class, 'exportPlanningPDF'])->name('table-pdf');
+            Route::get('/gantt-pdf', [DeliveryProjectPlanningExportController::class, 'exportGanttPDF'])->name('gantt-pdf');
+            Route::get('/scurve-pdf', [DeliveryProjectPlanningExportController::class, 'exportSCurvePDF'])->name('scurve-pdf');
 
             // Excel export routes
-            Route::get('/table-excel', [ProjectPlanningExportController::class, 'exportTableExcel'])->name('table-excel');
-            Route::get('/gantt-excel', [ProjectPlanningExportController::class, 'exportGanttExcel'])->name('gantt-excel');
-            Route::get('/scurve-excel', [ProjectPlanningExportController::class, 'exportSCurveExcel'])->name('scurve-excel');
+            Route::get('/table-excel', [DeliveryProjectPlanningExportController::class, 'exportTableExcel'])->name('table-excel');
+            Route::get('/gantt-excel', [DeliveryProjectPlanningExportController::class, 'exportGanttExcel'])->name('gantt-excel');
+            Route::get('/scurve-excel', [DeliveryProjectPlanningExportController::class, 'exportSCurveExcel'])->name('scurve-excel');
         });
     });
 

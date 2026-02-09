@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Timesheet;
-use App\Models\Project;
-use App\Models\ProjectActivity;
+use App\Models\DeliveryProject;
+use App\Models\DeliveryProjectActivity;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
@@ -38,8 +38,8 @@ class TimesheetController extends Controller
             }
 
             // Filter by project if provided (column still exists in DB)
-            if ($request->has('project_id')) {
-                $query->forProject($request->project_id);
+            if ($request->has('delivery_projects_id')) {
+                $query->forProject($request->delivery_projects_id);
             }
 
             $timesheets = $query->orderBy('date', 'desc')
@@ -102,16 +102,18 @@ class TimesheetController extends Controller
                 'description' => 'required|string',
                 'activity_type' => 'required|in:development,meeting,documentation,testing,support,training,other',
                 'is_billable' => 'sometimes|boolean',
+                'presence' => 'nullable|string',
+                'location' => 'nullable|string',
             ];
-            
+
             // Conditional validation based on what's provided
-            if ($request->filled('project_id')) {
-                $rules['project_id'] = 'nullable|integer';
-                $rules['activity_id'] = 'nullable|exists:project_activities,id'; // ✅ NEW: Activity validation
-                $rules['ticket_id'] = 'nullable'; // Allow ticket_id but don't require it
+            if ($request->filled('delivery_projects_id')) {
+                $rules['delivery_projects_id'] = 'nullable|integer';
+                $rules['activity_id'] = 'nullable|exists:delivery_project_activities,id'; // Activity validation
+                $rules['ticket_id'] = 'nullable';
             } elseif ($request->filled('ticket_id')) {
                 $rules['ticket_id'] = 'nullable|integer';
-                $rules['project_id'] = 'nullable'; // Allow project_id but don't require it
+                $rules['delivery_projects_id'] = 'nullable';
             }
 
             $validated = $request->validate($rules);
@@ -123,17 +125,20 @@ class TimesheetController extends Controller
                 $validated['is_billable'] = true;
             }
 
+            // Add presence and location from request
+            $validated['presence'] = $request->input('presence');
+            $validated['location'] = $request->input('location');
+
             // Ensure only one of project_id or ticket_id is set
-            if (!empty($validated['project_id'])) {
+            if (!empty($validated['delivery_projects_id'])) {
                 $validated['ticket_id'] = null;
                 // Keep activity_id if provided
                 $validated['activity_id'] = $request->input('activity_id') ?: null;
             } elseif (!empty($validated['ticket_id'])) {
-                $validated['project_id'] = null;
+                $validated['delivery_projects_id'] = null;
                 $validated['activity_id'] = null; // No activity for support tickets
             } else {
-                // Office/Idle - neither is set
-                $validated['project_id'] = null;
+                $validated['delivery_projects_id'] = null;
                 $validated['ticket_id'] = null;
                 $validated['activity_id'] = null;
             }
@@ -176,7 +181,6 @@ class TimesheetController extends Controller
         try {
             $timesheet = Timesheet::findOrFail($id);
 
-            // Can't update approved timesheets
             if ($timesheet->status === 'approved') {
                 return response()->json([
                     'success' => false,
@@ -184,7 +188,6 @@ class TimesheetController extends Controller
                 ], 403);
             }
 
-            // Base validation
             $rules = [
                 'date' => 'required|date',
                 'start_time' => 'required',
@@ -192,30 +195,33 @@ class TimesheetController extends Controller
                 'description' => 'required|string',
                 'activity_type' => 'required|in:development,meeting,documentation,testing,support,training,other',
                 'is_billable' => 'sometimes|boolean',
+                'presence' => 'nullable|string',
+                'location' => 'nullable|string',
             ];
-            
-            // Conditional validation
-            if ($request->filled('project_id')) {
-                $rules['project_id'] = 'nullable|integer';
-                $rules['activity_id'] = 'nullable|exists:project_activities,id'; // ✅ NEW: Activity validation
+
+            if ($request->filled('delivery_projects_id')) {
+                $rules['delivery_projects_id'] = 'nullable|integer';
+                $rules['activity_id'] = 'nullable|exists:delivery_project_activities,id';
                 $rules['ticket_id'] = 'nullable';
             } elseif ($request->filled('ticket_id')) {
                 $rules['ticket_id'] = 'nullable|integer';
-                $rules['project_id'] = 'nullable';
+                $rules['delivery_projects_id'] = 'nullable';
             }
 
             $validated = $request->validate($rules);
 
-            // Ensure only one of project_id or ticket_id is set
-            if (!empty($validated['project_id'])) {
+            // Add presence and location from request
+            $validated['presence'] = $request->input('presence');
+            $validated['location'] = $request->input('location');
+
+            if (!empty($validated['delivery_projects_id'])) {
                 $validated['ticket_id'] = null;
-                // Keep activity_id if provided
                 $validated['activity_id'] = $request->input('activity_id') ?: null;
             } elseif (!empty($validated['ticket_id'])) {
-                $validated['project_id'] = null;
+                $validated['delivery_projects_id'] = null;
                 $validated['activity_id'] = null;
             } else {
-                $validated['project_id'] = null;
+                $validated['delivery_projects_id'] = null;
                 $validated['ticket_id'] = null;
                 $validated['activity_id'] = null;
             }
@@ -255,7 +261,6 @@ class TimesheetController extends Controller
         try {
             $timesheet = Timesheet::findOrFail($id);
 
-            // Can't delete approved timesheets
             if ($timesheet->status === 'approved') {
                 return response()->json([
                     'success' => false,
@@ -437,7 +442,7 @@ class TimesheetController extends Controller
                 'by_type' => [
                     'project' => Timesheet::dateRange($startDate, $endDate)
                         ->when($employeeId, fn($q) => $q->forEmployee($employeeId))
-                        ->whereNotNull('project_id')
+                        ->whereNotNull('delivery_projects_id')
                         ->sum('duration_minutes') / 60,
                     'support' => Timesheet::dateRange($startDate, $endDate)
                         ->when($employeeId, fn($q) => $q->forEmployee($employeeId))
@@ -445,7 +450,7 @@ class TimesheetController extends Controller
                         ->sum('duration_minutes') / 60,
                     'office' => Timesheet::dateRange($startDate, $endDate)
                         ->when($employeeId, fn($q) => $q->forEmployee($employeeId))
-                        ->whereNull('project_id')
+                        ->whereNull('delivery_projects_id')
                         ->whereNull('ticket_id')
                         ->sum('duration_minutes') / 60,
                 ]
@@ -474,7 +479,8 @@ class TimesheetController extends Controller
     {
         try {
             $user = session('user');
-            $employeeId = $user['employee_id'] ?? null;
+            // Session stores employee_id as 'id', fallback to 'employee_id' for compatibility
+            $employeeId = $user['id'] ?? $user['employee_id'] ?? null;
 
             if (!$employeeId) {
                 return response()->json([
@@ -483,8 +489,7 @@ class TimesheetController extends Controller
                 ], 401);
             }
 
-            // Get projects where this employee is a team member
-            $projects = Project::whereHas('teamMembers', function ($query) use ($employeeId) {
+            $projects = DeliveryProject::whereHas('teamMembers', function ($query) use ($employeeId) {
                 $query->where('employee.employee_id', $employeeId);
             })
             ->with(['client.basicData'])
@@ -514,7 +519,8 @@ class TimesheetController extends Controller
     {
         try {
             $user = session('user');
-            $employeeId = $user['employee_id'] ?? null;
+            // Session stores employee_id as 'id', fallback to 'employee_id' for compatibility
+            $employeeId = $user['id'] ?? $user['employee_id'] ?? null;
 
             if (!$employeeId) {
                 return response()->json([
@@ -523,13 +529,16 @@ class TimesheetController extends Controller
                 ], 401);
             }
 
-            // Get activities in this project that are assigned to this employee
-            $activities = ProjectActivity::where('project_id', $projectId)
-                ->whereHas('assignedEmployees', function ($query) use ($employeeId) {
-                    $query->where('employee.employee_id', $employeeId);
+            // Query activities that have this employee in the pivot table
+            $activities = DeliveryProjectActivity::where('delivery_projects_id', $projectId)
+                ->whereExists(function ($query) use ($employeeId) {
+                    $query->select(DB::raw(1))
+                        ->from('activity_employee')
+                        ->whereColumn('activity_employee.delivery_project_activity_id', 'delivery_project_activities.id')
+                        ->where('activity_employee.employee_id', $employeeId);
                 })
                 ->with(['phase', 'stage'])
-                ->select('id', 'name', 'project_phase_id', 'stage_id', 'status', 'start_date', 'end_date')
+                ->select('id', 'name', 'delivery_project_phase_id', 'stage_id', 'status', 'start_date', 'end_date')
                 ->orderBy('name')
                 ->get();
 
@@ -540,6 +549,73 @@ class TimesheetController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Error retrieving my activities: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve activities: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get ALL activities assigned to the logged-in employee across all projects
+     * This is used for the timesheet dropdown to show activities directly
+     */
+    public function allMyActivities(Request $request)
+    {
+        try {
+            $user = session('user');
+            // Session stores employee_id as 'id', fallback to 'employee_id' for compatibility
+            $employeeId = $user['id'] ?? $user['employee_id'] ?? null;
+
+            Log::info('allMyActivities called', [
+                'user' => $user,
+                'employeeId' => $employeeId
+            ]);
+
+            if (!$employeeId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Employee not authenticated'
+                ], 401);
+            }
+
+            // Query activities that have this employee in the pivot table
+            $activities = DeliveryProjectActivity::whereExists(function ($query) use ($employeeId) {
+                    $query->select(DB::raw(1))
+                        ->from('activity_employee')
+                        ->whereColumn('activity_employee.delivery_project_activity_id', 'delivery_project_activities.id')
+                        ->where('activity_employee.employee_id', $employeeId);
+                })
+                ->with(['phase', 'stage', 'delivery_project:id,name'])
+                ->select('id', 'name', 'delivery_projects_id', 'delivery_project_phase_id', 'stage_id', 'status', 'start_date', 'end_date')
+                ->orderBy('delivery_projects_id')
+                ->orderBy('name')
+                ->get();
+
+            Log::info('Activities found', ['count' => $activities->count()]);
+
+            $result = $activities->map(function ($activity) {
+                    return [
+                        'id' => $activity->id,
+                        'name' => $activity->name,
+                        'delivery_projects_id' => $activity->delivery_projects_id,
+                        'project_name' => $activity->delivery_project->name ?? 'Unknown Project',
+                        'phase_name' => $activity->phase->name ?? null,
+                        'stage_name' => $activity->stage->name ?? null,
+                        'status' => $activity->status,
+                        'start_date' => $activity->start_date,
+                        'end_date' => $activity->end_date,
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+                'message' => 'All assigned activities retrieved successfully'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error retrieving all my activities: ' . $e->getMessage());
 
             return response()->json([
                 'success' => false,

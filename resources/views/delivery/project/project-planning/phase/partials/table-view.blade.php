@@ -651,7 +651,7 @@
                 </span>
             </td>
             <td class="px-2 sm:px-3 py-2 text-xs truncate">${activity.module || '-'}</td>
-            <td class="px-2 sm:px-3 py-2 text-xs text-center">${activity.tcode || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center">${activity.object || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50">${activity.start_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50">${activity.end_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50 font-medium">${activity.duration_in_days || '-'}</td>
@@ -670,7 +670,6 @@
         
         parentElement.appendChild(row);
         
-        // Render child activities recursively
         if (activity.children && Array.isArray(activity.children) && activity.children.length > 0) {
             activity.children.forEach(function(child) {
                 createActivityRow(child, stageId, indentation + 1.5, parentElement);

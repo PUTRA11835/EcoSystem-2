@@ -3,25 +3,25 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Models\Project;
-use App\Models\ProjectPlanning;
+use App\Models\DeliveryProject;
+use App\Models\DeliveryProjectPlanning;
 use App\Models\ActivityStage;
-use App\Models\ProjectPhase;
+use App\Models\DeliveryProjectPhase;
 use Illuminate\Support\Facades\DB;
 
 class MigrateHorizontalPhasesToStages extends Command
 {
-    protected $signature = 'planning:migrate-horizontal-to-stages {project_id?}';
+    protected $signature = 'planning:migrate-horizontal-to-stages {delivery_projects_id?}';
     protected $description = 'Migrate horizontal phases to activity stages';
 
     public function handle()
     {
-        $projectId = $this->argument('project_id');
+        $projectId = $this->argument('delivery_projects_id');
         
         if ($projectId) {
-            $projects = Project::where('id', $projectId)->get();
+            $projects = DeliveryProject::where('id', $projectId)->get();
         } else {
-            $projects = Project::all();
+            $projects = DeliveryProject::all();
         }
         
         $this->info("Migrating horizontal phases for {$projects->count()} project(s)...");
@@ -33,13 +33,13 @@ class MigrateHorizontalPhasesToStages extends Command
         $this->info("✅ Migration complete!");
     }
     
-    private function migrateProject(Project $project)
+    private function migrateProject(DeliveryProject $project)
     {
         $this->line("Processing project: {$project->description}");
         
-        // Get horizontal phases
+        // Get horizontal phases (One-to-Many relationship)
         $horizontalPhases = $project->phases()
-            ->wherePivot('orientation', 'horizontal')
+            ->where('orientation', 'horizontal')
             ->get();
         
         if ($horizontalPhases->isEmpty()) {
@@ -48,7 +48,7 @@ class MigrateHorizontalPhasesToStages extends Command
         }
         
         // Get all activities
-        $activities = ProjectPlanning::where('project_id', $project->id)
+        $activities = DeliveryProjectPlanning::where('delivery_projects_id', $project->id)
             ->where('is_group', false)
             ->get();
         

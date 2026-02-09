@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Project;
-use App\Models\ProjectUpdate;
+use App\Models\DeliveryProject;
+use App\Models\DeliveryProjectUpdate;
 use Illuminate\Http\Request;
 
-class ProjectUpdateController extends Controller
+class DeliveryProjectUpdateController extends Controller
 {
     /**
      * Store a new issue/update for a project
      */
-    public function store(Request $request, Project $project)
+    public function store(Request $request, DeliveryProject $project)
     {
         $validated = $request->validate([
             'highlight_issue' => 'required|string',
@@ -37,7 +37,7 @@ class ProjectUpdateController extends Controller
     /**
      * Display the edit form for an issue (optional if using modal)
      */
-    public function edit(ProjectUpdate $project_update)
+    public function edit(DeliveryProjectUpdate $project_update)
     {
         return view('delivery.project.issues.edit', ['update' => $project_update]);
     }
@@ -45,7 +45,7 @@ class ProjectUpdateController extends Controller
     /**
      * Update an existing issue/update
      */
-    public function update(Request $request, ProjectUpdate $project_update)
+    public function update(Request $request, DeliveryProjectUpdate $project_update)
     {
         $validated = $request->validate([
             'highlight_issue' => 'required|string',
@@ -58,7 +58,7 @@ class ProjectUpdateController extends Controller
         $project_update->update($validated);
         
         // Update 'updated_at' on parent project
-        $project_update->project()->touch();
+        $project_update->delivery_project()->touch();
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -68,16 +68,16 @@ class ProjectUpdateController extends Controller
             ]);
         }
 
-        return redirect()->route('projects.show', $project_update->project_id)
+        return redirect()->route('projects.show', $project_update->delivery_projects_id)
                          ->with('success', 'Issue updated successfully.');
     }
 
     /**
      * Delete an issue/update
      */
-    public function destroy(ProjectUpdate $project_update)
+    public function destroy(DeliveryProjectUpdate $project_update)
     {
-        $projectId = $project_update->project_id;
+        $projectId = $project_update->delivery_projects_id;
         $project_update->delete();
 
         if (request()->expectsJson()) {

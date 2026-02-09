@@ -5,7 +5,7 @@
     </td>
     <td style="text-align: center;">{{ number_format($activity['weight'], 1) }}%</td>
     <td>{{ $activity['module'] ?? '-' }}</td>
-    <td>{{ $activity['tcode'] ?? '-' }}</td>
+    <td>{{ $activity['object'] ?? '-' }}</td>
     <td>{{ $activity['start_date'] }}</td>
     <td>{{ $activity['end_date'] }}</td>
     <td style="text-align: center;">{{ $activity['duration_in_days'] ?? '-' }}</td>

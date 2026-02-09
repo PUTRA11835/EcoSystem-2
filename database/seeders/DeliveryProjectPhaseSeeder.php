@@ -6,7 +6,7 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
-class ProjectPhaseSeeder extends Seeder
+class DeliveryProjectPhaseSeeder extends Seeder
 {
     public function run(): void
     {
@@ -125,7 +125,7 @@ class ProjectPhaseSeeder extends Seeder
         ];
 
         foreach ($phases as $phase) {
-            DB::table('project_phases')->insert(array_merge($phase, [
+            DB::table('delivery_project_phases')->insert(array_merge($phase, [
                 'parent_phase_id' => null,
                 'created_at' => Carbon::now(),
                 'updated_at' => Carbon::now(),

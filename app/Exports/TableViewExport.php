@@ -2,7 +2,7 @@
 
 namespace App\Exports;
 
-use App\Models\Project;
+use App\Models\DeliveryProject;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
@@ -18,7 +18,7 @@ class TableViewExport implements FromCollection, WithHeadings, WithStyles, WithC
     protected $project;
     protected $rows = [];
 
-    public function __construct(Project $project)
+    public function __construct(DeliveryProject $project)
     {
         $this->project = $project;
         $this->prepareData();
@@ -26,8 +26,9 @@ class TableViewExport implements FromCollection, WithHeadings, WithStyles, WithC
 
     private function prepareData()
     {
+        // One-to-Many relationship (phases belong to project)
         $phases = $this->project->phases()
-            ->wherePivot('is_visible', true)
+            ->where('is_visible', true)
             ->orderBy('order_sequence')
             ->get();
 
@@ -37,9 +38,9 @@ class TableViewExport implements FromCollection, WithHeadings, WithStyles, WithC
                 'type' => 'phase',
                 'level' => 0,
                 'name' => strtoupper($phase->name),
-                'weight' => $phase->pivot->weight,
+                'weight' => $phase->weight,
                 'module' => 'Phase Level',
-                'tcode' => '-',
+                'object' => '-',
                 'start_date' => $this->getPhaseStartDate($phase),
                 'end_date' => $this->getPhaseEndDate($phase),
                 'duration' => $this->getPhaseDuration($phase),
@@ -70,7 +71,7 @@ class TableViewExport implements FromCollection, WithHeadings, WithStyles, WithC
             'name' => str_repeat('  ', $level) . '📁 ' . $group->name,
             'weight' => $group->calculated_weight ?? 0,
             'module' => $group->notes ?? 'Group',
-            'tcode' => '-',
+            'object' => '-',
             'start_date' => $this->formatDate($group->calculated_start_date),
             'end_date' => $this->formatDate($group->calculated_end_date),
             'duration' => $this->calculateDuration($group->calculated_start_date, $group->calculated_end_date),
@@ -100,7 +101,7 @@ class TableViewExport implements FromCollection, WithHeadings, WithStyles, WithC
             'name' => str_repeat('  ', $level) . '⭐ ' . $stage->name,
             'weight' => $stage->weight ?? 0,
             'module' => $stage->description ?? 'Stage',
-            'tcode' => '-',
+            'object' => '-',
             'start_date' => $this->formatDate($stage->planned_start_date),
             'end_date' => $this->formatDate($stage->planned_end_date),
             'duration' => $stage->duration_days ?? '-',
@@ -124,7 +125,7 @@ class TableViewExport implements FromCollection, WithHeadings, WithStyles, WithC
             'name' => str_repeat('  ', $level) . '📄 ' . $activity->name,
             'weight' => $activity->weight ?? 0,
             'module' => $activity->module ?? '-',
-            'tcode' => $activity->tcode ?? '-',
+            'object' => $activity->object ?? '-',
             'start_date' => $this->formatDate($activity->start_date),
             'end_date' => $this->formatDate($activity->end_date),
             'duration' => $this->calculateDuration($activity->start_date, $activity->end_date),
@@ -143,7 +144,7 @@ class TableViewExport implements FromCollection, WithHeadings, WithStyles, WithC
                 $row['name'],
                 $row['weight'] . '%',
                 $row['module'],
-                $row['tcode'],
+                $row['object'],
                 $row['start_date'],
                 $row['end_date'],
                 $row['duration'],

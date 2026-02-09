@@ -1,7 +1,7 @@
 <!-- resources/views/project-planning/index.blade.php -->
 @extends('dashboard')
-@section('title', 'Project Planning')
-@section('page-title', 'Project Delivery')
+@section('title', 'Delivery Project Planning')
+@section('page-title', 'Delivery Project')
 @section('page-subtitle', 'Kelola perencanaan proyek')
 
 @section('content')
@@ -81,15 +81,14 @@
                         
                         // Ambil visible phases untuk project ini
                         $visiblePhases = $project->phases()
-                            ->withPivot(['weight', 'is_visible', 'orientation'])
-                            ->wherePivot('is_visible', true)
+                            ->where('is_visible', true)
                             ->get();
                         
                         $totalPhaseWeight = 0;
                         $weightedPhaseProgress = 0;
                         
                         foreach ($visiblePhases as $phase) {
-                            $phaseWeight = $phase->pivot->weight ?? 0;
+                            $phaseWeight = $phase->weight ?? 0;
                             
                             // Hitung progress phase dari groups
                             $phaseGroups = $groups->where('phase_id', $phase->id);
@@ -289,15 +288,14 @@
                             
                             // Ambil visible phases untuk project ini
                             $visiblePhases = $project->phases()
-                                ->withPivot(['weight', 'is_visible', 'orientation'])
-                                ->wherePivot('is_visible', true)
+                                ->where('is_visible', true)
                                 ->get();
                             
                             $totalPhaseWeight = 0;
                             $weightedPhaseProgress = 0;
                             
                             foreach ($visiblePhases as $phase) {
-                                $phaseWeight = $phase->pivot->weight ?? 0;
+                                $phaseWeight = $phase->weight ?? 0;
                                 
                                 // Hitung progress phase dari groups
                                 $phaseGroups = $groups->where('phase_id', $phase->id);

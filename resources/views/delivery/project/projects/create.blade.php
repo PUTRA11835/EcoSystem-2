@@ -1,6 +1,6 @@
 @extends('dashboard')
-@section('title', 'Add New Project')
-@section('page-title', 'Add New Project')
+@section('title', 'Add New Delivery Project')
+@section('page-title', 'Add New Delivery Project')
 @section('page-subtitle', 'Create a new delivery project')
 @section('content')
 <form action="{{ route('projects.store') }}" method="POST">
@@ -9,8 +9,8 @@
     {{-- Basic Project Information --}}
     <div class="bg-white overflow-hidden shadow-md sm:rounded-lg mb-6">
         <div class="p-6 border-b border-gray-200">
-            <h3 class="text-xl font-semibold text-gray-700">New Project Form</h3>
-            <p class="mt-1 text-sm text-gray-600">Fill in the project details below.</p>
+            <h3 class="text-xl font-semibold text-gray-700">New Delivery Project Form</h3>
+            <p class="mt-1 text-sm text-gray-600">Fill in the delivery project details below.</p>
         </div>
         <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
@@ -54,7 +54,7 @@
                        class="mt-1 block w-full bg-gray-100 cursor-not-allowed border-gray-300 rounded-md shadow-sm" 
                        value="{{ old('category') }}"
                        readonly>
-                <p class="mt-1 text-xs text-gray-500">Auto-filled from Project Planning.</p>
+                <p class="mt-1 text-xs text-gray-500">Auto-filled from Delivery Project Planning.</p>
             </div>
             <!-- Phase (Readonly) -->
             <div>
@@ -65,7 +65,7 @@
                        class="mt-1 block w-full bg-gray-100 cursor-not-allowed border-gray-300 rounded-md shadow-sm" 
                        value="{{ old('phase') }}"
                        readonly>
-                <p class="mt-1 text-xs text-gray-500">Auto-filled from Project Planning.</p>
+                <p class="mt-1 text-xs text-gray-500">Auto-filled from Delivery Project Planning.</p>
             </div>
             <div class="md:col-span-2">
                 <label for="name" class="block font-medium text-sm text-gray-700">Project Name <span class="text-red-500">*</span></label>
@@ -92,7 +92,7 @@
                        class="mt-1 block w-full bg-gray-100 cursor-not-allowed border-gray-300 rounded-md shadow-sm" 
                        value="{{ old('start_date') }}"
                        readonly>
-                <p class="mt-1 text-xs text-gray-500">Auto-filled from Project Planning.</p>
+                <p class="mt-1 text-xs text-gray-500">Auto-filled from Delivery Project Planning.</p>
             </div>
             <div>
                 <label for="end_date" class="block font-medium text-sm text-gray-700">End Date</label>
@@ -102,7 +102,7 @@
                        class="mt-1 block w-full bg-gray-100 cursor-not-allowed border-gray-300 rounded-md shadow-sm" 
                        value="{{ old('end_date') }}"
                        readonly>
-                <p class="mt-1 text-xs text-gray-500">Auto-filled from Project Planning.</p>
+                <p class="mt-1 text-xs text-gray-500">Auto-filled from Delivery Project Planning.</p>
             </div>
             <div>
                 <label for="go_live_estimated" class="block font-medium text-sm text-gray-700">Go Live Estimated</label>
@@ -112,7 +112,7 @@
                        class="mt-1 block w-full bg-gray-100 cursor-not-allowed border-gray-300 rounded-md shadow-sm" 
                        value="{{ old('go_live_estimated') }}"
                        readonly>
-                <p class="mt-1 text-xs text-gray-500">Auto-filled from Project Planning.</p>
+                <p class="mt-1 text-xs text-gray-500">Auto-filled from Delivery Project Planning.</p>
             </div>
         </div>
     </div>

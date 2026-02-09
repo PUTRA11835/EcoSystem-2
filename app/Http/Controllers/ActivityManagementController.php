@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Project;
-use App\Models\ProjectPlanning;
-use App\Models\ProjectActivity;
+use App\Models\DeliveryProject;
+use App\Models\DeliveryProjectPlanning;
+use App\Models\DeliveryProjectActivity;
 use App\Models\ActivityStage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,12 +14,30 @@ use Carbon\Carbon;
 class ActivityManagementController extends Controller
 {
     /**
+     * Parse date from various formats (dd/mm/yyyy or yyyy-mm-dd)
+     */
+    private function parseDate($dateString)
+    {
+        if (empty($dateString)) {
+            return null;
+        }
+
+        // Check if it's in dd/mm/yyyy format
+        if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $dateString)) {
+            return Carbon::createFromFormat('d/m/Y', $dateString);
+        }
+
+        // Otherwise parse as standard format
+        return Carbon::parse($dateString);
+    }
+
+    /**
      * Create new activity/group
      */
-    public function store(Request $request, Project $project)
+    public function store(Request $request, DeliveryProject $project)
     {
         Log::info('=== CREATE ACTIVITY REQUEST ===', [
-            'project_id' => $project->id,
+            'delivery_projects_id' => $project->id,
             'all_input' => $request->all()
         ]);
 
@@ -39,8 +57,8 @@ class ActivityManagementController extends Controller
             }
 
             $validated = $request->validate([
-                'phase_id' => 'required_without:stage_id|nullable|exists:project_phases,id',
-                'parent_id' => 'nullable|exists:project_planning,id',
+                'phase_id' => 'required_without:stage_id|nullable|exists:delivery_project_phases,id',
+                'parent_id' => 'nullable|exists:delivery_project_planning,id',
                 'stage_id' => 'nullable|exists:activity_stages,id',
                 'is_group' => 'boolean',
                 'name' => 'required|string|max:255',
@@ -49,12 +67,10 @@ class ActivityManagementController extends Controller
                 'end_date' => 'required_if:is_group,false|nullable|date|after_or_equal:start_date',
                 'notes' => 'nullable|string',
                 'module' => 'nullable|string|max:255',
-                'tcode' => 'nullable|string|max:255',
+                'object' => 'nullable|string|max:255',
                 'complexity' => 'nullable|in:low,medium,high',
                 'receive_type' => 'nullable|string|max:255',
                 'new_requirement' => 'boolean',
-                'functional_sinergi' => 'nullable|string',
-                'technical_sinergi' => 'nullable|string',
                 'deliverable' => 'nullable|string',
             ]);
 
@@ -72,7 +88,7 @@ class ActivityManagementController extends Controller
                     $stage = ActivityStage::find($validated['stage_id']);
                     if ($stage) {
                         // Check current total from ProjectActivity table (new structure)
-                        $currentTotal = ProjectActivity::where('stage_id', $stage->id)
+                        $currentTotal = DeliveryProjectActivity::where('stage_id', $stage->id)
                             ->sum('weight');
 
                         Log::info('Weight validation', [
@@ -97,13 +113,13 @@ class ActivityManagementController extends Controller
 
                 $level = 0;
                 if (!empty($validated['parent_id'])) {
-                    $parent = ProjectPlanning::find($validated['parent_id']);
+                    $parent = DeliveryProjectPlanning::find($validated['parent_id']);
                     if ($parent) {
                         $level = $parent->level + 1;
                     }
                 }
 
-                $query = ProjectPlanning::where('project_id', $project->id);
+                $query = DeliveryProjectPlanning::where('delivery_projects_id', $project->id);
                 
                 if (!empty($validated['stage_id'])) {
                     $query->where('stage_id', $validated['stage_id']);
@@ -115,8 +131,8 @@ class ActivityManagementController extends Controller
                 
                 $maxSequence = $query->max('order_sequence') ?? 0;
 
-                $planning = new ProjectPlanning();
-                $planning->project_id = $project->id;
+                $planning = new DeliveryProjectPlanning();
+                $planning->delivery_projects_id = $project->id;
                 $planning->phase_id = $validated['phase_id'];
                 $planning->parent_id = $validated['parent_id'] ?? null;
                 $planning->stage_id = $validated['stage_id'] ?? null;
@@ -134,29 +150,27 @@ class ActivityManagementController extends Controller
                     $planning->weight = 0;
                     $planning->save();
                 } else {
-                    $maxActivitySequence = ProjectActivity::where('project_id', $project->id)
-                        ->where('project_phase_id', $validated['phase_id'])
+                    $maxActivitySequence = DeliveryProjectActivity::where('delivery_projects_id', $project->id)
+                        ->where('delivery_project_phase_id', $validated['phase_id'])
                         ->max('order_sequence') ?? 0;
 
-                    $activity = ProjectActivity::create([
-                        'project_id' => $project->id,
-                        'project_phase_id' => $validated['phase_id'],
+                    $activity = DeliveryProjectActivity::create([
+                        'delivery_projects_id' => $project->id,
+                        'delivery_project_phase_id' => $validated['phase_id'],
                         'stage_id' => $validated['stage_id'] ?? null,
                         'name' => $validated['name'],
                         'description' => $validated['notes'] ?? '',
                         'order_sequence' => $maxActivitySequence + 1,
-                        'start_date' => Carbon::parse($validated['start_date']),
-                        'end_date' => Carbon::parse($validated['end_date']),
+                        'start_date' => $this->parseDate($validated['start_date']),
+                        'end_date' => $this->parseDate($validated['end_date']),
                         'weight' => $validated['weight'] ?? 0,
                         'progress_percentage' => 0,
                         'status' => 'not_started',
                         'module' => $validated['module'] ?? null,
-                        'tcode' => $validated['tcode'] ?? null,
+                        'object' => $validated['object'] ?? null,
                         'complexity' => $validated['complexity'] ?? null,
                         'receive_type' => $validated['receive_type'] ?? null,
                         'new_requirement' => $validated['new_requirement'] ?? false,
-                        'functional_sinergi' => $validated['functional_sinergi'] ?? null,
-                        'technical_sinergi' => $validated['technical_sinergi'] ?? null,
                         'deliverable' => $validated['deliverable'] ?? null,
                         'notes' => $validated['notes'] ?? null,
                     ]);
@@ -232,11 +246,11 @@ class ActivityManagementController extends Controller
     /**
      * Get activity details
      */
-    public function show(Request $request, Project $project, $activityId)
+    public function show(Request $request, DeliveryProject $project, $activityId)
     {
         try {
             Log::info('=== GET ACTIVITY START ===', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'activity_id' => $activityId,
                 'type' => $request->query('type')
             ]);
@@ -244,7 +258,7 @@ class ActivityManagementController extends Controller
             // ✅ If type=activity, search ProjectActivity first to avoid ID conflicts
             if ($request->query('type') === 'activity') {
                 Log::info('Type=activity specified, searching ProjectActivity first...');
-                $activity = ProjectActivity::with('stage')->find($activityId);
+                $activity = DeliveryProjectActivity::with('stage')->find($activityId);
 
                 if ($activity) {
                     $responseData = [
@@ -264,13 +278,11 @@ class ActivityManagementController extends Controller
                         'progress_percentage' => $activity->progress_percentage,
                         'notes' => $activity->notes,
                         'module' => $activity->module,
-                        'tcode' => $activity->tcode,
+                        'object' => $activity->object,
                         'deliverable' => $activity->deliverable,
                         'complexity' => $activity->complexity,
                         'receive_type' => $activity->receive_type,
                         'new_requirement' => $activity->new_requirement,
-                        'functional_sinergi' => $activity->functional_sinergi,
-                        'technical_sinergi' => $activity->technical_sinergi,
                     ];
 
                     return response()->json($responseData);
@@ -280,11 +292,11 @@ class ActivityManagementController extends Controller
             }
 
             // Default behavior: check ProjectPlanning first (for groups/planning items)
-            $planning = ProjectPlanning::with(['activity', 'customActivity', 'extended', 'stage'])->find($activityId);
+            $planning = DeliveryProjectPlanning::with(['activity', 'stage'])->find($activityId);
 
             if (!$planning) {
                 Log::info('Planning not found, searching in ProjectActivity...');
-                $activity = ProjectActivity::with('stage')->find($activityId);
+                $activity = DeliveryProjectActivity::with('stage')->find($activityId);
 
                 if (!$activity) {
                     throw new \Exception("Activity not found with ID: {$activityId}");
@@ -307,13 +319,11 @@ class ActivityManagementController extends Controller
                     'progress_percentage' => $activity->progress_percentage,
                     'notes' => $activity->notes,
                     'module' => $activity->module,
-                    'tcode' => $activity->tcode,
+                    'object' => $activity->object,
                     'deliverable' => $activity->deliverable,
                     'complexity' => $activity->complexity,
                     'receive_type' => $activity->receive_type,
                     'new_requirement' => $activity->new_requirement,
-                    'functional_sinergi' => $activity->functional_sinergi,
-                    'technical_sinergi' => $activity->technical_sinergi,
                 ];
 
                 return response()->json($responseData);
@@ -370,24 +380,14 @@ class ActivityManagementController extends Controller
                 ];
             }
 
+            // Get extended fields from linked activity
             if ($planning->activity_id && $planning->activity) {
                 $responseData['module'] = $planning->activity->module;
-                $responseData['tcode'] = $planning->activity->tcode;
+                $responseData['object'] = $planning->activity->object;
                 $responseData['deliverable'] = $planning->activity->deliverable;
                 $responseData['complexity'] = $planning->activity->complexity;
                 $responseData['receive_type'] = $planning->activity->receive_type;
                 $responseData['new_requirement'] = $planning->activity->new_requirement;
-                $responseData['functional_sinergi'] = $planning->activity->functional_sinergi;
-                $responseData['technical_sinergi'] = $planning->activity->technical_sinergi;
-            } elseif ($planning->extended) {
-                $responseData['module'] = $planning->extended->module;
-                $responseData['tcode'] = $planning->extended->tcode;
-                $responseData['deliverable'] = $planning->extended->deliverable;
-                $responseData['complexity'] = $planning->extended->complexity ?? null;
-                $responseData['receive_type'] = $planning->extended->receive_type ?? null;
-                $responseData['new_requirement'] = $planning->extended->new_requirement ?? false;
-                $responseData['functional_sinergi'] = $planning->extended->functional_sinergi ?? null;
-                $responseData['technical_sinergi'] = $planning->extended->technical_sinergi ?? null;
             }
 
             return response()->json($responseData);
@@ -408,12 +408,13 @@ class ActivityManagementController extends Controller
     /**
      * Update activity
      */
-    public function update(Request $request, Project $project, $activityId)
+    public function update(Request $request, DeliveryProject $project, $activityId)
     {
         try {
             Log::info('=== UPDATE ACTIVITY START ===', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'activity_id' => $activityId,
+                'type' => $request->query('type'),
                 'data' => $request->all()
             ]);
 
@@ -429,37 +430,88 @@ class ActivityManagementController extends Controller
                 'stage_id' => 'nullable|exists:activity_stages,id',
                 'notes' => 'nullable|string',
                 'module' => 'nullable|string|max:255',
-                'tcode' => 'nullable|string|max:255',
+                'object' => 'nullable|string|max:255',
                 'complexity' => 'nullable|in:low,medium,high',
                 'receive_type' => 'nullable|string|max:255',
                 'new_requirement' => 'boolean',
-                'functional_sinergi' => 'nullable|string',
-                'technical_sinergi' => 'nullable|string',
                 'deliverable' => 'nullable|string',
             ]);
 
-            return DB::transaction(function () use ($validated, $activityId) {
-                $planning = ProjectPlanning::find($activityId);
+            $isActivityType = $request->query('type') === 'activity';
+
+            return DB::transaction(function () use ($validated, $activityId, $isActivityType) {
+                // ✅ If type=activity, search ProjectActivity first to avoid ID conflicts
+                if ($isActivityType) {
+                    $activity = DeliveryProjectActivity::find($activityId);
+
+                    if ($activity) {
+                        Log::info('Updating DeliveryProjectActivity directly (type=activity)', ['id' => $activityId]);
+
+                        if (isset($validated['name'])) $activity->name = $validated['name'];
+                        if (isset($validated['start_date'])) $activity->start_date = $this->parseDate($validated['start_date']);
+                        if (isset($validated['end_date'])) $activity->end_date = $this->parseDate($validated['end_date']);
+                        if (isset($validated['actual_start_date'])) {
+                            $activity->actual_start_date = $this->parseDate($validated['actual_start_date']);
+                        }
+                        if (isset($validated['actual_end_date'])) {
+                            $activity->actual_end_date = $this->parseDate($validated['actual_end_date']);
+                        }
+                        if (isset($validated['status'])) $activity->status = $validated['status'];
+                        if (isset($validated['progress_percentage'])) $activity->progress_percentage = $validated['progress_percentage'];
+                        if (isset($validated['weight'])) $activity->weight = $validated['weight'];
+                        if (isset($validated['notes'])) $activity->notes = $validated['notes'];
+
+                        // Extended fields
+                        if (isset($validated['module'])) $activity->module = $validated['module'];
+                        if (isset($validated['object'])) $activity->object = $validated['object'];
+                        if (isset($validated['complexity'])) $activity->complexity = $validated['complexity'];
+                        if (isset($validated['receive_type'])) $activity->receive_type = $validated['receive_type'];
+                        if (isset($validated['new_requirement'])) $activity->new_requirement = $validated['new_requirement'];
+                        if (isset($validated['deliverable'])) $activity->deliverable = $validated['deliverable'];
+
+                        $activity->save();
+
+                        if ($activity->stage_id) {
+                            $stage = ActivityStage::find($activity->stage_id);
+                            if ($stage) {
+                                $stage->updateDatesFromActivities();
+                                $stage->updateProgressFromActivities();
+
+                                $group = $stage->group;
+                                if ($group) {
+                                    $group->updateGroupStatus();
+                                }
+                            }
+                        }
+
+                        return response()->json([
+                            'success' => true,
+                            'message' => 'Activity updated successfully',
+                            'data' => $activity->fresh(['stage'])
+                        ]);
+                    }
+
+                    throw new \Exception("Activity not found with ID: {$activityId}");
+                }
+
+                // Default behavior: check ProjectPlanning first
+                $planning = DeliveryProjectPlanning::find($activityId);
 
                 if ($planning) {
                     $oldStageId = $planning->stage_id;
                     
                     // Update planning basic fields
                     if (isset($validated['start_date'])) {
-                        $planning->start_date = Carbon::parse($validated['start_date']);
+                        $planning->start_date = $this->parseDate($validated['start_date']);
                     }
                     if (isset($validated['end_date'])) {
-                        $planning->end_date = Carbon::parse($validated['end_date']);
+                        $planning->end_date = $this->parseDate($validated['end_date']);
                     }
                     if (isset($validated['actual_start_date'])) {
-                        $planning->actual_start_date = $validated['actual_start_date'] 
-                            ? Carbon::parse($validated['actual_start_date']) 
-                            : null;
+                        $planning->actual_start_date = $this->parseDate($validated['actual_start_date']);
                     }
                     if (isset($validated['actual_end_date'])) {
-                        $planning->actual_end_date = $validated['actual_end_date'] 
-                            ? Carbon::parse($validated['actual_end_date']) 
-                            : null;
+                        $planning->actual_end_date = $this->parseDate($validated['actual_end_date']);
                     }
                     if (isset($validated['status'])) {
                         $planning->status = $validated['status'];
@@ -480,8 +532,9 @@ class ActivityManagementController extends Controller
                     if (isset($validated['name'])) {
                         if ($planning->is_group) {
                             $planning->group_name = $validated['name'];
-                        } elseif ($planning->customActivity) {
-                            $planning->customActivity->update(['name' => $validated['name']]);
+                        } else {
+                            // Update name directly on planning or linked activity
+                            $planning->name = $validated['name'];
                         }
                     }
 
@@ -492,17 +545,13 @@ class ActivityManagementController extends Controller
                         $activity = $planning->activity;
                         
                         if (isset($validated['name'])) $activity->name = $validated['name'];
-                        if (isset($validated['start_date'])) $activity->start_date = Carbon::parse($validated['start_date']);
-                        if (isset($validated['end_date'])) $activity->end_date = Carbon::parse($validated['end_date']);
+                        if (isset($validated['start_date'])) $activity->start_date = $this->parseDate($validated['start_date']);
+                        if (isset($validated['end_date'])) $activity->end_date = $this->parseDate($validated['end_date']);
                         if (isset($validated['actual_start_date'])) {
-                            $activity->actual_start_date = $validated['actual_start_date'] 
-                                ? Carbon::parse($validated['actual_start_date']) 
-                                : null;
+                            $activity->actual_start_date = $this->parseDate($validated['actual_start_date']);
                         }
                         if (isset($validated['actual_end_date'])) {
-                            $activity->actual_end_date = $validated['actual_end_date'] 
-                                ? Carbon::parse($validated['actual_end_date']) 
-                                : null;
+                            $activity->actual_end_date = $this->parseDate($validated['actual_end_date']);
                         }
                         if (isset($validated['status'])) $activity->status = $validated['status'];
                         if (isset($validated['progress_percentage'])) $activity->progress_percentage = $validated['progress_percentage'];
@@ -511,12 +560,10 @@ class ActivityManagementController extends Controller
                         
                         // Extended fields
                         if (isset($validated['module'])) $activity->module = $validated['module'];
-                        if (isset($validated['tcode'])) $activity->tcode = $validated['tcode'];
+                        if (isset($validated['object'])) $activity->object = $validated['object'];
                         if (isset($validated['complexity'])) $activity->complexity = $validated['complexity'];
                         if (isset($validated['receive_type'])) $activity->receive_type = $validated['receive_type'];
                         if (isset($validated['new_requirement'])) $activity->new_requirement = $validated['new_requirement'];
-                        if (isset($validated['functional_sinergi'])) $activity->functional_sinergi = $validated['functional_sinergi'];
-                        if (isset($validated['technical_sinergi'])) $activity->technical_sinergi = $validated['technical_sinergi'];
                         if (isset($validated['deliverable'])) $activity->deliverable = $validated['deliverable'];
                         
                         $activity->save();
@@ -547,12 +594,11 @@ class ActivityManagementController extends Controller
                     return response()->json([
                         'success' => true,
                         'message' => 'Updated successfully',
-                        'data' => $planning->fresh(['activity', 'customActivity', 'extended', 'stage'])
+                        'data' => $planning->fresh(['activity', 'stage'])
                     ]);
 
                 } else {
-                    // Try direct ProjectActivity
-                    $activity = ProjectActivity::find($activityId);
+                    $activity = DeliveryProjectActivity::find($activityId);
                     
                     if (!$activity) {
                         throw new \Exception("Activity not found with ID: {$activityId}");
@@ -560,17 +606,13 @@ class ActivityManagementController extends Controller
 
                     // Update ProjectActivity directly
                     if (isset($validated['name'])) $activity->name = $validated['name'];
-                    if (isset($validated['start_date'])) $activity->start_date = Carbon::parse($validated['start_date']);
-                    if (isset($validated['end_date'])) $activity->end_date = Carbon::parse($validated['end_date']);
+                    if (isset($validated['start_date'])) $activity->start_date = $this->parseDate($validated['start_date']);
+                    if (isset($validated['end_date'])) $activity->end_date = $this->parseDate($validated['end_date']);
                     if (isset($validated['actual_start_date'])) {
-                        $activity->actual_start_date = $validated['actual_start_date'] 
-                            ? Carbon::parse($validated['actual_start_date']) 
-                            : null;
+                        $activity->actual_start_date = $this->parseDate($validated['actual_start_date']);
                     }
                     if (isset($validated['actual_end_date'])) {
-                        $activity->actual_end_date = $validated['actual_end_date'] 
-                            ? Carbon::parse($validated['actual_end_date']) 
-                            : null;
+                        $activity->actual_end_date = $this->parseDate($validated['actual_end_date']);
                     }
                     if (isset($validated['status'])) $activity->status = $validated['status'];
                     if (isset($validated['progress_percentage'])) $activity->progress_percentage = $validated['progress_percentage'];
@@ -579,12 +621,10 @@ class ActivityManagementController extends Controller
                     
                     // Extended fields
                     if (isset($validated['module'])) $activity->module = $validated['module'];
-                    if (isset($validated['tcode'])) $activity->tcode = $validated['tcode'];
+                    if (isset($validated['object'])) $activity->object = $validated['object'];
                     if (isset($validated['complexity'])) $activity->complexity = $validated['complexity'];
                     if (isset($validated['receive_type'])) $activity->receive_type = $validated['receive_type'];
                     if (isset($validated['new_requirement'])) $activity->new_requirement = $validated['new_requirement'];
-                    if (isset($validated['functional_sinergi'])) $activity->functional_sinergi = $validated['functional_sinergi'];
-                    if (isset($validated['technical_sinergi'])) $activity->technical_sinergi = $validated['technical_sinergi'];
                     if (isset($validated['deliverable'])) $activity->deliverable = $validated['deliverable'];
                     
                     $activity->save();
@@ -626,11 +666,11 @@ class ActivityManagementController extends Controller
     /**
      * Delete activity
      */
-    public function destroy(Project $project, $activityId)
+    public function destroy(DeliveryProject $project, $activityId)
     {
         if (is_null($activityId) || $activityId === 'null' || !is_numeric($activityId) || $activityId <= 0) {
             Log::error("Invalid activity ID for deletion: '{$activityId}'", [
-                'project_id' => $project->id
+                'delivery_projects_id' => $project->id
             ]);
             return response()->json([
                 'success' => false,
@@ -640,17 +680,16 @@ class ActivityManagementController extends Controller
 
         try {
             Log::info('=== DELETE ACTIVITY START ===', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'activity_id' => $activityId
             ]);
 
             // Try to find in ProjectPlanning first
-            $planning = ProjectPlanning::find($activityId);
+            $planning = DeliveryProjectPlanning::find($activityId);
 
             if (!$planning) {
-                // If not found, try ProjectActivity
                 Log::info('Planning not found, searching in ProjectActivity...');
-                $projectActivity = ProjectActivity::find($activityId);
+                $projectActivity = DeliveryProjectActivity::find($activityId);
 
                 if (!$projectActivity) {
                     Log::error('Activity not found in both tables', ['id' => $activityId]);
@@ -660,7 +699,6 @@ class ActivityManagementController extends Controller
                     ], 404);
                 }
 
-                // Delete ProjectActivity
                 return DB::transaction(function () use ($projectActivity) {
                     $stageId = $projectActivity->stage_id;
 
@@ -702,8 +740,6 @@ class ActivityManagementController extends Controller
                 $stageId = $planning->stage_id;
                 $parentId = $planning->parent_id;
 
-                $planning->extended()->delete();
-                $planning->customActivity()->delete();
                 $planning->delete();
 
                 Log::info('ProjectPlanning deleted', ['id' => $planning->id]);
@@ -721,7 +757,7 @@ class ActivityManagementController extends Controller
                 }
 
                 if ($parentId) {
-                    $parent = ProjectPlanning::find($parentId);
+                    $parent = DeliveryProjectPlanning::find($parentId);
                     if ($parent) {
                         $parent->updateGroupStatus();
                     }
@@ -746,17 +782,13 @@ class ActivityManagementController extends Controller
         }
     }
 
-    // =========================================================================
-    // ACTIVITY MEMBER ASSIGNMENT
-    // =========================================================================
-
     /**
      * Get assigned members for an activity
      */
-    public function getAssignedMembers(Project $project, $activityId)
+    public function getAssignedMembers(DeliveryProject $project, $activityId)
     {
         try {
-            $activity = ProjectActivity::with(['assignedEmployees.basicData'])->find($activityId);
+            $activity = DeliveryProjectActivity::with(['assignedEmployees.basicData'])->find($activityId);
 
             if (!$activity) {
                 return response()->json([
@@ -768,8 +800,8 @@ class ActivityManagementController extends Controller
             $members = $activity->assignedEmployees->map(function ($employee) {
                 return [
                     'employee_id' => $employee->employee_id,
-                    'name' => $employee->basicData->full_name ?? 'N/A',
-                    'position' => $employee->basicData->position ?? 'N/A',
+                    'name' => $employee->basicData?->full_name ?? $employee->eci ?? 'N/A',
+                    'position' => $employee->basicData?->position ?? 'N/A',
                     'role' => $employee->pivot->role,
                     'assigned_date' => $employee->pivot->assigned_date,
                     'notes' => $employee->pivot->notes,
@@ -797,7 +829,7 @@ class ActivityManagementController extends Controller
     /**
      * Assign member to activity
      */
-    public function assignMember(Request $request, Project $project, $activityId)
+    public function assignMember(Request $request, DeliveryProject $project, $activityId)
     {
         try {
             $validated = $request->validate([
@@ -806,7 +838,7 @@ class ActivityManagementController extends Controller
                 'notes' => 'nullable|string',
             ]);
 
-            $activity = ProjectActivity::find($activityId);
+            $activity = DeliveryProjectActivity::find($activityId);
 
             if (!$activity) {
                 return response()->json([
@@ -856,7 +888,7 @@ class ActivityManagementController extends Controller
     /**
      * Update assigned member role/notes
      */
-    public function updateAssignedMember(Request $request, Project $project, $activityId, $employeeId)
+    public function updateAssignedMember(Request $request, DeliveryProject $project, $activityId, $employeeId)
     {
         try {
             $validated = $request->validate([
@@ -864,7 +896,7 @@ class ActivityManagementController extends Controller
                 'notes' => 'nullable|string',
             ]);
 
-            $activity = ProjectActivity::find($activityId);
+            $activity = DeliveryProjectActivity::find($activityId);
 
             if (!$activity) {
                 return response()->json([
@@ -900,10 +932,10 @@ class ActivityManagementController extends Controller
     /**
      * Unassign member from activity
      */
-    public function unassignMember(Project $project, $activityId, $employeeId)
+    public function unassignMember(DeliveryProject $project, $activityId, $employeeId)
     {
         try {
-            $activity = ProjectActivity::find($activityId);
+            $activity = DeliveryProjectActivity::find($activityId);
 
             if (!$activity) {
                 return response()->json([

@@ -2,47 +2,47 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Project;
-use App\Models\ProjectPhase;
-use App\Models\DynamicProjectPhase;
-use App\Models\ProjectPlanning;
-use App\Models\ProjectActivity;
-use App\Models\ProjectViewConfiguration;
+use App\Models\DeliveryProject;
+use App\Models\DeliveryProjectPhase;
+use App\Models\DeliveryDynamicProjectPhase;
+use App\Models\DeliveryProjectPlanning;
+use App\Models\DeliveryProjectActivity;
+use App\Models\DeliveryProjectViewConfiguration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class DynamicPhaseController extends Controller
+class DeliveryDynamicPhaseController extends Controller
 {
     /**
      * Display phase management interface
      */
-    public function index(Project $project)
+    public function index(DeliveryProject $project)
     {
-        // ✅ Eager load relasi yang dibutuhkan untuk mengurangi query database
+        // ✅ Eager load relasi yang dibutuhkan
         $project->load([
             'client',
             'phases' => function ($query) {
-                $query->withPivot(['weight', 'order_sequence', 'is_visible', 'orientation', 'custom_settings'])
-                      ->orderBy('pivot_order_sequence');
+                $query->orderBy('order_sequence');
             },
-            // ✅ Ambil SEMUA plannings, termasuk relasi yang dibutuhkan oleh view
             'plannings' => function ($query) {
-                $query->with(['activity.phase', 'customActivity.phase', 'extended', 'children']);
+                $query->with(['activity.phase', 'children']);
             }
         ]);
 
-        $phases = $project->phases; // Ambil dari relasi yang sudah di-load
+        $phases = $project->phases;
 
-        $verticalPhases = $phases->where('pivot.orientation', 'vertical');
-        $horizontalPhases = $phases->where('pivot.orientation', 'horizontal');
+        $verticalPhases = $phases->where('orientation', 'vertical');
+        $horizontalPhases = $phases->where('orientation', 'horizontal');
 
-        $availablePhases = ProjectPhase::where('is_active', true)
+        // ✅ Ambil phase template yang belum ditambahkan ke project
+        $availablePhases = DeliveryProjectPhase::where('is_system_default', true)
+            ->whereNull('delivery_projects_id')
             ->whereNotIn('id', $phases->pluck('id'))
             ->get();
         
-        $viewConfig = ProjectViewConfiguration::firstOrCreate(
-            ['project_id' => $project->id],
+        $viewConfig = DeliveryProjectViewConfiguration::firstOrCreate(
+            ['delivery_projects_id' => $project->id],
             [
                 'default_view' => 'table',
                 'gantt_settings' => [],
@@ -57,7 +57,6 @@ class DynamicPhaseController extends Controller
             'horizontalPhases',
             'availablePhases',
             'viewConfig'
-            // Variabel 'plannings' sekarang otomatis ada di dalam objek $project
         ));
     }
 
@@ -70,23 +69,21 @@ class DynamicPhaseController extends Controller
                 'color' => 'nullable|string|max:7',
             ]);
 
-            // ✅ Get max order_sequence
-            $maxSequence = DB::table('project_phases')
+            $maxSequence = DB::table('delivery_project_phases')
                 ->where('is_active', true)
                 ->max('order_sequence');
             
-            // ✅ Handle null case
             if ($maxSequence === null) {
                 $maxSequence = 0;
             }
 
-            // ✅ Create new phase
-            $phase = ProjectPhase::create([
+            $phase = DeliveryProjectPhase::create([
                 'name' => $validated['name'],
                 'color' => $validated['color'] ?? '#3B82F6',
                 'is_active' => true,
                 'order_sequence' => $maxSequence + 1,
                 'description' => 'Custom phase created for project',
+                'is_system_default' => true, // Jadi template untuk semua project
             ]);
 
             Log::info('✅ Custom phase created successfully', [
@@ -127,47 +124,55 @@ class DynamicPhaseController extends Controller
     }
     
     /**
-     * ✅ FIXED: Add phase to project - Accept EXACT weight from user (NO auto-calculation)
+     * ✅ FIXED: Add phase to project - One-to-Many menggunakan create()
      */
-    public function addPhase(Request $request, Project $project)
+    public function addPhase(Request $request, DeliveryProject $project)
     {
         $validated = $request->validate([
-            'phase_id' => 'required|exists:project_phases,id',
+            'phase_id' => 'required|exists:delivery_project_phases,id',
             'weight' => 'required|numeric|min:0|max:100',
             'orientation' => 'required|in:vertical,horizontal',
             'is_golive_phase' => 'nullable|boolean',
-            'parent_phase_id' => 'nullable|exists:project_phases,id',
+            'custom_settings' => 'nullable|array',
         ]);
 
         try {
-            DB::transaction(function () use ($validated, $project) {
-                // Get current max sequence
-                $maxSequence = DB::table('project_project_phase')
-                    ->where('project_id', $project->id)
-                    ->where('orientation', $validated['orientation'])
-                    ->max('order_sequence') ?? 0;
+            // ✅ Ambil phase template
+            $systemPhase = DeliveryProjectPhase::where('id', $validated['phase_id'])
+                ->where('is_system_default', true)
+                ->whereNull('delivery_projects_id')
+                ->firstOrFail();
 
-                // ✅ FIXED: Use $validated instead of $request
-                $project->phases()->attach($validated['phase_id'], [
-                    'weight' => $validated['weight'],
-                    'order_sequence' => $maxSequence + 1,
-                    'is_visible' => true,
-                    'is_golive_phase' => $validated['is_golive_phase'] ?? false, // ✅ FIXED
-                    'orientation' => $validated['orientation'],
-                    'custom_settings' => json_encode($validated['custom_settings'] ?? []),
-                ]);
-            });
-
-            Log::info('✅ Phase added with exact weight', [
-                'phase_id' => $validated['phase_id'],
+            // ✅ Create phase baru untuk project ini (One-to-Many)
+            $projectPhase = $project->phases()->create([
+                'name' => $systemPhase->name,
+                'description' => $systemPhase->description,
+                'order_sequence' => $validated['orientation'] === 'vertical' 
+                    ? ($project->phases()->where('orientation', 'vertical')->max('order_sequence') ?? 0) + 1
+                    : ($project->phases()->where('orientation', 'horizontal')->max('order_sequence') ?? 0) + 1,
+                'color' => $systemPhase->color,
                 'weight' => $validated['weight'],
-                'is_golive' => $validated['is_golive_phase'] ?? false,
-                'orientation' => $validated['orientation']
+                'is_visible' => true,
+                'is_golive_phase' => $validated['is_golive_phase'] ?? ($systemPhase->name === 'Go-Live & Support'),
+                'orientation' => $validated['orientation'],
+                'is_optional' => $systemPhase->is_optional,
+                'is_active' => true,
+                'is_system_default' => false, // Bukan template lagi
+                'settings' => $systemPhase->settings,
+                'custom_settings' => $validated['custom_settings'] ?? null,
+            ]);
+
+            Log::info('✅ Phase added to project', [
+                'project_id' => $project->id,
+                'phase_id' => $projectPhase->id,
+                'weight' => $projectPhase->weight,
+                'orientation' => $projectPhase->orientation
             ]);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Fase berhasil ditambahkan',
+                'phase' => $projectPhase
             ]);
         } catch (\Exception $e) {
             Log::error('Error adding phase: ' . $e->getMessage());
@@ -179,18 +184,21 @@ class DynamicPhaseController extends Controller
     }
 
     /**
-     * ✅ FIXED: Update phase - Accept EXACT weight from user (NO auto-calculation)
+     * ✅ FIXED: Update phase - One-to-Many menggunakan update()
      */
-    public function updatePhase(Request $request, Project $project, $phaseId)
+    public function updatePhase(Request $request, DeliveryProject $project, $phaseId)
     {
         $validated = $request->validate([
             'weight' => 'nullable|numeric|min:0|max:100',
             'is_visible' => 'nullable|boolean',
-            'is_golive_phase' => 'nullable|boolean', // ✅ Added
+            'is_golive_phase' => 'nullable|boolean',
             'custom_settings' => 'nullable|array',
         ]);
 
         try {
+            // ✅ Cari phase milik project ini
+            $phase = $project->phases()->where('id', $phaseId)->firstOrFail();
+
             $updateData = [];
             
             if (isset($validated['weight'])) {
@@ -200,18 +208,17 @@ class DynamicPhaseController extends Controller
             if (isset($validated['is_visible'])) {
                 $updateData['is_visible'] = $validated['is_visible'];
             }
-            
-            // ✅ FIXED: Add is_golive_phase to update
+
             if (isset($validated['is_golive_phase'])) {
                 $updateData['is_golive_phase'] = $validated['is_golive_phase'];
             }
             
             if (isset($validated['custom_settings'])) {
-                $updateData['custom_settings'] = json_encode($validated['custom_settings']);
+                $updateData['custom_settings'] = $validated['custom_settings'];
             }
 
             if (!empty($updateData)) {
-                $project->phases()->updateExistingPivot($phaseId, $updateData);
+                $phase->update($updateData);
             }
 
             Log::info('✅ Phase updated', [
@@ -222,6 +229,7 @@ class DynamicPhaseController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Konfigurasi fase berhasil diperbarui',
+                'phase' => $phase
             ]);
         } catch (\Exception $e) {
             Log::error('Error updating phase: ' . $e->getMessage());
@@ -233,28 +241,24 @@ class DynamicPhaseController extends Controller
     }
 
     /**
-     * ✅ FIXED: Remove phase - NO weight recalculation
+     * ✅ FIXED: Remove phase - One-to-Many menggunakan delete()
      */
-    public function removePhase(Request $request, Project $project, $phaseId)
+    public function removePhase(Request $request, DeliveryProject $project, $phaseId)
     {
         try {
-            DB::transaction(function () use ($project, $phaseId) {
-                // Check if phase has activities
-                $hasActivities = ProjectPlanning::where('project_id', $project->id)
-                    ->whereHas('activity', function($q) use ($phaseId) {
-                        $q->where('project_phase_id', $phaseId);
-                    })
-                    ->exists();
+            // ✅ Cek apakah phase ada dan milik project ini
+            $phase = $project->phases()->where('id', $phaseId)->firstOrFail();
 
-                if ($hasActivities) {
-                    throw new \Exception('Fase tidak dapat dihapus karena memiliki aktivitas');
-                }
+            $hasActivities = DeliveryProjectPlanning::where('delivery_projects_id', $project->id)
+                ->where('phase_id', $phaseId)
+                ->exists();
 
-                // Detach phase
-                $project->phases()->detach($phaseId);
+            if ($hasActivities) {
+                throw new \Exception('Fase tidak dapat dihapus karena memiliki aktivitas');
+            }
 
-                // ✅ NO recalculateWeights() - User will manually adjust remaining weights
-            });
+            // ✅ Hapus phase
+            $phase->delete();
 
             Log::info('✅ Phase removed from project', ['phase_id' => $phaseId]);
 
@@ -274,22 +278,22 @@ class DynamicPhaseController extends Controller
     /**
      * Reorder phases (no weight changes)
      */
-    public function reorderPhases(Request $request, Project $project)
+    public function reorderPhases(Request $request, DeliveryProject $project)
     {
         $request->validate([
             'phases' => 'required|array',
-            'phases.*.id' => 'required|exists:project_phases,id',
+            'phases.*.id' => 'required|exists:delivery_project_phases,id',
             'phases.*.sequence' => 'required|integer|min:0',
         ]);
 
         try {
-            DB::transaction(function () use ($request, $project) {
-                foreach ($request->phases as $phaseData) {
-                    $project->phases()->updateExistingPivot($phaseData['id'], [
-                        'order_sequence' => $phaseData['sequence'],
-                    ]);
-                }
-            });
+            foreach ($request->phases as $phaseData) {
+                // ✅ Update phase milik project
+                $phase = $project->phases()->where('id', $phaseData['id'])->firstOrFail();
+                $phase->update([
+                    'order_sequence' => $phaseData['sequence'],
+                ]);
+            }
 
             Log::info('✅ Phases reordered', ['count' => count($request->phases)]);
 
@@ -309,13 +313,14 @@ class DynamicPhaseController extends Controller
     /**
      * Toggle phase visibility
      */
-    public function togglePhaseVisibility(Request $request, Project $project, $phaseId)
+    public function togglePhaseVisibility(Request $request, DeliveryProject $project, $phaseId)
     {
         try {
-            $phase = $project->phases()->find($phaseId);
-            $currentVisibility = $phase->pivot->is_visible;
+            // ✅ Cari phase milik project
+            $phase = $project->phases()->where('id', $phaseId)->firstOrFail();
+            $currentVisibility = $phase->is_visible;
 
-            $project->phases()->updateExistingPivot($phaseId, [
+            $phase->update([
                 'is_visible' => !$currentVisibility,
             ]);
 
@@ -341,10 +346,9 @@ class DynamicPhaseController extends Controller
     /**
      * Update view configuration
      */
-    public function updateViewConfig(Request $request, Project $project)
+    public function updateViewConfig(Request $request, DeliveryProject $project)
     {
         try {
-            // ✅ FIXED: Make all fields optional with defaults
             $validated = $request->validate([
                 'default_view' => 'nullable|in:gantt,table,scurve',
                 'gantt_settings' => 'nullable|array',
@@ -352,18 +356,17 @@ class DynamicPhaseController extends Controller
                 'column_visibility' => 'nullable|array',
             ]);
 
-            // ✅ Set default view jika tidak ada
             if (empty($validated['default_view'])) {
                 $validated['default_view'] = $request->input('default_view', 'table');
             }
 
             Log::info('✅ Updating view config', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'data' => $validated
             ]);
 
-            $viewConfig = ProjectViewConfiguration::updateOrCreate(
-                ['project_id' => $project->id],
+            $viewConfig = DeliveryProjectViewConfiguration::updateOrCreate(
+                ['delivery_projects_id' => $project->id],
                 [
                     'default_view' => $validated['default_view'],
                     'gantt_settings' => $validated['gantt_settings'] ?? [],
@@ -392,7 +395,7 @@ class DynamicPhaseController extends Controller
             
         } catch (\Exception $e) {
             Log::error('❌ Error updating view config', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -413,11 +416,9 @@ class DynamicPhaseController extends Controller
             'task_title' => true,
             'module' => true,
             'new_req' => true,
-            'tcode' => true,
+            'object' => true,
             'receive_type' => true,
             'complexity' => true,
-            'functional_sinergi' => true,
-            'technical_sinergi' => true,
             'planned_start' => true,
             'planned_end' => true,
             'planned_days' => true,

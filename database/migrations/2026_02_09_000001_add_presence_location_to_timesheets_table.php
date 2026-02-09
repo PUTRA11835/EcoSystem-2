@@ -12,8 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('timesheets', function (Blueprint $table) {
-            $table->unsignedBigInteger('activity_id')->nullable()->after('delivery_projects_id');
-            $table->foreign('activity_id')->references('id')->on('delivery_project_activities')->onDelete('set null');
+            $table->string('presence')->nullable()->after('activity_type');
+            $table->text('location')->nullable()->after('presence');
         });
     }
 
@@ -23,8 +23,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('timesheets', function (Blueprint $table) {
-            $table->dropForeign(['activity_id']);
-            $table->dropColumn('activity_id');
+            $table->dropColumn(['presence', 'location']);
         });
     }
 };

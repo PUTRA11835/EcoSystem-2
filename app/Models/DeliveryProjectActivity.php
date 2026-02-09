@@ -8,26 +8,24 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class ProjectActivity extends Model
+class DeliveryProjectActivity extends Model
 {
     use HasFactory;
 
-    protected $table = 'project_activities';
+    protected $table = 'delivery_project_activities';
 
     protected $fillable = [
-        'project_id',
-        'project_phase_id',
+        'delivery_projects_id',
+        'delivery_project_phase_id',
         'stage_id',
         'name',
         'description',
         'order_sequence',
         'module',
         'new_requirement',
-        'tcode',
+        'object',
         'receive_type',
         'complexity',
-        'functional_sinergi',
-        'technical_sinergi',
         'deliverable',
         'start_date',
         'end_date',
@@ -56,9 +54,9 @@ class ProjectActivity extends Model
     /**
      * Get the project that owns the activity
      */
-    public function project(): BelongsTo
+    public function delivery_project(): BelongsTo
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(DeliveryProject::class, 'delivery_projects_id');
     }
 
     /**
@@ -66,7 +64,7 @@ class ProjectActivity extends Model
      */
     public function phase(): BelongsTo
     {
-        return $this->belongsTo(ProjectPhase::class, 'project_phase_id');
+        return $this->belongsTo(DeliveryProjectPhase::class, 'delivery_project_phase_id');
     }
 
     /**
@@ -78,22 +76,12 @@ class ProjectActivity extends Model
     }
 
     /**
-     * Get all stages for this activity (for backward compatibility with old structure)
-     * This is for activities that have child stages
-     */
-    public function stages(): HasMany
-    {
-        return $this->hasMany(ActivityStage::class, 'activity_id')
-            ->orderBy('order_sequence');
-    }
-
-    /**
      * Get the planning records associated with this activity (for backward compatibility)
      * During transition period, project_planning might still reference activities
      */
-    public function plannings(): HasMany
+    public function delivery_plannings(): HasMany
     {
-        return $this->hasMany(ProjectPlanning::class, 'activity_id');
+        return $this->hasMany(DeliveryProjectPlanning::class, 'activity_id');
     }
 
     /**
@@ -101,7 +89,7 @@ class ProjectActivity extends Model
      */
     public function assignedEmployees(): BelongsToMany
     {
-        return $this->belongsToMany(Employee::class, 'activity_employee', 'project_activity_id', 'employee_id', 'id', 'employee_id')
+        return $this->belongsToMany(Employee::class, 'activity_employee', 'delivery_project_activity_id', 'employee_id', 'id', 'employee_id')
                     ->withPivot('role', 'assigned_date', 'notes')
                     ->withTimestamps();
     }
@@ -113,10 +101,6 @@ class ProjectActivity extends Model
     {
         return $this->hasMany(Timesheet::class, 'activity_id');
     }
-
-    // =========================================================================
-    // SCOPES
-    // =========================================================================
 
     /**
      * Scope untuk mengurutkan berdasarkan order_sequence
@@ -139,7 +123,7 @@ class ProjectActivity extends Model
      */
     public function scopeByPhase($query, $phaseId)
     {
-        return $query->where('project_phase_id', $phaseId);
+        return $query->where('delivery_project_phase_id', $phaseId);
     }
 
     /**
@@ -147,7 +131,7 @@ class ProjectActivity extends Model
      */
     public function scopeByProject($query, $projectId)
     {
-        return $query->where('project_id', $projectId);
+        return $query->where('delivery_projects_id', $projectId);
     }
 
     // =========================================================================

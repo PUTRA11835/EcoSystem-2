@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityStage;
-use App\Models\ProjectPlanning;
+use App\Models\DeliveryProjectPlanning;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -12,10 +12,28 @@ use Carbon\Carbon;
 class ActivityStageController extends Controller
 {
     /**
+     * Parse date from various formats (dd/mm/yyyy or yyyy-mm-dd)
+     */
+    private function parseDate($dateString)
+    {
+        if (empty($dateString)) {
+            return null;
+        }
+
+        // Check if it's in dd/mm/yyyy format
+        if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $dateString)) {
+            return Carbon::createFromFormat('d/m/Y', $dateString);
+        }
+
+        // Otherwise parse as standard format
+        return Carbon::parse($dateString);
+    }
+
+    /**
      * ✅ Get all stages for a GROUP
      * Sekarang stage milik group, bukan activity
      */
-    public function index(ProjectPlanning $planning)
+    public function index(DeliveryProjectPlanning $planning)
     {
         // ✅ Validasi: Hanya group yang boleh punya stages
         if (!$planning->is_group) {
@@ -46,7 +64,7 @@ class ActivityStageController extends Controller
     /**
      * ✅ Create new stage under a group
      */
-    public function store(Request $request, ProjectPlanning $planning)
+    public function store(Request $request, DeliveryProjectPlanning $planning)
     {
         // ✅ Validasi: Hanya group yang boleh punya stages
         if (!$planning->is_group) {
@@ -80,8 +98,8 @@ class ActivityStageController extends Controller
                 $stage = $planning->stages()->create([
                     'name' => $validated['name'],
                     'description' => $validated['description'] ?? null,
-                    'planned_start_date' => Carbon::parse($validated['planned_start_date']),
-                    'planned_end_date' => Carbon::parse($validated['planned_end_date']),
+                    'planned_start_date' => $this->parseDate($validated['planned_start_date']),
+                    'planned_end_date' => $this->parseDate($validated['planned_end_date']),
                     'weight' => $validated['weight'],
                     'progress' => 0,
                     'status' => 'not_started',
@@ -131,8 +149,7 @@ class ActivityStageController extends Controller
     {
         try {
             $stage->load(['activities', 'group']);
-            
-            // ✅ Count activities
+
             $activitiesCount = $stage->activities()->count();
 
             return response()->json([
@@ -150,9 +167,9 @@ class ActivityStageController extends Controller
                     'status' => $stage->status,
                     'color' => $stage->color,
                     'order_sequence' => $stage->order_sequence,
-                    'activities_count' => $activitiesCount, // ✅ BARU
+                    'activities_count' => $activitiesCount, 
                     'group_name' => $stage->group?->name,
-                    'has_activities' => $activitiesCount > 0, // ✅ BARU (untuk disable dates)
+                    'has_activities' => $activitiesCount > 0,
                 ]
             ]);
         } catch (\Exception $e) {
@@ -178,8 +195,8 @@ class ActivityStageController extends Controller
             'description' => 'nullable|string',
             'planned_start_date' => 'nullable|date',
             'planned_end_date' => 'nullable|date|after_or_equal:planned_start_date',
-            'actual_start_date' => 'nullable|date',  // ✅ ADD THIS
-            'actual_end_date' => 'nullable|date|after_or_equal:actual_start_date',  // ✅ ADD THIS
+            'actual_start_date' => 'nullable|date',
+            'actual_end_date' => 'nullable|date|after_or_equal:actual_start_date',
             'progress' => 'nullable|numeric|min:0|max:100',
             'status' => 'nullable|in:not_started,in_progress,completed,delayed',
             'weight' => 'nullable|numeric|min:0|max:100',
@@ -189,7 +206,6 @@ class ActivityStageController extends Controller
 
         try {
             return DB::transaction(function () use ($validated, $stage, $request) {
-                // Update fields
                 if (isset($validated['name'])) {
                     $stage->name = $validated['name'];
                 }
@@ -197,22 +213,17 @@ class ActivityStageController extends Controller
                     $stage->description = $validated['description'];
                 }
                 if (isset($validated['planned_start_date'])) {
-                    $stage->planned_start_date = Carbon::parse($validated['planned_start_date']);
+                    $stage->planned_start_date = $this->parseDate($validated['planned_start_date']);
                 }
                 if (isset($validated['planned_end_date'])) {
-                    $stage->planned_end_date = Carbon::parse($validated['planned_end_date']);
+                    $stage->planned_end_date = $this->parseDate($validated['planned_end_date']);
                 }
-                
-                // ✅ CRITICAL FIX: Save actual dates properly
+
                 if ($request->has('actual_start_date')) {
-                    $stage->actual_start_date = $validated['actual_start_date'] 
-                        ? Carbon::parse($validated['actual_start_date']) 
-                        : null;
+                    $stage->actual_start_date = $this->parseDate($validated['actual_start_date']);
                 }
                 if ($request->has('actual_end_date')) {
-                    $stage->actual_end_date = $validated['actual_end_date'] 
-                        ? Carbon::parse($validated['actual_end_date']) 
-                        : null;
+                    $stage->actual_end_date = $this->parseDate($validated['actual_end_date']);
                 }
                 
                 if (isset($validated['progress'])) {
@@ -228,7 +239,6 @@ class ActivityStageController extends Controller
                     $stage->custom_fields = $validated['custom_fields'];
                 }
 
-                // Auto-update status based on progress
                 if (isset($validated['progress'])) {
                     if ($stage->progress == 0) {
                         $stage->status = 'not_started';
@@ -239,12 +249,10 @@ class ActivityStageController extends Controller
                     }
                 }
 
-                // Manual status override
                 if (isset($validated['status'])) {
                     $stage->status = $validated['status'];
                 }
 
-                // Check if delayed
                 if ($stage->planned_end_date && Carbon::now()->gt($stage->planned_end_date) && 
                     $stage->status != 'completed') {
                     $stage->status = 'delayed';
@@ -259,7 +267,6 @@ class ActivityStageController extends Controller
                     'actual_end_date' => $stage->actual_end_date?->format('Y-m-d'),
                 ]);
 
-                // Update parent group
                 $group = $stage->group;
                 if ($group) {
                     $group->updateGroupStatus();
@@ -300,7 +307,6 @@ class ActivityStageController extends Controller
                 $groupId = $stage->planning_id;
                 $stageName = $stage->name;
 
-                // ✅ Check if stage has activities
                 if ($stage->activities()->count() > 0) {
                     return response()->json([
                         'success' => false,
@@ -315,15 +321,13 @@ class ActivityStageController extends Controller
                     'name' => $stageName
                 ]);
 
-                // Reorder remaining stages
-                $group = ProjectPlanning::find($groupId);
+                $group = DeliveryProjectPlanning::find($groupId);
                 if ($group) {
                     $group->stages()->orderBy('order_sequence')->get()->each(function ($s, $index) {
                         $s->order_sequence = $index;
                         $s->saveQuietly();
                     });
 
-                    // Update group status
                     $group->updateGroupStatus();
                 }
 
@@ -353,7 +357,7 @@ class ActivityStageController extends Controller
     /**
      * ✅ Reorder stages
      */
-    public function reorder(Request $request, ProjectPlanning $planning)
+    public function reorder(Request $request, DeliveryProjectPlanning $planning)
     {
         if (!$planning->is_group) {
             return response()->json([
@@ -403,7 +407,7 @@ class ActivityStageController extends Controller
     /**
      * ✅ Bulk create stages
      */
-    public function bulkCreate(Request $request, ProjectPlanning $planning)
+    public function bulkCreate(Request $request, DeliveryProjectPlanning $planning)
     {
         if (!$planning->is_group) {
             return response()->json([
@@ -428,8 +432,8 @@ class ActivityStageController extends Controller
                 foreach ($validated['stages'] as $index => $stageData) {
                     $stage = $planning->stages()->create([
                         'name' => $stageData['name'],
-                        'planned_start_date' => Carbon::parse($stageData['planned_start_date']),
-                        'planned_end_date' => Carbon::parse($stageData['planned_end_date']),
+                        'planned_start_date' => $this->parseDate($stageData['planned_start_date']),
+                        'planned_end_date' => $this->parseDate($stageData['planned_end_date']),
                         'weight' => $stageData['weight'],
                         'progress' => 0,
                         'status' => 'not_started',
@@ -440,7 +444,6 @@ class ActivityStageController extends Controller
                     $createdStages[] = $stage;
                 }
 
-                // Update group status
                 $planning->updateGroupStatus();
 
                 return response()->json([

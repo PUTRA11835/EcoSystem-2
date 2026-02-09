@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class ProjectUpdate extends Model
+class DeliveryProjectUpdate extends Model
 {
     use HasFactory;
 
@@ -15,7 +15,7 @@ class ProjectUpdate extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'project_id',
+        'delivery_projects_id',
         'highlight_issue',
         'action',
         'due_date',
@@ -25,7 +25,7 @@ class ProjectUpdate extends Model
         'notes',
     ];
 
-    public function project() {
-        return $this->belongsTo(Project::class);
+    public function delivery_project() {
+        return $this->belongsTo(DeliveryProject::class);
     }
 }

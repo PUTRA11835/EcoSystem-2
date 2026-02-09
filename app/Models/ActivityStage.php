@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Log;
-use App\Models\ProjectActivity;
+use App\Models\DeliveryProjectActivity;
 use Carbon\Carbon;
 
 class ActivityStage extends Model
@@ -17,8 +17,8 @@ class ActivityStage extends Model
     protected $table = 'activity_stages';
 
     protected $fillable = [
-        'planning_id',      // ✅ Parent group ID (ORIGINAL - for backward compatibility)
-        'activity_id',      // ✅ NEW: Direct link to project_activities
+        'planning_id',
+        'activity_id',
         'name',
         'description',
         'planned_start_date',
@@ -30,7 +30,7 @@ class ActivityStage extends Model
         'status',
         'color',
         'order_sequence',
-        'custom_fields',    // ✅ Added for extensibility
+        'custom_fields', 
     ];
 
     protected $casts = [
@@ -65,21 +65,12 @@ class ActivityStage extends Model
     // =========================================================================
 
     /**
-     * ✅ NEW: Stage belongs to an Activity (primary relationship)
-     * This is the NEW primary relationship going forward
-     */
-    public function activity(): BelongsTo
-    {
-        return $this->belongsTo(ProjectActivity::class, 'activity_id');
-    }
-
-    /**
      * ✅ ORIGINAL: Stage belongs to a GROUP (parent) - for backward compatibility
      * This relationship is DEPRECATED but kept for backward compatibility
      */
     public function planning(): BelongsTo
     {
-        return $this->belongsTo(ProjectPlanning::class, 'planning_id');
+        return $this->belongsTo(DeliveryProjectPlanning::class, 'planning_id');
     }
 
     /**
@@ -102,7 +93,7 @@ class ActivityStage extends Model
         }
         
         // ✅ FALLBACK: Old structure via ProjectPlanning
-        return $this->hasMany(ProjectPlanning::class, 'stage_id')
+        return $this->hasMany(DeliveryProjectPlanning::class, 'stage_id')
             ->where('is_group', false)
             ->orderBy('order_sequence');
     }
@@ -122,7 +113,7 @@ class ActivityStage extends Model
         }
         
         // Fallback to old structure
-        return $this->hasMany(ProjectPlanning::class, 'stage_id')
+        return $this->hasMany(DeliveryProjectPlanning::class, 'stage_id')
             ->where('is_group', false)
             ->orderBy('order_sequence')
             ->get();
@@ -132,7 +123,7 @@ class ActivityStage extends Model
      */
     public function parentActivities()
     {
-        return $this->hasMany(ProjectPlanning::class, 'stage_id')
+        return $this->hasMany(DeliveryProjectPlanning::class, 'stage_id')
             ->whereNull('parent_id')
             ->whereNotNull('stage_id')
             ->orderBy('order_sequence');
@@ -143,31 +134,25 @@ class ActivityStage extends Model
      */
     public function project()
     {
-        // Try new structure first
         if ($this->activity_id && $this->activity) {
             return $this->activity->project();
         }
-        
-        // Fallback to old structure
+
         return $this->hasOneThrough(
-            \App\Models\Project::class,
-            ProjectPlanning::class,
+            \App\Models\DeliveryProject::class,
+            DeliveryProjectPlanning::class,
             'id',
             'id',
             'planning_id',
-            'project_id'
+            'delivery_projects_id'
         );
     }
 
     public function projectActivities(): HasMany
     {
-        return $this->hasMany(ProjectActivity::class, 'stage_id')
+        return $this->hasMany(DeliveryProjectActivity::class, 'stage_id')
             ->orderBy('order_sequence');
     }
-
-    // =========================================================================
-    // ACCESSORS & COMPUTED PROPERTIES (ALL ORIGINAL - PRESERVED)
-    // =========================================================================
 
     /**
      * ✅ ORIGINAL: Calculate progress from activities (bottom-up weighted average)
@@ -191,7 +176,6 @@ class ActivityStage extends Model
             $weightedProgress += ($progress * $weight);
         }
 
-        // Jika tidak ada weight, gunakan simple average
         if ($totalWeight == 0) {
             return round($activities->avg('progress_percentage') ?? 0, 2);
         }
@@ -311,10 +295,6 @@ class ActivityStage extends Model
         return $this->duration_days;
     }
 
-    // =========================================================================
-    // SCOPES (ALL ORIGINAL - PRESERVED)
-    // =========================================================================
-
     public function scopeForGroup($query, $groupId)
     {
         return $query->where('planning_id', $groupId);
@@ -362,10 +342,6 @@ class ActivityStage extends Model
     {
         return $query->whereNotNull('activity_id');
     }
-
-    // =========================================================================
-    // DATE CALCULATION METHODS (ALL ORIGINAL - PRESERVED)
-    // =========================================================================
 
     /**
      * ✅ ORIGINAL: Calculate dates dari activities (READ-ONLY, tidak save)
@@ -456,10 +432,6 @@ class ActivityStage extends Model
 
         return $dates;
     }
-
-    // =========================================================================
-    // PROGRESS & STATUS UPDATE METHODS (ALL ORIGINAL - PRESERVED)
-    // =========================================================================
 
     /**
      * ✅ ORIGINAL: Update progress stage dari activities (SAVE ke DB)
@@ -680,7 +652,7 @@ class ActivityStage extends Model
         static::saved(function ($stage) {
             // Update parent activity (new structure)
             if ($stage->activity_id) {
-                $activity = ProjectActivity::find($stage->activity_id);
+                $activity = DeliveryProjectActivity::find($stage->activity_id);
                 if ($activity) {
                     Log::info('Updating parent activity after stage save', [
                         'stage_id' => $stage->id,
@@ -692,7 +664,7 @@ class ActivityStage extends Model
             
             // Update parent group (old structure)
             if ($stage->planning_id) {
-                $group = ProjectPlanning::find($stage->planning_id);
+                $group = DeliveryProjectPlanning::find($stage->planning_id);
                 if ($group && $group->is_group) {
                     Log::info('Updating parent group after stage save', [
                         'stage_id' => $stage->id,
@@ -707,7 +679,7 @@ class ActivityStage extends Model
         static::deleted(function ($stage) {
             // Update parent activity (new structure)
             if ($stage->activity_id) {
-                $activity = ProjectActivity::find($stage->activity_id);
+                $activity = DeliveryProjectActivity::find($stage->activity_id);
                 if ($activity) {
                     Log::info('Updating parent activity after stage delete', [
                         'stage_id' => $stage->id,
@@ -719,7 +691,7 @@ class ActivityStage extends Model
             
             // Update parent group (old structure)
             if ($stage->planning_id) {
-                $group = ProjectPlanning::find($stage->planning_id);
+                $group = DeliveryProjectPlanning::find($stage->planning_id);
                 if ($group && $group->is_group) {
                     Log::info('Updating parent group after stage delete', [
                         'stage_id' => $stage->id,

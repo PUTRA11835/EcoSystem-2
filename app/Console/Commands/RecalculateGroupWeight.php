@@ -3,22 +3,22 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Models\ProjectPlanning;
+use App\Models\DeliveryProjectPlanning;
 
 class RecalculateGroupWeight extends Command
 {
-    protected $signature = 'planning:recalculate-weight {project_id?}';
+    protected $signature = 'planning:recalculate-weight {delivery_projects_id?}';
     protected $description = 'Recalculate all group weights from children';
 
     public function handle()
     {
-        $projectId = $this->argument('project_id');
+        $projectId = $this->argument('delivery_projects_id');
         
-        $query = ProjectPlanning::where('is_group', true)
+        $query = DeliveryProjectPlanning::where('is_group', true)
             ->with('children');
         
         if ($projectId) {
-            $query->where('project_id', $projectId);
+            $query->where('delivery_projects_id', $projectId);
             $this->info("Recalculating weights for project ID: {$projectId}");
         } else {
             $this->info("Recalculating weights for ALL projects");

@@ -48,14 +48,18 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
                                     Planned Start Date <span class="text-red-500">*</span>
                                 </label>
-                                <input type="date" id="activityStartDate" required 
+                                <input type="text" id="activityStartDate" required
+                                    placeholder="dd/mm/yyyy"
+                                    pattern="\d{2}/\d{2}/\d{4}"
                                     class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
                                     Planned End Date <span class="text-red-500">*</span>
                                 </label>
-                                <input type="date" id="activityEndDate" required 
+                                <input type="text" id="activityEndDate" required
+                                    placeholder="dd/mm/yyyy"
+                                    pattern="\d{2}/\d{2}/\d{4}"
                                     class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base">
                             </div>
                         </div>
@@ -66,14 +70,18 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
                                     Actual Start Date
                                 </label>
-                                <input type="date" id="activityActualStart" 
+                                <input type="text" id="activityActualStart"
+                                    placeholder="dd/mm/yyyy"
+                                    pattern="\d{2}/\d{2}/\d{4}"
                                     class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
                                     Actual End Date
                                 </label>
-                                <input type="date" id="activityActualEnd" 
+                                <input type="text" id="activityActualEnd"
+                                    placeholder="dd/mm/yyyy"
+                                    pattern="\d{2}/\d{2}/\d{4}"
                                     class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base">
                             </div>
                         </div>
@@ -114,7 +122,7 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Object</label>
-                                <input type="text" id="activityTcode" 
+                                <input type="text" id="activityObject" 
                                        class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                                        placeholder="e.g., FB50, ME21N...">
                             </div>
@@ -153,21 +161,6 @@
                                                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                                             <span class="text-sm text-gray-700">New Requirement</span>
                                         </label>
-                                    </div>
-                                </div>
-
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Functional Sinergi</label>
-                                        <input type="text" id="activityFunctionalSinergi" 
-                                               class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
-                                               placeholder="Functional synergy...">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Technical Sinergi</label>
-                                        <input type="text" id="activityTechnicalSinergi" 
-                                               class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
-                                               placeholder="Technical synergy...">
                                     </div>
                                 </div>
 
@@ -269,6 +262,89 @@
 // ✅ SUPER FIXED - Better Error Handling & Recovery
 // ============================================================================
 
+// ============================================================================
+// ✅ DATE FORMAT HELPERS (dd/mm/yyyy - Indonesian format)
+// ============================================================================
+
+/**
+ * Convert ISO date (yyyy-mm-dd) to Indonesian format (dd/mm/yyyy)
+ */
+function isoToIndonesian(isoDate) {
+    if (!isoDate) return '';
+    const parts = isoDate.split(' ')[0].split('-');
+    if (parts.length !== 3) return isoDate;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+/**
+ * Convert Indonesian date (dd/mm/yyyy) to ISO format (yyyy-mm-dd)
+ */
+function indonesianToIso(indoDate) {
+    if (!indoDate) return '';
+    const parts = indoDate.split('/');
+    if (parts.length !== 3) return indoDate;
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+}
+
+/**
+ * Get today's date in Indonesian format
+ */
+function getTodayIndonesian() {
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    return `${day}/${month}/${year}`;
+}
+
+/**
+ * Get date N days from now in Indonesian format
+ */
+function getDateFromNowIndonesian(days) {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+}
+
+/**
+ * Parse Indonesian date to Date object
+ */
+function parseIndonesianDate(indoDate) {
+    if (!indoDate) return null;
+    const parts = indoDate.split('/');
+    if (parts.length !== 3) return null;
+    return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+}
+
+/**
+ * Get employee name from member object (handles multiple response formats)
+ */
+function getEmployeeName(member) {
+    // ✅ Direct name property (from getAssignedMembers API)
+    if (member.name && member.name !== 'N/A') {
+        return member.name;
+    }
+    // Try basicData (camelCase - from Laravel eager loading)
+    if (member.basicData) {
+        if (member.basicData.full_name) return member.basicData.full_name;
+        if (member.basicData.first_name) {
+            return `${member.basicData.first_name} ${member.basicData.last_name || ''}`.trim();
+        }
+    }
+    // Try basic_data (snake_case - from API/JSON)
+    if (member.basic_data) {
+        if (member.basic_data.full_name) return member.basic_data.full_name;
+        if (member.basic_data.first_name) {
+            return `${member.basic_data.first_name} ${member.basic_data.last_name || ''}`.trim();
+        }
+    }
+    // Fallback to ECI or Employee ID
+    return member.eci || `Employee #${member.employee_id}`;
+}
+
 function toggleExtendedFields() {
     const fields = document.getElementById('extendedFields');
     const icon = document.getElementById('extendedFieldsIcon');
@@ -341,8 +417,7 @@ window.openActivityModal = function(stageId, groupId, activityId = null) {
     if (extendedFields && window.innerWidth < 640) {
         extendedFields.classList.add('hidden');
     }
-    
-    // Reset team member section
+
     resetTeamMemberSection();
 
     // Collapse team member fields by default
@@ -358,11 +433,10 @@ window.openActivityModal = function(stageId, groupId, activityId = null) {
         document.getElementById('activityModalTitle').textContent = 'Edit Activity';
         document.getElementById('activityStatusField').classList.remove('hidden');
         document.getElementById('activityProgressField').classList.remove('hidden');
-        document.getElementById('activityActualDates').classList.remove('hidden'); // ✅ SHOW ACTUAL DATES
+        document.getElementById('activityActualDates').classList.remove('hidden');
 
         loadActivityData(activityId);
 
-        // Load assigned members for this activity
         loadAssignedMembers(activityId);
     } else {
         activityFormMode = 'create';
@@ -371,16 +445,11 @@ window.openActivityModal = function(stageId, groupId, activityId = null) {
         document.getElementById('activityModalTitle').textContent = 'Add New Activity';
         document.getElementById('activityStatusField').classList.add('hidden');
         document.getElementById('activityProgressField').classList.add('hidden');
-        document.getElementById('activityActualDates').classList.add('hidden'); // ✅ HIDE ACTUAL DATES
+        document.getElementById('activityActualDates').classList.add('hidden');
 
-        const today = new Date().toISOString().split('T')[0];
-        document.getElementById('activityStartDate').value = today;
+        document.getElementById('activityStartDate').value = getTodayIndonesian();
+        document.getElementById('activityEndDate').value = getDateFromNowIndonesian(7);
 
-        const nextWeek = new Date();
-        nextWeek.setDate(nextWeek.getDate() + 7);
-        document.getElementById('activityEndDate').value = nextWeek.toISOString().split('T')[0];
-
-        // Update dropdown with all team members
         updateMemberDropdown();
     }
     
@@ -397,7 +466,7 @@ window.closeActivityModal = function() {
         modal.classList.add('hidden');
     }
     
-    resetSubmitButton(); // ✅ Reset button when closing
+    resetSubmitButton();
     
     activityFormMode = 'create';
     currentActivityId = null;
@@ -444,7 +513,6 @@ function loadActivityData(activityId) {
 
     console.log('📥 Loading activity data for ID:', activityId);
 
-    // ✅ Add type=activity to ensure we fetch from ProjectActivity table first
     axios.get(`/planning/${window.projectId}/activities/${activityId}?type=activity`)
         .then(response => {
             const activity = response.data;
@@ -452,24 +520,21 @@ function loadActivityData(activityId) {
             console.log('✅ Activity data loaded:', activity);
             
             document.getElementById('activityName').value = activity.name || '';
-            document.getElementById('activityStartDate').value = activity.start_date?.split(' ')[0] || '';
-            document.getElementById('activityEndDate').value = activity.end_date?.split(' ')[0] || '';
-            
-            // ✅ LOAD ACTUAL DATES
-            document.getElementById('activityActualStart').value = activity.actual_start_date?.split(' ')[0] || '';
-            document.getElementById('activityActualEnd').value = activity.actual_end_date?.split(' ')[0] || '';
+            document.getElementById('activityStartDate').value = isoToIndonesian(activity.start_date);
+            document.getElementById('activityEndDate').value = isoToIndonesian(activity.end_date);
+
+            document.getElementById('activityActualStart').value = isoToIndonesian(activity.actual_start_date);
+            document.getElementById('activityActualEnd').value = isoToIndonesian(activity.actual_end_date);
             
             document.getElementById('activityWeight').value = parseFloat(activity.weight) || 0;
             document.getElementById('activityStatus').value = activity.status || 'not_started';
             document.getElementById('activityProgress').value = parseFloat(activity.progress_percentage) || 0;
             
             document.getElementById('activityModule').value = activity.module || '';
-            document.getElementById('activityTcode').value = activity.tcode || '';
+            document.getElementById('activityObject').value = activity.object || '';
             document.getElementById('activityComplexity').value = activity.complexity || '';
             document.getElementById('activityReceiveType').value = activity.receive_type || '';
             document.getElementById('activityNewRequirement').checked = activity.new_requirement || false;
-            document.getElementById('activityFunctionalSinergi').value = activity.functional_sinergi || '';
-            document.getElementById('activityTechnicalSinergi').value = activity.technical_sinergi || '';
             document.getElementById('activityDeliverable').value = activity.deliverable || '';
             
             form.classList.remove('opacity-50', 'pointer-events-none');
@@ -499,26 +564,34 @@ window.saveActivity = function(event) {
     
     setSubmitButtonLoading();
     
+    // Get dates in Indonesian format and convert to ISO
+    const startDateIndo = document.getElementById('activityStartDate').value;
+    const endDateIndo = document.getElementById('activityEndDate').value;
+    const startDateIso = indonesianToIso(startDateIndo);
+    const endDateIso = indonesianToIso(endDateIndo);
+
     const formData = {
         stage_id: currentStageId,
         parent_id: currentGroupId,
         is_group: false,
         name: document.getElementById('activityName').value,
-        start_date: document.getElementById('activityStartDate').value,
-        end_date: document.getElementById('activityEndDate').value,
+        start_date: startDateIso,
+        end_date: endDateIso,
         weight: parseFloat(document.getElementById('activityWeight').value) || 0,
-        
+
         module: document.getElementById('activityModule')?.value || null,
-        tcode: document.getElementById('activityTcode')?.value || null,
+        object: document.getElementById('activityObject')?.value || null,
         complexity: document.getElementById('activityComplexity')?.value || null,
         receive_type: document.getElementById('activityReceiveType')?.value || null,
         new_requirement: document.getElementById('activityNewRequirement')?.checked || false,
-        functional_sinergi: document.getElementById('activityFunctionalSinergi')?.value || null,
-        technical_sinergi: document.getElementById('activityTechnicalSinergi')?.value || null,
         deliverable: document.getElementById('activityDeliverable')?.value || null,
     };
-    
-    if (new Date(formData.end_date) < new Date(formData.start_date)) {
+
+    // Validate dates
+    const startDate = parseIndonesianDate(startDateIndo);
+    const endDate = parseIndonesianDate(endDateIndo);
+
+    if (endDate < startDate) {
         resetSubmitButton();
         
         if (typeof showNotification === 'function') {
@@ -530,15 +603,14 @@ window.saveActivity = function(event) {
     }
     
     if (activityFormMode === 'edit') {
-        // ✅ ADD ACTUAL DATES
-        const actualStartInput = document.getElementById('activityActualStart');
-        const actualEndInput = document.getElementById('activityActualEnd');
-        
-        formData.actual_start_date = actualStartInput.value || null;
-        formData.actual_end_date = actualEndInput.value || null;
+        const actualStartIndo = document.getElementById('activityActualStart').value;
+        const actualEndIndo = document.getElementById('activityActualEnd').value;
+
+        formData.actual_start_date = actualStartIndo ? indonesianToIso(actualStartIndo) : null;
+        formData.actual_end_date = actualEndIndo ? indonesianToIso(actualEndIndo) : null;
         formData.status = document.getElementById('activityStatus')?.value;
         formData.progress_percentage = parseFloat(document.getElementById('activityProgress')?.value) || 0;
-        
+
         console.log('📅 Activity actual dates being sent:', {
             actual_start_date: formData.actual_start_date,
             actual_end_date: formData.actual_end_date
@@ -552,7 +624,8 @@ window.saveActivity = function(event) {
         url = `/planning/${window.projectId}/activities`;
         method = 'POST';
     } else {
-        url = `/planning/${window.projectId}/activities/${currentActivityId}`;
+        // ✅ FIX: Add ?type=activity to ensure correct table is updated
+        url = `/planning/${window.projectId}/activities/${currentActivityId}?type=activity`;
         method = 'PUT';
     }
     
@@ -578,7 +651,6 @@ window.saveActivity = function(event) {
 
             closeActivityModal();
 
-            // Reload page to update both table and progress overview
             console.log('🔄 Reloading page to update all sections...');
             setTimeout(() => window.location.reload(), 500);
         })
@@ -666,8 +738,10 @@ async function loadProjectTeamMembers() {
 async function loadAssignedMembers(activityId) {
     try {
         const response = await axios.get(`/planning/${window.projectId}/activities/${activityId}/members`);
-        assignedActivityMembers = response.data.members || response.data || [];
+        // ✅ FIX: API returns { success: true, data: [...] }
+        assignedActivityMembers = response.data.data || response.data.members || response.data || [];
         console.log('✅ Assigned members loaded:', assignedActivityMembers);
+        console.log('✅ Members structure:', JSON.stringify(assignedActivityMembers, null, 2));
         renderAssignedMembers();
         updateMemberDropdown();
     } catch (error) {
@@ -685,12 +759,15 @@ function updateMemberDropdown() {
     if (!select) return;
 
     const assignedIds = assignedActivityMembers.map(m => m.employee_id);
+    console.log('📋 Updating dropdown - Assigned IDs:', assignedIds);
+    console.log('📋 Project team members:', projectTeamMembers);
 
     select.innerHTML = '<option value="">Select team member...</option>';
 
     projectTeamMembers.forEach(member => {
         if (!assignedIds.includes(member.employee_id)) {
-            const name = member.basic_data?.full_name || member.eci || `Employee #${member.employee_id}`;
+            const name = getEmployeeName(member);
+            console.log(`  → Member ${member.employee_id}: "${name}"`, member);
             const module = member.pivot?.module ? ` (${member.pivot.module})` : '';
             select.innerHTML += `<option value="${member.employee_id}">${name}${module}</option>`;
         }
@@ -717,8 +794,9 @@ function renderAssignedMembers() {
     };
 
     container.innerHTML = assignedActivityMembers.map(member => {
-        const name = member.basic_data?.full_name || member.eci || `Employee #${member.employee_id}`;
-        const role = member.pivot?.role || 'member';
+        const name = getEmployeeName(member);
+        // ✅ FIX: API returns role directly, not in pivot
+        const role = member.role || member.pivot?.role || 'member';
         const roleClass = roleColors[role] || 'bg-gray-100 text-gray-800';
 
         return `
@@ -761,7 +839,6 @@ async function addActivityMember() {
     }
 
     if (!currentActivityId) {
-        // Activity not saved yet, add to local list
         const member = projectTeamMembers.find(m => m.employee_id == employeeId);
         if (member) {
             assignedActivityMembers.push({
@@ -786,7 +863,6 @@ async function addActivityMember() {
         console.log('✅ Member assigned:', response.data);
         showNotification('Team member assigned successfully', 'success');
 
-        // Reload assigned members
         await loadAssignedMembers(currentActivityId);
 
         select.value = '';
@@ -803,7 +879,6 @@ async function addActivityMember() {
  */
 async function removeActivityMember(employeeId) {
     if (!currentActivityId) {
-        // Activity not saved yet, remove from local list
         assignedActivityMembers = assignedActivityMembers.filter(m => m.employee_id != employeeId);
         renderAssignedMembers();
         updateMemberDropdown();
@@ -818,7 +893,6 @@ async function removeActivityMember(employeeId) {
         console.log('✅ Member unassigned');
         showNotification('Team member removed', 'success');
 
-        // Reload assigned members
         await loadAssignedMembers(currentActivityId);
     } catch (error) {
         console.error('❌ Error removing member:', error);
@@ -841,7 +915,6 @@ function resetTeamMemberSection() {
     if (roleSelect) roleSelect.value = '';
 }
 
-// Load team members on page load
 document.addEventListener('DOMContentLoaded', function() {
     if (window.projectId) {
         loadProjectTeamMembers();

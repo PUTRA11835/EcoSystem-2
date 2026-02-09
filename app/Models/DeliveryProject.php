@@ -7,11 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
-// ECOSYSTEM Integration: Using Customer and Employee models
-// Customer table: 'customer' with PK 'customer_id'
-// Employee table: 'employee' with PK 'employee_id'
 
-class Project extends Model
+class DeliveryProject extends Model
 {
     use HasFactory;
 
@@ -23,7 +20,7 @@ class Project extends Model
     protected $fillable = [
         'client_id',
         'pic',
-        'project_type',
+        'delivery_project_type',
         'name',
         'description',
         'category',
@@ -73,45 +70,39 @@ class Project extends Model
     }
 
     public function updates() {
-        return $this->hasMany(ProjectUpdate::class);
+        return $this->hasMany(DeliveryProjectUpdate::class, 'delivery_projects_id');
     }
 
     public function activities() {
-        return $this->hasMany(ProjectActivity::class);
+        return $this->hasMany(DeliveryProjectActivity::class, 'delivery_projects_id');
     }
 
     public function plannings() {
-        return $this->hasMany(ProjectPlanning::class);
+        return $this->hasMany(DeliveryProjectPlanning::class, 'delivery_projects_id');
     }
 
     public function documents() {
-        return $this->hasMany(Document::class);
+        return $this->hasMany(Document::class, 'delivery_projects_id');
     }
 
-    public function phases()
-    {
-        return $this->belongsToMany(ProjectPhase::class, 'project_project_phase')
-            ->withPivot(['weight', 'order_sequence', 'is_visible', 'orientation', 'custom_settings'])
-            ->withTimestamps()
-            ->orderBy('project_phases.order_sequence');
+    public function phases(){
+        return $this->hasMany(DeliveryProjectPhase::class, 'delivery_projects_id')
+                    ->where('is_visible', true)
+                    ->orderBy('order_sequence');
     }
 
-    // ECOSYSTEM Integration: Employee table with employee_id as PK
     public function teamMembers()
     {
-        return $this->belongsToMany(Employee::class, 'project_employee', 'project_id', 'employee_id', 'id', 'employee_id')
-                    ->withPivot('module', 'assignment', 'start_date', 'end_date')
+        return $this->belongsToMany(Employee::class, 'delivery_project_employee', 'delivery_projects_id', 'employee_id', 'id', 'employee_id')
+                    ->withPivot('assignment', 'start_date', 'end_date')
                     ->withTimestamps();
     }
 
-    // New relationships for delivery information
-    // ECOSYSTEM Integration: Employee table with employee_id as PK
     public function deliveryOwner()
     {
         return $this->belongsTo(Employee::class, 'delivery_owner_id', 'employee_id');
     }
 
-    // ECOSYSTEM Integration: Employee table with employee_id as PK
     public function deliveryManager()
     {
         return $this->belongsTo(Employee::class, 'delivery_manager_id', 'employee_id');
@@ -124,26 +115,21 @@ class Project extends Model
 
     public function updateFromPlanning()
     {
-        Log::info("🔄 Updating project from planning", ['project_id' => $this->id]);
+        Log::info("🔄 Updating project from planning", ['delivery_projects_id' => $this->id]);
         
         try {
-            // 1. ✅ Update Start Date & End Date dari Planning
             $this->updateProjectDates();
             
-            // 2. ✅ Update Go-Live Estimated dari fase Go-Live
             $this->updateGoLiveDate();
             
-            // 3. ✅ Update Current Phase berdasarkan planning aktif
             $this->updateCurrentPhase();
             
-            // 4. ✅ Update Category berdasarkan progress
-            $this->updateProjectCategory();
+            $this->updateDeliveryProjectCategory();
             
-            // Save without triggering events
             $this->saveQuietly();
             
             Log::info("✅ Project updated successfully", [
-                'project_id' => $this->id,
+                'delivery_projects_id' => $this->id,
                 'start_date' => $this->start_date,
                 'end_date' => $this->end_date,
                 'go_live' => $this->go_live_estimated,
@@ -153,7 +139,7 @@ class Project extends Model
             
         } catch (\Exception $e) {
             Log::error("❌ Error updating project from planning", [
-                'project_id' => $this->id,
+                'delivery_projects_id' => $this->id,
                 'error' => $e->getMessage()
             ]);
         }
@@ -163,7 +149,6 @@ class Project extends Model
     {
         $allDates = collect();
         
-        // Ambil semua planning items yang visible
         $plannings = $this->plannings()
             ->where('is_group', false)
             ->whereNotNull('start_date')
@@ -183,7 +168,6 @@ class Project extends Model
             $this->start_date = $allDates->min();
             $this->end_date = $allDates->max();
             
-            // Update location valid dates jika belum diisi
             if (!$this->location_valid_from) {
                 $this->location_valid_from = $this->start_date;
             }
@@ -197,8 +181,8 @@ class Project extends Model
     {
         // Ambil fase dengan flag Go-Live
         $goLivePhases = $this->phases()
-            ->wherePivot('is_golive_phase', true)
-            ->wherePivot('is_visible', true)
+            ->where('is_golive_phase', true)
+            ->where('is_visible', true)
             ->get();
         
         if ($goLivePhases->isEmpty()) {
@@ -233,9 +217,8 @@ class Project extends Model
     {
         $today = Carbon::today();
         
-        // Cari fase yang sedang aktif (ada aktivitas in_progress)
         $activePhases = $this->phases()
-            ->wherePivot('is_visible', true)
+            ->where('is_visible', true)
             ->get()
             ->filter(function($phase) {
                 $hasActiveActivities = $this->plannings()
@@ -258,7 +241,7 @@ class Project extends Model
         
         // Jika tidak ada yang in_progress, cari berdasarkan tanggal
         $phases = $this->phases()
-            ->wherePivot('is_visible', true)
+            ->where('is_visible', true)
             ->orderBy('order_sequence')
             ->get();
         
@@ -286,7 +269,7 @@ class Project extends Model
     /**
      * ✅ Update Category berdasarkan progress planning
      */
-    private function updateProjectCategory()
+    private function updateDeliveryProjectCategory()
     {
         $plannings = $this->plannings()
             ->where('is_group', false)
@@ -307,8 +290,7 @@ class Project extends Model
             $this->status = 'On Track';
         } elseif ($hasInProgress) {
             $this->category = 'In Process';
-            
-            // Update status berdasarkan ada tidaknya delayed activities
+
             $hasDelayed = $plannings->where('status', 'delayed')->isNotEmpty();
             $this->status = $hasDelayed ? 'At Risk' : 'On Track';
         } else {
@@ -320,12 +302,14 @@ class Project extends Model
     public function getOverallProgressAttribute()
     {
         $phases = $this->phases;
+
         $weightedSum = 0;
         $totalWeight = 0;
 
         foreach ($phases as $phase) {
-            $phaseProgress = $phase->progress;
-            $phaseWeight = $phase->pivot->weight;
+            $phaseProgress = $phase->calculateProgress($this->id); // ✅ FIX
+            $phaseWeight = $phase->weight ?? 0;
+
             $weightedSum += ($phaseProgress * $phaseWeight);
             $totalWeight += $phaseWeight;
         }
@@ -334,7 +318,7 @@ class Project extends Model
             return 0;
         }
 
-        return $weightedSum / $totalWeight;
+        return round($weightedSum / $totalWeight, 1);
     }
 
     public function updateStatusAutomatically()
@@ -351,15 +335,13 @@ class Project extends Model
     public function calculateOverallProgress()
     {
         $groups = $this->plannings->where('is_group', true);
-        
-        // Load stages jika belum
+
         foreach ($groups as $group) {
             $group->loadMissing('stages');
         }
         
         $visiblePhases = $this->phases()
-            ->withPivot(['weight', 'is_visible', 'orientation'])
-            ->wherePivot('is_visible', true)
+            ->where('is_visible', true)
             ->get();
         
         if ($visiblePhases->isEmpty()) {
@@ -370,7 +352,7 @@ class Project extends Model
         $weightedPhaseProgress = 0;
         
         foreach ($visiblePhases as $phase) {
-            $phaseWeight = $phase->pivot->weight ?? 0;
+            $phaseWeight = $phase->weight ?? 0;
             $phaseGroups = $groups->where('phase_id', $phase->id);
             
             if ($phaseGroups->count() > 0) {

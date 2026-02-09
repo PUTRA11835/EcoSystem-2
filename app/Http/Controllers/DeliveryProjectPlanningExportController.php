@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Project;
+use App\Models\DeliveryProject;
 use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
@@ -10,17 +10,17 @@ use App\Exports\TableViewExport;
 use App\Exports\GanttViewExport;
 use App\Exports\SCurveExport;
 
-class ProjectPlanningExportController extends Controller
+class DeliveryProjectPlanningExportController extends Controller
 {
     /**
      * Export Planning to PDF
      */
-    public function exportPlanningPDF(Project $project)
+    public function exportPlanningPDF(DeliveryProject $project)
     {
         try {
-            Log::info('📄 Exporting Planning PDF', ['project_id' => $project->id]);
+            Log::info('📄 Exporting Planning PDF', ['delivery_projects_id' => $project->id]);
 
-            $dataController = new ProjectDataController();
+            $dataController = new DeliveryProjectDataController();
             $response = $dataController->getTableData($project);
             $data = json_decode($response->getContent(), true);
 
@@ -38,7 +38,7 @@ class ProjectPlanningExportController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error exporting planning PDF', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'error' => $e->getMessage()
             ]);
 
@@ -49,12 +49,12 @@ class ProjectPlanningExportController extends Controller
     /**
      * Export Gantt to PDF
      */
-    public function exportGanttPDF(Project $project)
+    public function exportGanttPDF(DeliveryProject $project)
     {
         try {
-            Log::info('📄 Exporting Gantt PDF', ['project_id' => $project->id]);
+            Log::info('📄 Exporting Gantt PDF', ['delivery_projects_id' => $project->id]);
 
-            $dataController = new ProjectDataController();
+            $dataController = new DeliveryProjectDataController();
             $response = $dataController->getGanttData($project->id);
             $data = json_decode($response->getContent(), true);
 
@@ -78,7 +78,7 @@ class ProjectPlanningExportController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error exporting gantt PDF', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'error' => $e->getMessage()
             ]);
 
@@ -89,12 +89,12 @@ class ProjectPlanningExportController extends Controller
     /**
      * Export S-Curve to PDF
      */
-    public function exportSCurvePDF(Project $project)
+    public function exportSCurvePDF(DeliveryProject $project)
     {
         try {
-            Log::info('📄 Exporting S-Curve PDF', ['project_id' => $project->id]);
+            Log::info('📄 Exporting S-Curve PDF', ['delivery_projects_id' => $project->id]);
 
-            $dataController = new ProjectDataController();
+            $dataController = new DeliveryProjectDataController();
             $response = $dataController->getSCurveData($project->id);
             $data = json_decode($response->getContent(), true);
 
@@ -122,7 +122,7 @@ class ProjectPlanningExportController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error exporting S-curve PDF', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'error' => $e->getMessage()
             ]);
 
@@ -133,10 +133,10 @@ class ProjectPlanningExportController extends Controller
     /**
      * Export Planning Table to Excel
      */
-    public function exportTableExcel(Project $project)
+    public function exportTableExcel(DeliveryProject $project)
     {
         try {
-            Log::info('📊 Exporting Table Excel', ['project_id' => $project->id]);
+            Log::info('📊 Exporting Table Excel', ['delivery_projects_id' => $project->id]);
 
             $filename = 'project-planning-table-' . $project->id . '-' . now()->format('Y-m-d') . '.xlsx';
 
@@ -144,7 +144,7 @@ class ProjectPlanningExportController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error exporting table Excel', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'error' => $e->getMessage()
             ]);
 
@@ -155,10 +155,10 @@ class ProjectPlanningExportController extends Controller
     /**
      * Export Gantt Chart to Excel
      */
-    public function exportGanttExcel(Project $project)
+    public function exportGanttExcel(DeliveryProject $project)
     {
         try {
-            Log::info('📊 Exporting Gantt Excel', ['project_id' => $project->id]);
+            Log::info('📊 Exporting Gantt Excel', ['delivery_projects_id' => $project->id]);
 
             $filename = 'gantt-chart-' . $project->id . '-' . now()->format('Y-m-d') . '.xlsx';
 
@@ -166,7 +166,7 @@ class ProjectPlanningExportController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error exporting gantt Excel', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'error' => $e->getMessage()
             ]);
 
@@ -177,10 +177,10 @@ class ProjectPlanningExportController extends Controller
     /**
      * Export S-Curve to Excel
      */
-    public function exportSCurveExcel(Project $project)
+    public function exportSCurveExcel(DeliveryProject $project)
     {
         try {
-            Log::info('📊 Exporting S-Curve Excel', ['project_id' => $project->id]);
+            Log::info('📊 Exporting S-Curve Excel', ['delivery_projects_id' => $project->id]);
 
             $filename = 'scurve-analysis-' . $project->id . '-' . now()->format('Y-m-d') . '.xlsx';
 
@@ -188,7 +188,7 @@ class ProjectPlanningExportController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error exporting S-curve Excel', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'error' => $e->getMessage()
             ]);
 

@@ -62,6 +62,12 @@ class EmployeeBasicData extends Model
     ];
 
     /**
+     * The accessors to append to the model's array form.
+     * This ensures full_name is included in JSON responses.
+     */
+    protected $appends = ['full_name'];
+
+    /**
      * Relationship with Employee
      */
     public function employee()

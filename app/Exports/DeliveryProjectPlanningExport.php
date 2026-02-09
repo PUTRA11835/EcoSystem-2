@@ -1,9 +1,9 @@
 <?php
 
-// app/Exports/ProjectPlanningExport.php
+
 namespace App\Exports;
 
-use App\Models\Project;
+use App\Models\DeliveryProject;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -16,12 +16,12 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 
-class ProjectPlanningExport implements WithMultipleSheets
+class DeliveryProjectPlanningExport implements WithMultipleSheets
 {
     protected $project;
     protected $data;
 
-    public function __construct(Project $project, array $data)
+    public function __construct(DeliveryProject $project, array $data)
     {
         $this->project = $project;
         $this->data = $data;
@@ -50,7 +50,7 @@ class ProjectSummarySheet implements FromCollection, WithHeadings, WithStyles, W
 {
     protected $project;
 
-    public function __construct(Project $project)
+    public function __construct(DeliveryProject $project)
     {
         $this->project = $project;
     }
@@ -58,8 +58,8 @@ class ProjectSummarySheet implements FromCollection, WithHeadings, WithStyles, W
     public function collection()
     {
         $phases = $this->project->phases()
-            ->withPivot(['weight', 'is_visible', 'orientation'])
-            ->wherePivot('is_visible', true)
+            ->with(['weight', 'is_visible', 'orientation'])
+            ->where('is_visible', true)
             ->get();
 
         $summaryData = collect([
@@ -79,8 +79,8 @@ class ProjectSummarySheet implements FromCollection, WithHeadings, WithStyles, W
         foreach ($phases as $phase) {
             $summaryData->push([
                 $phase->name,
-                $phase->pivot->orientation,
-                $phase->pivot->weight,
+                $phase->orientation,
+                $phase->weight,
                 $phase->calculateProgress($this->project->id)
             ]);
         }
@@ -141,11 +141,9 @@ class PhaseSheet implements FromCollection, WithHeadings, WithMapping, WithStyle
                 'is_group' => $item['is_group'],
                 'module' => $item['module'] ?? '',
                 'new_req' => $item['new_requirement'] ?? false,
-                'tcode' => $item['tcode'] ?? '',
+                'object' => $item['object'] ?? '',
                 'receive_type' => $item['receive_type'] ?? '',
                 'complexity' => $item['complexity'] ?? '',
-                'functional_sinergi' => $item['functional_sinergi'] ?? '',
-                'technical_sinergi' => $item['technical_sinergi'] ?? '',
                 'planned_start' => $item['start_date'],
                 'planned_end' => $item['end_date'],
                 'planned_days' => $item['planned_days'],
@@ -171,11 +169,9 @@ class PhaseSheet implements FromCollection, WithHeadings, WithMapping, WithStyle
             $indent . $row['task_title'],
             $row['module'],
             $row['new_req'] ? 'Yes' : 'No',
-            $row['tcode'],
+            $row['object'],
             $row['receive_type'],
             $row['complexity'],
-            $row['functional_sinergi'],
-            $row['technical_sinergi'],
             $row['planned_start'],
             $row['planned_end'],
             $row['planned_days'],
@@ -195,11 +191,9 @@ class PhaseSheet implements FromCollection, WithHeadings, WithMapping, WithStyle
             'Task Title',
             'Module',
             'New Req',
-            'TCode/Object Name',
+            'Object',
             'Receive Type',
             'Complexity',
-            'Functional Sinergi',
-            'Technical Sinergi',
             'Planned Start',
             'Planned End',
             'Planned Days',
@@ -228,10 +222,8 @@ class PhaseSheet implements FromCollection, WithHeadings, WithMapping, WithStyle
             ],
         ]);
 
-        // Auto-filter
         $sheet->setAutoFilter('A1:R1');
 
-        // Freeze panes
         $sheet->freezePane('A2');
 
         return [];
@@ -262,14 +254,13 @@ class PhaseSheet implements FromCollection, WithHeadings, WithMapping, WithStyle
     }
 }
 
-// app/Imports/ProjectPlanningImport.php
 namespace App\Imports;
 
-use App\Models\Project;
-use App\Models\ProjectPlanning;
-use App\Models\ProjectActivity;
-use App\Models\ProjectCustomActivity;
-use App\Models\DynamicProjectPhase;
+use App\Models\Delivery;
+use App\Models\DeliveryPlanning;
+use App\Models\DeliveryActivity;
+use App\Models\DeliveryCustomActivity;
+use App\Models\DeliveryDynamicProjectPhase;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
@@ -279,11 +270,11 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class ProjectPlanningImport implements WithMultipleSheets
+class DeliveryProjectPlanningImport implements WithMultipleSheets
 {
     protected $project;
 
-    public function __construct(Project $project)
+    public function __construct(DeliveryProject $project)
     {
         $this->project = $project;
     }
@@ -302,7 +293,7 @@ class PhaseDataImport implements ToCollection, WithHeadingRow, WithValidation
     protected $project;
     protected $phaseName;
 
-    public function __construct(Project $project, $phaseName = null)
+    public function __construct(DeliveryProject $project, $phaseName = null)
     {
         $this->project = $project;
         $this->phaseName = $phaseName;
@@ -351,10 +342,10 @@ class PhaseDataImport implements ToCollection, WithHeadingRow, WithValidation
         if (!$isGroup) {
             $phase = $this->findPhaseByName($this->phaseName);
             if ($phase) {
-                $activity = ProjectActivity::firstOrCreate(
+                $activity = DeliveryProjectActivity::firstOrCreate(
                     [
                         'name' => $taskName,
-                        'project_phase_id' => $phase->id,
+                        'delivery_project_phase_id' => $phase->id,
                     ],
                     [
                         'description' => $row['notes'] ?? '',
@@ -365,8 +356,8 @@ class PhaseDataImport implements ToCollection, WithHeadingRow, WithValidation
         }
 
         // Create planning record
-        $planning = ProjectPlanning::create([
-            'project_id' => $this->project->id,
+        $planning = DeliveryProjectPlanning::create([
+            'delivery_projects_id' => $this->project->id,
             'activity_id' => $activity ? $activity->id : null,
             'parent_id' => $parentId,
             'is_group' => $isGroup,
@@ -377,22 +368,17 @@ class PhaseDataImport implements ToCollection, WithHeadingRow, WithValidation
             'notes' => $isGroup ? $taskName : ($row['notes'] ?? null),
         ]);
 
-        // Store additional data if needed
-        if (!$isGroup) {
-            DB::table('project_planning_extended')->insertOrIgnore([
-                'planning_id' => $planning->id,
+        // Update activity with extended fields if exists
+        if (!$isGroup && $activity) {
+            $activity->update([
                 'module' => $row['module'] ?? null,
-                'new_requirement' => $row['new_req'] === 'Yes',
-                'tcode' => $row['tcode'] ?? null,
+                'new_requirement' => ($row['new_req'] ?? '') === 'Yes',
+                'object' => $row['object'] ?? null,
                 'receive_type' => $row['receive_type'] ?? null,
                 'complexity' => $row['complexity'] ?? null,
-                'functional_sinergi' => $row['functional_sinergi'] ?? null,
-                'technical_sinergi' => $row['technical_sinergi'] ?? null,
                 'deliverable' => $row['deliverable'] ?? null,
                 'actual_start_date' => $this->parseDate($row['actual_start']),
                 'actual_end_date' => $this->parseDate($row['actual_end']),
-                'created_at' => now(),
-                'updated_at' => now(),
             ]);
         }
 
@@ -419,7 +405,7 @@ class PhaseDataImport implements ToCollection, WithHeadingRow, WithValidation
     private function findPhaseByName($name)
     {
         if (!$name) return null;
-        return DynamicProjectPhase::where('name', 'like', '%' . $name . '%')->first();
+        return DeliveryDynamicProjectPhase::where('name', 'like', '%' . $name . '%')->first();
     }
 
     private function parseDate($dateString)

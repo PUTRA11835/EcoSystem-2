@@ -5,12 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class ProjectViewConfiguration extends Model
+class DeliveryProjectViewConfiguration extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'project_id',
+        'delivery_projects_id',
         'default_view',
         'gantt_settings',
         'table_settings',
@@ -31,9 +31,9 @@ class ProjectViewConfiguration extends Model
         'column_visibility' => '{}',
     ];
 
-    public function project()
+    public function delivery_project()
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(DeliveryProject::class);
     }
 
     // Get Gantt settings with defaults
@@ -79,11 +79,9 @@ class ProjectViewConfiguration extends Model
             'task_title' => true,
             'module' => true,
             'new_req' => true,
-            'tcode' => true,
+            'object' => true,
             'receive_type' => true,
             'complexity' => true,
-            'functional_sinergi' => true,
-            'technical_sinergi' => true,
             'planned_start' => true,
             'planned_end' => true,
             'planned_days' => true,
@@ -116,59 +114,5 @@ class ProjectViewConfiguration extends Model
         $visibility[$column] = !($visibility[$column] ?? false);
         $this->column_visibility = $visibility;
         $this->save();
-    }
-}
-
-class ProjectPhaseTemplate extends Model
-{
-    use HasFactory;
-
-    protected $fillable = [
-        'project_id',
-        'template_name',
-        'phase_configuration',
-        'is_active',
-    ];
-
-    protected $casts = [
-        'phase_configuration' => 'array',
-        'is_active' => 'boolean',
-    ];
-
-    public function project()
-    {
-        return $this->belongsTo(Project::class);
-    }
-
-    public function applyToProject(Project $project)
-    {
-        DB::transaction(function () use ($project) {
-            // Clear existing phase configuration
-            DB::table('project_project_phase')->where('project_id', $project->id)->delete();
-            
-            // Apply template configuration
-            foreach ($this->phase_configuration as $config) {
-                DB::table('project_project_phase')->insert([
-                    'project_id' => $project->id,
-                    'project_phase_id' => $config['phase_id'],
-                    'weight' => $config['weight'],
-                    'order_sequence' => $config['order_sequence'],
-                    'is_visible' => $config['is_visible'],
-                    'orientation' => $config['orientation'],
-                    'custom_settings' => json_encode($config['custom_settings'] ?? []),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            }
-        });
-    }
-
-    // Duplicate template
-    public function duplicate($newName = null)
-    {
-        $newTemplate = $this->replicate();
-        $newTemplate->template_name = $newName ?? $this->template_name . ' (Copy)';
-        $newTemplate->save();
-        return $newTemplate;
     }
 }

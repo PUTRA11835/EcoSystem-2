@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Delivery;
 
 use App\Http\Controllers\Controller;
-use App\Models\Project;
+use App\Models\DeliveryProject;
 use App\Models\DeliveryPhase;
 use App\Models\DeliveryGroup;
 use Illuminate\Support\Facades\DB;
@@ -21,10 +21,10 @@ class DeliveryDataController extends Controller
     /**
      * Get hierarchical data untuk table view
      */
-    public function getTableData(Project $project)
+    public function getTableData(DeliveryProject $project)
     {
         try {
-            $phases = DeliveryPhase::where('project_id', $project->id)
+            $phases = DeliveryPhase::where('delivery_projects_id', $project->id)
                 ->ordered()
                 ->get();
 
@@ -60,7 +60,7 @@ class DeliveryDataController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error getting delivery table data', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'error' => $e->getMessage()
             ]);
 
@@ -74,10 +74,10 @@ class DeliveryDataController extends Controller
     /**
      * Get Gantt chart data
      */
-    public function getGanttData(Project $project)
+    public function getGanttData(DeliveryProject $project)
     {
         try {
-            $phases = DeliveryPhase::where('project_id', $project->id)
+            $phases = DeliveryPhase::where('delivery_projects_id', $project->id)
                 ->ordered()
                 ->get();
 
@@ -85,7 +85,7 @@ class DeliveryDataController extends Controller
             $phasesData = [];
 
             foreach ($phases as $phase) {
-                $groups = DeliveryGroup::where('project_id', $project->id)
+                $groups = DeliveryGroup::where('delivery_projects_id', $project->id)
                     ->where('phase_id', $phase->id)
                     ->rootGroups()
                     ->ordered()
@@ -118,7 +118,6 @@ class DeliveryDataController extends Controller
                 ];
             }
 
-            // Calculate date range
             if (empty($allDates)) {
                 $startDate = Carbon::now()->startOfMonth();
                 $endDate = Carbon::now()->addMonths(3)->endOfMonth();
@@ -137,7 +136,7 @@ class DeliveryDataController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error getting gantt data', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'error' => $e->getMessage()
             ]);
 
@@ -151,10 +150,10 @@ class DeliveryDataController extends Controller
     /**
      * Get S-Curve data
      */
-    public function getSCurveData(Project $project)
+    public function getSCurveData(DeliveryProject $project)
     {
         try {
-            $phases = DeliveryPhase::where('project_id', $project->id)
+            $phases = DeliveryPhase::where('delivery_projects_id', $project->id)
                 ->ordered()
                 ->get();
 
@@ -162,7 +161,7 @@ class DeliveryDataController extends Controller
             $dataPoints = [];
 
             foreach ($phases as $phase) {
-                $groups = DeliveryGroup::where('project_id', $project->id)
+                $groups = DeliveryGroup::where('delivery_projects_id', $project->id)
                     ->where('phase_id', $phase->id)
                     ->rootGroups()
                     ->ordered()
@@ -182,7 +181,6 @@ class DeliveryDataController extends Controller
                 }
             }
 
-            // Calculate date range
             if (empty($allDates)) {
                 $startDate = Carbon::now()->startOfMonth();
                 $endDate = Carbon::now()->addMonths(3)->endOfMonth();
@@ -211,7 +209,7 @@ class DeliveryDataController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error getting S-curve data', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'error' => $e->getMessage()
             ]);
 
@@ -225,23 +223,23 @@ class DeliveryDataController extends Controller
     /**
      * Get project summary statistics
      */
-    public function getProjectSummary(Project $project)
+    public function getProjectSummary(DeliveryProject $project)
     {
         try {
-            $phases = DeliveryPhase::where('project_id', $project->id)->get();
+            $phases = DeliveryPhase::where('delivery_projects_id', $project->id)->get();
 
-            $totalGroups = DeliveryGroup::where('project_id', $project->id)->count();
+            $totalGroups = DeliveryGroup::where('delivery_projects_id', $project->id)->count();
             $totalStages = DB::table('delivery_stages')
-                ->where('project_id', $project->id)
+                ->where('delivery_projects_id', $project->id)
                 ->whereNull('deleted_at')
                 ->count();
             $totalActivities = DB::table('delivery_activities')
-                ->where('project_id', $project->id)
+                ->where('delivery_projects_id', $project->id)
                 ->whereNull('deleted_at')
                 ->count();
 
             $activityStats = DB::table('delivery_activities')
-                ->where('project_id', $project->id)
+                ->where('delivery_projects_id', $project->id)
                 ->whereNull('deleted_at')
                 ->selectRaw('
                     COUNT(*) as total,
@@ -254,7 +252,6 @@ class DeliveryDataController extends Controller
                 ')
                 ->first();
 
-            // Calculate overall progress
             $overallProgress = 0;
             $totalWeight = $phases->sum('weight');
 
@@ -266,9 +263,8 @@ class DeliveryDataController extends Controller
                 $overallProgress = $phases->avg('progress_percentage') ?? 0;
             }
 
-            // Get date range
             $dateRange = DB::table('delivery_activities')
-                ->where('project_id', $project->id)
+                ->where('delivery_projects_id', $project->id)
                 ->whereNull('deleted_at')
                 ->selectRaw('MIN(planned_start_date) as earliest_start, MAX(planned_end_date) as latest_end')
                 ->first();
@@ -297,7 +293,7 @@ class DeliveryDataController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error getting project summary', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'error' => $e->getMessage()
             ]);
 
@@ -315,9 +311,9 @@ class DeliveryDataController extends Controller
     /**
      * Get phase groups hierarchically
      */
-    protected function getPhaseGroupsHierarchical(Project $project, DeliveryPhase $phase): array
+    protected function getPhaseGroupsHierarchical(DeliveryProject $project, DeliveryPhase $phase): array
     {
-        $groups = DeliveryGroup::where('project_id', $project->id)
+        $groups = DeliveryGroup::where('delivery_projects_id', $project->id)
             ->where('phase_id', $phase->id)
             ->rootGroups()
             ->ordered()
@@ -372,21 +368,18 @@ class DeliveryDataController extends Controller
             'direct_activities' => [],
         ];
 
-        // Sub-groups
         if ($group->relationLoaded('children') && $group->children->isNotEmpty()) {
             foreach ($group->children as $subGroup) {
                 $formatted['sub_groups'][] = $this->formatGroupRecursive($subGroup, $level + 1);
             }
         }
 
-        // Stages
         if ($group->relationLoaded('stages') && $group->stages->isNotEmpty()) {
             foreach ($group->stages as $stage) {
                 $formatted['stages'][] = $this->formatStageWithActivities($stage);
             }
         }
 
-        // Direct activities (tanpa stage)
         if ($group->relationLoaded('directActivities') && $group->directActivities->isNotEmpty()) {
             foreach ($group->directActivities as $activity) {
                 $formatted['direct_activities'][] = $this->formatActivityForTable($activity);
@@ -475,21 +468,18 @@ class DeliveryDataController extends Controller
             'direct_activities' => [],
         ];
 
-        // Sub-groups
         if ($group->relationLoaded('children') && $group->children->isNotEmpty()) {
             foreach ($group->children as $subGroup) {
                 $formatted['sub_groups'][] = $this->formatGroupForGantt($subGroup, $allDates, $level + 1);
             }
         }
 
-        // Stages
         if ($group->relationLoaded('stages') && $group->stages->isNotEmpty()) {
             foreach ($group->stages as $stage) {
                 $formatted['stages'][] = $this->formatStageForGantt($stage, $allDates);
             }
         }
 
-        // Direct activities
         if ($group->relationLoaded('directActivities') && $group->directActivities->isNotEmpty()) {
             foreach ($group->directActivities as $activity) {
                 $formatted['direct_activities'][] = $this->formatActivityForGantt($activity, $allDates);
@@ -552,7 +542,6 @@ class DeliveryDataController extends Controller
     {
         $allDates = collect();
 
-        // From stages
         if ($group->relationLoaded('stages')) {
             foreach ($group->stages as $stage) {
                 if ($stage->planned_start_date) {
@@ -564,7 +553,6 @@ class DeliveryDataController extends Controller
             }
         }
 
-        // From direct activities
         if ($group->relationLoaded('directActivities')) {
             foreach ($group->directActivities as $activity) {
                 if ($activity->planned_start_date) {
@@ -576,7 +564,6 @@ class DeliveryDataController extends Controller
             }
         }
 
-        // From sub-groups
         if ($group->relationLoaded('children')) {
             foreach ($group->children as $subGroup) {
                 $subDates = $this->calculateGroupDates($subGroup);
@@ -676,7 +663,6 @@ class DeliveryDataController extends Controller
         $totalWeight = 0;
         $weightedProgress = 0;
 
-        // From stages
         if ($group->relationLoaded('stages') && $group->stages->isNotEmpty()) {
             foreach ($group->stages as $stage) {
                 $weight = $stage->weight ?? 0;
@@ -686,7 +672,6 @@ class DeliveryDataController extends Controller
             }
         }
 
-        // From direct activities
         if ($group->relationLoaded('directActivities') && $group->directActivities->isNotEmpty()) {
             foreach ($group->directActivities as $activity) {
                 $weight = $activity->weight ?? 0;
@@ -696,7 +681,6 @@ class DeliveryDataController extends Controller
             }
         }
 
-        // From sub-groups
         if ($group->relationLoaded('children') && $group->children->isNotEmpty()) {
             foreach ($group->children as $subGroup) {
                 $weight = $subGroup->weight ?? 0;
@@ -883,7 +867,6 @@ class DeliveryDataController extends Controller
      */
     protected function collectSCurveDates(DeliveryGroup $group, array &$allDates, array &$dataPoints): void
     {
-        // From stages
         if ($group->relationLoaded('stages')) {
             foreach ($group->stages as $stage) {
                 $this->addDate($allDates, $stage->planned_start_date);
@@ -899,14 +882,12 @@ class DeliveryDataController extends Controller
             }
         }
 
-        // From direct activities
         if ($group->relationLoaded('directActivities')) {
             foreach ($group->directActivities as $activity) {
                 $this->collectActivityDataPoint($activity, $allDates, $dataPoints);
             }
         }
 
-        // From sub-groups
         if ($group->relationLoaded('children')) {
             foreach ($group->children as $subGroup) {
                 $this->collectSCurveDates($subGroup, $allDates, $dataPoints);

@@ -602,7 +602,6 @@ console.log('✅ editItem function loaded');
             return;
         }
         
-        // ✅ FIXED: Send proper data with CSRF token
         const data = {
             default_view: view,
             _token: document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}'
@@ -630,7 +629,6 @@ console.log('✅ editItem function loaded');
     document.addEventListener('DOMContentLoaded', function() {
         console.log('📦 DOM Content Loaded - Initializing view...');
         
-        // Initialize default view
         if (window.currentView) {
             switchView(window.currentView);
         } else {
@@ -802,7 +800,6 @@ function toggleExportMenu() {
     if (menu) menu.classList.toggle('hidden');
 }
 
-// Close export menu when clicking outside
 document.addEventListener('click', function(e) {
     const menu = document.getElementById('exportMenu');
     const button = document.getElementById('exportMenuButton');
@@ -853,7 +850,6 @@ document.addEventListener('click', function(e) {
         console.error('⚠️ Check if modal partials are included correctly');
     }
     
-    // Check projectId
     if (typeof window.projectId !== 'undefined' && window.projectId !== null) {
         console.log('✅ Project ID available:', window.projectId);
     } else {
@@ -883,7 +879,6 @@ document.addEventListener('click', function(e) {
     will-change: transform, opacity;
 }
 
-/* Responsive adjustments */
 @media (max-width: 1024px) {
     .gantt-sidebar {
         flex: 0 0 250px !important;
@@ -910,7 +905,6 @@ document.addEventListener('click', function(e) {
     }
 }
 
-/* Prevent zoom on double tap for mobile */
 button, a {
     touch-action: manipulation;
 }

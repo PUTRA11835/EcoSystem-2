@@ -249,8 +249,9 @@ Route::middleware(['web'])->group(function () {
     Route::prefix('timesheets')->group(function () {
         Route::get('/', [TimesheetController::class, 'index']);
         Route::get('/statistics', [TimesheetController::class, 'statistics']);
-        Route::get('/my-projects', [TimesheetController::class, 'myProjects']); // ✅ NEW: Get employee's projects
-        Route::get('/my-activities/{projectId}', [TimesheetController::class, 'myActivities']); // ✅ NEW: Get assigned activities
+        Route::get('/my-projects', [TimesheetController::class, 'myProjects']);
+        Route::get('/my-activities/all', [TimesheetController::class, 'allMyActivities']); // Get ALL assigned activities
+        Route::get('/my-activities/{projectId}', [TimesheetController::class, 'myActivities']); // Get activities for specific project
         Route::get('/{id}', [TimesheetController::class, 'show']);
         Route::post('/', [TimesheetController::class, 'store']);
         Route::put('/{id}', [TimesheetController::class, 'update']);

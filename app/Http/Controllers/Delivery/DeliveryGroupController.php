@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Delivery;
 
 use App\Http\Controllers\Controller;
-use App\Models\Project;
+use App\Models\DeliveryProject;
 use App\Models\DeliveryGroup;
 use App\Models\DeliveryPhase;
 use Illuminate\Http\Request;
@@ -21,10 +21,10 @@ class DeliveryGroupController extends Controller
     /**
      * Get all groups for a phase
      */
-    public function index(Project $project, DeliveryPhase $phase)
+    public function index(DeliveryProject $project, DeliveryPhase $phase)
     {
         try {
-            $groups = DeliveryGroup::where('project_id', $project->id)
+            $groups = DeliveryGroup::where('delivery_projects_id', $project->id)
                 ->where('phase_id', $phase->id)
                 ->rootGroups()
                 ->ordered()
@@ -46,7 +46,7 @@ class DeliveryGroupController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error getting delivery groups', [
-                'project_id' => $project->id,
+                'delivery_projects_id' => $project->id,
                 'phase_id' => $phase->id,
                 'error' => $e->getMessage()
             ]);
@@ -61,7 +61,7 @@ class DeliveryGroupController extends Controller
     /**
      * Create new group
      */
-    public function store(Request $request, Project $project)
+    public function store(Request $request, DeliveryProject $project)
     {
         $validated = $request->validate([
             'phase_id' => 'required|exists:delivery_phases,id',
@@ -89,7 +89,7 @@ class DeliveryGroupController extends Controller
                 }
 
                 // Get max sequence
-                $query = DeliveryGroup::where('project_id', $project->id)
+                $query = DeliveryGroup::where('delivery_projects_id', $project->id)
                     ->where('phase_id', $validated['phase_id']);
 
                 if (!empty($validated['parent_id'])) {
@@ -101,7 +101,7 @@ class DeliveryGroupController extends Controller
                 $maxSequence = $query->max('order_sequence') ?? 0;
 
                 $group = DeliveryGroup::create([
-                    'project_id' => $project->id,
+                    'delivery_projects_id' => $project->id,
                     'phase_id' => $validated['phase_id'],
                     'parent_id' => $validated['parent_id'] ?? null,
                     'name' => $validated['name'],
@@ -148,7 +148,7 @@ class DeliveryGroupController extends Controller
     /**
      * Get group details
      */
-    public function show(Project $project, DeliveryGroup $group)
+    public function show(DeliveryProject $project, DeliveryGroup $group)
     {
         try {
             $group->load([
@@ -184,7 +184,7 @@ class DeliveryGroupController extends Controller
     /**
      * Update group
      */
-    public function update(Request $request, Project $project, DeliveryGroup $group)
+    public function update(Request $request, DeliveryProject $project, DeliveryGroup $group)
     {
         $validated = $request->validate([
             'name' => 'nullable|string|max:255',
@@ -252,7 +252,7 @@ class DeliveryGroupController extends Controller
     /**
      * Delete group
      */
-    public function destroy(Project $project, DeliveryGroup $group)
+    public function destroy(DeliveryProject $project, DeliveryGroup $group)
     {
         try {
             // Check for children
@@ -322,7 +322,7 @@ class DeliveryGroupController extends Controller
     /**
      * Move group to different parent
      */
-    public function move(Request $request, Project $project, DeliveryGroup $group)
+    public function move(Request $request, DeliveryProject $project, DeliveryGroup $group)
     {
         $validated = $request->validate([
             'parent_id' => 'nullable|exists:delivery_groups,id',
@@ -410,7 +410,7 @@ class DeliveryGroupController extends Controller
     /**
      * Reorder groups within same parent
      */
-    public function reorder(Request $request, Project $project)
+    public function reorder(Request $request, DeliveryProject $project)
     {
         $validated = $request->validate([
             'groups' => 'required|array',
@@ -422,7 +422,7 @@ class DeliveryGroupController extends Controller
             return DB::transaction(function () use ($validated, $project) {
                 foreach ($validated['groups'] as $item) {
                     DeliveryGroup::where('id', $item['id'])
-                        ->where('project_id', $project->id)
+                        ->where('delivery_projects_id', $project->id)
                         ->update(['order_sequence' => $item['order_sequence']]);
                 }
 
@@ -445,7 +445,7 @@ class DeliveryGroupController extends Controller
     /**
      * Recalculate group progress from children
      */
-    public function recalculateProgress(Project $project, DeliveryGroup $group)
+    public function recalculateProgress(DeliveryProject $project, DeliveryGroup $group)
     {
         try {
             $group->updateProgress();
@@ -477,7 +477,7 @@ class DeliveryGroupController extends Controller
     {
         $formatted = [
             'id' => $group->id,
-            'project_id' => $group->project_id,
+            'delivery_projects_id' => $group->project_id,
             'phase_id' => $group->phase_id,
             'parent_id' => $group->parent_id,
             'name' => $group->name,

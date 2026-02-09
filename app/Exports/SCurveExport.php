@@ -2,7 +2,7 @@
 
 namespace App\Exports;
 
-use App\Models\Project;
+use App\Models\DeliveryProject;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
@@ -25,7 +25,7 @@ class SCurveExport implements FromCollection, WithHeadings, WithStyles, WithColu
     protected $project;
     protected $data;
 
-    public function __construct(Project $project)
+    public function __construct(DeliveryProject $project)
     {
         $this->project = $project;
         $this->loadData();
@@ -34,7 +34,7 @@ class SCurveExport implements FromCollection, WithHeadings, WithStyles, WithColu
     private function loadData()
     {
         // Get S-Curve data from ProjectDataController
-        $controller = new \App\Http\Controllers\ProjectDataController();
+        $controller = new \App\Http\Controllers\DeliveryProjectDataController();
 
         $response = $controller->getSCurveData($this->project->id);
         $this->data = json_decode($response->getContent(), true);

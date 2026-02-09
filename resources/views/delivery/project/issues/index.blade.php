@@ -55,7 +55,7 @@
                 @forelse($issues as $issue)
                     {{-- Tambahkan onclick ke div.card utama --}}
                     <div class="issue-card bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer" 
-                         onclick="window.location.href='{{ route('issues.show', $issue->project->id) }}'"
+                         onclick="window.location.href='{{ route('issues.show', $issue->delivery_project->id) }}'"
                          data-searchable-content="{{ strtolower(($issue->project->client->basicData->name_1 ?? '') . ' ' . $issue->highlight_issue . ' ' . $issue->action . ' ' . $issue->status . ' ' . $issue->complexity . ' ' . ($issue->project->status ?? '')) }}">
                         {{-- Card Header --}}
                         <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
@@ -82,14 +82,14 @@
                                         </span>
                                         {{-- Project Status Badge --}}
                                         <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
-                                            {{ $issue->project->status === 'Closed' ? 'bg-green-100 text-green-800' :
-                                               ($issue->project->status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800') }}">
-                                            Project: {{ $issue->project->status ?? 'N/A' }}
+                                            {{ $issue->delivery_project->status === 'Closed' ? 'bg-green-100 text-green-800' :
+                                               ($issue->delivery_project->status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800') }}">
+                                            Project: {{ $issue->delivery_project->status ?? 'N/A' }}
                                         </span>
                                     </div>
                                 </div>
                                 {{-- Hapus tombol aksi (ikon mata) --}}
-                                {{-- <a href="{{ route('issues.show', $issue->project->id) }}" 
+                                {{-- <a href="{{ route('issues.show', $issue->delivery_project->id) }}" 
                                    class="ml-2 p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -187,11 +187,11 @@
                     @forelse($issues as $issue)
                         {{-- Tambahkan onclick dan cursor-pointer ke tr --}}
                         <tr class="issue-row hover:bg-gray-50 transition-colors cursor-pointer" 
-                            onclick="window.location.href='{{ route('issues.show', $issue->project->id) }}'"
-                            data-searchable-content="{{ strtolower(($issue->project->client->basicData->name_1 ?? '') . ' ' . $issue->highlight_issue . ' ' . $issue->action . ' ' . $issue->status . ' ' . $issue->complexity . ' ' . ($issue->project->status ?? '')) }}">
+                            onclick="window.location.href='{{ route('issues.show', $issue->delivery_project->id) }}'"
+                            data-searchable-content="{{ strtolower(($issue->delivery_project->client->basicData->name_1 ?? '') . ' ' . $issue->highlight_issue . ' ' . $issue->action . ' ' . $issue->status . ' ' . $issue->complexity . ' ' . ($issue->project->status ?? '')) }}">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm font-medium text-gray-900">
-                                    {{ $issue->project->client->basicData->name_1 ?? 'N/A' }}
+                                    {{ $issue->delivery_project->client->basicData->name_1 ?? 'N/A' }}
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -226,9 +226,9 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
-                                    {{ $issue->project->status === 'Closed' ? 'bg-green-100 text-green-800' :
-                                       ($issue->project->status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800') }}">
-                                    {{ $issue->project->status ?? 'N/A' }}
+                                    {{ $issue->delivery_project->status === 'Closed' ? 'bg-green-100 text-green-800' :
+                                       ($issue->delivery_project->status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800') }}">
+                                    {{ $issue->delivery_project->status ?? 'N/A' }}
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

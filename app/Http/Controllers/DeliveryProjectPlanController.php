@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Project;
-use App\Models\ProjectActivity;
+use App\Models\DeliveryProject;
+use App\Models\DeliveryProjectActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
-class ProjectPlanController extends Controller
+class DeliveryProjectPlanController extends Controller
 {
     /**
      * Menampilkan daftar semua project untuk memilih.
@@ -16,7 +16,7 @@ class ProjectPlanController extends Controller
      */
     public function index()
     {
-        $projects = Project::latest()->paginate(10);
+        $projects = DeliveryProject::latest()->paginate(10);
         return view('project-planning.index', compact('projects'));
     }
 
@@ -24,7 +24,7 @@ class ProjectPlanController extends Controller
      * Menampilkan form untuk mengisi timeline plan.
      * Ini adalah halaman untuk "Project Planning".
      */
-    public function create(Project $project)
+    public function create(DeliveryProject $project)
     {
         // Ambil aktivitas yang sudah ada atau siapkan array kosong
         $existing_activities = $project->activities()

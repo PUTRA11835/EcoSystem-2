@@ -6,7 +6,7 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
-class ProjectSeeder extends Seeder
+class DeliveryProjectSeeder extends Seeder
 {
     public function run(): void
     {
@@ -15,7 +15,13 @@ class ProjectSeeder extends Seeder
         // Ambil customer dan employee IDs
         $customers = DB::table('customer')->pluck('customer_id')->toArray();
         $employees = DB::table('employee')->pluck('employee_id')->toArray();
-        $phases = DB::table('project_phases')->where('is_system_default', true)->get();
+        
+        // Ambil phase system default (template) - tanpa delivery_projects_id
+        $systemDefaultPhases = DB::table('delivery_project_phases')
+            ->where('is_system_default', true)
+            ->whereNull('delivery_projects_id') // Template phases
+            ->orderBy('order_sequence')
+            ->get();
 
         if (empty($customers) || empty($employees)) {
             $this->command->error('✗ Customer atau Employee belum ada. Jalankan CustomerSeeder dan EmployeeSeeder terlebih dahulu.');
@@ -37,8 +43,6 @@ class ProjectSeeder extends Seeder
                 'end_date' => Carbon::now()->addMonths(6)->format('Y-m-d'),
                 'go_live_estimated' => Carbon::now()->addMonths(5)->format('Y-m-d'),
                 'calculated_progress' => 35.50,
-                'delivery_type' => 'On-Premise',
-                'delivery_subtype' => 'Full Implementation',
                 'ae_name' => 'Budi Santoso',
                 'ae_phone' => '081234567890',
                 'ae_email' => 'budi.santoso@vendor.com',
@@ -65,8 +69,6 @@ class ProjectSeeder extends Seeder
                 'end_date' => Carbon::now()->addMonths(8)->format('Y-m-d'),
                 'go_live_estimated' => Carbon::now()->addMonths(7)->format('Y-m-d'),
                 'calculated_progress' => 5.00,
-                'delivery_type' => 'Cloud',
-                'delivery_subtype' => 'SaaS Implementation',
                 'ae_name' => 'Ahmad Wijaya',
                 'ae_phone' => '081234567891',
                 'ae_email' => 'ahmad.wijaya@vendor.com',
@@ -93,8 +95,6 @@ class ProjectSeeder extends Seeder
                 'end_date' => Carbon::now()->addMonths(4)->format('Y-m-d'),
                 'go_live_estimated' => Carbon::now()->addMonths(3)->format('Y-m-d'),
                 'calculated_progress' => 25.00,
-                'delivery_type' => 'On-Premise',
-                'delivery_subtype' => 'Enhancement',
                 'ae_name' => 'Sinta Dewi',
                 'ae_phone' => '081234567892',
                 'ae_email' => 'sinta.dewi@vendor.com',
@@ -121,8 +121,6 @@ class ProjectSeeder extends Seeder
                 'end_date' => Carbon::now()->subMonths(1)->format('Y-m-d'),
                 'go_live_estimated' => Carbon::now()->subMonths(2)->format('Y-m-d'),
                 'calculated_progress' => 100.00,
-                'delivery_type' => 'Cloud',
-                'delivery_subtype' => 'Full Implementation',
                 'ae_name' => 'Rina Sari',
                 'ae_phone' => '081234567893',
                 'ae_email' => 'rina.sari@vendor.com',
@@ -142,36 +140,55 @@ class ProjectSeeder extends Seeder
             DB::beginTransaction();
             try {
                 // Insert project
-                $projectId = DB::table('projects')->insertGetId(array_merge($projectData, [
-                    'created_by_id' => null, // Set null karena ECOSYSTEM tidak menggunakan tabel users
+                $projectId = DB::table('delivery_projects')->insertGetId(array_merge($projectData, [
+                    'created_by_id' => null,
                     'location_valid_from' => $projectData['start_date'],
                     'location_valid_to' => $projectData['end_date'],
                     'created_at' => Carbon::now(),
                     'updated_at' => Carbon::now(),
                 ]));
 
-                // Attach phases to project
-                foreach ($phases as $phaseIndex => $phase) {
-                    DB::table('project_project_phase')->insert([
-                        'project_id' => $projectId,
-                        'project_phase_id' => $phase->id,
-                        'weight' => $phase->weight,
+                // ✅ CREATE PROJECT-SPECIFIC PHASES (copy from system default)
+                $projectPhases = [];
+                foreach ($systemDefaultPhases as $phase) {
+                    $isGoLive = $phase->name === 'Go-Live & Support';
+                    
+                    $phaseId = DB::table('delivery_project_phases')->insertGetId([
+                        'delivery_projects_id' => $projectId, // Assign ke project ini
+                        'name' => $phase->name,
+                        'description' => $phase->description,
                         'order_sequence' => $phase->order_sequence,
-                        'is_visible' => !$phase->is_optional,
-                        'is_golive_phase' => $phase->name === 'Go-Live & Support',
+                        'color' => $phase->color,
+                        'weight' => $phase->weight,
+                        'is_system_default' => false, // Bukan template lagi
+                        'is_optional' => $phase->is_optional,
                         'orientation' => $phase->orientation,
-                        'custom_settings' => null,
+                        'is_active' => true,
+                        'parent_phase_id' => null, // Reset parent untuk project-specific
+                        'settings' => $phase->settings,
+                        'is_golive_phase' => $isGoLive, // ✅ Kolom baru di tabel phases
+                        'is_visible' => !$phase->is_optional, // ✅ Kolom baru di tabel phases
+                        'custom_settings' => null, // ✅ Kolom baru di tabel phases
                         'created_at' => Carbon::now(),
                         'updated_at' => Carbon::now(),
                     ]);
+                    
+                    $projectPhases[] = (object) [
+                        'id' => $phaseId,
+                        'name' => $phase->name,
+                        'order_sequence' => $phase->order_sequence,
+                        'weight' => $phase->weight,
+                        'is_optional' => $phase->is_optional,
+                        'orientation' => $phase->orientation,
+                    ];
                 }
 
                 // Add team members
                 $teamSize = min(5, count($employees));
                 for ($i = 0; $i < $teamSize; $i++) {
                     $assignments = ['Project Manager', 'Functional Consultant', 'Technical Consultant', 'Business Analyst', 'Developer'];
-                    DB::table('project_employee')->insert([
-                        'project_id' => $projectId,
+                    DB::table('delivery_project_employee')->insert([
+                        'delivery_projects_id' => $projectId,
                         'employee_id' => $employees[$i],
                         'assignment' => $assignments[$i] ?? 'Team Member',
                         'start_date' => $projectData['start_date'],
@@ -182,7 +199,7 @@ class ProjectSeeder extends Seeder
                 }
 
                 // Create planning items (groups and activities)
-                $this->createProjectPlanning($projectId, $phases, $projectData);
+                $this->createProjectPlanning($projectId, collect($projectPhases), $projectData);
 
                 // Create project updates
                 $this->createProjectUpdates($projectId);
@@ -191,11 +208,12 @@ class ProjectSeeder extends Seeder
                 $this->createProjectDocuments($projectId);
 
                 DB::commit();
-                $this->command->info("✓ Project '{$projectData['name']}' berhasil dibuat dengan planning");
+                $this->command->info("✓ Project '{$projectData['name']}' berhasil dibuat dengan " . count($projectPhases) . " phases");
 
             } catch (\Exception $e) {
                 DB::rollBack();
                 $this->command->error("✗ Error membuat project '{$projectData['name']}': " . $e->getMessage());
+                $this->command->error("Stack trace: " . $e->getTraceAsString());
             }
         }
 
@@ -207,16 +225,16 @@ class ProjectSeeder extends Seeder
         $startDate = Carbon::parse($projectData['start_date']);
 
         // Hanya buat planning untuk fase yang visible (non-optional)
-        $visiblePhases = $phases->where('is_optional', false);
+        $visiblePhases = $phases->filter(fn($p) => !$p->is_optional);
 
         foreach ($visiblePhases as $phaseIndex => $phase) {
             $phaseStartDate = $startDate->copy()->addWeeks($phaseIndex * 4);
             $phaseEndDate = $phaseStartDate->copy()->addWeeks(4);
 
             // Create group for this phase
-            $groupId = DB::table('project_planning')->insertGetId([
-                'project_id' => $projectId,
-                'phase_id' => $phase->id,
+            $groupId = DB::table('delivery_project_planning')->insertGetId([
+                'delivery_projects_id' => $projectId,
+                'phase_id' => $phase->id, // ✅ Langsung reference ke phase_id
                 'parent_id' => null,
                 'name' => $phase->name,
                 'group_name' => $phase->name,
@@ -240,9 +258,9 @@ class ProjectSeeder extends Seeder
 
                 $activityProgress = $this->calculateActivityProgress($phaseIndex, $actIndex, count($visiblePhases), $projectData['calculated_progress']);
 
-                $planningId = DB::table('project_planning')->insertGetId([
-                    'project_id' => $projectId,
-                    'phase_id' => $phase->id,
+                $planningId = DB::table('delivery_project_planning')->insertGetId([
+                    'delivery_projects_id' => $projectId,
+                    'phase_id' => $phase->id, // ✅ Langsung reference ke phase_id
                     'parent_id' => $groupId,
                     'name' => $activity,
                     'group_name' => null,
@@ -342,8 +360,8 @@ class ProjectSeeder extends Seeder
         ];
 
         foreach ($updates as $update) {
-            DB::table('project_updates')->insert(array_merge($update, [
-                'project_id' => $projectId,
+            DB::table('delivery_project_updates')->insert(array_merge($update, [
+                'delivery_projects_id' => $projectId,
                 'created_at' => Carbon::now(),
                 'updated_at' => Carbon::now(),
             ]));
@@ -360,7 +378,7 @@ class ProjectSeeder extends Seeder
 
         foreach ($documents as $doc) {
             DB::table('documents')->insert(array_merge($doc, [
-                'project_id' => $projectId,
+                'delivery_projects_id' => $projectId,
                 'created_at' => Carbon::now(),
                 'updated_at' => Carbon::now(),
             ]));

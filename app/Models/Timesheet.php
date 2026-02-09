@@ -13,7 +13,7 @@ class Timesheet extends Model
 
     protected $fillable = [
         'employee_id',
-        'project_id',
+        'delivery_projects_id', // Changed from project_id to match database column
         'activity_id', // Link to assigned activity
         'ticket_id',
         'date',
@@ -27,6 +27,8 @@ class Timesheet extends Model
         'approved_by',
         'approved_at',
         'is_billable',
+        'presence',
+        'location',
     ];
 
     protected $casts = [
@@ -59,9 +61,9 @@ class Timesheet extends Model
         return $this->belongsTo(Employee::class, 'approved_by', 'employee_id');
     }
 
-    public function project()
+    public function delivery_project()
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(DeliveryProject::class, 'delivery_projects_id');
     }
 
     public function ticket()
@@ -74,7 +76,7 @@ class Timesheet extends Model
      */
     public function activity()
     {
-        return $this->belongsTo(ProjectActivity::class, 'activity_id');
+        return $this->belongsTo(DeliveryProjectActivity::class, 'activity_id');
     }
 
     // Scopes...
@@ -95,7 +97,7 @@ class Timesheet extends Model
 
     public function scopeForProject($query, $projectId)
     {
-        return $query->where('project_id', $projectId);
+        return $query->where('delivery_projects_id', $projectId);
     }
 
     public function scopeBillable($query)

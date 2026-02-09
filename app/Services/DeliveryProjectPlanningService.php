@@ -2,10 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\Project;
-use App\Models\ProjectPhase;
-use App\Models\ProjectPlanning;
-use App\Models\ProjectActivity;
+use App\Models\DeliveryProject;
+use App\Models\DeliveryProjectPhase;
+use App\Models\DeliveryProjectPlanning;
+use App\Models\DeliveryProjectActivity;
 use App\Models\ActivityStage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -16,17 +16,17 @@ use Carbon\Carbon;
  * Service untuk handle business logic project planning
  * Memisahkan logic dari controller untuk performa lebih baik
  */
-class ProjectPlanningService
+class DeliveryProjectPlanningService
 {
     /**
      * Get hierarchical phase data dengan optimized eager loading
      */
-    public function getPhaseActivitiesOptimized(Project $project, ProjectPhase $phase): array
+    public function getPhaseActivitiesOptimized(DeliveryProject $project, DeliveryProjectPhase $phase): array
     {
         Log::info("Fetching activities for Project ID: {$project->id} and Phase ID: {$phase->id}");
 
         // ✅ Optimized: Eager load dengan query builder yang lebih efisien
-        $groups = ProjectPlanning::where('project_id', $project->id)
+        $groups = DeliveryProjectPlanning::where('delivery_projects_id', $project->id)
             ->where('phase_id', $phase->id)
             ->where('is_group', true)
             ->whereNull('parent_id')
@@ -50,15 +50,14 @@ class ProjectPlanningService
     /**
      * Get table data dengan optimized queries
      */
-    public function getTableDataOptimized(Project $project): array
+    public function getTableDataOptimized(DeliveryProject $project): array
     {
         Log::info('📊 Getting table data with optimized queries', ['project_id' => $project->id]);
         
-        // ✅ Optimized: Single query dengan proper eager loading
+        // ✅ Optimized: One-to-Many relationship (phases belong to project)
         $phases = $project->phases()
-            ->withPivot(['weight', 'is_visible', 'orientation', 'order_sequence'])
-            ->wherePivot('is_visible', true)
-            ->orderBy(DB::raw('project_project_phase.order_sequence'), 'asc')
+            ->where('is_visible', true)
+            ->orderBy('order_sequence', 'asc')
             ->get();
         
         $data = [];
@@ -68,7 +67,7 @@ class ProjectPlanningService
             
             // Calculate phase metrics
             $phaseDates = $this->calculatePhaseDates($groups);
-            $phaseProgress = $this->calculatePhaseProgress($groups, $phase->pivot->weight);
+            $phaseProgress = $this->calculatePhaseProgress($groups, $phase->weight);
             $phaseStatus = $this->calculatePhaseStatus($groups, $phaseProgress);
             
             $data[] = [
@@ -76,8 +75,8 @@ class ProjectPlanningService
                     'id' => $phase->id,
                     'name' => $phase->name,
                     'color' => $phase->color ?? '#6366f1',
-                    'orientation' => $phase->pivot->orientation,
-                    'weight' => $phase->pivot->weight,
+                    'orientation' => $phase->orientation,
+                    'weight' => $phase->weight,
                     'start_date' => $phaseDates['start'] ? $phaseDates['start']->format('d M Y') : '-',
                     'end_date' => $phaseDates['end'] ? $phaseDates['end']->format('d M Y') : '-',
                     'duration_in_days' => $phaseDates['duration'],
@@ -449,7 +448,7 @@ class ProjectPlanningService
      */
     private function formatActivityForHierarchy($activity, int $level = 0): array
     {
-        $isProjectActivity = $activity instanceof ProjectActivity;
+        $isProjectActivity = $activity instanceof DeliveryProjectActivity;
         
         $formatted = [
             'id' => $activity->id,
@@ -503,24 +502,21 @@ class ProjectPlanningService
             $formatted['status_badge'] = $activity->status_badge ?? $this->getStatusBadgeClass($activity->status ?? 'not_started');
             $formatted['is_overdue'] = $activity->is_overdue ?? false;
 
-            if ($activity->extended) {
-                $formatted['module'] = $activity->extended->module;
-                $formatted['tcode'] = $activity->extended->tcode;
-                $formatted['deliverable'] = $activity->extended->deliverable;
-                $formatted['complexity'] = $activity->extended->complexity ?? null;
-                $formatted['receive_type'] = $activity->extended->receive_type ?? null;
-                $formatted['new_requirement'] = $activity->extended->new_requirement ?? false;
-                $formatted['functional_sinergi'] = $activity->extended->functional_sinergi ?? null;
-                $formatted['technical_sinergi'] = $activity->extended->technical_sinergi ?? null;
+            // Get extended fields from linked activity if exists
+            if ($activity->activity_id && $activity->activity) {
+                $formatted['module'] = $activity->activity->module ?? null;
+                $formatted['object'] = $activity->activity->object ?? null;
+                $formatted['deliverable'] = $activity->activity->deliverable ?? null;
+                $formatted['complexity'] = $activity->activity->complexity ?? null;
+                $formatted['receive_type'] = $activity->activity->receive_type ?? null;
+                $formatted['new_requirement'] = $activity->activity->new_requirement ?? false;
             } else {
                 $formatted['module'] = null;
-                $formatted['tcode'] = null;
+                $formatted['object'] = null;
                 $formatted['deliverable'] = null;
                 $formatted['complexity'] = null;
                 $formatted['receive_type'] = null;
                 $formatted['new_requirement'] = false;
-                $formatted['functional_sinergi'] = null;
-                $formatted['technical_sinergi'] = null;
             }
 
             if ($activity->children && $activity->children->isNotEmpty()) {
@@ -583,17 +579,9 @@ class ProjectPlanningService
                             if (method_exists($activity, 'children') && !$activity->relationLoaded('children')) {
                                 $activity->load('children');
                             }
-                            
-                            if (!$activity->activity_id && method_exists($activity, 'extended') && !$activity->relationLoaded('extended')) {
-                                $activity->load('extended');
-                            }
-                            
+
                             if ($activity->activity_id && method_exists($activity, 'activity') && !$activity->relationLoaded('activity')) {
                                 $activity->load('activity');
-                            }
-                            
-                            if ($activity->project_custom_activity_id && method_exists($activity, 'customActivity') && !$activity->relationLoaded('customActivity')) {
-                                $activity->load('customActivity');
                             }
                         }
                     }

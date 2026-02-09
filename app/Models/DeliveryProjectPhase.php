@@ -4,19 +4,25 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;  
 
-class DynamicProjectPhase extends Model
+class DeliveryProjectPhase extends Model
 {
     use HasFactory;
 
-    protected $table = 'project_phases';
+    protected $table = 'delivery_project_phases';
 
     protected $fillable = [
+        'delivery_projects_id',
         'name',
         'description',
         'order_sequence',
         'color',
         'weight',
+        'is_golive_phase',
+        'is_visible',
+        'custom_settings',
         'is_system_default',
         'is_optional',
         'orientation',
@@ -30,33 +36,63 @@ class DynamicProjectPhase extends Model
         'is_system_default' => 'boolean',
         'is_optional' => 'boolean',
         'is_active' => 'boolean',
+        'is_golive_phase' => 'boolean',
+        'is_visible' => 'boolean',
         'settings' => 'array',
+        'custom_settings' => 'array',
     ];
+
+    // =========================================================================
+    // RELATIONSHIPS
+    // =========================================================================
+
+    /**
+     * ✅ BARU: One-to-Many - Phase has many Plannings (groups/activities)
+     * Relationship ke ProjectPlanning melalui phase_id
+     */
+    public function plannings(): HasMany
+    {
+        return $this->hasMany(DeliveryProjectPlanning::class, 'phase_id')
+            ->orderBy('order_sequence');
+    }
+
+    /**
+     * ✅ Get only groups from plannings
+     */
+    public function groups(): HasMany
+    {
+        return $this->hasMany(DeliveryProjectPlanning::class, 'phase_id')
+            ->where('is_group', true)
+            ->whereNull('parent_id')
+            ->orderBy('order_sequence');
+    }
+
+    public function project()
+    {
+        return $this->belongsTo(DeliveryProject::class, 'delivery_projects_id');
+    }
+
+    /**
+     * ✅ Get only activities from plannings
+     */
+    public function activities(): HasMany
+    {
+        return $this->hasMany(DeliveryProjectPlanning::class, 'phase_id')
+            ->where('is_group', false)
+            ->whereNull('parent_id')
+            ->orderBy('order_sequence');
+    }
 
     // Relasi ke parent phase untuk fase horizontal
     public function parentPhase()
     {
-        return $this->belongsTo(DynamicProjectPhase::class, 'parent_phase_id');
+        return $this->belongsTo(DeliveryDynamicProjectPhase::class, 'parent_phase_id');
     }
 
     // Relasi ke child phases
     public function childPhases()
     {
-        return $this->hasMany(DynamicProjectPhase::class, 'parent_phase_id');
-    }
-
-    // Relasi ke activities
-    public function activities()
-    {
-        return $this->hasMany(ProjectActivity::class, 'project_phase_id')->orderBy('order_sequence');
-    }
-
-    // Relasi many-to-many dengan projects
-    public function projects()
-    {
-        return $this->belongsToMany(Project::class, 'project_project_phase', 'project_phase_id', 'project_id')
-            ->withPivot(['weight', 'order_sequence', 'is_visible', 'orientation', 'custom_settings'])
-            ->withTimestamps();
+        return $this->hasMany(DeliveryDynamicProjectPhase::class, 'parent_phase_id');
     }
 
     // Scope untuk fase vertikal
@@ -70,7 +106,11 @@ class DynamicProjectPhase extends Model
     {
         return $query->where('orientation', 'horizontal');
     }
-
+    
+    public function scopeOrdered($query)
+    {
+        return $query->orderBy('order_sequence', 'asc');
+    }
     // Scope untuk fase aktif
     public function scopeActive($query)
     {
@@ -98,13 +138,9 @@ class DynamicProjectPhase extends Model
     // Method untuk menghitung progress fase
     public function calculateProgress($projectId)
     {
-        $plannings = ProjectPlanning::where('project_id', $projectId)
-            ->whereHas('activity', function($query) {
-                $query->where('project_phase_id', $this->id);
-            })
-            ->orWhereHas('customActivity', function($query) {
-                $query->where('project_phase_id', $this->id);
-            })
+        // Calculate progress from plannings in this phase
+        $plannings = DeliveryProjectPlanning::where('delivery_projects_id', $projectId)
+            ->where('phase_id', $this->id)
             ->get();
 
         if ($plannings->isEmpty()) {
@@ -125,7 +161,7 @@ class DynamicProjectPhase extends Model
         // Duplicate activities
         foreach ($this->activities as $activity) {
             $newActivity = $activity->replicate();
-            $newActivity->project_phase_id = $newPhase->id;
+            $newActivity->delivery_project_phase_id = $newPhase->id;
             $newActivity->save();
         }
 

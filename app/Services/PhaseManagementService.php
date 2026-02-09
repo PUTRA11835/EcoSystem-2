@@ -2,12 +2,11 @@
 
 namespace App\Services;
 
-use App\Models\Project;
-use App\Models\ProjectPhase;
-use App\Models\DynamicProjectPhase;
-use App\Models\ProjectPlanning;
-use App\Models\ProjectActivity;
-use App\Models\ProjectCustomActivity;
+use App\Models\DeliveryProject;
+use App\Models\DeliveryProjectPhase;
+use App\Models\DeliveryDynamicProjectPhase;
+use App\Models\DeliveryProjectPlanning;
+use App\Models\DeliveryProjectActivity;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
@@ -17,11 +16,11 @@ class PhaseManagementService
     /**
      * Calculate overall project progress considering all phases and weights
      */
-    public function calculateProjectProgress(Project $project)
+    public function calculateProjectProgress(DeliveryProject $project)
     {
+        // One-to-Many: phases belong directly to project
         $phases = $project->phases()
-            ->withPivot(['weight', 'is_visible', 'orientation'])
-            ->wherePivot('is_visible', true)
+            ->where('is_visible', true)
             ->get();
 
         if ($phases->isEmpty()) {
@@ -33,11 +32,11 @@ class PhaseManagementService
 
         foreach ($phases as $phase) {
             $phaseProgress = $this->calculatePhaseProgress($project, $phase);
-            $phaseWeight = $phase->pivot->weight;
-            
+            $phaseWeight = $phase->weight ?? 0;
+
             // Consider orientation multiplier (horizontal phases might have different impact)
-            $orientationMultiplier = $phase->pivot->orientation === 'horizontal' ? 0.8 : 1.0;
-            
+            $orientationMultiplier = $phase->orientation === 'horizontal' ? 0.8 : 1.0;
+
             $weightedProgress = $phaseProgress * $phaseWeight * $orientationMultiplier;
             $totalWeightedProgress += $weightedProgress;
             $totalWeight += $phaseWeight * $orientationMultiplier;
@@ -49,18 +48,12 @@ class PhaseManagementService
     /**
      * Calculate progress for a specific phase
      */
-    public function calculatePhaseProgress(Project $project, ProjectPhase $phase)
+    public function calculatePhaseProgress(DeliveryProject $project, DeliveryProjectPhase $phase)
     {
-        // Get all activities for this phase (including from groups and sub-groups)
-        $plannings = ProjectPlanning::where('project_id', $project->id)
+        // Get all plannings for this phase
+        $plannings = DeliveryProjectPlanning::where('delivery_projects_id', $project->id)
+            ->where('phase_id', $phase->id)
             ->where('is_group', false)
-            ->where(function($query) use ($phase) {
-                $query->whereHas('activity', function($q) use ($phase) {
-                    $q->where('project_phase_id', $phase->id);
-                })->orWhereHas('customActivity', function($q) use ($phase) {
-                    $q->where('project_phase_id', $phase->id);
-                });
-            })
             ->get();
 
         if ($plannings->isEmpty()) {
@@ -73,25 +66,23 @@ class PhaseManagementService
     /**
      * Generate Gantt chart data with horizontal phases
      */
-    public function generateGanttData(Project $project)
+    public function generateGanttData(DeliveryProject $project)
     {
         $ganttTasks = [];
         $taskIdCounter = 1;
-        
-        // Get vertical phases
+
+        // Get vertical phases (One-to-Many relationship)
         $verticalPhases = $project->phases()
-            ->withPivot(['weight', 'is_visible', 'orientation', 'order_sequence'])
-            ->wherePivot('orientation', 'vertical')
-            ->wherePivot('is_visible', true)
-            ->orderBy('pivot_order_sequence')
+            ->where('orientation', 'vertical')
+            ->where('is_visible', true)
+            ->orderBy('order_sequence')
             ->get();
 
         // Get horizontal phases
         $horizontalPhases = $project->phases()
-            ->withPivot(['weight', 'is_visible', 'orientation', 'order_sequence'])
-            ->wherePivot('orientation', 'horizontal')
-            ->wherePivot('is_visible', true)
-            ->orderBy('pivot_order_sequence')
+            ->where('orientation', 'horizontal')
+            ->where('is_visible', true)
+            ->orderBy('order_sequence')
             ->get();
 
         // Process vertical phases
@@ -127,10 +118,10 @@ class PhaseManagementService
     /**
      * Get Gantt tasks for a specific phase
      */
-    private function getPhaseGanttTasks(Project $project, ProjectPhase $phase, &$taskIdCounter, $isHorizontal = false)
+    private function getPhaseGanttTasks(DeliveryProject $project, DeliveryProjectPhase $phase, &$taskIdCounter, $isHorizontal = false)
     {
         $tasks = [];
-        
+
         // Add phase header
         $tasks[] = [
             'id' => 'phase_' . $taskIdCounter++,
@@ -142,39 +133,18 @@ class PhaseManagementService
             'dependencies' => ''
         ];
 
-        // Get activities for this phase
-        $plannings = ProjectPlanning::where('project_id', $project->id)
+        // Get plannings for this phase
+        $plannings = DeliveryProjectPlanning::where('delivery_projects_id', $project->id)
+            ->where('phase_id', $phase->id)
             ->whereNull('parent_id')
-            ->with(['activity', 'customActivity', 'children'])
+            ->with(['activity', 'children'])
             ->get();
 
         foreach ($plannings as $planning) {
-            if ($this->planningBelongsToPhase($planning, $phase)) {
-                $tasks = array_merge($tasks, $this->createGanttTaskFromPlanning($planning, $taskIdCounter, $phase, $isHorizontal));
-            }
+            $tasks = array_merge($tasks, $this->createGanttTaskFromPlanning($planning, $taskIdCounter, $phase, $isHorizontal));
         }
 
         return $tasks;
-    }
-
-    /**
-     * Check if planning belongs to a specific phase
-     */
-    private function planningBelongsToPhase($planning, ProjectPhase $phase)
-    {
-        if (!$planning->is_group) {
-            return ($planning->activity && $planning->activity->project_phase_id == $phase->id) ||
-                   ($planning->customActivity && $planning->customActivity->project_phase_id == $phase->id);
-        }
-
-        // For groups, check children recursively
-        foreach ($planning->children as $child) {
-            if ($this->planningBelongsToPhase($child, $phase)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
@@ -189,10 +159,10 @@ class PhaseManagementService
             // Add group header
             $tasks[] = [
                 'id' => 'group_' . $taskIdCounter++,
-                'name' => $indent . '▼ ' . ($planning->notes ?? 'Group'),
+                'name' => $indent . '▼ ' . ($planning->name ?? 'Group'),
                 'start' => $planning->children->min('start_date') ?? '',
                 'end' => $planning->children->max('end_date') ?? '',
-                'progress' => $planning->calculateProgress(),
+                'progress' => $planning->calculated_progress ?? 0,
                 'custom_class' => $isHorizontal ? 'gantt-group-horizontal' : 'gantt-group',
                 'dependencies' => ''
             ];
@@ -202,10 +172,9 @@ class PhaseManagementService
                 $tasks = array_merge($tasks, $this->createGanttTaskFromPlanning($child, $taskIdCounter, $phase, $isHorizontal, $level + 1));
             }
         } else {
-            // Add activity
-            $activityName = $planning->activity ? $planning->activity->name : 
-                          ($planning->customActivity ? $planning->customActivity->name : 'Unknown');
-            
+            // Add activity - use the name accessor which handles activity lookup
+            $activityName = $planning->name ?? 'Unknown';
+
             $customClass = strtolower(str_replace(' ', '-', $phase->name));
             if ($isHorizontal) {
                 $customClass .= ' horizontal-task';
@@ -214,14 +183,17 @@ class PhaseManagementService
                 $customClass .= ' overdue';
             }
 
+            $startDate = $planning->start_date ? $planning->start_date->format('Y-m-d') : Carbon::now()->format('Y-m-d');
+            $endDate = $planning->end_date ? $planning->end_date->format('Y-m-d') : Carbon::now()->format('Y-m-d');
+
             $tasks[] = [
                 'id' => 'task_' . $planning->id,
                 'name' => $indent . $activityName,
-                'start' => $planning->start_date->format('Y-m-d'),
-                'end' => $planning->end_date->format('Y-m-d'),
-                'progress' => $planning->progress_percentage,
+                'start' => $startDate,
+                'end' => $endDate,
+                'progress' => $planning->progress_percentage ?? 0,
                 'custom_class' => $customClass,
-                'dependencies' => $planning->dependencies ?? '',
+                'dependencies' => '',
                 'deliverable' => $planning->notes ?? ''
             ];
         }
@@ -232,20 +204,19 @@ class PhaseManagementService
     /**
      * Generate table data for a specific phase
      */
-    public function generateTableData(Project $project, DynamicProjectPhase $phase)
+    public function generateTableData(DeliveryProject $project, DeliveryProjectPhase $phase)
     {
         $data = [];
-        
+
         // Get root plannings for this phase
-        $plannings = ProjectPlanning::where('project_id', $project->id)
+        $plannings = DeliveryProjectPlanning::where('delivery_projects_id', $project->id)
+            ->where('phase_id', $phase->id)
             ->whereNull('parent_id')
-            ->with(['activity', 'customActivity', 'children.activity', 'children.customActivity'])
+            ->with(['activity', 'children.activity'])
             ->get();
 
         foreach ($plannings as $planning) {
-            if ($this->planningBelongsToPhase($planning, $phase)) {
-                $data[] = $this->formatPlanningForTable($planning);
-            }
+            $data[] = $this->formatPlanningForTable($planning);
         }
 
         return $data;
@@ -260,16 +231,12 @@ class PhaseManagementService
             'id' => $planning->id,
             'level' => $level,
             'is_group' => $planning->is_group,
-            'name' => $planning->is_group ? ($planning->notes ?? 'Unnamed Group') : 
-                     ($planning->activity ? $planning->activity->name : 
-                     ($planning->customActivity ? $planning->customActivity->name : 'Unknown')),
-            'module' => $planning->module ?? null,
-            'new_requirement' => $planning->new_requirement ?? false,
-            'tcode' => $planning->tcode ?? null,
-            'receive_type' => $planning->receive_type ?? null,
-            'complexity' => $planning->complexity ?? null,
-            'functional_sinergi' => $planning->functional_sinergi ?? null,
-            'technical_sinergi' => $planning->technical_sinergi ?? null,
+            'name' => $planning->name ?? 'Unknown',
+            'module' => $planning->activity->module ?? null,
+            'new_requirement' => $planning->activity->new_requirement ?? false,
+            'object' => $planning->activity->object ?? null,
+            'receive_type' => $planning->activity->receive_type ?? null,
+            'complexity' => $planning->activity->complexity ?? null,
             'start_date' => $planning->start_date,
             'end_date' => $planning->end_date,
             'planned_days' => $planning->duration_in_days,
@@ -279,7 +246,7 @@ class PhaseManagementService
             'status' => $planning->status,
             'status_text' => $planning->status_text,
             'progress_percentage' => $planning->progress_percentage,
-            'deliverable' => $planning->deliverable ?? null,
+            'deliverable' => $planning->activity->deliverable ?? null,
             'notes' => $planning->notes ?? null,
             'children' => []
         ];
@@ -297,32 +264,39 @@ class PhaseManagementService
     /**
      * Duplicate phase configuration from one project to another
      */
-    public function duplicatePhaseConfiguration(Project $sourceProject, Project $targetProject)
+    public function duplicatePhaseConfiguration(DeliveryProject $sourceProject, DeliveryProject $targetProject)
     {
         DB::transaction(function () use ($sourceProject, $targetProject) {
-            // Clear existing configuration
-            DB::table('project_project_phase')->where('project_id', $targetProject->id)->delete();
-            
-            // Copy phase configuration
-            $sourcePhases = $sourceProject->phases()
-                ->withPivot(['weight', 'order_sequence', 'is_visible', 'orientation', 'custom_settings'])
-                ->get();
-            
+            // Clear existing phases for target project
+            DeliveryProjectPhase::where('delivery_projects_id', $targetProject->id)->delete();
+
+            // Copy phases (One-to-Many - create new records)
+            $sourcePhases = $sourceProject->phases()->get();
+
             foreach ($sourcePhases as $phase) {
-                $targetProject->phases()->attach($phase->id, [
-                    'weight' => $phase->pivot->weight,
-                    'order_sequence' => $phase->pivot->order_sequence,
-                    'is_visible' => $phase->pivot->is_visible,
-                    'orientation' => $phase->pivot->orientation,
-                    'custom_settings' => $phase->pivot->custom_settings,
+                DeliveryProjectPhase::create([
+                    'delivery_projects_id' => $targetProject->id,
+                    'name' => $phase->name,
+                    'description' => $phase->description,
+                    'order_sequence' => $phase->order_sequence,
+                    'color' => $phase->color,
+                    'weight' => $phase->weight,
+                    'is_golive_phase' => $phase->is_golive_phase,
+                    'is_visible' => $phase->is_visible,
+                    'custom_settings' => $phase->custom_settings,
+                    'is_system_default' => false,
+                    'is_optional' => $phase->is_optional,
+                    'orientation' => $phase->orientation,
+                    'is_active' => $phase->is_active,
+                    'settings' => $phase->settings,
                 ]);
             }
-            
-            // Copy view configuration
-            $sourceViewConfig = $sourceProject->viewConfiguration;
+
+            // Copy view configuration if exists
+            $sourceViewConfig = $targetProject->viewConfiguration ?? null;
             if ($sourceViewConfig) {
-                ProjectViewConfiguration::updateOrCreate(
-                    ['project_id' => $targetProject->id],
+                $targetProject->viewConfiguration()->updateOrCreate(
+                    ['delivery_projects_id' => $targetProject->id],
                     [
                         'default_view' => $sourceViewConfig->default_view,
                         'gantt_settings' => $sourceViewConfig->gantt_settings,
@@ -337,20 +311,21 @@ class PhaseManagementService
     /**
      * Validate phase weight distribution
      */
-    public function validatePhaseWeights(Project $project, $orientation = 'vertical')
+    public function validatePhaseWeights(DeliveryProject $project, $orientation = 'vertical')
     {
+        // One-to-Many relationship
         $phases = $project->phases()
-            ->wherePivot('orientation', $orientation)
-            ->wherePivot('is_visible', true)
+            ->where('orientation', $orientation)
+            ->where('is_visible', true)
             ->get();
 
-        $totalWeight = $phases->sum('pivot.weight');
+        $totalWeight = $phases->sum('weight');
 
         return [
             'valid' => abs($totalWeight - 100) < 0.01,
             'total_weight' => $totalWeight,
-            'message' => abs($totalWeight - 100) < 0.01 ? 
-                'Bobot fase valid' : 
+            'message' => abs($totalWeight - 100) < 0.01 ?
+                'Bobot fase valid' :
                 "Total bobot harus 100%, saat ini: {$totalWeight}%"
         ];
     }
@@ -358,23 +333,21 @@ class PhaseManagementService
     /**
      * Export project planning to Excel format
      */
-    public function exportToExcel(Project $project)
+    public function exportToExcel(DeliveryProject $project)
     {
-        // This would integrate with a library like PhpSpreadsheet
-        // Returns data formatted for Excel export
         $data = [];
-        
+
+        // One-to-Many relationship
         $phases = $project->phases()
-            ->withPivot(['weight', 'is_visible', 'orientation'])
-            ->wherePivot('is_visible', true)
-            ->orderBy('pivot_order_sequence')
+            ->where('is_visible', true)
+            ->orderBy('order_sequence')
             ->get();
 
         foreach ($phases as $phase) {
             $phaseData = [
                 'phase_name' => $phase->name,
-                'orientation' => $phase->pivot->orientation,
-                'weight' => $phase->pivot->weight,
+                'orientation' => $phase->orientation,
+                'weight' => $phase->weight,
                 'activities' => $this->generateTableData($project, $phase)
             ];
             $data[] = $phaseData;
