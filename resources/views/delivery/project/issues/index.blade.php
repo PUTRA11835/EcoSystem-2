@@ -54,15 +54,15 @@
             <div id="mobile-issue-list" class="space-y-4">
                 @forelse($issues as $issue)
                     {{-- Tambahkan onclick ke div.card utama --}}
-                    <div class="issue-card bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer" 
-                         onclick="window.location.href='{{ route('issues.show', $issue->delivery_project->id) }}'"
-                         data-searchable-content="{{ strtolower(($issue->project->client->basicData->name_1 ?? '') . ' ' . $issue->highlight_issue . ' ' . $issue->action . ' ' . $issue->status . ' ' . $issue->complexity . ' ' . ($issue->project->status ?? '')) }}">
+                    <div class="issue-card bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                         @if($issue->delivery_project) onclick="window.location.href='{{ route('issues.show', $issue->delivery_project->id) }}'" @endif
+                         data-searchable-content="{{ strtolower(($issue->delivery_project?->client?->basicData?->name_1 ?? '') . ' ' . $issue->highlight_issue . ' ' . $issue->action . ' ' . $issue->status . ' ' . $issue->complexity . ' ' . ($issue->delivery_project?->status ?? '')) }}">
                         {{-- Card Header --}}
                         <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
                             <div class="flex justify-between items-start">
                                 <div class="flex-1">
                                     <h4 class="text-base font-semibold text-gray-900">
-                                        {{ $issue->project->client->basicData->name_1 ?? 'N/A' }}
+                                        {{ $issue->delivery_project?->client?->basicData?->name_1 ?? 'N/A' }}
                                     </h4>
                                     <div class="flex flex-wrap gap-2 mt-2">
                                         {{-- Issue Status Badge --}}
@@ -82,9 +82,9 @@
                                         </span>
                                         {{-- Project Status Badge --}}
                                         <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
-                                            {{ $issue->delivery_project->status === 'Closed' ? 'bg-green-100 text-green-800' :
-                                               ($issue->delivery_project->status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800') }}">
-                                            Project: {{ $issue->delivery_project->status ?? 'N/A' }}
+                                            {{ ($issue->delivery_project?->status ?? '') === 'Closed' ? 'bg-green-100 text-green-800' :
+                                               (($issue->delivery_project?->status ?? '') === 'In Progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800') }}">
+                                            Project: {{ $issue->delivery_project?->status ?? 'N/A' }}
                                         </span>
                                     </div>
                                 </div>
@@ -186,12 +186,12 @@
                 <tbody id="desktop-issue-table-body" class="bg-white divide-y divide-gray-200">
                     @forelse($issues as $issue)
                         {{-- Tambahkan onclick dan cursor-pointer ke tr --}}
-                        <tr class="issue-row hover:bg-gray-50 transition-colors cursor-pointer" 
-                            onclick="window.location.href='{{ route('issues.show', $issue->delivery_project->id) }}'"
-                            data-searchable-content="{{ strtolower(($issue->delivery_project->client->basicData->name_1 ?? '') . ' ' . $issue->highlight_issue . ' ' . $issue->action . ' ' . $issue->status . ' ' . $issue->complexity . ' ' . ($issue->project->status ?? '')) }}">
+                        <tr class="issue-row hover:bg-gray-50 transition-colors cursor-pointer"
+                            @if($issue->delivery_project) onclick="window.location.href='{{ route('issues.show', $issue->delivery_project->id) }}'" @endif
+                            data-searchable-content="{{ strtolower(($issue->delivery_project?->customer?->basicData?->name_1 ?? '') . ' ' . $issue->highlight_issue . ' ' . $issue->action . ' ' . $issue->status . ' ' . $issue->complexity . ' ' . ($issue->delivery_project?->status ?? '')) }}">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm font-medium text-gray-900">
-                                    {{ $issue->delivery_project->client->basicData->name_1 ?? 'N/A' }}
+                                    {{ $issue->delivery_project?->client?->basicData?->name_1 ?? 'N/A' }}
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -226,9 +226,9 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
-                                    {{ $issue->delivery_project->status === 'Closed' ? 'bg-green-100 text-green-800' :
-                                       ($issue->delivery_project->status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800') }}">
-                                    {{ $issue->delivery_project->status ?? 'N/A' }}
+                                    {{ ($issue->delivery_project?->status ?? '') === 'Closed' ? 'bg-green-100 text-green-800' :
+                                       (($issue->delivery_project?->status ?? '') === 'In Progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800') }}">
+                                    {{ $issue->delivery_project?->status ?? 'N/A' }}
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

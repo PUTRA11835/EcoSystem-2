@@ -28,23 +28,386 @@ const statusColors = {
 
 document.addEventListener('DOMContentLoaded', function() {
     initializeDateFilters();
-    loadTimesheets();
-    loadStatistics();
-    
-    const form = document.getElementById('timesheetForm');
-    if (form) {
-        form.addEventListener('submit', handleFormSubmit);
-    }
-    
-    const selectAllCheckbox = document.getElementById('selectAll');
-    if (selectAllCheckbox) {
-        selectAllCheckbox.addEventListener('change', function() {
-            const checkboxes = document.querySelectorAll('.timesheet-checkbox');
-            checkboxes.forEach(cb => cb.checked = this.checked);
-            updateBulkActionButtons();
-        });
+
+    // Check if we are in approval mode
+    if (window.isApprovalMode) {
+        loadSubmittedTimesheets();
+        loadApprovalStatistics();
+    } else {
+        initializeTimePickers();
+        loadTimesheets();
+        loadStatistics();
+
+        const form = document.getElementById('timesheetForm');
+        if (form) {
+            form.addEventListener('submit', handleFormSubmit);
+        }
+
+        const selectAllCheckbox = document.getElementById('selectAll');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', function() {
+                const checkboxes = document.querySelectorAll('.timesheet-checkbox');
+                checkboxes.forEach(cb => cb.checked = this.checked);
+                updateBulkActionButtons();
+            });
+        }
     }
 });
+
+// ==================== APPROVAL MODE FUNCTIONS ====================
+
+// Load submitted timesheets for approval (for heads)
+async function loadSubmittedTimesheets() {
+    try {
+        const params = new URLSearchParams();
+        if (currentFilters.start_date) params.append('start_date', currentFilters.start_date);
+        if (currentFilters.end_date) params.append('end_date', currentFilters.end_date);
+        if (currentFilters.status) params.append('status', currentFilters.status);
+
+        const response = await fetch(`/api/timesheets/submitted-for-approval?${params}`);
+        const data = await response.json();
+
+        if (data.success) {
+            timesheets = data.data;
+            renderApprovalTimesheets();
+        } else {
+            showEmptyState();
+            showNotification('Failed to load timesheets', 'error');
+        }
+    } catch (error) {
+        console.error('Error loading submitted timesheets:', error);
+        showEmptyState();
+        showNotification('An error occurred while loading timesheets', 'error');
+    }
+}
+
+// Load statistics for approval mode
+async function loadApprovalStatistics() {
+    try {
+        const params = new URLSearchParams();
+        if (currentFilters.start_date) params.append('start_date', currentFilters.start_date);
+        if (currentFilters.end_date) params.append('end_date', currentFilters.end_date);
+
+        const response = await fetch(`/api/timesheets/submitted-for-approval?${params}`);
+        const data = await response.json();
+
+        if (data.success) {
+            const allTimesheets = data.data;
+
+            const pendingCount = allTimesheets.filter(t => t.status === 'submitted').length;
+            const approvedCount = allTimesheets.filter(t => t.status === 'approved').length;
+            const rejectedCount = allTimesheets.filter(t => t.status === 'rejected').length;
+            const totalHours = allTimesheets.reduce((sum, t) => sum + (t.duration_hours || 0), 0);
+
+            const statPendingCount = document.getElementById('statPendingCount');
+            const statApprovedCount = document.getElementById('statApprovedCount');
+            const statRejectedCount = document.getElementById('statRejectedCount');
+            const statTotalHours = document.getElementById('statTotalHours');
+
+            if (statPendingCount) statPendingCount.textContent = pendingCount;
+            if (statApprovedCount) statApprovedCount.textContent = approvedCount;
+            if (statRejectedCount) statRejectedCount.textContent = rejectedCount;
+            if (statTotalHours) statTotalHours.textContent = totalHours.toFixed(2);
+        }
+    } catch (error) {
+        console.error('Error loading approval statistics:', error);
+    }
+}
+
+// Render timesheets for approval mode
+function renderApprovalTimesheets() {
+    const tbody = document.getElementById('timesheetsTableBody');
+    const emptyState = document.getElementById('emptyState');
+
+    if (!tbody) return;
+
+    if (timesheets.length === 0) {
+        tbody.innerHTML = '';
+        if (emptyState) emptyState.classList.remove('hidden');
+        return;
+    }
+
+    if (emptyState) emptyState.classList.add('hidden');
+
+    let filteredTimesheets = timesheets;
+    if (currentFilters.status) {
+        filteredTimesheets = timesheets.filter(t => t.status === currentFilters.status);
+    }
+
+    tbody.innerHTML = filteredTimesheets.map(timesheet => {
+        const statusColor = statusColors[timesheet.status] || statusColors.draft;
+        const duration = timesheet.duration_hours ? timesheet.duration_hours.toFixed(2) : '0.00';
+        const canApprove = timesheet.status === 'submitted';
+
+        return `
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="text-sm font-medium text-gray-900">${timesheet.employee_name || 'Unknown'}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="text-sm font-medium text-gray-900">${formatDisplayDate(timesheet.date)}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="text-sm text-gray-900">${timesheet.start_time} - ${timesheet.end_time}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="text-sm font-semibold text-gray-900">${duration}h</div>
+                </td>
+                <td class="px-6 py-4">
+                    <div class="text-sm text-gray-900">
+                        ${timesheet.project_name || '-'}
+                    </div>
+                </td>
+                <td class="px-6 py-4">
+                    <div class="text-sm text-gray-900">
+                        ${timesheet.activity_name || timesheet.activity_type || '-'}
+                    </div>
+                </td>
+                <td class="px-6 py-4">
+                    <div class="text-sm text-gray-900 truncate max-w-xs" title="${timesheet.description || ''}">
+                        ${timesheet.description || '-'}
+                    </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor.bg} ${statusColor.text}">
+                        ${timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
+                    </span>
+                    ${timesheet.is_billable ? '<i class="fas fa-dollar-sign text-green-600 ml-2" title="Billable"></i>' : ''}
+                    ${timesheet.status === 'approved' && timesheet.approver_name ? `<div class="text-xs text-gray-500 mt-1">by ${timesheet.approver_name}</div>` : ''}
+                    ${timesheet.status === 'rejected' && timesheet.rejection_reason ? `<div class="text-xs text-red-500 mt-1" title="${timesheet.rejection_reason}"><i class="fas fa-info-circle"></i> ${timesheet.rejection_reason.substring(0, 20)}...</div>` : ''}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div class="flex items-center gap-2">
+                        ${canApprove ? `
+                            <button onclick="openApproveModal(${timesheet.id})" class="inline-flex items-center px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-all" title="Approve">
+                                <i class="fas fa-check mr-1"></i> Approve
+                            </button>
+                            <button onclick="openRejectModal(${timesheet.id})" class="inline-flex items-center px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-all" title="Reject">
+                                <i class="fas fa-times mr-1"></i> Reject
+                            </button>
+                        ` : ''}
+                        ${timesheet.status === 'rejected' ? `
+                            <span class="text-xs text-gray-500">Rejected</span>
+                        ` : ''}
+                        ${timesheet.status === 'approved' ? `
+                            <span class="text-xs text-gray-500">Approved</span>
+                        ` : ''}
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Open approve confirmation modal
+function openApproveModal(id) {
+    const modal = document.getElementById('approveModal');
+    const approveTimesheetId = document.getElementById('approveTimesheetId');
+
+    if (approveTimesheetId) approveTimesheetId.value = id;
+
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+}
+
+// Close approve modal
+function closeApproveModal() {
+    const modal = document.getElementById('approveModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+// Confirm approve
+async function confirmApprove() {
+    const approveTimesheetId = document.getElementById('approveTimesheetId');
+    const id = approveTimesheetId?.value;
+
+    if (!id) return;
+
+    try {
+        const response = await fetch(`/api/timesheets/${id}/approve`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showNotification('Timesheet approved successfully!', 'success');
+            closeApproveModal();
+            await loadSubmittedTimesheets();
+            await loadApprovalStatistics();
+        } else {
+            showNotification('Failed to approve timesheet: ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error approving timesheet:', error);
+        showNotification('An error occurred while approving timesheet', 'error');
+    }
+}
+
+// Open reject modal
+function openRejectModal(id) {
+    const modal = document.getElementById('rejectModal');
+    const rejectTimesheetId = document.getElementById('rejectTimesheetId');
+    const rejectionReason = document.getElementById('rejectionReason');
+
+    if (rejectTimesheetId) rejectTimesheetId.value = id;
+    if (rejectionReason) rejectionReason.value = '';
+
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+}
+
+// Close reject modal
+function closeRejectModal() {
+    const modal = document.getElementById('rejectModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+// Confirm reject
+async function confirmReject() {
+    const rejectTimesheetId = document.getElementById('rejectTimesheetId');
+    const rejectionReason = document.getElementById('rejectionReason');
+    const id = rejectTimesheetId?.value;
+    const reason = rejectionReason?.value?.trim();
+
+    if (!id) return;
+
+    if (!reason) {
+        showNotification('Please provide a rejection reason', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/timesheets/${id}/reject`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({ rejection_reason: reason })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showNotification('Timesheet rejected successfully!', 'success');
+            closeRejectModal();
+            await loadSubmittedTimesheets();
+            await loadApprovalStatistics();
+        } else {
+            showNotification('Failed to reject timesheet: ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error rejecting timesheet:', error);
+        showNotification('An error occurred while rejecting timesheet', 'error');
+    }
+}
+
+// Override applyFilters for approval mode
+const originalApplyFilters = typeof applyFilters === 'function' ? applyFilters : null;
+
+// ==================== END APPROVAL MODE FUNCTIONS ====================
+
+// Initialize time picker dropdowns
+function initializeTimePickers() {
+    const startHour = document.getElementById('timesheetStartHour');
+    const startMinute = document.getElementById('timesheetStartMinute');
+    const endHour = document.getElementById('timesheetEndHour');
+    const endMinute = document.getElementById('timesheetEndMinute');
+
+    // Sync dropdowns to hidden inputs
+    function updateStartTime() {
+        const h = startHour?.value || '08';
+        const m = startMinute?.value || '00';
+        const hiddenInput = document.getElementById('timesheetStartTime');
+        if (hiddenInput) hiddenInput.value = `${h}:${m}`;
+        updateDurationDisplay();
+    }
+
+    function updateEndTime() {
+        const h = endHour?.value || '17';
+        const m = endMinute?.value || '00';
+        const hiddenInput = document.getElementById('timesheetEndTime');
+        if (hiddenInput) hiddenInput.value = `${h}:${m}`;
+        updateDurationDisplay();
+    }
+
+    function updateDurationDisplay() {
+        const startH = parseInt(startHour?.value || '0');
+        const startM = parseInt(startMinute?.value || '0');
+        const endH = parseInt(endHour?.value || '0');
+        const endM = parseInt(endMinute?.value || '0');
+
+        let startMinutes = startH * 60 + startM;
+        let endMinutes = endH * 60 + endM;
+
+        // Handle overnight (end before start)
+        if (endMinutes < startMinutes) {
+            endMinutes += 24 * 60;
+        }
+
+        const durationMinutes = endMinutes - startMinutes;
+        const hours = Math.floor(durationMinutes / 60);
+        const mins = durationMinutes % 60;
+
+        const durationField = document.getElementById('timesheetDuration');
+        if (durationField) {
+            durationField.value = `${hours}h ${mins}m`;
+        }
+    }
+
+    if (startHour) startHour.addEventListener('change', updateStartTime);
+    if (startMinute) startMinute.addEventListener('change', updateStartTime);
+    if (endHour) endHour.addEventListener('change', updateEndTime);
+    if (endMinute) endMinute.addEventListener('change', updateEndTime);
+
+    // Set default values (08:00 - 17:00)
+    if (startHour) startHour.value = '08';
+    if (startMinute) startMinute.value = '00';
+    if (endHour) endHour.value = '17';
+    if (endMinute) endMinute.value = '00';
+
+    updateStartTime();
+    updateEndTime();
+}
+
+// Helper to set time picker from HH:mm:ss or HH:mm string
+function setTimePicker(type, timeString) {
+    if (!timeString) return;
+
+    const parts = timeString.split(':');
+    const hour = parts[0] || '00';
+    const minute = parts[1] || '00';
+
+    const hourSelect = document.getElementById(`timesheet${type}Hour`);
+    const minuteSelect = document.getElementById(`timesheet${type}Minute`);
+    const hiddenInput = document.getElementById(`timesheet${type}Time`);
+
+    if (hourSelect) hourSelect.value = hour.padStart(2, '0');
+
+    // Find closest minute (rounded to 5)
+    if (minuteSelect) {
+        const mins = parseInt(minute);
+        const roundedMins = Math.round(mins / 5) * 5;
+        minuteSelect.value = String(roundedMins % 60).padStart(2, '0');
+    }
+
+    if (hiddenInput) hiddenInput.value = `${hour}:${minute}`;
+}
 
 function initializeDateFilters() {
     const today = new Date();
@@ -607,10 +970,10 @@ function renderTimesheets() {
                     </div>
                     ${timesheet.activity ? `<div class="text-xs text-gray-500 mt-1"><i class="fas fa-tasks mr-1"></i>${timesheet.activity.name}</div>` : ''}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap">
+                <td class="px-6 py-4">
                     <div class="flex items-center gap-2">
                         <i class="fas ${activityTypeIcons[timesheet.activity_type] || 'fa-circle'} text-gray-500"></i>
-                        <span class="text-sm text-gray-900 capitalize">${timesheet.activity_type || '-'}</span>
+                        <span class="text-sm text-gray-900">${timesheet.activity ? timesheet.activity.name : (timesheet.activity_type ? timesheet.activity_type.charAt(0).toUpperCase() + timesheet.activity_type.slice(1) : '-')}</span>
                     </div>
                 </td>
                 <td class="px-6 py-4">
@@ -669,14 +1032,20 @@ function applyFilters() {
     const filterEndDate = document.getElementById('filterEndDate');
     const filterStatus = document.getElementById('filterStatus');
     const filterActivityType = document.getElementById('filterActivityType');
-    
+
     if (filterStartDate) currentFilters.start_date = filterStartDate.value;
     if (filterEndDate) currentFilters.end_date = filterEndDate.value;
     if (filterStatus) currentFilters.status = filterStatus.value;
     if (filterActivityType) currentFilters.activity_type = filterActivityType.value;
-    
-    loadTimesheets();
-    loadStatistics();
+
+    // Check if we are in approval mode
+    if (window.isApprovalMode) {
+        loadSubmittedTimesheets();
+        loadApprovalStatistics();
+    } else {
+        loadTimesheets();
+        loadStatistics();
+    }
 }
 
 function openTimesheetModal() {
@@ -685,27 +1054,31 @@ function openTimesheetModal() {
     const title = document.getElementById('timesheetModalTitle');
     const idField = document.getElementById('timesheetId');
     const dateField = document.getElementById('timesheetDate');
-    
+
     if (!modal) {
         console.error('Timesheet modal not found');
         return;
     }
-    
+
     if (title) title.innerHTML = '<i class="fas fa-clock"></i> Log Working Hours';
     if (form) form.reset();
     if (idField) idField.value = '';
-    
+
     const today = formatDate(new Date());
     if (dateField) dateField.value = today;
-    
+
+    // Set default time (08:00 - 17:00)
+    setTimePicker('Start', '08:00');
+    setTimePicker('End', '17:00');
+
     const supportRadio = document.querySelector('input[name="timesheetType"][value="support"]');
     if (supportRadio) {
         supportRadio.checked = true;
     }
-    
+
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
-    
+
     setTimeout(() => {
         handleTimesheetTypeChange();
     }, 50);
@@ -723,28 +1096,28 @@ function editTimesheet(id) {
         showNotification('Timesheet not found', 'error');
         return;
     }
-    
+
     const modal = document.getElementById('timesheetModal');
     const title = document.getElementById('timesheetModalTitle');
-    
+
     if (!modal) {
         console.error('Timesheet modal not found');
         return;
     }
-    
+
     if (title) title.innerHTML = '<i class="fas fa-edit"></i> Edit Timesheet';
-    
+
     const timesheetId = document.getElementById('timesheetId');
     const timesheetDate = document.getElementById('timesheetDate');
-    const timesheetStartTime = document.getElementById('timesheetStartTime');
-    const timesheetEndTime = document.getElementById('timesheetEndTime');
     const timesheetDescription = document.getElementById('timesheetDescription');
-    
+
     if (timesheetId) timesheetId.value = timesheet.id;
     if (timesheetDate) timesheetDate.value = timesheet.date;
-    if (timesheetStartTime) timesheetStartTime.value = timesheet.start_time;
-    if (timesheetEndTime) timesheetEndTime.value = timesheet.end_time;
     if (timesheetDescription) timesheetDescription.value = timesheet.description || '';
+
+    // Set time pickers using helper function
+    setTimePicker('Start', timesheet.start_time);
+    setTimePicker('End', timesheet.end_time);
     
     const timesheetType = timesheet.delivery_projects_id ? 'project' :
                          (timesheet.ticket_id ? 'support' : 'office');
@@ -834,11 +1207,35 @@ async function confirmDelete() {
     }
 }
 
-async function submitTimesheet(id) {
-    if (!confirm('Submit this timesheet for approval?')) {
-        return;
+// Open single submit confirmation modal
+function openSubmitModal(id) {
+    const modal = document.getElementById('confirmSubmitModal');
+    const submitTimesheetId = document.getElementById('submitTimesheetId');
+
+    if (submitTimesheetId) submitTimesheetId.value = id;
+
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
     }
-    
+}
+
+// Close single submit modal
+function closeSubmitModal() {
+    const modal = document.getElementById('confirmSubmitModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+// Confirm single submit
+async function confirmSubmit() {
+    const submitTimesheetId = document.getElementById('submitTimesheetId');
+    const id = submitTimesheetId?.value;
+
+    if (!id) return;
+
     try {
         const response = await fetch(`/api/timesheets/${id}/submit`, {
             method: 'POST',
@@ -847,9 +1244,39 @@ async function submitTimesheet(id) {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
             }
         });
-        
+
         const data = await response.json();
-        
+
+        if (data.success) {
+            showNotification('Timesheet submitted for approval!', 'success');
+            closeSubmitModal();
+            await loadTimesheets();
+            await loadStatistics();
+        } else {
+            showNotification('Failed to submit timesheet: ' + data.message, 'error');
+        }
+    } catch (error) {
+        showNotification('An error occurred while submitting timesheet', 'error');
+    }
+}
+
+// Legacy function - now opens modal
+function submitTimesheet(id) {
+    openSubmitModal(id);
+}
+
+async function submitTimesheetDirect(id) {
+    try {
+        const response = await fetch(`/api/timesheets/${id}/submit`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            }
+        });
+
+        const data = await response.json();
+
         if (data.success) {
             showNotification('Timesheet submitted for approval!', 'success');
             await loadTimesheets();
@@ -1115,11 +1542,17 @@ async function handleFormSubmit(e) {
     const selectedRadio = document.querySelector('input[name="timesheetType"]:checked');
     const selectedType = selectedRadio ? selectedRadio.value : 'support';
     
+    // Construct time from dropdowns
+    const startHour = document.getElementById('timesheetStartHour')?.value || '08';
+    const startMinute = document.getElementById('timesheetStartMinute')?.value || '00';
+    const endHour = document.getElementById('timesheetEndHour')?.value || '17';
+    const endMinute = document.getElementById('timesheetEndMinute')?.value || '00';
+
     const timesheetData = {
         employee_id: employeeId,
         date: document.getElementById('timesheetDate')?.value,
-        start_time: document.getElementById('timesheetStartTime')?.value,
-        end_time: document.getElementById('timesheetEndTime')?.value,
+        start_time: `${startHour}:${startMinute}`,
+        end_time: `${endHour}:${endMinute}`,
         description: document.getElementById('timesheetDescription')?.value,
     };
     
@@ -1213,16 +1646,85 @@ if (confirmDeleteModal) {
     });
 }
 
+// Submit modal click outside to close
+const confirmSubmitModal = document.getElementById('confirmSubmitModal');
+if (confirmSubmitModal) {
+    confirmSubmitModal.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeSubmitModal();
+        }
+    });
+}
+
+// Bulk submit modal click outside to close
+const confirmBulkSubmitModal = document.getElementById('confirmBulkSubmitModal');
+if (confirmBulkSubmitModal) {
+    confirmBulkSubmitModal.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeBulkSubmitModal();
+        }
+    });
+}
+
+// Bulk delete modal click outside to close
+const confirmBulkDeleteModal = document.getElementById('confirmBulkDeleteModal');
+if (confirmBulkDeleteModal) {
+    confirmBulkDeleteModal.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeBulkDeleteModal();
+        }
+    });
+}
+
+// Approval modals click outside to close (for heads)
+const approveModal = document.getElementById('approveModal');
+if (approveModal) {
+    approveModal.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeApproveModal();
+        }
+    });
+}
+
+const rejectModal = document.getElementById('rejectModal');
+if (rejectModal) {
+    rejectModal.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeRejectModal();
+        }
+    });
+}
+
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         const timesheetModal = document.getElementById('timesheetModal');
         const confirmDeleteModal = document.getElementById('confirmDeleteModal');
-        
+        const confirmSubmitModal = document.getElementById('confirmSubmitModal');
+        const confirmBulkSubmitModal = document.getElementById('confirmBulkSubmitModal');
+        const confirmBulkDeleteModal = document.getElementById('confirmBulkDeleteModal');
+        const approveModal = document.getElementById('approveModal');
+        const rejectModal = document.getElementById('rejectModal');
+
         if (timesheetModal && !timesheetModal.classList.contains('hidden')) {
             closeTimesheetModal();
         }
         if (confirmDeleteModal && !confirmDeleteModal.classList.contains('hidden')) {
             closeConfirmDelete();
+        }
+        if (confirmSubmitModal && !confirmSubmitModal.classList.contains('hidden')) {
+            closeSubmitModal();
+        }
+        if (confirmBulkSubmitModal && !confirmBulkSubmitModal.classList.contains('hidden')) {
+            closeBulkSubmitModal();
+        }
+        if (confirmBulkDeleteModal && !confirmBulkDeleteModal.classList.contains('hidden')) {
+            closeBulkDeleteModal();
+        }
+        if (approveModal && !approveModal.classList.contains('hidden')) {
+            closeApproveModal();
+        }
+        if (rejectModal && !rejectModal.classList.contains('hidden')) {
+            closeRejectModal();
         }
     }
 });

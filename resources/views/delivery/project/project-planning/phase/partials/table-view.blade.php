@@ -409,7 +409,7 @@
         
         const weight = parseFloat(group.weight) || 0;
         const progress = parseFloat(group.progress_percentage) || 0;
-        const hasChildren = (group.sub_groups && group.sub_groups.length > 0) || (group.stages && group.stages.length > 0);
+        const hasChildren = (group.sub_groups && group.sub_groups.length > 0) || (group.stages && group.stages.length > 0) || (group.activities && group.activities.length > 0);
         const paddingLeft = (indentation * 1.5) + 'rem';
         
         row.innerHTML = `
@@ -431,21 +431,28 @@
                         ${group.sub_groups && group.sub_groups.length > 0 ? `<span class="ml-1 sm:ml-2 text-xs text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded-full hidden sm:inline">${group.sub_groups.length} sub</span>` : ''}
                     </div>
                     <div class="hidden group-hover:flex items-center space-x-1 ml-2 flex-shrink-0">
-                        <button onclick="openStageModal(${group.id}, '${escapeHtml(group.name || '').replace(/'/g, "\\'")}', ${phaseId})" 
+                        <button onclick="openStageModal(${group.id}, '${escapeHtml(group.name || '').replace(/'/g, "\\'")}', ${phaseId})"
                                 class="p-1 text-indigo-600 hover:bg-indigo-200 rounded transition"
                                 title="Manage Stages">
                             <svg class="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
                             </svg>
                         </button>
-                        <button onclick="quickAddSubGroup(${group.id}, '${escapeHtml(group.name || '').replace(/'/g, "\\'")}', ${phaseId})" 
+                        <button onclick="quickAddActivityToGroup(${group.id}, '${escapeHtml(group.name || '').replace(/'/g, "\\'")}', ${group.phase_id || phaseId})"
+                                class="p-1 text-blue-600 hover:bg-blue-200 rounded transition"
+                                title="Add Activity directly to Group">
+                            <svg class="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                            </svg>
+                        </button>
+                        <button onclick="quickAddSubGroup(${group.id}, '${escapeHtml(group.name || '').replace(/'/g, "\\'")}', ${phaseId})"
                                 class="p-1 text-green-600 hover:bg-green-200 rounded transition hidden sm:inline-flex"
                                 title="Add Sub-Group">
                             <svg class="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path>
                             </svg>
                         </button>
-                        <button onclick="editItem(${group.id})" 
+                        <button onclick="editItem(${group.id})"
                                 class="p-1 text-blue-600 hover:bg-blue-200 rounded transition"
                                 title="Edit">
                             <svg class="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -496,12 +503,19 @@
                 createGroupRowRecursive(subGroup, parentElement, phaseId, indentation + 1.5);
             });
         }
-        
+
+        // Render ACTIVITIES directly under group (without stage)
+        if (group.activities && Array.isArray(group.activities) && group.activities.length > 0) {
+            group.activities.forEach(function(activity) {
+                createActivityRowForGroup(activity, group.id, indentation + 1.5, parentElement);
+            });
+        }
+
         // Render STAGES dalam group
         if (group.stages && Array.isArray(group.stages) && group.stages.length > 0) {
             group.stages.forEach(function(stage) {
                 createStageRow(stage, group.id, indentation + 1.5, parentElement);
-                
+
                 // Render activities dalam stage
                 if (stage.activities && Array.isArray(stage.activities) && stage.activities.length > 0) {
                     stage.activities.forEach(function(activity) {
@@ -676,7 +690,93 @@
             });
         }
     }
-    
+
+    /**
+     * Create ACTIVITY row directly under GROUP (without stage)
+     */
+    function createActivityRowForGroup(activity, groupId, indentation, parentElement) {
+        const row = document.createElement('tr');
+        row.className = `hover:bg-blue-50 activity-row transition group-child-${groupId}`;
+        row.style.display = 'none';
+        row.dataset.activityId = activity.id;
+        row.dataset.groupId = groupId;
+
+        const weight = parseFloat(activity.weight) || 0;
+        const progress = parseFloat(activity.progress_percentage) || 0;
+        const escapedName = escapeHtml(activity.name || 'Unnamed Activity');
+        const paddingLeft = (indentation * 1.5) + 'rem';
+
+        row.innerHTML = `
+            <td class="px-2 sm:px-3 py-2 sticky left-0 bg-white z-10 min-w-[250px] sm:min-w-[400px]" style="padding-left: ${paddingLeft};">
+                <div class="flex items-center justify-between group">
+                    <div class="flex items-center flex-1 min-w-0">
+                        <svg class="w-3 h-3 text-blue-500 mr-1 sm:mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <span class="text-xs font-medium text-gray-900 truncate">${escapedName}</span>
+                        <span class="ml-1 sm:ml-2 text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded hidden sm:inline">Direct</span>
+                    </div>
+                    <div class="hidden group-hover:flex items-center space-x-1 ml-2 flex-shrink-0">
+                        <button onclick="editActivityForGroup(${activity.id}, ${groupId})"
+                                class="p-1 text-blue-600 hover:bg-blue-100 rounded transition"
+                                title="Edit Activity">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                            </svg>
+                        </button>
+                        <button class="delete-activity-btn p-1 text-red-600 hover:bg-red-100 rounded transition"
+                                data-activity-id="${activity.id}"
+                                data-activity-name="${escapedName}"
+                                title="Delete Activity">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </td>
+            <td class="px-2 sm:px-3 py-2 text-center">
+                <span class="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800">
+                    ${weight.toFixed(1)}%
+                </span>
+            </td>
+            <td class="px-2 sm:px-3 py-2 text-xs truncate">${activity.module || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center">${activity.object || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50">${activity.start_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50">${activity.end_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50 font-medium">${activity.duration_in_days || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-center">
+                <span class="px-1.5 sm:px-2 py-0.5 text-xs font-semibold rounded-full ${activity.status_badge || 'bg-gray-100 text-gray-800'}">${activity.status_text || 'Not Started'}</span>
+            </td>
+            <td class="px-2 sm:px-3 py-2">
+                <div class="flex items-center">
+                    <div class="w-full bg-gray-200 rounded-full h-1.5 mr-2">
+                        <div class="bg-blue-600 h-1.5 rounded-full transition-all" style="width: ${progress}%"></div>
+                    </div>
+                    <span class="text-xs font-semibold flex-shrink-0">${Math.round(progress)}%</span>
+                </div>
+            </td>
+        `;
+
+        parentElement.appendChild(row);
+    }
+
+    /**
+     * Edit activity that is directly under a group
+     */
+    window.editActivityForGroup = function(activityId, groupId) {
+        console.log('✏️ Edit activity for group:', { activityId, groupId });
+
+        if (typeof window.openActivityModalForGroup === 'function') {
+            window.openActivityModalForGroup(groupId, null, null, activityId);
+        } else if (typeof window.openActivityModal === 'function') {
+            window.openActivityModal(null, groupId, activityId);
+        } else {
+            console.error('❌ openActivityModal not loaded!');
+            alert('Activity modal not ready. Please refresh.');
+        }
+    };
+
     // =========================================================================
     // TOGGLE FUNCTIONS
     // =========================================================================
@@ -750,9 +850,26 @@
     
     window.quickAddActivityToStage = function(stageId, groupId) {
         console.log('📝 Add activity to stage:', { stageId, groupId });
-        
+
         if (typeof window.openActivityModal === 'function') {
             window.openActivityModal(stageId, groupId);
+        } else {
+            console.error('❌ openActivityModal not loaded!');
+            alert('Activity modal not ready. Please refresh.');
+        }
+    };
+
+    /**
+     * Add activity directly to a group (without stage)
+     */
+    window.quickAddActivityToGroup = function(groupId, groupName, phaseId) {
+        console.log('📝 Add activity directly to group:', { groupId, groupName, phaseId });
+
+        if (typeof window.openActivityModalForGroup === 'function') {
+            window.openActivityModalForGroup(groupId, groupName, phaseId);
+        } else if (typeof window.openActivityModal === 'function') {
+            // Fallback: open activity modal with stage=null, group=groupId
+            window.openActivityModal(null, groupId, null, groupName);
         } else {
             console.error('❌ openActivityModal not loaded!');
             alert('Activity modal not ready. Please refresh.');

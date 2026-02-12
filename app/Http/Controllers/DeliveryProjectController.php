@@ -69,16 +69,14 @@ class DeliveryProjectController extends Controller
             'name' => $request->name,
             'description' => $request->description,
             'project_type' => $request->project_type,
-            'delivery_type' => 'Project', // Implicitly "Project" since created via Project menu
-            'delivery_subtype' => $request->project_type, // Project Type as Delivery Sub-type
             'category' => 'Open',
-            'phase' => 'Prepare',
+            'phase' => null, // Will be calculated from planning phases
             'status' => 'Monitoring',
             'created_by_id' => null, // ECOSYSTEM tidak menggunakan tabel users
         ];
 
         $projectData = array_merge($projectData, $request->only([
-            'ae_type', 'ae_name', 'ae_phone', 'ae_email', 
+            'ae_type', 'ae_name', 'ae_phone', 'ae_email',
             'delivery_owner_id', 'delivery_manager_id',
             'delivery_method', 'warranty_period', 'total_mandays'
         ]));
@@ -162,7 +160,7 @@ class DeliveryProjectController extends Controller
         $hasPlanning = DeliveryProjectPlanning::where('delivery_projects_id', $project->id)->exists();
 
         $phases = collect();
-        $customActivities = collect();
+        $deliveryActivities = collect();
         $finalPhaseWeights = [];
 
         if ($hasPlanning) {
@@ -174,8 +172,8 @@ class DeliveryProjectController extends Controller
                 }
             ])->get();
 
-            $customActivities = $project->customActivities()
-                ->with(['plannings' => function ($q) use ($project) {
+            $deliveryActivities = $project->activities()
+                ->with(['delivery_plannings' => function ($q) use ($project) {
                     $q->where('delivery_projects_id', $project->id);
                 }])
                 ->get()
@@ -200,7 +198,7 @@ class DeliveryProjectController extends Controller
             'projectManagers',
             'hasPlanning',
             'phases',
-            'customActivities',
+            'deliveryActivities',
             'finalPhaseWeights'
         ));
     }
@@ -246,8 +244,7 @@ class DeliveryProjectController extends Controller
     public function updateDeliveryInfo(Request $request, DeliveryProject $project)
     {
         $validatedData = $request->validate([
-            'delivery_type' => 'nullable|in:Project,Support',
-            'delivery_subtype' => 'nullable|string',
+            'project_type' => 'nullable|string',
             'ae_type' => 'nullable|in:Internal,External',
             'ae_name' => 'nullable|string',
             'ae_phone' => 'nullable|string',

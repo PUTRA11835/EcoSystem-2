@@ -26,6 +26,6 @@ class DeliveryProjectUpdate extends Model
     ];
 
     public function delivery_project() {
-        return $this->belongsTo(DeliveryProject::class);
+        return $this->belongsTo(DeliveryProject::class, 'delivery_projects_id');
     }
 }

@@ -388,9 +388,102 @@ function setSubmitButtonLoading() {
     }
 }
 
-window.openActivityModal = function(stageId, groupId, activityId = null) {
+// Global variables for group-direct activities
+let currentPhaseIdForActivity = null;
+let isGroupDirectActivity = false;
+
+/**
+ * Open activity modal for activities directly under a GROUP (without stage)
+ */
+window.openActivityModalForGroup = function(groupId, groupName, phaseId, activityId = null) {
+    console.log('📝 Opening activity modal for GROUP:', { groupId, groupName, phaseId, activityId });
+
+    if (!groupId || groupId === 'null' || groupId === 'undefined') {
+        console.error('❌ Invalid groupId:', groupId);
+        if (typeof showNotification === 'function') {
+            showNotification('Error: Invalid group ID', 'error');
+        }
+        return;
+    }
+
+    isGroupDirectActivity = true;
+    currentStageId = null;
+    currentGroupId = groupId;
+    currentPhaseIdForActivity = phaseId;
+
+    const modal = document.getElementById('activityModal');
+    const form = document.getElementById('activityForm');
+
+    if (!modal || !form) {
+        console.error('❌ Activity modal elements not found');
+        return;
+    }
+
+    form.reset();
+    resetSubmitButton();
+
+    const extendedFields = document.getElementById('extendedFields');
+    if (extendedFields && window.innerWidth < 640) {
+        extendedFields.classList.add('hidden');
+    }
+
+    resetTeamMemberSection();
+
+    // Collapse team member fields by default
+    const teamMemberFields = document.getElementById('teamMemberFields');
+    const teamMemberIcon = document.getElementById('teamMemberFieldsIcon');
+    if (teamMemberFields) teamMemberFields.classList.add('hidden');
+    if (teamMemberIcon) teamMemberIcon.classList.remove('rotate-180');
+
+    if (activityId && activityId !== 'null' && activityId !== 'undefined') {
+        activityFormMode = 'edit';
+        currentActivityId = activityId;
+
+        document.getElementById('activityModalTitle').textContent = 'Edit Activity';
+        document.getElementById('activityModalSubtitle').textContent = `Group: ${groupName || 'Direct Activity'}`;
+        document.getElementById('activityStatusField').classList.remove('hidden');
+        document.getElementById('activityProgressField').classList.remove('hidden');
+        document.getElementById('activityActualDates').classList.add('hidden');
+
+        loadActivityData(activityId);
+        loadAssignedMembers(activityId);
+    } else {
+        activityFormMode = 'create';
+        currentActivityId = null;
+
+        document.getElementById('activityModalTitle').textContent = 'Add Activity to Group';
+        document.getElementById('activityModalSubtitle').textContent = `Group: ${groupName || 'Direct Activity'}`;
+        document.getElementById('activityStatusField').classList.add('hidden');
+        document.getElementById('activityProgressField').classList.add('hidden');
+        document.getElementById('activityActualDates').classList.add('hidden');
+
+        document.getElementById('activityStartDate').value = getTodayIndonesian();
+        document.getElementById('activityEndDate').value = getDateFromNowIndonesian(7);
+
+        updateMemberDropdown();
+    }
+
+    // Update weight info for group
+    const weightInfoEl = document.getElementById('weightInfo');
+    if (weightInfoEl) {
+        weightInfoEl.innerHTML = '💡 This activity will be added directly to the group (without stage)';
+        weightInfoEl.className = 'text-xs text-blue-600 mt-1';
+    }
+
+    modal.classList.remove('hidden');
+    document.getElementById('activityName').focus();
+};
+
+window.openActivityModal = function(stageId, groupId, activityId = null, groupNameForDirect = null) {
+    // Check if this is a group-direct activity call (stageId is null)
+    if ((!stageId || stageId === 'null' || stageId === 'undefined') && groupId) {
+        console.log('📝 Redirecting to openActivityModalForGroup');
+        window.openActivityModalForGroup(groupId, groupNameForDirect, null, activityId);
+        return;
+    }
+
     console.log('📝 Opening activity modal:', { stageId, groupId, activityId });
-    
+
     if (!stageId || stageId === 'null' || stageId === 'undefined') {
         console.error('❌ Invalid stageId:', stageId);
         if (typeof showNotification === 'function') {
@@ -398,9 +491,11 @@ window.openActivityModal = function(stageId, groupId, activityId = null) {
         }
         return;
     }
-    
+
+    isGroupDirectActivity = false;
     currentStageId = stageId;
     currentGroupId = groupId;
+    currentPhaseIdForActivity = null;
     
     const modal = document.getElementById('activityModal');
     const form = document.getElementById('activityForm');
@@ -560,10 +655,10 @@ function loadActivityData(activityId) {
  */
 window.saveActivity = function(event) {
     event.preventDefault();
-    console.log('💾 Saving activity...', activityFormMode);
-    
+    console.log('💾 Saving activity...', activityFormMode, { isGroupDirectActivity, currentPhaseIdForActivity });
+
     setSubmitButtonLoading();
-    
+
     // Get dates in Indonesian format and convert to ISO
     const startDateIndo = document.getElementById('activityStartDate').value;
     const endDateIndo = document.getElementById('activityEndDate').value;
@@ -571,7 +666,7 @@ window.saveActivity = function(event) {
     const endDateIso = indonesianToIso(endDateIndo);
 
     const formData = {
-        stage_id: currentStageId,
+        stage_id: isGroupDirectActivity ? null : currentStageId,
         parent_id: currentGroupId,
         is_group: false,
         name: document.getElementById('activityName').value,
@@ -586,6 +681,12 @@ window.saveActivity = function(event) {
         new_requirement: document.getElementById('activityNewRequirement')?.checked || false,
         deliverable: document.getElementById('activityDeliverable')?.value || null,
     };
+
+    // ✅ For group-direct activities, include phase_id since stage_id is null
+    if (isGroupDirectActivity && currentPhaseIdForActivity) {
+        formData.phase_id = currentPhaseIdForActivity;
+        console.log('📍 Adding phase_id for group-direct activity:', currentPhaseIdForActivity);
+    }
 
     // Validate dates
     const startDate = parseIndonesianDate(startDateIndo);

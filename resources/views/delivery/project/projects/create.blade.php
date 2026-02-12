@@ -365,12 +365,6 @@
 
 {{-- JavaScript for Dynamic Form --}}
 <script>
-// Delivery subtype data
-const deliverySubtypes = {
-    'Project': ['Implementation', 'Roll Out', 'Migration', 'Upgrade', 'WRICEF'],
-    'Support': ['ATS', 'AMS', 'MO', 'CR']
-};
-
 const indonesiaRegions = {
     'Jawa': ['DKI Jakarta', 'Jawa Barat', 'Jawa Tengah', 'DI Yogyakarta', 'Jawa Timur', 'Banten'],
     'Sumatera': ['Aceh', 'Sumatera Utara', 'Sumatera Barat', 'Riau', 'Kepulauan Riau', 'Jambi', 'Sumatera Selatan', 'Bengkulu', 'Lampung', 'Kepulauan Bangka Belitung'],
@@ -484,28 +478,6 @@ const indonesiaCities = {
     'Papua Barat Daya' :['Sorong', 'Sorong Selatan', 'Raja Ampat', 'Maybrat', 'Tambrauw'],
 };
 
-// Update delivery subtype based on type selection
-function updateDeliverySubtype() {
-    const typeSelect = document.getElementById('delivery_type');
-    const subtypeSelect = document.getElementById('delivery_subtype');
-    const selectedType = typeSelect.value;
-    const oldSubtype = '{{ old('delivery_subtype') }}';
-    
-    subtypeSelect.innerHTML = '<option value="">-- Select Sub-type --</option>';
-    
-    if (selectedType && deliverySubtypes[selectedType]) {
-        deliverySubtypes[selectedType].forEach(subtype => {
-            const option = document.createElement('option');
-            option.value = subtype;
-            option.textContent = subtype;
-            if (oldSubtype === subtype) {
-                option.selected = true;
-            }
-            subtypeSelect.appendChild(option);
-        });
-    }
-}
-
 // Toggle AE fields based on type (Internal/External)
 function toggleAEFields() {
     const aeType = document.getElementById('ae_type').value;
@@ -607,16 +579,11 @@ function updateCities() {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize delivery subtype if there's an old value
-    @if(old('delivery_type'))
-        updateDeliverySubtype();
-    @endif
-    
     // Initialize AE fields if there's an old value
     @if(old('ae_type'))
         toggleAEFields();
     @endif
-    
+
     // Initialize location dropdowns if there are old values
     @if(old('location_geographical'))
         updateRegions();

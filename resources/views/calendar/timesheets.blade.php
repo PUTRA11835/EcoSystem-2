@@ -1,25 +1,92 @@
 @extends('dashboard')
 @section('title', 'Timesheets')
 @section('page-title', 'Timesheets')
-@section('page-subtitle', 'Track your working hours')
+@section('page-subtitle', isset($isHead) && $isHead ? 'Review and approve employee timesheets' : 'Track your working hours')
 
 @section('content')
+@php
+    $isApprovalMode = isset($isHead) && $isHead;
+    $isAdminMode = isset($isAdmin) && $isAdmin;
+@endphp
+
 <div class="space-y-6">
     <!-- Header Section -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-            <h2 class="text-2xl font-bold text-gray-900">Timesheets</h2>
-            <p class="text-gray-600 mt-1">Log and manage your working hours</p>
+            <h2 class="text-2xl font-bold text-gray-900">
+                @if($isApprovalMode)
+                    Timesheet Approval
+                @else
+                    Timesheets
+                @endif
+            </h2>
+            <p class="text-gray-600 mt-1">
+                @if($isApprovalMode)
+                    Review and approve/reject employee timesheet submissions
+                @else
+                    Log and manage your working hours
+                @endif
+            </p>
         </div>
+        @if(!$isApprovalMode)
         <div class="flex gap-2">
             <button onclick="openTimesheetModal()" class="inline-flex items-center px-4 py-2.5 primary-bg hover:opacity-90 text-white font-medium rounded-lg transition-all shadow-sm hover:shadow-md">
                 <i class="fas fa-plus mr-2"></i>
                 Log Hours
             </button>
         </div>
+        @endif
     </div>
 
     <!-- Statistics Cards -->
+    @if($isApprovalMode)
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600">Pending Review</p>
+                    <p id="statPendingCount" class="text-2xl font-bold text-yellow-600 mt-1">0</p>
+                </div>
+                <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-hourglass-half text-yellow-600 text-xl"></i>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600">Approved</p>
+                    <p id="statApprovedCount" class="text-2xl font-bold text-green-600 mt-1">0</p>
+                </div>
+                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-check-circle text-green-600 text-xl"></i>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600">Rejected</p>
+                    <p id="statRejectedCount" class="text-2xl font-bold text-red-600 mt-1">0</p>
+                </div>
+                <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-times-circle text-red-600 text-xl"></i>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600">Total Hours</p>
+                    <p id="statTotalHours" class="text-2xl font-bold text-blue-600 mt-1">0.00</p>
+                </div>
+                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-clock text-blue-600 text-xl"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    @else
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <div class="flex items-center justify-between">
@@ -66,6 +133,7 @@
             </div>
         </div>
     </div>
+    @endif
 
     <!-- Filter & Controls -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
@@ -111,7 +179,8 @@
 
     <!-- Timesheets Table -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <!-- Bulk Actions Bar (Hidden by default) -->
+        @if(!$isApprovalMode)
+        <!-- Bulk Actions Bar (Hidden by default) - Only for employee mode -->
         <div id="bulkActions" class="hidden items-center justify-between px-6 py-3 bg-blue-50 border-b border-blue-200">
             <div class="text-sm font-medium text-blue-900">
                 <i class="fas fa-check-circle text-blue-600 mr-2"></i>
@@ -132,10 +201,24 @@
                 </button>
             </div>
         </div>
-        
+        @endif
+
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead class="bg-gray-50 border-b border-gray-200">
+                    @if($isApprovalMode)
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Employee</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Time</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Duration</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Project</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Activity</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Description</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                    </tr>
+                    @else
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                             <input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300">
@@ -149,20 +232,65 @@
                         <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
                     </tr>
+                    @endif
                 </thead>
                 <tbody id="timesheetsTableBody" class="divide-y divide-gray-200">
                     <!-- Data will be loaded here -->
                 </tbody>
             </table>
         </div>
-        
+
         <div id="emptyState" class="hidden py-12 text-center">
             <i class="fas fa-clock text-gray-300 text-6xl mb-4"></i>
+            @if($isApprovalMode)
+            <p class="text-gray-500 text-lg">No timesheets pending approval</p>
+            <p class="text-gray-400 text-sm mt-2">All employee timesheets have been reviewed</p>
+            @else
             <p class="text-gray-500 text-lg">No timesheets found</p>
             <p class="text-gray-400 text-sm mt-2">Start logging your hours by clicking "Log Hours" button</p>
+            @endif
         </div>
     </div>
 </div>
+
+@if($isApprovalMode)
+<!-- Rejection Reason Modal -->
+<div id="rejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
+                <i class="fas fa-times text-red-600 text-xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 text-center mb-2">Reject Timesheet</h3>
+            <p class="text-sm text-gray-600 text-center mb-4">Please provide a reason for rejection</p>
+            <input type="hidden" id="rejectTimesheetId">
+            <textarea id="rejectionReason" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent resize-none mb-4" placeholder="Enter rejection reason..."></textarea>
+            <div class="flex gap-3">
+                <button onclick="closeRejectModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+                <button onclick="confirmReject()" class="flex-1 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-all">Reject</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Approval Confirmation Modal -->
+<div id="approveModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-green-100 rounded-full">
+                <i class="fas fa-check text-green-600 text-xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 text-center mb-2">Approve Timesheet</h3>
+            <p class="text-sm text-gray-600 text-center mb-6">Are you sure you want to approve this timesheet entry?</p>
+            <input type="hidden" id="approveTimesheetId">
+            <div class="flex gap-3">
+                <button onclick="closeApproveModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+                <button onclick="confirmApprove()" class="flex-1 px-4 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all">Approve</button>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 <!-- Create/Edit Timesheet Modal -->
 <div id="timesheetModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
@@ -237,13 +365,39 @@
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
                             Start Time <span class="text-red-600">*</span>
                         </label>
-                        <input type="time" id="timesheetStartTime" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                        <div class="flex gap-2 items-center">
+                            <select id="timesheetStartHour" required class="flex-1 px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                                @for($h = 0; $h < 24; $h++)
+                                    <option value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</option>
+                                @endfor
+                            </select>
+                            <span class="text-xl font-bold text-gray-500">:</span>
+                            <select id="timesheetStartMinute" required class="flex-1 px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                                @for($m = 0; $m < 60; $m += 5)
+                                    <option value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</option>
+                                @endfor
+                            </select>
+                        </div>
+                        <input type="hidden" id="timesheetStartTime">
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
                             End Time <span class="text-red-600">*</span>
                         </label>
-                        <input type="time" id="timesheetEndTime" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                        <div class="flex gap-2 items-center">
+                            <select id="timesheetEndHour" required class="flex-1 px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                                @for($h = 0; $h < 24; $h++)
+                                    <option value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</option>
+                                @endfor
+                            </select>
+                            <span class="text-xl font-bold text-gray-500">:</span>
+                            <select id="timesheetEndMinute" required class="flex-1 px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                                @for($m = 0; $m < 60; $m += 5)
+                                    <option value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</option>
+                                @endfor
+                            </select>
+                        </div>
+                        <input type="hidden" id="timesheetEndTime">
                     </div>
                 </div>
 
@@ -350,7 +504,33 @@
     </div>
 </div>
 
+<!-- Modal Konfirmasi Submit (Single) -->
+<div id="confirmSubmitModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-green-100 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-green-600">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 text-center mb-2">Submit Timesheet</h3>
+            <p class="text-sm text-gray-600 text-center mb-6">Submit this timesheet for approval? Once submitted, you won't be able to edit it until it's reviewed.</p>
+            <input type="hidden" id="submitTimesheetId">
+            <div class="flex gap-3">
+                <button onclick="closeSubmitModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+                <button onclick="confirmSubmit()" class="flex-1 px-4 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all">Submit</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
+<script>
+    // Pass PHP variables to JavaScript
+    window.isApprovalMode = {{ $isApprovalMode ? 'true' : 'false' }};
+    window.isAdminMode = {{ $isAdminMode ? 'true' : 'false' }};
+    window.userRoleId = {{ $roleId ?? 'null' }};
+</script>
 <script src="/js/calendar-timesheets.js"></script>
 @endpush
 @endsection

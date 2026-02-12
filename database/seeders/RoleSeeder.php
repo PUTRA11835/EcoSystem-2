@@ -29,6 +29,24 @@ class RoleSeeder extends Seeder
                 'created_at' => Carbon::now(),
                 'updated_at' => Carbon::now(),
             ],
+            [
+                'name' => 'Head of Project',
+                'description' => 'Kepala proyek dengan wewenang untuk approval timesheet consultant',
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ],
+            [
+                'name' => 'Head of Support',
+                'description' => 'Kepala support dengan wewenang untuk approval timesheet consultant',
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ],
+            [
+                'name' => 'Helpdesk',
+                'description' => 'Staff helpdesk yang menangani dan mengassign ticket ke delivery support',
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ],
         ];
 
         foreach ($roles as $role) {

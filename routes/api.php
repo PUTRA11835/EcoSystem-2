@@ -22,6 +22,7 @@ use App\Http\Controllers\CustomerAttachmentController;
 use App\Http\Controllers\CustomerHistoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\TicketController;
+use App\Http\Controllers\TicketMessageController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\TimesheetController;
 
@@ -233,6 +234,15 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/request-member-change', [TicketController::class, 'requestMemberChange']);
         Route::delete('/{id}/remove-member/{employeeId}', [TicketController::class, 'removeMember']);
         Route::delete('/{id}/request-member-removal/{employeeId}', [TicketController::class, 'requestMemberRemoval']);
+
+        // Ticket Messages
+        Route::get('/{ticketId}/messages', [TicketMessageController::class, 'index']);
+        Route::post('/{ticketId}/messages', [TicketMessageController::class, 'store']);
+        Route::put('/{ticketId}/messages/mark-all-read', [TicketMessageController::class, 'markAllRead']);
+
+        // Assign ticket to delivery support
+        Route::get('/{id}/available-supports', [TicketController::class, 'getAvailableSupports']);
+        Route::post('/{id}/assign-to-support', [TicketController::class, 'assignToSupport']);
     });
 
     // ==================== CALENDAR/EVENT ROUTES ====================
@@ -249,6 +259,7 @@ Route::middleware(['web'])->group(function () {
     Route::prefix('timesheets')->group(function () {
         Route::get('/', [TimesheetController::class, 'index']);
         Route::get('/statistics', [TimesheetController::class, 'statistics']);
+        Route::get('/submitted-for-approval', [TimesheetController::class, 'submittedForApproval']); // For heads to review
         Route::get('/my-projects', [TimesheetController::class, 'myProjects']);
         Route::get('/my-activities/all', [TimesheetController::class, 'allMyActivities']); // Get ALL assigned activities
         Route::get('/my-activities/{projectId}', [TimesheetController::class, 'myActivities']); // Get activities for specific project
@@ -261,6 +272,9 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/reject', [TimesheetController::class, 'reject']);
     });
 });
+
+// ==================== EXTERNAL TICKET API ====================
+Route::post('/external/tickets', [TicketController::class, 'storeExternal']);
 
 // ==================== TEST ROUTE ====================
 Route::get('/test', function () {

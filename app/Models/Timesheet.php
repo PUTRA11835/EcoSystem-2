@@ -43,9 +43,17 @@ class Timesheet extends Model
 
         static::saving(function ($timesheet) {
             if ($timesheet->start_time && $timesheet->end_time) {
+                // Parse times - handle both HH:mm and HH:mm:ss formats
                 $start = Carbon::parse($timesheet->start_time);
                 $end = Carbon::parse($timesheet->end_time);
-                $timesheet->duration_minutes = $end->diffInMinutes($start);
+
+                // If end time is before start time (overnight work), add 24 hours
+                if ($end->lt($start)) {
+                    $end->addDay();
+                }
+
+                // Calculate duration (always positive)
+                $timesheet->duration_minutes = $start->diffInMinutes($end);
             }
         });
     }

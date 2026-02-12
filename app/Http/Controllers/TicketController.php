@@ -127,12 +127,13 @@ class TicketController extends Controller
                 
                 return [
                     'ticket_id' => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
                     'customer_id' => $ticket->customer_id,
                     'employee_id' => $ticket->employee_id,
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'jarvies_status' => $ticket->jarvies_status,
-                    'status' => $ticket->status, 
+                    'status' => $ticket->status,
                     'type' => $ticket->type,
                     'folder' => $ticket->folder,
                     'file_log' => $ticket->file_log,
@@ -155,7 +156,7 @@ class TicketController extends Controller
                         ];
                     }),
                     'member_ids' => $ticket->members->pluck('employee_id')->toArray(),
-                    'pending_confirmations_count' => $pendingCount, 
+                    'pending_confirmations_count' => $pendingCount,
                     'confirmation' => $pendingConfirmation ? [
                         'confirmation_id' => $pendingConfirmation->confirmation_id,
                         'employee_id' => $pendingConfirmation->employee_id,
@@ -189,7 +190,7 @@ class TicketController extends Controller
     {
         $user = session('user');
         $roleId = $user['role']['id'];
-        
+
         // Validation rules berbeda untuk customer dan admin
         if ($roleId == 3) {
             // Customer
@@ -197,20 +198,20 @@ class TicketController extends Controller
                 'description' => 'required|string',
                 'ticket_priority' => 'required|in:Low,Medium,High'
             ]);
-            
+
             $validated['customer_id'] = $user['id']; // Auto set dari session
             $validated['status'] = 'open';
             $validated['jarvies_status'] = 'in process';
-            
+
         } elseif ($roleId == 1) {
             // Admin
             $validated = $request->validate([
                 'description' => 'required|string',
                 'ticket_priority' => 'required|in:Low,Medium,High',
-                'customer_id' => 'required|exists:customers,customer_id',
+                'customer_id' => 'required|exists:customer,customer_id',
                 'type' => 'nullable|in:AMS,MO,ATS,Project,Internal'
             ]);
-            
+
             $validated['status'] = 'open';
             $validated['jarvies_status'] = 'in process';
         } else {
@@ -219,14 +220,164 @@ class TicketController extends Controller
                 'message' => 'Unauthorized to create tickets'
             ], 403);
         }
-        
-        $ticket = Ticket::create($validated);
-        
-        return response()->json([
-            'success' => true,
-            'message' => 'Ticket created successfully',
-            'data' => $ticket
+
+        try {
+            // Generate ticket_number with format YYMM-XXXX-0000
+            $ticketNumber = $this->generateTicketNumber($validated['customer_id']);
+            $validated['ticket_number'] = $ticketNumber;
+
+            $ticket = Ticket::create($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Ticket created successfully',
+                'data' => $ticket
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error creating ticket:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create ticket: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * External API: create ticket from outside system (e.g., Power Automate)
+     * Auth via X-API-KEY header (or Bearer token)
+     */
+    public function storeExternal(Request $request)
+    {
+        $expectedKey = env('EXTERNAL_TICKET_API_KEY');
+
+        if (!$expectedKey) {
+            return response()->json([
+                'success' => false,
+                'message' => 'API key not configured'
+            ], 500);
+        }
+
+        $providedKey = $request->header('X-API-KEY') ?? $request->bearerToken();
+
+        if (!$providedKey || !hash_equals($expectedKey, $providedKey)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'description' => 'required|string',
+            'ticket_priority' => 'required|in:Low,Medium,High',
+            'customer_id' => 'required_without_all:customer_code,external_number|exists:customer,customer_id',
+            'customer_code' => 'required_without_all:customer_id,external_number|exists:customer,customer_code',
+            'external_number' => 'required_without_all:customer_id,customer_code|exists:customer_basic_data,external_number',
+            'type' => 'nullable|in:AMS,MO,ATS,Project,Internal'
         ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $customerId = $request->input('customer_id');
+
+            if (!$customerId && $request->filled('customer_code')) {
+                $customerId = DB::table('customer')
+                    ->where('customer_code', $request->input('customer_code'))
+                    ->value('customer_id');
+            }
+
+            if (!$customerId && $request->filled('external_number')) {
+                $customerId = DB::table('customer_basic_data')
+                    ->where('external_number', $request->input('external_number'))
+                    ->value('customer_id');
+            }
+
+            if (!$customerId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Customer not found'
+                ], 404);
+            }
+
+            $payload = [
+                'customer_id' => $customerId,
+                'description' => $request->input('description'),
+                'ticket_priority' => $request->input('ticket_priority'),
+                'type' => $request->input('type'),
+                'status' => 'open',
+                'jarvies_status' => 'in process',
+            ];
+
+            $payload['ticket_number'] = $this->generateTicketNumber($customerId);
+
+            $ticket = Ticket::create($payload);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Ticket created successfully',
+                'data' => $ticket
+            ], 201);
+        } catch (\Exception $e) {
+            Log::error('Error creating external ticket:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create ticket: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate ticket number with format YYMM-XXXX-0000
+     * YY = Year (2 digits)
+     * MM = Month (2 digits)
+     * XXXX = Customer Code (4 characters)
+     * 0000 = Sequential number (4 digits, padded)
+     */
+    private function generateTicketNumber($customerId)
+    {
+        // Get customer code
+        $customer = DB::table('customer')->where('customer_id', $customerId)->first();
+        $customerCode = $customer->customer_code ?? 'UNKN';
+
+        // Ensure customer code is exactly 4 characters
+        $customerCode = strtoupper(substr(str_pad($customerCode, 4, 'X'), 0, 4));
+
+        // Get current year and month
+        $yearMonth = date('ym'); // e.g., "2602" for Feb 2026
+
+        // Get the prefix for counting existing tickets
+        $prefix = $yearMonth . '-' . $customerCode . '-';
+
+        // Count existing tickets with this prefix to get the next sequence number
+        $lastTicket = DB::table('ticket')
+            ->where('ticket_number', 'like', $prefix . '%')
+            ->orderBy('ticket_number', 'desc')
+            ->first();
+
+        if ($lastTicket) {
+            // Extract the sequence number and increment
+            $lastNumber = (int) substr($lastTicket->ticket_number, -4);
+            $nextNumber = $lastNumber + 1;
+        } else {
+            $nextNumber = 1;
+        }
+
+        // Format: YYMM-XXXX-0000
+        return $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -317,12 +468,13 @@ class TicketController extends Controller
                 
                 return [
                     'ticket_id' => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
                     'customer_id' => $ticket->customer_id,
                     'employee_id' => $ticket->employee_id,
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'jarvies_status' => $ticket->jarvies_status,
-                    'status' => $ticket->status, 
+                    'status' => $ticket->status,
                     'type' => $ticket->type,
                     'folder' => $ticket->folder,
                     'file_log' => $ticket->file_log,
@@ -345,7 +497,7 @@ class TicketController extends Controller
                         ];
                     }),
                     'member_ids' => $ticket->members->pluck('employee_id')->toArray(),
-                    'pending_confirmations_count' => $pendingCount, 
+                    'pending_confirmations_count' => $pendingCount,
                     'confirmation' => $pendingConfirmation ? [
                         'confirmation_id' => $pendingConfirmation->confirmation_id,
                         'employee_id' => $pendingConfirmation->employee_id,
@@ -814,6 +966,7 @@ class TicketController extends Controller
             // Transform data
             $ticketData = [
                 'ticket_id' => $ticket->ticket_id,
+                'ticket_number' => $ticket->ticket_number,
                 'customer_id' => $ticket->customer_id,
                 'employee_id' => $ticket->employee_id,
                 'description' => $ticket->description,
@@ -860,22 +1013,26 @@ class TicketController extends Controller
     }
 
     /**
-     * Update the specified ticket (Admin only - jarvies_status only)
+     * Update the specified ticket (Admin only)
      */
     public function update(Request $request, $id)
     {
         $sessionUser = session('user');
-        
-        // Only admin can update ticket status
+
+        // Only admin can update ticket
         if (!$sessionUser || $sessionUser['role']['id'] != 1) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only admin can update ticket status'
+                'message' => 'Only admin can update ticket'
             ], 403);
         }
 
         $validator = Validator::make($request->all(), [
-            'jarvies_status' => 'required|string|in:in process,author action,proposed solution,closed,sent in to SAP,sent it to support',
+            'jarvies_status' => 'sometimes|string|in:in process,author action,proposed solution,closed,sent in to SAP,sent it to support',
+            'ticket_priority' => 'sometimes|string|in:Low,Medium,High',
+            'type' => 'sometimes|nullable|string|in:AMS,MO,ATS,Project,Internal',
+            'employee_id' => 'sometimes|nullable|exists:employee,employee_id',
+            'man_days' => 'sometimes|nullable|numeric|min:0|max:9999.99',
         ]);
 
         if ($validator->fails()) {
@@ -888,25 +1045,43 @@ class TicketController extends Controller
 
         try {
             $ticket = Ticket::findOrFail($id);
-            
-            // Only update jarvies_status
-            $ticket->update([
-                'jarvies_status' => $request->jarvies_status
-            ]);
-            
+
+            // Build update data from validated fields
+            $updateData = [];
+
+            if ($request->has('jarvies_status')) {
+                $updateData['jarvies_status'] = $request->jarvies_status;
+            }
+            if ($request->has('ticket_priority')) {
+                $updateData['ticket_priority'] = $request->ticket_priority;
+            }
+            if ($request->has('type')) {
+                $updateData['type'] = $request->type;
+            }
+            if ($request->has('employee_id')) {
+                $updateData['employee_id'] = $request->employee_id;
+            }
+            if ($request->has('man_days')) {
+                $updateData['man_days'] = $request->man_days;
+            }
+
+            if (!empty($updateData)) {
+                $ticket->update($updateData);
+            }
+
             $ticket->load(['customer.basicData', 'employee.basicData', 'members.basicData']);
 
             return response()->json([
                 'success' => true,
                 'data' => $ticket,
-                'message' => 'Ticket status updated successfully'
+                'message' => 'Ticket updated successfully'
             ]);
         } catch (\Exception $e) {
             Log::error('Error updating ticket:', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update ticket',
@@ -1746,6 +1921,302 @@ class TicketController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch confirmation',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get available delivery supports for assigning a ticket
+     * Returns supports that can accept more tickets
+     */
+    public function getAvailableSupports($id)
+    {
+        try {
+            $sessionUser = session('user');
+
+            if (!$sessionUser) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 401);
+            }
+
+            // Only Admin and Helpdesk can assign tickets to support
+            if (!in_array($sessionUser['role']['id'], [1, 6])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only Admin and Helpdesk can assign tickets to delivery support'
+                ], 403);
+            }
+
+            $ticket = Ticket::findOrFail($id);
+
+            // Get all active delivery supports
+            $supports = DB::table('delivery_support')
+                ->join('customer', 'delivery_support.client_id', '=', 'customer.customer_id')
+                ->leftJoin('customer_basic_data', 'customer.customer_id', '=', 'customer_basic_data.customer_id')
+                ->leftJoin('employee as owner', 'delivery_support.delivery_owner_id', '=', 'owner.employee_id')
+                ->leftJoin('employee_basic_data as owner_data', 'owner.employee_id', '=', 'owner_data.employee_id')
+                ->where('delivery_support.calculated_progress', '<', 100) // Not completed
+                ->select(
+                    'delivery_support.id',
+                    'delivery_support.name',
+                    'delivery_support.ticket_id',
+                    'delivery_support.client_id',
+                    'delivery_support.calculated_progress',
+                    'delivery_support.start_date',
+                    'delivery_support.end_date',
+                    DB::raw('COALESCE(customer_basic_data.name_1, customer.email) as client_name'),
+                    DB::raw('COALESCE(owner_data.first_name, "Unassigned") as owner_name')
+                )
+                ->orderBy('delivery_support.created_at', 'desc')
+                ->get();
+
+            // Count tickets per support
+            foreach ($supports as $support) {
+                $support->ticket_count = DB::table('delivery_support_activities')
+                    ->where('delivery_support_id', $support->id)
+                    ->count();
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $supports,
+                'ticket' => [
+                    'ticket_id' => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'description' => $ticket->description,
+                    'customer_id' => $ticket->customer_id,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching available supports:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch available supports',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Assign a ticket to a delivery support
+     * This creates an activity in the delivery support from the ticket
+     */
+    public function assignToSupport(Request $request, $id)
+    {
+        $sessionUser = session('user');
+
+        if (!$sessionUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+
+        // Only Admin and Helpdesk can assign tickets
+        if (!in_array($sessionUser['role']['id'], [1, 6])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only Admin and Helpdesk can assign tickets to delivery support'
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'support_id' => 'required|exists:delivery_support,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $ticket = Ticket::findOrFail($id);
+            $supportId = $request->support_id;
+
+            // Get delivery support
+            $support = DB::table('delivery_support')->where('id', $supportId)->first();
+
+            if (!$support) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Delivery support not found'
+                ], 404);
+            }
+
+            // Check if ticket is already assigned to this support
+            $existingActivity = DB::table('delivery_support_activities')
+                ->where('delivery_support_id', $supportId)
+                ->where('notes', 'like', '%Ticket #' . $ticket->ticket_id . '%')
+                ->first();
+
+            if ($existingActivity) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This ticket is already assigned to this delivery support'
+                ], 400);
+            }
+
+            // Find the default "Support" phase
+            $phase = DB::table('delivery_support_phases')
+                ->where('delivery_support_id', $supportId)
+                ->where('is_system_default', true)
+                ->first();
+
+            if (!$phase) {
+                // Fallback: get first active phase
+                $phase = DB::table('delivery_support_phases')
+                    ->where('delivery_support_id', $supportId)
+                    ->where('is_active', true)
+                    ->first();
+            }
+
+            if (!$phase) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No active phase found in delivery support'
+                ], 400);
+            }
+
+            // Find the "Incident" group
+            $group = DB::table('delivery_support_planning')
+                ->where('delivery_support_id', $supportId)
+                ->where('phase_id', $phase->id)
+                ->where('is_group', true)
+                ->first();
+
+            // Get next order sequence
+            $nextOrder = DB::table('delivery_support_activities')
+                ->where('delivery_support_id', $supportId)
+                ->where('delivery_support_phase_id', $phase->id)
+                ->max('order_sequence') + 1;
+
+            // Map priority to complexity
+            $complexity = match (strtolower($ticket->ticket_priority ?? '')) {
+                'high' => 'complex',
+                'medium' => 'medium',
+                'low' => 'simple',
+                default => 'medium'
+            };
+
+            // Map status
+            $status = match (strtolower($ticket->status ?? '')) {
+                'open' => 'not_started',
+                'in_progress' => 'in_progress',
+                'hold' => 'on_hold',
+                'closed' => 'completed',
+                'cancel' => 'completed',
+                default => 'not_started'
+            };
+
+            // Create activity from ticket
+            $activityId = DB::table('delivery_support_activities')->insertGetId([
+                'delivery_support_id' => $supportId,
+                'delivery_support_phase_id' => $phase->id,
+                'stage_id' => null,
+                'name' => $ticket->ticket_number . ' - ' . ($ticket->description ?? "Ticket #{$ticket->ticket_id}"),
+                'description' => $ticket->description,
+                'order_sequence' => $nextOrder,
+                'module' => null,
+                'new_issue' => true,
+                'object' => null,
+                'incident_type' => $ticket->type ?? 'incident',
+                'complexity' => $complexity,
+                'deliverable' => null,
+                'start_date' => $ticket->start_date ?? now(),
+                'end_date' => $ticket->end_date,
+                'status' => $status,
+                'progress_percentage' => 0,
+                'weight' => $ticket->man_days ?? 1,
+                'notes' => "Auto-created from Ticket #{$ticket->ticket_id}",
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Create planning entry if group exists
+            if ($group) {
+                DB::table('delivery_support_planning')->insert([
+                    'delivery_support_id' => $supportId,
+                    'phase_id' => $phase->id,
+                    'parent_id' => $group->id,
+                    'activity_id' => $activityId,
+                    'name' => $ticket->ticket_number . ' - ' . ($ticket->description ?? "Ticket #{$ticket->ticket_id}"),
+                    'is_group' => false,
+                    'level' => 1,
+                    'order_sequence' => $nextOrder,
+                    'start_date' => $ticket->start_date ?? now(),
+                    'end_date' => $ticket->end_date,
+                    'weight' => $ticket->man_days ?? 1,
+                    'status' => $status,
+                    'progress_percentage' => 0,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            // Assign ticket PIC to activity if exists
+            if ($ticket->employee_id) {
+                DB::table('delivery_support_activity_employee')->insert([
+                    'delivery_support_activity_id' => $activityId,
+                    'employee_id' => $ticket->employee_id,
+                    'role' => 'assignee',
+                    'allocation_percentage' => 100,
+                    'is_active' => true,
+                    'assigned_date' => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            // Update ticket to link to delivery support (optional - store reference)
+            // Note: The ticket table has a delivery_support relationship via DeliverySupport model
+
+            DB::commit();
+
+            Log::info('Ticket assigned to delivery support', [
+                'ticket_id' => $ticket->ticket_id,
+                'ticket_number' => $ticket->ticket_number,
+                'support_id' => $supportId,
+                'activity_id' => $activityId,
+                'assigned_by' => $sessionUser['id']
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Ticket assigned to delivery support successfully',
+                'data' => [
+                    'activity_id' => $activityId,
+                    'support_id' => $supportId,
+                    'support_name' => $support->name
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error assigning ticket to support:', [
+                'ticket_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to assign ticket to delivery support',
                 'error' => $e->getMessage()
             ], 500);
         }

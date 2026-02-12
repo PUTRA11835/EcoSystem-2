@@ -284,7 +284,7 @@
             <h1 class="project-title text-2xl font-bold text-gray-800 mb-1">{{ $project->name }}</h1>
             <p class="text-sm text-gray-600">
                 {{ $project->client->basicData->name_1 ?? 'N/A' }} •
-                <span class="font-semibold">{{ $project->delivery_subtype ?? $project->project_type ?? 'N/A' }}</span>
+                <span class="font-semibold">{{ $project->project_type ?? 'N/A' }}</span>
             </p>
         </div>
         <button type="button"
@@ -406,7 +406,7 @@
                             <td class="px-4 py-3 text-sm font-medium text-gray-900">Go Live Estimated</td>
                             <td class="px-4 py-3 text-sm text-gray-900 font-medium">
                                 {{ $project->go_live_estimated ? \Carbon\Carbon::parse($project->go_live_estimated)->format('d M Y') : 'N/A' }}
-                                <p class="mt-1 text-xs text-amber-600">*Derived from 'System Go Live' activity in Project Planning</p>
+                                <p class="mt-1 text-xs text-amber-600">*Derived from the latest date in phase marked as 'Go-Live Phase'</p>
                             </td>
                         </tr>
                     </tbody>
@@ -2146,38 +2146,9 @@ document.getElementById('employee_id')?.addEventListener('change', function() {
     document.getElementById('whatsapp_number').value = selectedOption.dataset.whatsapp || '';
 });
 
-// Delivery subtype update
-const deliverySubtypes = {
-    'Project': ['Implementation', 'Roll Out', 'Migration', 'Upgrade', 'WRICEF'],
-    'Support': ['ATS', 'AMS', 'MO', 'CR']
-};
-
-function updateDeliverySubtype() {
-    const typeSelect = document.getElementById('delivery_type');
-    const subtypeSelect = document.getElementById('delivery_subtype');
-    const selectedType = typeSelect.value;
-    const currentSubtype = '{{ $project->delivery_subtype }}';
-    
-    subtypeSelect.innerHTML = '<option value="">-- Select Sub-type --</option>';
-    
-    if (selectedType && deliverySubtypes[selectedType]) {
-        deliverySubtypes[selectedType].forEach(subtype => {
-            const option = document.createElement('option');
-            option.value = subtype;
-            option.textContent = subtype;
-            if (currentSubtype === subtype) {
-                option.selected = true;
-            }
-            subtypeSelect.appendChild(option);
-        });
-    }
-}
-
-// Initialize delivery subtype on load
+// Initialize page on load
 document.addEventListener('DOMContentLoaded', function() {
-    updateDeliverySubtype();
-    
-    // ✅ Add scroll animations to sections
+    // Add scroll animations to sections
     const sections = document.querySelectorAll('section');
     sections.forEach((section, index) => {
         section.style.animationDelay = (index * 0.1) + 's';

@@ -15,6 +15,7 @@ class CustomerSeeder extends Seeder
 
         $customers = [
             [
+                'customer_code' => 'PGDN',
                 'email' => 'corporate@pegadaian.co.id',
                 'basic' => [
                     'title' => 'PT',
@@ -55,6 +56,7 @@ class CustomerSeeder extends Seeder
             ],
 
             [
+                'customer_code' => 'TLKM',
                 'email' => 'corporate@telkom.co.id',
                 'basic' => [
                     'title' => 'PT',
@@ -1510,7 +1512,19 @@ class CustomerSeeder extends Seeder
         foreach ($customers as $cust) {
             DB::beginTransaction();
             try {
+                // Generate customer_code from search_term_1 if not provided
+                $customerCode = $cust['customer_code'] ?? strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $cust['basic']['search_term_1']), 0, 4));
+
+                // Ensure uniqueness by adding number if exists
+                $originalCode = $customerCode;
+                $counter = 1;
+                while (DB::table('customer')->where('customer_code', $customerCode)->exists()) {
+                    $customerCode = substr($originalCode, 0, 3) . $counter;
+                    $counter++;
+                }
+
                 $customerId = DB::table('customer')->insertGetId([
+                    'customer_code' => $customerCode,
                     'role_id' => 3,
                     'email' => $cust['email'],
                     'password' => Hash::make('password123'),

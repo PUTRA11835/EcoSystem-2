@@ -29,7 +29,20 @@ class CalendarController extends Controller
      */
     public function timesheets()
     {
-        return view('calendar.timesheets');
+        $user = session('user');
+        // Role is stored as nested array: $user['role']['id']
+        $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
+
+        // Role IDs: 1=Admin, 2=Employee, 3=Customer, 4=Head of Project, 5=Head of Support
+        $isHead = in_array($roleId, [4, 5], true);
+        $isAdmin = $roleId === 1;
+
+        return view('calendar.timesheets', [
+            'user' => $user,
+            'isHead' => $isHead,
+            'isAdmin' => $isAdmin,
+            'roleId' => $roleId,
+        ]);
     }
 
     /**
@@ -116,7 +129,7 @@ class CalendarController extends Controller
                 'all_day' => 'boolean',
                 'color' => 'nullable|string|max:7',
                 'employee_id' => 'nullable|exists:employee,employee_id',
-                'customer_id' => 'nullable|exists:customers,id',
+                'customer_id' => 'nullable|exists:customer,id',
             ]);
 
             // Set created_by from session
@@ -166,7 +179,7 @@ class CalendarController extends Controller
                 'all_day' => 'boolean',
                 'color' => 'nullable|string|max:7',
                 'employee_id' => 'nullable|exists:employee,employee_id',
-                'customer_id' => 'nullable|exists:customers,id',
+                'customer_id' => 'nullable|exists:customer,id',
             ]);
 
             $event->update($validated);

@@ -14,6 +14,79 @@ use Illuminate\Support\Facades\Log;
 class TimesheetController extends Controller
 {
     /**
+     * Get submitted timesheets for approval (for Head of Project/Head of Support)
+     */
+    public function submittedForApproval(Request $request)
+    {
+        try {
+            $user = session('user');
+            // Role is stored as nested array: $user['role']['id']
+            $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
+
+            // Only Admin (1), Head of Project (4), and Head of Support (5) can access this
+            if (!in_array($roleId, [1, 4, 5], true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized access'
+                ], 403);
+            }
+
+            $query = Timesheet::with(['employee.basicData', 'activity.delivery_project', 'delivery_project', 'approver.basicData'])
+                ->whereIn('status', ['submitted', 'approved', 'rejected']);
+
+            // Filter by date range if provided
+            if ($request->has('start_date') && $request->has('end_date')) {
+                $query->dateRange($request->start_date, $request->end_date);
+            }
+
+            // Filter by status if provided
+            if ($request->has('status')) {
+                $query->byStatus($request->status);
+            }
+
+            $timesheets = $query->orderBy('date', 'desc')
+                                ->orderBy('created_at', 'desc')
+                                ->get()
+                                ->map(function ($timesheet) {
+                                    return [
+                                        'id' => $timesheet->id,
+                                        'employee_id' => $timesheet->employee_id,
+                                        'employee_name' => $timesheet->employee?->basicData?->first_name . ' ' . $timesheet->employee?->basicData?->last_name,
+                                        'date' => $timesheet->date?->format('Y-m-d'),
+                                        'start_time' => $timesheet->start_time,
+                                        'end_time' => $timesheet->end_time,
+                                        'duration_minutes' => $timesheet->duration_minutes,
+                                        'duration_hours' => round($timesheet->duration_minutes / 60, 2),
+                                        'description' => $timesheet->description,
+                                        'activity_type' => $timesheet->activity_type,
+                                        'activity_name' => $timesheet->activity?->name,
+                                        'project_name' => $timesheet->activity?->delivery_project?->name ?? $timesheet->delivery_project?->name,
+                                        'status' => $timesheet->status,
+                                        'is_billable' => $timesheet->is_billable,
+                                        'rejection_reason' => $timesheet->rejection_reason,
+                                        'approved_by' => $timesheet->approved_by,
+                                        'approver_name' => $timesheet->approver?->basicData?->first_name . ' ' . $timesheet->approver?->basicData?->last_name,
+                                        'approved_at' => $timesheet->approved_at?->format('Y-m-d H:i:s'),
+                                        'created_at' => $timesheet->created_at?->format('Y-m-d H:i:s'),
+                                    ];
+                                });
+
+            return response()->json([
+                'success' => true,
+                'data' => $timesheets,
+                'message' => 'Submitted timesheets retrieved successfully'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error retrieving submitted timesheets: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve submitted timesheets: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Get all timesheets (API)
      */
     public function index(Request $request)
@@ -322,6 +395,18 @@ class TimesheetController extends Controller
     public function approve(Request $request, $id)
     {
         try {
+            $user = session('user');
+            // Role is stored as nested array: $user['role']['id']
+            $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
+
+            // Only Admin (1), Head of Project (4), and Head of Support (5) can approve
+            if (!in_array($roleId, [1, 4, 5], true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized: Only managers can approve timesheets'
+                ], 403);
+            }
+
             $timesheet = Timesheet::findOrFail($id);
 
             if ($timesheet->status !== 'submitted') {
@@ -331,10 +416,9 @@ class TimesheetController extends Controller
                 ], 400);
             }
 
-            $user = session('user');
             $timesheet->update([
                 'status' => 'approved',
-                'approved_by' => $user['employee_id'] ?? null,
+                'approved_by' => $user['id'] ?? null,
                 'approved_at' => now(),
             ]);
 
@@ -359,6 +443,18 @@ class TimesheetController extends Controller
     public function reject(Request $request, $id)
     {
         try {
+            $user = session('user');
+            // Role is stored as nested array: $user['role']['id']
+            $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
+
+            // Only Admin (1), Head of Project (4), and Head of Support (5) can reject
+            if (!in_array($roleId, [1, 4, 5], true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized: Only managers can reject timesheets'
+                ], 403);
+            }
+
             $timesheet = Timesheet::findOrFail($id);
 
             if ($timesheet->status !== 'submitted') {

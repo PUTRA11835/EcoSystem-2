@@ -246,7 +246,19 @@ class DeliveryProjectDataController extends Controller
             ->with([
                 'children' => function($query) {
                     $query->where('is_group', true)
-                        ->with(['children', 'stages'])
+                        ->with([
+                            'children',
+                            'stages' => function($sq) {
+                                $sq->orderBy('order_sequence')
+                                    ->with(['projectActivities' => function($aq) {
+                                        $aq->orderBy('order_sequence');
+                                    }]);
+                            },
+                            // ✅ Load directActivities for sub-groups too
+                            'directActivities' => function($dq) {
+                                $dq->with('activity');
+                            }
+                        ])
                         ->orderBy('order_sequence');
                 },
                 'stages' => function($q) {
@@ -256,6 +268,10 @@ class DeliveryProjectDataController extends Controller
                                 $qq->orderBy('order_sequence');
                             }
                         ]);
+                },
+                // ✅ Load activities directly under group (without stage)
+                'directActivities' => function($q) {
+                    $q->with('activity');
                 }
             ])
             ->orderBy('order_sequence')
@@ -312,7 +328,8 @@ class DeliveryProjectDataController extends Controller
             'duration_in_days' => $calculatedDates['duration'],
             'notes' => $group->notes,
             'sub_groups' => [],
-            'stages' => []
+            'stages' => [],
+            'activities' => [] // ✅ Activities directly under group (without stage)
         ];
 
         if ($group->children && $group->children->isNotEmpty()) {
@@ -324,6 +341,31 @@ class DeliveryProjectDataController extends Controller
         if ($group->stages && $group->stages->isNotEmpty()) {
             foreach ($group->stages as $stage) {
                 $formatted['stages'][] = $this->formatStageWithActivities($stage);
+            }
+        }
+
+        // ✅ Include activities directly under group (without stage)
+        // Force load directActivities if not already loaded
+        if (!$group->relationLoaded('directActivities')) {
+            $group->load(['directActivities' => function($q) {
+                $q->with('activity');
+            }]);
+        }
+
+        if ($group->directActivities && $group->directActivities->isNotEmpty()) {
+            Log::info('📋 Found directActivities for group', [
+                'group_id' => $group->id,
+                'group_name' => $group->name,
+                'count' => $group->directActivities->count()
+            ]);
+
+            foreach ($group->directActivities as $planningActivity) {
+                if ($planningActivity->activity) {
+                    $formatted['activities'][] = $this->formatActivityForHierarchy($planningActivity->activity, 0);
+                } else {
+                    // Fallback: format from planning record if no linked activity
+                    $formatted['activities'][] = $this->formatActivityForHierarchy($planningActivity, 0);
+                }
             }
         }
 

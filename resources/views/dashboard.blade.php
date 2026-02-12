@@ -339,6 +339,16 @@
                     </a>
                 </div>
                 @endif
+
+                <!-- TICKET - Visible to all roles -->
+                <div class="mb-2">
+                    <a href="{{ route('ticket.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ticket*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-ticket-alt"></i>
+                        </span>
+                        <span class="nav-text font-medium">Ticket</span>
+                    </a>
+                </div>
                 
                 <!-- DELIVERY Dropdown - Visible to all roles -->
                 <div class="mb-2">

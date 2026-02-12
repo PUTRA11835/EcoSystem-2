@@ -20,6 +20,7 @@ use App\Http\Controllers\ActivityManagementController;
 use App\Http\Controllers\DeliveryProjectDataController;
 use App\Http\Controllers\DeliveryProjectStageManagementController;
 use App\Http\Controllers\DeliveryProjectPlanningExportController;
+use App\Http\Controllers\TicketViewController;
 use App\Http\Middleware\CheckAuthToken;
 
 // ==================== PUBLIC ROUTES ====================
@@ -243,6 +244,13 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // BACKWARD COMPATIBILITY
     Route::redirect('/projects/{project}/planning', '/planning/{project}')->name('projects-planning.show');
+
+    // ==================== TICKET ====================
+    Route::prefix('ticket')->name('ticket.')->group(function () {
+        Route::get('/', [TicketViewController::class, 'index'])->name('index');
+        Route::get('/create', [TicketViewController::class, 'create'])->name('create');
+        Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
+    });
 });
 
 // ==================== ROOT REDIRECT ====================
@@ -257,3 +265,7 @@ Route::get('/', function () {
 // ==================== DELIVERY PLANNING ROUTES ====================
 // Include delivery planning module routes
 require __DIR__ . '/delivery.php';
+
+// ==================== DELIVERY SUPPORT ROUTES ====================
+// Include delivery support module routes
+require __DIR__ . '/delivery-support.php';

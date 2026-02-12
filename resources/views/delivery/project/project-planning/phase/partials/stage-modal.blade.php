@@ -768,7 +768,7 @@ window.addStageToList = function(event) {
 };
 
 /**
- * ✅ Delete Stage - Mark for deletion
+ * ✅ Delete Stage - Show confirmation dialog
  */
 window.deleteStage = function(stageId, stageName = 'this stage') {
     if (!stageId || stageId === 'null' || stageId === 'undefined') {
@@ -788,7 +788,7 @@ window.deleteStage = function(stageId, stageName = 'this stage') {
         warningEl.textContent = '⚠️ This new stage will be removed from the list.';
         warningEl.className = 'mt-2 text-sm text-red-600';
     } else {
-        warningEl.textContent = '⚠️ Stage will be marked for deletion. Click "Submit All Changes" to apply changes.';
+        warningEl.textContent = '⚠️ This stage will be permanently deleted. Activities inside will prevent deletion.';
         warningEl.className = 'mt-2 text-sm text-yellow-600';
     }
 
@@ -797,9 +797,9 @@ window.deleteStage = function(stageId, stageName = 'this stage') {
 };
 
 /**
- * ✅ Confirm Stage Delete
+ * ✅ Confirm Stage Delete - Delete immediately via API
  */
-window.confirmStageDelete = function() {
+window.confirmStageDelete = async function() {
     if (!currentStageId) return;
 
     console.log('🗑️ Confirming stage deletion:', currentStageId);
@@ -807,19 +807,49 @@ window.confirmStageDelete = function() {
     const stageId = normalizeStageId(currentStageId);
 
     if (isNewStageId(stageId)) {
-        // Remove from toCreate list
+        // Remove from toCreate list (not yet saved)
         window.stageChanges.toCreate = window.stageChanges.toCreate.filter(s => s.tempId !== stageId);
-        showNotification('New stage removed from list', 'success');
+        showNotification('Stage removed from list', 'success');
+        closeStageDeleteModal();
+        renderStagesFromLocal();
     } else {
-        // Mark existing stage for deletion
-        window.stageChanges.toDelete.add(stageId);
-        // Remove from updates if was being edited
-        delete window.stageChanges.toUpdate[stageId];
-        showNotification('Stage marked for deletion. Click "Submit All Changes" to apply.', 'warning');
-    }
+        // ✅ Delete existing stage immediately via API
+        try {
+            const deleteBtn = document.querySelector('#stageDeleteModal button[onclick="confirmStageDelete()"]');
+            if (deleteBtn) {
+                deleteBtn.disabled = true;
+                deleteBtn.innerHTML = '<svg class="animate-spin h-4 w-4 inline-block mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Deleting...';
+            }
 
-    closeStageDeleteModal();
-    renderStagesFromLocal();
+            const response = await axios.delete(`/planning/${window.projectId}/stages/${stageId}`);
+
+            if (response.data.success) {
+                showNotification('Stage deleted successfully', 'success');
+
+                // Remove from local data
+                window.stageChanges.originalStages = window.stageChanges.originalStages.filter(s => s.id != stageId);
+                delete window.stageChanges.toUpdate[stageId];
+                window.stageChanges.toDelete.delete(stageId);
+
+                closeStageDeleteModal();
+                renderStagesFromLocal();
+            } else {
+                showNotification(response.data.message || 'Failed to delete stage', 'error');
+            }
+        } catch (error) {
+            console.error('❌ Error deleting stage:', error);
+            const errorMsg = error.response?.data?.message || 'Failed to delete stage';
+            showNotification(errorMsg, 'error');
+        } finally {
+            // Reset button
+            const deleteBtn = document.querySelector('#stageDeleteModal button[onclick="confirmStageDelete()"]');
+            if (deleteBtn) {
+                deleteBtn.disabled = false;
+                deleteBtn.innerHTML = 'Delete';
+            }
+            closeStageDeleteModal();
+        }
+    }
 };
 
 window.closeStageFormModal = function() {

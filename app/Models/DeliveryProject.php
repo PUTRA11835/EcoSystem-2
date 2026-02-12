@@ -20,7 +20,7 @@ class DeliveryProject extends Model
     protected $fillable = [
         'client_id',
         'pic',
-        'delivery_project_type',
+        'project_type',
         'name',
         'description',
         'category',
@@ -31,8 +31,6 @@ class DeliveryProject extends Model
         'end_date',
         'go_live_estimated',
         // Delivery Information
-        'delivery_type',
-        'delivery_subtype',
         'ae_type',
         'ae_name',
         'ae_phone',
@@ -47,7 +45,7 @@ class DeliveryProject extends Model
         'approval_name',
         // Location Information
         'location_name',
-        'location_type',    
+        'location_type',
         'location_country',
         'location_geographical',
         'location_region',
@@ -215,54 +213,86 @@ class DeliveryProject extends Model
     
     private function updateCurrentPhase()
     {
-        $today = Carbon::today();
-        
-        $activePhases = $this->phases()
-            ->where('is_visible', true)
-            ->get()
-            ->filter(function($phase) {
-                $hasActiveActivities = $this->plannings()
-                    ->where('phase_id', $phase->id)
-                    ->where('is_group', false)
-                    ->where('status', 'in_progress')
-                    ->exists();
-                
-                return $hasActiveActivities;
-            });
-        
-        if ($activePhases->isNotEmpty()) {
-            // Ambil fase dengan order_sequence tertinggi yang aktif
-            $currentPhase = $activePhases->sortByDesc('order_sequence')->first();
-            $this->phase = $currentPhase->name;
-            
-            Log::info("✅ Current phase updated", ['phase' => $currentPhase->name]);
-            return;
-        }
-        
-        // Jika tidak ada yang in_progress, cari berdasarkan tanggal
+        // Get all visible phases for this project
         $phases = $this->phases()
             ->where('is_visible', true)
             ->orderBy('order_sequence')
             ->get();
-        
+
+        // If no phases configured, set phase to null
+        if ($phases->isEmpty()) {
+            $this->phase = null;
+            Log::info("ℹ️ No phases configured for project", ['delivery_projects_id' => $this->id]);
+            return;
+        }
+
+        // Check for phases with in_progress activities (currently active)
+        $activePhases = $phases->filter(function($phase) {
+            return $this->plannings()
+                ->where('phase_id', $phase->id)
+                ->where('is_group', false)
+                ->where('status', 'in_progress')
+                ->exists();
+        });
+
+        if ($activePhases->isNotEmpty()) {
+            // Get the phase with highest order_sequence that is active
+            $currentPhase = $activePhases->sortByDesc('order_sequence')->first();
+            $this->phase = $currentPhase->name;
+            Log::info("✅ Current phase (in_progress)", ['phase' => $currentPhase->name]);
+            return;
+        }
+
+        // Find phase that has started but not fully completed
         foreach ($phases as $phase) {
             $plannings = $this->plannings()
                 ->where('phase_id', $phase->id)
                 ->where('is_group', false)
                 ->get();
-            
+
+            if ($plannings->isEmpty()) {
+                continue;
+            }
+
             $allCompleted = $plannings->where('status', '!=', 'completed')->isEmpty();
             $hasStarted = $plannings->where('status', '!=', 'not_started')->isNotEmpty();
-            
+
+            // If phase has started but not all completed, this is the current phase
             if ($hasStarted && !$allCompleted) {
                 $this->phase = $phase->name;
+                Log::info("✅ Current phase (partially completed)", ['phase' => $phase->name]);
                 return;
             }
         }
-        
-        // Default ke fase pertama
-        if ($phases->isNotEmpty()) {
-            $this->phase = $phases->first()->name;
+
+        // Find the first phase that is not yet completed
+        foreach ($phases as $phase) {
+            $plannings = $this->plannings()
+                ->where('phase_id', $phase->id)
+                ->where('is_group', false)
+                ->get();
+
+            if ($plannings->isEmpty()) {
+                // Phase exists but no planning items yet
+                $this->phase = $phase->name;
+                Log::info("✅ Current phase (no planning)", ['phase' => $phase->name]);
+                return;
+            }
+
+            $allCompleted = $plannings->where('status', '!=', 'completed')->isEmpty();
+
+            if (!$allCompleted) {
+                $this->phase = $phase->name;
+                Log::info("✅ Current phase (not completed)", ['phase' => $phase->name]);
+                return;
+            }
+        }
+
+        // All phases completed, show the last phase
+        $lastPhase = $phases->last();
+        if ($lastPhase) {
+            $this->phase = $lastPhase->name;
+            Log::info("✅ Current phase (all completed)", ['phase' => $lastPhase->name]);
         }
     }
 

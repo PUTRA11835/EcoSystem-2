@@ -13,6 +13,7 @@ class Ticket extends Model
     protected $primaryKey = 'ticket_id';
 
     protected $fillable = [
+        'ticket_number',
         'customer_id',
         'employee_id',
         'description',
@@ -123,5 +124,11 @@ class Ticket extends Model
             'Medium' => 'blue',
             default => 'gray'
         };
+    }
+
+    // Relasi ke Delivery Support
+    public function deliverySupport()
+    {
+        return $this->hasOne(DeliverySupport::class, 'ticket_id', 'ticket_id');
     }
 }

@@ -134,6 +134,18 @@ class DeliveryProjectPlanning extends Model
         return $this->belongsTo(DeliveryProjectPlanning::class, 'parent_id');
     }
 
+    /**
+     * ✅ NEW: Get activities directly under group (without stage)
+     * Used for Phase → Group → Activity hierarchy (skipping Stage)
+     */
+    public function directActivities(): HasMany
+    {
+        return $this->hasMany(DeliveryProjectPlanning::class, 'parent_id')
+                    ->where('is_group', false)
+                    ->whereNull('stage_id')
+                    ->orderBy('order_sequence');
+    }
+
     // =========================================================================
     // SCOPES (ALL ORIGINAL - PRESERVED)
     // =========================================================================
