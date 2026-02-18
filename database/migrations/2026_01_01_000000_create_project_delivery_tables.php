@@ -19,13 +19,25 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // ====================================================================
+        // 1. DELIVERY LIST TABLE (Base table for both project and support)
+        // ====================================================================
+        if (!Schema::hasTable('delivery_list')) {
+            Schema::create('delivery_list', function (Blueprint $table) {
+                $table->id();
+                $table->timestamps();
+            });
+        }
+        
         // =====================================================================
         // PROJECTS TABLE
         // =====================================================================
         Schema::create('delivery_projects', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('id_delivery_list')->nullable();
             // Reference to ECOSYSTEM's customer table (customer_id as PK)
             $table->unsignedBigInteger('client_id');
+            $table->foreign('id_delivery_list')->references('id')->on('delivery_list')->onDelete('set null');
             $table->foreign('client_id')->references('customer_id')->on('customer')->onDelete('cascade');
             $table->string('pic')->nullable();
             $table->string('project_type')->nullable();
@@ -54,7 +66,7 @@ return new class extends Migration
             $table->string('delivery_method')->nullable();
             $table->string('warranty_period')->nullable();
             $table->integer('total_mandays')->nullable();
-            $table->foreignId('created_by_id')->nullable()->constrained('users')->onDelete('set null');
+            $table->unsignedBigInteger('created_by_id')->nullable();
             $table->date('approval_date')->nullable();
             $table->string('approval_name')->nullable();
 
@@ -74,6 +86,10 @@ return new class extends Migration
             $table->index('client_id');
             $table->index('status');
             $table->index('category');
+            $table->index('id_delivery_list');
+            $table->index('created_by_id');
+
+            $table->foreign('created_by_id')->references('employee_id')->on('employee')->onDelete('set null');
         });
 
         // =====================================================================

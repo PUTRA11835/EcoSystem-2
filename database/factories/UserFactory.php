@@ -2,15 +2,17 @@
 
 namespace Database\Factories;
 
+use App\Models\AuthUser;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\User>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\AuthUser>
  */
 class UserFactory extends Factory
 {
+    protected $model = AuthUser::class;
     /**
      * The current password being used by the factory.
      */
@@ -24,11 +26,13 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
+            'user_type' => 'employee',
+            'username' => fake()->userName(),
             'email' => fake()->unique()->safeEmail(),
+            'phone' => fake()->unique()->phoneNumber(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
-            'remember_token' => Str::random(10),
+            'is_active' => true,
         ];
     }
 

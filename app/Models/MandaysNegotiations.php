@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\AuthUser;
 
 class MandaysNegotiation extends Model
 {
@@ -34,6 +35,6 @@ class MandaysNegotiation extends Model
     
     public function proposer()
     {
-        return $this->belongsTo(User::class, 'proposed_by_user_id');
+        return $this->belongsTo(AuthUser::class, 'proposed_by_user_id');
     }
 }

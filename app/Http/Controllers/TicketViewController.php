@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ticket;
+use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -45,8 +46,25 @@ class TicketViewController extends Controller
             return redirect()->route('login');
         }
 
+        // Get customers for Admin create ticket dropdown
+        $customers = [];
+        if ($user->role->role_id == 1) {
+            $customers = Customer::with('basicData')
+                ->where('is_active', true)
+                ->get()
+                ->map(function ($customer) {
+                    return [
+                        'customer_id' => $customer->customer_id,
+                        'customer_code' => $customer->customer_code,
+                        'name' => $customer->basicData->name_1 ?? $customer->email ?? 'Unknown'
+                    ];
+                })
+                ->toArray();
+        }
+
         return view('ticket.index', [
-            'user' => $user
+            'user' => $user,
+            'customers' => $customers
         ]);
     }
 

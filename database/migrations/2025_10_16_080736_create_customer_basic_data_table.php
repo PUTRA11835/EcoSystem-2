@@ -11,7 +11,7 @@ return new class extends Migration
             $table->id('basic_data_id');
 
             // Relasi ke customer utama
-            $table->foreignId('customer_id')->unique('customer','customer_id')->onDelete('cascade');
+            $table->foreignId('customer_id')->constrained('customer','customer_id')->onDelete('cascade');
 
             // Data utama sesuai ERD
             $table->string('title')->nullable();

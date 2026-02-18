@@ -937,7 +937,7 @@ function renderTimesheets() {
         const statusColor = statusColors[timesheet.status] || statusColors.draft;
         const duration = (timesheet.duration_minutes / 60).toFixed(2);
         const canEdit = ['draft', 'rejected'].includes(timesheet.status);
-        
+
         let typeInfo = '';
         if (timesheet.delivery_projects_id) {
             typeInfo = '<span class="text-blue-600 text-xs font-medium">Project</span>';
@@ -946,11 +946,11 @@ function renderTimesheets() {
         } else {
             typeInfo = '<span class="text-gray-600 text-xs font-medium">Office</span>';
         }
-        
+
         return `
-            <tr class="hover:bg-gray-50">
+            <tr class="hover:bg-gray-50 ${canEdit ? 'cursor-pointer' : ''}" ${canEdit ? `onclick="toggleRowSelection(event, ${timesheet.id})"` : ''}>
                 <td class="px-6 py-4">
-                    ${canEdit ? `<input type="checkbox" class="timesheet-checkbox w-4 h-4 rounded border-gray-300" data-id="${timesheet.id}" onchange="updateBulkActionButtons()">` : ''}
+                    ${canEdit ? `<input type="checkbox" class="timesheet-checkbox w-4 h-4 rounded border-gray-300" data-id="${timesheet.id}" data-status="${timesheet.status}" onchange="updateBulkActionButtons()" onclick="event.stopPropagation()">` : '<span class="text-gray-300"><i class="fas fa-lock text-xs" title="Cannot edit (${timesheet.status})"></i></span>'}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                     <div class="text-sm font-medium text-gray-900">${formatDisplayDate(timesheet.date)}</div>
@@ -986,32 +986,25 @@ function renderTimesheets() {
                         ${timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
                     </span>
                     ${timesheet.is_billable ? '<i class="fas fa-dollar-sign text-green-600 ml-2" title="Billable"></i>' : ''}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div class="flex items-center gap-2">
-                        ${canEdit ? `
-                            <button onclick="editTimesheet(${timesheet.id})" class="text-blue-600 hover:text-blue-900" title="Edit">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button onclick="openDeleteModal(${timesheet.id})" class="text-red-600 hover:text-red-900" title="Delete">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        ` : ''}
-                        ${timesheet.status === 'draft' ? `
-                            <button onclick="submitTimesheet(${timesheet.id})" class="text-green-600 hover:text-green-900" title="Submit">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
-                        ` : ''}
-                        ${timesheet.status === 'rejected' ? `
-                            <button onclick="showRejectionReason(${timesheet.id})" class="text-yellow-600 hover:text-yellow-900" title="View Reason">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
-                        ` : ''}
-                    </div>
+                    ${timesheet.status === 'rejected' && timesheet.rejection_reason ? `<i class="fas fa-info-circle text-yellow-500 ml-2 cursor-pointer" title="${timesheet.rejection_reason}" onclick="event.stopPropagation(); showRejectionReason(${timesheet.id})"></i>` : ''}
                 </td>
             </tr>
         `;
     }).join('');
+}
+
+// Toggle row selection when clicking on the row
+function toggleRowSelection(event, id) {
+    // Don't toggle if clicking on a link or button
+    if (event.target.tagName === 'A' || event.target.tagName === 'BUTTON' || event.target.tagName === 'I') {
+        return;
+    }
+
+    const checkbox = document.querySelector(`.timesheet-checkbox[data-id="${id}"]`);
+    if (checkbox) {
+        checkbox.checked = !checkbox.checked;
+        updateBulkActionButtons();
+    }
 }
 
 function formatDisplayDate(dateStr) {
@@ -1293,14 +1286,47 @@ function updateBulkActionButtons() {
     const checkboxes = document.querySelectorAll('.timesheet-checkbox:checked');
     const bulkActions = document.getElementById('bulkActions');
     const selectedCount = document.getElementById('selectedCount');
-    
+    const btnEdit = document.getElementById('btnBulkEdit');
+    const btnSubmit = document.getElementById('btnBulkSubmit');
+    const btnDelete = document.getElementById('btnBulkDelete');
+
     if (!bulkActions) return;
-    
+
     if (checkboxes.length > 0) {
         bulkActions.classList.remove('hidden');
         bulkActions.classList.add('flex');
         if (selectedCount) {
             selectedCount.textContent = checkboxes.length;
+        }
+
+        // Check statuses of selected items
+        let hasDraft = false;
+        checkboxes.forEach(cb => {
+            const status = cb.getAttribute('data-status');
+            if (status === 'draft') hasDraft = true;
+        });
+
+        // Edit button: Show only when exactly 1 item is selected
+        if (btnEdit) {
+            if (checkboxes.length === 1) {
+                btnEdit.classList.remove('hidden');
+            } else {
+                btnEdit.classList.add('hidden');
+            }
+        }
+
+        // Submit button: Show only when there are draft items selected
+        if (btnSubmit) {
+            if (hasDraft) {
+                btnSubmit.classList.remove('hidden');
+            } else {
+                btnSubmit.classList.add('hidden');
+            }
+        }
+
+        // Delete button: Always show when items are selected
+        if (btnDelete) {
+            btnDelete.classList.remove('hidden');
         }
     } else {
         bulkActions.classList.add('hidden');

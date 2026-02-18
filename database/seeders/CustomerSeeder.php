@@ -38,7 +38,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-3155550',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.001.862.8-091.000',
                     'responsible_institution' => 'KPP Jakarta Pusat',
                 ],
@@ -79,7 +79,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-52882000',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.001.845.5-092.000',
                     'responsible_institution' => 'KPP Jakarta Selatan',
                 ],
@@ -119,7 +119,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-52882000',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.002.123.4-093.000',
                     'responsible_institution' => 'KPP Jakarta Selatan',
                 ],
@@ -159,7 +159,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '022-6011000',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '02.345.678.9-091.000',
                     'responsible_institution' => 'KPP Bandung',
                 ],
@@ -199,7 +199,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-29222222',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.003.456.7-091.000',
                     'responsible_institution' => 'KPP Jakarta Utara',
                 ],
@@ -239,7 +239,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-8378000',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.004.567.8-092.000',
                     'responsible_institution' => 'KPP Jakarta Selatan',
                 ],
@@ -279,7 +279,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-8378100',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.005.678.9-092.000',
                     'responsible_institution' => 'KPP Jakarta Selatan',
                 ],
@@ -319,7 +319,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-8378200',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.006.789.0-092.000',
                     'responsible_institution' => 'KPP Jakarta Selatan',
                 ],
@@ -359,7 +359,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-4244301',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.007.890.1-091.000',
                     'responsible_institution' => 'KPP Jakarta Pusat',
                 ],
@@ -399,7 +399,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-4244400',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.008.901.2-091.000',
                     'responsible_institution' => 'KPP Jakarta Pusat',
                 ],
@@ -439,7 +439,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-3815111',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.009.012.3-091.000',
                     'responsible_institution' => 'KPP Jakarta Pusat',
                 ],
@@ -479,7 +479,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-5701234',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.010.123.4-091.000',
                     'responsible_institution' => 'KPP Jakarta Pusat',
                 ],
@@ -519,7 +519,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '0351-452271',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '03.456.789.0-623.000',
                     'responsible_institution' => 'KPP Madiun',
                 ],
@@ -559,7 +559,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-29967000',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.011.234.5-092.000',
                     'responsible_institution' => 'KPP Jakarta Selatan',
                 ],
@@ -599,7 +599,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-78845788',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.012.345.6-092.000',
                     'responsible_institution' => 'KPP Jakarta Selatan',
                 ],
@@ -639,7 +639,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '024-6925000',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '04.567.890.1-501.000',
                     'responsible_institution' => 'KPP Semarang',
                 ],
@@ -679,7 +679,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '0266-234567',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '02.456.789.0-423.000',
                     'responsible_institution' => 'KPP Sukabumi',
                 ],
@@ -719,7 +719,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '0274-889900',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '05.678.901.2-541.000',
                     'responsible_institution' => 'KPP Yogyakarta',
                 ],
@@ -759,7 +759,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-5701111',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.013.456.7-091.000',
                     'responsible_institution' => 'KPP Jakarta Pusat',
                 ],
@@ -799,7 +799,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-29222777',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.014.567.8-092.000',
                     'responsible_institution' => 'KPP Jakarta Selatan',
                 ],
@@ -839,7 +839,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-50282888',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.015.678.9-093.000',
                     'responsible_institution' => 'KPP Jakarta Utara',
                 ],
@@ -879,7 +879,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-8795555',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '02.567.890.1-423.000',
                     'responsible_institution' => 'KPP Bogor',
                 ],
@@ -919,7 +919,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '0511-4772345',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '06.789.012.3-721.000',
                     'responsible_institution' => 'KPP Banjarmasin',
                 ],
@@ -959,7 +959,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '0254-396666',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '02.678.901.2-311.000',
                     'responsible_institution' => 'KPP Serang',
                 ],
@@ -999,7 +999,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-5521234',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '02.789.012.3-311.000',
                     'responsible_institution' => 'KPP Tangerang',
                 ],
@@ -1040,7 +1040,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '0341-551971',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '03.567.890.1-623.000',
                     'responsible_institution' => 'KPP Malang',
                 ],
@@ -1081,7 +1081,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '0264-201972',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '02.890.123.4-423.000',
                     'responsible_institution' => 'KPP Purwakarta',
                 ],
@@ -1122,7 +1122,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-29345678',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.901.234.5-092.000',
                     'responsible_institution' => 'KPP Jakarta Selatan',
                 ],
@@ -1163,7 +1163,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-29345680',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.902.345.6-092.000',
                     'responsible_institution' => 'KPP Jakarta Selatan',
                 ],
@@ -1204,7 +1204,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-5902937',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '02.890.234.5-311.000',
                     'responsible_institution' => 'KPP Tangerang',
                 ],
@@ -1245,7 +1245,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '031-8972345',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '03.891.345.6-623.000',
                     'responsible_institution' => 'KPP Mojokerto',
                 ],
@@ -1286,7 +1286,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-5901111',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '02.892.456.7-311.000',
                     'responsible_institution' => 'KPP Tangerang',
                 ],
@@ -1327,7 +1327,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-5373456',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '02.893.567.8-312.000',
                     'responsible_institution' => 'KPP Tangerang Selatan',
                 ],
@@ -1368,7 +1368,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '0274-889901',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '05.789.012.3-541.000',
                     'responsible_institution' => 'KPP Yogyakarta',
                 ],
@@ -1409,7 +1409,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '031-8292611',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '03.678.901.2-623.005',
                     'responsible_institution' => 'KPP Surabaya',
                 ],
@@ -1450,7 +1450,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '0711-411711',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '07.789.012.3-371.002',
                     'responsible_institution' => 'KPP Palembang',
                 ],
@@ -1491,7 +1491,7 @@ class CustomerSeeder extends Seeder
                     'telephone' => '021-4601234',
                 ],
                 'identification' => [
-                    'idenfication_type' => 'NPWP',
+                    'identification_type' => 'NPWP',
                     'identification_number' => '01.903.456.7-094.000',
                     'responsible_institution' => 'KPP Jakarta Timur',
                 ],
@@ -1525,7 +1525,6 @@ class CustomerSeeder extends Seeder
 
                 $customerId = DB::table('customer')->insertGetId([
                     'customer_code' => $customerCode,
-                    'role_id' => 3,
                     'email' => $cust['email'],
                     'password' => Hash::make('password123'),
                     'is_active' => true,

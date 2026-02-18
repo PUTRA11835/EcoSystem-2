@@ -9,9 +9,9 @@ return new class extends Migration
     {
         Schema::create('customer_identification', function (Blueprint $table) {
             $table->id('identification_id');
-            $table->foreignId('customer_id')->unique('customer','customer_id')->onDelete('cascade');
+            $table->foreignId('customer_id')->constrained('customer','customer_id')->onDelete('cascade');
 
-            $table->string('idenfication_type');
+            $table->string('identification_type');
             $table->string('identification_number')->unique();
             $table->string('responsible_institution')->nullable();
             $table->string('country')->nullable();

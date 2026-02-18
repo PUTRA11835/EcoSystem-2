@@ -247,35 +247,19 @@ class TicketController extends Controller
     }
 
     /**
-     * External API: create ticket from outside system (e.g., Power Automate)
-     * Auth via X-API-KEY header (or Bearer token)
+     * External API: create ticket via query string
+     * URL: /api/external/tickets/create?description=...&ticket_priority=...&customer_code=...&type=...
      */
-    public function storeExternal(Request $request)
+    public function storeExternalQuery(Request $request)
     {
-        $expectedKey = env('EXTERNAL_TICKET_API_KEY');
+        $payload = $request->query();
 
-        if (!$expectedKey) {
-            return response()->json([
-                'success' => false,
-                'message' => 'API key not configured'
-            ], 500);
-        }
-
-        $providedKey = $request->header('X-API-KEY') ?? $request->bearerToken();
-
-        if (!$providedKey || !hash_equals($expectedKey, $providedKey)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized'
-            ], 401);
-        }
-
-        $validator = Validator::make($request->all(), [
+        $validator = Validator::make($payload, [
             'description' => 'required|string',
-            'ticket_priority' => 'required|in:Low,Medium,High',
+            'ticket_priority' => 'nullable|in:Low,Medium,High',
             'customer_id' => 'required_without_all:customer_code,external_number|exists:customer,customer_id',
             'customer_code' => 'required_without_all:customer_id,external_number|exists:customer,customer_code',
-            'external_number' => 'required_without_all:customer_id,customer_code|exists:customer_basic_data,external_number',
+            'external_number' => 'nullable|customer_id,customer_code|exists:customer_basic_data,external_number',
             'type' => 'nullable|in:AMS,MO,ATS,Project,Internal'
         ]);
 
@@ -288,17 +272,17 @@ class TicketController extends Controller
         }
 
         try {
-            $customerId = $request->input('customer_id');
+            $customerId = $payload['customer_id'] ?? null;
 
-            if (!$customerId && $request->filled('customer_code')) {
+            if (!$customerId && !empty($payload['customer_code'])) {
                 $customerId = DB::table('customer')
-                    ->where('customer_code', $request->input('customer_code'))
+                    ->where('customer_code', $payload['customer_code'])
                     ->value('customer_id');
             }
 
-            if (!$customerId && $request->filled('external_number')) {
+            if (!$customerId && !empty($payload['external_number'])) {
                 $customerId = DB::table('customer_basic_data')
-                    ->where('external_number', $request->input('external_number'))
+                    ->where('external_number', $payload['external_number'])
                     ->value('customer_id');
             }
 
@@ -309,18 +293,18 @@ class TicketController extends Controller
                 ], 404);
             }
 
-            $payload = [
+            $data = [
                 'customer_id' => $customerId,
-                'description' => $request->input('description'),
-                'ticket_priority' => $request->input('ticket_priority'),
-                'type' => $request->input('type'),
+                'description' => $payload['description'] ?? null,
+                'ticket_priority' => null,
+                'type' => $payload['type'] ?? null,
                 'status' => 'open',
                 'jarvies_status' => 'in process',
             ];
 
-            $payload['ticket_number'] = $this->generateTicketNumber($customerId);
+            $data['ticket_number'] = $this->generateTicketNumber($customerId);
 
-            $ticket = Ticket::create($payload);
+            $ticket = Ticket::create($data);
 
             return response()->json([
                 'success' => true,
@@ -328,7 +312,7 @@ class TicketController extends Controller
                 'data' => $ticket
             ], 201);
         } catch (\Exception $e) {
-            Log::error('Error creating external ticket:', [
+            Log::error('Error creating external ticket (query):', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -336,6 +320,50 @@ class TicketController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create ticket: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * External API: get all tickets (no auth)
+     * URL: /api/external/tickets
+     */
+    public function externalIndex()
+    {
+        try {
+            $tickets = Ticket::orderBy('created_at', 'desc')
+                ->get([
+                    'ticket_id',
+                    'ticket_number',
+                    'customer_id',
+                    'employee_id',
+                    'description',
+                    'ticket_priority',
+                    'jarvies_status',
+                    'status',
+                    'type',
+                    'start_date',
+                    'end_date',
+                    'man_days',
+                    'created_at',
+                    'updated_at',
+                ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $tickets,
+                'message' => 'Tickets retrieved successfully'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching external tickets:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve tickets',
+                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -723,7 +751,7 @@ class TicketController extends Controller
             DB::beginTransaction();
 
             $confirmation = DB::table('ticket_confirmation')
-                ->where('confirmation_id', $confirmationId)  // GANTI 'id' jadi 'confirmation_id'
+                ->where('confirmation_id', $confirmationId)
                 ->first();
             
             if (!$confirmation || $confirmation->status != 'pending') {
@@ -754,7 +782,7 @@ class TicketController extends Controller
                 DB::table('ticket_confirmation')
                     ->where('confirmation_id', $confirmationId)
                     ->update([
-                        'status' => 'confirmed',  // GANTI dari 'jarvies_status'
+                        'status' => 'confirmed',
                         'confirmed_by' => $sessionUser['id'],
                         'confirmed_at' => now(),
                         'updated_at' => now()
@@ -764,7 +792,7 @@ class TicketController extends Controller
                 DB::table('ticket_confirmation')
                     ->where('confirmation_id', $confirmationId)
                     ->update([
-                        'status' => 'rejected',  // GANTI dari 'jarvies_status'
+                        'status' => 'rejected',
                         'confirmed_by' => $sessionUser['id'],
                         'confirmed_at' => now(),
                         'updated_at' => now()
@@ -2057,10 +2085,13 @@ class TicketController extends Controller
                 ], 404);
             }
 
-            // Check if ticket is already assigned to this support
+            // Check if ticket is already assigned to this support (check both ticket_id and notes for backward compatibility)
             $existingActivity = DB::table('delivery_support_activities')
                 ->where('delivery_support_id', $supportId)
-                ->where('notes', 'like', '%Ticket #' . $ticket->ticket_id . '%')
+                ->where(function ($query) use ($ticket) {
+                    $query->where('ticket_id', $ticket->ticket_id)
+                        ->orWhere('notes', 'like', '%Ticket #' . $ticket->ticket_id . '%');
+                })
                 ->first();
 
             if ($existingActivity) {
@@ -2128,6 +2159,7 @@ class TicketController extends Controller
             $activityId = DB::table('delivery_support_activities')->insertGetId([
                 'delivery_support_id' => $supportId,
                 'delivery_support_phase_id' => $phase->id,
+                'ticket_id' => $ticket->ticket_id, // Link activity to source ticket
                 'stage_id' => null,
                 'name' => $ticket->ticket_number . ' - ' . ($ticket->description ?? "Ticket #{$ticket->ticket_id}"),
                 'description' => $ticket->description,
@@ -2174,7 +2206,7 @@ class TicketController extends Controller
                 DB::table('delivery_support_activity_employee')->insert([
                     'delivery_support_activity_id' => $activityId,
                     'employee_id' => $ticket->employee_id,
-                    'role' => 'assignee',
+                    'role' => 'lead',
                     'allocation_percentage' => 100,
                     'is_active' => true,
                     'assigned_date' => now(),
@@ -2217,6 +2249,221 @@ class TicketController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to assign ticket to delivery support',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Create a new delivery support and assign the ticket to it
+     * Only Admin (1), Helpdesk (6), and RPMO (7) can create delivery supports
+     */
+    public function createDeliverySupport(Request $request, $id)
+    {
+        $sessionUser = session('user');
+
+        if (!$sessionUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+
+        // Only Admin, Helpdesk, and RPMO can create delivery supports
+        if (!in_array($sessionUser['role']['id'], [1, 6, 7])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only Admin, Helpdesk, and RPMO can create delivery supports'
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'support_method' => 'nullable|string|max:100',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $ticket = Ticket::findOrFail($id);
+
+            // Create delivery list entry
+            $deliveryListId = DB::table('delivery_list')->insertGetId([
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Create delivery support
+            $supportId = DB::table('delivery_support')->insertGetId([
+                'id_delivery_list' => $deliveryListId,
+                'client_id' => $ticket->customer_id,
+                'ticket_id' => $ticket->ticket_id, // Primary ticket
+                'name' => $request->name,
+                'support_method' => $request->support_method,
+                'start_date' => $ticket->start_date ?? now(),
+                'end_date' => $ticket->end_date,
+                'created_by_id' => $sessionUser['id'],
+                'calculated_progress' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Create default view configuration
+            DB::table('delivery_support_view_configurations')->insert([
+                'delivery_support_id' => $supportId,
+                'default_view' => 'table',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Create Support phase
+            $phaseId = DB::table('delivery_support_phases')->insertGetId([
+                'delivery_support_id' => $supportId,
+                'name' => 'Support',
+                'color' => '#3B82F6',
+                'weight' => 100,
+                'order_sequence' => 1,
+                'is_resolution_phase' => true,
+                'is_system_default' => true,
+                'is_visible' => true,
+                'is_active' => true,
+                'orientation' => 'vertical',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Create Incident group
+            $groupId = DB::table('delivery_support_planning')->insertGetId([
+                'delivery_support_id' => $supportId,
+                'phase_id' => $phaseId,
+                'parent_id' => null,
+                'name' => 'Incident',
+                'group_name' => 'Incident',
+                'is_group' => true,
+                'level' => 0,
+                'order_sequence' => 1,
+                'weight' => 100,
+                'status' => 'not_started',
+                'progress_percentage' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Map ticket status to activity status
+            $status = match (strtolower($ticket->status ?? '')) {
+                'open' => 'not_started',
+                'in_progress' => 'in_progress',
+                'hold' => 'on_hold',
+                'closed' => 'completed',
+                'cancel' => 'completed',
+                default => 'not_started'
+            };
+
+            // Map priority to complexity
+            $complexity = match (strtolower($ticket->ticket_priority ?? '')) {
+                'high' => 'complex',
+                'medium' => 'medium',
+                'low' => 'simple',
+                default => 'medium'
+            };
+
+            // Create activity from ticket
+            $activityId = DB::table('delivery_support_activities')->insertGetId([
+                'delivery_support_id' => $supportId,
+                'delivery_support_phase_id' => $phaseId,
+                'ticket_id' => $ticket->ticket_id, // Link activity to ticket
+                'stage_id' => null,
+                'name' => $ticket->ticket_number . ' - ' . ($ticket->description ?? "Ticket #{$ticket->ticket_id}"),
+                'description' => $ticket->description,
+                'order_sequence' => 1,
+                'module' => null,
+                'new_issue' => true,
+                'object' => null,
+                'incident_type' => $ticket->type ?? 'incident',
+                'complexity' => $complexity,
+                'deliverable' => null,
+                'start_date' => $ticket->start_date ?? now(),
+                'end_date' => $ticket->end_date,
+                'status' => $status,
+                'progress_percentage' => 0,
+                'weight' => $ticket->man_days ?? 1,
+                'notes' => "Auto-created from Ticket #{$ticket->ticket_id}",
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Create planning entry for activity
+            DB::table('delivery_support_planning')->insert([
+                'delivery_support_id' => $supportId,
+                'phase_id' => $phaseId,
+                'parent_id' => $groupId,
+                'activity_id' => $activityId,
+                'name' => $ticket->ticket_number . ' - ' . ($ticket->description ?? "Ticket #{$ticket->ticket_id}"),
+                'is_group' => false,
+                'level' => 1,
+                'order_sequence' => 1,
+                'start_date' => $ticket->start_date ?? now(),
+                'end_date' => $ticket->end_date,
+                'weight' => $ticket->man_days ?? 1,
+                'status' => $status,
+                'progress_percentage' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Assign ticket PIC to activity if exists
+            if ($ticket->employee_id) {
+                DB::table('delivery_support_activity_employee')->insert([
+                    'delivery_support_activity_id' => $activityId,
+                    'employee_id' => $ticket->employee_id,
+                    'role' => 'lead',
+                    'allocation_percentage' => 100,
+                    'is_active' => true,
+                    'assigned_date' => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            DB::commit();
+
+            Log::info('Created delivery support from ticket', [
+                'ticket_id' => $ticket->ticket_id,
+                'ticket_number' => $ticket->ticket_number,
+                'support_id' => $supportId,
+                'support_name' => $request->name,
+                'created_by' => $sessionUser['id']
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Delivery support created and ticket assigned successfully',
+                'data' => [
+                    'support_id' => $supportId,
+                    'support_name' => $request->name,
+                    'activity_id' => $activityId
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error creating delivery support from ticket:', [
+                'ticket_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create delivery support',
                 'error' => $e->getMessage()
             ], 500);
         }

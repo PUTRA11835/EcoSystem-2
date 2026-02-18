@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use App\Models\AuthUser;
 
 
 class DeliveryProject extends Model
@@ -108,7 +109,7 @@ class DeliveryProject extends Model
 
     public function createdBy()
     {
-        return $this->belongsTo(User::class, 'created_by_id');
+        return $this->belongsTo(AuthUser::class, 'created_by_id');
     }
 
     public function updateFromPlanning()

@@ -3,6 +3,8 @@
 namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Sanctum\HasApiTokens;
+use App\Models\EmployeeRole;
+use App\Models\DeliveryProjectActivity;
 
 class Employee extends Model
 {
@@ -30,9 +32,10 @@ class Employee extends Model
     ];
 
     // Relationships
+
     public function role()
     {
-        return $this->belongsTo(Role::class, 'role_id', 'role_id');
+        return $this->belongsTo(EmployeeRole::class, 'role_id', 'id');
     }
 
     public function basicData()
@@ -116,7 +119,7 @@ class Employee extends Model
      */
     public function assignedActivities()
     {
-        return $this->belongsToMany(ProjectActivity::class, 'activity_employee', 'employee_id', 'project_activity_id', 'employee_id', 'id')
+        return $this->belongsToMany(DeliveryProjectActivity::class, 'activity_employee', 'employee_id', 'delivery_project_activity_id', 'employee_id', 'id')
                     ->withPivot('role', 'assigned_date', 'notes')
                     ->withTimestamps();
     }
@@ -130,4 +133,3 @@ class Employee extends Model
     }
 
 }
-

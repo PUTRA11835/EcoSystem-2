@@ -363,12 +363,7 @@
                         <tr class="hover:bg-blue-50">
                             <td class="px-4 py-3 text-sm font-medium text-gray-900">Phase</td>
                             <td class="px-4 py-3 text-sm text-gray-900">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                    @if($project->phase == 'Prepare') bg-purple-100 text-purple-800
-                                    @elseif($project->phase == 'Explore') bg-indigo-100 text-indigo-800
-                                    @elseif($project->phase == 'Realize') bg-pink-100 text-pink-800
-                                    @elseif($project->phase == 'Deploy') bg-red-100 text-red-800
-                                    @else bg-gray-100 text-gray-800 @endif">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                                     {{ $project->phase ?? 'N/A' }}
                                 </span>
                                 <p class="mt-1 text-xs text-amber-600">*Auto-filled from Project Planning</p>

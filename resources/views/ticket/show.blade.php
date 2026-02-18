@@ -228,7 +228,7 @@
                 </div>
 
                 {{-- Admin/Helpdesk Actions --}}
-                @if($user->role->role_id == 1 || $user->role->role_id == 6)
+                @if(in_array($user->role->role_id, [1, 6, 7]))
                 <div class="pt-3 border-t border-gray-200 space-y-2">
                     <button onclick="openAssignSupportModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-all">
                         <i class="fas fa-headset text-[10px]"></i>
@@ -278,11 +278,79 @@
 .sidebar-ticket-item.active { background: rgba(255,255,255,0.2); }
 </style>
 
+{{-- Assign to Delivery Support Modal --}}
+@if(in_array($user->role->role_id, [1, 6, 7]))
+<div id="assignSupportModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-bold text-gray-900">Assign to Delivery Support</h3>
+                <button onclick="closeAssignSupportModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <div class="p-6 space-y-4">
+            {{-- Option: New or Existing --}}
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Assign to:</label>
+                <div class="flex gap-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="assignType" value="existing" checked onchange="toggleAssignType()" class="w-4 h-4 text-blue-600">
+                        <span class="text-sm text-gray-700">Existing Delivery Support</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="assignType" value="new" onchange="toggleAssignType()" class="w-4 h-4 text-blue-600">
+                        <span class="text-sm text-gray-700">Create New</span>
+                    </label>
+                </div>
+            </div>
+
+            {{-- Existing Delivery Support Selection --}}
+            <div id="existingDeliverySupport">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Select Delivery Support</label>
+                <select id="deliverySupportSelect" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">Loading...</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500">Ticket will be added as an activity under this delivery support</p>
+            </div>
+
+            {{-- New Delivery Support Form (hidden by default) --}}
+            <div id="newDeliverySupport" class="hidden space-y-3">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Support Name <span class="text-red-500">*</span></label>
+                    <input type="text" id="newSupportName" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., Support - Customer Name">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Support Method</label>
+                    <select id="newSupportMethod" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">Select Method</option>
+                        <option value="remote">Remote</option>
+                        <option value="onsite">On-site</option>
+                        <option value="hybrid">Hybrid</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+            <button onclick="closeAssignSupportModal()" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-300 transition-all">
+                Cancel
+            </button>
+            <button onclick="confirmAssignSupport()" class="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all">
+                <i class="fas fa-check mr-1"></i> Assign
+            </button>
+        </div>
+    </div>
+</div>
+@endif
+
 <script>
     const ticketId = {{ $ticket->ticket_id }};
     const userRole = {{ $user->role->role_id ?? 0 }};
+    const ticketCustomerId = {{ $ticket->customer_id ?? 'null' }};
     let quillEditor = null;
     let allSidebarTickets = [];
+    let deliverySupportList = [];
 
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize Quill
@@ -616,5 +684,168 @@
             setTimeout(() => notification.remove(), 300);
         }, 3000);
     }
+
+    // ==================== ASSIGN TO DELIVERY SUPPORT ====================
+    async function openAssignSupportModal() {
+        const modal = document.getElementById('assignSupportModal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            // Load existing delivery supports
+            await loadDeliverySupports();
+        }
+    }
+
+    function closeAssignSupportModal() {
+        const modal = document.getElementById('assignSupportModal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
+
+    function toggleAssignType() {
+        const assignType = document.querySelector('input[name="assignType"]:checked')?.value;
+        const existingDiv = document.getElementById('existingDeliverySupport');
+        const newDiv = document.getElementById('newDeliverySupport');
+
+        if (assignType === 'new') {
+            existingDiv.classList.add('hidden');
+            newDiv.classList.remove('hidden');
+        } else {
+            existingDiv.classList.remove('hidden');
+            newDiv.classList.add('hidden');
+        }
+    }
+
+    async function loadDeliverySupports() {
+        const select = document.getElementById('deliverySupportSelect');
+        if (!select) return;
+
+        select.innerHTML = '<option value="">Loading...</option>';
+
+        try {
+            // Load delivery supports, optionally filtered by the same customer
+            const response = await fetch('/api/delivery/support/search?client_id=' + (ticketCustomerId || ''), {
+                headers: getHeaders(),
+                credentials: 'same-origin'
+            });
+
+            const data = await response.json();
+
+            if (data.success && data.data) {
+                deliverySupportList = data.data;
+                select.innerHTML = '<option value="">-- Select Delivery Support --</option>';
+
+                if (data.data.length === 0) {
+                    select.innerHTML = '<option value="">No delivery support found</option>';
+                    return;
+                }
+
+                data.data.forEach(support => {
+                    const option = document.createElement('option');
+                    option.value = support.id;
+                    option.textContent = `${support.name} (${support.client_name || 'Unknown Client'})`;
+                    select.appendChild(option);
+                });
+            } else {
+                select.innerHTML = '<option value="">Failed to load</option>';
+            }
+        } catch (error) {
+            console.error('Error loading delivery supports:', error);
+            select.innerHTML = '<option value="">Error loading data</option>';
+        }
+    }
+
+    async function confirmAssignSupport() {
+        const assignType = document.querySelector('input[name="assignType"]:checked')?.value;
+
+        if (assignType === 'existing') {
+            await assignToExistingSupport();
+        } else {
+            await createNewSupportAndAssign();
+        }
+    }
+
+    async function assignToExistingSupport() {
+        const supportId = document.getElementById('deliverySupportSelect').value;
+
+        if (!supportId) {
+            showNotification('Please select a delivery support', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/tickets/${ticketId}/assign-to-support`, {
+                method: 'POST',
+                headers: getHeaders(),
+                credentials: 'same-origin',
+                body: JSON.stringify({ support_id: supportId })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showNotification('Ticket assigned to delivery support successfully!', 'success');
+                closeAssignSupportModal();
+                // Optionally redirect to the delivery support page
+                setTimeout(() => {
+                    if (confirm('Ticket assigned! Do you want to view the delivery support?')) {
+                        window.location.href = `/delivery/support/${supportId}`;
+                    }
+                }, 500);
+            } else {
+                showNotification(data.message || 'Failed to assign ticket', 'error');
+            }
+        } catch (error) {
+            console.error('Error assigning ticket:', error);
+            showNotification('Error: ' + error.message, 'error');
+        }
+    }
+
+    async function createNewSupportAndAssign() {
+        const supportName = document.getElementById('newSupportName').value.trim();
+        const supportMethod = document.getElementById('newSupportMethod').value;
+
+        if (!supportName) {
+            showNotification('Please enter a support name', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/tickets/' + ticketId + '/create-delivery-support', {
+                method: 'POST',
+                headers: getHeaders(),
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    name: supportName,
+                    support_method: supportMethod
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showNotification('Delivery support created and ticket assigned!', 'success');
+                closeAssignSupportModal();
+                // Redirect to the new delivery support
+                setTimeout(() => {
+                    if (data.data?.support_id) {
+                        window.location.href = `/delivery/support/${data.data.support_id}`;
+                    }
+                }, 500);
+            } else {
+                showNotification(data.message || 'Failed to create delivery support', 'error');
+            }
+        } catch (error) {
+            console.error('Error creating delivery support:', error);
+            showNotification('Error: ' + error.message, 'error');
+        }
+    }
+
+    // Close modal on outside click
+    document.getElementById('assignSupportModal')?.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeAssignSupportModal();
+        }
+    });
 </script>
 @endsection

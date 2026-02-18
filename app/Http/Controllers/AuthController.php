@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Exception;
 
 class AuthController extends Controller
 {
@@ -15,17 +16,39 @@ class AuthController extends Controller
      */
     public function showLogin()
     {
-        Log::info('Showing login page', [
-            'has_session' => session()->has('auth_token'),
-            'ip' => request()->ip()
-        ]);
+        try {
+            $sessionId = session()->getId();
+            $hasToken = session()->has('auth_token');
+            
+            Log::channel('daily')->info('=== SHOW LOGIN PAGE ===', [
+                'timestamp' => now()->toDateTimeString(),
+                'session_id' => $sessionId,
+                'has_session' => $hasToken,
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'referer' => request()->header('referer')
+            ]);
 
-        if (session()->has('auth_token')) {
-            Log::info('User already has auth token, redirecting to dashboard');
-            return redirect()->route('dashboard');
+            if ($hasToken) {
+                Log::channel('daily')->info('User already authenticated, redirecting to dashboard', [
+                    'session_id' => $sessionId,
+                    'user_data' => session('user')
+                ]);
+                return redirect()->route('dashboard');
+            }
+
+            return view('auth.login');
+            
+        } catch (Exception $e) {
+            Log::channel('daily')->error('Error in showLogin method', [
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return redirect()->route('login')->with('error', 'Terjadi kesalahan sistem');
         }
-
-        return view('auth.login');
     }
 
     /**
@@ -33,111 +56,185 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
-        Log::info('=== LOGIN REQUEST START ===');
-        Log::info('API Login attempt', [
-            'email' => $request->input('email'),
-            'ip' => $request->ip(),
+        // Generate unique request ID untuk tracking
+        $requestId = uniqid('login_', true);
+        
+        Log::channel('daily')->info('=== LOGIN REQUEST START ===', [
+            'request_id' => $requestId,
+            'timestamp' => now()->toDateTimeString(),
+            'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
-            'request_method' => $request->method(),
-            'all_input' => $request->except(['password'])
-        ]);
-
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|string',
-            'password' => 'required|string|min:6',
-            'remember' => 'nullable|boolean',
-        ]);
-
-        if ($validator->fails()) {
-            Log::warning('Validation failed', [
-                'errors' => $validator->errors()->toArray()
-            ]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        $email = $request->email;
-        $password = $request->password;
-
-        Log::info('Validation passed, searching for user', [
-            'email' => $email
+            'method' => $request->method(),
+            'content_type' => $request->header('Content-Type'),
+            'session_id' => $request->session()->getId()
         ]);
 
         try {
-            // Cek apakah login sebagai Employee
-            Log::info('Checking employee table');
-            
-            $employee = DB::table('employee as e')
-                ->join('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
-                ->leftJoin('employee_address as ea', 'e.employee_id', '=', 'ea.employee_id')
-                ->join('role as r', 'e.role_id', '=', 'r.role_id')
-                ->where(function($query) use ($email) {
-                    $query->where('e.eci', $email)
-                          ->orWhere('ea.email_personal', $email)
-                          ->orWhere('ea.email_work', $email);
-                })
-                ->select(
-                    'e.employee_id',
-                    'e.eci',
-                    'e.password',
-                    'e.is_active',
-                    DB::raw("CONCAT(eb.first_name, ' ', COALESCE(eb.last_name, '')) as full_name"),
-                    'ea.email_personal as email',
-                    'ea.cell_phone as phone_number',
-                    'eb.position',
-                    'eb.employee_subgroup as department',
-                    'r.role_id',
-                    'r.name as role_name'
-                )
-                ->first();
-
-            Log::info('Employee query result', [
-                'found' => $employee ? 'yes' : 'no',
-                'employee_id' => $employee->employee_id ?? null
+            // Log raw input untuk debugging
+            Log::channel('daily')->debug('Raw request input', [
+                'request_id' => $requestId,
+                'all_input' => $request->all(),
+                'only_email' => $request->input('email'),
+                'has_password' => $request->has('password'),
+                'password_length' => strlen($request->input('password') ?? '')
             ]);
 
-            if ($employee) {
-                Log::info('Employee found, verifying password');
+            // Validasi input
+            $validator = Validator::make($request->all(), [
+                'email' => 'required|string',
+                'password' => 'required|string|min:6',
+                'remember' => 'nullable|boolean',
+            ]);
+
+            if ($validator->fails()) {
+                Log::channel('daily')->warning('Validation failed', [
+                    'request_id' => $requestId,
+                    'errors' => $validator->errors()->toArray(),
+                    'input_email' => $request->input('email')
+                ]);
                 
-                if (!Hash::check($password, $employee->password)) {
-                    Log::warning('Invalid password for employee', [
-                        'email' => $email,
-                        'employee_id' => $employee->employee_id
-                    ]);
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Email atau password salah'
-                    ], 401);
-                }
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation error',
+                    'errors' => $validator->errors(),
+                    'request_id' => $requestId
+                ], 422);
+            }
 
-                Log::info('Password verified for employee');
+            $email = trim($request->email);
+            $password = $request->password;
+            $remember = $request->boolean('remember');
 
-                if (!$employee->is_active) {
-                    Log::warning('Inactive employee tried to login', [
-                        'email' => $email,
-                        'employee_id' => $employee->employee_id
-                    ]);
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Akun Anda tidak aktif'
-                    ], 403);
-                }
+            Log::channel('daily')->info('Validation passed', [
+                'request_id' => $requestId,
+                'email' => $email,
+                'password_length' => strlen($password),
+                'remember' => $remember
+            ]);
 
-                $token = base64_encode($employee->eci . '|' . time() . '|employee');
+            // CEK EMPLOYEE
+            Log::channel('daily')->info('=== CHECKING EMPLOYEE TABLE ===', [
+                'request_id' => $requestId,
+                'search_email' => $email
+            ]);
 
-                Log::info('Employee login successful', [
-                    'employee_id' => $employee->employee_id,
-                    'email' => $employee->email,
-                    'token_generated' => substr($token, 0, 20) . '...'
+            try {
+                $employeeQuery = DB::table('employee as e')
+                    ->join('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
+                    ->leftJoin('employee_address as ea', 'e.employee_id', '=', 'ea.employee_id')
+                    ->leftJoin('employee_role as r', 'e.role_id', '=', 'r.id')
+                    ->where(function($query) use ($email) {
+                        $query->where('e.eci', $email)
+                              ->orWhere('ea.email_personal', $email)
+                              ->orWhere('ea.email_work', $email);
+                    })
+                    ->select(
+                        'e.employee_id',
+                        'e.eci',
+                        'e.password',
+                        'e.is_active',
+                        DB::raw("CONCAT(eb.first_name, ' ', COALESCE(eb.last_name, '')) as full_name"),
+                        'ea.email_personal as email',
+                        'ea.cell_phone as phone_number',
+                        'eb.position',
+                        'eb.employee_subgroup as department',
+                        'r.id as role_id',
+                        'r.name as role_name'
+                    );
+
+                // Log SQL query untuk debugging
+                $sql = $employeeQuery->toSql();
+                $bindings = $employeeQuery->getBindings();
+                
+                Log::channel('daily')->debug('Employee SQL Query', [
+                    'request_id' => $requestId,
+                    'sql' => $sql,
+                    'bindings' => $bindings
                 ]);
 
-                // PERBAIKAN: Simpan session dan regenerate
-                session([
-                    'auth_token' => $token,
-                    'user' => [
+                $employee = $employeeQuery->first();
+
+                Log::channel('daily')->info('Employee query executed', [
+                    'request_id' => $requestId,
+                    'employee_found' => $employee ? 'YES' : 'NO',
+                    'employee_id' => $employee->employee_id ?? null,
+                    'eci' => $employee->eci ?? null,
+                    'email_found' => $employee->email ?? null
+                ]);
+
+                if ($employee) {
+                    Log::channel('daily')->info('Employee record found', [
+                        'request_id' => $requestId,
+                        'employee_id' => $employee->employee_id,
+                        'eci' => $employee->eci,
+                        'full_name' => $employee->full_name,
+                        'email' => $employee->email,
+                        'is_active' => $employee->is_active,
+                        'role_name' => $employee->role_name,
+                        'password_hash_length' => strlen($employee->password ?? '')
+                    ]);
+
+                    // Verifikasi password
+                    Log::channel('daily')->info('Verifying employee password', [
+                        'request_id' => $requestId,
+                        'employee_id' => $employee->employee_id,
+                        'password_provided_length' => strlen($password),
+                        'password_hash_sample' => substr($employee->password, 0, 20) . '...'
+                    ]);
+
+                    $passwordValid = Hash::check($password, $employee->password);
+                    
+                    Log::channel('daily')->info('Password verification result', [
+                        'request_id' => $requestId,
+                        'employee_id' => $employee->employee_id,
+                        'password_valid' => $passwordValid ? 'YES' : 'NO'
+                    ]);
+
+                    if (!$passwordValid) {
+                        Log::channel('daily')->warning('Invalid password attempt for employee', [
+                            'request_id' => $requestId,
+                            'employee_id' => $employee->employee_id,
+                            'eci' => $employee->eci,
+                            'email' => $email,
+                            'ip_address' => $request->ip()
+                        ]);
+                        
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Email atau password salah',
+                            'request_id' => $requestId
+                        ], 401);
+                    }
+
+                    // Cek status aktif
+                    if (!$employee->is_active) {
+                        Log::channel('daily')->warning('Inactive employee login attempt', [
+                            'request_id' => $requestId,
+                            'employee_id' => $employee->employee_id,
+                            'eci' => $employee->eci,
+                            'email' => $email
+                        ]);
+                        
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Akun Anda tidak aktif',
+                            'request_id' => $requestId
+                        ], 403);
+                    }
+
+                    // Generate token
+                    $tokenData = $employee->eci . '|' . time() . '|employee';
+                    $token = base64_encode($tokenData);
+                    
+                    Log::channel('daily')->info('Token generated for employee', [
+                        'request_id' => $requestId,
+                        'employee_id' => $employee->employee_id,
+                        'token_data' => $tokenData,
+                        'token_preview' => substr($token, 0, 30) . '...'
+                    ]);
+
+                    // Prepare user data
+                    $userData = [
                         'id' => $employee->employee_id,
                         'type' => 'employee',
                         'eci' => $employee->eci,
@@ -150,115 +247,192 @@ class AuthController extends Controller
                             'id' => $employee->role_id,
                             'name' => $employee->role_name
                         ]
-                    ]
-                ]);
+                    ];
 
-                // PENTING: Regenerate session untuk security
-                $request->session()->regenerate();
+                    Log::channel('daily')->info('User data prepared', [
+                        'request_id' => $requestId,
+                        'user_data' => $userData
+                    ]);
+
+                    // Simpan ke session
+                    Log::channel('daily')->info('Saving session data', [
+                        'request_id' => $requestId,
+                        'session_id_before' => $request->session()->getId(),
+                        'has_existing_token' => $request->session()->has('auth_token')
+                    ]);
+
+                    $request->session()->put('auth_token', $token);
+                    $request->session()->put('user', $userData);
+                    
+                    // Regenerate session untuk security
+                    $request->session()->regenerate();
+                    
+                    // Save session explicitly
+                    $request->session()->save();
+                    
+                    $sessionIdAfter = $request->session()->getId();
+                    
+                    Log::channel('daily')->info('Session saved successfully', [
+                        'request_id' => $requestId,
+                        'session_id_before' => $sessionIdAfter,
+                        'session_id_after' => $sessionIdAfter,
+                        'has_token' => $request->session()->has('auth_token'),
+                        'user_in_session' => $request->session()->get('user')
+                    ]);
+
+                    Log::channel('daily')->info('=== EMPLOYEE LOGIN SUCCESSFUL ===', [
+                        'request_id' => $requestId,
+                        'employee_id' => $employee->employee_id,
+                        'eci' => $employee->eci,
+                        'email' => $employee->email,
+                        'ip_address' => $request->ip(),
+                        'timestamp' => now()->toDateTimeString()
+                    ]);
+
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Login berhasil',
+                        'data' => [
+                            'token' => $token,
+                            'user' => $userData
+                        ],
+                        'request_id' => $requestId
+                    ], 200);
+                }
+
+            } catch (Exception $e) {
+                Log::channel('daily')->error('Error checking employee table', [
+                    'request_id' => $requestId,
+                    'error_message' => $e->getMessage(),
+                    'error_file' => $e->getFile(),
+                    'error_line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
+                    'email' => $email
+                ]);
                 
-                // PENTING: Save session sebelum response
-                $request->session()->save();
-
-                Log::info('Session saved', [
-                    'session_id' => session()->getId(),
-                    'has_token' => session()->has('auth_token')
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Login berhasil',
-                    'data' => [
-                        'token' => $token,
-                        'user' => [
-                            'id' => $employee->employee_id,
-                            'type' => 'employee',
-                            'eci' => $employee->eci,
-                            'name' => $employee->full_name,
-                            'email' => $employee->email,
-                            'phone' => $employee->phone_number,
-                            'position' => $employee->position,
-                            'department' => $employee->department,
-                            'role' => [
-                                'id' => $employee->role_id,
-                                'name' => $employee->role_name
-                            ]
-                        ]
-                    ]
-                ], 200);
+                // Lanjutkan ke pengecekan customer
             }
 
-            // Cek apakah login sebagai Customer
-            // UPDATED: Tambah customer_code untuk login
-            Log::info('Employee not found, checking customer table');
-            
-            $customer = DB::table('customer as c')
-                ->join('customer_basic_data as cb', 'c.customer_id', '=', 'cb.customer_id')
-                ->join('role as r', 'c.role_id', '=', 'r.role_id')
-                ->where(function($query) use ($email) {
-                    $query->where('c.customer_code', $email)
-                          ->orWhere('c.email', $email);
-                })
-                ->select(
-                    'c.customer_id',
-                    'c.customer_code',
-                    'c.email',
-                    'c.password',
-                    'c.is_active',
-                    'cb.title',
-                    'cb.name_1',
-                    'cb.name_2',
-                    'cb.customer_category',
-                    'cb.customer_group',
-                    'r.role_id',
-                    'r.name as role_name'
-                )
-                ->first();
-
-            Log::info('Customer query result', [
-                'found' => $customer ? 'yes' : 'no',
-                'customer_id' => $customer->customer_id ?? null
+            // CEK CUSTOMER
+            Log::channel('daily')->info('=== CHECKING CUSTOMER TABLE ===', [
+                'request_id' => $requestId,
+                'search_email' => $email
             ]);
 
-            if ($customer) {
-                Log::info('Customer found, verifying password');
+            try {
+                $customerQuery = DB::table('customer as c')
+                    ->join('customer_basic_data as cb', 'c.customer_id', '=', 'cb.customer_id')
+                    ->where(function($query) use ($email) {
+                        $query->where('c.customer_code', $email)
+                              ->orWhere('c.email', $email);
+                    })
+                    ->select(
+                        'c.customer_id',
+                        'c.customer_code',
+                        'c.email',
+                        'c.password',
+                        'c.is_active',
+                        'cb.title',
+                        'cb.name_1',
+                        'cb.name_2',
+                        'cb.customer_category',
+                        'cb.customer_group'
+                    );
+
+                // Log SQL query
+                $sql = $customerQuery->toSql();
+                $bindings = $customerQuery->getBindings();
                 
-                if (!Hash::check($password, $customer->password)) {
-                    Log::warning('Invalid password for customer', [
-                        'email' => $email,
-                        'customer_id' => $customer->customer_id
-                    ]);
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Email atau password salah'
-                    ], 401);
-                }
-
-                Log::info('Password verified for customer');
-
-                if (!$customer->is_active) {
-                    Log::warning('Inactive customer tried to login', [
-                        'email' => $email,
-                        'customer_id' => $customer->customer_id
-                    ]);
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Akun Anda tidak aktif'
-                    ], 403);
-                }
-
-                $token = base64_encode($customer->customer_code . '|' . time() . '|customer');
-                $companyName = trim($customer->title . ' ' . $customer->name_1 . ' ' . ($customer->name_2 ?? ''));
-
-                Log::info('Customer login successful', [
-                    'customer_id' => $customer->customer_id,
-                    'customer_code' => $customer->customer_code,
-                    'email' => $customer->email,
-                    'token_generated' => substr($token, 0, 20) . '...'
+                Log::channel('daily')->debug('Customer SQL Query', [
+                    'request_id' => $requestId,
+                    'sql' => $sql,
+                    'bindings' => $bindings
                 ]);
 
-                session([
-                    'auth_token' => $token,
-                    'user' => [
+                $customer = $customerQuery->first();
+
+                Log::channel('daily')->info('Customer query executed', [
+                    'request_id' => $requestId,
+                    'customer_found' => $customer ? 'YES' : 'NO',
+                    'customer_id' => $customer->customer_id ?? null,
+                    'customer_code' => $customer->customer_code ?? null,
+                    'email_found' => $customer->email ?? null
+                ]);
+
+                if ($customer) {
+                    Log::channel('daily')->info('Customer record found', [
+                        'request_id' => $requestId,
+                        'customer_id' => $customer->customer_id,
+                        'customer_code' => $customer->customer_code,
+                        'email' => $customer->email,
+                        'is_active' => $customer->is_active,
+                        'role_name' => 'Customer',
+                        'password_hash_length' => strlen($customer->password ?? '')
+                    ]);
+
+                    // Verifikasi password
+                    Log::channel('daily')->info('Verifying customer password', [
+                        'request_id' => $requestId,
+                        'customer_id' => $customer->customer_id,
+                        'password_provided_length' => strlen($password),
+                        'password_hash_sample' => substr($customer->password, 0, 20) . '...'
+                    ]);
+
+                    $passwordValid = Hash::check($password, $customer->password);
+                    
+                    Log::channel('daily')->info('Password verification result', [
+                        'request_id' => $requestId,
+                        'customer_id' => $customer->customer_id,
+                        'password_valid' => $passwordValid ? 'YES' : 'NO'
+                    ]);
+
+                    if (!$passwordValid) {
+                        Log::channel('daily')->warning('Invalid password attempt for customer', [
+                            'request_id' => $requestId,
+                            'customer_id' => $customer->customer_id,
+                            'customer_code' => $customer->customer_code,
+                            'email' => $email,
+                            'ip_address' => $request->ip()
+                        ]);
+                        
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Email atau password salah',
+                            'request_id' => $requestId
+                        ], 401);
+                    }
+
+                    // Cek status aktif
+                    if (!$customer->is_active) {
+                        Log::channel('daily')->warning('Inactive customer login attempt', [
+                            'request_id' => $requestId,
+                            'customer_id' => $customer->customer_id,
+                            'customer_code' => $customer->customer_code,
+                            'email' => $email
+                        ]);
+                        
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Akun Anda tidak aktif',
+                            'request_id' => $requestId
+                        ], 403);
+                    }
+
+                    // Generate token
+                    $tokenData = $customer->customer_code . '|' . time() . '|customer';
+                    $token = base64_encode($tokenData);
+                    $companyName = trim($customer->title . ' ' . $customer->name_1 . ' ' . ($customer->name_2 ?? ''));
+                    
+                    Log::channel('daily')->info('Token generated for customer', [
+                        'request_id' => $requestId,
+                        'customer_id' => $customer->customer_id,
+                        'token_data' => $tokenData,
+                        'token_preview' => substr($token, 0, 30) . '...',
+                        'company_name' => $companyName
+                    ]);
+
+                    // Prepare user data
+                    $userData = [
                         'id' => $customer->customer_id,
                         'type' => 'customer',
                         'customer_code' => $customer->customer_code,
@@ -267,67 +441,115 @@ class AuthController extends Controller
                         'category' => $customer->customer_category,
                         'group' => $customer->customer_group,
                         'role' => [
-                            'id' => $customer->role_id,
-                            'name' => $customer->role_name
+                            'id' => 3,
+                            'name' => 'Customer'
                         ]
-                    ]
+                    ];
+
+                    Log::channel('daily')->info('User data prepared', [
+                        'request_id' => $requestId,
+                        'user_data' => $userData
+                    ]);
+
+                    // Simpan ke session
+                    Log::channel('daily')->info('Saving session data', [
+                        'request_id' => $requestId,
+                        'session_id_before' => $request->session()->getId(),
+                        'has_existing_token' => $request->session()->has('auth_token')
+                    ]);
+
+                    $request->session()->put('auth_token', $token);
+                    $request->session()->put('user', $userData);
+                    
+                    // Regenerate session
+                    $request->session()->regenerate();
+                    
+                    // Save session
+                    $request->session()->save();
+                    
+                    $sessionIdAfter = $request->session()->getId();
+                    
+                    Log::channel('daily')->info('Session saved successfully', [
+                        'request_id' => $requestId,
+                        'session_id_before' => $sessionIdAfter,
+                        'session_id_after' => $sessionIdAfter,
+                        'has_token' => $request->session()->has('auth_token'),
+                        'user_in_session' => $request->session()->get('user')
+                    ]);
+
+                    Log::channel('daily')->info('=== CUSTOMER LOGIN SUCCESSFUL ===', [
+                        'request_id' => $requestId,
+                        'customer_id' => $customer->customer_id,
+                        'customer_code' => $customer->customer_code,
+                        'email' => $customer->email,
+                        'ip_address' => $request->ip(),
+                        'timestamp' => now()->toDateTimeString()
+                    ]);
+
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Login berhasil',
+                        'data' => [
+                            'token' => $token,
+                            'user' => $userData
+                        ],
+                        'request_id' => $requestId
+                    ], 200);
+                }
+
+            } catch (Exception $e) {
+                Log::channel('daily')->error('Error checking customer table', [
+                    'request_id' => $requestId,
+                    'error_message' => $e->getMessage(),
+                    'error_file' => $e->getFile(),
+                    'error_line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
+                    'email' => $email
                 ]);
-
-                // PENTING: Regenerate dan save session
-                $request->session()->regenerate();
-                $request->session()->save();
-
-                Log::info('Session saved', [
-                    'session_id' => session()->getId(),
-                    'has_token' => session()->has('auth_token')
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Login berhasil',
-                    'data' => [
-                        'token' => $token,
-                        'user' => [
-                            'id' => $customer->customer_id,
-                            'type' => 'customer',
-                            'customer_code' => $customer->customer_code,
-                            'company_name' => $companyName,
-                            'email' => $customer->email,
-                            'category' => $customer->customer_category,
-                            'group' => $customer->customer_group,
-                            'role' => [
-                                'id' => $customer->role_id,
-                                'name' => $customer->role_name
-                            ]
-                        ]
-                    ]
-                ], 200);
+                
+                throw $e; // Re-throw untuk catch block utama
             }
 
-            Log::warning('User not found in both employee and customer tables', [
-                'email' => $email
+            // User tidak ditemukan di kedua tabel
+            Log::channel('daily')->warning('=== USER NOT FOUND ===', [
+                'request_id' => $requestId,
+                'email_searched' => $email,
+                'ip_address' => $request->ip(),
+                'timestamp' => now()->toDateTimeString()
             ]);
-            Log::info('=== LOGIN REQUEST END (USER NOT FOUND) ===');
-            
+
             return response()->json([
                 'success' => false,
-                'message' => 'Email atau password salah'
+                'message' => 'Email atau password salah',
+                'request_id' => $requestId
             ], 404);
 
-        } catch (\Exception $e) {
-            Log::error('=== LOGIN ERROR ===');
-            Log::error('Login exception occurred', [
+        } catch (Exception $e) {
+            Log::channel('daily')->error('=== CRITICAL LOGIN ERROR ===', [
+                'request_id' => $requestId,
+                'error_type' => get_class($e),
                 'error_message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
                 'error_file' => $e->getFile(),
                 'error_line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
+                'trace_summary' => substr($e->getTraceAsString(), 0, 500),
                 'email' => $email ?? 'N/A',
-                'ip' => $request->ip()
+                'ip_address' => $request->ip(),
+                'timestamp' => now()->toDateTimeString()
+            ]);
+
+            // Log tambahan untuk debugging
+            Log::channel('daily')->error('Exception details', [
+                'request_id' => $requestId,
+                'previous_exception' => $e->getPrevious() ? $e->getPrevious()->getMessage() : 'None',
+                'exception_trace' => $e->getTrace()
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan sistem. Silakan coba lagi.'
+                'message' => 'Terjadi kesalahan sistem. Silakan coba lagi.',
+                'request_id' => $requestId,
+                'error_reference' => substr($requestId, -8)
             ], 500);
         }
     }
@@ -337,35 +559,65 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
-        Log::info('=== LOGOUT REQUEST ===', [
+        $requestId = uniqid('logout_', true);
+        
+        Log::channel('daily')->info('=== LOGOUT REQUEST ===', [
+            'request_id' => $requestId,
+            'timestamp' => now()->toDateTimeString(),
             'method' => $request->method(),
-            'ip' => $request->ip(),
-            'has_session' => session()->has('auth_token'),
-            'user' => session('user'),
+            'ip_address' => $request->ip(),
+            'session_id' => $request->session()->getId(),
+            'has_token' => $request->session()->has('auth_token'),
+            'user_data' => $request->session()->get('user'),
             'full_url' => $request->fullUrl()
         ]);
 
-        // Jika GET request, redirect ke login
-        if ($request->isMethod('get')) {
-            Log::info('GET request to logout, redirecting to login');
-            return redirect()->route('login')->with('info', 'Please use logout button');
-        }
-        
-        // Proses logout untuk POST request
-        session()->flush();
-        session()->invalidate();
-        $request->session()->regenerateToken();
-        
-        Log::info('Session invalidated, logout successful');
-        
-        if ($request->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Logout berhasil'
-            ], 200);
-        }
+        try {
+            if ($request->isMethod('get')) {
+                Log::channel('daily')->info('GET request to logout, redirecting', [
+                    'request_id' => $requestId
+                ]);
+                return redirect()->route('login')->with('info', 'Please use logout button');
+            }
+            
+            // Proses logout
+            $userData = $request->session()->get('user');
+            
+            $request->session()->flush();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+            
+            Log::channel('daily')->info('=== LOGOUT SUCCESSFUL ===', [
+                'request_id' => $requestId,
+                'user_data' => $userData,
+                'ip_address' => $request->ip(),
+                'timestamp' => now()->toDateTimeString()
+            ]);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Logout berhasil',
+                    'request_id' => $requestId
+                ], 200);
+            }
 
-        return redirect()->route('login')->with('success', 'Anda telah logout');
+            return redirect()->route('login')->with('success', 'Anda telah logout');
+
+        } catch (Exception $e) {
+            Log::channel('daily')->error('Error during logout', [
+                'request_id' => $requestId,
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat logout',
+                'request_id' => $requestId
+            ], 500);
+        }
     }
 
     /**
@@ -373,56 +625,84 @@ class AuthController extends Controller
      */
     public function me(Request $request)
     {
-        Log::info('=== GET USER INFO REQUEST ===');
+        $requestId = uniqid('me_', true);
         
+        Log::channel('daily')->info('=== GET USER INFO REQUEST ===', [
+            'request_id' => $requestId,
+            'timestamp' => now()->toDateTimeString(),
+            'ip_address' => $request->ip(),
+            'session_id' => $request->session()->getId(),
+            'has_session_token' => $request->session()->has('auth_token')
+        ]);
+
         try {
             $token = $request->bearerToken();
             
-            Log::info('Checking bearer token', [
-                'has_token' => $token ? 'yes' : 'no',
-                'token_preview' => $token ? substr($token, 0, 20) . '...' : null
+            Log::channel('daily')->info('Bearer token check', [
+                'request_id' => $requestId,
+                'has_token' => $token ? 'YES' : 'NO',
+                'token_preview' => $token ? substr($token, 0, 30) . '...' : null
             ]);
             
             if (!$token) {
-                Log::warning('No bearer token found in request');
+                Log::channel('daily')->warning('No bearer token in request', [
+                    'request_id' => $requestId,
+                    'headers' => $request->headers->all()
+                ]);
+                
                 return response()->json([
                     'success' => false,
-                    'message' => 'Token tidak ditemukan'
+                    'message' => 'Token tidak ditemukan',
+                    'request_id' => $requestId
                 ], 401);
             }
 
             $decoded = base64_decode($token);
             $parts = explode('|', $decoded);
             
-            Log::info('Token decoded', [
+            Log::channel('daily')->info('Token decoded', [
+                'request_id' => $requestId,
+                'decoded_raw' => $decoded,
                 'parts_count' => count($parts),
-                'identifier' => $parts[0] ?? 'N/A',
-                'type' => $parts[2] ?? 'N/A'
+                'parts' => $parts
             ]);
             
             if (count($parts) < 3) {
-                Log::warning('Invalid token format', [
-                    'parts_count' => count($parts)
+                Log::channel('daily')->warning('Invalid token format', [
+                    'request_id' => $requestId,
+                    'parts_count' => count($parts),
+                    'decoded_value' => $decoded
                 ]);
+                
                 return response()->json([
                     'success' => false,
-                    'message' => 'Token tidak valid'
+                    'message' => 'Token tidak valid',
+                    'request_id' => $requestId
                 ], 401);
             }
 
             $identifier = $parts[0];
+            $timestamp = $parts[1];
             $type = $parts[2];
 
-            Log::info('Fetching user data', [
+            Log::channel('daily')->info('Token parsed successfully', [
+                'request_id' => $requestId,
                 'identifier' => $identifier,
-                'type' => $type
+                'timestamp' => $timestamp,
+                'type' => $type,
+                'age_seconds' => time() - $timestamp
             ]);
 
             if ($type === 'employee') {
+                Log::channel('daily')->info('Fetching employee data', [
+                    'request_id' => $requestId,
+                    'eci' => $identifier
+                ]);
+
                 $employee = DB::table('employee as e')
                     ->join('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
                     ->leftJoin('employee_address as ea', 'e.employee_id', '=', 'ea.employee_id')
-                    ->join('role as r', 'e.role_id', '=', 'r.role_id')
+                    ->leftJoin('employee_role as r', 'e.role_id', '=', 'r.id')
                     ->where('e.eci', $identifier)
                     ->select(
                         'e.employee_id',
@@ -433,50 +713,64 @@ class AuthController extends Controller
                         'ea.cell_phone as phone_number',
                         'eb.position',
                         'eb.employee_subgroup as department',
-                        'r.role_id',
+                        'r.id as role_id',
                         'r.name as role_name'
                     )
                     ->first();
 
-                Log::info('Employee lookup result', [
-                    'found' => $employee ? 'yes' : 'no',
+                Log::channel('daily')->info('Employee lookup result', [
+                    'request_id' => $requestId,
+                    'found' => $employee ? 'YES' : 'NO',
                     'employee_id' => $employee->employee_id ?? null
                 ]);
 
                 if (!$employee) {
-                    Log::warning('Employee not found', [
+                    Log::channel('daily')->warning('Employee not found', [
+                        'request_id' => $requestId,
                         'identifier' => $identifier
                     ]);
+                    
                     return response()->json([
                         'success' => false,
-                        'message' => 'User tidak ditemukan'
+                        'message' => 'User tidak ditemukan',
+                        'request_id' => $requestId
                     ], 404);
                 }
 
-                Log::info('Employee data retrieved successfully');
+                $responseData = [
+                    'id' => $employee->employee_id,
+                    'type' => 'employee',
+                    'eci' => $employee->eci,
+                    'name' => $employee->full_name,
+                    'email' => $employee->email,
+                    'phone' => $employee->phone_number,
+                    'position' => $employee->position,
+                    'department' => $employee->department,
+                    'role' => [
+                        'id' => $employee->role_id,
+                        'name' => $employee->role_name
+                    ]
+                ];
+
+                Log::channel('daily')->info('Employee data retrieved successfully', [
+                    'request_id' => $requestId,
+                    'employee_id' => $employee->employee_id
+                ]);
 
                 return response()->json([
                     'success' => true,
-                    'data' => [
-                        'id' => $employee->employee_id,
-                        'type' => 'employee',
-                        'eci' => $employee->eci,
-                        'name' => $employee->full_name,
-                        'email' => $employee->email,
-                        'phone' => $employee->phone_number,
-                        'position' => $employee->position,
-                        'department' => $employee->department,
-                        'role' => [
-                            'id' => $employee->role_id,
-                            'name' => $employee->role_name
-                        ]
-                    ]
+                    'data' => $responseData,
+                    'request_id' => $requestId
                 ], 200);
+                
             } else {
-                // UPDATED: Gunakan customer_code untuk identifier
+                Log::channel('daily')->info('Fetching customer data', [
+                    'request_id' => $requestId,
+                    'customer_code' => $identifier
+                ]);
+
                 $customer = DB::table('customer as c')
                     ->join('customer_basic_data as cb', 'c.customer_id', '=', 'cb.customer_id')
-                    ->join('role as r', 'c.role_id', '=', 'r.role_id')
                     ->where('c.customer_code', $identifier)
                     ->select(
                         'c.customer_id',
@@ -487,61 +781,72 @@ class AuthController extends Controller
                         'cb.name_1',
                         'cb.name_2',
                         'cb.customer_category',
-                        'cb.customer_group',
-                        'r.role_id',
-                        'r.name as role_name'
+                        'cb.customer_group'
                     )
                     ->first();
 
-                Log::info('Customer lookup result', [
-                    'found' => $customer ? 'yes' : 'no',
+                Log::channel('daily')->info('Customer lookup result', [
+                    'request_id' => $requestId,
+                    'found' => $customer ? 'YES' : 'NO',
                     'customer_id' => $customer->customer_id ?? null
                 ]);
 
                 if (!$customer) {
-                    Log::warning('Customer not found', [
+                    Log::channel('daily')->warning('Customer not found', [
+                        'request_id' => $requestId,
                         'identifier' => $identifier
                     ]);
+                    
                     return response()->json([
                         'success' => false,
-                        'message' => 'User tidak ditemukan'
+                        'message' => 'User tidak ditemukan',
+                        'request_id' => $requestId
                     ], 404);
                 }
 
                 $companyName = trim($customer->title . ' ' . $customer->name_1 . ' ' . ($customer->name_2 ?? ''));
+                
+                $responseData = [
+                    'id' => $customer->customer_id,
+                    'type' => 'customer',
+                    'customer_code' => $customer->customer_code,
+                    'company_name' => $companyName,
+                    'email' => $customer->email,
+                    'category' => $customer->customer_category,
+                    'group' => $customer->customer_group,
+                    'role' => [
+                        'id' => 3,
+                        'name' => 'Customer'
+                    ]
+                ];
 
-                Log::info('Customer data retrieved successfully');
+                Log::channel('daily')->info('Customer data retrieved successfully', [
+                    'request_id' => $requestId,
+                    'customer_id' => $customer->customer_id
+                ]);
 
                 return response()->json([
                     'success' => true,
-                    'data' => [
-                        'id' => $customer->customer_id,
-                        'type' => 'customer',
-                        'customer_code' => $customer->customer_code,
-                        'company_name' => $companyName,
-                        'email' => $customer->email,
-                        'category' => $customer->customer_category,
-                        'group' => $customer->customer_group,
-                        'role' => [
-                            'id' => $customer->role_id,
-                            'name' => $customer->role_name
-                        ]
-                    ]
+                    'data' => $responseData,
+                    'request_id' => $requestId
                 ], 200);
             }
 
-        } catch (\Exception $e) {
-            Log::error('=== GET USER INFO ERROR ===');
-            Log::error('Exception in me() method', [
+        } catch (Exception $e) {
+            Log::channel('daily')->error('=== ERROR IN ME METHOD ===', [
+                'request_id' => $requestId,
+                'error_type' => get_class($e),
                 'error_message' => $e->getMessage(),
                 'error_file' => $e->getFile(),
                 'error_line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
+                'trace_summary' => substr($e->getTraceAsString(), 0, 500),
+                'timestamp' => now()->toDateTimeString()
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan'
+                'message' => 'Terjadi kesalahan',
+                'request_id' => $requestId
             ], 500);
         }
     }

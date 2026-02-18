@@ -9,7 +9,7 @@ class TicketAccount extends Model
 {
     use HasFactory;
 
-    protected $table = 'ticket_accounts';
+    protected $table = 'ticket_account';
 
     protected $fillable = [
         'ticket_id',

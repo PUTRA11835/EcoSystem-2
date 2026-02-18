@@ -38,7 +38,17 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('delivery_project_activity_id');
             $table->unsignedBigInteger('employee_id');
-            // Assignment details
+
+            $table->foreign('delivery_project_activity_id')
+                ->references('id')
+                ->on('delivery_project_activities')
+                ->onDelete('cascade');
+
+            $table->foreign('employee_id')
+                ->references('employee_id')
+                ->on('employee')
+                ->onDelete('cascade');
+
             $table->enum('role', ['lead', 'member', 'reviewer', 'support'])->default('member');
             $table->decimal('allocation_percentage', 5, 2)->default(100);
             $table->boolean('is_active')->default(true);
@@ -47,7 +57,6 @@ return new class extends Migration
 
             $table->timestamps();
 
-            // Unique constraint
             $table->unique(['delivery_project_activity_id', 'employee_id'], 'unique_activity_employee');
             $table->index(['employee_id', 'is_active'], 'idx_employee_assignments');
         });

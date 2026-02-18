@@ -9,7 +9,7 @@ class TicketAttachment extends Model
 {
     use HasFactory;
 
-    protected $table = 'ticket_attachments';
+    protected $table = 'ticket_attachment';
 
     protected $fillable = [
         'ticket_id',

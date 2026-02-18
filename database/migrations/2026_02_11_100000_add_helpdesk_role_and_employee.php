@@ -15,17 +15,17 @@ return new class extends Migration
     public function up(): void
     {
         // 1. Add Helpdesk role if not exists
-        $helpdeskRole = DB::table('role')->where('name', 'Helpdesk')->first();
+        $helpdeskRole = DB::table('employee_role')->where('name', 'Helpdesk')->first();
 
         if (!$helpdeskRole) {
-            $roleId = DB::table('role')->insertGetId([
+            $roleId = DB::table('employee_role')->insertGetId([
                 'name' => 'Helpdesk',
                 'description' => 'Staff helpdesk yang menangani dan mengassign ticket ke delivery support',
                 'created_at' => Carbon::now(),
                 'updated_at' => Carbon::now(),
             ]);
         } else {
-            $roleId = $helpdeskRole->role_id;
+            $roleId = $helpdeskRole->id;
         }
 
         // 2. Add Helpdesk employee if not exists
@@ -125,6 +125,6 @@ return new class extends Migration
         }
 
         // Optionally remove helpdesk role
-        // DB::table('role')->where('name', 'Helpdesk')->delete();
+        // DB::table('employee_role')->where('name', 'Helpdesk')->delete();
     }
 };

@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('employee_basic_data', function (Blueprint $table) {
             $table->id('basic_data_id');
-            $table->foreignId('employee_id')->unique()->onDelete('cascade');
+            $table->foreignId('employee_id')->unique()->constrained('employee', 'employee_id')->onDelete('cascade');
 
             // 🧍 IDENTITAS PRIBADI
             $table->string('title')->nullable(); // Mr, Mrs, dll

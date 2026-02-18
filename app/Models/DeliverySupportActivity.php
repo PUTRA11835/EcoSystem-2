@@ -14,6 +14,7 @@ class DeliverySupportActivity extends Model
     protected $fillable = [
         'delivery_support_id',
         'delivery_support_phase_id',
+        'ticket_id',
         'stage_id',
         'name',
         'description',
@@ -57,6 +58,11 @@ class DeliverySupportActivity extends Model
     public function stage()
     {
         return $this->belongsTo(DeliverySupportActivityStage::class, 'stage_id');
+    }
+
+    public function ticket()
+    {
+        return $this->belongsTo(Ticket::class, 'ticket_id', 'ticket_id');
     }
 
     public function stages()

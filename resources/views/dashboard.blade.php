@@ -236,6 +236,9 @@
             </div>
 
             <!-- Navigation Menu -->
+            @hasSection('sidebar-nav')
+                @yield('sidebar-nav')
+            @else
             <nav class="py-6 px-4">
                 <!-- HOME - Visible to all roles -->
                 <div class="mb-2">
@@ -410,6 +413,7 @@
                     </a>
                 </div>
             </nav>
+            @endif
         </aside>
 
         <!-- Main Content -->

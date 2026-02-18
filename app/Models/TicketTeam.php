@@ -9,7 +9,7 @@ class TicketTeam extends Model
 {
     use HasFactory;
 
-    protected $table = 'ticket_teams';
+    protected $table = 'ticket_team';
 
     protected $fillable = [
         'ticket_id',

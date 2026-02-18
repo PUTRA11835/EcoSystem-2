@@ -247,7 +247,6 @@ class CustomerController extends Controller
             $customerData = [
                 'email' => $request->email,
                 'password' => $request->password, // Will be hashed by model mutator
-                'role_id' => $request->role ?? 3, // Default customer role
                 'is_active' => 1,
             ];
 

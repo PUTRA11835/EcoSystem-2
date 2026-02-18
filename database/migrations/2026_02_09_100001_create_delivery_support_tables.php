@@ -25,16 +25,6 @@ return new class extends Migration
     public function up(): void
     {
         // ====================================================================
-        // 1. DELIVERY LIST TABLE (Base table for both project and support)
-        // ====================================================================
-        if (!Schema::hasTable('delivery_list')) {
-            Schema::create('delivery_list', function (Blueprint $table) {
-                $table->id();
-                $table->timestamps();
-            });
-        }
-
-        // ====================================================================
         // 2. DELIVERY SUPPORT TABLE
         // ====================================================================
         if (!Schema::hasTable('delivery_support')) {
@@ -57,8 +47,16 @@ return new class extends Migration
                 $table->string('approval_name')->nullable();
                 $table->timestamps();
 
+                $table->foreign('id_delivery_list')->references('id')->on('delivery_list')->onDelete('set null');
+                $table->foreign('client_id')->references('customer_id')->on('customer')->onDelete('set null');
+                $table->foreign('ticket_id')->references('ticket_id')->on('ticket')->onDelete('set null');
+                $table->foreign('delivery_owner_id')->references('employee_id')->on('employee')->onDelete('set null');
+                $table->foreign('support_manager_id')->references('employee_id')->on('employee')->onDelete('set null');
+                $table->foreign('created_by_id')->references('employee_id')->on('employee')->onDelete('set null');
+
                 $table->index('client_id');
                 $table->index('ticket_id');
+                $table->index('id_delivery_list');
             });
         }
 

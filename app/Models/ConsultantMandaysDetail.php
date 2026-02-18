@@ -9,7 +9,7 @@ class ConsultantMandaysDetail extends Model
 {
     use HasFactory;
 
-    protected $table = 'consultant_mandays_details';
+    protected $table = 'consultant_mandays_detail';
 
     protected $fillable = [
         'consultant_mandays_id',

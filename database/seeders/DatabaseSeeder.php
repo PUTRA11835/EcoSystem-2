@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             CustomerSeeder::class,
 
             DeliveryProjectSeeder::class,
+            DbmlMissingTablesSeeder::class,
         ]);
     }
 }

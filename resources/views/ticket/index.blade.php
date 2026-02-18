@@ -164,8 +164,28 @@
             </div>
             <form id="createTicketForm" onsubmit="submitCreateTicket(event)" class="p-6 space-y-4">
                 <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Customer ID</label>
-                    <input type="number" id="newCustomerId" required class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" placeholder="Enter customer ID">
+                    <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Customer</label>
+                    <div class="relative">
+                        <input type="text" id="customerSearch"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                            placeholder="Search customer..."
+                            autocomplete="off"
+                            onfocus="showCustomerDropdown()"
+                            oninput="filterCustomers()">
+                        <input type="hidden" id="newCustomerId" required>
+                        <div id="customerDropdown" class="hidden absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                            @foreach($customers as $customer)
+                                <div class="customer-option px-4 py-3 hover:bg-gray-100 cursor-pointer text-sm border-b border-gray-100 last:border-0"
+                                     data-id="{{ $customer['customer_id'] }}"
+                                     data-name="{{ $customer['name'] }}"
+                                     data-code="{{ $customer['customer_code'] }}"
+                                     onclick="selectCustomer(this)">
+                                    <div class="font-medium text-gray-900">{{ $customer['name'] }}</div>
+                                    <div class="text-xs text-gray-500">{{ $customer['customer_code'] }}</div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Description</label>
@@ -500,7 +520,15 @@
 
     // ==================== ADMIN: CREATE TICKET ====================
     function openCreateTicketModal() { document.getElementById('createTicketModal').classList.remove('hidden'); }
-    function closeCreateTicketModal() { document.getElementById('createTicketModal').classList.add('hidden'); document.getElementById('createTicketForm').reset(); }
+    function closeCreateTicketModal() {
+        document.getElementById('createTicketModal').classList.add('hidden');
+        document.getElementById('createTicketForm').reset();
+        document.getElementById('customerSearch').value = '';
+        document.getElementById('newCustomerId').value = '';
+        // Reset dropdown options visibility
+        const options = document.querySelectorAll('.customer-option');
+        options.forEach(opt => opt.classList.remove('hidden'));
+    }
 
     async function submitCreateTicket(e) {
         e.preventDefault();
@@ -535,6 +563,66 @@
         }
     });
     document.getElementById('createTicketModal')?.addEventListener('click', function(e) { if (e.target === this) closeCreateTicketModal(); });
+
+    // ==================== CUSTOMER SEARCHABLE DROPDOWN ====================
+    function showCustomerDropdown() {
+        const dropdown = document.getElementById('customerDropdown');
+        if (dropdown) {
+            dropdown.classList.remove('hidden');
+            filterCustomers();
+        }
+    }
+
+    function hideCustomerDropdown() {
+        const dropdown = document.getElementById('customerDropdown');
+        if (dropdown) {
+            setTimeout(() => dropdown.classList.add('hidden'), 200);
+        }
+    }
+
+    function filterCustomers() {
+        const searchInput = document.getElementById('customerSearch');
+        const dropdown = document.getElementById('customerDropdown');
+        if (!searchInput || !dropdown) return;
+
+        const searchTerm = searchInput.value.toLowerCase();
+        const options = dropdown.querySelectorAll('.customer-option');
+        let hasVisible = false;
+
+        options.forEach(option => {
+            const name = option.dataset.name.toLowerCase();
+            const code = option.dataset.code.toLowerCase();
+            if (name.includes(searchTerm) || code.includes(searchTerm)) {
+                option.classList.remove('hidden');
+                hasVisible = true;
+            } else {
+                option.classList.add('hidden');
+            }
+        });
+
+        if (!hasVisible) {
+            dropdown.innerHTML = '<div class="px-4 py-3 text-sm text-gray-500">No customers found</div>';
+        }
+    }
+
+    function selectCustomer(element) {
+        const customerId = element.dataset.id;
+        const customerName = element.dataset.name;
+        const customerCode = element.dataset.code;
+
+        document.getElementById('newCustomerId').value = customerId;
+        document.getElementById('customerSearch').value = `${customerName} (${customerCode})`;
+        document.getElementById('customerDropdown').classList.add('hidden');
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        const searchInput = document.getElementById('customerSearch');
+        const dropdown = document.getElementById('customerDropdown');
+        if (searchInput && dropdown && !searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.add('hidden');
+        }
+    });
 </script>
 
 @endsection

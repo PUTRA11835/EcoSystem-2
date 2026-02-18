@@ -25,7 +25,6 @@ class Customer extends Authenticatable
      */
     protected $fillable = [
         'customer_code',
-        'role_id',
         'email',
         'password',
         'is_active',
@@ -52,14 +51,8 @@ class Customer extends Authenticatable
     // ==================== AUTHENTICATION RELATIONSHIPS ====================
 
     /**
-     * Get the role for the customer
-     * 
-     * @return BelongsTo
+     * Customer has no role in the new schema.
      */
-    public function role(): BelongsTo
-    {
-        return $this->belongsTo(Role::class, 'role_id', 'role_id');
-    }
 
     /**
      * Get login activities for the customer
@@ -522,7 +515,7 @@ class Customer extends Authenticatable
             'customer_code' => $this->customer_code,
             'name' => $this->display_name,
             'email' => $this->email,
-            'role' => $this->role->name ?? 'Customer',
+            'role' => 'Customer',
             'status' => $this->status_label,
             'can_login' => $this->canLogin(),
             'has_contact' => $this->hasContact(),
@@ -544,7 +537,6 @@ class Customer extends Authenticatable
     public static function getWithAllRelations(int $customerId): ?Customer
     {
         return self::with([
-            'role',
             'basicData',
             'addresses',
             'contact',
@@ -577,7 +569,6 @@ class Customer extends Authenticatable
                 'customer_code' => $customerCode,
                 'email' => $customerData['email'],
                 'password' => $customerData['password'], // Will be hashed by mutator
-                'role_id' => $customerData['role_id'] ?? 3, // Default customer role
                 'is_active' => $customerData['is_active'] ?? true,
             ]);
 
@@ -587,7 +578,7 @@ class Customer extends Authenticatable
             // Log creation
             $customer->logActivity('create', 'Customer created', 'customer');
 
-            return $customer->fresh(['basicData', 'role']);
+            return $customer->fresh(['basicData']);
         });
     }
 
@@ -692,7 +683,7 @@ class Customer extends Authenticatable
      */
     public static function getPaginated(int $perPage = 15, array $filters = [])
     {
-        $query = self::with(['basicData', 'role']);
+        $query = self::with(['basicData']);
 
         // Apply filters
         if (!empty($filters['search'])) {
@@ -701,10 +692,6 @@ class Customer extends Authenticatable
 
         if (isset($filters['is_active'])) {
             $query->where('is_active', $filters['is_active']);
-        }
-
-        if (!empty($filters['role_id'])) {
-            $query->where('role_id', $filters['role_id']);
         }
 
         if (!empty($filters['customer_group'])) {

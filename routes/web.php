@@ -30,6 +30,12 @@ Route::get('/sanctum/csrf-cookie', function () {
     return response()->json(['message' => 'CSRF cookie set']);
 });
 
+Route::prefix('api/auth')->group(function () {
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/me', [AuthController::class, 'me']);
+});
+
 // Login page
 Route::get('/auth/login', [AuthController::class, 'showLogin'])->name('login');
 

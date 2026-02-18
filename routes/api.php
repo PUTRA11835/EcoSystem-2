@@ -243,6 +243,12 @@ Route::middleware(['web'])->group(function () {
         // Assign ticket to delivery support
         Route::get('/{id}/available-supports', [TicketController::class, 'getAvailableSupports']);
         Route::post('/{id}/assign-to-support', [TicketController::class, 'assignToSupport']);
+        Route::post('/{id}/create-delivery-support', [TicketController::class, 'createDeliverySupport']);
+    });
+
+    // ==================== DELIVERY SUPPORT API ROUTES ====================
+    Route::prefix('delivery/support')->group(function () {
+        Route::get('/search', [\App\Http\Controllers\Delivery\DeliverySupportController::class, 'search']);
     });
 
     // ==================== CALENDAR/EVENT ROUTES ====================
@@ -274,7 +280,9 @@ Route::middleware(['web'])->group(function () {
 });
 
 // ==================== EXTERNAL TICKET API ====================
-Route::post('/external/tickets', [TicketController::class, 'storeExternal']);
+Route::get('/external/tickets', [TicketController::class, 'externalIndex']);
+Route::get('/external/tickets/create', [TicketController::class, 'storeExternalQuery']);
+Route::get('/external/tickets/{data}', [TicketController::class, 'storeExternal']);
 
 // ==================== TEST ROUTE ====================
 Route::get('/test', function () {

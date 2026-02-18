@@ -117,11 +117,8 @@ class DeliverySupportController extends Controller
     {
         $clients = Customer::with('basicData')->get();
         $employees = Employee::with('basicData')->where('is_active', true)->get();
-        $tickets = Ticket::whereDoesntHave('deliverySupport')
-            ->where('status', '!=', 'closed')
-            ->get();
 
-        return view('delivery.support.list.create', compact('clients', 'employees', 'tickets'));
+        return view('delivery.support.list.create', compact('clients', 'employees'));
     }
 
     /**
@@ -132,7 +129,6 @@ class DeliverySupportController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'client_id' => 'required|exists:customer,customer_id',
-            'ticket_id' => 'nullable|exists:ticket,ticket_id|unique:delivery_support,ticket_id',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'resolution_estimated' => 'nullable|date',
@@ -153,7 +149,6 @@ class DeliverySupportController extends Controller
             $support = DeliverySupport::create([
                 'id_delivery_list' => $deliveryList->id,
                 'client_id' => $validated['client_id'],
-                'ticket_id' => $validated['ticket_id'] ?? null,
                 'name' => $validated['name'],
                 'start_date' => $validated['start_date'] ?? null,
                 'end_date' => $validated['end_date'] ?? null,
@@ -175,14 +170,6 @@ class DeliverySupportController extends Controller
 
             // Create default phases (Support phase + Incident group)
             $this->createDefaultPhases($support);
-
-            // If ticket is linked, automatically create activity from ticket
-            if (!empty($validated['ticket_id'])) {
-                $ticket = Ticket::find($validated['ticket_id']);
-                if ($ticket) {
-                    $this->createActivityFromTicket($support, $ticket);
-                }
-            }
 
             DB::commit();
 
@@ -480,6 +467,7 @@ class DeliverySupportController extends Controller
         $activity = DeliverySupportActivity::create([
             'delivery_support_id' => $support->id,
             'delivery_support_phase_id' => $phase->id,
+            'ticket_id' => $ticket->ticket_id, // Link activity to source ticket
             'stage_id' => null, // No stage - activity directly under group
             'name' => $ticket->description ?? "Ticket #{$ticket->ticket_id}",
             'description' => $ticket->description,
@@ -520,7 +508,7 @@ class DeliverySupportController extends Controller
         // Assign ticket PIC to activity if exists
         if ($ticket->employee_id) {
             $activity->employees()->attach($ticket->employee_id, [
-                'role' => 'assignee',
+                'role' => 'lead',
                 'allocation_percentage' => 100,
                 'is_active' => true,
                 'assigned_date' => now(),
@@ -616,6 +604,99 @@ class DeliverySupportController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to assign ticket: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Search delivery supports for dropdown/autocomplete
+     */
+    public function search(Request $request)
+    {
+        try {
+            $query = DeliverySupport::with(['client.basicData']);
+
+            // Filter by client if provided
+            if ($request->filled('client_id')) {
+                $query->where('client_id', $request->client_id);
+            }
+
+            // Search by name
+            if ($request->filled('q')) {
+                $search = $request->q;
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhereHas('client', function ($cq) use ($search) {
+                            $cq->whereHas('basicData', function ($bq) use ($search) {
+                                $bq->where('name_1', 'like', "%{$search}%");
+                            });
+                        });
+                });
+            }
+
+            $supports = $query->orderBy('created_at', 'desc')
+                ->limit(50)
+                ->get()
+                ->map(function ($support) {
+                    return [
+                        'id' => $support->id,
+                        'name' => $support->name,
+                        'client_id' => $support->client_id,
+                        'client_name' => $support->client?->basicData?->name_1 ?? 'Unknown',
+                        'progress' => $support->calculated_progress,
+                        'created_at' => $support->created_at?->format('Y-m-d'),
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => $supports
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error searching delivery supports', [
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to search delivery supports'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get statistics for delivery supports
+     */
+    public function getStatistics(Request $request)
+    {
+        try {
+            $query = DeliverySupport::query();
+
+            if ($request->filled('client_id')) {
+                $query->where('client_id', $request->client_id);
+            }
+
+            $total = $query->count();
+            $completed = (clone $query)->where('calculated_progress', '>=', 100)->count();
+            $inProgress = (clone $query)->where('calculated_progress', '>', 0)
+                ->where('calculated_progress', '<', 100)->count();
+            $notStarted = (clone $query)->where('calculated_progress', 0)->count();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total' => $total,
+                    'completed' => $completed,
+                    'in_progress' => $inProgress,
+                    'not_started' => $notStarted,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get statistics'
             ], 500);
         }
     }

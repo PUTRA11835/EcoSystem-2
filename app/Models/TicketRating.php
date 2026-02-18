@@ -9,7 +9,7 @@ class TicketRating extends Model
 {
     use HasFactory;
 
-    protected $table = 'ticket_ratings';
+    protected $table = 'ticket_rating';
 
     public $timestamps = false;
 

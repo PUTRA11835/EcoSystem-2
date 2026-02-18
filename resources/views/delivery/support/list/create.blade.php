@@ -90,35 +90,21 @@
                             @enderror
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label for="client_id" class="block text-sm font-medium text-gray-700 mb-1">
-                                    Client <span class="text-red-500">*</span>
-                                </label>
-                                <select name="client_id" id="client_id" required
-                                        class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
-                                    <option value="">Select Client</option>
-                                    @foreach($clients ?? [] as $client)
-                                        <option value="{{ $client->customer_id }}">{{ $client->basicData->name_1 ?? 'N/A' }}</option>
-                                    @endforeach
-                                </select>
-                                @error('client_id')
-                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                @enderror
-                            </div>
-
-                            <div>
-                                <label for="ticket_id" class="block text-sm font-medium text-gray-700 mb-1">
-                                    Linked Ticket
-                                </label>
-                                <select name="ticket_id" id="ticket_id"
-                                        class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
-                                    <option value="">No ticket linked</option>
-                                    @foreach($tickets ?? [] as $ticket)
-                                        <option value="{{ $ticket->ticket_id }}">#{{ $ticket->ticket_id }} - {{ $ticket->description ?? 'No description' }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
+                        <div>
+                            <label for="client_id" class="block text-sm font-medium text-gray-700 mb-1">
+                                Client <span class="text-red-500">*</span>
+                            </label>
+                            <select name="client_id" id="client_id" required
+                                    class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                <option value="">Select Client</option>
+                                @foreach($clients ?? [] as $client)
+                                    <option value="{{ $client->customer_id }}">{{ $client->basicData->name_1 ?? 'N/A' }}</option>
+                                @endforeach
+                            </select>
+                            @error('client_id')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                            <p class="mt-1 text-xs text-gray-500">Tickets can be assigned to this delivery support from the ticket page</p>
                         </div>
 
                         <div>
