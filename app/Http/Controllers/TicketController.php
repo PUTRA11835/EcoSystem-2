@@ -134,7 +134,6 @@ class TicketController extends Controller
                     'ticket_priority' => $ticket->ticket_priority,
                     'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
-                    'type' => $ticket->type,
                     'folder' => $ticket->folder,
                     'file_log' => $ticket->file_log,
                     'start_date' => $ticket->start_date,
@@ -209,7 +208,6 @@ class TicketController extends Controller
                 'description' => 'required|string',
                 'ticket_priority' => 'required|in:Low,Medium,High',
                 'customer_id' => 'required|exists:customer,customer_id',
-                'type' => 'nullable|in:AMS,MO,ATS,Project,Internal'
             ]);
 
             $validated['status'] = 'open';
@@ -260,7 +258,6 @@ class TicketController extends Controller
             'customer_id' => 'required_without_all:customer_code,external_number|exists:customer,customer_id',
             'customer_code' => 'required_without_all:customer_id,external_number|exists:customer,customer_code',
             'external_number' => 'nullable|customer_id,customer_code|exists:customer_basic_data,external_number',
-            'type' => 'nullable|in:AMS,MO,ATS,Project,Internal'
         ]);
 
         if ($validator->fails()) {
@@ -297,7 +294,6 @@ class TicketController extends Controller
                 'customer_id' => $customerId,
                 'description' => $payload['description'] ?? null,
                 'ticket_priority' => null,
-                'type' => $payload['type'] ?? null,
                 'status' => 'open',
                 'jarvies_status' => 'in process',
             ];
@@ -341,7 +337,6 @@ class TicketController extends Controller
                     'ticket_priority',
                     'jarvies_status',
                     'status',
-                    'type',
                     'start_date',
                     'end_date',
                     'man_days',
@@ -503,7 +498,6 @@ class TicketController extends Controller
                     'ticket_priority' => $ticket->ticket_priority,
                     'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
-                    'type' => $ticket->type,
                     'folder' => $ticket->folder,
                     'file_log' => $ticket->file_log,
                     'start_date' => $ticket->start_date,
@@ -1000,7 +994,6 @@ class TicketController extends Controller
                 'description' => $ticket->description,
                 'ticket_priority' => $ticket->ticket_priority,
                 'jarvies_status' => $ticket->jarvies_status,
-                'type' => $ticket->type,
                 'folder' => $ticket->folder,
                 'file_log' => $ticket->file_log,
                 'start_date' => $ticket->start_date,
@@ -1058,7 +1051,6 @@ class TicketController extends Controller
         $validator = Validator::make($request->all(), [
             'jarvies_status' => 'sometimes|string|in:in process,author action,proposed solution,closed,sent in to SAP,sent it to support',
             'ticket_priority' => 'sometimes|string|in:Low,Medium,High',
-            'type' => 'sometimes|nullable|string|in:AMS,MO,ATS,Project,Internal',
             'employee_id' => 'sometimes|nullable|exists:employee,employee_id',
             'man_days' => 'sometimes|nullable|numeric|min:0|max:9999.99',
         ]);
@@ -1082,9 +1074,6 @@ class TicketController extends Controller
             }
             if ($request->has('ticket_priority')) {
                 $updateData['ticket_priority'] = $request->ticket_priority;
-            }
-            if ($request->has('type')) {
-                $updateData['type'] = $request->type;
             }
             if ($request->has('employee_id')) {
                 $updateData['employee_id'] = $request->employee_id;
@@ -1253,10 +1242,6 @@ class TicketController extends Controller
                     'medium' => (clone $query)->where('ticket_priority', 'Medium')->count(),
                     'low' => (clone $query)->where('ticket_priority', 'Low')->count(),
                 ],
-                'by_type' => (clone $query)->selectRaw('type, COUNT(*) as count')
-                    ->whereNotNull('type')
-                    ->groupBy('type')
-                    ->get()
             ];
 
             return response()->json([

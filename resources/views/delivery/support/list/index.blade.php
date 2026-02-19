@@ -129,7 +129,7 @@
                     @endphp
                     <div class="support-card bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
                          onclick="window.location.href='{{ route('delivery.support.show', $support->id) }}'"
-                         data-searchable="{{ strtolower(($support->client->basicData->name_1 ?? '') . ' ' . ($support->ticket_id ?? '') . ' ' . ($support->name ?? '')) }}">
+                         data-searchable="{{ strtolower(($support->client->basicData->name_1 ?? '') . ' ' . ($support->type ?? '') . ' ' . ($support->name ?? '')) }}">
                         <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
                             <div class="flex justify-between items-start">
                                 <div class="flex-1">
@@ -138,9 +138,9 @@
                                     </h4>
                                     <p class="text-sm text-gray-600 mt-1">{{ $support->client->basicData->name_1 ?? 'N/A' }}</p>
                                 </div>
-                                @if($support->ticket_id)
-                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
-                                        Ticket #{{ $support->ticket_id }}
+                                @if($support->type)
+                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                        {{ $support->type }}
                                     </span>
                                 @endif
                             </div>
@@ -196,7 +196,7 @@
                         <tr>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Client</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Support Name</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Ticket</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Type</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Progress</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Timeline</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">Method</th>
@@ -210,7 +210,7 @@
                             @endphp
                             <tr class="support-row hover:bg-gray-50 transition-colors cursor-pointer"
                                 onclick="window.location.href='{{ route('delivery.support.show', $support->id) }}'"
-                                data-searchable="{{ strtolower(($support->client->basicData->name_1 ?? '') . ' ' . ($support->ticket_id ?? '') . ' ' . ($support->name ?? '')) }}">
+                                data-searchable="{{ strtolower(($support->client->basicData->name_1 ?? '') . ' ' . ($support->type ?? '') . ' ' . ($support->name ?? '')) }}">
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm font-medium text-gray-900">{{ $support->client->basicData->name_1 ?? 'N/A' }}</div>
                                 </td>
@@ -218,9 +218,9 @@
                                     {{ $support->name ?? 'Support #' . $support->id }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    @if($support->ticket_id)
-                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
-                                            #{{ $support->ticket_id }}
+                                    @if($support->type)
+                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                            {{ $support->type }}
                                         </span>
                                     @else
                                         <span class="text-gray-400">-</span>

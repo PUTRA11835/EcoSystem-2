@@ -25,6 +25,7 @@ use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TicketMessageController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\TimesheetController;
+use App\Http\Controllers\EmailController;
 
 Route::middleware(['web'])->group(function () {
     
@@ -276,6 +277,14 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/submit', [TimesheetController::class, 'submit']);
         Route::post('/{id}/approve', [TimesheetController::class, 'approve']);
         Route::post('/{id}/reject', [TimesheetController::class, 'reject']);
+    });
+
+    // ==================== EMAIL ROUTES ====================
+    Route::prefix('email')->group(function () {
+        Route::get('/inbox', [EmailController::class, 'inbox']);
+        Route::post('/process-inbox', [EmailController::class, 'processInbox']);
+        Route::post('/send', [EmailController::class, 'send']);
+        Route::post('/reply', [EmailController::class, 'reply']);
     });
 });
 

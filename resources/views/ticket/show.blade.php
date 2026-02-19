@@ -342,6 +342,29 @@
         </div>
     </div>
 </div>
+
+{{-- Success Confirmation Modal --}}
+<div id="assignSuccessModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-sm w-full shadow-2xl">
+        <div class="p-6 text-center">
+            <div class="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7 text-green-600">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-2">Ticket Assigned!</h3>
+            <p class="text-sm text-gray-600 mb-6">Ticket has been successfully assigned to delivery support. Do you want to view it?</p>
+            <div class="flex gap-3">
+                <button onclick="closeAssignSuccessModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition">
+                    Stay Here
+                </button>
+                <button id="btnViewDeliverySupport" onclick="goToDeliverySupport()" class="flex-1 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition">
+                    View Support
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 @endif
 
 <script>
@@ -786,12 +809,7 @@
             if (data.success) {
                 showNotification('Ticket assigned to delivery support successfully!', 'success');
                 closeAssignSupportModal();
-                // Optionally redirect to the delivery support page
-                setTimeout(() => {
-                    if (confirm('Ticket assigned! Do you want to view the delivery support?')) {
-                        window.location.href = `/delivery/support/${supportId}`;
-                    }
-                }, 500);
+                showAssignSuccessModal(`/delivery/support/${supportId}`);
             } else {
                 showNotification(data.message || 'Failed to assign ticket', 'error');
             }
@@ -826,12 +844,9 @@
             if (data.success) {
                 showNotification('Delivery support created and ticket assigned!', 'success');
                 closeAssignSupportModal();
-                // Redirect to the new delivery support
-                setTimeout(() => {
-                    if (data.data?.support_id) {
-                        window.location.href = `/delivery/support/${data.data.support_id}`;
-                    }
-                }, 500);
+                if (data.data?.support_id) {
+                    showAssignSuccessModal(`/delivery/support/${data.data.support_id}`);
+                }
             } else {
                 showNotification(data.message || 'Failed to create delivery support', 'error');
             }
@@ -845,6 +860,31 @@
     document.getElementById('assignSupportModal')?.addEventListener('click', function(e) {
         if (e.target === this) {
             closeAssignSupportModal();
+        }
+    });
+
+    // ==================== ASSIGN SUCCESS MODAL ====================
+    let assignSuccessRedirectUrl = '';
+
+    function showAssignSuccessModal(url) {
+        assignSuccessRedirectUrl = url;
+        document.getElementById('assignSuccessModal').classList.remove('hidden');
+    }
+
+    function closeAssignSuccessModal() {
+        document.getElementById('assignSuccessModal').classList.add('hidden');
+        assignSuccessRedirectUrl = '';
+    }
+
+    function goToDeliverySupport() {
+        if (assignSuccessRedirectUrl) {
+            window.location.href = assignSuccessRedirectUrl;
+        }
+    }
+
+    document.getElementById('assignSuccessModal')?.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeAssignSuccessModal();
         }
     });
 </script>

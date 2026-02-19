@@ -10,7 +10,6 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 
 class Customer extends Authenticatable
 {
@@ -26,16 +25,7 @@ class Customer extends Authenticatable
     protected $fillable = [
         'customer_code',
         'email',
-        'password',
         'is_active',
-    ];
-
-    /**
-     * The attributes that should be hidden.
-     */
-    protected $hidden = [
-        'password',
-        'remember_token',
     ];
 
     /**
@@ -181,24 +171,6 @@ class Customer extends Authenticatable
     }
 
     // ==================== AUTHENTICATION METHODS ====================
-
-    /**
-     * Get the password for the user.
-     */
-    public function getAuthPassword()
-    {
-        return $this->password;
-    }
-
-    /**
-     * Hash and set password
-     * 
-     * @param string $password
-     */
-    public function setPasswordAttribute($password)
-    {
-        $this->attributes['password'] = Hash::make($password);
-    }
 
     /**
      * Check if customer can login
@@ -552,8 +524,8 @@ class Customer extends Authenticatable
 
     /**
      * Create customer with basic data in transaction
-     * 
-     * @param array $customerData (email, password, role_id)
+     *
+     * @param array $customerData (email, role_id)
      * @param array $basicData (name_1, customer_group, etc)
      * @return Customer
      * @throws \Exception
@@ -564,11 +536,10 @@ class Customer extends Authenticatable
             // Generate customer code
             $customerCode = self::generateCustomerCode();
 
-            // Create customer with authentication data
+            // Create customer
             $customer = self::create([
                 'customer_code' => $customerCode,
                 'email' => $customerData['email'],
-                'password' => $customerData['password'], // Will be hashed by mutator
                 'is_active' => $customerData['is_active'] ?? true,
             ]);
 

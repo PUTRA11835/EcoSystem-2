@@ -14,7 +14,6 @@ class AuthUser extends Authenticatable
     protected $table = 'auth_users';
 
     protected $fillable = [
-        'user_type',
         'employee_id',
         'customer_id',
         'username',
@@ -52,6 +51,27 @@ class AuthUser extends Authenticatable
     public function getNameAttribute()
     {
         return $this->username ?? $this->email;
+    }
+
+    public function getUserTypeAttribute(): string
+    {
+        if (!is_null($this->employee_id)) {
+            return 'employee';
+        }
+        if (!is_null($this->customer_id)) {
+            return 'customer';
+        }
+        return 'unknown';
+    }
+
+    public function isEmployee(): bool
+    {
+        return !is_null($this->employee_id);
+    }
+
+    public function isCustomer(): bool
+    {
+        return !is_null($this->customer_id);
     }
 
     public function getEciAttribute()

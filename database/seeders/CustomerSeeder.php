@@ -1526,7 +1526,6 @@ class CustomerSeeder extends Seeder
                 $customerId = DB::table('customer')->insertGetId([
                     'customer_code' => $customerCode,
                     'email' => $cust['email'],
-                    'password' => Hash::make('password123'),
                     'is_active' => true,
                     'created_at' => Carbon::now(),
                     'updated_at' => Carbon::now(),
@@ -1577,6 +1576,25 @@ class CustomerSeeder extends Seeder
                     'created_at' => Carbon::now(),
                     'updated_at' => Carbon::now(),
                 ]));
+
+                // Create auth_users record for customer login
+                $authExists = DB::table('auth_users')
+                    ->where('email', $cust['email'])
+                    ->orWhere('username', $customerCode)
+                    ->exists();
+                if (!$authExists) {
+                    DB::table('auth_users')->insert([
+                        'customer_id' => $customerId,
+                        'employee_id' => null,
+                        'username'    => $customerCode,
+                        'email'       => $cust['email'],
+                        'phone'       => $cust['address']['cell_phone'] ?? null,
+                        'password'    => Hash::make('password123'),
+                        'is_active'   => true,
+                        'created_at'  => Carbon::now(),
+                        'updated_at'  => Carbon::now(),
+                    ]);
+                }
 
                 DB::commit();
                 $this->command->info("✓ Customer {$cust['basic']['name_1']} berhasil dibuat");

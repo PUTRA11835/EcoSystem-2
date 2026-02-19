@@ -23,20 +23,18 @@ class DeliverySupportController extends Controller
      */
     public function index(Request $request)
     {
-        $query = DeliverySupport::with(['client', 'ticket', 'deliveryOwner', 'supportManager']);
+        $query = DeliverySupport::with(['client', 'deliveryOwner', 'supportManager']);
 
         // Search
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('type', 'like', "%{$search}%")
                     ->orWhereHas('client', function ($cq) use ($search) {
                         $cq->whereHas('basicData', function ($bq) use ($search) {
                             $bq->where('name_1', 'like', "%{$search}%");
                         });
-                    })
-                    ->orWhereHas('ticket', function ($tq) use ($search) {
-                        $tq->where('ticket_number', 'like', "%{$search}%");
                     });
             });
         }
@@ -71,7 +69,6 @@ class DeliverySupportController extends Controller
     {
         $query = DeliverySupport::with([
             'client.basicData',
-            'ticket',
             'deliveryOwner.basicData',
             'supportManager.basicData',
             'phases' => function ($q) {
@@ -129,6 +126,7 @@ class DeliverySupportController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'client_id' => 'required|exists:customer,customer_id',
+            'type' => 'required|in:AMS,MO,ATS,Project,Internal',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'resolution_estimated' => 'nullable|date',
@@ -150,6 +148,7 @@ class DeliverySupportController extends Controller
                 'id_delivery_list' => $deliveryList->id,
                 'client_id' => $validated['client_id'],
                 'name' => $validated['name'],
+                'type' => $validated['type'],
                 'start_date' => $validated['start_date'] ?? null,
                 'end_date' => $validated['end_date'] ?? null,
                 'resolution_estimated' => $validated['resolution_estimated'] ?? null,
@@ -197,7 +196,6 @@ class DeliverySupportController extends Controller
     {
         $support->load([
             'client.basicData',
-            'ticket',
             'deliveryOwner.basicData',
             'supportManager.basicData',
             'phases' => function ($q) {

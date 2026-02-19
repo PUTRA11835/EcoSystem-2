@@ -191,26 +191,13 @@
                     <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Description</label>
                     <textarea id="newDescription" required rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" placeholder="Describe the issue..."></textarea>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Priority</label>
-                        <select id="newPriority" required class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
-                            <option value="Low">Low</option>
-                            <option value="Medium" selected>Medium</option>
-                            <option value="High">High</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Type</label>
-                        <select id="newType" class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
-                            <option value="">Select type</option>
-                            <option value="AMS">AMS</option>
-                            <option value="MO">MO</option>
-                            <option value="ATS">ATS</option>
-                            <option value="Project">Project</option>
-                            <option value="Internal">Internal</option>
-                        </select>
-                    </div>
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Priority</label>
+                    <select id="newPriority" required class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                        <option value="Low">Low</option>
+                        <option value="Medium" selected>Medium</option>
+                        <option value="High">High</option>
+                    </select>
                 </div>
                 <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
                     <button type="button" onclick="closeCreateTicketModal()" class="px-6 py-3 bg-white text-gray-700 text-sm font-semibold rounded-xl border border-gray-300 hover:bg-gray-50">Cancel</button>
@@ -537,7 +524,6 @@
             description: form.querySelector('#newDescription').value,
             ticket_priority: form.querySelector('#newPriority').value,
             customer_id: form.querySelector('#newCustomerId').value,
-            type: form.querySelector('#newType').value || null
         };
         try {
             const response = await fetch('/api/tickets', {

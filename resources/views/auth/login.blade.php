@@ -234,7 +234,7 @@
                     <!-- Footer Info -->
                     <div class="mt-8 text-center">
                         <p class="text-xs text-gray-500">
-                            © 2024 ECoSystem. All rights reserved.
+                            © 2026 ECoSystem. All rights reserved.
                         </p>
                         <div class="flex items-center justify-center space-x-4 mt-3">
                             <a href="#" class="text-xs text-gray-500 hover:text-red-800 transition-colors">Privacy Policy</a>

@@ -95,9 +95,9 @@
                                     <h4 class="text-base font-semibold text-gray-900">{{ $support->name ?? 'Support #' . $support->id }}</h4>
                                     <p class="text-sm text-gray-600 mt-1">{{ $support->client->basicData->name_1 ?? 'N/A' }}</p>
                                 </div>
-                                @if($support->ticket_id)
-                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
-                                        #{{ $support->ticket_id }}
+                                @if($support->type)
+                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                        {{ $support->type }}
                                     </span>
                                 @endif
                             </div>
@@ -224,9 +224,9 @@
                             {{-- Support Name --}}
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm font-medium text-gray-900">{{ $support->name ?? 'Support #' . $support->id }}</div>
-                                @if($support->ticket_id)
-                                    <span class="inline-flex mt-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
-                                        Ticket #{{ $support->ticket_id }}
+                                @if($support->type)
+                                    <span class="inline-flex mt-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                        {{ $support->type }}
                                     </span>
                                 @endif
                             </td>

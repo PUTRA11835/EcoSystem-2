@@ -14,12 +14,12 @@ class DeliverySupport extends Model
     protected $fillable = [
         'id_delivery_list',
         'client_id',
-        'ticket_id',
         'start_date',
         'end_date',
         'resolution_estimated',
         'calculated_progress',
         'name',
+        'type',
         'delivery_owner_id',
         'support_manager_id',
         'support_method',
@@ -51,9 +51,14 @@ class DeliverySupport extends Model
         return $this->belongsTo(Customer::class, 'client_id', 'customer_id');
     }
 
-    public function ticket()
+    /**
+     * Get tickets assigned to this delivery support through activities
+     */
+    public function tickets()
     {
-        return $this->belongsTo(Ticket::class, 'ticket_id', 'ticket_id');
+        return Ticket::whereIn('ticket_id',
+            $this->activities()->whereNotNull('ticket_id')->pluck('ticket_id')
+        );
     }
 
     public function deliveryOwner()
@@ -108,14 +113,16 @@ class DeliverySupport extends Model
     }
 
     /**
-     * Get team members from the linked ticket
+     * Get team members from activities assigned to this delivery support
      */
     public function teamMembers()
     {
-        if ($this->ticket_id) {
-            return TicketTeam::where('ticket_id', $this->ticket_id)->with('employee');
-        }
-        return collect([]);
+        return $this->activities()
+            ->with('employees')
+            ->get()
+            ->pluck('employees')
+            ->flatten()
+            ->unique('employee_id');
     }
 
     // ========================================

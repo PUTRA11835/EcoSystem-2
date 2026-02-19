@@ -1645,7 +1645,6 @@ class EmployeeSeeder extends Seeder
                 $employeeId = DB::table('employee')->insertGetId([
                     'role_id' => $emp['role_id'] ?? 2,
                     'eci' => $emp['eci'],
-                    'password' => Hash::make('password123'),
                     'is_active' => true,
                     'created_at' => Carbon::now(),
                     'updated_at' => Carbon::now(),
@@ -1735,6 +1734,31 @@ class EmployeeSeeder extends Seeder
                     'created_at' => Carbon::now(),
                     'updated_at' => Carbon::now(),
                 ]);
+
+                // BUAT AUTH_USER untuk employee
+                // Login bisa menggunakan: ECI (username), email_work (email), atau nick_name
+                $authEmail = $emp['address']['email_work'];
+                $authPhone = $emp['address']['cell_phone'];
+
+                // Cek apakah auth_user sudah ada (email atau username duplikat)
+                $authExists = DB::table('auth_users')
+                    ->where('email', $authEmail)
+                    ->orWhere('username', $emp['eci'])
+                    ->exists();
+
+                if (!$authExists) {
+                    DB::table('auth_users')->insert([
+                        'employee_id' => $employeeId,
+                        'customer_id' => null,
+                        'username'    => $emp['eci'],
+                        'email'       => $authEmail,
+                        'phone'       => $authPhone,
+                        'password'    => Hash::make('password123'),
+                        'is_active'   => true,
+                        'created_at'  => Carbon::now(),
+                        'updated_at'  => Carbon::now(),
+                    ]);
+                }
 
                 DB::commit();
                 $this->command->info("✓ Employee {$emp['eci']} - {$emp['basic']['first_name']} {$emp['basic']['last_name']} berhasil diseed");

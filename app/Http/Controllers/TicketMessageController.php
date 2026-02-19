@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\EmailController;
+use App\Models\Customer;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
 use Illuminate\Http\Request;
@@ -149,13 +151,24 @@ class TicketMessageController extends Controller
             // Update ticket status if it's a reply
             if ($request->message_type === 'reply') {
                 if ($senderType === 'employee') {
-                    $ticket->update(['status' => 'reply']);
+                    $ticket->update(['status' => 'reply', 'last_agent_reply_at' => now(), 'last_message_at' => now()]);
                 } else {
                     // Customer replied, change status to in_progress if currently reply
                     if ($ticket->status === 'reply') {
                         $ticket->update(['status' => 'in_progress']);
                     }
+                    $ticket->update(['last_customer_reply_at' => now(), 'last_message_at' => now()]);
                 }
+            }
+
+            // Auto-kirim email jika tiket berasal dari email dan ini adalah reply dari employee
+            if (
+                $request->message_type === 'reply'
+                && $senderType === 'employee'
+                && $ticket->channel === 'email'
+                && !empty($ticket->email_thread_id)
+            ) {
+                $this->sendEmailReply($ticket, $message);
             }
 
             return response()->json([
@@ -182,6 +195,61 @@ class TicketMessageController extends Controller
                 'message' => 'Failed to send message',
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Kirim email balasan ke customer untuk tiket yang berasal dari email
+     */
+    private function sendEmailReply(Ticket $ticket, TicketMessage $message): void
+    {
+        try {
+            // Dapatkan email customer
+            $customerEmail = null;
+            if ($ticket->customer_id) {
+                $customer = Customer::find($ticket->customer_id);
+                $customerEmail = $customer?->email;
+            }
+
+            // Fallback: cari dari pesan pertama tiket (sender email dari email asal)
+            if (!$customerEmail) {
+                $firstMessage = TicketMessage::where('ticket_id', $ticket->ticket_id)
+                    ->where('channel', 'email')
+                    ->orderBy('created_at', 'asc')
+                    ->first();
+                $customerEmail = $firstMessage?->sender_email;
+            }
+
+            if (!$customerEmail) {
+                Log::warning('TicketMessageController@sendEmailReply: no customer email found', [
+                    'ticket_id' => $ticket->ticket_id,
+                ]);
+                return;
+            }
+
+            // Bangun subject dari deskripsi tiket
+            $subject = 'Ticket #' . $ticket->ticket_number . ': ' . ($ticket->description ? substr($ticket->description, 0, 80) : 'Update');
+
+            // In-Reply-To = email_thread_id tiket (Message-ID email pertama)
+            $inReplyTo = $ticket->email_thread_id;
+
+            // References = semua email_message_id pesan sebelumnya
+            $previousIds = TicketMessage::where('ticket_id', $ticket->ticket_id)
+                ->where('channel', 'email')
+                ->whereNotNull('email_message_id')
+                ->orderBy('created_at', 'asc')
+                ->pluck('email_message_id')
+                ->toArray();
+            $references = implode(' ', $previousIds);
+
+            $emailController = new EmailController();
+            $emailController->sendTicketReply($customerEmail, $subject, $message->message, $inReplyTo, $references);
+
+        } catch (\Exception $e) {
+            Log::error('TicketMessageController@sendEmailReply: failed to send email', [
+                'ticket_id' => $ticket->ticket_id,
+                'error'     => $e->getMessage(),
+            ]);
         }
     }
 

@@ -23,10 +23,11 @@ class Ticket extends Model
         'jarvies_status',
         'status',
         'wait_close',
-        'type',
         'folder',
         'file_log',
         'man_days',
+        'channel',
+        'email_thread_id',
     ];
 
     protected $casts = [
@@ -126,9 +127,24 @@ class Ticket extends Model
         };
     }
 
-    // Relasi ke Delivery Support
-    public function deliverySupport()
+    // Relasi ke pesan-pesan tiket
+    public function messages()
     {
-        return $this->hasOne(DeliverySupport::class, 'ticket_id', 'ticket_id');
+        return $this->hasMany(TicketMessage::class, 'ticket_id', 'ticket_id')
+            ->orderBy('created_at', 'asc');
+    }
+
+    // Relasi ke Delivery Support melalui activities
+    public function deliverySupportActivities()
+    {
+        return $this->hasMany(DeliverySupportActivity::class, 'ticket_id', 'ticket_id');
+    }
+
+    // Get delivery supports via activities
+    public function deliverySupports()
+    {
+        return DeliverySupport::whereHas('activities', function ($query) {
+            $query->where('ticket_id', $this->ticket_id);
+        });
     }
 }

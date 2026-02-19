@@ -74,13 +74,13 @@
                             <p class="text-base text-gray-900" id="display-client">{{ $support->client->basicData->name_1 ?? 'N/A' }}</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Ticket ID</label>
-                            @if($support->ticket_id)
-                                <span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-purple-100 text-purple-800" id="display-ticket">
-                                    #{{ $support->ticket_id }}
+                            <label class="block text-sm font-medium text-gray-500 mb-1">Type</label>
+                            @if($support->type)
+                                <span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-blue-100 text-blue-800" id="display-type">
+                                    {{ $support->type }}
                                 </span>
                             @else
-                                <p class="text-gray-400" id="display-ticket">No ticket linked</p>
+                                <p class="text-gray-400" id="display-type">No type set</p>
                             @endif
                         </div>
                         <div>
