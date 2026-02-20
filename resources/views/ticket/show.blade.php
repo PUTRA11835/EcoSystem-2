@@ -260,6 +260,36 @@
 .ql-editor { min-height: 80px; max-height: 180px; overflow-y: auto; padding: 8px 12px; }
 .ql-editor.ql-blank::before { font-style: normal; color: #9ca3af; font-size: 13px; }
 
+/* Quill Toolbar Tooltips */
+.ql-toolbar button, .ql-toolbar .ql-picker { position: relative; }
+.ql-toolbar button[title]:hover::after,
+.ql-toolbar .ql-picker[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: calc(100% + 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1f2937;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 5px;
+    white-space: nowrap;
+    z-index: 9999;
+    pointer-events: none;
+    font-family: inherit;
+}
+
+/* Channel badge pada pesan */
+.msg-channel-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 10px; font-weight: 600; padding: 1px 6px;
+    border-radius: 4px; vertical-align: middle;
+}
+.msg-channel-email { background: #dbeafe; color: #1d4ed8; }
+.msg-channel-web   { background: #f0fdf4; color: #15803d; }
+
 /* Message content */
 .message-content p { margin-bottom: 0.25rem; }
 .message-content p:last-child { margin-bottom: 0; }
@@ -368,11 +398,12 @@
 @endif
 
 <script>
-    const ticketId = {{ $ticket->ticket_id }};
-    const userRole = {{ $user->role->role_id ?? 0 }};
+    const ticketId      = {{ $ticket->ticket_id }};
+    const userRole      = {{ $user->role->role_id ?? 0 }};
     const ticketCustomerId = {{ $ticket->customer_id ?? 'null' }};
-    let quillEditor = null;
-    let allSidebarTickets = [];
+    const ticketChannel = @json($ticket->channel ?? 'web');
+    let quillEditor     = null;
+    let allSidebarTickets  = [];
     let deliverySupportList = [];
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -392,32 +423,99 @@
             }
         });
 
+        // Tambah tooltip title pada tombol toolbar Quill
+        const toolbar = document.querySelector('.ql-toolbar');
+        if (toolbar) {
+            const map = {
+                'ql-bold': 'Bold', 'ql-italic': 'Italic',
+                'ql-underline': 'Underline', 'ql-strike': 'Strikethrough',
+                'ql-blockquote': 'Blockquote', 'ql-link': 'Link',
+                'ql-clean': 'Clear Formatting',
+            };
+            Object.entries(map).forEach(([cls, label]) => {
+                const btn = toolbar.querySelector('.' + cls);
+                if (btn) btn.setAttribute('title', label);
+            });
+            toolbar.querySelectorAll('.ql-list').forEach(btn => {
+                btn.setAttribute('title', btn.value === 'ordered' ? 'Numbered List' : 'Bullet List');
+            });
+            const header = toolbar.querySelector('.ql-header');
+            if (header) header.setAttribute('title', 'Heading');
+        }
+
         loadMessages();
         loadSidebarTickets();
         markMessagesRead();
+        startMessagePolling();
     });
+
+    // ==================== AUTO POLLING: reload pesan & cek email baru ====================
+    function startMessagePolling() {
+        setInterval(async function () {
+            // Jika tiket dari email, proses inbox dulu
+            if (ticketChannel === 'email') {
+                try {
+                    await fetch('/api/email/process-inbox', {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? ''
+                        },
+                        credentials: 'same-origin'
+                    });
+                } catch (_) {}
+            }
+            // Selalu reload pesan (bisa ada balasan dari agent lain juga)
+            await loadMessages();
+        }, 15000); // setiap 15 detik
+    }
 
     // ==================== MESSAGES ====================
     async function loadMessages() {
-        const thread = document.getElementById('messagesThread');
+        const thread  = document.getElementById('messagesThread');
         const loading = document.getElementById('messagesLoading');
 
+        console.log('[loadMessages] thread:', thread, '| loading:', loading);
+
+        if (!thread) {
+            console.error('[loadMessages] ERROR: #messagesThread tidak ditemukan di DOM');
+            return;
+        }
+
         try {
+            console.log('[loadMessages] Fetching /api/tickets/' + ticketId + '/messages ...');
             const response = await fetch(`/api/tickets/${ticketId}/messages`, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin'
             });
-            const data = await response.json();
-            loading.classList.add('hidden');
 
-            if (data.success && data.data.length > 0) {
+            console.log('[loadMessages] HTTP status:', response.status, response.ok ? 'OK' : 'FAIL');
+
+            if (!response.ok) {
+                console.error('[loadMessages] Response tidak OK:', response.status, await response.text());
+                if (loading) loading.classList.add('hidden');
+                return;
+            }
+
+            const data = await response.json();
+            console.log('[loadMessages] Data received:', data);
+
+            if (loading) loading.classList.add('hidden');
+
+            if (data.success && data.data && data.data.length > 0) {
+                console.log('[loadMessages] Render', data.data.length, 'pesan');
                 thread.innerHTML = data.data.map(msg => createMessageBubble(msg)).join('');
             } else {
+                console.log('[loadMessages] Tidak ada pesan, render fallback');
                 thread.innerHTML = createFallbackMessage();
             }
             thread.scrollTop = thread.scrollHeight;
+
         } catch (error) {
-            loading.classList.add('hidden');
+            console.error('[loadMessages] EXCEPTION:', error.name, error.message, error.stack);
+            if (loading) loading.classList.add('hidden');
             thread.innerHTML = createFallbackMessage();
         }
     }
@@ -431,6 +529,10 @@
             month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
         });
 
+        const channelBadge = msg.channel === 'email'
+            ? `<span class="msg-channel-badge msg-channel-email"><svg style="width:9px;height:9px;display:inline" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg> Email</span>`
+            : `<span class="msg-channel-badge msg-channel-web"><svg style="width:9px;height:9px;display:inline" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clip-rule="evenodd"/></svg> Web</span>`;
+
         if (isInternalNote) {
             return `
                 <div class="flex gap-3">
@@ -439,6 +541,7 @@
                         <div class="flex items-center gap-2 mb-1">
                             <span class="text-sm font-semibold text-gray-900">${senderName}</span>
                             <span class="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-semibold">Internal Note</span>
+                            ${channelBadge}
                             <span class="text-xs text-gray-400">${date}</span>
                         </div>
                         <div class="message-bubble internal-note p-3">
@@ -457,6 +560,7 @@
                 <div class="${isEmployee ? 'text-right' : ''}">
                     <div class="flex items-center gap-2 mb-1 ${isEmployee ? 'justify-end' : ''}">
                         <span class="text-sm font-semibold text-gray-900">${senderName}</span>
+                        ${channelBadge}
                         <span class="text-xs text-gray-400">${date}</span>
                     </div>
                     <div class="message-bubble ${bubbleClass} p-3 inline-block text-left">
@@ -488,8 +592,10 @@
 
     // ==================== SEND REPLY ====================
     async function sendReply(messageType) {
-        const htmlContent = quillEditor.root.innerHTML;
+        const htmlContent  = quillEditor.root.innerHTML;
         const plainContent = quillEditor.getText().trim();
+
+        console.log('[sendReply] type:', messageType, '| plainContent:', plainContent);
 
         if (!plainContent) {
             showNotification('Please type a message', 'error');
@@ -497,6 +603,7 @@
         }
 
         try {
+            console.log('[sendReply] Posting message to API...');
             const response = await fetch(`/api/tickets/${ticketId}/messages`, {
                 method: 'POST',
                 headers: {
@@ -508,16 +615,22 @@
                 credentials: 'same-origin',
                 body: JSON.stringify({ message_body: htmlContent, message_type: messageType })
             });
+
+            console.log('[sendReply] HTTP status:', response.status);
             const data = await response.json();
+            console.log('[sendReply] Response data:', data);
 
             if (data.success) {
                 quillEditor.setContents([]);
+                console.log('[sendReply] Success, calling loadMessages...');
                 await loadMessages();
                 showNotification(messageType === 'internal_note' ? 'Internal note added' : 'Reply sent', 'success');
             } else {
+                console.warn('[sendReply] API returned error:', data.message, data.errors);
                 showNotification(data.message || 'Failed to send message', 'error');
             }
         } catch (error) {
+            console.error('[sendReply] EXCEPTION:', error.name, error.message, error.stack);
             showNotification('Error: ' + error.message, 'error');
         }
     }

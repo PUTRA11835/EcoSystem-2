@@ -6,273 +6,323 @@ use App\Models\Customer;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
-use Webklex\IMAP\Facades\Client;
 
 class EmailController extends Controller
 {
+    // =========================================================================
+    // GRAPH API HELPERS
+    // =========================================================================
+
     /**
-     * Buat IMAP client dengan konfigurasi dari env
+     * Ambil OAuth2 access token via client credentials flow.
      */
-    private function makeImapClient()
+    private function getAccessToken(): string
     {
-        return Client::make([
-            'host'          => env('IMAP_HOST'),
-            'port'          => env('IMAP_PORT'),
-            'protocol'      => env('IMAP_PROTOCOL'),
-            'encryption'    => env('IMAP_ENCRYPTION'),
-            'validate_cert' => env('IMAP_VALIDATE_CERT'),
-            'username'      => env('IMAP_USERNAME'),
-            'password'      => env('IMAP_PASSWORD'),
-        ]);
-    }
+        $tenantId = env('MS_TENANT_ID');
 
-    public function inbox()
-    {
-        $client = $this->makeImapClient();
+        $response = Http::asForm()->post(
+            "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
+            [
+                'grant_type'    => 'client_credentials',
+                'client_id'     => env('MS_CLIENT_ID'),
+                'client_secret' => env('MS_CLIENT_SECRET'),
+                'scope'         => 'https://graph.microsoft.com/.default',
+            ]
+        );
 
-        $client->connect();
-        $messages = [];
-
-        // $inbox = $client->getFolders();
-        // return $inbox;
-        $inbox = $client->getFolder("INBOX");
-
-        $messages = $inbox->messages()
-            ->all()
-            ->setFetchOrderDesc()
-            ->limit(1)
-            ->get();
-
-        $emails = [];
-
-        foreach ($messages as $message) {
-            $toAttribute = $message->getTo();
-            if ($toAttribute instanceof \Webklex\PHPIMAP\Attribute) {
-                $to = $toAttribute->toArray();
-            } elseif (is_array($toAttribute)) {
-                $to = $toAttribute;
-            } elseif ($toAttribute) {
-                $to = [$toAttribute];
-            } else {
-                $to = [];
-            }
-
-            $toAddresses = array_values(array_filter(array_map(function ($recipient) {
-                return $recipient->mail ?? null;
-            }, $to)));
-
-            $references = $message->getReferences();
-            if (!empty($references) && !is_array($references)) {
-                $references = [$references];
-            }
-            if (is_array($references)) {
-                $references = array_values(array_filter(array_map(function ($reference) {
-                    return (string) $reference;
-                }, $references)));
-            } else {
-                $references = [];
-            }
-
-            $messageId = (string) $message->getMessageId();
-            $inReplyTo = (string) $message->getInReplyTo();
-
-            $date = $message->getDate();
-            if (is_object($date) && method_exists($date, 'toDateTimeString')) {
-                $dateString = $date->toDateTimeString();
-            } elseif (is_object($date) && method_exists($date, 'format')) {
-                $dateString = $date->format('c');
-            } else {
-                $dateString = (string) $date;
-            }
-
-            $emails[] = [
-                'subject' => (string) $message->getSubject(),
-                'from' => $message->getFrom()[0]->mail ?? null,
-                'date' => $dateString,
-                'body' => $message->getTextBody(),
-                'to' => $toAddresses,
-                'message_id' => $messageId,
-                'in_reply_to' => $inReplyTo,
-                'references' => $references,
-            ];
+        if (!$response->successful()) {
+            throw new \RuntimeException('Gagal mendapatkan access token: ' . $response->body());
         }
 
-        return response()->json($emails);
+        return $response->json('access_token');
     }
 
+    private function graphGet(string $path, array $query = []): array
+    {
+        $token   = $this->getAccessToken();
+        $baseUrl = rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/');
+
+        $response = Http::withToken($token)->get("{$baseUrl}{$path}", $query);
+
+        if (!$response->successful()) {
+            throw new \RuntimeException("Graph GET {$path} gagal: " . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function graphPost(string $path, array $body): \Illuminate\Http\Client\Response
+    {
+        $token   = $this->getAccessToken();
+        $baseUrl = rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/');
+
+        $response = Http::withToken($token)->post("{$baseUrl}{$path}", $body);
+
+        if (!$response->successful()) {
+            throw new \RuntimeException("Graph POST {$path} gagal: " . $response->body());
+        }
+
+        return $response;
+    }
+
+    private function graphPatch(string $path, array $body): void
+    {
+        $token   = $this->getAccessToken();
+        $baseUrl = rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/');
+
+        Http::withToken($token)->patch("{$baseUrl}{$path}", $body);
+    }
+
+    /**
+     * Ekstrak hanya bagian reply baru dari body email HTML.
+     * Membuang quoted text (<blockquote>, gmail_quote, Outlook divider, dll).
+     */
+    private function extractReplyBody(string $html): string
+    {
+        if (empty($html)) return '';
+
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        @$dom->loadHTML(
+            '<html><head><meta charset="utf-8"/></head><body>' .
+            mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8') .
+            '</body></html>',
+            LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+
+        $xpath = new \DOMXPath($dom);
+
+        // Elemen yang mengandung quoted/previous messages — hapus semua
+        $removeSelectors = [
+            '//blockquote',                                   // RFC standard, semua klien
+            '//*[contains(@class,"gmail_quote")]',            // Gmail
+            '//*[contains(@class,"yahoo_quoted")]',           // Yahoo Mail
+            '//*[contains(@class,"moz-cite-prefix")]',        // Thunderbird
+            '//*[@id="divRplyFwdMsg"]',                       // Outlook Web
+            '//*[contains(@class,"OutlookMessageHeader")]',   // Outlook Desktop
+            '//*[contains(@class,"x_gmail_quote")]',          // Gmail via Outlook
+        ];
+
+        foreach ($removeSelectors as $selector) {
+            foreach (iterator_to_array($xpath->query($selector)) as $node) {
+                $node->parentNode?->removeChild($node);
+            }
+        }
+
+        // Ambil teks bersih dari <body>
+        $bodyNode = $dom->getElementsByTagName('body')->item(0);
+        $text = $bodyNode ? trim($bodyNode->textContent) : strip_tags($html);
+
+        // Hapus baris "On [date] ... wrote:" yang masih tersisa
+        $text = preg_replace('/^On .{5,200}wrote:\s*$/m', '', $text);
+
+        // Bersihkan baris kosong berlebihan
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
+        return trim($text);
+    }
+
+    // =========================================================================
+    // PUBLIC ENDPOINTS
+    // =========================================================================
+
+    /**
+     * Ambil daftar pesan terbaru dari inbox (untuk debug / preview).
+     */
+    public function inbox()
+    {
+        $email = env('MS_SENDER_EMAIL');
+
+        $data = $this->graphGet("/users/{$email}/mailFolders/inbox/messages", [
+            '$top'     => 20,
+            '$orderby' => 'receivedDateTime desc',
+            '$select'  => 'id,subject,from,toRecipients,receivedDateTime,bodyPreview,internetMessageId,conversationId,isRead',
+        ]);
+
+        return response()->json($data['value'] ?? []);
+    }
+
+    /**
+     * Kirim email baru via Graph API.
+     */
     public function send(Request $request)
     {
         $data = $request->validate([
-            'to' => ['required', 'email'],
+            'to'      => ['required', 'email'],
             'subject' => ['required', 'string', 'max:255'],
-            'body' => ['required', 'string'],
+            'body'    => ['required', 'string'],
         ]);
 
-        Mail::raw($data['body'], function ($message) use ($data) {
-            $message->to($data['to'])->subject($data['subject']);
-        });
+        $sender = env('MS_SENDER_EMAIL');
+
+        $this->graphPost("/users/{$sender}/sendMail", [
+            'message' => [
+                'subject' => $data['subject'],
+                'body'    => ['contentType' => 'Text', 'content' => $data['body']],
+                'toRecipients' => [
+                    ['emailAddress' => ['address' => $data['to']]],
+                ],
+            ],
+            'saveToSentItems' => true,
+        ]);
 
         return response()->json(['status' => 'sent']);
     }
 
+    /**
+     * Balas email via Graph API.
+     * Jika ada in_reply_to (internetMessageId), gunakan endpoint /reply Graph.
+     * Jika tidak ditemukan, fallback ke sendMail biasa.
+     */
     public function reply(Request $request)
     {
         $data = $request->validate([
-            'to' => ['required', 'email'],
-            'subject' => ['required', 'string', 'max:255'],
-            'body' => ['required', 'string'],
+            'to'          => ['required', 'email'],
+            'subject'     => ['required', 'string', 'max:255'],
+            'body'        => ['required', 'string'],
             'in_reply_to' => ['nullable', 'string'],
-            'references' => ['nullable'],
         ]);
 
-        $subject = $data['subject'];
-        if (stripos($subject, 're:') !== 0) {
-            $subject = 'Re: ' . $subject;
+        $sender  = env('MS_SENDER_EMAIL');
+        $subject = stripos($data['subject'], 're:') !== 0 ? 'Re: ' . $data['subject'] : $data['subject'];
+
+        if (!empty($data['in_reply_to'])) {
+            try {
+                $result = $this->graphGet("/users/{$sender}/messages", [
+                    '$filter' => "internetMessageId eq '" . addslashes($data['in_reply_to']) . "'",
+                    '$select' => 'id',
+                    '$top'    => 1,
+                ]);
+
+                if (!empty($result['value'][0]['id'])) {
+                    $this->graphPost(
+                        "/users/{$sender}/messages/{$result['value'][0]['id']}/reply",
+                        ['comment' => $data['body']]
+                    );
+                    return response()->json(['status' => 'replied']);
+                }
+            } catch (\Exception $e) {
+                Log::warning('EmailController@reply: reply via Graph gagal, fallback ke sendMail', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
-        Mail::raw($data['body'], function ($message) use ($data, $subject) {
-            $message->to($data['to'])->subject($subject);
-
-            $headers = $message->getHeaders();
-
-            if (!empty($data['in_reply_to'])) {
-                $headers->addTextHeader('In-Reply-To', $data['in_reply_to']);
-            }
-
-            if (!empty($data['references'])) {
-                $references = $data['references'];
-                if (is_array($references)) {
-                    $references = implode(' ', $references);
-                }
-                $headers->addTextHeader('References', $references);
-            }
-        });
+        // Fallback: kirim sebagai email baru
+        $this->graphPost("/users/{$sender}/sendMail", [
+            'message' => [
+                'subject' => $subject,
+                'body'    => ['contentType' => 'Text', 'content' => $data['body']],
+                'toRecipients' => [
+                    ['emailAddress' => ['address' => $data['to']]],
+                ],
+            ],
+            'saveToSentItems' => true,
+        ]);
 
         return response()->json(['status' => 'replied']);
     }
 
     /**
-     * Proses inbox: buat tiket baru dari email baru, atau tambah pesan ke tiket yang ada (jika reply).
-     * Endpoint ini bisa dipanggil secara periodik (misal via cron/scheduler).
+     * Proses inbox: buat tiket baru dari email baru, atau tambah pesan ke tiket yang ada.
+     * Endpoint ini dipanggil oleh scheduler (email:process-inbox).
      */
     public function processInbox(Request $request)
     {
         try {
-            $client = $this->makeImapClient();
-            $client->connect();
+            $sender = env('MS_SENDER_EMAIL');
 
-            $inbox = $client->getFolder('INBOX');
-
-            // Ambil email yang belum dibaca (UNSEEN)
-            $messages = $inbox->messages()
-                ->unseen()
-                ->setFetchOrderAsc()
-                ->get();
+            // Ambil email yang belum dibaca
+            $data = $this->graphGet("/users/{$sender}/mailFolders/inbox/messages", [
+                '$filter'  => 'isRead eq false',
+                '$orderby' => 'receivedDateTime asc',
+                '$top'     => 50,
+                '$select'  => 'id,subject,from,receivedDateTime,body,internetMessageId,conversationId',
+            ]);
 
             $processed = 0;
             $skipped   = 0;
             $errors    = [];
 
-            foreach ($messages as $message) {
+            foreach ($data['value'] ?? [] as $msg) {
                 try {
-                    $subject    = (string) $message->getSubject();
-                    $fromEmail  = $message->getFrom()[0]->mail ?? null;
-                    $fromName   = $message->getFrom()[0]->personal ?? $fromEmail;
-                    $body       = $message->getTextBody() ?? $message->getHtmlBody() ?? '';
-                    $messageId  = (string) $message->getMessageId();
-                    $inReplyTo  = (string) $message->getInReplyTo();
+                    $graphMsgId     = $msg['id'];
+                    $subject        = $msg['subject'] ?? '(no subject)';
+                    $fromEmail      = $msg['from']['emailAddress']['address'] ?? null;
+                    $fromName       = $msg['from']['emailAddress']['name'] ?? $fromEmail;
+                    $body           = $this->extractReplyBody($msg['body']['content'] ?? '');
+                    $internetMsgId  = $msg['internetMessageId'] ?? null;
+                    $conversationId = $msg['conversationId'] ?? null;
 
-                    $referencesRaw = $message->getReferences();
-                    if (!empty($referencesRaw) && !is_array($referencesRaw)) {
-                        $referencesRaw = [$referencesRaw];
+                    // Cari tiket terkait: pertama cek conversationId (thread), lalu internetMessageId
+                    $ticket = null;
+                    if ($conversationId) {
+                        $ticket = Ticket::where('email_thread_id', $conversationId)->first();
                     }
-                    $references = is_array($referencesRaw)
-                        ? implode(' ', array_map(fn($r) => (string) $r, $referencesRaw))
-                        : '';
-
-                    // Jika ini adalah reply (ada in_reply_to), cari tiket yang sudah ada
-                    if (!empty($inReplyTo)) {
-                        $ticket = Ticket::where('email_thread_id', $inReplyTo)
-                            ->orWhereHas('messages', function ($q) use ($inReplyTo, $references) {
-                                $q->where('email_message_id', $inReplyTo);
-                                if (!empty($references)) {
-                                    $refIds = explode(' ', trim($references));
-                                    $q->orWhereIn('email_message_id', $refIds);
-                                }
-                            })
-                            ->first();
-
-                        if ($ticket) {
-                            // Tentukan customer dari email pengirim
-                            $customer = Customer::where('email', $fromEmail)->first();
-                            $senderId = $customer?->customer_id;
-
-                            TicketMessage::create([
-                                'ticket_id'           => $ticket->ticket_id,
-                                'sender_type'         => $customer ? 'customer' : 'system',
-                                'sender_id'           => $senderId,
-                                'sender_email'        => $fromEmail,
-                                'sender_name'         => $fromName,
-                                'message'             => $body,
-                                'is_internal_note'    => false,
-                                'channel'             => 'email',
-                                'email_message_id'    => $messageId,
-                                'email_in_reply_to'   => $inReplyTo,
-                                'is_read_by_customer' => true,
-                                'is_read_by_agent'    => false,
-                            ]);
-
-                            // Update status tiket jika customer membalas
-                            if ($customer && $ticket->status === 'reply') {
-                                $ticket->update(['status' => 'in_progress']);
-                            }
-
-                            $ticket->update(['last_customer_reply_at' => now(), 'last_message_at' => now()]);
-
-                            // Tandai email sebagai sudah dibaca di IMAP
-                            $message->setFlag('Seen');
-                            $processed++;
-                            continue;
-                        }
+                    if (!$ticket && $internetMsgId) {
+                        $ticket = Ticket::whereHas('messages', function ($q) use ($internetMsgId) {
+                            $q->where('email_message_id', $internetMsgId);
+                        })->first();
                     }
 
-                    // Email baru → buat tiket baru
                     $customer = Customer::where('email', $fromEmail)->first();
 
-                    // Generate ticket number unik
-                    $ticketNumber = 'TKT-' . strtoupper(uniqid());
+                    if ($ticket) {
+                        // Tambah pesan ke tiket yang sudah ada
+                        TicketMessage::create([
+                            'ticket_id'           => $ticket->ticket_id,
+                            'sender_type'         => $customer ? 'customer' : 'system',
+                            'sender_id'           => $customer?->customer_id,
+                            'sender_email'        => $fromEmail,
+                            'sender_name'         => $fromName,
+                            'message'             => strip_tags($body),
+                            'is_internal_note'    => false,
+                            'channel'             => 'email',
+                            'email_message_id'    => $internetMsgId,
+                            'email_in_reply_to'   => null,
+                            'is_read_by_customer' => true,
+                            'is_read_by_agent'    => false,
+                        ]);
 
-                    $ticket = Ticket::create([
-                        'ticket_number'    => $ticketNumber,
-                        'customer_id'      => $customer?->customer_id,
-                        'description'      => $subject . ($body ? "\n\n" . $body : ''),
-                        'status'           => 'open',
-                        'channel'          => 'email',
-                        'email_thread_id'  => $messageId,
-                        'start_date'       => now()->toDateString(),
-                    ]);
+                        // Status diubah manual oleh helpdesk — hanya update timestamps
+                        $ticket->update([
+                            'last_customer_reply_at' => now(),
+                            'last_message_at'        => now(),
+                        ]);
 
-                    // Simpan pesan awal
-                    TicketMessage::create([
-                        'ticket_id'           => $ticket->ticket_id,
-                        'sender_type'         => $customer ? 'customer' : 'system',
-                        'sender_id'           => $customer?->customer_id,
-                        'sender_email'        => $fromEmail,
-                        'sender_name'         => $fromName,
-                        'message'             => $body,
-                        'is_internal_note'    => false,
-                        'channel'             => 'email',
-                        'email_message_id'    => $messageId,
-                        'email_in_reply_to'   => null,
-                        'is_read_by_customer' => true,
-                        'is_read_by_agent'    => false,
-                    ]);
+                    } else {
+                        // Buat tiket baru
+                        $ticketNumber = 'TKT-' . strtoupper(uniqid());
 
-                    // Tandai email sebagai sudah dibaca di IMAP
-                    $message->setFlag('Seen');
+                        $ticket = Ticket::create([
+                            'ticket_number'   => $ticketNumber,
+                            'customer_id'     => $customer?->customer_id,
+                            'description'     => $subject,
+                            'status'          => 'open',
+                            'channel'         => 'email',
+                            'email_thread_id' => $conversationId ?? $internetMsgId,
+                            'start_date'      => now()->toDateString(),
+                        ]);
+
+                        TicketMessage::create([
+                            'ticket_id'           => $ticket->ticket_id,
+                            'sender_type'         => $customer ? 'customer' : 'system',
+                            'sender_id'           => $customer?->customer_id,
+                            'sender_email'        => $fromEmail,
+                            'sender_name'         => $fromName,
+                            'message'             => strip_tags($body),
+                            'is_internal_note'    => false,
+                            'channel'             => 'email',
+                            'email_message_id'    => $internetMsgId,
+                            'email_in_reply_to'   => null,
+                            'is_read_by_customer' => true,
+                            'is_read_by_agent'    => false,
+                        ]);
+                    }
+
+                    // Tandai sebagai sudah dibaca di Graph
+                    $this->graphPatch("/users/{$sender}/messages/{$graphMsgId}", ['isRead' => true]);
                     $processed++;
 
                 } catch (\Exception $e) {
@@ -293,36 +343,79 @@ class EmailController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('EmailController@processInbox: IMAP connection failed', [
+            Log::error('EmailController@processInbox: Graph API gagal', [
                 'error' => $e->getMessage(),
             ]);
 
             return response()->json([
                 'status'  => 'error',
-                'message' => 'Gagal terhubung ke inbox: ' . $e->getMessage(),
+                'message' => 'Gagal mengakses inbox: ' . $e->getMessage(),
             ], 500);
         }
     }
 
     /**
-     * Kirim email balasan untuk sebuah tiket (digunakan oleh TicketMessageController)
+     * Kirim email balasan untuk sebuah tiket (digunakan oleh TicketMessageController).
+     *
+     * Alur threading yang benar:
+     * 1. Cari pesan asli via internetMessageId di mailbox
+     * 2. createReply → Graph otomatis set In-Reply-To & References
+     * 3. Patch body draft dengan HTML dari Quill
+     * 4. Send draft
+     *
+     * Fallback ke sendMail HTML jika pesan asli tidak ditemukan.
      */
-    public function sendTicketReply(string $toEmail, string $subject, string $body, ?string $inReplyTo = null, ?string $references = null): void
-    {
+    public function sendTicketReply(
+        string $toEmail,
+        string $subject,
+        string $body,
+        ?string $inReplyTo = null
+    ): void {
+        $sender       = env('MS_SENDER_EMAIL');
         $replySubject = stripos($subject, 're:') !== 0 ? 'Re: ' . $subject : $subject;
 
-        Mail::raw($body, function ($message) use ($toEmail, $replySubject, $inReplyTo, $references) {
-            $message->to($toEmail)->subject($replySubject);
+        if ($inReplyTo) {
+            try {
+                // Cari pesan asli di mailbox menggunakan internetMessageId
+                $result = $this->graphGet("/users/{$sender}/messages", [
+                    '$filter' => "internetMessageId eq '" . addslashes($inReplyTo) . "'",
+                    '$select' => 'id',
+                    '$top'    => 1,
+                ]);
 
-            $headers = $message->getHeaders();
+                if (!empty($result['value'][0]['id'])) {
+                    $originalId = $result['value'][0]['id'];
 
-            if (!empty($inReplyTo)) {
-                $headers->addTextHeader('In-Reply-To', $inReplyTo);
+                    // 1. Buat draft reply — Graph otomatis isi In-Reply-To & References
+                    $draft   = $this->graphPost("/users/{$sender}/messages/{$originalId}/createReply", []);
+                    $draftId = $draft->json('id');
+
+                    // 2. Update body draft dengan HTML dari Quill
+                    $this->graphPatch("/users/{$sender}/messages/{$draftId}", [
+                        'body' => ['contentType' => 'HTML', 'content' => $body],
+                    ]);
+
+                    // 3. Kirim draft
+                    $this->graphPost("/users/{$sender}/messages/{$draftId}/send", []);
+                    return;
+                }
+            } catch (\Exception $e) {
+                Log::warning('EmailController@sendTicketReply: createReply gagal, fallback ke sendMail', [
+                    'error' => $e->getMessage(),
+                ]);
             }
+        }
 
-            if (!empty($references)) {
-                $headers->addTextHeader('References', $references);
-            }
-        });
+        // Fallback: sendMail dengan HTML body
+        $this->graphPost("/users/{$sender}/sendMail", [
+            'message' => [
+                'subject' => $replySubject,
+                'body'    => ['contentType' => 'HTML', 'content' => $body],
+                'toRecipients' => [
+                    ['emailAddress' => ['address' => $toEmail]],
+                ],
+            ],
+            'saveToSentItems' => true,
+        ]);
     }
 }

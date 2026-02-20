@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\PasswordSetupController;
 use Exception;
 
 class AuthController extends Controller
@@ -176,6 +177,42 @@ class AuthController extends Controller
             // Tentukan tipe user dari FK
             $isEmployee = !is_null($authUser->employee_id);
             $isCustomer = !is_null($authUser->customer_id);
+
+            // Cek is_already_cp — user baru (employee/customer) wajib verifikasi email & ganti password dulu
+            if (!$authUser->is_already_cp) {
+                if (empty($authUser->email)) {
+                    Log::channel('daily')->warning('=== USER REQUIRES PASSWORD SETUP BUT HAS NO EMAIL ===', [
+                        'request_id'   => $requestId,
+                        'auth_user_id' => $authUser->id,
+                    ]);
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Akun Anda belum memiliki email terdaftar. Hubungi administrator.',
+                        'request_id' => $requestId,
+                    ], 403);
+                }
+
+                PasswordSetupController::generateAndSendToken($authUser);
+
+                [$local, $domain] = explode('@', $authUser->email, 2);
+                $maskedEmail = substr($local, 0, 2) . str_repeat('*', max(strlen($local) - 2, 3)) . '@' . $domain;
+
+                Log::channel('daily')->info('=== USER REQUIRES PASSWORD SETUP ===', [
+                    'request_id'   => $requestId,
+                    'auth_user_id' => $authUser->id,
+                    'is_employee'  => $isEmployee,
+                    'is_customer'  => $isCustomer,
+                ]);
+
+                return response()->json([
+                    'success'                 => true,
+                    'require_password_change' => true,
+                    'message'                 => 'Silakan cek email Anda untuk mengatur password baru.',
+                    'email'                   => $maskedEmail,
+                    'request_id'              => $requestId,
+                ]);
+            }
 
             if ($isEmployee) {
                 // Login sebagai Employee

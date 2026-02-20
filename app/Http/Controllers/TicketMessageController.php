@@ -57,8 +57,10 @@ class TicketMessageController extends Controller
                     'sender_type' => $message->sender_type,
                     'sender_id' => $message->sender_id,
                     'sender_name' => $message->sender_name,
+                    'sender_email' => $message->sender_email,
                     'message_body' => $message->message,
                     'message_type' => $message->is_internal_note ? 'internal_note' : 'reply',
+                    'channel' => $message->channel ?? 'web',
                     'is_read_by_customer' => $message->is_read_by_customer,
                     'is_read_by_agent' => $message->is_read_by_agent,
                     'created_at' => $message->created_at,
@@ -148,15 +150,11 @@ class TicketMessageController extends Controller
                 'is_read_by_agent' => $senderType === 'employee',
             ]);
 
-            // Update ticket status if it's a reply
+            // Update timestamps only — status diubah manual oleh helpdesk via dropdown
             if ($request->message_type === 'reply') {
                 if ($senderType === 'employee') {
-                    $ticket->update(['status' => 'reply', 'last_agent_reply_at' => now(), 'last_message_at' => now()]);
+                    $ticket->update(['last_agent_reply_at' => now(), 'last_message_at' => now()]);
                 } else {
-                    // Customer replied, change status to in_progress if currently reply
-                    if ($ticket->status === 'reply') {
-                        $ticket->update(['status' => 'in_progress']);
-                    }
                     $ticket->update(['last_customer_reply_at' => now(), 'last_message_at' => now()]);
                 }
             }
@@ -230,20 +228,18 @@ class TicketMessageController extends Controller
             // Bangun subject dari deskripsi tiket
             $subject = 'Ticket #' . $ticket->ticket_number . ': ' . ($ticket->description ? substr($ticket->description, 0, 80) : 'Update');
 
-            // In-Reply-To = email_thread_id tiket (Message-ID email pertama)
-            $inReplyTo = $ticket->email_thread_id;
-
-            // References = semua email_message_id pesan sebelumnya
-            $previousIds = TicketMessage::where('ticket_id', $ticket->ticket_id)
+            // In-Reply-To = internetMessageId dari pesan email terakhir di tiket ini
+            // (bukan email_thread_id yang isinya conversationId dari Graph)
+            $lastEmailMsg = TicketMessage::where('ticket_id', $ticket->ticket_id)
                 ->where('channel', 'email')
                 ->whereNotNull('email_message_id')
-                ->orderBy('created_at', 'asc')
-                ->pluck('email_message_id')
-                ->toArray();
-            $references = implode(' ', $previousIds);
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            $inReplyTo = $lastEmailMsg?->email_message_id;
 
             $emailController = new EmailController();
-            $emailController->sendTicketReply($customerEmail, $subject, $message->message, $inReplyTo, $references);
+            $emailController->sendTicketReply($customerEmail, $subject, $message->message, $inReplyTo);
 
         } catch (\Exception $e) {
             Log::error('TicketMessageController@sendEmailReply: failed to send email', [

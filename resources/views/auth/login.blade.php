@@ -118,6 +118,18 @@
                         <p class="text-gray-600">Sign in to your ECoSystem account</p>
                     </div>
 
+                    {{-- Flash messages dari redirect (mis. setelah ganti password) --}}
+                    @if(session('success'))
+                        <div class="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg text-sm text-green-700 font-medium">
+                            {{ session('success') }}
+                        </div>
+                    @endif
+                    @if(session('error'))
+                        <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg text-sm text-red-700 font-medium">
+                            {{ session('error') }}
+                        </div>
+                    @endif
+
                     <!-- Alert Messages -->
                     <div id="errorAlert" class="hidden mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg">
                         <div class="flex items-start">
@@ -199,7 +211,7 @@
                                     Keep me signed in
                                 </label>
                             </div>
-                            <a href="#" class="text-red-800 font-semibold hover:text-red-900 hover:underline transition-colors">
+                            <a href="{{ route('password-setup.forgot') }}" class="text-red-800 font-semibold hover:text-red-900 hover:underline transition-colors">
                                 Forgot Password?
                             </a>
                         </div>
@@ -351,13 +363,23 @@
                 console.log('Response data:', data);
 
                 if (response.ok && data.success) {
+                    // Customer baru — wajib verifikasi email & ganti password dulu
+                    if (data.require_password_change) {
+                        showSuccess(data.message || 'Silakan cek email Anda.');
+                        setTimeout(() => {
+                            const params = data.email ? '?email=' + encodeURIComponent(data.email) : '';
+                            window.location.href = '/verify-email' + params;
+                        }, 1200);
+                        return;
+                    }
+
                     saveToken(data.data.token);
                     saveUser(data.data.user);
-                    
+
                     showSuccess('Login successful! Redirecting to dashboard...');
-                    
+
                     console.log('User logged in:', data.data.user);
-                    
+
                     setTimeout(() => {
                         window.location.href = '/dashboard';
                     }, 1000);

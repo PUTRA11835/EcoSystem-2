@@ -403,7 +403,7 @@ class EmployeeController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
-            'eci' => 'required|unique:employee,eci|max:50',
+            'eci' => 'required|unique:employee,eci|unique:auth_users,username|max:50',
             'password' => 'required|string|min:6|confirmed',
             'first_name' => 'required|string|max:255',
             'last_name' => 'nullable|string|max:255',
@@ -411,6 +411,8 @@ class EmployeeController extends Controller
             'gender' => 'nullable|in:Male,Female',
             'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Confucian',
             'marital_status' => 'nullable|in:Single,Married,Divorced,Widow/Widower',
+            'email_work' => 'required|email|unique:auth_users,email|max:255',
+            'cell_phone' => 'nullable|string|max:50',
         ], [
             'eci.required' => 'Employee ID is required',
             'eci.unique' => 'Employee ID already exists',
@@ -418,6 +420,9 @@ class EmployeeController extends Controller
             'password.required' => 'Password is required',
             'password.min' => 'Password must be at least 6 characters',
             'password.confirmed' => 'Password confirmation does not match',
+            'email_work.required' => 'Email kerja wajib diisi agar dapat menerima link aktivasi akun',
+            'email_work.email' => 'Format email kerja tidak valid',
+            'email_work.unique' => 'Email kerja sudah digunakan oleh akun lain',
         ]);
 
         if ($validator->fails()) {
@@ -435,11 +440,10 @@ class EmployeeController extends Controller
         DB::beginTransaction();
 
         try {
-            // Create employee
+            // Create employee (password disimpan di auth_users, bukan di tabel employee)
             $employeeId = DB::table('employee')->insertGetId([
-                'eci' => $request->eci,
-                'password' => Hash::make($request->password),
-                'role_id' => $request->role ?? 2, // Default role 2 untuk employee
+                'eci'       => $request->eci,
+                'role_id'   => $request->role ?? 2,
                 'is_active' => 1,
             ]);
 
@@ -507,6 +511,21 @@ class EmployeeController extends Controller
 
                 Log::info('Employee address created');
             }
+
+            // Buat akun auth_users untuk login
+            // is_already_cp = false → employee baru juga wajib verifikasi email & ganti password sebelum login
+            DB::table('auth_users')->insert([
+                'employee_id'   => $employeeId,
+                'customer_id'   => null,
+                'username'      => $request->eci,
+                'email'         => $request->email_work ?: null,
+                'phone'         => $request->cell_phone ?: null,
+                'password'      => Hash::make($request->password),
+                'is_active'     => true,
+                'is_already_cp' => false,
+                'created_at'    => now(),
+                'updated_at'    => now(),
+            ]);
 
             DB::commit();
 

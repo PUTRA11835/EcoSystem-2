@@ -248,7 +248,47 @@
     document.addEventListener('DOMContentLoaded', function() {
         loadTickets();
         if (userRole === 1 || userRole === 2) updateViewToggle();
+        startEmailPolling();
     });
+
+    // -------------------------------------------------------------------------
+    // Email polling: cek email masuk setiap 30 detik, refresh tiket jika ada baru
+    // -------------------------------------------------------------------------
+    async function checkNewEmails() {
+        try {
+            const res = await fetch('/api/email/process-inbox', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? ''
+                },
+                credentials: 'same-origin'
+            });
+
+            if (!res.ok) {
+                console.warn('[Email Polling] HTTP', res.status, await res.text());
+                return;
+            }
+
+            const data = await res.json();
+            console.log('[Email Polling]', data);
+
+            if (data.processed > 0) {
+                loadTickets();
+            }
+        } catch (err) {
+            console.warn('[Email Polling] error:', err.message);
+        }
+    }
+
+    function startEmailPolling() {
+        // Langsung cek saat halaman dibuka
+        checkNewEmails();
+        // Lalu setiap 30 detik
+        setInterval(checkNewEmails, 30000);
+    }
 
     function toggleView(view) {
         currentView = view;

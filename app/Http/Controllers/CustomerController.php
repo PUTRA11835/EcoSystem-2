@@ -227,9 +227,10 @@ class CustomerController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
-            'email' => 'required|email|unique:customer,email|max:255',
-            'password' => 'required|string|min:6|confirmed',
-            'name_1' => 'required|string|max:255',
+            'email'         => 'required|email|unique:customer,email|unique:auth_users,email|max:255',
+            'password'      => 'required|string|min:6|confirmed',
+            'name_1'        => 'required|string|max:255',
+            'contact_phone' => 'nullable|string|max:50',
         ]);
 
         if ($validator->fails()) {
@@ -295,6 +296,21 @@ class CustomerController extends Controller
                     'cell_phone' => $request->contact_phone,
                 ]);
             }
+
+            // Buat akun auth_users untuk login
+            // is_already_cp = false → customer harus verifikasi email & ganti password sebelum bisa login
+            DB::table('auth_users')->insert([
+                'employee_id'   => null,
+                'customer_id'   => $customer->customer_id,
+                'username'      => $customer->customer_code,
+                'email'         => $request->email,
+                'phone'         => $request->contact_phone ?: null,
+                'password'      => Hash::make($request->password),
+                'is_active'     => true,
+                'is_already_cp' => false,
+                'created_at'    => now(),
+                'updated_at'    => now(),
+            ]);
 
             DB::commit();
 

@@ -21,6 +21,7 @@ use App\Http\Controllers\DeliveryProjectDataController;
 use App\Http\Controllers\DeliveryProjectStageManagementController;
 use App\Http\Controllers\DeliveryProjectPlanningExportController;
 use App\Http\Controllers\TicketViewController;
+use App\Http\Controllers\PasswordSetupController;
 use App\Http\Middleware\CheckAuthToken;
 
 // ==================== PUBLIC ROUTES ====================
@@ -38,6 +39,18 @@ Route::prefix('api/auth')->group(function () {
 
 // Login page
 Route::get('/auth/login', [AuthController::class, 'showLogin'])->name('login');
+
+// ==================== PASSWORD SETUP & RESET (public — tidak perlu auth) ====================
+// Halaman "Cek email Anda" — tampil setelah setup akun baru atau forgot password
+Route::get('/verify-email', [PasswordSetupController::class, 'showCheckEmail'])->name('password-setup.check-email');
+// Halaman form atur/reset password — dari link di email
+Route::get('/change-password', [PasswordSetupController::class, 'showChangePassword'])->name('password-setup.change');
+// Proses submit password baru
+Route::post('/change-password', [PasswordSetupController::class, 'submitChangePassword'])->name('password-setup.submit');
+// Forgot password — halaman form input email
+Route::get('/forgot-password', [PasswordSetupController::class, 'showForgotPassword'])->name('password-setup.forgot');
+// Forgot password — proses kirim email reset
+Route::post('/forgot-password', [PasswordSetupController::class, 'submitForgotPassword'])->name('password-setup.forgot.submit');
 
 // Login API
 Route::post('/auth/login', [AuthController::class, 'login'])->name('auth.login');
@@ -170,8 +183,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // Profile routes
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::post('/profile/change-password', [ProfileController::class, 'changePassword'])->name('profile.change-password');
 
     // ==================== PROJECT PLANNING ROUTES ====================
 
