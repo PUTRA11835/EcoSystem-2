@@ -639,6 +639,7 @@ class DeliverySupportController extends Controller
                     return [
                         'id' => $support->id,
                         'name' => $support->name,
+                        'type' => $support->type,
                         'client_id' => $support->client_id,
                         'client_name' => $support->client?->basicData?->name_1 ?? 'Unknown',
                         'progress' => $support->calculated_progress,

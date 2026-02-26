@@ -129,14 +129,14 @@ class ProfileController extends Controller
             ->first();
 
         if (!$authUser) {
-            return response()->json(['success' => false, 'message' => 'Akun tidak ditemukan'], 404);
+            return response()->json(['success' => false, 'message' => 'Account not found'], 404);
         }
 
         if (!Hash::check($request->current_password, $authUser->password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Password lama tidak sesuai',
-                'errors'  => ['current_password' => ['Password lama tidak sesuai']],
+                'message' => 'Current password is incorrect',
+                'errors'  => ['current_password' => ['Current password is incorrect']],
             ], 422);
         }
 
@@ -152,7 +152,7 @@ class ProfileController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Password berhasil diubah',
+            'message' => 'Password changed successfully',
         ]);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ticket;
+use App\Services\StagingTicketService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -132,6 +133,7 @@ class TicketController extends Controller
                     'employee_id' => $ticket->employee_id,
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
+                    'ticket_type' => $ticket->ticket_type,
                     'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
                     'folder' => $ticket->folder,
@@ -187,61 +189,81 @@ class TicketController extends Controller
 
     public function store(Request $request)
     {
-        $user = session('user');
+        $user   = session('user');
         $roleId = $user['role']['id'];
 
-        // Validation rules berbeda untuk customer dan admin
+        // ── Customer → masuk ke staging (menunggu validasi admin) ──────────────
         if ($roleId == 3) {
-            // Customer
             $validated = $request->validate([
-                'description' => 'required|string',
-                'ticket_priority' => 'required|in:Low,Medium,High'
-            ]);
-
-            $validated['customer_id'] = $user['id']; // Auto set dari session
-            $validated['status'] = 'open';
-            $validated['jarvies_status'] = 'in process';
-
-        } elseif ($roleId == 1) {
-            // Admin
-            $validated = $request->validate([
-                'description' => 'required|string',
+                'description'     => 'required|string|max:5000',
                 'ticket_priority' => 'required|in:Low,Medium,High',
-                'customer_id' => 'required|exists:customer,customer_id',
             ]);
 
-            $validated['status'] = 'open';
+            try {
+                $staging = app(StagingTicketService::class)
+                    ->createFromWeb($validated, $user['id']);
+
+                return response()->json([
+                    'success'   => true,
+                    'message'   => 'Tiket Anda telah dikirim dan sedang menunggu validasi admin.',
+                    'staging'   => true,
+                    'data'      => [
+                        'id'             => $staging->id,
+                        'status'         => $staging->status,
+                        'ticket_priority'=> $staging->ticket_priority,
+                        'created_at'     => $staging->created_at,
+                    ],
+                ], 201);
+            } catch (\Exception $e) {
+                Log::error('TicketController@store (customer→staging): gagal', [
+                    'error' => $e->getMessage(),
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal mengirim tiket: ' . $e->getMessage(),
+                ], 500);
+            }
+        }
+
+        // ── Admin (role 1) → langsung buat ticket (bypass staging) ────────────
+        if ($roleId == 1) {
+            $validated = $request->validate([
+                'description'     => 'required|string',
+                'ticket_priority' => 'required|in:Low,Medium,High',
+                'ticket_type'     => 'nullable|string|in:Incident,Service Request,Change Request,Consult',
+                'customer_id'     => 'required|exists:customer,customer_id',
+            ]);
+
+            $validated['status']         = 'open';
             $validated['jarvies_status'] = 'in process';
-        } else {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized to create tickets'
-            ], 403);
+
+            try {
+                $ticketNumber             = $this->generateTicketNumber($validated['customer_id']);
+                $validated['ticket_number'] = $ticketNumber;
+
+                $ticket = Ticket::create($validated);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Ticket created successfully',
+                    'data'    => $ticket,
+                ]);
+            } catch (\Exception $e) {
+                Log::error('TicketController@store (admin): gagal', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to create ticket: ' . $e->getMessage(),
+                ], 500);
+            }
         }
 
-        try {
-            // Generate ticket_number with format YYMM-XXXX-0000
-            $ticketNumber = $this->generateTicketNumber($validated['customer_id']);
-            $validated['ticket_number'] = $ticketNumber;
-
-            $ticket = Ticket::create($validated);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Ticket created successfully',
-                'data' => $ticket
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error creating ticket:', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create ticket: ' . $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'success' => false,
+            'message' => 'Unauthorized to create tickets',
+        ], 403);
     }
 
     /**
@@ -430,30 +452,11 @@ class TicketController extends Controller
                     ->orderBy('created_at', 'desc')
                     ->get();
 
-            // Employee: cek DSM dan tampilkan tiket yang mereka handle
-            } elseif ($sessionUser['role']['id'] == 2) {
+            // Employee / Helpdesk: tampilkan tiket dimana mereka PIC atau member
+            } elseif (in_array($sessionUser['role']['id'], [2, 6, 7])) {
                 $employeeId = $sessionUser['id'];
-                
-                // Cek DSM qualification
-                if (!$this->isEmployeeQualified($employeeId)) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'You are not qualified for this section. DSM qualification required.'
-                    ], 403);
-                }
 
-                Log::info('My Tickets - Filtering for employee', ['employee_id' => $employeeId]);
-
-                // Cek apakah employee_id valid
-                $employeeExists = DB::table('employee')->where('employee_id', $employeeId)->exists();
-
-                if (!$employeeExists) {
-                    Log::error('Employee ID not found in database', ['employee_id' => $employeeId]);
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Employee data not found'
-                    ], 404);
-                }
+                Log::info('My Tickets - Filtering for employee/helpdesk', ['employee_id' => $employeeId]);
 
                 // Ticket yang employee handle sebagai PIC atau member
                 $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
@@ -465,7 +468,7 @@ class TicketController extends Controller
                     })
                     ->orderBy('ticket.created_at', 'desc')
                     ->get();
-                    
+
             } else {
                 return response()->json([
                     'success' => false,
@@ -496,6 +499,7 @@ class TicketController extends Controller
                     'employee_id' => $ticket->employee_id,
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
+                    'ticket_type' => $ticket->ticket_type,
                     'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
                     'folder' => $ticket->folder,
@@ -1051,6 +1055,7 @@ class TicketController extends Controller
         $validator = Validator::make($request->all(), [
             'jarvies_status' => 'sometimes|string|in:in process,author action,proposed solution,closed,sent in to SAP,sent it to support',
             'ticket_priority' => 'sometimes|string|in:Low,Medium,High',
+            'ticket_type' => 'sometimes|nullable|string|in:Incident,Service Request,Change Request,Consult',
             'employee_id' => 'sometimes|nullable|exists:employee,employee_id',
             'man_days' => 'sometimes|nullable|numeric|min:0|max:9999.99',
         ]);
@@ -1074,6 +1079,9 @@ class TicketController extends Controller
             }
             if ($request->has('ticket_priority')) {
                 $updateData['ticket_priority'] = $request->ticket_priority;
+            }
+            if ($request->has('ticket_type')) {
+                $updateData['ticket_type'] = $request->ticket_type;
             }
             if ($request->has('employee_id')) {
                 $updateData['employee_id'] = $request->employee_id;
@@ -1567,16 +1575,86 @@ class TicketController extends Controller
     }
 
     /**
-     * Update ticket members directly (Admin only)
+     * Add a single member to ticket (Admin, PIC, or Helpdesk)
+     */
+    public function addMember(Request $request, $id)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $ticket  = Ticket::with('members.basicData')->findOrFail($id);
+        $roleId  = $sessionUser['role']['id'];
+        $isAdmin = $roleId == 1;
+        $isHelpdesk = in_array($roleId, [6, 7]);
+        $isPic   = $roleId == 2 && $ticket->employee_id == $sessionUser['id'];
+
+        if (!$isAdmin && !$isHelpdesk && !$isPic) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only Admin, Helpdesk, or the assigned PIC can add members.',
+            ], 403);
+        }
+
+        $request->validate([
+            'employee_id' => 'required|exists:employee,employee_id',
+        ]);
+
+        try {
+            $empId = (int) $request->employee_id;
+
+            // Prevent adding PIC as member
+            if ($ticket->employee_id == $empId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The assigned PIC cannot also be added as a member.',
+                ], 422);
+            }
+
+            // Avoid duplicate — use wherePivot to avoid ambiguous column with BelongsToMany join
+            if (!$ticket->members()->wherePivot('employee_id', $empId)->exists()) {
+                $ticket->members()->attach($empId);
+            }
+
+            // Return updated members list
+            $ticket->load('members.basicData');
+            $members = $ticket->members->map(fn ($m) => [
+                'employee_id' => $m->employee_id,
+                'name'        => trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? '')),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Member added successfully',
+                'data'    => $members,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error adding member:', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to add member'], 500);
+        }
+    }
+
+    /**
+     * Update ticket members directly (Admin, PIC, or Helpdesk)
      */
     public function updateMembers(Request $request, $id)
     {
         $sessionUser = session('user');
-        
-        if (!$sessionUser || $sessionUser['role']['id'] != 1) {
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $ticket  = Ticket::findOrFail($id);
+        $roleId  = $sessionUser['role']['id'];
+        $isAdmin = $roleId == 1;
+        $isHelpdesk = in_array($roleId, [6, 7]);
+        $isPic   = $roleId == 2 && $ticket->employee_id == $sessionUser['id'];
+
+        if (!$isAdmin && !$isHelpdesk && !$isPic) {
             return response()->json([
                 'success' => false,
-                'message' => 'Admin only'
+                'message' => 'Only Admin, Helpdesk, or the assigned PIC can manage members.'
             ], 403);
         }
 
@@ -1593,8 +1671,6 @@ class TicketController extends Controller
         }
 
         try {
-            $ticket = Ticket::findOrFail($id);
-            
             // Sync members (akan replace existing)
             $ticket->members()->sync($request->member_ids);
 
@@ -1684,28 +1760,48 @@ class TicketController extends Controller
     }
 
     /**
-     * Remove member directly (Admin only)
+     * Remove member (Admin, PIC, or Helpdesk)
      */
     public function removeMember($ticketId, $employeeId)
     {
         $sessionUser = session('user');
-        
-        if (!$sessionUser || $sessionUser['role']['id'] != 1) {
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $ticket  = Ticket::with('members.basicData')->findOrFail($ticketId);
+        $roleId  = $sessionUser['role']['id'];
+        $isAdmin = $roleId == 1;
+        $isHelpdesk = in_array($roleId, [6, 7]);
+        $isPic   = $roleId == 2 && $ticket->employee_id == $sessionUser['id'];
+
+        if (!$isAdmin && !$isHelpdesk && !$isPic) {
             return response()->json([
                 'success' => false,
-                'message' => 'Admin only'
+                'message' => 'Only Admin, Helpdesk, or the assigned PIC can remove members.'
             ], 403);
         }
 
         try {
-            $ticket = Ticket::findOrFail($ticketId);
-            
+            // Find employee name before detach (for response)
+            $member = $ticket->members->firstWhere('employee_id', $employeeId);
+            $memberName = $member ? trim(($member->basicData->first_name ?? '') . ' ' . ($member->basicData->last_name ?? '')) : null;
+
             // Detach member
             $ticket->members()->detach($employeeId);
 
+            // Return updated members list
+            $ticket->load('members.basicData');
+            $members = $ticket->members->map(fn ($m) => [
+                'employee_id' => $m->employee_id,
+                'name'        => trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? '')),
+            ]);
+
             return response()->json([
-                'success' => true,
-                'message' => 'Member removed successfully'
+                'success'       => true,
+                'message'       => 'Member removed successfully',
+                'employee_name' => $memberName,
+                'data'          => $members,
             ]);
         } catch (\Exception $e) {
             Log::error('Error removing member:', [

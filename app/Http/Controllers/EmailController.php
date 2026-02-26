@@ -3,8 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Models\StagingTicket;
 use App\Models\Ticket;
+use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
+use App\Services\StagingTicketService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -72,12 +75,20 @@ class EmailController extends Controller
         $token   = $this->getAccessToken();
         $baseUrl = rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/');
 
-        Http::withToken($token)->patch("{$baseUrl}{$path}", $body);
+        $response = Http::withToken($token)->patch("{$baseUrl}{$path}", $body);
+
+        if (!$response->successful()) {
+            throw new \RuntimeException("Graph PATCH {$path} gagal: " . $response->body());
+        }
     }
 
     /**
      * Ekstrak hanya bagian reply baru dari body email HTML.
      * Membuang quoted text (<blockquote>, gmail_quote, Outlook divider, dll).
+     *
+     * Mengembalikan HTML (bukan plain text) agar:
+     * - Formatting (bold, tabel, dll) tetap terjaga
+     * - Referensi inline image (src="cid:xxx") tetap ada untuk di-replace kemudian
      */
     private function extractReplyBody(string $html): string
     {
@@ -110,17 +121,23 @@ class EmailController extends Controller
             }
         }
 
-        // Ambil teks bersih dari <body>
+        // Serialisasi ulang isi <body> sebagai HTML (bukan textContent)
+        // agar img, formatting, dll tetap terjaga
         $bodyNode = $dom->getElementsByTagName('body')->item(0);
-        $text = $bodyNode ? trim($bodyNode->textContent) : strip_tags($html);
 
-        // Hapus baris "On [date] ... wrote:" yang masih tersisa
-        $text = preg_replace('/^On .{5,200}wrote:\s*$/m', '', $text);
+        if (!$bodyNode) {
+            return strip_tags($html);
+        }
 
-        // Bersihkan baris kosong berlebihan
-        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+        $innerHTML = '';
+        foreach ($bodyNode->childNodes as $child) {
+            $innerHTML .= $dom->saveHTML($child);
+        }
 
-        return trim($text);
+        // Bersihkan karakter khusus yang mungkin di-encode oleh DOMDocument
+        $innerHTML = html_entity_decode($innerHTML, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return trim($innerHTML);
     }
 
     // =========================================================================
@@ -238,7 +255,7 @@ class EmailController extends Controller
                 '$filter'  => 'isRead eq false',
                 '$orderby' => 'receivedDateTime asc',
                 '$top'     => 50,
-                '$select'  => 'id,subject,from,receivedDateTime,body,internetMessageId,conversationId',
+                '$select'  => 'id,subject,from,ccRecipients,receivedDateTime,body,internetMessageId,conversationId,hasAttachments',
             ]);
 
             $processed = 0;
@@ -251,9 +268,23 @@ class EmailController extends Controller
                     $subject        = $msg['subject'] ?? '(no subject)';
                     $fromEmail      = $msg['from']['emailAddress']['address'] ?? null;
                     $fromName       = $msg['from']['emailAddress']['name'] ?? $fromEmail;
-                    $body           = $this->extractReplyBody($msg['body']['content'] ?? '');
+                    // extractReplyBody sekarang mengembalikan HTML (bukan plain text)
+                    $bodyHtml       = $this->extractReplyBody($msg['body']['content'] ?? '');
+                    $bodyPlain      = trim(strip_tags($bodyHtml)); // untuk kolom `message`
                     $internetMsgId  = $msg['internetMessageId'] ?? null;
                     $conversationId = $msg['conversationId'] ?? null;
+                    $hasAttachments = $msg['hasAttachments'] ?? false;
+
+                    // Ekstrak CC recipients: [{name, address}, ...]
+                    $ccEmails = collect($msg['ccRecipients'] ?? [])
+                        ->map(fn($r) => [
+                            'name'    => $r['emailAddress']['name'] ?? null,
+                            'address' => $r['emailAddress']['address'] ?? null,
+                        ])
+                        ->filter(fn($r) => !empty($r['address']))
+                        ->values()
+                        ->all();
+                    $ccJson = !empty($ccEmails) ? json_encode($ccEmails) : null;
 
                     // Cari tiket terkait: pertama cek conversationId (thread), lalu internetMessageId
                     $ticket = null;
@@ -270,20 +301,34 @@ class EmailController extends Controller
 
                     if ($ticket) {
                         // Tambah pesan ke tiket yang sudah ada
-                        TicketMessage::create([
+                        $message = TicketMessage::create([
                             'ticket_id'           => $ticket->ticket_id,
                             'sender_type'         => $customer ? 'customer' : 'system',
                             'sender_id'           => $customer?->customer_id,
                             'sender_email'        => $fromEmail,
                             'sender_name'         => $fromName,
-                            'message'             => strip_tags($body),
+                            'message'             => $bodyPlain,
+                            'message_html'        => $bodyHtml,
                             'is_internal_note'    => false,
                             'channel'             => 'email',
                             'email_message_id'    => $internetMsgId,
                             'email_in_reply_to'   => null,
+                            'cc_emails'           => $ccJson,
                             'is_read_by_customer' => true,
                             'is_read_by_agent'    => false,
                         ]);
+
+                        // Ambil metadata attachment & ganti referensi cid: di message_html.
+                        // Cek dua kondisi: hasAttachments flag ATAU ada cid: references di body
+                        // (beberapa email client melaporkan hasAttachments=false meski ada inline image).
+                        if ($hasAttachments || str_contains($bodyHtml, 'cid:')) {
+                            $cidMap = $this->storeEmailAttachments($sender, $graphMsgId, $message, $ticket->ticket_id);
+                            if (!empty($cidMap) && $message->message_html) {
+                                $message->update([
+                                    'message_html' => $this->replaceCidReferences($message->message_html, $cidMap),
+                                ]);
+                            }
+                        }
 
                         // Status diubah manual oleh helpdesk — hanya update timestamps
                         $ticket->update([
@@ -292,32 +337,24 @@ class EmailController extends Controller
                         ]);
 
                     } else {
-                        // Buat tiket baru
-                        $ticketNumber = 'TKT-' . strtoupper(uniqid());
-
-                        $ticket = Ticket::create([
-                            'ticket_number'   => $ticketNumber,
-                            'customer_id'     => $customer?->customer_id,
-                            'description'     => $subject,
-                            'status'          => 'open',
-                            'channel'         => 'email',
-                            'email_thread_id' => $conversationId ?? $internetMsgId,
-                            'start_date'      => now()->toDateString(),
+                        // Email baru tanpa tiket terkait → simpan ke staging untuk divalidasi Helpdesk
+                        // TicketMessage & attachment diproses nanti saat Helpdesk approve staging
+                        app(StagingTicketService::class)->createFromEmail([
+                            'customer_id'         => $customer?->customer_id,
+                            'from_email'          => $fromEmail,
+                            'from_name'           => $fromName,
+                            'subject'             => $subject,
+                            'body_html'           => $bodyHtml,
+                            'conversation_id'     => $conversationId,
+                            'internet_message_id' => $internetMsgId,
+                            'graph_message_id'    => $graphMsgId,
+                            'has_attachments'     => $hasAttachments,
+                            'cc_emails'           => $ccJson,
                         ]);
 
-                        TicketMessage::create([
-                            'ticket_id'           => $ticket->ticket_id,
-                            'sender_type'         => $customer ? 'customer' : 'system',
-                            'sender_id'           => $customer?->customer_id,
-                            'sender_email'        => $fromEmail,
-                            'sender_name'         => $fromName,
-                            'message'             => strip_tags($body),
-                            'is_internal_note'    => false,
-                            'channel'             => 'email',
-                            'email_message_id'    => $internetMsgId,
-                            'email_in_reply_to'   => null,
-                            'is_read_by_customer' => true,
-                            'is_read_by_agent'    => false,
+                        Log::info('EmailController@processInbox: email baru masuk ke staging', [
+                            'from'    => $fromEmail,
+                            'subject' => $subject,
                         ]);
                     }
 
@@ -349,34 +386,264 @@ class EmailController extends Controller
 
             return response()->json([
                 'status'  => 'error',
-                'message' => 'Gagal mengakses inbox: ' . $e->getMessage(),
+                'message' => 'Failed to access inbox: ' . $e->getMessage(),
             ], 500);
+        }
+    }
+
+    // =========================================================================
+    // EMAIL ATTACHMENT HANDLER
+    // =========================================================================
+
+    /**
+     * Public wrapper: proses attachment dari email dan ganti referensi cid: di message_html.
+     * Dipanggil dari StagingTicketController@approve setelah TicketMessage pertama dibuat.
+     *
+     * @param  string        $graphMsgId  Graph internal message ID (disimpan di staging_tickets.graph_message_id)
+     * @param  TicketMessage $message     TicketMessage yang baru dibuat saat approve
+     * @param  int           $ticketId
+     */
+    public function processAttachmentsForMessage(string $graphMsgId, TicketMessage $message, int $ticketId): void
+    {
+        $sender = env('MS_SENDER_EMAIL');
+        $cidMap = $this->storeEmailAttachments($sender, $graphMsgId, $message, $ticketId);
+
+        if (!empty($cidMap) && $message->message_html) {
+            $message->update([
+                'message_html' => $this->replaceCidReferences($message->message_html, $cidMap),
+            ]);
+        }
+    }
+
+    /**
+     * Ambil metadata attachment dari Graph API dan simpan ke DB.
+     * File TIDAK diunduh ke server — disimpan via proxy route /attachments/{id}.
+     *
+     * @param  string         $senderEmail   email akun MS Graph (MS_SENDER_EMAIL)
+     * @param  string         $graphMsgId    Graph internal message ID
+     * @param  TicketMessage  $message       record pesan yang baru dibuat
+     * @param  int            $ticketId
+     * @return array          Mapping [contentId => attachmentDbId] untuk inline image CID replacement
+     */
+    private function storeEmailAttachments(string $senderEmail, string $graphMsgId, TicketMessage $message, int $ticketId): array
+    {
+        $cidMap = [];
+
+        try {
+            // Fetch semua field attachment tanpa $select.
+            // Catatan: $select TIDAK bisa dipakai untuk contentId maupun contentBytes karena
+            // keduanya adalah properti derived type (fileAttachment), bukan base type (attachment).
+            // Graph API mengembalikan semua field termasuk contentBytes — namun kita hanya
+            // menggunakan metadata dan TIDAK menyimpan contentBytes ke disk.
+            $result = $this->graphGet("/users/{$senderEmail}/messages/{$graphMsgId}/attachments");
+
+            foreach ($result['value'] ?? [] as $att) {
+                // Lewati non-fileAttachment (referenceAttachment, itemAttachment, dll)
+                $odataType = $att['@odata.type'] ?? '';
+                if ($odataType && !str_contains($odataType, 'fileAttachment')) {
+                    continue;
+                }
+
+                // Lewati jika tidak ada nama (attachment tidak valid)
+                if (empty($att['name'])) {
+                    continue;
+                }
+
+                $graphAttId  = $att['id'];
+                $originalName = $att['name'];
+                $mimeType    = $att['contentType'] ?? 'application/octet-stream';
+                $isInline    = $att['isInline'] ?? false;
+                $fileSize    = $att['size'] ?? 0;
+                $contentId   = $att['contentId'] ?? null; // CID untuk inline images
+
+                // Lewati jika sudah pernah disimpan
+                $existing = TicketAttachment::where('graph_attachment_id', $graphAttId)->first();
+                if ($existing) {
+                    if ($contentId) $cidMap[$contentId] = $existing->id;
+                    continue;
+                }
+
+                $record = TicketAttachment::create([
+                    'ticket_id'           => $ticketId,
+                    'message_id'          => $message->id,
+                    'uploaded_by_type'    => 'system',
+                    'uploaded_by_id'      => null,
+                    'attachment_type'     => $this->resolveAttachmentType($mimeType),
+                    'file_name'           => $originalName,
+                    'file_size'           => $fileSize,
+                    'mime_type'           => $mimeType,
+                    'is_inline'           => $isInline,
+                    'graph_attachment_id' => $graphAttId,
+                    'graph_message_id'    => $graphMsgId,
+                    'content_id'          => $contentId,
+                ]);
+
+                if ($contentId) {
+                    $cidMap[$contentId] = $record->id;
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning('EmailController@storeEmailAttachments: gagal ambil metadata attachment', [
+                'graph_msg_id' => $graphMsgId,
+                'ticket_id'    => $ticketId,
+                'error'        => $e->getMessage(),
+            ]);
+            // Jangan throw — gagal attachment tidak boleh membatalkan penyimpanan pesan
+        }
+
+        return $cidMap;
+    }
+
+    /**
+     * Ganti referensi cid:xxx di HTML email dengan URL proxy attachment.
+     * Dipanggil setelah storeEmailAttachments() berhasil menyimpan record.
+     *
+     * @param  string $html    HTML body pesan
+     * @param  array  $cidMap  [contentId => attachmentDbId]
+     * @return string HTML yang sudah diganti referensi cid-nya
+     */
+    private function replaceCidReferences(string $html, array $cidMap): string
+    {
+        foreach ($cidMap as $cid => $attachmentId) {
+            $proxyUrl = '/attachments/' . $attachmentId;
+            // Graph bisa mengembalikan contentId dengan atau tanpa angle brackets: <xxx> atau xxx
+            $cleanCid = trim($cid, '<>');
+            // Replace semua variasi yang mungkin muncul di HTML
+            $html = str_replace('cid:' . $cleanCid,        $proxyUrl, $html);
+            $html = str_replace('cid:<' . $cleanCid . '>', $proxyUrl, $html);
+            // Kalau cid asli berbeda dari cleanCid (ada angle brackets), replace juga
+            if ($cid !== $cleanCid) {
+                $html = str_replace('cid:' . $cid, $proxyUrl, $html);
+            }
+        }
+        return $html;
+    }
+
+    /**
+     * Tentukan attachment_type berdasarkan MIME type.
+     */
+    private function resolveAttachmentType(string $mimeType): string
+    {
+        if (str_starts_with($mimeType, 'image/')) return 'image';
+        if ($mimeType === 'application/pdf') return 'pdf';
+        if (str_contains($mimeType, 'word') || str_contains($mimeType, 'document')) return 'document';
+        if (str_contains($mimeType, 'excel') || str_contains($mimeType, 'spreadsheet')) return 'spreadsheet';
+        if (str_contains($mimeType, 'zip') || str_contains($mimeType, 'compressed')) return 'archive';
+        return 'file';
+    }
+
+    /**
+     * POST /api/email/reprocess-attachments/{messageId}
+     * Reprocess attachment untuk ticket_message yang sudah ada tapi belum punya attachment.
+     * Berguna untuk pesan yang masuk sebelum fitur attachment diaktifkan.
+     */
+    public function reprocessAttachments(Request $request, int $messageId)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser || !in_array($sessionUser['role']['id'], [1, 2, 6, 7])) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $message = TicketMessage::findOrFail($messageId);
+
+        if ($message->channel !== 'email' || !$message->email_message_id) {
+            return response()->json(['success' => false, 'message' => 'This message is not from an email or has no email_message_id'], 422);
+        }
+
+        $sender = env('MS_SENDER_EMAIL');
+
+        try {
+            // Cari Graph message ID berdasarkan internetMessageId
+            $result = $this->graphGet("/users/{$sender}/messages", [
+                '$filter' => "internetMessageId eq '" . addslashes($message->email_message_id) . "'",
+                '$select' => 'id,hasAttachments',
+                '$top'    => 1,
+            ]);
+
+            $graphMsg = $result['value'][0] ?? null;
+            if (!$graphMsg) {
+                return response()->json(['success' => false, 'message' => 'Email not found in Graph inbox'], 404);
+            }
+
+            // Lewati hanya jika Graph melaporkan tidak ada attachment DAN body tidak punya cid: references
+            $hasCidInBody = str_contains($message->message_html ?? '', 'cid:');
+            if (empty($graphMsg['hasAttachments']) && !$hasCidInBody) {
+                return response()->json(['success' => true, 'message' => 'Email has no attachments', 'attachments' => 0]);
+            }
+
+            $before = $message->attachments()->count();
+            $cidMap = $this->storeEmailAttachments($sender, $graphMsg['id'], $message, $message->ticket_id);
+            $after  = $message->attachments()->count();
+
+            // Ganti referensi cid: di HTML jika ada inline image baru
+            if (!empty($cidMap) && $message->message_html) {
+                $message->update([
+                    'message_html' => $this->replaceCidReferences($message->message_html, $cidMap),
+                ]);
+            }
+
+            return response()->json([
+                'success'     => true,
+                'message'     => 'Attachments reprocessed successfully',
+                'attachments' => $after - $before,
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
     /**
      * Kirim email balasan untuk sebuah tiket (digunakan oleh TicketMessageController).
      *
-     * Alur threading yang benar:
-     * 1. Cari pesan asli via internetMessageId di mailbox
-     * 2. createReply → Graph otomatis set In-Reply-To & References
-     * 3. Patch body draft dengan HTML dari Quill
-     * 4. Send draft
+     * Alur:
+     * 1. Jika ada inReplyTo → createReply draft → patch body → tambah attachment → send
+     * 2. Fallback: buat message draft baru → tambah attachment → send
      *
-     * Fallback ke sendMail HTML jika pesan asli tidak ditemukan.
+     * Seluruh alur berbasis draft sehingga kita selalu mendapatkan draftId
+     * (= sent message ID) dan attachment ID dari Graph — tanpa menyimpan file lokal.
+     *
+     * @param  string                                          $toEmail
+     * @param  string                                          $subject
+     * @param  string                                          $body        HTML dari Quill
+     * @param  string|null                                     $inReplyTo   internetMessageId pesan terakhir
+     * @param  \Illuminate\Http\UploadedFile[]                 $files       File lampiran dari request
+     * @return array{graph_message_id:string, attachments:list<array{name:string,mime:string,size:int,graph_att_id:string}>}
      */
     public function sendTicketReply(
         string $toEmail,
         string $subject,
         string $body,
-        ?string $inReplyTo = null
-    ): void {
+        ?string $inReplyTo = null,
+        array $files = [],
+        array $ccList = []   // [{name, address}, ...] atau [address, ...]
+    ): array {
         $sender       = env('MS_SENDER_EMAIL');
         $replySubject = stripos($subject, 're:') !== 0 ? 'Re: ' . $subject : $subject;
+        $draftId      = null;
 
+        // Normalisasi ccList → format Graph API: [{emailAddress: {address, name}}]
+        $ccRecipients = [];
+        foreach ($ccList as $cc) {
+            if (is_string($cc)) {
+                $ccRecipients[] = ['emailAddress' => ['address' => $cc]];
+            } elseif (is_array($cc) && !empty($cc['address'])) {
+                $ccRecipients[] = ['emailAddress' => array_filter([
+                    'address' => $cc['address'],
+                    'name'    => $cc['name'] ?? null,
+                ])];
+            }
+        }
+
+        // ── Ekstrak inline images (base64) dari body HTML ──────────────────────
+        // Email clients block data URI images; replace with cid: references
+        $extracted    = $this->extractBase64Images($body);
+        $cleanBody    = $extracted['html'];
+        $inlineImages = $extracted['inlineImages'];
+
+        // ── Coba buat reply draft dari pesan asli ──────────────────────────────
         if ($inReplyTo) {
             try {
-                // Cari pesan asli di mailbox menggunakan internetMessageId
                 $result = $this->graphGet("/users/{$sender}/messages", [
                     '$filter' => "internetMessageId eq '" . addslashes($inReplyTo) . "'",
                     '$select' => 'id',
@@ -386,36 +653,150 @@ class EmailController extends Controller
                 if (!empty($result['value'][0]['id'])) {
                     $originalId = $result['value'][0]['id'];
 
-                    // 1. Buat draft reply — Graph otomatis isi In-Reply-To & References
+                    // createReply → Graph otomatis isi In-Reply-To & References
                     $draft   = $this->graphPost("/users/{$sender}/messages/{$originalId}/createReply", []);
                     $draftId = $draft->json('id');
 
-                    // 2. Update body draft dengan HTML dari Quill
-                    $this->graphPatch("/users/{$sender}/messages/{$draftId}", [
-                        'body' => ['contentType' => 'HTML', 'content' => $body],
-                    ]);
-
-                    // 3. Kirim draft
-                    $this->graphPost("/users/{$sender}/messages/{$draftId}/send", []);
-                    return;
+                    // Patch body + CC — internetMessageHeaders tidak bisa di-patch
+                    // pada draft yang dibuat via createReply (Graph API limitation)
+                    $patchData = ['body' => ['contentType' => 'HTML', 'content' => $cleanBody]];
+                    if (!empty($ccRecipients)) {
+                        $patchData['ccRecipients'] = $ccRecipients;
+                    }
+                    $this->graphPatch("/users/{$sender}/messages/{$draftId}", $patchData);
                 }
             } catch (\Exception $e) {
-                Log::warning('EmailController@sendTicketReply: createReply gagal, fallback ke sendMail', [
+                Log::warning('EmailController@sendTicketReply: createReply gagal, fallback ke draft baru', [
+                    'error' => $e->getMessage(),
+                ]);
+                $draftId = null;
+            }
+        }
+
+        // ── Fallback: buat message draft baru ─────────────────────────────────
+        if (!$draftId) {
+            $newMsgPayload = [
+                'subject'      => $replySubject,
+                'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
+                'toRecipients' => [['emailAddress' => ['address' => $toEmail]]],
+                'internetMessageHeaders' => [
+                    ['name' => 'Precedence',      'value' => 'transactional'],
+                    ['name' => 'X-Mailer',        'value' => 'EcoSystem-Helpdesk'],
+                    ['name' => 'X-Entity-Ref-ID', 'value' => uniqid('ecosys-', true)],
+                ],
+            ];
+            if (!empty($ccRecipients)) {
+                $newMsgPayload['ccRecipients'] = $ccRecipients;
+            }
+            $draft   = $this->graphPost("/users/{$sender}/messages", $newMsgPayload);
+            $draftId = $draft->json('id');
+        }
+
+        // ── Lampirkan inline images sebagai CID attachments ────────────────────
+        foreach ($inlineImages as $img) {
+            try {
+                $this->graphPost("/users/{$sender}/messages/{$draftId}/attachments", [
+                    '@odata.type' => '#microsoft.graph.fileAttachment',
+                    'name'        => $img['name'],
+                    'contentType' => $img['mime'],
+                    'contentBytes'=> $img['content'],
+                    'contentId'   => $img['cid'],
+                    'isInline'    => true,
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('EmailController@sendTicketReply: gagal lampirkan inline image', [
+                    'cid'   => $img['cid'],
                     'error' => $e->getMessage(),
                 ]);
             }
         }
 
-        // Fallback: sendMail dengan HTML body
-        $this->graphPost("/users/{$sender}/sendMail", [
-            'message' => [
-                'subject' => $replySubject,
-                'body'    => ['contentType' => 'HTML', 'content' => $body],
-                'toRecipients' => [
-                    ['emailAddress' => ['address' => $toEmail]],
-                ],
-            ],
-            'saveToSentItems' => true,
-        ]);
+        // ── Tambahkan attachment ke draft satu per satu ────────────────────────
+        // File TIDAK disimpan ke disk lokal — isi dibaca ke memori, di-base64, langsung ke Graph
+        $attachmentRecords = [];
+        foreach ($files as $file) {
+            try {
+                $contentBytes = base64_encode(file_get_contents($file->getRealPath()));
+                $attRes = $this->graphPost("/users/{$sender}/messages/{$draftId}/attachments", [
+                    '@odata.type' => '#microsoft.graph.fileAttachment',
+                    'name'        => $file->getClientOriginalName(),
+                    'contentType' => $file->getMimeType() ?? 'application/octet-stream',
+                    'contentBytes'=> $contentBytes,
+                ]);
+
+                $attachmentRecords[] = [
+                    'name'         => $file->getClientOriginalName(),
+                    'mime'         => $file->getMimeType() ?? 'application/octet-stream',
+                    'size'         => $file->getSize(),
+                    'graph_att_id' => $attRes->json('id'),
+                ];
+            } catch (\Exception $e) {
+                Log::warning('EmailController@sendTicketReply: gagal tambah attachment', [
+                    'file'  => $file->getClientOriginalName(),
+                    'error' => $e->getMessage(),
+                ]);
+                // Lanjutkan — satu file gagal tidak membatalkan keseluruhan pengiriman
+            }
+        }
+
+        // ── Kirim draft ───────────────────────────────────────────────────────
+        $this->graphPost("/users/{$sender}/messages/{$draftId}/send", []);
+
+        return [
+            'graph_message_id' => $draftId,
+            'attachments'      => $attachmentRecords,
+        ];
+    }
+
+    /**
+     * Ekstrak semua inline base64 images dari HTML.
+     *
+     * Setiap <img src="data:image/...;base64,..."> diganti dengan
+     * <img src="cid:{uuid}@ecosys"> dan data aslinya dikembalikan sebagai
+     * array agar bisa dilampirkan sebagai fileAttachment isInline di Graph API.
+     *
+     * @param  string $html
+     * @return array{html: string, inlineImages: list<array{cid:string, mime:string, content:string, name:string}>}
+     */
+    private function extractBase64Images(string $html): array
+    {
+        $inlineImages = [];
+
+        $modifiedHtml = preg_replace_callback(
+            '/<img([^>]*?)\s+src="data:(image\/[a-zA-Z+\-.]+);base64,([A-Za-z0-9+\/=\s]+)"([^>]*?)>/i',
+            function ($matches) use (&$inlineImages) {
+                $before  = $matches[1];
+                $mime    = $matches[2];
+                $content = preg_replace('/\s+/', '', $matches[3]); // strip whitespace from base64
+                $after   = $matches[4];
+
+                $ext = strtolower(explode('/', $mime)[1] ?? 'png');
+                $ext = match ($ext) {
+                    'jpeg', 'jpg' => 'jpg',
+                    'png'         => 'png',
+                    'gif'         => 'gif',
+                    'webp'        => 'webp',
+                    'svg+xml'     => 'svg',
+                    default       => 'png',
+                };
+
+                $cid = 'img-' . \Illuminate\Support\Str::uuid() . '@ecosys';
+
+                $inlineImages[] = [
+                    'cid'     => $cid,
+                    'mime'    => $mime,
+                    'content' => $content,
+                    'name'    => 'image.' . $ext,
+                ];
+
+                return '<img' . $before . ' src="cid:' . $cid . '"' . $after . '>';
+            },
+            $html
+        );
+
+        return [
+            'html'         => $modifiedHtml ?? $html,
+            'inlineImages' => $inlineImages,
+        ];
     }
 }

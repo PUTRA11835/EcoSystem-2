@@ -27,7 +27,7 @@
     </div>
 
     {{-- Ticket List --}}
-    <div id="sidebarTicketList" class="flex-1 overflow-y-auto px-2 pb-4 space-y-0.5">
+    <div id="sidebarTicketList" class="flex-1 overflow-y-auto px-2 pb-4 space-y-1.5">
         {{-- Loaded via JS --}}
     </div>
 
@@ -72,6 +72,19 @@
                     <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
                         {{ $statusLabels[$ticket->status] ?? 'Open' }}
                     </span>
+                    @if($ticket->ticket_type)
+                    @php
+                        $typeColors = [
+                            'Incident' => 'bg-red-100 text-red-700',
+                            'Service Request' => 'bg-indigo-100 text-indigo-700',
+                            'Change Request' => 'bg-amber-100 text-amber-700',
+                            'Consult' => 'bg-teal-100 text-teal-700',
+                        ];
+                    @endphp
+                    <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $typeColors[$ticket->ticket_type] ?? 'bg-gray-100 text-gray-600' }}">
+                        {{ $ticket->ticket_type }}
+                    </span>
+                    @endif
                 </div>
                 <div class="flex items-center gap-3 text-sm text-gray-500">
                     <span>{{ $ticket->customer?->basicData?->name_1 ?? 'Unknown Customer' }}</span>
@@ -101,20 +114,26 @@
                 <div class="bg-white border border-gray-300 rounded-lg overflow-hidden">
                     <div id="quillEditor" style="min-height: 100px; max-height: 200px; overflow-y: auto;"></div>
                 </div>
-                <div class="flex items-center justify-between mt-2 mb-1">
-                    <div class="text-xs text-gray-400">Rich text editor</div>
-                    <div class="flex items-center gap-2">
-                        @if($user->role->role_id == 1 || $user->role->role_id == 2)
-                        <button onclick="sendReply('internal_note')" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg hover:bg-amber-100 transition-all">
-                            <i class="fas fa-lock text-[10px]"></i>
-                            Internal Note
-                        </button>
-                        @endif
-                        <button onclick="sendReply('reply')" class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all shadow-sm">
-                            <i class="fas fa-paper-plane text-[10px]"></i>
-                            Send Reply
-                        </button>
-                    </div>
+
+                {{-- Attachment Preview Area (toggled via JS: style.display flex/none) --}}
+                <div id="attachmentPreview" style="display:none" class="mt-2 flex-wrap gap-2"></div>
+
+                {{-- Hidden file input (button injected into Quill toolbar via JS) --}}
+                <input type="file" id="attachInput" multiple class="hidden"
+                       accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar,.csv">
+                <div class="flex items-center justify-end mt-2 mb-1 gap-2">
+                    <span id="attachCount" class="hidden text-xs text-blue-600 font-medium mr-auto"></span>
+                    {{-- Send buttons --}}
+                    @if($user->role->role_id == 1 || $user->role->role_id == 2)
+                    <button onclick="sendReply('internal_note')" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg hover:bg-amber-100 transition-all">
+                        <i class="fas fa-lock text-[10px]"></i>
+                        Internal Note
+                    </button>
+                    @endif
+                    <button onclick="sendReply('reply')" class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all shadow-sm">
+                        <i class="fas fa-paper-plane text-[10px]"></i>
+                        Send Reply
+                    </button>
                 </div>
             </div>
         </div>
@@ -169,16 +188,15 @@
                     </select>
                 </div>
 
-                {{-- Type --}}
+                {{-- Ticket Type --}}
                 <div>
-                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Type</label>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Ticket Type</label>
                     <select id="detailType" {{ $user->role->role_id == 1 ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
-                        <option value="" {{ !$ticket->type ? 'selected' : '' }}>-- Select Type --</option>
-                        <option value="AMS" {{ $ticket->type == 'AMS' ? 'selected' : '' }}>AMS</option>
-                        <option value="MO" {{ $ticket->type == 'MO' ? 'selected' : '' }}>MO</option>
-                        <option value="ATS" {{ $ticket->type == 'ATS' ? 'selected' : '' }}>ATS</option>
-                        <option value="Project" {{ $ticket->type == 'Project' ? 'selected' : '' }}>Project</option>
-                        <option value="Internal" {{ $ticket->type == 'Internal' ? 'selected' : '' }}>Internal</option>
+                        <option value="" {{ !$ticket->ticket_type ? 'selected' : '' }}>-- Select Type --</option>
+                        <option value="Incident" {{ $ticket->ticket_type == 'Incident' ? 'selected' : '' }}>Incident</option>
+                        <option value="Service Request" {{ $ticket->ticket_type == 'Service Request' ? 'selected' : '' }}>Service Request</option>
+                        <option value="Change Request" {{ $ticket->ticket_type == 'Change Request' ? 'selected' : '' }}>Change Request</option>
+                        <option value="Consult" {{ $ticket->ticket_type == 'Consult' ? 'selected' : '' }}>Consult</option>
                     </select>
                 </div>
 
@@ -193,6 +211,54 @@
                             </option>
                         @endforeach
                     </select>
+                </div>
+
+                {{-- Team Members --}}
+                @php
+                    $canManageMembers = in_array($user->role->role_id, [1, 6, 7])
+                        || ($user->role->role_id == 2 && $ticket->employee_id == $user->id);
+                    $currentMemberIds = $ticket->members->pluck('employee_id')->toArray();
+                @endphp
+                <div class="pt-3 border-t border-gray-200">
+                    <label class="text-xs font-semibold text-gray-500 mb-2 block">Team Members</label>
+
+                    {{-- Members list --}}
+                    <div id="membersList" class="space-y-1 mb-2">
+                        @forelse($ticket->members as $member)
+                            @php $mName = trim(($member->basicData->first_name ?? '') . ' ' . ($member->basicData->last_name ?? '')); @endphp
+                            <div class="member-chip flex items-center justify-between gap-1 px-2.5 py-1.5 bg-blue-50 rounded-lg" data-id="{{ $member->employee_id }}">
+                                <span class="text-xs text-blue-700 font-medium truncate">{{ $mName }}</span>
+                                @if($canManageMembers)
+                                <button type="button" onclick="removeMemberBtn({{ $member->employee_id }})"
+                                        class="text-blue-300 hover:text-red-500 transition-colors flex-shrink-0 ml-1">
+                                    <i class="fas fa-times text-[9px]"></i>
+                                </button>
+                                @endif
+                            </div>
+                        @empty
+                            <p class="text-xs text-gray-400 italic" id="noMembersText">No members assigned.</p>
+                        @endforelse
+                    </div>
+
+                    {{-- Add member row (visible for Admin, Helpdesk, PIC) --}}
+                    @if($canManageMembers)
+                    <div class="flex gap-1.5">
+                        <select id="addMemberSelect"
+                                class="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">-- Add member --</option>
+                            @foreach($employees as $emp)
+                                @if(!in_array($emp['employee_id'], $currentMemberIds) && $emp['employee_id'] != $ticket->employee_id)
+                                    <option value="{{ $emp['employee_id'] }}">{{ $emp['name'] }}</option>
+                                @endif
+                            @endforeach
+                        </select>
+                        <button type="button" onclick="addMemberBtn()"
+                                class="px-2.5 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all flex-shrink-0"
+                                title="Add member">
+                            <i class="fas fa-user-plus text-[10px]"></i>
+                        </button>
+                    </div>
+                    @endif
                 </div>
 
                 {{-- Customer (read-only) --}}
@@ -254,6 +320,16 @@
 .message-bubble.employee { background: #eff6ff; border-radius: 12px 12px 4px 12px; }
 .message-bubble.internal-note { background: #fef9c3; border: 1px dashed #f59e0b; border-radius: 8px; }
 
+/* Email HTML body rendering — scoped agar tidak bocor ke luar bubble */
+.email-html-body { word-break: break-word; }
+.email-html-body p  { margin-bottom: 0.3rem; }
+.email-html-body a  { color: #2563eb; text-decoration: underline; }
+.email-html-body ul, .email-html-body ol { padding-left: 1.25rem; margin-bottom: 0.4rem; }
+.email-html-body blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; margin: 0.25rem 0; }
+.email-html-body img { max-width: 100%; height: auto; border-radius: 6px; }
+.email-html-body table { border-collapse: collapse; font-size: 12px; max-width: 100%; }
+.email-html-body td, .email-html-body th { border: 1px solid #e5e7eb; padding: 4px 8px; }
+
 /* Quill Editor Overrides */
 .ql-toolbar.ql-snow { border: none !important; border-bottom: 1px solid #e5e7eb !important; padding: 4px 8px !important; background: #f9fafb; }
 .ql-container.ql-snow { border: none !important; font-size: 13px; }
@@ -299,13 +375,24 @@
 /* Sidebar ticket items */
 .sidebar-ticket-item {
     display: block;
-    padding: 8px 12px;
-    border-radius: 8px;
-    transition: background 0.15s;
+    padding: 8px 10px 8px 12px;
+    border-radius: 7px;
+    transition: background 0.15s, border-color 0.15s;
     text-decoration: none;
+    background: rgba(0,0,0,0.15);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-left: 3px solid transparent;
 }
-.sidebar-ticket-item:hover { background: rgba(255,255,255,0.1); }
-.sidebar-ticket-item.active { background: rgba(255,255,255,0.2); }
+.sidebar-ticket-item:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: rgba(255,255,255,0.12);
+    border-left-color: rgba(255,255,255,0.3);
+}
+.sidebar-ticket-item.active {
+    background: rgba(255,255,255,0.16);
+    border-color: rgba(255,255,255,0.15);
+    border-left-color: rgba(255,255,255,0.75);
+}
 </style>
 
 {{-- Assign to Delivery Support Modal --}}
@@ -405,6 +492,9 @@
     let quillEditor     = null;
     let allSidebarTickets  = [];
     let deliverySupportList = [];
+    // Set berisi ID pesan yang sudah dirender ke DOM.
+    // Digunakan agar polling tidak me-render ulang pesan lama → gambar tidak flicker.
+    let renderedMessageIds = new Set();
 
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize Quill
@@ -441,6 +531,18 @@
             });
             const header = toolbar.querySelector('.ql-header');
             if (header) header.setAttribute('title', 'Heading');
+
+            // Inject attachment button into toolbar
+            const attachGroup = document.createElement('span');
+            attachGroup.className = 'ql-formats';
+            attachGroup.innerHTML = `
+                <button type="button" id="attachBtn" title="Attach File"
+                        onclick="document.getElementById('attachInput').click()"
+                        style="width:auto;padding:2px 7px;display:inline-flex;align-items:center;gap:4px;border-radius:3px;">
+                    <i class="fas fa-paperclip" style="font-size:12px;color:#555"></i>
+                    <span style="font-size:11px;font-weight:500;color:#444;line-height:1.5">Attachment</span>
+                </button>`;
+            toolbar.appendChild(attachGroup);
         }
 
         loadMessages();
@@ -477,61 +579,184 @@
         const thread  = document.getElementById('messagesThread');
         const loading = document.getElementById('messagesLoading');
 
-        console.log('[loadMessages] thread:', thread, '| loading:', loading);
-
         if (!thread) {
             console.error('[loadMessages] ERROR: #messagesThread tidak ditemukan di DOM');
             return;
         }
 
         try {
-            console.log('[loadMessages] Fetching /api/tickets/' + ticketId + '/messages ...');
             const response = await fetch(`/api/tickets/${ticketId}/messages`, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin'
             });
 
-            console.log('[loadMessages] HTTP status:', response.status, response.ok ? 'OK' : 'FAIL');
-
             if (!response.ok) {
-                console.error('[loadMessages] Response tidak OK:', response.status, await response.text());
+                console.error('[loadMessages] Response tidak OK:', response.status);
                 if (loading) loading.classList.add('hidden');
                 return;
             }
 
             const data = await response.json();
-            console.log('[loadMessages] Data received:', data);
-
             if (loading) loading.classList.add('hidden');
 
-            if (data.success && data.data && data.data.length > 0) {
-                console.log('[loadMessages] Render', data.data.length, 'pesan');
-                thread.innerHTML = data.data.map(msg => createMessageBubble(msg)).join('');
-            } else {
-                console.log('[loadMessages] Tidak ada pesan, render fallback');
-                thread.innerHTML = createFallbackMessage();
+            // Tidak ada pesan dari server
+            if (!data.success || !data.data || data.data.length === 0) {
+                // Hanya tampilkan fallback jika memang belum ada apapun di thread
+                if (renderedMessageIds.size === 0) {
+                    thread.innerHTML = createFallbackMessage();
+                }
+                return;
             }
+
+            const messages    = data.data;
+            const isFirstLoad = renderedMessageIds.size === 0;
+
+            // Filter hanya pesan yang belum pernah dirender
+            const newMessages = messages.filter(msg => !renderedMessageIds.has(msg.id));
+
+            if (newMessages.length === 0) {
+                // Tidak ada pesan baru — DOM tidak disentuh, gambar tidak hilang
+                return;
+            }
+
+            if (isFirstLoad) {
+                // Load pertama: render semua sekaligus (innerHTML sekali, bukan per-pesan)
+                thread.innerHTML = messages.map(msg => createMessageBubble(msg)).join('');
+                messages.forEach(msg => renderedMessageIds.add(msg.id));
+                console.log('[loadMessages] Initial render:', messages.length, 'pesan');
+            } else {
+                // Poll berikutnya: hanya append pesan baru di bawah, pesan lama tidak disentuh
+                newMessages.forEach(msg => {
+                    thread.insertAdjacentHTML('beforeend', createMessageBubble(msg));
+                    renderedMessageIds.add(msg.id);
+                });
+                console.log('[loadMessages] Appended', newMessages.length, 'pesan baru');
+            }
+
             thread.scrollTop = thread.scrollHeight;
 
         } catch (error) {
-            console.error('[loadMessages] EXCEPTION:', error.name, error.message, error.stack);
+            console.error('[loadMessages] EXCEPTION:', error.name, error.message);
             if (loading) loading.classList.add('hidden');
-            thread.innerHTML = createFallbackMessage();
+            // Hanya tampilkan fallback jika thread masih kosong
+            if (renderedMessageIds.size === 0) {
+                thread.innerHTML = createFallbackMessage();
+            }
         }
     }
 
+    // ── Render attachment list (gambar inline, file sebagai link download) ──────
+    // isEmailWithHtml: true jika pesan email sudah punya message_html →
+    //   inline images sudah ditampilkan di dalam HTML body, jadi tidak perlu ditampilkan ulang sebagai thumbnail
+    function renderAttachments(attachments, isEmailWithHtml = false) {
+        if (!attachments || attachments.length === 0) return '';
+
+        // Pisahkan inline images dan file biasa
+        // Jika email dengan HTML body: abaikan inline images (sudah ada di message_html setelah CID replacement)
+        const inlineImgs = isEmailWithHtml
+            ? []
+            : attachments.filter(a => a.is_inline && a.mime_type?.startsWith('image/'));
+        // Untuk email dengan HTML body: juga exclude is_inline=true dari files (sudah ada di HTML body)
+        const files = isEmailWithHtml
+            ? attachments.filter(a => !a.is_inline)
+            : attachments.filter(a => !inlineImgs.includes(a));
+
+        let html = '';
+
+        if (inlineImgs.length > 0) {
+            html += `<div class="mt-2 flex flex-wrap gap-2">`;
+            inlineImgs.forEach(img => {
+                html += `<a href="${img.url}" target="_blank" title="${escHtml(img.file_name)}">
+                    <img src="${img.url}" alt="${escHtml(img.file_name)}"
+                         class="max-h-48 max-w-xs rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-90 transition-opacity"
+                         onerror="this.style.display='none'">
+                </a>`;
+            });
+            html += `</div>`;
+        }
+
+        if (files.length > 0) {
+            html += `<div class="mt-2 space-y-1">`;
+            files.forEach(file => {
+                const icon  = attachmentIcon(file.attachment_type, file.mime_type);
+                const size  = formatFileSize(file.file_size);
+                const isImg = file.mime_type?.startsWith('image/');
+                html += `<div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 max-w-xs">
+                    <span class="text-lg flex-shrink-0">${icon}</span>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-medium text-gray-700 truncate">${escHtml(file.file_name)}</p>
+                        ${size ? `<p class="text-[10px] text-gray-400">${size}</p>` : ''}
+                    </div>
+                    <div class="flex gap-1 flex-shrink-0">
+                        ${isImg ? `<a href="${file.url}" target="_blank" class="text-xs text-blue-500 hover:underline">Lihat</a>` : ''}
+                        <a href="${file.url}" download="${escHtml(file.file_name)}"
+                           class="text-xs text-blue-500 hover:underline">Unduh</a>
+                    </div>
+                </div>`;
+            });
+            html += `</div>`;
+        }
+
+        return html;
+    }
+
+    function attachmentIcon(type, mime) {
+        if (mime?.startsWith('image/'))        return '🖼️';
+        if (type === 'pdf')                    return '📄';
+        if (type === 'document')               return '📝';
+        if (type === 'spreadsheet')            return '📊';
+        if (type === 'archive')                return '🗜️';
+        return '📎';
+    }
+
+    function formatFileSize(bytes) {
+        if (!bytes) return '';
+        if (bytes < 1024)       return bytes + ' B';
+        if (bytes < 1048576)    return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    function escHtml(str) {
+        if (!str) return '';
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Pilih konten pesan: HTML dari email atau plain text dari web ────────────
+    function messageContent(msg) {
+        // Email dengan HTML body → render HTML mentah (sudah disanitasi oleh extractReplyBody)
+        if (msg.channel === 'email' && msg.message_html) {
+            return `<div class="message-content text-sm text-gray-700 email-html-body">${msg.message_html}</div>`;
+        }
+        // Web reply (Quill HTML) atau plain text — guard null untuk reply tanpa teks (file only)
+        if (!msg.message_body) return '';
+        return `<div class="message-content text-sm text-gray-700">${msg.message_body}</div>`;
+    }
+
     function createMessageBubble(msg) {
-        const isEmployee = msg.sender_type === 'employee';
+        const isEmployee     = msg.sender_type === 'employee';
         const isInternalNote = msg.message_type === 'internal_note';
-        const senderName = msg.sender_name || (isEmployee ? 'Employee' : 'Customer');
-        const initials = senderName.substring(0, 1).toUpperCase();
-        const date = new Date(msg.created_at).toLocaleDateString('en-US', {
+        const senderName     = msg.sender_name || (isEmployee ? 'Employee' : 'Customer');
+        const initials       = senderName.substring(0, 1).toUpperCase();
+        const date           = new Date(msg.created_at).toLocaleDateString('en-US', {
             month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
         });
 
         const channelBadge = msg.channel === 'email'
             ? `<span class="msg-channel-badge msg-channel-email"><svg style="width:9px;height:9px;display:inline" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg> Email</span>`
             : `<span class="msg-channel-badge msg-channel-web"><svg style="width:9px;height:9px;display:inline" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clip-rule="evenodd"/></svg> Web</span>`;
+
+        // CC badge — hanya tampil kalau ada CC
+        const ccList   = msg.cc_emails || [];
+        const ccBadge  = ccList.length > 0
+            ? `<span class="inline-flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
+                <svg style="width:9px;height:9px;flex-shrink:0" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
+                <span class="font-medium text-gray-500">CC:</span>
+                ${ccList.map(c => `<span title="${c.address || c}">${c.name || c.address || c}</span>`).join(', ')}
+               </span>`
+            : '';
+
+        const isEmailWithHtml = msg.channel === 'email' && !!msg.message_html;
+        const attachmentsHtml = renderAttachments(msg.attachments, isEmailWithHtml);
 
         if (isInternalNote) {
             return `
@@ -545,26 +770,31 @@
                             <span class="text-xs text-gray-400">${date}</span>
                         </div>
                         <div class="message-bubble internal-note p-3">
-                            <div class="message-content text-sm text-gray-700">${msg.message_body}</div>
+                            ${messageContent(msg)}
+                            ${attachmentsHtml}
                         </div>
                     </div>
                 </div>`;
         }
 
-        const avatarBg = isEmployee ? 'bg-blue-500' : 'bg-gray-400';
+        const avatarBg   = isEmployee ? 'bg-blue-500' : 'bg-gray-400';
         const bubbleClass = isEmployee ? 'employee' : 'customer';
 
         return `
             <div class="flex gap-3 ${isEmployee ? 'flex-row-reverse' : ''}">
                 <div class="w-8 h-8 ${avatarBg} rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">${initials}</div>
                 <div class="${isEmployee ? 'text-right' : ''}">
-                    <div class="flex items-center gap-2 mb-1 ${isEmployee ? 'justify-end' : ''}">
-                        <span class="text-sm font-semibold text-gray-900">${senderName}</span>
-                        ${channelBadge}
-                        <span class="text-xs text-gray-400">${date}</span>
+                    <div class="flex flex-col mb-1 ${isEmployee ? 'items-end' : ''}">
+                        <div class="flex items-center gap-2 ${isEmployee ? 'justify-end' : ''}">
+                            <span class="text-sm font-semibold text-gray-900">${senderName}</span>
+                            ${channelBadge}
+                            <span class="text-xs text-gray-400">${date}</span>
+                        </div>
+                        ${ccBadge}
                     </div>
                     <div class="message-bubble ${bubbleClass} p-3 inline-block text-left">
-                        <div class="message-content text-sm text-gray-700">${msg.message_body}</div>
+                        ${messageContent(msg)}
+                        ${attachmentsHtml}
                     </div>
                 </div>
             </div>`;
@@ -590,48 +820,134 @@
             </div>`;
     }
 
+    // ==================== ATTACHMENT HANDLING (COMPOSE) ====================
+    let selectedFiles = []; // File[] yang dipilih user untuk dikirim bersama reply
+
+    document.getElementById('attachInput').addEventListener('change', function () {
+        const maxSize = 10 * 1024 * 1024; // 10 MB per file
+        Array.from(this.files).forEach(file => {
+            if (file.size > maxSize) {
+                showNotification(`${file.name} terlalu besar (maks 10 MB)`, 'error');
+                return;
+            }
+            // Hindari duplikat berdasarkan nama + ukuran
+            if (!selectedFiles.find(f => f.name === file.name && f.size === file.size)) {
+                selectedFiles.push(file);
+            }
+        });
+        // Reset value agar file yang sama bisa dipilih ulang setelah dihapus
+        this.value = '';
+        renderAttachmentPreview();
+    });
+
+    function renderAttachmentPreview() {
+        const preview = document.getElementById('attachmentPreview');
+        const countEl = document.getElementById('attachCount');
+
+        if (selectedFiles.length === 0) {
+            preview.style.display = 'none';
+            countEl.classList.add('hidden');
+            return;
+        }
+
+        preview.style.display = 'flex';
+        countEl.classList.remove('hidden');
+        countEl.textContent = selectedFiles.length + (selectedFiles.length === 1 ? ' file' : ' files');
+
+        preview.innerHTML = selectedFiles.map((file, idx) => {
+            const size = formatFileSize(file.size);
+            const icon = file.type.startsWith('image/') ? '🖼️'
+                       : file.type === 'application/pdf' ? '📄'
+                       : /\.(doc|docx)$/i.test(file.name) ? '📝'
+                       : /\.(xls|xlsx|csv)$/i.test(file.name) ? '📊'
+                       : /\.(zip|rar)$/i.test(file.name) ? '🗜️'
+                       : '📎';
+            return `<div class="flex items-center gap-1.5 bg-gray-100 border border-gray-200 rounded-lg px-2.5 py-1.5" style="max-width:200px">
+                <span class="text-sm flex-shrink-0">${icon}</span>
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs font-medium text-gray-700 truncate" title="${escHtml(file.name)}">${escHtml(file.name)}</p>
+                    ${size ? `<p class="text-[10px] text-gray-400">${size}</p>` : ''}
+                </div>
+                <button type="button" onclick="removeAttachment(${idx})" title="Hapus"
+                        class="flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors text-xs leading-none">✕</button>
+            </div>`;
+        }).join('');
+    }
+
+    function removeAttachment(idx) {
+        selectedFiles.splice(idx, 1);
+        renderAttachmentPreview();
+    }
+
+    function resetAttachments() {
+        selectedFiles = [];
+        document.getElementById('attachInput').value = '';
+        renderAttachmentPreview();
+    }
+
     // ==================== SEND REPLY ====================
     async function sendReply(messageType) {
         const htmlContent  = quillEditor.root.innerHTML;
         const plainContent = quillEditor.getText().trim();
+        const hasFiles     = selectedFiles.length > 0;
 
-        console.log('[sendReply] type:', messageType, '| plainContent:', plainContent);
-
-        if (!plainContent) {
-            showNotification('Please type a message', 'error');
+        // Perlu minimal teks atau file lampiran
+        if (!plainContent && !hasFiles) {
+            showNotification('Ketik pesan atau lampirkan file', 'error');
             return;
         }
 
+        // Disable tombol kirim selama proses agar tidak double-submit
+        const sendBtn = document.querySelector('button[onclick="sendReply(\'reply\')"]');
+        const noteBtn = document.querySelector('button[onclick="sendReply(\'internal_note\')"]');
+        if (sendBtn) { sendBtn.disabled = true; sendBtn.classList.add('opacity-60'); }
+        if (noteBtn) { noteBtn.disabled = true; noteBtn.classList.add('opacity-60'); }
+
         try {
-            console.log('[sendReply] Posting message to API...');
+            let requestBody;
+            const headers = {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            };
+
+            if (hasFiles) {
+                // Kirim sebagai multipart/form-data
+                // Jangan set Content-Type manual — browser otomatis tambahkan boundary yang benar
+                const formData = new FormData();
+                formData.append('message_body', htmlContent);
+                formData.append('message_type', messageType);
+                selectedFiles.forEach(file => formData.append('attachments[]', file));
+                requestBody = formData;
+            } else {
+                headers['Content-Type'] = 'application/json';
+                requestBody = JSON.stringify({ message_body: htmlContent, message_type: messageType });
+            }
+
             const response = await fetch(`/api/tickets/${ticketId}/messages`, {
                 method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-                },
+                headers,
                 credentials: 'same-origin',
-                body: JSON.stringify({ message_body: htmlContent, message_type: messageType })
+                body: requestBody
             });
 
-            console.log('[sendReply] HTTP status:', response.status);
             const data = await response.json();
-            console.log('[sendReply] Response data:', data);
 
             if (data.success) {
                 quillEditor.setContents([]);
-                console.log('[sendReply] Success, calling loadMessages...');
+                resetAttachments();
                 await loadMessages();
                 showNotification(messageType === 'internal_note' ? 'Internal note added' : 'Reply sent', 'success');
             } else {
-                console.warn('[sendReply] API returned error:', data.message, data.errors);
+                console.warn('[sendReply] API error:', data.message, data.errors);
                 showNotification(data.message || 'Failed to send message', 'error');
             }
         } catch (error) {
-            console.error('[sendReply] EXCEPTION:', error.name, error.message, error.stack);
+            console.error('[sendReply] EXCEPTION:', error.name, error.message);
             showNotification('Error: ' + error.message, 'error');
+        } finally {
+            if (sendBtn) { sendBtn.disabled = false; sendBtn.classList.remove('opacity-60'); }
+            if (noteBtn) { noteBtn.disabled = false; noteBtn.classList.remove('opacity-60'); }
         }
     }
 
@@ -714,6 +1030,91 @@
         renderSidebarTickets(filtered);
     }
 
+    // ==================== TEAM MEMBERS ====================
+    const allEmployees  = @json($employees);
+    const canManageMembers = {{ $canManageMembers ? 'true' : 'false' }};
+
+    function escHtmlMember(str) {
+        const d = document.createElement('div');
+        d.textContent = str ?? '';
+        return d.innerHTML;
+    }
+
+    function renderMembers(members) {
+        const list = document.getElementById('membersList');
+        if (!list) return;
+
+        const memberIds = new Set(members.map(m => m.employee_id));
+
+        if (members.length === 0) {
+            list.innerHTML = '<p class="text-xs text-gray-400 italic" id="noMembersText">No members assigned.</p>';
+        } else {
+            list.innerHTML = members.map(m => `
+                <div class="member-chip flex items-center justify-between gap-1 px-2.5 py-1.5 bg-blue-50 rounded-lg" data-id="${m.employee_id}">
+                    <span class="text-xs text-blue-700 font-medium truncate">${escHtmlMember(m.name)}</span>
+                    ${canManageMembers ? `<button type="button" onclick="removeMemberBtn(${m.employee_id})"
+                        class="text-blue-300 hover:text-red-500 transition-colors flex-shrink-0 ml-1">
+                        <i class="fas fa-times text-[9px]"></i></button>` : ''}
+                </div>`).join('');
+        }
+
+        // Rebuild dropdown: show only employees not already in members and not the PIC
+        const sel = document.getElementById('addMemberSelect');
+        if (sel) {
+            sel.innerHTML = '<option value="">-- Add member --</option>';
+            allEmployees.forEach(emp => {
+                if (!memberIds.has(emp.employee_id) && emp.employee_id != {{ $ticket->employee_id ?? 'null' }}) {
+                    const opt = document.createElement('option');
+                    opt.value = emp.employee_id;
+                    opt.textContent = emp.name;
+                    sel.appendChild(opt);
+                }
+            });
+        }
+    }
+
+    async function addMemberBtn() {
+        const sel   = document.getElementById('addMemberSelect');
+        const empId = sel?.value;
+        if (!empId) { showNotification('Please select a member to add.', 'error'); return; }
+
+        const btn = sel.nextElementSibling;
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-[10px]"></i>'; }
+
+        try {
+            const res  = await fetch(`/api/tickets/${ticketId}/members`, {
+                method: 'POST',
+                headers: getHeaders(),
+                credentials: 'same-origin',
+                body: JSON.stringify({ employee_id: parseInt(empId) }),
+            });
+            const data = await res.json();
+            if (!data.success) { showNotification(data.message || 'Failed to add member.', 'error'); return; }
+            renderMembers(data.data);
+            showNotification('Member added successfully.', 'success');
+        } catch {
+            showNotification('Error adding member.', 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-user-plus text-[10px]"></i>'; }
+        }
+    }
+
+    async function removeMemberBtn(employeeId) {
+        try {
+            const res  = await fetch(`/api/tickets/${ticketId}/members/${employeeId}`, {
+                method: 'DELETE',
+                headers: getHeaders(),
+                credentials: 'same-origin',
+            });
+            const data = await res.json();
+            if (!data.success) { showNotification(data.message || 'Failed to remove member.', 'error'); return; }
+            renderMembers(data.data);
+            showNotification('Member removed.', 'success');
+        } catch {
+            showNotification('Error removing member.', 'error');
+        }
+    }
+
     // ==================== ADMIN ACTIONS ====================
     function getHeaders() {
         return {
@@ -745,7 +1146,7 @@
             const updateData = {
                 jarvies_status: jarviesStatus,
                 ticket_priority: priority,
-                type: type || null,
+                ticket_type: type || null,
                 employee_id: pic || null,
                 man_days: manDays ? parseFloat(manDays) : null,
             };
@@ -879,7 +1280,7 @@
                 data.data.forEach(support => {
                     const option = document.createElement('option');
                     option.value = support.id;
-                    option.textContent = `${support.name} (${support.client_name || 'Unknown Client'})`;
+                    option.textContent = `${support.name} (${support.client_name || 'Unknown Client'}), ${support.type}`;
                     select.appendChild(option);
                 });
             } else {

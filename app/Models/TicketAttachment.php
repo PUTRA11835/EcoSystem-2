@@ -20,7 +20,51 @@ class TicketAttachment extends Model
         'link_url',
         'link_title',
         'description',
+        'file_path',
+        'file_name',
+        'file_size',
+        'mime_type',
+        'is_inline',
+        'graph_attachment_id',
+        'graph_message_id',
+        'content_id',
     ];
+
+    protected $casts = [
+        'is_inline' => 'boolean',
+    ];
+
+    /**
+     * URL publik untuk download/tampil file.
+     *
+     * Prioritas:
+     * 1. Record baru (graph_message_id tersedia) → proxy route /attachments/{id}
+     *    Fetch file langsung dari Microsoft Graph saat dibutuhkan (hemat storage)
+     * 2. Record lama (file_path tersedia) → path relatif /storage/...
+     * 3. Fallback → link_url dari DB
+     */
+    public function getPublicUrlAttribute(): ?string
+    {
+        // Record baru: file tidak disimpan lokal, ambil dari Graph via proxy
+        if ($this->graph_message_id && $this->graph_attachment_id) {
+            return route('attachments.show', $this->id);
+        }
+
+        // Record lama: file sudah disimpan lokal sebelum strategi berubah
+        if ($this->file_path) {
+            return '/storage/' . $this->file_path;
+        }
+
+        return $this->link_url;
+    }
+
+    /**
+     * Apakah attachment ini berupa gambar (bisa ditampilkan inline).
+     */
+    public function getIsImageAttribute(): bool
+    {
+        return str_starts_with($this->mime_type ?? '', 'image/');
+    }
 
     public function ticket()
     {

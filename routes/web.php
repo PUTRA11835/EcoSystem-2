@@ -9,6 +9,7 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\DeliveryProjectIssueController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\StagingTicketController;
 use App\Http\Controllers\DeliveryProjectController;
 use App\Http\Controllers\DeliveryProjectUpdateController;
 use App\Http\Controllers\DeliveryProjectPlanController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\ActivityManagementController;
 use App\Http\Controllers\DeliveryProjectDataController;
 use App\Http\Controllers\DeliveryProjectStageManagementController;
 use App\Http\Controllers\DeliveryProjectPlanningExportController;
+use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\TicketViewController;
 use App\Http\Controllers\PasswordSetupController;
 use App\Http\Middleware\CheckAuthToken;
@@ -182,6 +184,9 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/issues/{project}', [DeliveryProjectIssueController::class, 'show'])->name('issues.show');
 
     // Profile routes
+    Route::get('/staging-tickets', [StagingTicketController::class, 'view'])->name('staging.index');
+    Route::get('/staging-tickets/rejected', [StagingTicketController::class, 'viewRejected'])->name('staging.rejected');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::post('/profile/change-password', [ProfileController::class, 'changePassword'])->name('profile.change-password');
 
@@ -269,6 +274,12 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/create', [TicketViewController::class, 'create'])->name('create');
         Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
     });
+
+    // ==================== ATTACHMENT PROXY ====================
+    // Fetch file dari Microsoft Graph on-demand — tidak disimpan lokal
+    Route::get('/attachments/{id}', [AttachmentController::class, 'show'])
+        ->name('attachments.show')
+        ->where('id', '[0-9]+');
 });
 
 // ==================== ROOT REDIRECT ====================

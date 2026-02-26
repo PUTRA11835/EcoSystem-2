@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Atur Password - EcoSystem</title>
+    <title>Set Password - EcoSystem</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -33,9 +33,9 @@
                 </svg>
             </div>
 
-            <h1 class="text-2xl font-bold text-gray-900 text-center mb-1">Atur Password Baru</h1>
+            <h1 class="text-2xl font-bold text-gray-900 text-center mb-1">Set New Password</h1>
             <p class="text-gray-500 text-sm text-center mb-8">
-                Buat password yang kuat untuk mengamankan akun Anda.
+                Create a strong password to secure your account.
             </p>
 
             {{-- Flash error --}}
@@ -62,7 +62,7 @@
 
                 <div>
                     <label for="password" class="block text-sm font-semibold text-gray-700 mb-2">
-                        Password Baru
+                        New Password
                     </label>
                     <div class="relative">
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -75,7 +75,7 @@
                             type="password"
                             id="password"
                             name="password"
-                            placeholder="Minimal 8 karakter"
+                            placeholder="At least 8 characters"
                             class="input-field w-full pl-12 pr-12 py-3.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none transition-all bg-white"
                             required
                         />
@@ -93,7 +93,7 @@
 
                 <div>
                     <label for="password_confirmation" class="block text-sm font-semibold text-gray-700 mb-2">
-                        Konfirmasi Password
+                        Confirm Password
                     </label>
                     <div class="relative">
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -106,7 +106,7 @@
                             type="password"
                             id="password_confirmation"
                             name="password_confirmation"
-                            placeholder="Ulangi password"
+                            placeholder="Repeat password"
                             class="input-field w-full pl-12 pr-12 py-3.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none transition-all bg-white"
                             required
                         />
@@ -124,12 +124,12 @@
 
                 <!-- Strength hint -->
                 <div class="bg-gray-50 rounded-xl p-4 text-xs text-gray-500 space-y-1">
-                    <p class="font-semibold text-gray-600 mb-1">Syarat password:</p>
+                    <p class="font-semibold text-gray-600 mb-1">Password requirements:</p>
                     <p id="hint-length" class="flex items-center gap-1.5 text-red-500">
-                        <span id="dot-length">●</span> Minimal 8 karakter
+                        <span id="dot-length">●</span> At least 8 characters
                     </p>
                     <p id="hint-match" class="flex items-center gap-1.5 text-red-500">
-                        <span id="dot-match">●</span> Password cocok
+                        <span id="dot-match">●</span> Passwords match
                     </p>
                 </div>
 
@@ -138,7 +138,7 @@
                     id="submitBtn"
                     class="w-full px-4 py-4 bg-gradient-to-r from-red-800 to-red-900 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-red-900/30 hover:shadow-xl hover:shadow-red-900/40 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
                 >
-                    Simpan Password & Masuk
+                    Save Password & Sign In
                 </button>
             </form>
 
@@ -148,7 +148,7 @@
                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                     </svg>
-                    Kembali ke login
+                    Back to login
                 </a>
             </div>
 

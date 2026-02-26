@@ -26,6 +26,7 @@ use App\Http\Controllers\TicketMessageController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\TimesheetController;
 use App\Http\Controllers\EmailController;
+use App\Http\Controllers\StagingTicketController;
 
 Route::middleware(['web'])->group(function () {
     
@@ -204,6 +205,16 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/cleanup', [CustomerHistoryController::class, 'cleanup']);
     });
 
+    // ==================== STAGING TICKET ROUTES ====================
+    Route::prefix('staging-tickets')->group(function () {
+        Route::get('/statistics', [StagingTicketController::class, 'statistics']);
+        Route::get('/', [StagingTicketController::class, 'index']);
+        Route::post('/', [StagingTicketController::class, 'store']);
+        Route::get('/{id}', [StagingTicketController::class, 'show']);
+        Route::post('/{id}/approve', [StagingTicketController::class, 'approve']);
+        Route::post('/{id}/reject', [StagingTicketController::class, 'reject']);
+    });
+
     // ==================== TICKET ROUTES ====================
     Route::prefix('tickets')->group(function () {
         // Static routes first
@@ -231,6 +242,8 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/send-to-customer', [TicketController::class, 'sendToCustomer']);
         Route::post('/{id}/customer-response', [TicketController::class, 'customerResponse']);
         Route::post('/{id}/admin-response', [TicketController::class, 'adminResponse']);
+        Route::post('/{id}/members', [TicketController::class, 'addMember']);
+        Route::delete('/{id}/members/{employeeId}', [TicketController::class, 'removeMember']);
         Route::post('/{id}/update-members', [TicketController::class, 'updateMembers']);
         Route::post('/{id}/request-member-change', [TicketController::class, 'requestMemberChange']);
         Route::delete('/{id}/remove-member/{employeeId}', [TicketController::class, 'removeMember']);
@@ -285,6 +298,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/process-inbox', [EmailController::class, 'processInbox']);
         Route::post('/send', [EmailController::class, 'send']);
         Route::post('/reply', [EmailController::class, 'reply']);
+        Route::post('/messages/{messageId}/reprocess-attachments', [EmailController::class, 'reprocessAttachments']);
     });
 });
 

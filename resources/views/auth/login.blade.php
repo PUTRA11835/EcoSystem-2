@@ -363,9 +363,9 @@
                 console.log('Response data:', data);
 
                 if (response.ok && data.success) {
-                    // Customer baru — wajib verifikasi email & ganti password dulu
+                    // New account — must verify email & set password first
                     if (data.require_password_change) {
-                        showSuccess(data.message || 'Silakan cek email Anda.');
+                        showSuccess(data.message || 'Please check your email.');
                         setTimeout(() => {
                             const params = data.email ? '?email=' + encodeURIComponent(data.email) : '';
                             window.location.href = '/verify-email' + params;

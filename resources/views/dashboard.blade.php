@@ -352,7 +352,26 @@
                         <span class="nav-text font-medium">Ticket</span>
                     </a>
                 </div>
-                
+
+                @if(in_array($userRoleId, [1, 2, 6, 7]))
+                <!-- STAGING TICKET - Only for admin & helpdesk -->
+                <div class="mb-2">
+                    <a href="{{ route('staging.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('staging-tickets*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-clipboard-check"></i>
+                        </span>
+                        <span class="nav-text font-medium flex-1">Ticket Validation</span>
+                        @php
+                            $unvalidatedCount = \App\Models\StagingTicket::where('status', 'unvalidated')->count();
+                        @endphp
+                        <span id="sidebarValidationBadge"
+                              class="nav-text bg-yellow-400 text-gray-900 text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center {{ $unvalidatedCount > 0 ? '' : 'hidden' }}">
+                            {{ $unvalidatedCount > 99 ? '99+' : $unvalidatedCount }}
+                        </span>
+                    </a>
+                </div>
+                @endif
+
                 <!-- DELIVERY Dropdown - Visible to all roles -->
                 <div class="mb-2">
                     <button onclick="toggleDeliveryDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('project*') || Request::is('planning*') || Request::is('issues*') || Request::is('delivery/support*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">

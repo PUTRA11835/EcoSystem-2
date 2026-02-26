@@ -118,11 +118,30 @@ class TicketViewController extends Controller
             })
             ->toArray();
 
+        // Get all active employees for member dropdown
+        $employees = DB::table('employee')
+            ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
+            ->where('employee.is_active', 1)
+            ->select(
+                'employee.employee_id',
+                DB::raw("CONCAT(employee_basic_data.first_name, ' ', COALESCE(employee_basic_data.last_name, '')) as name")
+            )
+            ->orderBy('employee_basic_data.first_name')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'employee_id' => $item->employee_id,
+                    'name'        => trim($item->name),
+                ];
+            })
+            ->toArray();
+
         return view('ticket.show', [
-            'user' => $user,
-            'ticket' => $ticket,
+            'user'        => $user,
+            'ticket'      => $ticket,
             'consultants' => $consultants,
-            'ticketId' => $id
+            'employees'   => $employees,
+            'ticketId'    => $id,
         ]);
     }
 }

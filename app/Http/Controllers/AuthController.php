@@ -48,7 +48,7 @@ class AuthController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
             
-            return redirect()->route('login')->with('error', 'Terjadi kesalahan sistem');
+            return redirect()->route('login')->with('error', 'A system error occurred');
         }
     }
 
@@ -145,7 +145,7 @@ class AuthController extends Controller
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Email atau password salah',
+                    'message' => 'Invalid email or password',
                     'request_id' => $requestId
                 ], 401);
             }
@@ -169,7 +169,7 @@ class AuthController extends Controller
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Email atau password salah',
+                    'message' => 'Invalid email or password',
                     'request_id' => $requestId
                 ], 401);
             }
@@ -188,7 +188,7 @@ class AuthController extends Controller
 
                     return response()->json([
                         'success' => false,
-                        'message' => 'Akun Anda belum memiliki email terdaftar. Hubungi administrator.',
+                        'message' => 'Your account does not have a registered email. Please contact your administrator.',
                         'request_id' => $requestId,
                     ], 403);
                 }
@@ -208,7 +208,7 @@ class AuthController extends Controller
                 return response()->json([
                     'success'                 => true,
                     'require_password_change' => true,
-                    'message'                 => 'Silakan cek email Anda untuk mengatur password baru.',
+                    'message'                 => 'Please check your email to set up your new password.',
                     'email'                   => $maskedEmail,
                     'request_id'              => $requestId,
                 ]);
@@ -226,6 +226,7 @@ class AuthController extends Controller
                         'e.eci',
                         'e.is_active',
                         DB::raw("CONCAT(eb.first_name, ' ', COALESCE(eb.last_name, '')) as full_name"),
+                        'eb.nick_name',
                         'ea.email_personal as email',
                         'ea.cell_phone as phone_number',
                         'eb.position',
@@ -238,7 +239,7 @@ class AuthController extends Controller
                 if (!$employee || !$employee->is_active) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Akun Anda tidak aktif',
+                        'message' => 'Your account is inactive',
                         'request_id' => $requestId
                     ], 403);
                 }
@@ -250,16 +251,17 @@ class AuthController extends Controller
                 $token = base64_encode($tokenData);
 
                 $userData = [
-                    'id' => $employee->employee_id,
-                    'type' => 'employee',
-                    'eci' => $employee->eci,
-                    'name' => $employee->full_name,
-                    'email' => $authUser->email,
-                    'phone' => $employee->phone_number,
-                    'position' => $employee->position,
+                    'id'         => $employee->employee_id,
+                    'type'       => 'employee',
+                    'eci'        => $employee->eci,
+                    'name'       => $employee->full_name,
+                    'nick_name'  => $employee->nick_name ?: explode(' ', $employee->full_name)[0],
+                    'email'      => $authUser->email,
+                    'phone'      => $employee->phone_number,
+                    'position'   => $employee->position,
                     'department' => $employee->department,
                     'role' => [
-                        'id' => $employee->role_id,
+                        'id'   => $employee->role_id,
                         'name' => $employee->role_name
                     ]
                 ];
@@ -279,7 +281,7 @@ class AuthController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Login berhasil',
+                    'message' => 'Login successful',
                     'data' => [
                         'token' => $token,
                         'user' => $userData
@@ -308,7 +310,7 @@ class AuthController extends Controller
                 if (!$customer || !$customer->is_active) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Akun Anda tidak aktif',
+                        'message' => 'Your account is inactive',
                         'request_id' => $requestId
                     ], 403);
                 }
@@ -349,7 +351,7 @@ class AuthController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Login berhasil',
+                    'message' => 'Login successful',
                     'data' => [
                         'token' => $token,
                         'user' => $userData
@@ -369,7 +371,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Email atau password salah',
+                'message' => 'Invalid email or password',
                 'request_id' => $requestId
             ], 404);
 
@@ -396,7 +398,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan sistem. Silakan coba lagi.',
+                'message' => 'A system error occurred. Please try again.',
                 'request_id' => $requestId,
                 'error_reference' => substr($requestId, -8)
             ], 500);
@@ -446,12 +448,12 @@ class AuthController extends Controller
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'Logout berhasil',
+                    'message' => 'Logout successful',
                     'request_id' => $requestId
                 ], 200);
             }
 
-            return redirect()->route('login')->with('success', 'Anda telah logout');
+            return redirect()->route('login')->with('success', 'You have been logged out');
 
         } catch (Exception $e) {
             Log::channel('daily')->error('Error during logout', [
@@ -463,7 +465,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan saat logout',
+                'message' => 'An error occurred during logout',
                 'request_id' => $requestId
             ], 500);
         }
@@ -501,7 +503,7 @@ class AuthController extends Controller
                 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Token tidak ditemukan',
+                    'message' => 'Token not found',
                     'request_id' => $requestId
                 ], 401);
             }
@@ -525,7 +527,7 @@ class AuthController extends Controller
                 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Token tidak valid',
+                    'message' => 'Invalid token',
                     'request_id' => $requestId
                 ], 401);
             }
@@ -581,7 +583,7 @@ class AuthController extends Controller
                     
                     return response()->json([
                         'success' => false,
-                        'message' => 'User tidak ditemukan',
+                        'message' => 'User not found',
                         'request_id' => $requestId
                     ], 404);
                 }
@@ -648,7 +650,7 @@ class AuthController extends Controller
                     
                     return response()->json([
                         'success' => false,
-                        'message' => 'User tidak ditemukan',
+                        'message' => 'User not found',
                         'request_id' => $requestId
                     ], 404);
                 }
@@ -694,7 +696,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan',
+                'message' => 'An error occurred',
                 'request_id' => $requestId
             ], 500);
         }

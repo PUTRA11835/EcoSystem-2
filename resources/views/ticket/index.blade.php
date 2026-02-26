@@ -71,7 +71,7 @@
                 <option value="">Select Type</option>
                 <option value="jarvies_status">Jarvies Status</option>
                 <option value="status">Status</option>
-                <option value="type">Type</option>
+                <option value="ticket_type">Ticket Type</option>
                 <option value="priority">Priority</option>
             </select>
         </div>
@@ -197,6 +197,16 @@
                         <option value="Low">Low</option>
                         <option value="Medium" selected>Medium</option>
                         <option value="High">High</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Ticket Type <span class="text-gray-400 font-normal normal-case">(optional)</span></label>
+                    <select id="newTicketType" class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                        <option value="">-- Select Type --</option>
+                        <option value="Incident">Incident</option>
+                        <option value="Service Request">Service Request</option>
+                        <option value="Change Request">Change Request</option>
+                        <option value="Consult">Consult</option>
                     </select>
                 </div>
                 <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
@@ -402,6 +412,16 @@
         };
         const statusInfo = statusMap[ticket.status] || { label: 'Open', class: 'bg-gray-100 text-gray-600' };
 
+        const typeColors = {
+            'Incident': 'bg-red-50 text-red-600',
+            'Service Request': 'bg-indigo-50 text-indigo-600',
+            'Change Request': 'bg-amber-50 text-amber-600',
+            'Consult': 'bg-teal-50 text-teal-600'
+        };
+        const typeBadge = ticket.ticket_type
+            ? `<span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${typeColors[ticket.ticket_type] || 'bg-gray-100 text-gray-600'}">${ticket.ticket_type}</span>`
+            : '';
+
         return `
             <a href="/ticket/${ticket.ticket_id}" class="ticket-list-item">
                 <div class="flex items-start gap-3">
@@ -416,6 +436,7 @@
                         <div class="flex items-center gap-2 flex-wrap">
                             <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${statusInfo.class}">${statusInfo.label}</span>
                             <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${priorityClass}">${ticket.ticket_priority || 'Medium'}</span>
+                            ${typeBadge}
                             <span class="text-[10px] text-gray-400">${agentName}</span>
                         </div>
                     </div>
@@ -475,7 +496,7 @@
         const options = {
             'jarvies_status': ['in process', 'author action', 'proposed solution', 'closed', 'sent in to SAP', 'sent it to support'],
             'status': ['open', 'in_progress', 'hold', 'cancel', 'closed', 'reply'],
-            'type': ['AMS', 'MO', 'ATS', 'Project', 'Internal'],
+            'ticket_type': ['Incident', 'Service Request', 'Change Request', 'Consult'],
             'priority': ['Low', 'Medium', 'High']
         };
 
@@ -560,10 +581,12 @@
     async function submitCreateTicket(e) {
         e.preventDefault();
         const form = document.getElementById('createTicketForm');
+        const ticketTypeVal = form.querySelector('#newTicketType').value;
         const data = {
             description: form.querySelector('#newDescription').value,
             ticket_priority: form.querySelector('#newPriority').value,
             customer_id: form.querySelector('#newCustomerId').value,
+            ticket_type: ticketTypeVal || null,
         };
         try {
             const response = await fetch('/api/tickets', {
