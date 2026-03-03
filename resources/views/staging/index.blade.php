@@ -36,6 +36,11 @@
                     class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-200 transition-all">
                 <i class="fas fa-sync-alt text-xs"></i> Refresh
             </button>
+            <button onclick="fetchEmailInbox()" id="btnFetchEmail"
+                    class="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all">
+                <i class="fas fa-envelope-open-text text-xs"></i> Fetch Email
+            </button>
+            <span id="fetchEmailStatus" class="text-xs text-gray-400 hidden sm:inline"></span>
             <a href="{{ route('staging.rejected') }}"
                class="inline-flex items-center gap-1.5 px-4 py-2 bg-red-50 text-red-700 border border-red-200 text-sm font-semibold rounded-lg hover:bg-red-100 transition-all">
                 <i class="fas fa-ban text-xs"></i> View Rejected
@@ -133,6 +138,8 @@ let currentStagingData = null;
 document.addEventListener('DOMContentLoaded', () => {
     loadStats();
     loadStagingTickets();
+    fetchEmailInbox(true);                              // fetch sekali saat halaman dibuka
+    setInterval(() => fetchEmailInbox(true), 60000);   // auto-poll tiap 60 detik
 });
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
@@ -616,6 +623,51 @@ function showNotif(msg, type = 'info') {
     el.textContent = msg;
     document.body.appendChild(el);
     setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, 3500);
+}
+
+// ─── Fetch Email Inbox ────────────────────────────────────────────────────────
+async function fetchEmailInbox(silent = false) {
+    const btn    = document.getElementById('btnFetchEmail');
+    const status = document.getElementById('fetchEmailStatus');
+
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Fetching...'; }
+    if (status) { status.textContent = 'Fetching...'; status.classList.remove('hidden'); }
+
+    const ts = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    console.log(`[FetchEmail] ${ts} — Memulai fetch inbox${silent ? ' (auto-poll)' : ' (manual)'}`);
+
+    try {
+        const res  = await fetch('/api/email/process-inbox', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+            credentials: 'same-origin',
+        });
+        const data = await res.json();
+        const now  = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+        if (data.status === 'error') {
+            console.error(`[FetchEmail] ${ts} — ERROR:`, data.message ?? 'Unknown error');
+            if (!silent) showNotif('Fetch gagal: ' + (data.message ?? 'Unknown error'), 'error');
+            if (status) status.textContent = `Error ${now}`;
+        } else {
+            const processed = data.processed ?? 0;
+            const skipped   = data.skipped   ?? 0;
+            console.log(`[FetchEmail] ${ts} — Selesai. Diproses: ${processed}, Dilewati: ${skipped}`);
+            if (data.errors?.length) {
+                console.warn(`[FetchEmail] ${ts} — Errors:`, data.errors);
+            }
+            if (!silent && processed > 0) showNotif(`${processed} email baru masuk ke staging.`, 'success');
+            if (status) status.textContent = `Updated ${now}${processed > 0 ? ` · ${processed} baru` : ''}`;
+            if (processed > 0) { loadStagingTickets(); loadStats(); }
+        }
+    } catch (err) {
+        const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        console.error(`[FetchEmail] ${ts} — Exception:`, err);
+        if (!silent) showNotif('Gagal menghubungi email server.', 'error');
+        if (status) status.textContent = `Error ${now}`;
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope-open-text text-xs"></i> Fetch Email'; }
+    }
 }
 </script>
 @endpush

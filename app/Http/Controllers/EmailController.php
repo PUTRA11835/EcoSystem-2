@@ -300,6 +300,13 @@ class EmailController extends Controller
                     $customer = Customer::where('email', $fromEmail)->first();
 
                     if ($ticket) {
+                        // Dedup: skip jika message dengan ID ini sudah ada (mis. graphPatch gagal sebelumnya)
+                        if ($internetMsgId && TicketMessage::where('email_message_id', $internetMsgId)->exists()) {
+                            $this->graphPatch("/users/{$sender}/messages/{$graphMsgId}", ['isRead' => true]);
+                            $skipped++;
+                            continue;
+                        }
+
                         // Tambah pesan ke tiket yang sudah ada
                         $message = TicketMessage::create([
                             'ticket_id'           => $ticket->ticket_id,

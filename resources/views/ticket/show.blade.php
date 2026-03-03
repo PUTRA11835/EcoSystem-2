@@ -110,7 +110,20 @@
 
         {{-- Compose Area with Quill Editor --}}
         <div class="border-t border-gray-200 flex-shrink-0">
-            <div class="px-4 pt-3 pb-2">
+            {{-- Channel mode indicator --}}
+            @if($ticket->channel === 'email')
+            <div class="px-4 pt-2 flex items-center gap-1.5 text-xs text-blue-700">
+                <i class="fas fa-envelope text-[10px]"></i>
+                <span>Balasan akan dikirim ke customer via <strong>Email</strong></span>
+            </div>
+            @else
+            <div class="px-4 pt-2 flex items-center gap-1.5 text-xs text-gray-400">
+                <i class="fas fa-comment text-[10px]"></i>
+                <span>Balasan hanya tampil di <strong>Jarvies</strong> — tidak ada email yang dikirim</span>
+            </div>
+            @endif
+
+            <div class="px-4 pt-2 pb-2">
                 <div class="bg-white border border-gray-300 rounded-lg overflow-hidden">
                     <div id="quillEditor" style="min-height: 100px; max-height: 200px; overflow-y: auto;"></div>
                 </div>
@@ -130,10 +143,17 @@
                         Internal Note
                     </button>
                     @endif
+                    @if($ticket->channel === 'email')
+                    <button onclick="sendReply('reply')" class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all shadow-sm">
+                        <i class="fas fa-envelope text-[10px]"></i>
+                        Send via Email
+                    </button>
+                    @else
                     <button onclick="sendReply('reply')" class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all shadow-sm">
                         <i class="fas fa-paper-plane text-[10px]"></i>
                         Send Reply
                     </button>
+                    @endif
                 </div>
             </div>
         </div>

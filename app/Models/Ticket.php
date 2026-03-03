@@ -29,13 +29,19 @@ class Ticket extends Model
         'man_days',
         'channel',
         'email_thread_id',
+        'last_message_at',
+        'last_customer_reply_at',
+        'last_agent_reply_at',
     ];
 
     protected $casts = [
-        'start_date' => 'date',
-        'end_date' => 'date',
-        'man_days' => 'decimal:2',
-        'wait_close' => 'decimal:2',
+        'start_date'             => 'date',
+        'end_date'               => 'date',
+        'man_days'               => 'decimal:2',
+        'wait_close'             => 'decimal:2',
+        'last_message_at'        => 'datetime',
+        'last_customer_reply_at' => 'datetime',
+        'last_agent_reply_at'    => 'datetime',
     ];
 
     // Relasi ke Customer

@@ -27,18 +27,20 @@ class StagingTicketService
      * Simpan submission tiket baru dari customer ke staging.
      * Dipanggil saat customer submit form di Jarvies.
      *
-     * @param  array  $data         ['description', 'ticket_priority']
+     * @param  array  $data         ['description', 'body', 'ticket_priority', 'submitted_by_email']
      * @param  int    $customerId   ID customer dari session
      * @return StagingTicket
      */
     public function createFromWeb(array $data, int $customerId): StagingTicket
     {
         return StagingTicket::create([
-            'customer_id'      => $customerId,
-            'description'      => $data['description'],
-            'ticket_priority'  => $data['ticket_priority'] ?? 'Medium',
-            'status'           => 'unvalidated',
-            'channel'          => 'web',
+            'customer_id'        => $customerId,
+            'description'        => $data['description'],
+            'body'               => $data['body'] ?? null,
+            'ticket_priority'    => $data['ticket_priority'] ?? 'Medium',
+            'status'             => 'unvalidated',
+            'channel'            => 'web',
+            'submitted_by_email' => $data['submitted_by_email'] ?? null,
         ]);
     }
 
@@ -138,10 +140,11 @@ class StagingTicketService
                 'ticket_id'    => $ticket->ticket_id,
             ]);
 
-            // Buat TicketMessage pertama dari data email yang tersimpan di staging
-            // (hanya untuk staging yang berasal dari email dan memiliki body)
+            // Buat TicketMessage pertama dari data yang tersimpan di staging
             $firstMessage = null;
+
             if ($staging->channel === 'email' && $staging->email_body_html) {
+                // Staging dari email → gunakan email_body_html sebagai pesan pertama
                 $bodyPlain = trim(strip_tags($staging->email_body_html));
 
                 $firstMessage = TicketMessage::create([
@@ -159,6 +162,38 @@ class StagingTicketService
                     'cc_emails'           => $staging->cc_emails,
                     'is_read_by_customer' => true,
                     'is_read_by_agent'    => false,
+                ]);
+
+            } elseif ($staging->channel === 'web' && !empty($staging->body)) {
+                // Staging dari web form → gunakan body sebagai pesan pertama customer
+                // Cek anti-duplikat: jika sudah ada message dari email (misal OAuth), skip
+                $alreadyFromEmail = TicketMessage::where('ticket_id', $ticket->ticket_id)
+                    ->where('channel', 'email')
+                    ->exists();
+
+                if (!$alreadyFromEmail) {
+                    $senderName = $staging->customer?->basicData?->name_1 ?? 'Customer';
+
+                    $firstMessage = TicketMessage::create([
+                        'ticket_id'           => $ticket->ticket_id,
+                        'sender_type'         => 'customer',
+                        'sender_id'           => $staging->customer_id,
+                        'sender_email'        => $staging->submitted_by_email,
+                        'sender_name'         => $senderName,
+                        'message'             => $staging->body,
+                        'is_internal_note'    => false,
+                        'channel'             => 'web',
+                        'is_read_by_customer' => true,
+                        'is_read_by_agent'    => false,
+                    ]);
+                }
+            }
+
+            // Update ticket timestamps jika ada first message dari customer
+            if ($firstMessage) {
+                $ticket->update([
+                    'last_message_at'        => $firstMessage->created_at,
+                    'last_customer_reply_at' => $firstMessage->created_at,
                 ]);
             }
 

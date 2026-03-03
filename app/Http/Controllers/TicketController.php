@@ -136,12 +136,16 @@ class TicketController extends Controller
                     'ticket_type' => $ticket->ticket_type,
                     'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
+                    'channel' => $ticket->channel,
                     'folder' => $ticket->folder,
                     'file_log' => $ticket->file_log,
                     'start_date' => $ticket->start_date,
                     'end_date' => $ticket->end_date,
                     'man_days' => $ticket->man_days,
                     'wait_close' => $ticket->wait_close,
+                    'last_message_at' => $ticket->last_message_at,
+                    'last_customer_reply_at' => $ticket->last_customer_reply_at,
+                    'last_agent_reply_at' => $ticket->last_agent_reply_at,
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -197,7 +201,11 @@ class TicketController extends Controller
             $validated = $request->validate([
                 'description'     => 'required|string|max:5000',
                 'ticket_priority' => 'required|in:Low,Medium,High',
+                'body'            => 'nullable|string',
             ]);
+
+            // Sertakan email customer agar ticket_message pertama bisa punya sender_email
+            $validated['submitted_by_email'] = $user['email'] ?? null;
 
             try {
                 $staging = app(StagingTicketService::class)
@@ -502,12 +510,16 @@ class TicketController extends Controller
                     'ticket_type' => $ticket->ticket_type,
                     'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
+                    'channel' => $ticket->channel,
                     'folder' => $ticket->folder,
                     'file_log' => $ticket->file_log,
                     'start_date' => $ticket->start_date,
                     'end_date' => $ticket->end_date,
                     'man_days' => $ticket->man_days,
                     'wait_close' => $ticket->wait_close,
+                    'last_message_at' => $ticket->last_message_at,
+                    'last_customer_reply_at' => $ticket->last_customer_reply_at,
+                    'last_agent_reply_at' => $ticket->last_agent_reply_at,
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -997,13 +1009,19 @@ class TicketController extends Controller
                 'employee_id' => $ticket->employee_id,
                 'description' => $ticket->description,
                 'ticket_priority' => $ticket->ticket_priority,
+                'ticket_type' => $ticket->ticket_type,
                 'jarvies_status' => $ticket->jarvies_status,
+                'status' => $ticket->status,
+                'channel' => $ticket->channel,
                 'folder' => $ticket->folder,
                 'file_log' => $ticket->file_log,
                 'start_date' => $ticket->start_date,
                 'end_date' => $ticket->end_date,
                 'man_days' => $ticket->man_days,
                 'wait_close' => $ticket->wait_close,
+                'last_message_at' => $ticket->last_message_at,
+                'last_customer_reply_at' => $ticket->last_customer_reply_at,
+                'last_agent_reply_at' => $ticket->last_agent_reply_at,
                 'customer' => $ticket->customer ? [
                     'customer_id' => $ticket->customer->customer_id,
                     'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,

@@ -12,6 +12,7 @@ class StagingTicket extends Model
     protected $fillable = [
         'customer_id',
         'description',
+        'body',
         'ticket_priority',
         'status',
         'rejection_reason',
