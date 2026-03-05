@@ -193,8 +193,8 @@ function renderTable(rows) {
 
     tbody.innerHTML = rows.map(s => {
         const date     = s.validated_at
-            ? new Date(s.validated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-            : (s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+            ? new Date(s.validated_at).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' })
+            : (s.created_at ? new Date(s.created_at).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' }) : '—');
         const short    = s.description ? (s.description.length > 55 ? s.description.substring(0, 55) + '…' : s.description) : '—';
         const reason   = s.rejection_reason ? (s.rejection_reason.length > 50 ? s.rejection_reason.substring(0, 50) + '…' : s.rejection_reason) : '<span class="text-gray-300 italic">No reason given</span>';
         const prio     = s.ticket_priority ?? 'Medium';
@@ -264,8 +264,8 @@ async function openModal(id) {
 function renderModalContent(s) {
     const prioColor = { Low: 'bg-green-100 text-green-700', Medium: 'bg-blue-100 text-blue-700', High: 'bg-red-100 text-red-700' };
     const prio      = s.ticket_priority ?? 'Medium';
-    const date      = s.created_at ? new Date(s.created_at).toLocaleString('en-GB') : '—';
-    const rejDate   = s.validated_at ? new Date(s.validated_at).toLocaleString('en-GB') : '—';
+    const date      = s.created_at  ? new Date(s.created_at).toLocaleString('id-ID',  { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' WIB' : '—';
+    const rejDate   = s.validated_at ? new Date(s.validated_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' WIB' : '—';
 
     document.getElementById('modalContent').innerHTML = `
         <div class="grid grid-cols-2 gap-4">

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Customer;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -1512,16 +1513,9 @@ class CustomerSeeder extends Seeder
         foreach ($customers as $cust) {
             DB::beginTransaction();
             try {
-                // Generate customer_code from search_term_1 if not provided
-                $customerCode = $cust['customer_code'] ?? strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $cust['basic']['search_term_1']), 0, 4));
-
-                // Ensure uniqueness by adding number if exists
-                $originalCode = $customerCode;
-                $counter = 1;
-                while (DB::table('customer')->where('customer_code', $customerCode)->exists()) {
-                    $customerCode = substr($originalCode, 0, 3) . $counter;
-                    $counter++;
-                }
+                // Generate customer_code: gunakan hardcoded jika ada, atau buat dari inisial nama
+                $customerCode = $cust['customer_code']
+                    ?? Customer::generateCustomerCode($cust['basic']['name_1'] ?? '');
 
                 $customerId = DB::table('customer')->insertGetId([
                     'customer_code' => $customerCode,
@@ -1577,22 +1571,25 @@ class CustomerSeeder extends Seeder
                     'updated_at' => Carbon::now(),
                 ]));
 
-                // Create auth_users record for customer login
+                // Buat auth_users untuk customer (digunakan Jarvies — portal customer)
+                // EcoSystem dan Jarvies berbagi database yang sama
                 $authExists = DB::table('auth_users')
                     ->where('email', $cust['email'])
                     ->orWhere('username', $customerCode)
                     ->exists();
+
                 if (!$authExists) {
                     DB::table('auth_users')->insert([
-                        'customer_id' => $customerId,
-                        'employee_id' => null,
-                        'username'    => $customerCode,
-                        'email'       => $cust['email'],
-                        'phone'       => $cust['address']['cell_phone'] ?? null,
-                        'password'    => Hash::make('password123'),
-                        'is_active'   => true,
-                        'created_at'  => Carbon::now(),
-                        'updated_at'  => Carbon::now(),
+                        'employee_id'   => null,
+                        'customer_id'   => $customerId,
+                        'username'      => $customerCode,
+                        'email'         => $cust['email'],
+                        'phone'         => $cust['address']['cell_phone'] ?? null,
+                        'password'      => Hash::make('password123'),
+                        'is_active'     => true,
+                        'is_already_cp' => true,
+                        'created_at'    => Carbon::now(),
+                        'updated_at'    => Carbon::now(),
                     ]);
                 }
 

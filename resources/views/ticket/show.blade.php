@@ -397,21 +397,24 @@
     display: block;
     padding: 8px 10px 8px 12px;
     border-radius: 7px;
-    transition: background 0.15s, border-color 0.15s;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
     text-decoration: none;
-    background: rgba(0,0,0,0.15);
-    border: 1px solid rgba(255,255,255,0.07);
+    background: rgba(255,255,255,0.92);
+    border: 1px solid rgba(255,255,255,0.5);
     border-left: 3px solid transparent;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 .sidebar-ticket-item:hover {
-    background: rgba(255,255,255,0.1);
-    border-color: rgba(255,255,255,0.12);
-    border-left-color: rgba(255,255,255,0.3);
+    background: rgba(255,255,255,1);
+    border-color: rgba(255,255,255,0.8);
+    border-left-color: #b91c1c;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
 }
 .sidebar-ticket-item.active {
-    background: rgba(255,255,255,0.16);
-    border-color: rgba(255,255,255,0.15);
-    border-left-color: rgba(255,255,255,0.75);
+    background: rgba(255,255,255,1);
+    border-color: rgba(255,255,255,0.9);
+    border-left-color: #ffffff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 </style>
 
@@ -757,9 +760,10 @@
         const isInternalNote = msg.message_type === 'internal_note';
         const senderName     = msg.sender_name || (isEmployee ? 'Employee' : 'Customer');
         const initials       = senderName.substring(0, 1).toUpperCase();
-        const date           = new Date(msg.created_at).toLocaleDateString('en-US', {
-            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-        });
+        const date           = new Date(msg.created_at).toLocaleString('id-ID', {
+            timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', hour12: false
+        }) + ' WIB';
 
         const channelBadge = msg.channel === 'email'
             ? `<span class="msg-channel-badge msg-channel-email"><svg style="width:9px;height:9px;display:inline" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg> Email</span>`
@@ -1024,13 +1028,13 @@
             return `
                 <a href="/ticket/${t.ticket_id}" class="sidebar-ticket-item ${isActive ? 'active' : ''}">
                     <div class="flex items-center justify-between mb-0.5">
-                        <span class="text-xs font-semibold text-white truncate max-w-[140px]">${customerName}</span>
-                        <span class="text-[10px] text-white text-opacity-50">${timeAgo}</span>
+                        <span class="text-xs font-semibold text-gray-800 truncate max-w-[140px]">${customerName}</span>
+                        <span class="text-[10px] text-gray-400">${timeAgo}</span>
                     </div>
-                    <p class="text-[11px] text-white text-opacity-70 truncate mb-1">#${t.ticket_id} - ${shortDesc}</p>
+                    <p class="text-[11px] text-gray-500 truncate mb-1">#${t.ticket_id} - ${shortDesc}</p>
                     <div class="flex items-center gap-1.5">
                         <div class="w-1.5 h-1.5 rounded-full ${prioDot}"></div>
-                        <span class="text-[10px] text-white text-opacity-50">${t.ticket_priority || 'Medium'}</span>
+                        <span class="text-[10px] text-gray-400">${t.ticket_priority || 'Medium'}</span>
                     </div>
                 </a>`;
         }).join('');
@@ -1227,7 +1231,7 @@
         if (diffMins < 60) return diffMins + 'm';
         if (diffHours < 24) return diffHours + 'h';
         if (diffDays < 7) return diffDays + 'd';
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return date.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' });
     }
 
     function showNotification(message, type = 'info') {

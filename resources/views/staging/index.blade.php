@@ -209,7 +209,7 @@ function renderTable(rows) {
     };
 
     tbody.innerHTML = rows.map(s => {
-        const date   = s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+        const date   = s.created_at ? new Date(s.created_at).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric' }) : '—';
         const short  = s.description ? (s.description.length > 60 ? s.description.substring(0, 60) + '…' : s.description) : '—';
         const prio   = s.ticket_priority;
         const prioBadge = prio
@@ -337,7 +337,7 @@ function fillModal(s) {
                 </div>` : ''}
                 <div class="grid px-4 py-2" style="grid-template-columns:70px 1fr">
                     <span class="text-xs font-semibold text-gray-500 pt-0.5">Date</span>
-                    <span class="text-gray-700">${s.created_at ? new Date(s.created_at).toLocaleString('en-GB') : '—'}</span>
+                    <span class="text-gray-700">${s.created_at ? new Date(s.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' WIB' : '—'}</span>
                 </div>
                 <div class="grid px-4 py-2" style="grid-template-columns:70px 1fr">
                     <span class="text-xs font-semibold text-gray-500 pt-0.5">Subject</span>
@@ -379,7 +379,7 @@ function fillModal(s) {
             </div>
             <div class="bg-gray-50 rounded-xl p-3">
                 <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1">Submit Date</p>
-                <p class="text-sm font-bold text-gray-800">${s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'}) : '—'}</p>
+                <p class="text-sm font-bold text-gray-800">${s.created_at ? new Date(s.created_at).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric' }) : '—'}</p>
             </div>
         </div>
         <div class="mb-4 bg-gray-50 rounded-xl p-4">
@@ -633,7 +633,7 @@ async function fetchEmailInbox(silent = false) {
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Fetching...'; }
     if (status) { status.textContent = 'Fetching...'; status.classList.remove('hidden'); }
 
-    const ts = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const ts = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     console.log(`[FetchEmail] ${ts} — Memulai fetch inbox${silent ? ' (auto-poll)' : ' (manual)'}`);
 
     try {
@@ -643,12 +643,12 @@ async function fetchEmailInbox(silent = false) {
             credentials: 'same-origin',
         });
         const data = await res.json();
-        const now  = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        const now  = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
 
         if (data.status === 'error') {
             console.error(`[FetchEmail] ${ts} — ERROR:`, data.message ?? 'Unknown error');
             if (!silent) showNotif('Fetch gagal: ' + (data.message ?? 'Unknown error'), 'error');
-            if (status) status.textContent = `Error ${now}`;
+            if (status) status.textContent = `Error ${now} WIB`;
         } else {
             const processed = data.processed ?? 0;
             const skipped   = data.skipped   ?? 0;
@@ -657,14 +657,14 @@ async function fetchEmailInbox(silent = false) {
                 console.warn(`[FetchEmail] ${ts} — Errors:`, data.errors);
             }
             if (!silent && processed > 0) showNotif(`${processed} email baru masuk ke staging.`, 'success');
-            if (status) status.textContent = `Updated ${now}${processed > 0 ? ` · ${processed} baru` : ''}`;
+            if (status) status.textContent = `Updated ${now} WIB${processed > 0 ? ` · ${processed} baru` : ''}`;
             if (processed > 0) { loadStagingTickets(); loadStats(); }
         }
     } catch (err) {
-        const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        const now = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
         console.error(`[FetchEmail] ${ts} — Exception:`, err);
         if (!silent) showNotif('Gagal menghubungi email server.', 'error');
-        if (status) status.textContent = `Error ${now}`;
+        if (status) status.textContent = `Error ${now} WIB`;
     } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope-open-text text-xs"></i> Fetch Email'; }
     }

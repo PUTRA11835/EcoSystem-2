@@ -2,9 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Customer;
 use App\Models\StagingTicket;
+use App\Models\Ticket;
+use App\Models\TicketMessage;
 use App\Services\StagingTicketService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -74,10 +78,7 @@ class StagingTicketController extends Controller
 
         $roleId = $sessionUser['role']['id'];
 
-        // Customer hanya bisa lihat staging miliknya sendiri
-        if ($roleId == 3) {
-            $query = StagingTicket::where('customer_id', $sessionUser['id']);
-        } elseif (in_array($roleId, [1, 2, 6, 7])) {
+        if (in_array($roleId, [1, 2, 3, 6, 7])) {
             $query = StagingTicket::query();
         } else {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
@@ -87,7 +88,7 @@ class StagingTicketController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
-        if ($request->filled('customer_id') && $roleId != 3) {
+        if ($request->filled('customer_id')) {
             $query->where('customer_id', $request->customer_id);
         }
 
@@ -121,13 +122,6 @@ class StagingTicketController extends Controller
         $staging = StagingTicket::with(['customer.basicData', 'validator.basicData', 'ticket'])
             ->findOrFail($id);
 
-        $roleId = $sessionUser['role']['id'];
-
-        // Customer hanya bisa lihat miliknya
-        if ($roleId == 3 && $staging->customer_id != $sessionUser['id']) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
-        }
-
         return response()->json(['success' => true, 'data' => $this->formatStaging($staging)]);
     }
 
@@ -142,16 +136,6 @@ class StagingTicketController extends Controller
         $sessionUser = session('user');
         if (!$sessionUser) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
-        }
-
-        $roleId = $sessionUser['role']['id'];
-
-        // Hanya customer (role 3) yang bisa submit ke staging
-        if ($roleId != 3) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Only customers can submit tickets through this form.',
-            ], 403);
         }
 
         $validated = $request->validate([
@@ -229,6 +213,9 @@ class StagingTicketController extends Controller
                     ]);
                 }
             }
+
+            // Kirim notifikasi balasan otomatis ke customer
+            $this->sendApprovalNotification($staging, $ticket, $sessionUser);
 
             return response()->json([
                 'success' => true,
@@ -321,6 +308,99 @@ class StagingTicketController extends Controller
                 'total'       => StagingTicket::count(),
             ],
         ]);
+    }
+
+    // ─── Private: Notifikasi balasan otomatis setelah approval ───────────────
+
+    /**
+     * Kirim balasan otomatis ke customer saat staging ticket disetujui.
+     *
+     * - Untuk semua channel: simpan TicketMessage ke DB (tampil di Jarvies)
+     * - Untuk email channel: juga kirim email via Graph API
+     *
+     * Template:
+     *   "Baik akan disampaikan dengan Nomor Ticket XXXX
+     *   Best Regards,
+     *   {nama helpdesk}"
+     *
+     * Subject email: "{ticket_number}, {original_subject}"
+     * Contoh: "2603-CUST-000001, issue maret"
+     */
+    private function sendApprovalNotification(StagingTicket $staging, Ticket $ticket, array $sessionUser): void
+    {
+        try {
+            // ── Ambil nama pengirim (helpdesk yang approve) ──
+            $nickName = $sessionUser['nick_name'] ?? null;
+            if (!$nickName) {
+                $nickName = DB::table('employee_basic_data')
+                    ->where('employee_id', $sessionUser['id'])
+                    ->value('nick_name');
+            }
+            $signatureName = $nickName ?? explode(' ', $sessionUser['name'] ?? 'Helpdesk')[0];
+
+            $ticketNumber = $ticket->ticket_number ?? '—';
+
+            $bodyPlain = "Baik akan disampaikan dengan Nomor Ticket {$ticketNumber}\n\nBest Regards,\n{$signatureName}";
+            $bodyHtml  = "<p>Baik akan disampaikan dengan Nomor Ticket <strong>{$ticketNumber}</strong></p>"
+                       . "<br><p>Best Regards,<br><strong>{$signatureName}</strong></p>";
+
+            // ── Simpan TicketMessage (tampil di semua channel — termasuk Jarvies web) ──
+            $message = TicketMessage::create([
+                'ticket_id'           => $ticket->ticket_id,
+                'sender_type'         => 'employee',
+                'sender_id'           => $sessionUser['id'],
+                'sender_name'         => 'Helpdesk Support',
+                'message'             => $bodyPlain,
+                'message_html'        => $bodyHtml,
+                'is_internal_note'    => false,
+                'channel'             => $ticket->channel,
+                'is_read_by_customer' => false,
+                'is_read_by_agent'    => true,
+            ]);
+
+            $ticket->update([
+                'last_agent_reply_at' => now(),
+                'last_message_at'     => now(),
+            ]);
+
+            // ── Jika email channel → kirim juga via Graph API ──
+            if ($ticket->channel === 'email') {
+                $customerEmail = $staging->submitted_by_email;
+                if (!$customerEmail && $ticket->customer_id) {
+                    $customerEmail = Customer::find($ticket->customer_id)?->email;
+                }
+
+                if ($customerEmail) {
+                    // Subject sama dengan format reply: "Ticket #XXXX: description"
+                    $subject   = 'Ticket #' . $ticketNumber . ': ' . ($staging->description ?? 'Ticket Update');
+                    $inReplyTo = $staging->email_message_id;
+
+                    app(EmailController::class)->sendTicketReply(
+                        $customerEmail,
+                        $subject,
+                        $bodyHtml,
+                        $inReplyTo,
+                        [],   // files
+                        [],   // ccList
+                        true  // noRePrefix — subject langsung "XXXX, desc" tanpa "Re: "
+                    );
+                }
+            }
+
+            Log::info('StagingTicketController@sendApprovalNotification: notifikasi approval terkirim', [
+                'ticket_id'     => $ticket->ticket_id,
+                'ticket_number' => $ticketNumber,
+                'channel'       => $ticket->channel,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::warning('StagingTicketController@sendApprovalNotification: gagal', [
+                'staging_id' => $staging->id,
+                'ticket_id'  => $ticket->ticket_id,
+                'error'      => $e->getMessage(),
+            ]);
+            // Tidak throw — gagal notifikasi tidak membatalkan approval yang sudah berhasil
+        }
     }
 
     // ─── Private formatter ────────────────────────────────────────────────────

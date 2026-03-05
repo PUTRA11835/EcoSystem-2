@@ -34,23 +34,10 @@ class TicketMessageController extends Controller
             // Check access based on role
             $roleId = $sessionUser['role']['id'];
 
-            // Customer can only view their own ticket messages
-            if ($roleId == 3 && $ticket->customer_id != $sessionUser['id']) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthorized to view this ticket'
-                ], 403);
-            }
-
             // Build query for messages (eager load attachments)
             $query = TicketMessage::with(['attachments'])
                 ->where('ticket_id', $ticketId)
                 ->orderBy('created_at', 'asc');
-
-            // Customer cannot see internal notes
-            if ($roleId == 3) {
-                $query->where('is_internal_note', false);
-            }
 
             $messages = $query->get()->map(function ($message) {
                 return [
@@ -140,45 +127,24 @@ class TicketMessageController extends Controller
             $ticket = Ticket::findOrFail($ticketId);
             $roleId = $sessionUser['role']['id'];
 
-            // Customer can only reply to their own tickets
-            if ($roleId == 3 && $ticket->customer_id != $sessionUser['id']) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthorized to reply to this ticket'
-                ], 403);
-            }
-
-            // Customer cannot create internal notes
-            if ($roleId == 3 && $request->message_type === 'internal_note') {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Customers cannot create internal notes'
-                ], 403);
-            }
-
             // Determine sender type and info
-            $senderType = $roleId == 3 ? 'customer' : 'employee';
+            $senderType = 'employee';
             $senderId   = $sessionUser['id'];
 
             // Employee selalu tampil sebagai "Helpdesk Support" agar konsisten
             // (semua email dikirim dari 1 akun M365); nama asli diambil sebagai nick_name
-            if ($senderType === 'employee') {
-                $senderName = 'Helpdesk Support';
+            $senderName = 'Helpdesk Support';
 
-                // Ambil nick_name dari session, fallback ke first_name dari DB
-                $nickName = $sessionUser['nick_name'] ?? null;
-                if (!$nickName) {
-                    $nickName = DB::table('employee_basic_data')
-                        ->where('employee_id', $senderId)
-                        ->value('nick_name');
-                }
-                // Fallback terakhir: kata pertama dari full name
-                if (!$nickName) {
-                    $nickName = explode(' ', $sessionUser['name'] ?? 'Helpdesk')[0];
-                }
-            } else {
-                $senderName = $sessionUser['name'] ?? $sessionUser['email'] ?? 'Unknown';
-                $nickName   = null;
+            // Ambil nick_name dari session, fallback ke first_name dari DB
+            $nickName = $sessionUser['nick_name'] ?? null;
+            if (!$nickName) {
+                $nickName = DB::table('employee_basic_data')
+                    ->where('employee_id', $senderId)
+                    ->value('nick_name');
+            }
+            // Fallback terakhir: kata pertama dari full name
+            if (!$nickName) {
+                $nickName = explode(' ', $sessionUser['name'] ?? 'Helpdesk')[0];
             }
 
             // Tambahkan tanda tangan "-NickName" di akhir pesan untuk employee
@@ -312,7 +278,8 @@ class TicketMessageController extends Controller
                 $this->buildEmailHtml($message->message, $ticket, $message->sender_name ?? 'Helpdesk Support'),
                 $inReplyTo,
                 $files,
-                $ccList
+                $ccList,
+                true  // noRePrefix — subject tetap "Ticket #XXXX: desc" tanpa "Re: "
             );
 
             // Simpan metadata attachment dari Graph ke DB (tanpa file lokal)
@@ -452,34 +419,14 @@ class TicketMessageController extends Controller
             $ticket = Ticket::findOrFail($ticketId);
             $roleId = $sessionUser['role']['id'];
 
-            // Customer can only mark their own ticket messages as read
-            if ($roleId == 3 && $ticket->customer_id != $sessionUser['id']) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthorized'
-                ], 403);
-            }
-
-            // Mark messages as read based on user type
-            if ($roleId == 3) {
-                // Customer marks messages as read by customer
-                TicketMessage::where('ticket_id', $ticketId)
-                    ->where('sender_type', 'employee')
-                    ->where('is_read_by_customer', false)
-                    ->update([
-                        'is_read_by_customer' => true,
-                        'read_at' => now()
-                    ]);
-            } else {
-                // Employee/Admin marks messages as read by agent
-                TicketMessage::where('ticket_id', $ticketId)
-                    ->where('sender_type', 'customer')
-                    ->where('is_read_by_agent', false)
-                    ->update([
-                        'is_read_by_agent' => true,
-                        'read_at' => now()
-                    ]);
-            }
+            // Employee/Admin marks messages as read by agent
+            TicketMessage::where('ticket_id', $ticketId)
+                ->where('sender_type', 'customer')
+                ->where('is_read_by_agent', false)
+                ->update([
+                    'is_read_by_agent' => true,
+                    'read_at' => now()
+                ]);
 
             return response()->json([
                 'success' => true,

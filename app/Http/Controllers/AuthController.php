@@ -178,7 +178,23 @@ class AuthController extends Controller
             $isEmployee = !is_null($authUser->employee_id);
             $isCustomer = !is_null($authUser->customer_id);
 
-            // Cek is_already_cp — user baru (employee/customer) wajib verifikasi email & ganti password dulu
+            // Customer tidak memiliki akses ke EcoSystem — gunakan portal Jarvies
+            if ($isCustomer) {
+                Log::channel('daily')->warning('=== CUSTOMER LOGIN ATTEMPT BLOCKED ===', [
+                    'request_id'    => $requestId,
+                    'auth_user_id'  => $authUser->id,
+                    'ip_address'    => $request->ip(),
+                    'timestamp'     => now()->toDateTimeString(),
+                ]);
+
+                return response()->json([
+                    'success'    => false,
+                    'message'    => 'Access denied. Please use the Jarvies customer portal.',
+                    'request_id' => $requestId,
+                ], 403);
+            }
+
+            // Cek is_already_cp — user baru wajib verifikasi email & ganti password dulu
             if (!$authUser->is_already_cp) {
                 if (empty($authUser->email)) {
                     Log::channel('daily')->warning('=== USER REQUIRES PASSWORD SETUP BUT HAS NO EMAIL ===', [
@@ -202,7 +218,6 @@ class AuthController extends Controller
                     'request_id'   => $requestId,
                     'auth_user_id' => $authUser->id,
                     'is_employee'  => $isEmployee,
-                    'is_customer'  => $isCustomer,
                 ]);
 
                 return response()->json([
@@ -289,75 +304,6 @@ class AuthController extends Controller
                     'request_id' => $requestId
                 ], 200);
 
-            } elseif ($isCustomer) {
-                // Login sebagai Customer
-                $customer = DB::table('customer as c')
-                    ->join('customer_basic_data as cb', 'c.customer_id', '=', 'cb.customer_id')
-                    ->where('c.customer_id', $authUser->customer_id)
-                    ->select(
-                        'c.customer_id',
-                        'c.customer_code',
-                        'c.email',
-                        'c.is_active',
-                        'cb.title',
-                        'cb.name_1',
-                        'cb.name_2',
-                        'cb.customer_category',
-                        'cb.customer_group'
-                    )
-                    ->first();
-
-                if (!$customer || !$customer->is_active) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Your account is inactive',
-                        'request_id' => $requestId
-                    ], 403);
-                }
-
-                // Update last_login_at
-                DB::table('auth_users')->where('id', $authUser->id)->update(['last_login_at' => now()]);
-
-                $tokenData = $customer->customer_code . '|' . time() . '|customer';
-                $token = base64_encode($tokenData);
-                $companyName = trim($customer->title . ' ' . $customer->name_1 . ' ' . ($customer->name_2 ?? ''));
-
-                $userData = [
-                    'id' => $customer->customer_id,
-                    'type' => 'customer',
-                    'customer_code' => $customer->customer_code,
-                    'company_name' => $companyName,
-                    'email' => $authUser->email,
-                    'category' => $customer->customer_category,
-                    'group' => $customer->customer_group,
-                    'role' => [
-                        'id' => 3,
-                        'name' => 'Customer'
-                    ]
-                ];
-
-                $request->session()->put('auth_token', $token);
-                $request->session()->put('user', $userData);
-                $request->session()->regenerate();
-                $request->session()->save();
-
-                Log::channel('daily')->info('=== CUSTOMER LOGIN SUCCESSFUL ===', [
-                    'request_id' => $requestId,
-                    'customer_id' => $customer->customer_id,
-                    'customer_code' => $customer->customer_code,
-                    'ip_address' => $request->ip(),
-                    'timestamp' => now()->toDateTimeString()
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Login successful',
-                    'data' => [
-                        'token' => $token,
-                        'user' => $userData
-                    ],
-                    'request_id' => $requestId
-                ], 200);
             }
 
             // auth_user tanpa employee_id maupun customer_id
@@ -614,73 +560,6 @@ class AuthController extends Controller
                     'request_id' => $requestId
                 ], 200);
                 
-            } else {
-                Log::channel('daily')->info('Fetching customer data', [
-                    'request_id' => $requestId,
-                    'customer_code' => $identifier
-                ]);
-
-                $customer = DB::table('customer as c')
-                    ->join('customer_basic_data as cb', 'c.customer_id', '=', 'cb.customer_id')
-                    ->where('c.customer_code', $identifier)
-                    ->select(
-                        'c.customer_id',
-                        'c.customer_code',
-                        'c.email',
-                        'c.is_active',
-                        'cb.title',
-                        'cb.name_1',
-                        'cb.name_2',
-                        'cb.customer_category',
-                        'cb.customer_group'
-                    )
-                    ->first();
-
-                Log::channel('daily')->info('Customer lookup result', [
-                    'request_id' => $requestId,
-                    'found' => $customer ? 'YES' : 'NO',
-                    'customer_id' => $customer->customer_id ?? null
-                ]);
-
-                if (!$customer) {
-                    Log::channel('daily')->warning('Customer not found', [
-                        'request_id' => $requestId,
-                        'identifier' => $identifier
-                    ]);
-                    
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'User not found',
-                        'request_id' => $requestId
-                    ], 404);
-                }
-
-                $companyName = trim($customer->title . ' ' . $customer->name_1 . ' ' . ($customer->name_2 ?? ''));
-                
-                $responseData = [
-                    'id' => $customer->customer_id,
-                    'type' => 'customer',
-                    'customer_code' => $customer->customer_code,
-                    'company_name' => $companyName,
-                    'email' => $customer->email,
-                    'category' => $customer->customer_category,
-                    'group' => $customer->customer_group,
-                    'role' => [
-                        'id' => 3,
-                        'name' => 'Customer'
-                    ]
-                ];
-
-                Log::channel('daily')->info('Customer data retrieved successfully', [
-                    'request_id' => $requestId,
-                    'customer_id' => $customer->customer_id
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'data' => $responseData,
-                    'request_id' => $requestId
-                ], 200);
             }
 
         } catch (Exception $e) {

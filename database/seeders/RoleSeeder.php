@@ -26,6 +26,13 @@ class RoleSeeder extends Seeder
                 'updated_at' => Carbon::now(),
             ],
             [
+                'id' => 3,
+                'name' => 'Internship',
+                'description' => 'Karyawan magang dengan akses terbatas sesuai kebutuhan internship',
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ],
+            [
                 'id' => 4,
                 'name' => 'Head of Project',
                 'description' => 'Kepala proyek dengan wewenang untuk approval timesheet consultant',

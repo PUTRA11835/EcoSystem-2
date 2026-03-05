@@ -372,19 +372,106 @@ class Customer extends Authenticatable
     // ==================== HELPER METHODS ====================
 
     /**
-     * Generate unique customer code
-     * 
-     * @return string
+     * Konversi nama perusahaan ke kode inisial tepat 4 karakter.
+     * Menggunakan pendekatan round-robin: ambil 1 karakter dari tiap kata per putaran
+     * hingga terkumpul 4 karakter. Jika kurang, pad dengan 'X'.
+     * Angka romawi (I–XV) → digit Arab.
+     * Contoh:
+     *   "Perum Jasa Tirta I"    → round-0: P,J,T,1      → "PJT1"
+     *   "Bank Mandiri"          → round-0: B,M → round-1: A,A → "BMAA"
+     *   "PT Telkom Indonesia"   → round-0: P,T,I → round-1: T → "PTIT"
+     *   "Pertamina"             → round-0..3: P,E,R,T   → "PERT"
+     *   "PT"                    → round-0: P,T → pad     → "PTXX"
+     *
+     * @param string $name
+     * @return string  Selalu tepat 4 karakter
      */
-    public static function generateCustomerCode(): string
+    public static function companyNameToCode(string $name): string
     {
-        do {
-            // Format: CUST + Year(2) + Month(2) + Random(4)
-            // Example: CUST24110001
-            $code = 'CUST' . date('ym') . str_pad(random_int(1, 9999), 4, '0', STR_PAD_LEFT);
-        } while (self::where('customer_code', $code)->exists());
+        if (empty(trim($name))) {
+            return 'CUST';
+        }
 
-        return $code;
+        // Peta Roman numeral — paling panjang dulu agar matching tepat
+        $romanMap = [
+            'XV'   => '15', 'XIV'  => '14', 'XIII' => '13', 'XII' => '12',
+            'VIII' => '8',  'VII'  => '7',  'XI'   => '11', 'VI'  => '6',
+            'IV'   => '4',  'IX'   => '9',  'III'  => '3',  'II'  => '2',
+            'X'    => '10', 'V'    => '5',  'I'    => '1',
+        ];
+
+        $words = array_values(array_filter(
+            preg_split('/[\s\-\.\/]+/', trim($name))
+        ));
+
+        // Bangun array karakter per kata
+        $wordChars = [];
+        foreach ($words as $word) {
+            $upper = strtoupper($word);
+            if (isset($romanMap[$upper])) {
+                $wordChars[] = str_split($romanMap[$upper]);
+            } elseif (ctype_digit($word)) {
+                $wordChars[] = str_split($word);
+            } else {
+                $wordChars[] = str_split(strtoupper($word));
+            }
+        }
+
+        // Round-robin: ambil 1 char dari tiap kata per putaran
+        $code      = '';
+        $charIndex = 0;
+        while (strlen($code) < 4) {
+            $foundAny = false;
+            foreach ($wordChars as $chars) {
+                if (isset($chars[$charIndex])) {
+                    $code    .= $chars[$charIndex];
+                    $foundAny = true;
+                    if (strlen($code) >= 4) {
+                        break;
+                    }
+                }
+            }
+            if (!$foundAny) {
+                break;
+            }
+            $charIndex++;
+        }
+
+        // Pastikan tepat 4 karakter (pad 'X' jika kurang, potong jika lebih)
+        return substr(str_pad($code, 4, 'X'), 0, 4);
+    }
+
+    /**
+     * Generate unique customer_code dari inisial nama perusahaan.
+     * Selalu menghasilkan tepat 4 karakter.
+     * Jika base sudah ada, ganti karakter terakhir dengan counter (2-9, A-Z).
+     * Contoh: "Perum Jasa Tirta I" → "PJT1"
+     *         (jika sudah ada) → "PJT2", "PJT3", ...
+     *
+     * @param string $companyName
+     * @return string  Selalu tepat 4 karakter
+     */
+    public static function generateCustomerCode(string $companyName = ''): string
+    {
+        $base = self::companyNameToCode($companyName); // selalu 4 char
+
+        // Langsung pakai jika belum ada
+        if (!self::where('customer_code', $base)->exists()) {
+            return $base;
+        }
+
+        // Collision: ganti char terakhir dengan counter (2–9, A–Z)
+        $prefix      = substr($base, 0, 3);
+        $suffixChars = array_merge(range('2', '9'), range('A', 'Z'));
+        foreach ($suffixChars as $char) {
+            $code = $prefix . $char;
+            if (!self::where('customer_code', $code)->exists()) {
+                return $code;
+            }
+        }
+
+        // Fallback ekstrem: 3 char prefix + digit waktu (mod 10)
+        return $prefix . (string)(time() % 10);
     }
 
     /**
@@ -533,8 +620,8 @@ class Customer extends Authenticatable
     public static function createWithBasicData(array $customerData, array $basicData): Customer
     {
         return DB::transaction(function () use ($customerData, $basicData) {
-            // Generate customer code
-            $customerCode = self::generateCustomerCode();
+            // Generate customer code dari inisial nama perusahaan
+            $customerCode = self::generateCustomerCode($basicData['name_1'] ?? '');
 
             // Create customer
             $customer = self::create([

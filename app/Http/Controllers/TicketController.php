@@ -78,7 +78,7 @@ class TicketController extends Controller
             // Employee: cek DSM qualification
             } elseif ($sessionUser['role']['id'] == 2) {
                 $employeeId = $sessionUser['id'];
-                
+
                 // Cek apakah employee memiliki DSM qualification
                 if (!$this->isEmployeeQualified($employeeId)) {
                     return response()->json([
@@ -86,27 +86,27 @@ class TicketController extends Controller
                         'message' => 'You are not qualified for this section. DSM qualification required.'
                     ], 403);
                 }
-                
+
                 Log::info('Employee with DSM qualification viewing all tickets');
-                
+
                 // Employee dengan DSM bisa lihat semua ticket
                 $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
                     ->orderBy('created_at', 'desc')
                     ->get();
-                    
-            // Customer: hanya bisa lihat tiket mereka sendiri
-            } elseif ($sessionUser['role']['id'] == 3) {
-                Log::info('Filtering for customer', ['customer_id' => $sessionUser['id']]);
-                
+
+            // Helpdesk (6), RPMO (7), Head of Project (4), Head of Support (5): lihat semua ticket
+            } elseif (in_array($sessionUser['role']['id'], [4, 5, 6, 7])) {
+                Log::info('Staff viewing all tickets', ['role_id' => $sessionUser['role']['id']]);
+
                 $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
-                    ->where('customer_id', $sessionUser['id'])
                     ->orderBy('created_at', 'desc')
                     ->get();
-                    
+
             } else {
+                // role 3 (Internship) dan role lain tidak punya akses
                 return response()->json([
                     'success' => false,
-                    'message' => 'Invalid role'
+                    'message' => 'Access denied'
                 ], 403);
             }
 
@@ -195,43 +195,6 @@ class TicketController extends Controller
     {
         $user   = session('user');
         $roleId = $user['role']['id'];
-
-        // ── Customer → masuk ke staging (menunggu validasi admin) ──────────────
-        if ($roleId == 3) {
-            $validated = $request->validate([
-                'description'     => 'required|string|max:5000',
-                'ticket_priority' => 'required|in:Low,Medium,High',
-                'body'            => 'nullable|string',
-            ]);
-
-            // Sertakan email customer agar ticket_message pertama bisa punya sender_email
-            $validated['submitted_by_email'] = $user['email'] ?? null;
-
-            try {
-                $staging = app(StagingTicketService::class)
-                    ->createFromWeb($validated, $user['id']);
-
-                return response()->json([
-                    'success'   => true,
-                    'message'   => 'Tiket Anda telah dikirim dan sedang menunggu validasi admin.',
-                    'staging'   => true,
-                    'data'      => [
-                        'id'             => $staging->id,
-                        'status'         => $staging->status,
-                        'ticket_priority'=> $staging->ticket_priority,
-                        'created_at'     => $staging->created_at,
-                    ],
-                ], 201);
-            } catch (\Exception $e) {
-                Log::error('TicketController@store (customer→staging): gagal', [
-                    'error' => $e->getMessage(),
-                ]);
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Gagal mengirim tiket: ' . $e->getMessage(),
-                ], 500);
-            }
-        }
 
         // ── Admin (role 1) → langsung buat ticket (bypass staging) ────────────
         if ($roleId == 1) {
@@ -450,18 +413,8 @@ class TicketController extends Controller
 
             Log::info('My Tickets - Session User:', $sessionUser);
 
-            // Customer: hanya tiket mereka sendiri
-            if ($sessionUser['role']['id'] == 3) {
-                $customerId = $sessionUser['id'];
-                Log::info('My Tickets - Filtering for customer', ['customer_id' => $customerId]);
-                
-                $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
-                    ->where('customer_id', $customerId)
-                    ->orderBy('created_at', 'desc')
-                    ->get();
-
             // Employee / Helpdesk: tampilkan tiket dimana mereka PIC atau member
-            } elseif (in_array($sessionUser['role']['id'], [2, 6, 7])) {
+            if (in_array($sessionUser['role']['id'], [2, 6, 7])) {
                 $employeeId = $sessionUser['id'];
 
                 Log::info('My Tickets - Filtering for employee/helpdesk', ['employee_id' => $employeeId]);
@@ -839,11 +792,11 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
         
-        // Only admin and customer can update man days
-        if (!$sessionUser || !in_array($sessionUser['role']['id'], [1, 3])) {
+        // Only admin can update man days
+        if (!$sessionUser || $sessionUser['role']['id'] !== 1) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized. Only admin and customer can update man days.'
+                'message' => 'Unauthorized. Only admin can update man days.'
             ], 403);
         }
 
@@ -862,14 +815,6 @@ class TicketController extends Controller
         try {
             $ticket = Ticket::findOrFail($id);
             
-            // Customer can only update their own tickets
-            if ($sessionUser['role']['id'] == 3 && $ticket->customer_id != $sessionUser['id']) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You can only update your own tickets'
-                ], 403);
-            }
-
             // Check if ticket is confirmed (has employee_id)
             if (!$ticket->employee_id) {
                 return response()->json([
@@ -936,14 +881,6 @@ class TicketController extends Controller
 
             $ticket = Ticket::findOrFail($id);
 
-            // Customer can only view their own ticket history
-            if ($sessionUser['role']['id'] == 3 && $ticket->customer_id != $sessionUser['id']) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You can only view your own ticket history'
-                ], 403);
-            }
-
             $history = DB::table('mandays_history')
                 ->where('ticket_id', $id)
                 ->orderBy('created_at', 'desc')
@@ -984,14 +921,6 @@ class TicketController extends Controller
 
             $ticket = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
                 ->findOrFail($id);
-
-            // Customer hanya bisa lihat tiket mereka sendiri
-            if ($sessionUser['role']['id'] == 3 && $ticket->customer_id != $sessionUser['id']) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You can only view your own tickets'
-                ], 403);
-            }
 
             // Employee harus punya DSM qualification (kecuali Admin)
             if ($sessionUser['role']['id'] == 2 && !$this->isEmployeeQualified($sessionUser['id'])) {
@@ -1201,10 +1130,6 @@ class TicketController extends Controller
                 ->where('jarvies_status', $status)
                 ->orderBy('created_at', 'desc');
 
-            // Customer hanya bisa lihat tiket mereka sendiri
-            if ($sessionUser['role']['id'] == 3) {
-                $query->where('customer_id', $sessionUser['id']);
-            }
             // Admin (role_id = 1) bisa lihat semua
             // Employee dengan DSM juga bisa lihat semua (sudah dicheck di atas)
 
@@ -1249,10 +1174,6 @@ class TicketController extends Controller
 
             $query = Ticket::query();
 
-            // Customer hanya bisa lihat statistik tiket mereka sendiri
-            if ($sessionUser['role']['id'] == 3) {
-                $query->where('customer_id', $sessionUser['id']);
-            }
             // Admin (role_id = 1) dan Employee dengan DSM bisa lihat semua statistik
 
             $stats = [

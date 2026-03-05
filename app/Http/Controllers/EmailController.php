@@ -623,10 +623,11 @@ class EmailController extends Controller
         string $body,
         ?string $inReplyTo = null,
         array $files = [],
-        array $ccList = []   // [{name, address}, ...] atau [address, ...]
+        array $ccList = [],  // [{name, address}, ...] atau [address, ...]
+        bool $noRePrefix = false
     ): array {
         $sender       = env('MS_SENDER_EMAIL');
-        $replySubject = stripos($subject, 're:') !== 0 ? 'Re: ' . $subject : $subject;
+        $replySubject = (!$noRePrefix && stripos($subject, 're:') !== 0) ? 'Re: ' . $subject : $subject;
         $draftId      = null;
 
         // Normalisasi ccList → format Graph API: [{emailAddress: {address, name}}]
@@ -664,9 +665,12 @@ class EmailController extends Controller
                     $draft   = $this->graphPost("/users/{$sender}/messages/{$originalId}/createReply", []);
                     $draftId = $draft->json('id');
 
-                    // Patch body + CC — internetMessageHeaders tidak bisa di-patch
-                    // pada draft yang dibuat via createReply (Graph API limitation)
-                    $patchData = ['body' => ['contentType' => 'HTML', 'content' => $cleanBody]];
+                    // Patch body + subject + CC
+                    // Subject di-override agar bisa menambahkan nomor tiket di depan
+                    $patchData = [
+                        'body'    => ['contentType' => 'HTML', 'content' => $cleanBody],
+                        'subject' => $replySubject,
+                    ];
                     if (!empty($ccRecipients)) {
                         $patchData['ccRecipients'] = $ccRecipients;
                     }

@@ -74,7 +74,6 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/employee', [DashboardController::class, 'index'])->name('dashboardEmployee');
-    Route::get('/dashboard/customer', [DashboardController::class, 'index'])->name('dashboardCustomer');
 
     // ==================== CALENDAR ====================
     Route::prefix('calendar')->name('calendar.')->group(function () {
