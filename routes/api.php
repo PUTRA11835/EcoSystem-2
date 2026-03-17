@@ -307,6 +307,9 @@ Route::prefix('mobile/employee')->group(function () {
     Route::middleware(['mobile.employee'])->group(function () {
         Route::post('/auth/logout', [\App\Http\Controllers\Mobile\EmployeeAuthController::class, 'logout']);
         Route::get('/auth/me', [\App\Http\Controllers\Mobile\EmployeeAuthController::class, 'me']);
+
+        // Dashboard
+        Route::get('/dashboard', [\App\Http\Controllers\Mobile\DashboardController::class, 'index']);
     });
 });
 
