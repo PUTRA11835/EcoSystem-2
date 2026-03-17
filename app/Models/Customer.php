@@ -104,6 +104,14 @@ class Customer extends Authenticatable
     }
 
     /**
+     * All contact persons for this customer (supports multiple login accounts)
+     */
+    public function contacts()
+    {
+        return $this->hasMany(CustomerContact::class, 'customer_id', 'customer_id');
+    }
+
+    /**
      * Get all identifications for the customer (one-to-many)
      * 
      * @return HasMany

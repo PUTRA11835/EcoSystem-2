@@ -4,6 +4,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use App\Http\Middleware\CheckAuthToken;
+use App\Http\Middleware\CheckJarviesApiKey;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -19,7 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
         
         $middleware->alias([
-            'auth.session' => CheckAuthToken::class,
+            'auth.session'    => CheckAuthToken::class,
+            'jarvies.api_key' => CheckJarviesApiKey::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -85,6 +85,14 @@ class PasswordSetupController extends Controller
             'auth_user_id' => $authUser->id,
         ]);
 
+        // Customers are redirected to Jarvies login, employees to EcoSystem login
+        $isCustomer = ($authUser->user_type ?? '') === 'customer' || !empty($authUser->customer_id);
+        if ($isCustomer) {
+            $jarviesLogin = rtrim(env('JARVIES_URL', config('app.url')), '/') . '/login';
+            return redirect($jarviesLogin)
+                ->with('success', 'Password set successfully. You can now log in to Jarvies with your new password.');
+        }
+
         return redirect()->route('login')
             ->with('success', 'Password set successfully. You can now log in with your new password.');
     }
@@ -170,8 +178,13 @@ class PasswordSetupController extends Controller
         }
 
         try {
-            $link    = url('/change-password?token=' . $token);
-            $appName = config('app.name', 'ECoSystem');
+            // Customers (contact persons) set password through Jarvies portal
+            $isCustomer = !empty($authUser->customer_id);
+            $baseUrl = $isCustomer
+                ? rtrim(env('JARVIES_URL', config('app.url')), '/')
+                : rtrim(config('app.url'), '/');
+            $link    = $baseUrl . '/change-password?token=' . $token;
+            $appName = $isCustomer ? 'Jarvies' : config('app.name', 'ECoSystem');
 
             if ($type === 'reset') {
                 $subject = "Reset Your {$appName} Password";

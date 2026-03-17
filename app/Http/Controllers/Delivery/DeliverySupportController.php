@@ -230,7 +230,11 @@ class DeliverySupportController extends Controller
         try {
             switch ($section) {
                 case 'support-info':
-                    $validated = validator($data, [
+                    $sessionUser = session('user');
+                    $roleId = $sessionUser['role']['id'] ?? null;
+                    $canEditType = in_array($roleId, [1, 6, 7]);
+
+                    $rules = [
                         'name' => 'required|string|max:255',
                         'client_id' => 'required|exists:customer,customer_id',
                         'support_method' => 'nullable|string|max:100',
@@ -238,9 +242,14 @@ class DeliverySupportController extends Controller
                         'end_date' => 'nullable|date|after_or_equal:start_date',
                         'resolution_estimated' => 'nullable|date',
                         'total_mandays' => 'nullable|integer|min:0',
-                    ])->validate();
+                    ];
+                    if ($canEditType) {
+                        $rules['type'] = 'nullable|in:AMS,MO,ATS,Project,Internal';
+                    }
 
-                    $support->update([
+                    $validated = validator($data, $rules)->validate();
+
+                    $updateData = [
                         'name' => $validated['name'],
                         'client_id' => $validated['client_id'],
                         'support_method' => $validated['support_method'] ?? null,
@@ -248,7 +257,12 @@ class DeliverySupportController extends Controller
                         'end_date' => $validated['end_date'] ?? null,
                         'resolution_estimated' => $validated['resolution_estimated'] ?? null,
                         'total_mandays' => $validated['total_mandays'] ?? null,
-                    ]);
+                    ];
+                    if ($canEditType) {
+                        $updateData['type'] = $validated['type'] ?? null;
+                    }
+
+                    $support->update($updateData);
                     break;
 
                 case 'approval-info':

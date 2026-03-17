@@ -207,7 +207,7 @@ class EmailController extends Controller
         if (!empty($data['in_reply_to'])) {
             try {
                 $result = $this->graphGet("/users/{$sender}/messages", [
-                    '$filter' => "internetMessageId eq '" . addslashes($data['in_reply_to']) . "'",
+                    '$filter' => "internetMessageId eq '" . str_replace("'", "''", $data['in_reply_to']) . "'",
                     '$select' => 'id',
                     '$top'    => 1,
                 ]);
@@ -250,19 +250,51 @@ class EmailController extends Controller
         try {
             $sender = env('MS_SENDER_EMAIL');
 
-            // Ambil email yang belum dibaca
-            $data = $this->graphGet("/users/{$sender}/mailFolders/inbox/messages", [
+            $select = 'id,subject,from,ccRecipients,receivedDateTime,body,internetMessageId,conversationId,hasAttachments';
+
+            // Query 1: semua unread (perilaku utama)
+            $unreadData = $this->graphGet("/users/{$sender}/mailFolders/inbox/messages", [
                 '$filter'  => 'isRead eq false',
                 '$orderby' => 'receivedDateTime asc',
                 '$top'     => 50,
-                '$select'  => 'id,subject,from,ccRecipients,receivedDateTime,body,internetMessageId,conversationId,hasAttachments',
+                '$select'  => $select,
             ]);
+            $unreadMessages = $unreadData['value'] ?? [];
+
+            // Query 2: email masuk dalam 60 menit terakhir (jaring pengaman untuk email
+            // yang sudah dibaca di Outlook sebelum auto-poll sempat memprosesnya).
+            // PENTING: Graph API pakai UTC — gunakan Carbon::now('UTC') agar tidak salah timezone.
+            $since        = \Carbon\Carbon::now('UTC')->subMinutes(60)->format('Y-m-d\TH:i:s\Z');
+            $recentData   = $this->graphGet("/users/{$sender}/mailFolders/inbox/messages", [
+                '$filter'  => "receivedDateTime ge {$since}",
+                '$orderby' => 'receivedDateTime asc',
+                '$top'     => 20,
+                '$select'  => $select,
+            ]);
+            $recentMessages = $recentData['value'] ?? [];
+
+            Log::info('EmailController@processInbox: fetch summary', [
+                'unread_count' => count($unreadMessages),
+                'recent_count' => count($recentMessages),
+                'since_utc'    => $since,
+            ]);
+
+            // Gabungkan dan dedup berdasarkan internetMessageId
+            $seen     = [];
+            $messages = [];
+            foreach (array_merge($unreadMessages, $recentMessages) as $msg) {
+                $msgId = $msg['internetMessageId'] ?? $msg['id'];
+                if (!isset($seen[$msgId])) {
+                    $seen[$msgId] = true;
+                    $messages[]  = $msg;
+                }
+            }
 
             $processed = 0;
             $skipped   = 0;
             $errors    = [];
 
-            foreach ($data['value'] ?? [] as $msg) {
+            foreach ($messages as $msg) {
                 try {
                     $graphMsgId     = $msg['id'];
                     $subject        = $msg['subject'] ?? '(no subject)';
@@ -297,10 +329,20 @@ class EmailController extends Controller
                         })->first();
                     }
 
+                    // Cari customer: cek customer.email dulu, fallback ke auth_users.email
                     $customer = Customer::where('email', $fromEmail)->first();
+                    if (!$customer && $fromEmail) {
+                        $authCustomerId = \DB::table('auth_users')
+                            ->whereRaw('LOWER(email) = LOWER(?)', [$fromEmail])
+                            ->whereNotNull('customer_id')
+                            ->value('customer_id');
+                        if ($authCustomerId) {
+                            $customer = Customer::find($authCustomerId);
+                        }
+                    }
 
                     if ($ticket) {
-                        // Dedup: skip jika message dengan ID ini sudah ada (mis. graphPatch gagal sebelumnya)
+                        // Dedup: skip jika message dengan ID ini sudah ada
                         if ($internetMsgId && TicketMessage::where('email_message_id', $internetMsgId)->exists()) {
                             $this->graphPatch("/users/{$sender}/messages/{$graphMsgId}", ['isRead' => true]);
                             $skipped++;
@@ -344,8 +386,14 @@ class EmailController extends Controller
                         ]);
 
                     } else {
+                        // Dedup staging: skip jika sudah pernah masuk staging dengan internet_message_id ini
+                        if ($internetMsgId && \App\Models\StagingTicket::where('email_message_id', $internetMsgId)->exists()) {
+                            $this->graphPatch("/users/{$sender}/messages/{$graphMsgId}", ['isRead' => true]);
+                            $skipped++;
+                            continue;
+                        }
+
                         // Email baru tanpa tiket terkait → simpan ke staging untuk divalidasi Helpdesk
-                        // TicketMessage & attachment diproses nanti saat Helpdesk approve staging
                         app(StagingTicketService::class)->createFromEmail([
                             'customer_id'         => $customer?->customer_id,
                             'from_email'          => $fromEmail,
@@ -562,7 +610,7 @@ class EmailController extends Controller
         try {
             // Cari Graph message ID berdasarkan internetMessageId
             $result = $this->graphGet("/users/{$sender}/messages", [
-                '$filter' => "internetMessageId eq '" . addslashes($message->email_message_id) . "'",
+                '$filter' => "internetMessageId eq '" . str_replace("'", "''", $message->email_message_id) . "'",
                 '$select' => 'id,hasAttachments',
                 '$top'    => 1,
             ]);
@@ -626,9 +674,10 @@ class EmailController extends Controller
         array $ccList = [],  // [{name, address}, ...] atau [address, ...]
         bool $noRePrefix = false
     ): array {
-        $sender       = env('MS_SENDER_EMAIL');
-        $replySubject = (!$noRePrefix && stripos($subject, 're:') !== 0) ? 'Re: ' . $subject : $subject;
-        $draftId      = null;
+        $sender         = env('MS_SENDER_EMAIL');
+        $replySubject   = (!$noRePrefix && stripos($subject, 're:') !== 0) ? 'Re: ' . $subject : $subject;
+        $draftId        = null;
+        $conversationId = null;
 
         // Normalisasi ccList → format Graph API: [{emailAddress: {address, name}}]
         $ccRecipients = [];
@@ -649,58 +698,103 @@ class EmailController extends Controller
         $cleanBody    = $extracted['html'];
         $inlineImages = $extracted['inlineImages'];
 
-        // ── Coba buat reply draft dari pesan asli ──────────────────────────────
+        // ── Coba buat reply draft dari pesan asli (untuk threading yang benar) ──
+        //
+        // createReply digunakan untuk mendapat In-Reply-To + References + conversationId otomatis.
+        // SETELAH createReply, toRecipients SELALU di-patch ke $toEmail (customer) karena:
+        //   - Inbox message: createReply sudah benar (reply ke customer yg kirim) → patch confirm
+        //   - SentItems msg: createReply salah arah (ke raditya sendiri) → patch fix ke customer
+        //
+        // Dengan selalu patch toRecipients, kita tidak perlu membedakan Inbox vs SentItems.
         if ($inReplyTo) {
-            try {
-                $result = $this->graphGet("/users/{$sender}/messages", [
-                    '$filter' => "internetMessageId eq '" . addslashes($inReplyTo) . "'",
-                    '$select' => 'id',
-                    '$top'    => 1,
-                ]);
+            $filterVal  = str_replace("'", "''", $inReplyTo);
+            $originalId = null;
 
-                if (!empty($result['value'][0]['id'])) {
-                    $originalId = $result['value'][0]['id'];
+            // Cari di Inbox dulu, lalu SentItems
+            foreach ([
+                "/users/{$sender}/mailFolders/Inbox/messages",
+                "/users/{$sender}/mailFolders/SentItems/messages",
+            ] as $searchPath) {
+                try {
+                    $result = $this->graphGet($searchPath, [
+                        '$filter' => "internetMessageId eq '{$filterVal}'",
+                        '$select' => 'id,conversationId',
+                        '$top'    => 1,
+                    ]);
+                    if (!empty($result['value'][0]['id'])) {
+                        $originalId = $result['value'][0]['id'];
+                        if (!$conversationId && !empty($result['value'][0]['conversationId'])) {
+                            $conversationId = $result['value'][0]['conversationId'];
+                        }
+                        break;
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('EmailController@sendTicketReply: search inReplyTo gagal', [
+                        'path'        => $searchPath,
+                        'in_reply_to' => $inReplyTo,
+                        'error'       => $e->getMessage(),
+                    ]);
+                }
+            }
 
-                    // createReply → Graph otomatis isi In-Reply-To & References
-                    $draft   = $this->graphPost("/users/{$sender}/messages/{$originalId}/createReply", []);
-                    $draftId = $draft->json('id');
+            if ($originalId) {
+                try {
+                    $draft          = $this->graphPost("/users/{$sender}/messages/{$originalId}/createReply", []);
+                    $draftId        = $draft->json('id');
+                    $conversationId = $draft->json('conversationId') ?? $conversationId;
 
-                    // Patch body + subject + CC
-                    // Subject di-override agar bisa menambahkan nomor tiket di depan
+                    // SELALU patch toRecipients ke $toEmail agar tidak pernah salah kirim.
+                    // Ini fix untuk kasus SentItems: createReply default-nya reply ke raditya sendiri.
                     $patchData = [
-                        'body'    => ['contentType' => 'HTML', 'content' => $cleanBody],
-                        'subject' => $replySubject,
+                        'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
+                        'subject'      => $replySubject,
+                        'toRecipients' => [['emailAddress' => ['address' => $toEmail]]],
                     ];
                     if (!empty($ccRecipients)) {
                         $patchData['ccRecipients'] = $ccRecipients;
                     }
                     $this->graphPatch("/users/{$sender}/messages/{$draftId}", $patchData);
+                } catch (\Exception $e) {
+                    Log::warning('EmailController@sendTicketReply: createReply gagal, fallback ke draft baru', [
+                        'original_id' => $originalId,
+                        'error'       => $e->getMessage(),
+                    ]);
+                    $draftId = null;
                 }
-            } catch (\Exception $e) {
-                Log::warning('EmailController@sendTicketReply: createReply gagal, fallback ke draft baru', [
-                    'error' => $e->getMessage(),
+            } else {
+                Log::warning('EmailController@sendTicketReply: inReplyTo tidak ditemukan di Inbox/SentItems, pakai fallback draft', [
+                    'in_reply_to' => $inReplyTo,
                 ]);
-                $draftId = null;
             }
         }
 
-        // ── Fallback: buat message draft baru ─────────────────────────────────
+        // ── Fallback: buat draft baru ─────────────────────────────────────────
+        // Dipakai jika: inReplyTo null, message tidak ditemukan, atau createReply gagal.
+        // In-Reply-To + References di-set manual agar Gmail/Outlook tetap bisa thread.
+        // toRecipients = $toEmail (selalu customer, tidak pernah raditya sendiri).
         if (!$draftId) {
+            $headers = [
+                ['name' => 'X-Mailer',        'value' => 'EcoSystem-Helpdesk'],
+                ['name' => 'X-Entity-Ref-ID', 'value' => uniqid('ecosys-', true)],
+            ];
+            if ($inReplyTo) {
+                $headers[] = ['name' => 'In-Reply-To', 'value' => $inReplyTo];
+                $headers[] = ['name' => 'References',  'value' => $inReplyTo];
+            }
             $newMsgPayload = [
-                'subject'      => $replySubject,
-                'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
-                'toRecipients' => [['emailAddress' => ['address' => $toEmail]]],
-                'internetMessageHeaders' => [
-                    ['name' => 'Precedence',      'value' => 'transactional'],
-                    ['name' => 'X-Mailer',        'value' => 'EcoSystem-Helpdesk'],
-                    ['name' => 'X-Entity-Ref-ID', 'value' => uniqid('ecosys-', true)],
-                ],
+                'subject'                => $replySubject,
+                'body'                   => ['contentType' => 'HTML', 'content' => $cleanBody],
+                'toRecipients'           => [['emailAddress' => ['address' => $toEmail]]],
+                'internetMessageHeaders' => $headers,
             ];
             if (!empty($ccRecipients)) {
                 $newMsgPayload['ccRecipients'] = $ccRecipients;
             }
             $draft   = $this->graphPost("/users/{$sender}/messages", $newMsgPayload);
             $draftId = $draft->json('id');
+            if (!$conversationId) {
+                $conversationId = $draft->json('conversationId');
+            }
         }
 
         // ── Lampirkan inline images sebagai CID attachments ────────────────────
@@ -750,12 +844,105 @@ class EmailController extends Controller
             }
         }
 
+        // ── Ambil internetMessageId dari draft sebelum dikirim ────────────────
+        // internetMessageId diperlukan oleh Jarvies sebagai In-Reply-To header
+        // agar balasan customer masuk ke thread yang sama di Gmail/Outlook.
+        $internetMessageId = null;
+        try {
+            $draftInfo = $this->graphGet("/users/{$sender}/messages/{$draftId}", [
+                '$select' => 'internetMessageId,conversationId',
+            ]);
+            $internetMessageId = $draftInfo['internetMessageId'] ?? null;
+            if (!$conversationId) {
+                $conversationId = $draftInfo['conversationId'] ?? null;
+            }
+            if (!$internetMessageId) {
+                Log::warning('EmailController@sendTicketReply: internetMessageId null dari draft', [
+                    'draft_id' => $draftId,
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::warning('EmailController@sendTicketReply: gagal ambil internetMessageId dari draft', [
+                'draft_id' => $draftId,
+                'error'    => $e->getMessage(),
+            ]);
+        }
+
         // ── Kirim draft ───────────────────────────────────────────────────────
         $this->graphPost("/users/{$sender}/messages/{$draftId}/send", []);
 
+        // ── Cari ID pesan di Sent Items setelah terkirim ──────────────────────
+        // Setelah /send, draft berpindah dari Drafts → Sent Items dengan ID baru.
+        // Draft ID lama sudah tidak valid → attachment proxy akan 404 jika pakai draft ID.
+        // Cari di folder SentItems spesifik (lebih cepat terindex daripada global search).
+        // Retry 2x dengan jeda 1 detik karena Graph kadang belum index segera setelah /send.
+        $sentMessageId = $draftId; // fallback ke draft ID jika pencarian gagal
+        if ($internetMessageId) {
+            // OData $filter pada internetMessageId tidak reliable di SentItems.
+            // Solusi: ambil beberapa pesan terbaru dari SentItems, cocokkan internetMessageId di PHP.
+            for ($attempt = 1; $attempt <= 3; $attempt++) {
+                if ($attempt > 1) sleep(1);
+                try {
+                    $searchResult = $this->graphGet("/users/{$sender}/mailFolders/SentItems/messages", [
+                        '$orderby' => 'sentDateTime desc',
+                        '$select'  => 'id,internetMessageId',
+                        '$top'     => 20,
+                    ]);
+                    foreach ($searchResult['value'] ?? [] as $msg) {
+                        if (($msg['internetMessageId'] ?? '') === $internetMessageId) {
+                            $sentMessageId = $msg['id'];
+                            break 2;
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('EmailController@sendTicketReply: gagal ambil sentMessageId dari Sent Items', [
+                        'attempt'             => $attempt,
+                        'internet_message_id' => $internetMessageId,
+                        'error'               => $e->getMessage(),
+                    ]);
+                    break;
+                }
+            }
+            if ($sentMessageId === $draftId) {
+                Log::warning('EmailController@sendTicketReply: sentMessageId tidak ditemukan, pakai draft ID', [
+                    'draft_id'            => $draftId,
+                    'internet_message_id' => $internetMessageId,
+                ]);
+            }
+        }
+
+        // ── Perbarui graph_att_id ke Sent Items attachment ID ─────────────────
+        // Setelah draft dikirim, Graph mengganti attachment ID. Draft att ID → 404.
+        // Fetch daftar attachment dari Sent Items message dan cocokkan berdasarkan nama file.
+        if ($sentMessageId !== $draftId && !empty($attachmentRecords)) {
+            try {
+                $sentAtts = $this->graphGet("/users/{$sender}/messages/{$sentMessageId}/attachments", [
+                    '$select' => 'id,name',
+                ]);
+                $sentAttMap = [];
+                foreach ($sentAtts['value'] ?? [] as $sa) {
+                    $sentAttMap[strtolower($sa['name'] ?? '')] = $sa['id'];
+                }
+                foreach ($attachmentRecords as &$rec) {
+                    $key = strtolower($rec['name'] ?? '');
+                    if (isset($sentAttMap[$key])) {
+                        $rec['graph_att_id'] = $sentAttMap[$key];
+                    }
+                }
+                unset($rec);
+            } catch (\Exception $e) {
+                Log::warning('EmailController@sendTicketReply: gagal fetch Sent Items attachment IDs', [
+                    'sent_message_id' => $sentMessageId,
+                    'error'           => $e->getMessage(),
+                ]);
+            }
+        }
+
         return [
-            'graph_message_id' => $draftId,
-            'attachments'      => $attachmentRecords,
+            'graph_message_id'    => $sentMessageId,   // ID di Sent Items (bukan draft ID)
+            'conversation_id'     => $conversationId,
+            'internet_message_id' => $internetMessageId,
+            'attachments'         => $attachmentRecords,
         ];
     }
 

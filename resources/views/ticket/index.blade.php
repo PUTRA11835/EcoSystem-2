@@ -194,9 +194,10 @@
                 <div>
                     <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Priority</label>
                     <select id="newPriority" required class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
-                        <option value="Low">Low</option>
-                        <option value="Medium" selected>Medium</option>
+                        <option value="Very High">Very High</option>
                         <option value="High">High</option>
+                        <option value="Medium" selected>Medium</option>
+                        <option value="Low">Low</option>
                     </select>
                 </div>
                 <div>
@@ -399,7 +400,7 @@
         const shortDesc = description.length > 100 ? description.substring(0, 100) + '...' : description;
         const agentName = ticket.employee?.employee_name || 'Unassigned';
 
-        const priorityColors = { 'Low': 'bg-green-100 text-green-700', 'Medium': 'bg-blue-100 text-blue-700', 'High': 'bg-red-100 text-red-700' };
+        const priorityColors = { 'Very High': 'bg-purple-100 text-purple-700', 'High': 'bg-red-100 text-red-700', 'Medium': 'bg-blue-100 text-blue-700', 'Low': 'bg-green-100 text-green-700' };
         const priorityClass = priorityColors[ticket.ticket_priority] || 'bg-gray-100 text-gray-700';
 
         const statusMap = {
@@ -497,7 +498,7 @@
             'jarvies_status': ['in process', 'author action', 'proposed solution', 'closed', 'sent in to SAP', 'sent it to support'],
             'status': ['open', 'in_progress', 'hold', 'cancel', 'closed', 'reply'],
             'ticket_type': ['Incident', 'Service Request', 'Change Request', 'Consult'],
-            'priority': ['Low', 'Medium', 'High']
+            'priority': ['Very High', 'High', 'Medium', 'Low']
         };
 
         if (filterType && options[filterType]) {
@@ -554,7 +555,7 @@
         if (diffMins < 60) return `${diffMins}m ago`;
         if (diffHours < 24) return `${diffHours}h ago`;
         if (diffDays < 7) return `${diffDays}d ago`;
-        return date.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' });
+        return date.toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' });
     }
 
     function showNotification(message, type = 'info') {

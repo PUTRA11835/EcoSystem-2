@@ -111,15 +111,15 @@
         {{-- Compose Area with Quill Editor --}}
         <div class="border-t border-gray-200 flex-shrink-0">
             {{-- Channel mode indicator --}}
-            @if($ticket->channel === 'email')
+            @if($ticket->channel === 'email' || $ticket->email_thread_id)
             <div class="px-4 pt-2 flex items-center gap-1.5 text-xs text-blue-700">
                 <i class="fas fa-envelope text-[10px]"></i>
-                <span>Balasan akan dikirim ke customer via <strong>Email</strong></span>
+                <span>Replies will be sent to customer via <strong>Email</strong></span>
             </div>
             @else
             <div class="px-4 pt-2 flex items-center gap-1.5 text-xs text-gray-400">
                 <i class="fas fa-comment text-[10px]"></i>
-                <span>Balasan hanya tampil di <strong>Jarvies</strong> — tidak ada email yang dikirim</span>
+                <span>Replies only visible in <strong>Jarvies</strong> — no email will be sent</span>
             </div>
             @endif
 
@@ -164,7 +164,7 @@
         <div class="p-5">
             <div class="flex items-center justify-between mb-4">
                 <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Properties</h4>
-                @if($user->role->role_id == 1)
+                @if(in_array($user->role->role_id, [1, 6, 7]))
                 <button onclick="saveAllProperties()" class="inline-flex items-center gap-1 px-2.5 py-1 bg-red-700 text-white text-[10px] font-semibold rounded-md hover:bg-red-800 transition-all">
                     <i class="fas fa-save text-[9px]"></i>
                     Save All
@@ -175,7 +175,7 @@
                 {{-- Status --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Status</label>
-                    <select id="detailStatus" {{ $user->role->role_id == 1 ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
+                    <select id="detailStatus" {{ in_array($user->role->role_id, [1, 6, 7]) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
                         <option value="open" {{ $ticket->status == 'open' ? 'selected' : '' }}>Open</option>
                         <option value="in_progress" {{ $ticket->status == 'in_progress' ? 'selected' : '' }}>In Progress</option>
                         <option value="hold" {{ $ticket->status == 'hold' ? 'selected' : '' }}>Hold</option>
@@ -188,7 +188,7 @@
                 {{-- Jarvies Status --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Jarvies Status</label>
-                    <select id="detailJarviesStatus" {{ $user->role->role_id == 1 ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
+                    <select id="detailJarviesStatus" {{ in_array($user->role->role_id, [1, 6, 7]) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
                         <option value="in process" {{ $ticket->jarvies_status == 'in process' ? 'selected' : '' }}>In Process</option>
                         <option value="author action" {{ $ticket->jarvies_status == 'author action' ? 'selected' : '' }}>Author Action</option>
                         <option value="proposed solution" {{ $ticket->jarvies_status == 'proposed solution' ? 'selected' : '' }}>Proposed Solution</option>
@@ -201,17 +201,18 @@
                 {{-- Priority --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Priority</label>
-                    <select id="detailPriority" {{ $user->role->role_id == 1 ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
-                        <option value="Low" {{ $ticket->ticket_priority == 'Low' ? 'selected' : '' }}>Low</option>
-                        <option value="Medium" {{ $ticket->ticket_priority == 'Medium' ? 'selected' : '' }}>Medium</option>
+                    <select id="detailPriority" {{ in_array($user->role->role_id, [1, 6, 7]) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
+                        <option value="Very High" {{ $ticket->ticket_priority == 'Very High' ? 'selected' : '' }}>Very High</option>
                         <option value="High" {{ $ticket->ticket_priority == 'High' ? 'selected' : '' }}>High</option>
+                        <option value="Medium" {{ $ticket->ticket_priority == 'Medium' ? 'selected' : '' }}>Medium</option>
+                        <option value="Low" {{ $ticket->ticket_priority == 'Low' ? 'selected' : '' }}>Low</option>
                     </select>
                 </div>
 
                 {{-- Ticket Type --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Ticket Type</label>
-                    <select id="detailType" {{ $user->role->role_id == 1 ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
+                    <select id="detailType" {{ in_array($user->role->role_id, [1, 6, 7]) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
                         <option value="" {{ !$ticket->ticket_type ? 'selected' : '' }}>-- Select Type --</option>
                         <option value="Incident" {{ $ticket->ticket_type == 'Incident' ? 'selected' : '' }}>Incident</option>
                         <option value="Service Request" {{ $ticket->ticket_type == 'Service Request' ? 'selected' : '' }}>Service Request</option>
@@ -223,7 +224,7 @@
                 {{-- Agent (PIC) - Consultant Dropdown --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Agent (PIC)</label>
-                    <select id="detailPIC" {{ $user->role->role_id == 1 ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
+                    <select id="detailPIC" {{ in_array($user->role->role_id, [1, 6, 7]) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
                         <option value="" {{ !$ticket->employee_id ? 'selected' : '' }}>-- Unassigned --</option>
                         @foreach($consultants as $consultant)
                             <option value="{{ $consultant['employee_id'] }}" {{ $ticket->employee_id == $consultant['employee_id'] ? 'selected' : '' }}>
@@ -287,13 +288,147 @@
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->customer?->basicData?->name_1 ?? 'N/A' }}</p>
                 </div>
 
+                {{-- Info Tambahan (hanya tampil jika ada nilai) --}}
+                @if($ticket->name || $ticket->no_hp || $ticket->module || $ticket->client)
+                <div class="pt-3 border-t border-gray-200">
+                    <label class="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">Additional Info</label>
+                    <div class="space-y-1.5">
+                        @if($ticket->name)
+                        <div>
+                            <span class="text-[10px] text-gray-400 font-semibold uppercase">Name</span>
+                            <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->name }}</p>
+                        </div>
+                        @endif
+                        @if($ticket->no_hp)
+                        <div>
+                            <span class="text-[10px] text-gray-400 font-semibold uppercase">No HP</span>
+                            <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->no_hp }}</p>
+                        </div>
+                        @endif
+                        @if($ticket->module)
+                        <div>
+                            <span class="text-[10px] text-gray-400 font-semibold uppercase">Module</span>
+                            <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->module }}</p>
+                        </div>
+                        @endif
+                        @if($ticket->client)
+                        <div>
+                            <span class="text-[10px] text-gray-400 font-semibold uppercase">Client</span>
+                            <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->client }}</p>
+                        </div>
+                        @endif
+                    </div>
+                </div>
+                @endif
+
                 {{-- Man Days --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Man Days</label>
                     <input type="number" id="detailManDays" value="{{ $ticket->man_days ?? '' }}" step="0.5" min="0" max="9999.99"
-                        {{ $user->role->role_id == 1 ? '' : 'disabled' }}
+                        {{ in_array($user->role->role_id, [1, 6, 7]) ? '' : 'disabled' }}
                         class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white" placeholder="0.0">
                 </div>
+
+                {{-- ===== MANDAYS PROPOSAL SECTION ===== --}}
+                @php
+                    $mandaysStatus   = $ticket->mandays_proposal_status   ?? 'none';
+                    $internalStatus  = $ticket->internal_mandays_status    ?? 'none';
+                    $isPic           = $user->role->role_id == 2;
+                    $isHelpdesk      = in_array($user->role->role_id, [6, 7]);
+                    $isHead          = $user->role->role_id == 5;
+                    $mandaysBadge    = [
+                        'none'            => ['bg-gray-100 text-gray-500',   'None'],
+                        'pic_draft'       => ['bg-yellow-100 text-yellow-700','Draft'],
+                        'pending_helpdesk'=> ['bg-blue-100 text-blue-700',   'Pending Review'],
+                        'sent_to_chat'    => ['bg-purple-100 text-purple-700','Sent to Chat'],
+                        'approved'        => ['bg-green-100 text-green-700', 'Approved'],
+                        'canceled'        => ['bg-red-100 text-red-700',     'Canceled'],
+                    ];
+                    $internalBadge   = [
+                        'none'         => ['bg-gray-100 text-gray-500',   'None'],
+                        'draft'        => ['bg-yellow-100 text-yellow-700','Draft'],
+                        'pending_head' => ['bg-blue-100 text-blue-700',   'Pending Head'],
+                        'approved'     => ['bg-green-100 text-green-700', 'Approved'],
+                        'rejected'     => ['bg-red-100 text-red-700',     'Rejected'],
+                    ];
+                    [$mBadgeClass, $mBadgeLabel]  = $mandaysBadge[$mandaysStatus]  ?? ['bg-gray-100 text-gray-500', $mandaysStatus];
+                    [$iBadgeClass, $iBadgeLabel]   = $internalBadge[$internalStatus] ?? ['bg-gray-100 text-gray-500', $internalStatus];
+
+                    $picMandaysLabel = match($mandaysStatus) {
+                        'pic_draft'        => 'Update Draft',
+                        'pending_helpdesk' => 'View Proposal',
+                        'sent_to_chat'     => 'View Proposal',
+                        'approved'         => 'Submit New Proposal',
+                        default            => 'Propose Mandays',
+                    };
+                    $picInternalLabel = match($internalStatus) {
+                        'draft'        => 'Update Internal Draft',
+                        'pending_head' => 'View Internal Proposal',
+                        'approved'     => 'Update Internal Mandays',
+                        'rejected'     => 'Revise Internal Mandays',
+                        default        => 'Propose Internal Mandays',
+                    };
+                @endphp
+
+                {{-- PIC: Customer Mandays --}}
+                @if($isPic)
+                <div class="pt-3 border-t border-gray-200">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-semibold text-gray-500">Customer Mandays</label>
+                        <span id="mandaysBadge" class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $mBadgeClass }}">{{ $mBadgeLabel }}</span>
+                    </div>
+                    <button onclick="openPicMandaysModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-all">
+                        <i class="fas fa-calculator text-[10px]"></i>
+                        {{ $picMandaysLabel }}
+                    </button>
+                </div>
+                {{-- PIC: Internal Mandays --}}
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-semibold text-gray-500">Internal Mandays</label>
+                        <span id="internalBadge" class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $iBadgeClass }}">{{ $iBadgeLabel }}</span>
+                    </div>
+                    <button onclick="openInternalMandaysModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 transition-all">
+                        <i class="fas fa-users text-[10px]"></i>
+                        {{ $picInternalLabel }}
+                    </button>
+                </div>
+                @endif
+
+                {{-- Helpdesk: Customer Mandays Review --}}
+                @if($isHelpdesk)
+                <div class="pt-3 border-t border-gray-200">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-semibold text-gray-500">Mandays Review</label>
+                        <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $mBadgeClass }}">{{ $mBadgeLabel }}</span>
+                    </div>
+                    @if(in_array($mandaysStatus, ['pending_helpdesk', 'sent_to_chat', 'approved', 'canceled']))
+                    <button onclick="openHdMandaysModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-all">
+                        <i class="fas fa-clipboard-check text-[10px]"></i>
+                        Review Mandays Proposal
+                    </button>
+                    @else
+                    <p class="text-[11px] text-gray-400 italic text-center py-1">
+                        {{ $mandaysStatus === 'none' ? 'Waiting for PIC proposal' : 'PIC is drafting proposal...' }}
+                    </p>
+                    @endif
+                </div>
+                @endif
+
+                {{-- Head of Support: Internal Mandays --}}
+                @if($isHead && in_array($internalStatus, ['pending_head', 'approved', 'rejected']))
+                <div class="pt-3 border-t border-gray-200">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-semibold text-gray-500">Internal Mandays</label>
+                        <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $iBadgeClass }}">{{ $iBadgeLabel }}</span>
+                    </div>
+                    <button onclick="openHeadInternalModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 transition-all">
+                        <i class="fas fa-user-check text-[10px]"></i>
+                        Review Internal Proposal
+                    </button>
+                </div>
+                @endif
+                {{-- ===== END MANDAYS SECTION ===== --}}
 
                 {{-- Start Date (read-only) --}}
                 <div>
@@ -507,6 +642,188 @@
 </div>
 @endif
 
+{{-- ===== MANDAYS MODALS ===== --}}
+
+{{-- PIC: Customer Mandays Modal --}}
+@if(isset($isPic) && $isPic)
+<div id="picMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 flex-shrink-0">
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">Customer Mandays Proposal</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Version: <span id="picMandaysVersion">—</span> &nbsp;|&nbsp; Status: <span id="picMandaysStatusLabel">—</span></p>
+            </div>
+            <button onclick="closePicMandaysModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6">
+            {{-- Rejection info --}}
+            <div id="picRejectionInfo" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
+            {{-- Activity rows management --}}
+            <div id="picMandaysTableWrap" class="overflow-x-auto">
+                <div id="picMandaysLoading" class="py-8 text-center text-gray-400 text-sm">Loading...</div>
+                <table id="picMandaysTable" class="hidden w-full text-xs border-collapse">
+                    <thead id="picMandaysHead"></thead>
+                    <tbody id="picMandaysBody"></tbody>
+                    <tfoot id="picMandaysFoot"></tfoot>
+                </table>
+            </div>
+            {{-- Add activity row + add module column --}}
+            <div id="picAddRowWrap" class="hidden mt-3 flex flex-wrap gap-2">
+                <div class="flex gap-2 flex-1 min-w-[200px]">
+                    <input id="picNewActivity" type="text" placeholder="Activity (e.g. Analisa)" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <button onclick="picAddActivityRow()" class="px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 whitespace-nowrap">+ Row</button>
+                </div>
+            </div>
+        </div>
+        <div id="picMandaysFooter" class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
+            <div class="text-xs text-gray-500">Total: <strong id="picTotalDisplay">0</strong> mandays</div>
+            <div class="flex gap-2">
+                <button id="picBtnSaveDraft" onclick="picSaveDraft()" class="px-4 py-2 bg-gray-600 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-all">Save Draft</button>
+                <button id="picBtnSubmit" onclick="picSubmitDraft()" class="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-all">Submit to Helpdesk</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- PIC: Internal Mandays Modal --}}
+<div id="picInternalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 flex-shrink-0">
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">Internal Mandays Proposal</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Status: <span id="internalPicStatusLabel">—</span></p>
+            </div>
+            <button onclick="closePicInternalModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6">
+            <div id="internalRejectionInfo" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
+            <div id="internalLoading" class="py-8 text-center text-gray-400 text-sm">Loading...</div>
+            <table id="internalTable" class="hidden w-full text-xs border-collapse">
+                <thead>
+                    <tr class="bg-gray-50">
+                        <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Name</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200">Mandays</th>
+                    </tr>
+                </thead>
+                <tbody id="internalBody"></tbody>
+            </table>
+            <div class="mt-4">
+                <label class="text-xs font-semibold text-gray-600">Notes for Head of Support</label>
+                <textarea id="internalNotes" rows="2" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Optional notes..."></textarea>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
+            <div class="text-xs text-gray-500">Total: <strong id="internalTotalDisplay">0</strong> mandays</div>
+            <div class="flex gap-2">
+                <button id="internalBtnSave" onclick="internalPicSaveDraft()" class="px-4 py-2 bg-gray-600 text-white text-xs font-semibold rounded-lg hover:bg-gray-700">Save Draft</button>
+                <button id="internalBtnSubmit" onclick="internalPicSubmit()" class="px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700">Submit to Head</button>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- Helpdesk: Customer Mandays Review Modal --}}
+@if(isset($isHelpdesk) && $isHelpdesk)
+<div id="hdMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 flex-shrink-0">
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">Review Mandays Proposal</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Status: <span id="hdMandaysStatusLabel">—</span></p>
+            </div>
+            <button onclick="closeHdMandaysModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6">
+            <div id="hdMandaysLoading" class="py-8 text-center text-gray-400 text-sm">Loading...</div>
+            {{-- Banner area: shown for approved / customer-rejected states --}}
+            <div id="hdMandaysBanner" class="hidden mb-4 rounded-lg px-4 py-3 text-sm font-medium items-start gap-3"></div>
+            <div id="hdMandaysContent" class="hidden">
+                {{-- Rejection reason (shown when customer rejected) --}}
+                <div id="hdRejectionReasonWrap" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p class="text-xs font-semibold text-red-700 mb-1">Customer Rejection Reason:</p>
+                    <p id="hdRejectionReasonText" class="text-xs text-red-800"></p>
+                </div>
+                <div class="overflow-x-auto mb-4">
+                    <table class="w-full text-xs border-collapse">
+                        <thead id="hdMandaysHead"></thead>
+                        <tbody id="hdMandaysBody"></tbody>
+                        <tfoot id="hdMandaysFoot"></tfoot>
+                    </table>
+                </div>
+                <div id="hdNotesWrap">
+                    <label class="text-xs font-semibold text-gray-600">Helpdesk Notes</label>
+                    <textarea id="hdNotes" rows="2" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Optional internal notes..."></textarea>
+                </div>
+            </div>
+        </div>
+        <div id="hdMandaysFooter" class="px-6 py-4 border-t border-gray-200 flex flex-wrap gap-2 justify-end flex-shrink-0">
+            <button id="hdBtnSendToChat"    onclick="hdSubmitToChat()"    class="hidden px-4 py-2 bg-purple-600 text-white text-xs font-semibold rounded-lg hover:bg-purple-700">Send to Chat</button>
+            <button id="hdBtnReviseResend"  onclick="hdReviseResend()"    class="hidden px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700">Revise &amp; Resend</button>
+            <button id="hdBtnApprove"       onclick="hdApprove()"         class="hidden px-4 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700">Approve</button>
+            <button id="hdBtnCancel"        onclick="hdCancel()"          class="hidden px-4 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700">Cancel Proposal</button>
+            <button id="hdBtnNewProposal"   onclick="hdCreateNewProposal()" class="hidden px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700">Create New Proposal</button>
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- Head of Support: Internal Mandays Modal --}}
+@if(isset($isHead) && $isHead)
+<div id="headInternalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 flex-shrink-0">
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">Review Internal Mandays</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Status: <span id="headInternalStatusLabel">—</span></p>
+            </div>
+            <button onclick="closeHeadInternalModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6">
+            <div id="headInternalLoading" class="py-8 text-center text-gray-400 text-sm">Loading...</div>
+            <div id="headInternalContent" class="hidden">
+                <table class="w-full text-xs border-collapse mb-4">
+                    <thead>
+                        <tr class="bg-gray-50">
+                            <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Name</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200">Mandays</th>
+                        </tr>
+                    </thead>
+                    <tbody id="headInternalBody"></tbody>
+                    <tfoot>
+                        <tr class="bg-gray-50 font-bold">
+                            <td class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                            <td class="px-3 py-2 border border-gray-200 text-center" id="headInternalTotal">0</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div id="headProposedBy" class="text-xs text-gray-500 mb-1"></div>
+                <div id="headInternalNoteWrap" class="hidden p-3 bg-gray-50 rounded-lg text-xs text-gray-600 mb-3"></div>
+                {{-- Reject reason input --}}
+                <div id="headRejectWrap" class="hidden mt-3">
+                    <label class="text-xs font-semibold text-gray-600">Rejection Reason</label>
+                    <textarea id="headRejectReason" rows="2" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="Explain why you reject this proposal..."></textarea>
+                </div>
+            </div>
+        </div>
+        <div id="headInternalFooter" class="px-6 py-4 border-t border-gray-200 flex gap-2 justify-end flex-shrink-0">
+            <button id="headBtnApprove" onclick="headInternalApprove()" class="px-4 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700">Approve</button>
+            <button id="headBtnToggleReject" onclick="headToggleReject()" class="px-4 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700">Reject</button>
+            <button id="headBtnConfirmReject" onclick="headInternalReject()" class="hidden px-4 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900">Confirm Reject</button>
+        </div>
+    </div>
+</div>
+@endif
+{{-- ===== END MANDAYS MODALS ===== --}}
+
 <script>
     const ticketId      = {{ $ticket->ticket_id }};
     const userRole      = {{ $user->role->role_id ?? 0 }};
@@ -711,9 +1028,9 @@
                         ${size ? `<p class="text-[10px] text-gray-400">${size}</p>` : ''}
                     </div>
                     <div class="flex gap-1 flex-shrink-0">
-                        ${isImg ? `<a href="${file.url}" target="_blank" class="text-xs text-blue-500 hover:underline">Lihat</a>` : ''}
+                        ${isImg ? `<a href="${file.url}" target="_blank" class="text-xs text-blue-500 hover:underline">View</a>` : ''}
                         <a href="${file.url}" download="${escHtml(file.file_name)}"
-                           class="text-xs text-blue-500 hover:underline">Unduh</a>
+                           class="text-xs text-blue-500 hover:underline">Download</a>
                     </div>
                 </div>`;
             });
@@ -760,10 +1077,10 @@
         const isInternalNote = msg.message_type === 'internal_note';
         const senderName     = msg.sender_name || (isEmployee ? 'Employee' : 'Customer');
         const initials       = senderName.substring(0, 1).toUpperCase();
-        const date           = new Date(msg.created_at).toLocaleString('id-ID', {
+        const date           = new Date(msg.created_at).toLocaleString('en-GB', {
             timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric',
             hour: '2-digit', minute: '2-digit', hour12: false
-        }) + ' WIB';
+        }) + ' (WIB)';
 
         const channelBadge = msg.channel === 'email'
             ? `<span class="msg-channel-badge msg-channel-email"><svg style="width:9px;height:9px;display:inline" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg> Email</span>`
@@ -892,7 +1209,7 @@
                     <p class="text-xs font-medium text-gray-700 truncate" title="${escHtml(file.name)}">${escHtml(file.name)}</p>
                     ${size ? `<p class="text-[10px] text-gray-400">${size}</p>` : ''}
                 </div>
-                <button type="button" onclick="removeAttachment(${idx})" title="Hapus"
+                <button type="button" onclick="removeAttachment(${idx})" title="Remove"
                         class="flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors text-xs leading-none">✕</button>
             </div>`;
         }).join('');
@@ -917,7 +1234,7 @@
 
         // Perlu minimal teks atau file lampiran
         if (!plainContent && !hasFiles) {
-            showNotification('Ketik pesan atau lampirkan file', 'error');
+            showNotification('Type a message or attach a file', 'error');
             return;
         }
 
@@ -1022,7 +1339,7 @@
             const shortDesc = desc.length > 40 ? desc.substring(0, 40) + '...' : desc;
             const timeAgo = formatTimeAgo(new Date(t.created_at));
 
-            const prioColors = { 'Low': 'bg-green-400', 'Medium': 'bg-blue-400', 'High': 'bg-red-400' };
+            const prioColors = { 'Very High': 'bg-purple-500', 'High': 'bg-red-400', 'Medium': 'bg-blue-400', 'Low': 'bg-green-400' };
             const prioDot = prioColors[t.ticket_priority] || 'bg-gray-400';
 
             return `
@@ -1231,7 +1548,7 @@
         if (diffMins < 60) return diffMins + 'm';
         if (diffHours < 24) return diffHours + 'h';
         if (diffDays < 7) return diffDays + 'd';
-        return date.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' });
+        return date.toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' });
     }
 
     function showNotification(message, type = 'info') {
@@ -1424,6 +1741,781 @@
         if (e.target === this) {
             closeAssignSuccessModal();
         }
+    });
+
+    // ==================== MANDAYS — SHARED ====================
+    let picMandaysModules  = [];
+    let picDraftData       = null;
+    let picReadOnly        = false;
+    let internalPicData    = null;
+    let internalPicPeople  = [];
+    let internalPicReadOnly= false;
+
+    const MANDAYS_API = (path) => `/api/tickets/${ticketId}/mandays/${path}`;
+
+    // ==================== PIC: CUSTOMER MANDAYS ====================
+    async function openPicMandaysModal() {
+        document.getElementById('picMandaysModal').classList.remove('hidden');
+        document.getElementById('picMandaysModal').classList.add('flex');
+        await picLoadDraft();
+    }
+    function closePicMandaysModal() {
+        document.getElementById('picMandaysModal').classList.add('hidden');
+        document.getElementById('picMandaysModal').classList.remove('flex');
+    }
+
+    async function picLoadDraft() {
+        document.getElementById('picMandaysLoading').classList.remove('hidden');
+        document.getElementById('picMandaysTable').classList.add('hidden');
+        document.getElementById('picAddRowWrap').classList.add('hidden');
+        document.getElementById('picRejectionInfo').classList.add('hidden');
+
+        try {
+            // Load modules & draft in parallel
+            const [modRes, draftRes] = await Promise.all([
+                fetch(MANDAYS_API('modules'), { headers: getHeaders(), credentials: 'same-origin' }),
+                fetch(MANDAYS_API('pic-draft'), { headers: getHeaders(), credentials: 'same-origin' }),
+            ]);
+            const modData   = await modRes.json();
+            const draftData = await draftRes.json();
+
+            picDraftData      = draftData.data;
+            const status      = draftData.ticket_mandays_status || 'none';
+            picReadOnly       = ['pending_helpdesk', 'sent_to_chat'].includes(status);
+
+            document.getElementById('picMandaysVersion').textContent      = picDraftData?.version ?? 'New';
+            document.getElementById('picMandaysStatusLabel').textContent  = status;
+
+            if (picDraftData?.rejection_reason) {
+                const el = document.getElementById('picRejectionInfo');
+                el.textContent = 'Rejection: ' + picDraftData.rejection_reason;
+                el.classList.remove('hidden');
+            }
+
+            // Build valueMap from existing details
+            const valueMap = {};
+            (picDraftData?.details || []).forEach(d => {
+                const act = d.activity || 'General';
+                if (!valueMap[act]) valueMap[act] = {};
+                valueMap[act][d.module] = d.mandays;
+            });
+            // If no activities, start with default
+            if (Object.keys(valueMap).length === 0) valueMap['General'] = {};
+
+            // Kolom hanya dari qualification member ticket
+            // Jika belum diisi di master data, PIC tambah manual via "+ Column"
+            picMandaysModules = modData.data || [];
+
+            picRenderMatrix(valueMap);
+        } catch (e) {
+            console.error(e);
+            showNotification('Failed to load mandays data', 'error');
+        } finally {
+            document.getElementById('picMandaysLoading').classList.add('hidden');
+        }
+    }
+
+    function picRenderMatrix(valueMap) {
+        const modules = picMandaysModules;
+        const activities = Object.keys(valueMap);
+
+        // Header
+        let headHtml = '<tr class="bg-gray-50">';
+        headHtml += '<th class="px-2 py-2 text-left text-xs font-semibold text-gray-600 border border-gray-200">Activity</th>';
+        modules.forEach(m => {
+            const mEsc = m.replace(/"/g, '&quot;');
+            const removeBtn = !picReadOnly
+                ? `<button onclick="picRemoveModuleCol('${mEsc}')" class="ml-1 text-red-300 hover:text-red-600 font-bold leading-none" title="Remove column">×</button>`
+                : '';
+            headHtml += `<th class="px-2 py-2 text-center text-xs font-semibold text-gray-600 border border-gray-200 whitespace-nowrap">${m}${removeBtn}</th>`;
+        });
+        headHtml += '</tr>';
+        document.getElementById('picMandaysHead').innerHTML = headHtml;
+
+        // Body
+        let bodyHtml = '';
+        activities.forEach(act => {
+            const actEsc = act.replace(/"/g, '&quot;');
+            const removeRowBtn = !picReadOnly
+                ? `<button onclick="picRemoveActivityRow('${actEsc}')" class="ml-1 text-red-300 hover:text-red-600 font-bold leading-none" title="Remove row">×</button>`
+                : '';
+            bodyHtml += `<tr data-activity="${act}">`;
+            bodyHtml += `<td class="px-2 py-1.5 border border-gray-200 text-xs font-medium text-gray-700 whitespace-nowrap">${act}${removeRowBtn}</td>`;
+            modules.forEach(m => {
+                const val = valueMap[act]?.[m] || '';
+                bodyHtml += `<td class="border border-gray-200 p-0">
+                    <input type="number" min="0" step="0.5"
+                        class="pic-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-indigo-50 ${picReadOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}"
+                        data-activity="${act}" data-module="${m}" value="${val}"
+                        ${picReadOnly ? 'readonly' : ''} oninput="picUpdateTotal()">
+                    </td>`;
+            });
+            bodyHtml += '</tr>';
+        });
+        document.getElementById('picMandaysBody').innerHTML = bodyHtml;
+
+        // Footer total
+        let footHtml = '<tr class="bg-gray-50 font-bold"><td class="px-2 py-1.5 border border-gray-200 text-xs">Total</td>';
+        modules.forEach(m => {
+            footHtml += `<td id="picColTotal_${m}" class="px-2 py-1.5 border border-gray-200 text-xs text-center">0</td>`;
+        });
+        footHtml += '</tr>';
+        document.getElementById('picMandaysFoot').innerHTML = footHtml;
+
+        document.getElementById('picMandaysTable').classList.remove('hidden');
+        if (!picReadOnly) document.getElementById('picAddRowWrap').classList.remove('hidden');
+
+        // Buttons visibility
+        document.getElementById('picBtnSaveDraft').classList.toggle('hidden', picReadOnly);
+        document.getElementById('picBtnSubmit').classList.toggle('hidden', picReadOnly);
+
+        picUpdateTotal();
+    }
+
+    function picUpdateTotal() {
+        let grand = 0;
+        const colTotals = {};
+        document.querySelectorAll('.pic-cell').forEach(inp => {
+            const v = parseFloat(inp.value) || 0;
+            const m = inp.dataset.module;
+            colTotals[m] = (colTotals[m] || 0) + v;
+            grand += v;
+        });
+        document.getElementById('picTotalDisplay').textContent = grand.toFixed(1);
+        Object.entries(colTotals).forEach(([m, t]) => {
+            const el = document.getElementById(`picColTotal_${m}`);
+            if (el) el.textContent = t.toFixed(1);
+        });
+    }
+
+    function picAddActivityRow() {
+        const name = document.getElementById('picNewActivity').value.trim();
+        if (!name) { showNotification('Enter an activity name', 'warning'); return; }
+        document.getElementById('picNewActivity').value = '';
+        const currentMap = picGetCurrentValueMap();
+        if (currentMap[name]) { showNotification('Activity already exists', 'warning'); return; }
+        currentMap[name] = {};
+        picRenderMatrix(currentMap);
+    }
+
+    function picRemoveActivityRow(act) {
+        const currentMap = picGetCurrentValueMap();
+        delete currentMap[act];
+        if (Object.keys(currentMap).length === 0) currentMap['General'] = {};
+        picRenderMatrix(currentMap);
+    }
+
+    function picAddModuleCol() {
+        const input = document.getElementById('picNewModule');
+        const name = input.value.trim();
+        if (!name) { showNotification('Enter a module name', 'warning'); return; }
+        if (picMandaysModules.includes(name)) { showNotification('Module already exists', 'warning'); return; }
+        input.value = '';
+        picMandaysModules.push(name);
+        picRenderMatrix(picGetCurrentValueMap());
+    }
+
+    function picRemoveModuleCol(mod) {
+        picMandaysModules = picMandaysModules.filter(m => m !== mod);
+        if (picMandaysModules.length === 0) { showNotification('At least one module is required', 'warning'); picMandaysModules.push(mod); return; }
+        picRenderMatrix(picGetCurrentValueMap());
+    }
+
+    function picGetCurrentValueMap() {
+        const map = {};
+        document.querySelectorAll('.pic-cell').forEach(inp => {
+            const act = inp.dataset.activity;
+            const m   = inp.dataset.module;
+            if (!map[act]) map[act] = {};
+            map[act][m] = parseFloat(inp.value) || 0;
+        });
+        return map;
+    }
+
+    function picGetPayload() {
+        const details = [];
+        document.querySelectorAll('.pic-cell').forEach(inp => {
+            const v = parseFloat(inp.value) || 0;
+            if (v > 0) {
+                details.push({ activity: inp.dataset.activity, module: inp.dataset.module, mandays: v });
+            }
+        });
+        return { details };
+    }
+
+    async function picSaveDraft() {
+        const btn = document.getElementById('picBtnSaveDraft');
+        btn.disabled = true; btn.textContent = 'Saving...';
+        try {
+            const res = await fetch(MANDAYS_API('pic-draft'), {
+                method: 'POST', headers: getHeaders(), credentials: 'same-origin',
+                body: JSON.stringify(picGetPayload()),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Draft saved!', 'success');
+                picMandaysUpdateSidebarBadge(data.ticket_mandays_status);
+                picDraftData = data.data;
+                document.getElementById('picMandaysVersion').textContent = picDraftData?.version ?? '—';
+            } else {
+                showNotification(data.message || 'Failed to save', 'error');
+            }
+        } catch(e) { showNotification('Error: ' + e.message, 'error'); }
+        finally { btn.disabled = false; btn.textContent = 'Save Draft'; }
+    }
+
+    async function picSubmitDraft() {
+        if (!picDraftData) { showNotification('Save draft first', 'warning'); return; }
+        const btn = document.getElementById('picBtnSubmit');
+        btn.disabled = true; btn.textContent = 'Submitting...';
+        try {
+            const res = await fetch(MANDAYS_API('pic-draft/submit'), {
+                method: 'POST', headers: getHeaders(), credentials: 'same-origin',
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Proposal submitted to Helpdesk!', 'success');
+                picMandaysUpdateSidebarBadge(data.ticket_mandays_status);
+                closePicMandaysModal();
+            } else {
+                showNotification(data.message || 'Failed', 'error');
+            }
+        } catch(e) { showNotification('Error: ' + e.message, 'error'); }
+        finally { btn.disabled = false; btn.textContent = 'Submit to Helpdesk'; }
+    }
+
+    function picMandaysUpdateSidebarBadge(status) {
+        const badges = {
+            'none':             ['bg-gray-100 text-gray-500',   'None'],
+            'pic_draft':        ['bg-yellow-100 text-yellow-700','Draft'],
+            'pending_helpdesk': ['bg-blue-100 text-blue-700',   'Pending Review'],
+            'sent_to_chat':     ['bg-purple-100 text-purple-700','Sent to Chat'],
+            'approved':         ['bg-green-100 text-green-700', 'Approved'],
+            'canceled':         ['bg-red-100 text-red-700',     'Canceled'],
+        };
+        const el = document.getElementById('mandaysBadge');
+        if (el && badges[status]) {
+            el.className = `inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${badges[status][0]}`;
+            el.textContent = badges[status][1];
+        }
+    }
+
+    // Close on backdrop click
+    document.getElementById('picMandaysModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closePicMandaysModal();
+    });
+
+    // ==================== PIC: INTERNAL MANDAYS ====================
+    async function openInternalMandaysModal() {
+        document.getElementById('picInternalModal').classList.remove('hidden');
+        document.getElementById('picInternalModal').classList.add('flex');
+        await internalPicLoad();
+    }
+    function closePicInternalModal() {
+        document.getElementById('picInternalModal').classList.add('hidden');
+        document.getElementById('picInternalModal').classList.remove('flex');
+    }
+
+    async function internalPicLoad() {
+        document.getElementById('internalLoading').classList.remove('hidden');
+        document.getElementById('internalTable').classList.add('hidden');
+        document.getElementById('internalRejectionInfo').classList.add('hidden');
+
+        try {
+            const res    = await fetch(MANDAYS_API('internal'), { headers: getHeaders(), credentials: 'same-origin' });
+            const data   = await res.json();
+            internalPicData    = data.data;
+            internalPicPeople  = data.people || [];
+            const status       = data.internal_mandays_status || 'none';
+            internalPicReadOnly = status === 'pending_head';
+
+            document.getElementById('internalPicStatusLabel').textContent = status;
+            document.getElementById('internalNotes').value = internalPicData?.notes || '';
+            document.getElementById('internalNotes').readOnly = internalPicReadOnly;
+
+            if (internalPicData?.rejection_reason) {
+                const el = document.getElementById('internalRejectionInfo');
+                el.textContent = 'Rejected: ' + internalPicData.rejection_reason;
+                el.classList.remove('hidden');
+            }
+
+            // Build valueMap from existing details or prefill
+            const valueMap = {};
+            if (internalPicData?.details?.length) {
+                internalPicData.details.forEach(d => {
+                    if (!valueMap[d.employee_id]) valueMap[d.employee_id] = {};
+                    valueMap[d.employee_id][d.module] = d.mandays;
+                });
+            } else if (data.prefill_data) {
+                // Distribute prefill to first person who has each module
+                Object.entries(data.prefill_data).forEach(([mod, total]) => {
+                    const person = internalPicPeople.find(p => p.modules.includes(mod));
+                    if (person) {
+                        if (!valueMap[person.employee_id]) valueMap[person.employee_id] = {};
+                        valueMap[person.employee_id][mod] = total;
+                    }
+                });
+            }
+
+            internalPicRenderRows(valueMap);
+        } catch(e) {
+            console.error(e);
+            showNotification('Failed to load internal mandays', 'error');
+        } finally {
+            document.getElementById('internalLoading').classList.add('hidden');
+        }
+    }
+
+    function internalPicRenderRows(valueMap) {
+        let html = '';
+        internalPicPeople.forEach(person => {
+            // Sum all module values for this person as prefill
+            const existingMods = valueMap[person.employee_id] || {};
+            const total = Object.values(existingMods).reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
+            const val = total > 0 ? total : '';
+            html += `<tr>
+                <td class="px-3 py-2 border border-gray-200 font-medium text-gray-700">${person.name}</td>
+                <td class="border border-gray-200 p-0">
+                    <input type="number" min="0" step="0.5"
+                        class="internal-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-teal-50 ${internalPicReadOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}"
+                        data-employee="${person.employee_id}" value="${val}"
+                        ${internalPicReadOnly ? 'readonly' : ''} oninput="internalUpdateTotal()">
+                </td>
+            </tr>`;
+        });
+        document.getElementById('internalBody').innerHTML = html;
+        document.getElementById('internalTable').classList.remove('hidden');
+
+        document.getElementById('internalBtnSave').classList.toggle('hidden', internalPicReadOnly);
+        document.getElementById('internalBtnSubmit').classList.toggle('hidden', internalPicReadOnly);
+        internalUpdateTotal();
+    }
+
+    function internalUpdateTotal() {
+        let total = 0;
+        document.querySelectorAll('.internal-cell').forEach(inp => total += parseFloat(inp.value) || 0);
+        document.getElementById('internalTotalDisplay').textContent = total.toFixed(1);
+    }
+
+    function internalPicGetPayload() {
+        const details = [];
+        document.querySelectorAll('.internal-cell').forEach(inp => {
+            const v = parseFloat(inp.value) || 0;
+            if (v > 0) details.push({ employee_id: parseInt(inp.dataset.employee), mandays: v });
+        });
+        return { details, notes: document.getElementById('internalNotes').value };
+    }
+
+    async function internalPicSaveDraft() {
+        const btn = document.getElementById('internalBtnSave');
+        btn.disabled = true; btn.textContent = 'Saving...';
+        try {
+            const res = await fetch(MANDAYS_API('internal'), {
+                method: 'POST', headers: getHeaders(), credentials: 'same-origin',
+                body: JSON.stringify(internalPicGetPayload()),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Internal draft saved!', 'success');
+                internalUpdateSidebarBadge(data.internal_mandays_status);
+                internalPicData = data.data;
+            } else {
+                showNotification(data.message || 'Failed', 'error');
+            }
+        } catch(e) { showNotification('Error: ' + e.message, 'error'); }
+        finally { btn.disabled = false; btn.textContent = 'Save Draft'; }
+    }
+
+    async function internalPicSubmit() {
+        // Save first then submit
+        const btn = document.getElementById('internalBtnSubmit');
+        btn.disabled = true; btn.textContent = 'Submitting...';
+        try {
+            // Save
+            const saveRes = await fetch(MANDAYS_API('internal'), {
+                method: 'POST', headers: getHeaders(), credentials: 'same-origin',
+                body: JSON.stringify(internalPicGetPayload()),
+            });
+            const saveData = await saveRes.json();
+            if (!saveData.success) { showNotification(saveData.message || 'Save failed', 'error'); return; }
+
+            // Submit
+            const subRes = await fetch(MANDAYS_API('internal/submit'), {
+                method: 'POST', headers: getHeaders(), credentials: 'same-origin',
+            });
+            const subData = await subRes.json();
+            if (subData.success) {
+                showNotification('Submitted to Head of Support!', 'success');
+                internalUpdateSidebarBadge(subData.internal_mandays_status);
+                closePicInternalModal();
+            } else {
+                showNotification(subData.message || 'Submit failed', 'error');
+            }
+        } catch(e) { showNotification('Error: ' + e.message, 'error'); }
+        finally { btn.disabled = false; btn.textContent = 'Submit to Head'; }
+    }
+
+    function internalUpdateSidebarBadge(status) {
+        const badges = {
+            'none':        ['bg-gray-100 text-gray-500',   'None'],
+            'draft':       ['bg-yellow-100 text-yellow-700','Draft'],
+            'pending_head':['bg-blue-100 text-blue-700',   'Pending Head'],
+            'approved':    ['bg-green-100 text-green-700', 'Approved'],
+            'rejected':    ['bg-red-100 text-red-700',     'Rejected'],
+        };
+        const el = document.getElementById('internalBadge');
+        if (el && badges[status]) {
+            el.className = `inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${badges[status][0]}`;
+            el.textContent = badges[status][1];
+        }
+    }
+
+    document.getElementById('picInternalModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closePicInternalModal();
+    });
+
+    // ==================== HELPDESK: CUSTOMER MANDAYS REVIEW ====================
+    async function openHdMandaysModal() {
+        const modal = document.getElementById('hdMandaysModal');
+        if (!modal) return;
+        modal.classList.remove('hidden'); modal.classList.add('flex');
+        document.getElementById('hdMandaysLoading').classList.remove('hidden');
+        document.getElementById('hdMandaysContent').classList.add('hidden');
+        document.getElementById('hdMandaysBanner').classList.add('hidden');
+
+        try {
+            const [modRes, draftRes] = await Promise.all([
+                fetch(MANDAYS_API('modules'), { headers: getHeaders(), credentials: 'same-origin' }),
+                fetch(MANDAYS_API('hd-draft'), { headers: getHeaders(), credentials: 'same-origin' }),
+            ]);
+            const modData   = await modRes.json();
+            const draftData = await draftRes.json();
+            const modules   = modData.data || [];
+            const proposal  = draftData.data;
+            const status    = draftData.ticket_mandays_status || 'none';
+
+            // Human-readable status label
+            const statusLabels = {
+                none: 'None', pic_draft: 'PIC Draft', pending_helpdesk: 'Pending Helpdesk',
+                sent_to_chat: 'Awaiting Customer Response', approved: 'Approved', canceled: 'Canceled'
+            };
+            document.getElementById('hdMandaysStatusLabel').textContent = statusLabels[status] || status;
+
+            if (!proposal) {
+                document.getElementById('hdMandaysContent').innerHTML = '<p class="text-sm text-gray-400 text-center py-4">No proposal found.</p>';
+                document.getElementById('hdMandaysContent').classList.remove('hidden');
+                return;
+            }
+
+            // ---- State-specific banner & UI ----
+            const banner = document.getElementById('hdMandaysBanner');
+            const rejWrap = document.getElementById('hdRejectionReasonWrap');
+            const notesWrap = document.getElementById('hdNotesWrap');
+
+            banner.className = 'hidden mb-4 rounded-lg px-4 py-3 text-sm font-medium items-start gap-3';
+            rejWrap.classList.add('hidden');
+
+            const isCustomerRejected = status === 'pending_helpdesk' && !!proposal.rejection_reason;
+            const isPicSubmitted     = status === 'pending_helpdesk' && !proposal.rejection_reason;
+            const isSentToChat       = status === 'sent_to_chat';
+            const isApproved         = status === 'approved';
+            const isCanceled         = status === 'canceled';
+
+            if (isApproved) {
+                const ts = proposal.customer_response_at
+                    ? new Date(proposal.customer_response_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) + ' WIB'
+                    : '';
+                banner.innerHTML = `<span class="text-green-700 text-base mt-0.5">✓</span>
+                    <div><p class="font-semibold text-green-800">Approved by Customer</p>
+                    ${ts ? `<p class="text-xs font-normal text-green-700 mt-0.5">${ts}</p>` : ''}</div>`;
+                banner.classList.remove('hidden');
+                banner.classList.add('flex', 'bg-green-50', 'border', 'border-green-200', 'text-green-800');
+                notesWrap.classList.add('hidden');
+            } else if (isCustomerRejected) {
+                const ts = proposal.customer_response_at
+                    ? new Date(proposal.customer_response_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) + ' WIB'
+                    : '';
+                banner.innerHTML = `<span class="text-red-700 text-base mt-0.5">✕</span>
+                    <div><p class="font-semibold text-red-800">Rejected by Customer</p>
+                    ${ts ? `<p class="text-xs font-normal text-red-700 mt-0.5">${ts}</p>` : ''}</div>`;
+                banner.classList.remove('hidden');
+                banner.classList.add('flex', 'bg-red-50', 'border', 'border-red-200', 'text-red-800');
+                document.getElementById('hdRejectionReasonText').textContent = proposal.rejection_reason;
+                rejWrap.classList.remove('hidden');
+                notesWrap.classList.remove('hidden');
+            } else if (isSentToChat) {
+                notesWrap.classList.add('hidden');
+            } else if (isCanceled) {
+                notesWrap.classList.add('hidden');
+            } else {
+                notesWrap.classList.remove('hidden');
+            }
+
+            document.getElementById('hdNotes').value = proposal?.notes || '';
+
+            // Build table
+            const valueMap = {};
+            const activities = [];
+            (proposal.details || []).forEach(d => {
+                const act = d.activity || 'General';
+                if (!activities.includes(act)) activities.push(act);
+                if (!valueMap[act]) valueMap[act] = {};
+                valueMap[act][d.module] = d.mandays;
+            });
+            const mods = modules.length > 0 ? modules : [...new Set((proposal.details||[]).map(d=>d.module))];
+
+            let headHtml = '<tr class="bg-gray-50"><th class="px-2 py-2 text-left text-xs font-semibold border border-gray-200">Activity</th>';
+            mods.forEach(m => headHtml += `<th class="px-2 py-2 text-center text-xs font-semibold border border-gray-200">${m}</th>`);
+            headHtml += '</tr>';
+            document.getElementById('hdMandaysHead').innerHTML = headHtml;
+
+            // Table is editable only when Helpdesk can still make changes
+            const isEditable = isPicSubmitted || isCustomerRejected;
+            let bodyHtml = '';
+            activities.forEach(act => {
+                bodyHtml += `<tr><td class="px-2 py-1.5 border border-gray-200 text-xs font-medium">${act}</td>`;
+                mods.forEach(m => {
+                    const val = valueMap[act]?.[m] || '';
+                    bodyHtml += `<td class="border border-gray-200 p-0">
+                        <input type="number" min="0" step="0.5" class="hd-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none ${isEditable?'focus:bg-indigo-50 bg-white':'bg-gray-50 cursor-not-allowed'}"
+                        data-activity="${act}" data-module="${m}" value="${val}" ${isEditable?'':'readonly'} oninput="hdUpdateTotal()">
+                    </td>`;
+                });
+                bodyHtml += '</tr>';
+            });
+            document.getElementById('hdMandaysBody').innerHTML = bodyHtml;
+
+            let footHtml = '<tr class="bg-gray-50 font-bold"><td class="px-2 py-1.5 border border-gray-200 text-xs text-right">Total</td>';
+            mods.forEach(m => footHtml += `<td id="hdColTotal_${m}" class="px-2 py-1.5 border border-gray-200 text-xs text-center">0</td>`);
+            footHtml += '</tr>';
+            document.getElementById('hdMandaysFoot').innerHTML = footHtml;
+
+            // Show/hide buttons per state
+            ['hdBtnSendToChat','hdBtnReviseResend','hdBtnApprove','hdBtnCancel','hdBtnNewProposal'].forEach(id => {
+                document.getElementById(id)?.classList.add('hidden');
+            });
+            if (isPicSubmitted) {
+                document.getElementById('hdBtnSendToChat')?.classList.remove('hidden');
+                document.getElementById('hdBtnApprove')?.classList.remove('hidden');
+                document.getElementById('hdBtnCancel')?.classList.remove('hidden');
+            } else if (isCustomerRejected) {
+                document.getElementById('hdBtnReviseResend')?.classList.remove('hidden');
+                document.getElementById('hdBtnCancel')?.classList.remove('hidden');
+            } else if (isSentToChat) {
+                // Helpdesk approve setelah baca chat dari customer
+                document.getElementById('hdBtnApprove')?.classList.remove('hidden');
+                document.getElementById('hdBtnCancel')?.classList.remove('hidden');
+            } else if (isCanceled) {
+                document.getElementById('hdBtnNewProposal')?.classList.remove('hidden');
+            }
+            // approved: no buttons
+
+            document.getElementById('hdMandaysContent').classList.remove('hidden');
+            hdUpdateTotal();
+        } catch(e) {
+            console.error(e);
+            showNotification('Failed to load proposal', 'error');
+        } finally {
+            document.getElementById('hdMandaysLoading').classList.add('hidden');
+        }
+    }
+
+    function closeHdMandaysModal() {
+        const modal = document.getElementById('hdMandaysModal');
+        if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+    }
+
+    function hdUpdateTotal() {
+        const colTotals = {};
+        document.querySelectorAll('.hd-cell').forEach(inp => {
+            const v = parseFloat(inp.value) || 0;
+            colTotals[inp.dataset.module] = (colTotals[inp.dataset.module] || 0) + v;
+        });
+        Object.entries(colTotals).forEach(([m, t]) => {
+            const el = document.getElementById(`hdColTotal_${m}`);
+            if (el) el.textContent = t.toFixed(1);
+        });
+    }
+
+    async function hdSaveAndAction(endpoint, method = 'POST', extraBody = {}) {
+        // Save edits first (only if cells exist and are editable)
+        const details = [];
+        document.querySelectorAll('.hd-cell:not([readonly])').forEach(inp => {
+            const v = parseFloat(inp.value) || 0;
+            if (v > 0) details.push({ activity: inp.dataset.activity, module: inp.dataset.module, mandays: v });
+        });
+        if (details.length > 0) {
+            await fetch(MANDAYS_API('hd-draft'), {
+                method: 'PUT', headers: getHeaders(), credentials: 'same-origin',
+                body: JSON.stringify({ details, notes: document.getElementById('hdNotes').value }),
+            });
+        }
+        const res = await fetch(MANDAYS_API(endpoint), {
+            method, headers: getHeaders(), credentials: 'same-origin',
+            body: JSON.stringify(extraBody),
+        });
+        return res.json();
+    }
+
+    async function hdSubmitToChat() {
+        try {
+            const data = await hdSaveAndAction('hd-draft/submit-chat');
+            if (data.success) {
+                showNotification('Sent to customer via email!', 'success');
+                closeHdMandaysModal();
+            } else showNotification(data.message || 'Failed', 'error');
+        } catch(e) { showNotification('Error: '+e.message,'error'); }
+    }
+    async function hdReviseResend() {
+        try {
+            const data = await hdSaveAndAction('hd-draft/submit-chat');
+            if (data.success) {
+                showNotification('Revised proposal sent to customer!', 'success');
+                closeHdMandaysModal();
+            } else showNotification(data.message || 'Failed', 'error');
+        } catch(e) { showNotification('Error: '+e.message,'error'); }
+    }
+    async function hdApprove() {
+        try {
+            const data = await hdSaveAndAction('hd-draft/approve');
+            if (data.success) {
+                showNotification('Customer mandays approved!', 'success');
+                closeHdMandaysModal();
+            } else showNotification(data.message || 'Failed', 'error');
+        } catch(e) { showNotification('Error: '+e.message,'error'); }
+    }
+    async function hdCancel() {
+        try {
+            const data = await hdSaveAndAction('hd-draft/cancel');
+            if (data.success) {
+                showNotification('Proposal canceled.', 'success');
+                closeHdMandaysModal();
+            } else showNotification(data.message || 'Failed', 'error');
+        } catch(e) { showNotification('Error: '+e.message,'error'); }
+    }
+    async function hdCreateNewProposal() {
+        // Canceled → PIC needs to create new draft; just close and inform
+        showNotification('Ask the PIC to submit a new draft.', 'info');
+        closeHdMandaysModal();
+    }
+
+    document.getElementById('hdMandaysModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closeHdMandaysModal();
+    });
+
+    // ==================== HEAD OF SUPPORT: INTERNAL MANDAYS ====================
+    async function openHeadInternalModal() {
+        const modal = document.getElementById('headInternalModal');
+        if (!modal) return;
+        modal.classList.remove('hidden'); modal.classList.add('flex');
+        document.getElementById('headInternalLoading').classList.remove('hidden');
+        document.getElementById('headInternalContent').classList.add('hidden');
+        document.getElementById('headRejectWrap').classList.add('hidden');
+        document.getElementById('headBtnConfirmReject').classList.add('hidden');
+
+        try {
+            const res  = await fetch(MANDAYS_API('internal'), { headers: getHeaders(), credentials: 'same-origin' });
+            const data = await res.json();
+            const proposal = data.data;
+            const status   = data.internal_mandays_status || 'none';
+
+            document.getElementById('headInternalStatusLabel').textContent = status;
+
+            if (!proposal) {
+                document.getElementById('headInternalContent').innerHTML = '<p class="text-sm text-gray-400 text-center py-4">No proposal found.</p>';
+                document.getElementById('headInternalContent').classList.remove('hidden');
+                return;
+            }
+
+            // Aggregate details by employee (sum mandays across modules)
+            const empMap = {};
+            (proposal.details || []).forEach(d => {
+                const name = d.employee_name || '—';
+                empMap[name] = (empMap[name] || 0) + parseFloat(d.mandays || 0);
+            });
+            let bodyHtml = '';
+            Object.entries(empMap).forEach(([name, total]) => {
+                bodyHtml += `<tr>
+                    <td class="px-3 py-2 border border-gray-200 text-xs">${name}</td>
+                    <td class="px-3 py-2 border border-gray-200 text-xs text-center">${total.toFixed(1)}</td>
+                </tr>`;
+            });
+            document.getElementById('headInternalBody').innerHTML = bodyHtml;
+            document.getElementById('headInternalTotal').textContent = (proposal.total_mandays||0).toFixed(1);
+
+            if (proposal.proposed_by) {
+                document.getElementById('headProposedBy').textContent = 'Proposed by: ' + proposal.proposed_by;
+            }
+            if (proposal.notes) {
+                const nw = document.getElementById('headInternalNoteWrap');
+                nw.textContent = 'Notes: ' + proposal.notes;
+                nw.classList.remove('hidden');
+            }
+
+            // Show approve/reject only if pending
+            const isPending = status === 'pending_head';
+            document.getElementById('headBtnApprove').classList.toggle('hidden', !isPending);
+            document.getElementById('headBtnToggleReject').classList.toggle('hidden', !isPending);
+
+            document.getElementById('headInternalContent').classList.remove('hidden');
+        } catch(e) {
+            console.error(e);
+            showNotification('Failed to load internal proposal', 'error');
+        } finally {
+            document.getElementById('headInternalLoading').classList.add('hidden');
+        }
+    }
+
+    function closeHeadInternalModal() {
+        const modal = document.getElementById('headInternalModal');
+        if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+    }
+
+    function headToggleReject() {
+        const wrap = document.getElementById('headRejectWrap');
+        const btn  = document.getElementById('headBtnConfirmReject');
+        const isHidden = wrap.classList.contains('hidden');
+        wrap.classList.toggle('hidden', !isHidden);
+        btn.classList.toggle('hidden', !isHidden);
+    }
+
+    async function headInternalApprove() {
+        const btn = document.getElementById('headBtnApprove');
+        btn.disabled = true; btn.textContent = 'Approving...';
+        try {
+            const res  = await fetch(MANDAYS_API('internal/approve'), { method: 'POST', headers: getHeaders(), credentials: 'same-origin' });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Internal proposal approved!', 'success');
+                internalUpdateSidebarBadge?.(data.internal_mandays_status);
+                closeHeadInternalModal();
+            } else showNotification(data.message || 'Failed', 'error');
+        } catch(e) { showNotification('Error: '+e.message,'error'); }
+        finally { btn.disabled = false; btn.textContent = 'Approve'; }
+    }
+
+    async function headInternalReject() {
+        const reason = document.getElementById('headRejectReason').value.trim();
+        if (!reason) { showNotification('Please provide a rejection reason', 'warning'); return; }
+        const btn = document.getElementById('headBtnConfirmReject');
+        btn.disabled = true; btn.textContent = 'Rejecting...';
+        try {
+            const res  = await fetch(MANDAYS_API('internal/reject'), {
+                method: 'POST', headers: getHeaders(), credentials: 'same-origin',
+                body: JSON.stringify({ rejection_reason: reason }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Proposal rejected.', 'success');
+                internalUpdateSidebarBadge?.(data.internal_mandays_status);
+                closeHeadInternalModal();
+            } else showNotification(data.message || 'Failed', 'error');
+        } catch(e) { showNotification('Error: '+e.message,'error'); }
+        finally { btn.disabled = false; btn.textContent = 'Confirm Reject'; }
+    }
+
+    document.getElementById('headInternalModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closeHeadInternalModal();
     });
 </script>
 @endsection

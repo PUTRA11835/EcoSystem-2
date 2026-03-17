@@ -330,6 +330,21 @@
                             </select>
                         </div>
                     </div>
+                    @php $roleId = session('user.role.id'); @endphp
+                    @if(in_array($roleId, [1, 6, 7]))
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                        <select name="type" id="edit-type"
+                                class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <option value="">No type set</option>
+                            <option value="AMS" {{ $support->type == 'AMS' ? 'selected' : '' }}>AMS</option>
+                            <option value="MO" {{ $support->type == 'MO' ? 'selected' : '' }}>MO</option>
+                            <option value="ATS" {{ $support->type == 'ATS' ? 'selected' : '' }}>ATS</option>
+                            <option value="Project" {{ $support->type == 'Project' ? 'selected' : '' }}>Project</option>
+                            <option value="Internal" {{ $support->type == 'Internal' ? 'selected' : '' }}>Internal</option>
+                        </select>
+                    </div>
+                    @endif
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
@@ -550,28 +565,29 @@ function saveSection(event, section) {
     submitBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-2 inline" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Saving...';
     submitBtn.disabled = true;
 
-    axios.patch(`/delivery/support/${supportId}/field`, {
-        section: section,
-        data: data
-    }, {
-        headers: { 'X-CSRF-TOKEN': csrfToken }
+    fetch(`/delivery/support/${supportId}/field`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
+            'Accept': 'application/json',
+        },
+        body: JSON.stringify({ section: section, data: data })
     })
-    .then(response => {
-        showToast(response.data.message || 'Changes saved successfully', 'success');
+    .then(async response => {
+        const json = await response.json();
+        if (!response.ok) {
+            throw json;
+        }
+        showToast(json.message || 'Changes saved successfully', 'success');
         closeEditModal(section);
-
-        // Update display values
         updateDisplayValues(section, data);
-
-        // Restore button
         submitBtn.innerHTML = originalText;
         submitBtn.disabled = false;
     })
     .catch(error => {
         console.error('Error saving:', error);
-        showToast(error.response?.data?.message || 'Failed to save changes', 'error');
-
-        // Restore button
+        showToast(error.message || 'Failed to save changes', 'error');
         submitBtn.innerHTML = originalText;
         submitBtn.disabled = false;
     });
@@ -605,6 +621,16 @@ function updateDisplayValues(section, data) {
             const client = clientsData.find(c => c.customer_id == data.client_id);
             if (client) {
                 document.getElementById('display-client').textContent = client.basic_data?.name_1 || 'N/A';
+            }
+        }
+
+        // Update type display
+        const typeEl = document.getElementById('display-type');
+        if (typeEl) {
+            if (data.type) {
+                typeEl.outerHTML = `<span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-blue-100 text-blue-800" id="display-type">${data.type}</span>`;
+            } else {
+                typeEl.outerHTML = `<p class="text-gray-400" id="display-type">No type set</p>`;
             }
         }
     }

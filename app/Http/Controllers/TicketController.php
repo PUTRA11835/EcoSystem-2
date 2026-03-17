@@ -137,6 +137,7 @@ class TicketController extends Controller
                     'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
                     'channel' => $ticket->channel,
+                    'email_thread_id' => $ticket->email_thread_id,
                     'folder' => $ticket->folder,
                     'file_log' => $ticket->file_log,
                     'start_date' => $ticket->start_date,
@@ -200,7 +201,7 @@ class TicketController extends Controller
         if ($roleId == 1) {
             $validated = $request->validate([
                 'description'     => 'required|string',
-                'ticket_priority' => 'required|in:Low,Medium,High',
+                'ticket_priority' => 'required|in:Very High,High,Medium,Low',
                 'ticket_type'     => 'nullable|string|in:Incident,Service Request,Change Request,Consult',
                 'customer_id'     => 'required|exists:customer,customer_id',
             ]);
@@ -247,7 +248,7 @@ class TicketController extends Controller
 
         $validator = Validator::make($payload, [
             'description' => 'required|string',
-            'ticket_priority' => 'nullable|in:Low,Medium,High',
+            'ticket_priority' => 'nullable|in:Very High,High,Medium,Low',
             'customer_id' => 'required_without_all:customer_code,external_number|exists:customer,customer_id',
             'customer_code' => 'required_without_all:customer_id,external_number|exists:customer,customer_code',
             'external_number' => 'nullable|customer_id,customer_code|exists:customer_basic_data,external_number',
@@ -464,6 +465,7 @@ class TicketController extends Controller
                     'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
                     'channel' => $ticket->channel,
+                    'email_thread_id' => $ticket->email_thread_id,
                     'folder' => $ticket->folder,
                     'file_log' => $ticket->file_log,
                     'start_date' => $ticket->start_date,
@@ -991,17 +993,21 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
 
-        // Only admin can update ticket
-        if (!$sessionUser || $sessionUser['role']['id'] != 1) {
+        $roleId = $sessionUser['role']['id'] ?? 0;
+        $isAdmin    = $roleId == 1;
+        $isHelpdesk = in_array($roleId, [6, 7]);
+
+        // Admin and Helpdesk can update ticket
+        if (!$sessionUser || (!$isAdmin && !$isHelpdesk)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only admin can update ticket'
+                'message' => 'Only admin or helpdesk can update ticket'
             ], 403);
         }
 
         $validator = Validator::make($request->all(), [
             'jarvies_status' => 'sometimes|string|in:in process,author action,proposed solution,closed,sent in to SAP,sent it to support',
-            'ticket_priority' => 'sometimes|string|in:Low,Medium,High',
+            'ticket_priority' => 'sometimes|string|in:Very High,High,Medium,Low',
             'ticket_type' => 'sometimes|nullable|string|in:Incident,Service Request,Change Request,Consult',
             'employee_id' => 'sometimes|nullable|exists:employee,employee_id',
             'man_days' => 'sometimes|nullable|numeric|min:0|max:9999.99',
@@ -1019,21 +1025,22 @@ class TicketController extends Controller
             $ticket = Ticket::findOrFail($id);
 
             // Build update data from validated fields
+            // Helpdesk can only change employee_id (PIC assignment)
             $updateData = [];
 
-            if ($request->has('jarvies_status')) {
+            if ($request->has('jarvies_status') && $isAdmin) {
                 $updateData['jarvies_status'] = $request->jarvies_status;
             }
-            if ($request->has('ticket_priority')) {
+            if ($request->has('ticket_priority') && $isAdmin) {
                 $updateData['ticket_priority'] = $request->ticket_priority;
             }
-            if ($request->has('ticket_type')) {
+            if ($request->has('ticket_type') && $isAdmin) {
                 $updateData['ticket_type'] = $request->ticket_type;
             }
             if ($request->has('employee_id')) {
                 $updateData['employee_id'] = $request->employee_id;
             }
-            if ($request->has('man_days')) {
+            if ($request->has('man_days') && $isAdmin) {
                 $updateData['man_days'] = $request->man_days;
             }
 
@@ -1406,10 +1413,11 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
         
-        if (!$sessionUser || $sessionUser['role']['id'] != 1) {
+        $roleId = $sessionUser['role']['id'] ?? 0;
+        if (!$sessionUser || !in_array($roleId, [1, 6, 7])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only admin can update ticket status'
+                'message' => 'Only admin or helpdesk can update ticket status'
             ], 403);
         }
 
@@ -2325,7 +2333,6 @@ class TicketController extends Controller
             $supportId = DB::table('delivery_support')->insertGetId([
                 'id_delivery_list' => $deliveryListId,
                 'client_id' => $ticket->customer_id,
-                'ticket_id' => $ticket->ticket_id, // Primary ticket
                 'name' => $request->name,
                 'support_method' => $request->support_method,
                 'start_date' => $ticket->start_date ?? now(),

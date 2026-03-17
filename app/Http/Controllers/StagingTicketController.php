@@ -139,8 +139,17 @@ class StagingTicketController extends Controller
         }
 
         $validated = $request->validate([
-            'description'     => 'required|string|max:5000',
-            'ticket_priority' => 'required|in:Low,Medium,High',
+            'description'        => 'required|string|max:5000',
+            'body'               => 'nullable|string',               // Isi tiket dari Jarvies (form body)
+            'ticket_priority'    => 'required|in:Very High,High,Medium,Low',
+            'sender_name'        => 'nullable|string|max:255',
+            'submitted_by_email' => 'nullable|email|max:255',        // Email login customer
+            'cc_emails'          => 'nullable|string',               // JSON string: ["a@x.com","b@y.com"]
+            // Field tambahan (opsional)
+            'name'               => 'nullable|string|max:255',       // Nama contact person
+            'no_hp'              => 'nullable|string|max:255',       // Nomor HP
+            'module'             => 'nullable|string|max:255',       // Modul terkait
+            'client'             => 'nullable|string|max:255',       // Nama client
         ]);
 
         try {
@@ -182,7 +191,7 @@ class StagingTicketController extends Controller
 
         $request->validate([
             'ticket_type'     => 'required|string|in:Incident,Service Request,Change Request,Consult',
-            'ticket_priority' => 'required|string|in:Low,Medium,High',
+            'ticket_priority' => 'required|string|in:Very High,High,Medium,Low',
         ]);
 
         $staging = StagingTicket::findOrFail($id);
@@ -363,27 +372,50 @@ class StagingTicketController extends Controller
                 'last_message_at'     => now(),
             ]);
 
-            // ── Jika email channel → kirim juga via Graph API ──
-            if ($ticket->channel === 'email') {
-                $customerEmail = $staging->submitted_by_email;
-                if (!$customerEmail && $ticket->customer_id) {
-                    $customerEmail = Customer::find($ticket->customer_id)?->email;
+            // ── Selalu kirim email ke customer jika ada alamat email ──────────────
+            $customerEmail = $staging->submitted_by_email;
+            if (!$customerEmail && $ticket->customer_id) {
+                $customerEmail = Customer::find($ticket->customer_id)?->email;
+            }
+
+            if ($customerEmail) {
+                // Subject sama dengan format reply: "Ticket #XXXX: description"
+                $subject   = 'Ticket #' . $ticketNumber . ': ' . ($staging->description ?? 'Ticket Update');
+                $inReplyTo = $staging->email_message_id; // null untuk web-only → buat thread baru
+
+                // Ambil CC dari staging (bisa format string array atau object array)
+                $ccList = [];
+                if (!empty($staging->cc_emails)) {
+                    $decoded = json_decode($staging->cc_emails, true);
+                    if (is_array($decoded)) {
+                        $ccList = $decoded; // sendTicketReply handles both string[] and object[]
+                    }
                 }
 
-                if ($customerEmail) {
-                    // Subject sama dengan format reply: "Ticket #XXXX: description"
-                    $subject   = 'Ticket #' . $ticketNumber . ': ' . ($staging->description ?? 'Ticket Update');
-                    $inReplyTo = $staging->email_message_id;
+                $emailResult = app(EmailController::class)->sendTicketReply(
+                    $customerEmail,
+                    $subject,
+                    $bodyHtml,
+                    $inReplyTo,
+                    [],      // files
+                    $ccList, // ccList dari staging
+                    true     // noRePrefix — subject langsung tanpa "Re: "
+                );
 
-                    app(EmailController::class)->sendTicketReply(
-                        $customerEmail,
-                        $subject,
-                        $bodyHtml,
-                        $inReplyTo,
-                        [],   // files
-                        [],   // ccList
-                        true  // noRePrefix — subject langsung "XXXX, desc" tanpa "Re: "
-                    );
+                // Simpan conversationId ke ticket agar reply berikutnya bisa threaded
+                $newConvId = $emailResult['conversation_id'] ?? null;
+                if ($newConvId && empty($ticket->email_thread_id)) {
+                    $ticket->update(['email_thread_id' => $newConvId]);
+                }
+
+                // Simpan internetMessageId + update channel ke 'email'
+                // agar Jarvies bisa pakai sebagai In-Reply-To dan indicator thread aktif tampil
+                $internetMsgId = $emailResult['internet_message_id'] ?? null;
+                if ($internetMsgId) {
+                    $message->update([
+                        'email_message_id' => $internetMsgId,
+                        'channel'          => 'email',
+                    ]);
                 }
             }
 
@@ -441,6 +473,11 @@ class StagingTicketController extends Controller
             'ticket_id'           => $s->ticket_id,
             'ticket_number'       => $s->ticket?->ticket_number,
             'created_at'          => $s->created_at?->toDateTimeString(),
+            // Field tambahan
+            'name'                => $s->name,
+            'no_hp'               => $s->no_hp,
+            'module'              => $s->module,
+            'client'              => $s->client,
         ];
     }
 }

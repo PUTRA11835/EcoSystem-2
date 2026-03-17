@@ -41,6 +41,13 @@ class StagingTicketService
             'status'             => 'unvalidated',
             'channel'            => 'web',
             'submitted_by_email' => $data['submitted_by_email'] ?? null,
+            'sender_name'        => $data['sender_name'] ?? null,
+            'cc_emails'          => $data['cc_emails'] ?? null,
+            // Field tambahan (opsional dari Jarvies)
+            'name'               => $data['name'] ?? null,
+            'no_hp'              => $data['no_hp'] ?? null,
+            'module'             => $data['module'] ?? null,
+            'client'             => $data['client'] ?? null,
         ]);
     }
 
@@ -67,6 +74,46 @@ class StagingTicketService
             $existing = StagingTicket::where('email_message_id', $emailData['internet_message_id'])->first();
             if ($existing) {
                 return $existing;
+            }
+        }
+
+        // Cegah duplikat web+email: jika ada staging web dari customer yang sama
+        // dengan description cocok (Jarvies kirim email notifikasi saat submit web form)
+        $rawSubject   = trim($emailData['subject'] ?? '');
+        $cleanSubject = preg_replace('/^\[PENDING\]\s*/i', '', $rawSubject);
+        if (!empty($cleanSubject)) {
+            // Cari via customer_id (lebih reliable, customer sudah resolve dari email di processInbox)
+            $webQuery = StagingTicket::where('channel', 'web')
+                ->where('status', 'unvalidated')
+                ->whereRaw('LOWER(description) = LOWER(?)', [$cleanSubject])
+                ->whereNull('email_thread_id');
+
+            if (!empty($emailData['customer_id'])) {
+                $existingWeb = (clone $webQuery)->where('customer_id', $emailData['customer_id'])->first();
+            } else {
+                // Fallback: cocokkan via submitted_by_email jika tidak ada customer_id
+                $existingWeb = !empty($emailData['from_email'])
+                    ? (clone $webQuery)->where('submitted_by_email', $emailData['from_email'])->first()
+                    : null;
+            }
+
+            if ($existingWeb) {
+                // Update staging web dengan email metadata agar reply bisa dikirim via email
+                $existingWeb->update([
+                    'email_thread_id'    => $emailData['conversation_id'] ?? null,
+                    'email_message_id'   => $emailData['internet_message_id'] ?? null,
+                    'graph_message_id'   => $emailData['graph_message_id'] ?? null,
+                    'submitted_by_email' => $existingWeb->submitted_by_email ?? $emailData['from_email'] ?? null,
+                    'has_attachments'    => $emailData['has_attachments'] ?? false,
+                    'cc_emails'          => $emailData['cc_emails'] ?? null,
+                ]);
+                Log::info('StagingTicketService@createFromEmail: merged into existing web staging', [
+                    'staging_id'  => $existingWeb->id,
+                    'customer_id' => $emailData['customer_id'] ?? null,
+                    'from_email'  => $emailData['from_email'],
+                    'subject'     => $rawSubject,
+                ]);
+                return $existingWeb;
             }
         }
 
@@ -130,6 +177,11 @@ class StagingTicketService
                 'channel'         => $staging->channel,
                 'email_thread_id' => $staging->email_thread_id,
                 'start_date'      => now()->toDateString(),
+                // Salin field tambahan dari staging
+                'name'            => $staging->name,
+                'no_hp'           => $staging->no_hp,
+                'module'          => $staging->module,
+                'client'          => $staging->client,
             ]);
 
             // Update staging → approved, simpan FK ke ticket
@@ -172,7 +224,18 @@ class StagingTicketService
                     ->exists();
 
                 if (!$alreadyFromEmail) {
-                    $senderName = $staging->customer?->basicData?->name_1 ?? 'Customer';
+                    // Prioritas: nama individual dari staging (dikirim Jarvies),
+                    // fallback ke nama perusahaan hanya jika tidak ada
+                    $senderName = $staging->sender_name
+                        ?? $staging->customer?->basicData?->name_1
+                        ?? 'Customer';
+
+                    Log::info('StagingTicketService@approve: first message sender', [
+                        'staging_id'          => $staging->id,
+                        'staging_sender_name' => $staging->sender_name,
+                        'company_name'        => $staging->customer?->basicData?->name_1,
+                        'resolved_as'         => $senderName,
+                    ]);
 
                     $firstMessage = TicketMessage::create([
                         'ticket_id'           => $ticket->ticket_id,
@@ -183,6 +246,7 @@ class StagingTicketService
                         'message'             => $staging->body,
                         'is_internal_note'    => false,
                         'channel'             => 'web',
+                        'cc_emails'           => $staging->cc_emails,
                         'is_read_by_customer' => true,
                         'is_read_by_agent'    => false,
                     ]);

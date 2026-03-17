@@ -32,6 +32,14 @@ class Ticket extends Model
         'last_message_at',
         'last_customer_reply_at',
         'last_agent_reply_at',
+        // Field tambahan dari form Jarvies
+        'name',
+        'no_hp',
+        'module',
+        'client',
+        // Mandays status
+        'mandays_proposal_status',
+        'internal_mandays_status',
     ];
 
     protected $casts = [

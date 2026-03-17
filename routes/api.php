@@ -27,6 +27,7 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\TimesheetController;
 use App\Http\Controllers\EmailController;
 use App\Http\Controllers\StagingTicketController;
+use App\Http\Controllers\MandaysController;
 
 Route::middleware(['web'])->group(function () {
     
@@ -167,6 +168,9 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [CustomerContactController::class, 'store']);
         Route::put('/{contactId}', [CustomerContactController::class, 'update']);
         Route::delete('/{contactId}', [CustomerContactController::class, 'destroy']);
+        // Jarvies login management per contact person
+        Route::post('/{contactId}/create-login', [CustomerContactController::class, 'createLogin']);
+        Route::delete('/{contactId}/revoke-login', [CustomerContactController::class, 'revokeLogin']);
     });
 
     // Customer Identification endpoints
@@ -252,12 +256,36 @@ Route::middleware(['web'])->group(function () {
         // Ticket Messages
         Route::get('/{ticketId}/messages', [TicketMessageController::class, 'index']);
         Route::post('/{ticketId}/messages', [TicketMessageController::class, 'store']);
+        Route::post('/{ticketId}/customer-reply', [TicketMessageController::class, 'customerReply']);
         Route::put('/{ticketId}/messages/mark-all-read', [TicketMessageController::class, 'markAllRead']);
 
         // Assign ticket to delivery support
         Route::get('/{id}/available-supports', [TicketController::class, 'getAvailableSupports']);
         Route::post('/{id}/assign-to-support', [TicketController::class, 'assignToSupport']);
         Route::post('/{id}/create-delivery-support', [TicketController::class, 'createDeliverySupport']);
+
+        // ==================== MANDAYS ROUTES ====================
+        // Shared utility
+        Route::get('/{ticketId}/mandays/modules', [MandaysController::class, 'getModules']);
+
+        // Customer Mandays — PIC
+        Route::get('/{ticketId}/mandays/pic-draft', [MandaysController::class, 'getCustomerDraft']);
+        Route::post('/{ticketId}/mandays/pic-draft', [MandaysController::class, 'saveCustomerDraft']);
+        Route::post('/{ticketId}/mandays/pic-draft/submit', [MandaysController::class, 'submitCustomerDraft']);
+
+        // Customer Mandays — Helpdesk
+        Route::get('/{ticketId}/mandays/hd-draft', [MandaysController::class, 'getHelpdeskDraft']);
+        Route::put('/{ticketId}/mandays/hd-draft', [MandaysController::class, 'saveHelpdeskDraft']);
+        Route::post('/{ticketId}/mandays/hd-draft/submit-chat', [MandaysController::class, 'submitToChat']);
+        Route::post('/{ticketId}/mandays/hd-draft/approve', [MandaysController::class, 'approveCustomerMandays']);
+        Route::post('/{ticketId}/mandays/hd-draft/cancel', [MandaysController::class, 'cancelCustomerMandays']);
+
+        // Internal Mandays — PIC + Head of Support
+        Route::get('/{ticketId}/mandays/internal', [MandaysController::class, 'getInternalProposal']);
+        Route::post('/{ticketId}/mandays/internal', [MandaysController::class, 'saveInternalProposal']);
+        Route::post('/{ticketId}/mandays/internal/submit', [MandaysController::class, 'submitInternalProposal']);
+        Route::post('/{ticketId}/mandays/internal/approve', [MandaysController::class, 'approveInternalProposal']);
+        Route::post('/{ticketId}/mandays/internal/reject', [MandaysController::class, 'rejectInternalProposal']);
     });
 
     // ==================== DELIVERY SUPPORT API ROUTES ====================
@@ -300,6 +328,48 @@ Route::middleware(['web'])->group(function () {
         Route::post('/reply', [EmailController::class, 'reply']);
         Route::post('/messages/{messageId}/reprocess-attachments', [EmailController::class, 'reprocessAttachments']);
     });
+});
+
+// ==================== JARVIES EXTERNAL API ====================
+// Diakses dari server Jarvies menggunakan X-Api-Key header
+// Tidak butuh browser session — autentikasi via JARVIES_API_KEY di .env
+Route::middleware(['jarvies.api_key'])->prefix('jarvies')->group(function () {
+
+    // --- Customer data (read-only) ---
+    Route::get('/customers/{customerId}', [CustomerController::class, 'show']);
+    Route::get('/customers/{customerId}/basic-data', [CustomerBasicDataController::class, 'show']);
+
+    Route::get('/customers/{customerId}/contacts', [CustomerContactController::class, 'index']);
+    Route::get('/customers/{customerId}/contacts/{contactId}', [CustomerContactController::class, 'show']);
+
+    Route::get('/customers/{customerId}/addresses', [CustomerAddressController::class, 'index']);
+    Route::get('/customers/{customerId}/addresses/{addressId}', [CustomerAddressController::class, 'show']);
+
+    Route::get('/customers/{customerId}/identifications', [CustomerIdentificationController::class, 'index']);
+    Route::get('/customers/{customerId}/identifications/{identificationId}', [CustomerIdentificationController::class, 'show']);
+
+    Route::get('/customers/{customerId}/banks', [CustomerBankController::class, 'index']);
+    Route::get('/customers/{customerId}/banks/{bankId}', [CustomerBankController::class, 'show']);
+
+    Route::get('/customers/{customerId}/attachments', [CustomerAttachmentController::class, 'index']);
+    Route::get('/customers/{customerId}/attachments/{attachmentId}', [CustomerAttachmentController::class, 'show']);
+
+    // --- Tickets (customer-scoped) ---
+    Route::get('/tickets', [TicketController::class, 'index']);
+    Route::get('/tickets/{id}', [TicketController::class, 'show']);
+    Route::get('/tickets/{ticketId}/messages', [TicketMessageController::class, 'index']);
+    Route::post('/tickets/{ticketId}/customer-reply', [TicketMessageController::class, 'customerReply']);
+    Route::put('/tickets/{ticketId}/messages/mark-all-read', [TicketMessageController::class, 'markAllRead']);
+
+    // --- Staging tickets (submit new ticket from Jarvies) ---
+    Route::post('/staging-tickets', [StagingTicketController::class, 'store']);
+    Route::get('/staging-tickets', [StagingTicketController::class, 'index']);
+    Route::get('/staging-tickets/{id}', [StagingTicketController::class, 'show']);
+
+    // --- Customer Mandays (Jarvies customer-side) ---
+    Route::get('/tickets/{ticketId}/mandays', [MandaysController::class, 'customerMandaysForJarvies']);
+    Route::post('/tickets/{ticketId}/mandays/approve', [MandaysController::class, 'customerApproveMandays']);
+    Route::post('/tickets/{ticketId}/mandays/reject', [MandaysController::class, 'customerRejectMandays']);
 });
 
 // ==================== EXTERNAL TICKET API ====================

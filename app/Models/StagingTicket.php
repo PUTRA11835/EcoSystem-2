@@ -29,6 +29,11 @@ class StagingTicket extends Model
         'validated_by',
         'validated_at',
         'ticket_id',
+        // Field tambahan dari form Jarvies (opsional)
+        'name',
+        'no_hp',
+        'module',
+        'client',
     ];
 
     protected $casts = [

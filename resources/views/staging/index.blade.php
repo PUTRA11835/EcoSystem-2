@@ -201,7 +201,7 @@ function renderTable(rows) {
         return;
     }
 
-    const prioColor = { Low: 'bg-green-100 text-green-700', Medium: 'bg-blue-100 text-blue-700', High: 'bg-red-100 text-red-700' };
+    const prioColor = { 'Very High': 'bg-purple-100 text-purple-700', High: 'bg-red-100 text-red-700', Medium: 'bg-blue-100 text-blue-700', Low: 'bg-green-100 text-green-700' };
     const statusBadge = {
         unvalidated: '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>Pending</span>',
         approved:    '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700"><span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>Approved</span>',
@@ -209,7 +209,7 @@ function renderTable(rows) {
     };
 
     tbody.innerHTML = rows.map(s => {
-        const date   = s.created_at ? new Date(s.created_at).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric' }) : '—';
+        const date   = s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric' }) : '—';
         const short  = s.description ? (s.description.length > 60 ? s.description.substring(0, 60) + '…' : s.description) : '—';
         const prio   = s.ticket_priority;
         const prioBadge = prio
@@ -337,7 +337,7 @@ function fillModal(s) {
                 </div>` : ''}
                 <div class="grid px-4 py-2" style="grid-template-columns:70px 1fr">
                     <span class="text-xs font-semibold text-gray-500 pt-0.5">Date</span>
-                    <span class="text-gray-700">${s.created_at ? new Date(s.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' WIB' : '—'}</span>
+                    <span class="text-gray-700">${s.created_at ? new Date(s.created_at).toLocaleString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' (WIB)' : '—'}</span>
                 </div>
                 <div class="grid px-4 py-2" style="grid-template-columns:70px 1fr">
                     <span class="text-xs font-semibold text-gray-500 pt-0.5">Subject</span>
@@ -375,17 +375,30 @@ function fillModal(s) {
         <div class="grid grid-cols-2 gap-3 mb-4">
             <div class="bg-gray-50 rounded-xl p-3">
                 <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1">Customer</p>
-                <p class="text-sm font-bold text-gray-800">${escHtml(s.customer_name ?? '—')}</p>
+                <p class="text-sm font-bold text-gray-800">${escHtml(s.customer_name ?? s.sender_name ?? '—')}</p>
+                ${!s.customer_name && s.submitted_by_email ? `<p class="text-[11px] text-amber-500 mt-1">⚠ Customer not identified</p>` : ''}
             </div>
             <div class="bg-gray-50 rounded-xl p-3">
                 <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1">Submit Date</p>
-                <p class="text-sm font-bold text-gray-800">${s.created_at ? new Date(s.created_at).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric' }) : '—'}</p>
+                <p class="text-sm font-bold text-gray-800">${s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric' }) : '—'}</p>
             </div>
         </div>
         <div class="mb-4 bg-gray-50 rounded-xl p-4">
             <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-2">Description</p>
             <p class="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">${escHtml(s.description ?? '—')}</p>
-        </div>`;
+        </div>
+        ${(s.name || s.no_hp || s.module || s.client) ? `
+        <div class="mb-4 bg-blue-50 border border-blue-100 rounded-xl p-4">
+            <p class="text-[11px] text-blue-500 font-semibold uppercase tracking-wide mb-3">
+                <i class="fas fa-info-circle mr-1"></i>Additional Information
+            </p>
+            <div class="grid grid-cols-2 gap-x-4 gap-y-2">
+                ${s.name   ? `<div><p class="text-[10px] text-gray-400 font-semibold uppercase">Name</p><p class="text-xs text-gray-800 font-medium">${escHtml(s.name)}</p></div>` : ''}
+                ${s.no_hp  ? `<div><p class="text-[10px] text-gray-400 font-semibold uppercase">No HP</p><p class="text-xs text-gray-800 font-medium">${escHtml(s.no_hp)}</p></div>` : ''}
+                ${s.module ? `<div><p class="text-[10px] text-gray-400 font-semibold uppercase">Module</p><p class="text-xs text-gray-800 font-medium">${escHtml(s.module)}</p></div>` : ''}
+                ${s.client ? `<div><p class="text-[10px] text-gray-400 font-semibold uppercase">Client</p><p class="text-xs text-gray-800 font-medium">${escHtml(s.client)}</p></div>` : ''}
+            </div>
+        </div>` : ''}`;
     }
 
     // ── Validation form (type + priority) ──
@@ -418,9 +431,10 @@ function fillModal(s) {
                     <select id="approvePriority"
                             class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-green-600 focus:ring-4 focus:ring-green-600/10 transition-all">
                         <option value="">-- Select Priority --</option>
-                        <option value="Low">Low</option>
-                        <option value="Medium">Medium</option>
+                        <option value="Very High">Very High</option>
                         <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
                     </select>
                     <p id="priorityError" class="hidden mt-1 text-xs text-red-600 font-medium">Please select a priority.</p>
                 </div>
@@ -428,7 +442,7 @@ function fillModal(s) {
         </div>`;
     } else {
         // Show existing type/priority as info badges
-        const prioColor = { Low: 'bg-green-100 text-green-700', Medium: 'bg-blue-100 text-blue-700', High: 'bg-red-100 text-red-700' };
+        const prioColor = { 'Very High': 'bg-purple-100 text-purple-700', High: 'bg-red-100 text-red-700', Medium: 'bg-blue-100 text-blue-700', Low: 'bg-green-100 text-green-700' };
         const typeColor = { 'Incident': 'bg-red-50 text-red-600', 'Service Request': 'bg-indigo-50 text-indigo-600', 'Change Request': 'bg-amber-50 text-amber-600', 'Consult': 'bg-teal-50 text-teal-600' };
         const typeBadge = s.ticket_type
             ? `<span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold ${typeColor[s.ticket_type] ?? 'bg-gray-100 text-gray-600'}">${escHtml(s.ticket_type)}</span>`
@@ -633,7 +647,7 @@ async function fetchEmailInbox(silent = false) {
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Fetching...'; }
     if (status) { status.textContent = 'Fetching...'; status.classList.remove('hidden'); }
 
-    const ts = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    const ts = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     console.log(`[FetchEmail] ${ts} — Memulai fetch inbox${silent ? ' (auto-poll)' : ' (manual)'}`);
 
     try {
@@ -643,12 +657,12 @@ async function fetchEmailInbox(silent = false) {
             credentials: 'same-origin',
         });
         const data = await res.json();
-        const now  = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
+        const now  = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
 
         if (data.status === 'error') {
             console.error(`[FetchEmail] ${ts} — ERROR:`, data.message ?? 'Unknown error');
-            if (!silent) showNotif('Fetch gagal: ' + (data.message ?? 'Unknown error'), 'error');
-            if (status) status.textContent = `Error ${now} WIB`;
+            if (!silent) showNotif('Fetch failed: ' + (data.message ?? 'Unknown error'), 'error');
+            if (status) status.textContent = `Error ${now} (WIB)`;
         } else {
             const processed = data.processed ?? 0;
             const skipped   = data.skipped   ?? 0;
@@ -656,15 +670,15 @@ async function fetchEmailInbox(silent = false) {
             if (data.errors?.length) {
                 console.warn(`[FetchEmail] ${ts} — Errors:`, data.errors);
             }
-            if (!silent && processed > 0) showNotif(`${processed} email baru masuk ke staging.`, 'success');
-            if (status) status.textContent = `Updated ${now} WIB${processed > 0 ? ` · ${processed} baru` : ''}`;
+            if (!silent && processed > 0) showNotif(`${processed} new email(s) added to staging.`, 'success');
+            if (status) status.textContent = `Updated ${now} (WIB)${processed > 0 ? ` · ${processed} new` : ''}`;
             if (processed > 0) { loadStagingTickets(); loadStats(); }
         }
     } catch (err) {
-        const now = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
+        const now = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
         console.error(`[FetchEmail] ${ts} — Exception:`, err);
-        if (!silent) showNotif('Gagal menghubungi email server.', 'error');
-        if (status) status.textContent = `Error ${now} WIB`;
+        if (!silent) showNotif('Failed to connect to email server.', 'error');
+        if (status) status.textContent = `Error ${now} (WIB)`;
     } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope-open-text text-xs"></i> Fetch Email'; }
     }

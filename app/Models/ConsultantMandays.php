@@ -20,14 +20,15 @@ class ConsultantMandays extends Model
         'approved_by_head_id',
         'approved_at',
         'rejection_reason',
+        'helpdesk_notes',
         'total_mandays',
     ];
 
     protected $casts = [
-        'proposed_at' => 'datetime',
+        'proposed_at'    => 'datetime',
         'last_edited_at' => 'datetime',
-        'approved_at' => 'datetime',
-        'total_mandays' => 'decimal:2',
+        'approved_at'    => 'datetime',
+        'total_mandays'  => 'decimal:2',
     ];
 
     public function ticket()
@@ -55,23 +56,14 @@ class ConsultantMandays extends Model
         return $this->details()->sum('mandays');
     }
 
-    public function scopeDraft($query)
-    {
-        return $query->where('status', 'draft');
-    }
+    public function scopeDraft($query)           { return $query->where('status', 'draft'); }
+    public function scopePendingApproval($query) { return $query->where('status', 'pending_approval'); }
+    public function scopeApproved($query)        { return $query->where('status', 'approved'); }
+    public function scopeRejected($query)        { return $query->where('status', 'rejected'); }
+    public function scopeNeedsRevision($query)   { return $query->where('status', 'needs_revision'); }
 
-    public function scopePendingApproval($query)
+    public function scopeLatestPerTicket($query)
     {
-        return $query->where('status', 'pending_approval');
-    }
-
-    public function scopeApproved($query)
-    {
-        return $query->where('status', 'approved');
-    }
-
-    public function scopeRejected($query)
-    {
-        return $query->where('status', 'rejected');
+        return $query->orderBy('created_at', 'desc');
     }
 }

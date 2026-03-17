@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use App\Models\CustomerContact;
 
 class AuthUser extends Authenticatable
 {
@@ -16,6 +17,7 @@ class AuthUser extends Authenticatable
     protected $fillable = [
         'employee_id',
         'customer_id',
+        'contact_id',
         'username',
         'email',
         'phone',
@@ -46,6 +48,11 @@ class AuthUser extends Authenticatable
     public function customer()
     {
         return $this->belongsTo(Customer::class, 'customer_id', 'customer_id');
+    }
+
+    public function contact()
+    {
+        return $this->belongsTo(CustomerContact::class, 'contact_id', 'contact_id');
     }
 
     public function getNameAttribute()
