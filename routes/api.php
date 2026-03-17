@@ -28,7 +28,7 @@ use App\Http\Controllers\TimesheetController;
 use App\Http\Controllers\EmailController;
 
 Route::middleware(['web'])->group(function () {
-    
+
     // ==================== AUTH ROUTES ====================
     Route::prefix('auth')->group(function () {
         Route::post('/login', [AuthController::class, 'login']);
@@ -37,7 +37,7 @@ Route::middleware(['web'])->group(function () {
     });
 
     // ==================== EMPLOYEE ROUTES ====================
-    
+
     // Main Employee endpoints
     Route::prefix('employees')->group(function () {
         Route::get('/', [EmployeeController::class, 'getData']);
@@ -129,7 +129,7 @@ Route::middleware(['web'])->group(function () {
     });
 
     // ==================== CUSTOMER ROUTES ====================
-    
+
     // Main Customer endpoints
     Route::prefix('customers')->group(function () {
         Route::get('/', [CustomerController::class, 'getData']);
@@ -213,12 +213,12 @@ Route::middleware(['web'])->group(function () {
         Route::get('/pending-confirmations', [TicketController::class, 'pendingConfirmations']);
         Route::get('/pending-member-changes', [TicketController::class, 'pendingMemberChanges']);
         Route::post('/', [TicketController::class, 'store']);
-        
+
         // Routes with specific names
         Route::get('/status/{status}', [TicketController::class, 'getByStatus']);
         Route::post('/confirm-assignment/{confirmationId}', [TicketController::class, 'confirmAssignment']);
         Route::post('/member-change-requests/{changeRequestId}/{action}', [TicketController::class, 'processMemberChangeRequest']);
-        
+
         // Routes with {id} parameter last
         Route::get('/{id}', [TicketController::class, 'show']);
         Route::get('/{id}/mandays-history', [TicketController::class, 'getMandaysHistory']);
@@ -285,6 +285,28 @@ Route::middleware(['web'])->group(function () {
         Route::post('/process-inbox', [EmailController::class, 'processInbox']);
         Route::post('/send', [EmailController::class, 'send']);
         Route::post('/reply', [EmailController::class, 'reply']);
+    });
+});
+
+// ==================== MOBILE AUTH — CUSTOMER ====================
+// Route::prefix('mobile')->group(function () {
+//     Route::post('/auth/login', [\App\Http\Controllers\Mobile\AuthController::class, 'login']);
+//     Route::post('/auth/refresh', [\App\Http\Controllers\Mobile\AuthController::class, 'refresh']);
+
+//     Route::middleware(['mobile.customer'])->group(function () {
+//         Route::post('/auth/logout', [\App\Http\Controllers\Mobile\AuthController::class, 'logout']);
+//         Route::get('/auth/me', [\App\Http\Controllers\Mobile\AuthController::class, 'me']);
+//     });
+// });
+
+// ==================== MOBILE AUTH — EMPLOYEE ====================
+Route::prefix('mobile/employee')->group(function () {
+    Route::post('/auth/login', [\App\Http\Controllers\Mobile\EmployeeAuthController::class, 'login']);
+    Route::post('/auth/refresh', [\App\Http\Controllers\Mobile\EmployeeAuthController::class, 'refresh']);
+
+    Route::middleware(['mobile.employee'])->group(function () {
+        Route::post('/auth/logout', [\App\Http\Controllers\Mobile\EmployeeAuthController::class, 'logout']);
+        Route::get('/auth/me', [\App\Http\Controllers\Mobile\EmployeeAuthController::class, 'me']);
     });
 });
 
