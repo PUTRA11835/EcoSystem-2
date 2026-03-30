@@ -310,6 +310,24 @@ Route::prefix('mobile/employee')->group(function () {
 
         // Dashboard
         Route::get('/dashboard', [\App\Http\Controllers\Mobile\DashboardController::class, 'index']);
+
+        // ==================== TICKET ROUTES (MOBILE) ====================
+        Route::prefix('tickets')->group(function () {
+            Route::get('/',                            [\App\Http\Controllers\Mobile\TicketController::class, 'index']);
+            Route::post('/',                           [\App\Http\Controllers\Mobile\TicketController::class, 'store']);
+            Route::get('/{id}',                        [\App\Http\Controllers\Mobile\TicketController::class, 'show']);
+            Route::get('/{id}/messages',               [\App\Http\Controllers\Mobile\TicketController::class, 'getMessages']);
+            Route::post('/{id}/messages',              [\App\Http\Controllers\Mobile\TicketController::class, 'sendMessage']);
+            Route::post('/{id}/ownership',             [\App\Http\Controllers\Mobile\TicketController::class, 'takeOwnership']);
+            Route::put('/{id}/mandays',                [\App\Http\Controllers\Mobile\TicketController::class, 'updateMandays']);
+            Route::post('/{id}/send-to-customer',      [\App\Http\Controllers\Mobile\TicketController::class, 'sendToCustomer']);
+        });
+
+        // ==================== SUPPORT TICKET ROUTES (MOBILE) ====================
+        Route::prefix('support-tickets')->group(function () {
+            Route::get('/',      [\App\Http\Controllers\Mobile\SupportTicketController::class, 'index']);
+            Route::get('/{id}',  [\App\Http\Controllers\Mobile\SupportTicketController::class, 'show']);
+        });
     });
 });
 
