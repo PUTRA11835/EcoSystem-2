@@ -328,6 +328,13 @@ Route::prefix('mobile/employee')->group(function () {
             Route::get('/',      [\App\Http\Controllers\Mobile\SupportTicketController::class, 'index']);
             Route::get('/{id}',  [\App\Http\Controllers\Mobile\SupportTicketController::class, 'show']);
         });
+
+        // ==================== PROJECT ROUTES (MOBILE) ====================
+        Route::prefix('projects')->group(function () {
+            Route::get('/',               [\App\Http\Controllers\Mobile\ProjectController::class, 'index']);
+            Route::get('/{id}',           [\App\Http\Controllers\Mobile\ProjectController::class, 'show']);
+            Route::post('/{id}/updates',  [\App\Http\Controllers\Mobile\ProjectController::class, 'storeUpdate']);
+        });
     });
 });
 

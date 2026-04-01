@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Mobile;
 
+use Carbon\Carbon;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
@@ -46,8 +47,8 @@ class SupportTicketResource extends JsonResource
                 'id'   => $picEmployee?->employee_id,
                 'name' => $picName,
             ],
-            'start_date'       => $this->start_date?->toDateString(),
-            'end_date'         => $this->end_date?->toDateString(),
+            'start_date'       => $this->start_date ? Carbon::parse($this->start_date)->toDateString() : null,
+            'end_date'         => $this->end_date ? Carbon::parse($this->end_date)->toDateString() : null,
             'progress_percent' => round($progress / 100, 2),
             'team_members'     => $teamMembers,
         ];

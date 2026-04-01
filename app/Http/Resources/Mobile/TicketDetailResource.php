@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Mobile;
 
+use Carbon\Carbon;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
@@ -43,8 +44,8 @@ class TicketDetailResource extends JsonResource
                 'name' => $employeeName,
             ],
             'members'        => $members,
-            'created_at'     => $this->created_at?->toDateString(),
-            'updated_at'     => $this->updated_at?->toDateString(),
+            'created_at'     => $this->created_at ? Carbon::parse($this->created_at)->toDateString() : null,
+            'updated_at'     => $this->updated_at ? Carbon::parse($this->updated_at)->toDateString() : null,
         ];
     }
 }
