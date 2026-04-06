@@ -315,7 +315,9 @@ Route::prefix('mobile/employee')->group(function () {
         Route::prefix('tickets')->group(function () {
             Route::get('/',                            [\App\Http\Controllers\Mobile\TicketController::class, 'index']);
             Route::post('/',                           [\App\Http\Controllers\Mobile\TicketController::class, 'store']);
+            Route::get('/stats',                       [\App\Http\Controllers\Mobile\TicketController::class, 'stats']);
             Route::get('/{id}',                        [\App\Http\Controllers\Mobile\TicketController::class, 'show']);
+            Route::put('/{id}/status',                 [\App\Http\Controllers\Mobile\TicketController::class, 'updateStatus']);
             Route::get('/{id}/messages',               [\App\Http\Controllers\Mobile\TicketController::class, 'getMessages']);
             Route::post('/{id}/messages',              [\App\Http\Controllers\Mobile\TicketController::class, 'sendMessage']);
             Route::post('/{id}/ownership',             [\App\Http\Controllers\Mobile\TicketController::class, 'takeOwnership']);

@@ -300,6 +300,79 @@ class TicketController extends Controller
     }
 
     // =========================================================================
+    // PUT /api/mobile/employee/tickets/{id}/status
+    // =========================================================================
+
+    /**
+     * Update status tiket.
+     *
+     * Body JSON:
+     *   { "status": "Open" | "In Progress" | "Hold" | "Reply" | "Closed" }
+     */
+    public function updateStatus(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'status' => 'required|string|in:Open,In Progress,Hold,Reply,Closed',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal.',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $ticket   = Ticket::where('ticket_id', $id)->whereNull('deleted_at')->firstOrFail();
+        $dbStatus = $this->mapStatusToDb($request->status);
+
+        $ticket->update(['status' => $dbStatus]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Status tiket berhasil diperbarui.',
+            'data'    => [
+                'id'     => $ticket->ticket_id,
+                'status' => $ticket->fresh()->status_label,
+            ],
+        ]);
+    }
+
+    // =========================================================================
+    // GET /api/mobile/employee/tickets/stats
+    // =========================================================================
+
+    /**
+     * Statistik jumlah tiket per status untuk stats row di TicketListScreen.
+     */
+    public function stats()
+    {
+        $row = DB::table('ticket')
+            ->whereNull('deleted_at')
+            ->selectRaw("
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'open'        THEN 1 ELSE 0 END) as open,
+                SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+                SUM(CASE WHEN status = 'hold'        THEN 1 ELSE 0 END) as hold,
+                SUM(CASE WHEN status = 'reply'       THEN 1 ELSE 0 END) as reply,
+                SUM(CASE WHEN status = 'closed'      THEN 1 ELSE 0 END) as closed
+            ")
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'total'       => (int) $row->total,
+                'open'        => (int) $row->open,
+                'in_progress' => (int) $row->in_progress,
+                'hold'        => (int) $row->hold,
+                'reply'       => (int) $row->reply,
+                'closed'      => (int) $row->closed,
+            ],
+        ]);
+    }
+
+    // =========================================================================
     // POST /api/mobile/employee/tickets/{id}/send-to-customer
     // =========================================================================
 
