@@ -1,0 +1,1239 @@
+// ============================================================================
+// UNIFIED DATABASE DIAGRAM - ECOSYSTEM, TICKET & SUPPORT SYSTEM
+// ============================================================================
+//
+// Paste this code into https://dbdiagram.io to visualize the database schema
+//
+// Generated: 2026-02-09
+// Project: EcoSystem - Integrated Project, Ticket & Support Management
+// ============================================================================
+
+// ============================================================================
+// CORE AUTHENTICATION & AUTHORIZATION
+// ============================================================================
+
+
+
+Table auth_users {
+  id bigint [pk, increment]
+  user_type enum_user_type
+  employee_id bigint [ref: > employee.employee_id]
+  customer_id bigint [ref: > customer.customer_id]
+  username varchar [unique]
+  email varchar [unique]
+  phone varchar [unique]
+  password varchar
+  last_login_at timestamp
+  is_active boolean [default: true]
+  email_verified_at timestamp
+  phone_verified_at timestamp
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    username
+    email
+    phone
+  }
+}
+
+Enum enum_user_type {
+  employee
+  customer
+}
+
+Table personal_access_tokens {
+  id bigint [pk, increment]
+  tokenable_type varchar
+  tokenable_id bigint
+  name varchar
+  token varchar [unique]
+  abilities text
+  last_used_at timestamp
+  expires_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table login_activity {
+  activity_id bigint [pk, increment]
+  user_id bigint
+  role_id bigint
+  ip_address varchar
+  user_agent text
+  login_at timestamp
+  logout_at timestamp
+  status enum_login_status
+  created_at timestamp
+
+  indexes {
+    user_id
+    role_id
+    login_at
+  }
+}
+
+Enum enum_login_status {
+  success
+  failed
+  logout
+}
+
+// ============================================================================
+// EMPLOYEE MANAGEMENT
+// ============================================================================
+
+Table employee {
+  employee_id bigint [pk, increment]
+  is_active boolean [default: true]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table employee_role {
+  id int [pk, increment]
+  name varchar [not null]
+  description varchar [not null]
+  employee_id int [ref: > employee.employee_id]
+  role_id int [not null]
+  created_at timestamp [default: NULL]
+  updated_at timestamp [default: NULL]
+  deleted_at timestamp [default: NULL]
+}
+
+Table employee_basic_data {
+  basic_data_id bigint [pk, increment]
+  employee_id bigint [unique, ref: > employee.employee_id]
+  title varchar
+  nick_name varchar
+  gender varchar
+  religion varchar
+  first_name varchar
+  last_name varchar
+  search_term_1 varchar
+  search_term_2 varchar
+  marital_status varchar
+  birth_date date
+  birth_place varchar
+  since_date date
+  created_by varchar
+  created_on timestamp
+  last_changed_by varchar
+  last_changed_on timestamp
+  personnel_area varchar
+  personnel_subarea varchar
+  employee_group varchar
+  employee_subgroup varchar
+  position varchar
+  division varchar
+  department varchar
+  direct_supervision varchar
+  manager varchar
+  authorization_group varchar
+  block boolean [default: false]
+  deletion_flag boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table employee_address {
+  address_id bigint [pk, increment]
+  employee_id bigint [ref: > employee.employee_id]
+  address_type varchar
+  country varchar
+  region varchar
+  city varchar
+  district varchar
+  rural_urban_village varchar
+  street varchar
+  house_number varchar
+  postal_code varchar
+  language varchar
+  cell_phone_country varchar
+  telephone_country varchar
+  fax_country varchar
+  preferred_communication varchar
+  cell_phone varchar
+  telephone varchar
+  telephone_extension varchar
+  fax varchar
+  fax_extension varchar
+  email_personal varchar
+  email_work varchar
+  website varchar
+  valid_from date
+  valid_to date
+  is_primary boolean [default: false]
+  is_verified boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table employee_identification {
+  identification_id bigint [pk, increment]
+  employee_id bigint [ref: > employee.employee_id]
+  identification_type varchar
+  identification_number varchar [unique]
+  responsible_institution varchar
+  country varchar
+  region varchar
+  valid_from date
+  valid_to date
+  entry_date date
+  drive_link varchar
+  verify_link varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table employee_education {
+  education_id bigint [pk, increment]
+  employee_id bigint [ref: > employee.employee_id]
+  education_type varchar
+  institute_place varchar
+  country varchar
+  degree varchar
+  duration_of_course varchar
+  final_grade varchar
+  branch_of_study varchar
+  start_year year
+  graduation_year year
+  unit varchar
+  valid_from date
+  valid_to date
+  attachment_name varchar
+  attachment_verify_link varchar
+  attachment_drive_link varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table employee_family {
+  family_id bigint [pk, increment]
+  employee_id bigint [ref: > employee.employee_id]
+  name varchar
+  title varchar
+  relation varchar
+  gender varchar
+  religion varchar
+  country varchar
+  birth_place varchar
+  birth_date date
+  occupation varchar
+  is_alive boolean [default: true]
+  valid_from date
+  valid_to date
+  verify_link varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table employee_contract {
+  contract_id bigint [pk, increment]
+  employee_id bigint [ref: > employee.employee_id]
+  contract_number varchar [unique]
+  contract_name varchar
+  contract_type varchar
+  contract_date varchar
+  position varchar
+  salary decimal
+  start_date date
+  end_date date
+  is_active boolean [default: true]
+  drive_link varchar
+  verify_link varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table employee_bank {
+  bank_id bigint [pk, increment]
+  employee_id bigint [ref: > employee.employee_id]
+  bank_name varchar
+  bank_key varchar
+  account_number varchar [unique]
+  account_holder varchar
+  drive_link varchar
+  valid_from date
+  valid_to date
+  verify_link varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table employee_qualification {
+  qualification_id bigint [pk, increment]
+  employee_id bigint [ref: > employee.employee_id]
+  qualification_type varchar
+  module varchar
+  language varchar
+  qualification_level varchar
+  first_year varchar
+  certified boolean
+  dpm boolean
+  dsm boolean
+  valid_to date
+  valid_from date
+  drive_link varchar
+  verify_link varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table employee_payment {
+  payment_id bigint [pk, increment]
+  employee_id bigint [ref: > employee.employee_id]
+  amount decimal
+  paid_at date
+  payment_method varchar
+  reference_number varchar [unique]
+  payment_status varchar [default: 'Pending']
+  valid_to date
+  drive_link varchar
+  verify_link varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table employee_attachment {
+  attachment_id bigint [pk, increment]
+  employee_id bigint [ref: > employee.employee_id]
+  attachment_type varchar
+  attachment_name varchar
+  drive_link varchar
+  verify_link varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table employee_history {
+  history_id bigint [pk, increment]
+  employee_id bigint [ref: > employee.employee_id]
+  action varchar
+  description text
+  performed_by bigint
+  performed_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+// ============================================================================
+// CUSTOMER MANAGEMENT
+// ============================================================================
+
+Table customer {
+  customer_id bigint [pk, increment]
+  customer_code varchar(50) [unique]
+  is_active boolean [default: true]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table customer_basic_data {
+  basic_data_id bigint [pk, increment]
+  customer_id bigint [unique, ref: > customer.customer_id]
+  title varchar
+  name_1 varchar
+  name_2 varchar
+  search_term_1 varchar
+  search_term_2 varchar
+  external_number integer
+  customer_group varchar
+  customer_category varchar
+  credit_limit_type varchar
+  industry_sector varchar
+  ec_account_executive varchar
+  sap_account_executive varchar
+  authorization_group varchar
+  block boolean [default: false]
+  deletion_flag boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table customer_address {
+  address_id bigint [pk, increment]
+  customer_id bigint [ref: > customer.customer_id]
+  address_type varchar
+  country varchar
+  region varchar
+  city varchar
+  street varchar
+  postal_code varchar
+  is_primary boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table customer_identification {
+  identification_id bigint [pk, increment]
+  customer_id bigint [ref: > customer.customer_id]
+  identification_type varchar
+  identification_number varchar
+  valid_from date
+  valid_to date
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table customer_bank {
+  bank_id bigint [pk, increment]
+  customer_id bigint [ref: > customer.customer_id]
+  bank_name varchar
+  account_number varchar
+  account_holder varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table customer_contact {
+  contact_id bigint [pk, increment]
+  customer_id bigint [ref: > customer.customer_id]
+  contact_type varchar
+  contact_value varchar
+  is_primary boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table customer_attachment {
+  attachment_id bigint [pk, increment]
+  customer_id bigint [ref: > customer.customer_id]
+  attachment_type varchar
+  attachment_name varchar
+  drive_link varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table customer_history {
+  history_id bigint [pk, increment]
+  customer_id bigint [ref: > customer.customer_id]
+  action varchar
+  description text
+  performed_by bigint
+  performed_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+// ============================================================================
+// TICKET SYSTEM
+// ============================================================================
+
+Table ticket {
+  id int [pk, increment]
+  ticket_number varchar [not null]
+  agent_id int [ref: > employee.employee_id]
+  customer_id int [ref: > customer.customer_id]
+  subject varchar [not null]
+  start_date date [default: NULL]
+  end_date date [default: NULL]
+  ticket_priority enum('Low','Medium','High') [not null, default: 'Medium']
+  jarvies_status enum('in process','author action','proposed solution','closed','sent in to SAP','sent it to support') [default: 'in process']
+  status enum('open','in_progress','wait_to_close','closed','cancel','hold','reply') [default: 'open']
+  type enum('AMS','MO','ATS') [default: NULL]
+  channel enum('email','web') [not null, default: 'web']
+  email_thread_id varchar [default: NULL]
+  last_customer_reply_at timestamp [default: NULL]
+  last_agent_reply_at timestamp [default: NULL]
+  last_message_at timestamp [default: NULL]
+  created_at timestamp [default: NULL]
+  updated_at timestamp [default: NULL]
+  deleted_at timestamp [default: NULL]
+
+  Indexes {
+    ticket_number [unique, name: 'idx_ticket_number']
+    customer_id [name: 'idx_ticket_customer']
+    agent_id [name: 'idx_ticket_agent']
+    status [name: 'idx_ticket_status']
+    ticket_priority [name: 'idx_ticket_priority']
+    email_thread_id [name: 'idx_ticket_email_thread']
+    last_message_at [name: 'idx_ticket_last_message']
+    created_at [name: 'idx_ticket_created']
+  }
+}
+
+Table ticket_message {
+  id int [pk, not null, increment]
+  ticket_id int [not null, ref: > ticket.id]
+  sender_type enum('customer','employee','system') [not null]
+  sender_id int [default: NULL]
+  sender_email varchar [default: NULL]
+  sender_name varchar [default: NULL]
+  message text [not null]
+  is_internal_note bool [not null, default: 0]
+  channel enum('email','web') [not null, default: 'web']
+  email_message_id varchar [default: NULL]
+  email_in_reply_to varchar [default: NULL]
+  is_read_by_customer bool [not null, default: 0]
+  is_read_by_agent bool [not null, default: 0]
+  read_at timestamp [default: NULL]
+  created_at timestamp [default: NULL]
+  updated_at timestamp [default: NULL]
+  
+  Indexes {
+    ticket_id [name: 'idx_message_ticket']
+    sender_type [name: 'idx_message_sender_type']
+    sender_id [name: 'idx_message_sender']
+    channel [name: 'idx_message_channel']
+    email_message_id [name: 'idx_message_email_id']
+    created_at [name: 'idx_message_created']
+    is_internal_note [name: 'idx_message_internal']
+  }
+}
+
+Table ticket_attachment {
+  id int [pk, not null, increment]
+  ticket_id int [not null, ref: > ticket.id]
+  message_id int [default: NULL, ref: > ticket_message.id]
+  uploaded_by_type enum('customer','employee') [not null]
+  uploaded_by_id int [not null]
+  attachment_type varchar [not null]
+  link_url varchar [not null]
+  link_title varchar [default: NULL]
+  description text [default: NULL]
+  created_at timestamp [default: NULL]
+  updated_at timestamp [default: NULL]
+  
+  Indexes {
+    ticket_id [name: 'idx_attachment_ticket']
+    message_id [name: 'idx_attachment_message']
+    uploaded_by_type [name: 'idx_attachment_uploader_type']
+  }
+}
+
+Table ticket_account {
+  id int [pk, not null, increment]
+  ticket_id int [not null, ref: > ticket.id]
+  account_type enum('customer','employee') [not null]
+  account_email varchar [not null]
+  can_view bool [not null, default: 1]
+  can_reply bool [not null, default: 1]
+  joined_at timestamp [default: NULL]
+  last_seen_at timestamp [default: NULL]
+  created_at timestamp [default: NULL]
+  updated_at timestamp [default: NULL]
+  
+  Note: 'Who can access this ticket - customer + assigned agents'
+  
+  Indexes {
+    ticket_id [name: 'idx_participant_ticket']
+    (ticket_id, account_type, account_email) [unique, name: 'idx_participant_unique']
+    account_type [name: 'idx_participant_type']
+  }
+}
+
+Table ticket_team {
+  id int [pk, not null, increment]
+  ticket_id int [not null, ref: > ticket.id]
+  employee_id int [not null, ref: > employee.employee_id]
+  joined_at timestamp [default: NULL]
+  left_at timestamp [default: NULL]
+  created_at timestamp [default: NULL]
+  updated_at timestamp [default: NULL]
+
+  Indexes {
+    ticket_id [name: 'idx_team_ticket']
+    employee_id [name: 'idx_team_employee']
+    (ticket_id, employee_id) [unique, name: 'idx_team_ticket_employee']
+  }
+}
+
+Table customer_mandays {
+  id int [pk, not null, increment]
+  ticket_id int [not null, ref: > ticket.id]
+  version int [not null, default: 1]
+  proposed_by_agent_id int [not null, ref: > employee.employee_id]
+  proposed_at timestamp [default: NULL]
+  submitted_to_customer_at timestamp [default: NULL]
+  status enum('draft','pending_customer','approved','rejected') [not null, default: 'draft']
+  customer_response_at timestamp [default: NULL]
+  customer_notes text [default: NULL]
+  total_mandays decimal [not null, default: 0]
+  created_at timestamp [default: NULL]
+  updated_at timestamp [default: NULL]
+  
+  Indexes {
+    ticket_id [name: 'idx_cm_ticket']
+    (ticket_id, version) [unique, name: 'idx_cm_ticket_version']
+    status [name: 'idx_cm_status']
+    proposed_by_agent_id [name: 'idx_cm_agent']
+  }
+}
+
+Table customer_mandays_detail {
+  id int [pk, not null, increment]
+  customer_mandays_id int [not null, ref: > customer_mandays.id]
+  module varchar [not null]
+  mandays decimal [not null, default: 0]
+  notes text [default: NULL]
+  created_at timestamp [default: NULL]
+  updated_at timestamp [default: NULL]
+  
+  Indexes {
+    customer_mandays_id [name: 'idx_cmd_customer_mandays']
+    module [name: 'idx_cmd_module']
+    (customer_mandays_id, module) [name: 'idx_cmd_mandays_module']
+  }
+}
+
+Table consultant_mandays {
+  id int [pk, not null, increment]
+  ticket_id int [not null, ref: > ticket.id]
+  proposed_by_agent_id int [not null, ref: > employee.employee_id]
+  proposed_at timestamp [default: NULL]
+  last_edited_at timestamp [default: NULL]
+  status enum('draft','pending_approval','approved','rejected') [not null, default: 'draft']
+  approved_by_head_id int [default: NULL, ref: > employee.employee_id]
+  approved_at timestamp [default: NULL]
+  rejection_reason text [default: NULL]
+  total_mandays decimal [not null, default: 0]
+  created_at timestamp [default: NULL]
+  updated_at timestamp [default: NULL]
+  
+  Indexes {
+    ticket_id [unique, name: 'idx_cim_ticket']
+    status [name: 'idx_cim_status']
+    proposed_by_agent_id [name: 'idx_cim_agent']
+    approved_by_head_id [name: 'idx_cim_head']
+  }
+}
+
+Table consultant_mandays_detail {
+  id int [pk, not null, increment]
+  consultant_mandays_id int [not null, ref: > consultant_mandays.id]
+  employee_id int [not null, ref: > employee.employee_id]
+  module varchar [not null]
+  mandays decimal [not null, default: 0]
+  notes varchar [default: NULL]
+  created_at timestamp [default: NULL]
+  updated_at timestamp [default: NULL]
+  
+  Indexes {
+    consultant_mandays_id [name: 'idx_cimd_consultant_mandays']
+    employee_id [name: 'idx_cimd_employee']
+    module [name: 'idx_cimd_module']
+    (consultant_mandays_id, employee_id, module) [unique, name: 'idx_cimd_mandays_employee_module']
+  }
+}
+
+Table ticket_rating {
+  id int [pk, increment]
+  ticket_id int [not null, ref: > ticket.id]
+  customer_id int [not null, ref: > customer.customer_id]
+  rating int [default: null]
+  comment varchar [default: null]
+  created_at timestamp
+}
+
+// ============================================================================
+// PROJECT DELIVERY MANAGEMENT
+// ============================================================================
+
+Table delivery_projects {
+  id bigint [pk, increment]
+  id_delivery_list bigint [ref: > delivery_list.id]
+  client_id bigint [ref: > customer.customer_id]
+  pic varchar
+  project_type varchar
+  description text
+  category varchar
+  status varchar [default: 'planning']
+  phase varchar
+  start_date date
+  end_date date
+  go_live_estimated date
+  calculated_progress decimal(5,2) [default: 0]
+  name varchar
+  ae_type varchar
+  ae_name varchar
+  ae_phone varchar
+  ae_email varchar
+  delivery_owner_id bigint [ref: > employee.employee_id]
+  delivery_manager_id bigint [ref: > employee.employee_id]
+  delivery_method varchar
+  warranty_period varchar
+  total_mandays integer
+  created_by_id bigint [ref: > employee.employee_id]
+  approval_date date
+  approval_name varchar
+  location_name varchar
+  location_type varchar
+  location_country varchar
+  location_geographical varchar
+  location_region varchar
+  location_city varchar
+  location_street varchar
+  location_valid_from date
+  location_valid_to date
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    client_id
+    status
+    category
+  }
+}
+
+Table delivery_project_employee {
+  id bigint [pk, increment]
+  delivery_projects_id bigint [ref: > delivery_projects.id]
+  employee_id bigint [ref: > employee.employee_id]
+  assignment varchar
+  module varchar
+  start_date date
+  end_date date
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (delivery_projects_id, employee_id) [unique]
+  }
+}
+
+Table delivery_project_updates {
+  id bigint [pk, increment]
+  delivery_projects_id bigint [ref: > delivery_projects.id]
+  highlight_issue text
+  action text
+  due_date date
+  status varchar
+  complexity varchar
+  deliverable text
+  notes text
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    delivery_projects_id
+  }
+}
+
+Table documents {
+  id bigint [pk, increment]
+  delivery_projects_id bigint [ref: > delivery_projects.id]
+  document_name varchar
+  link_document varchar
+  document_type enum_document_type
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    delivery_projects_id
+  }
+}
+
+Enum enum_document_type {
+  "BAST/BAPP"
+  Contract
+  Justification
+  "PR/PO"
+  Others
+}
+
+Table delivery_project_phases {
+  id bigint [pk, increment]
+  delivery_projects_id bigint [ref: > delivery_projects.id]
+  name varchar
+  description text
+  order_sequence integer [default: 0]
+  color varchar [default: '#3B82F6']
+  weight decimal(5,2) [default: 0]
+  is_golive_phase boolean [default: false]
+  is_visible boolean [default: true]
+  custom_settings json
+  is_system_default boolean [default: false]
+  is_optional boolean [default: false]
+  orientation enum_orientation [default: 'vertical']
+  is_active boolean [default: true]
+  parent_phase_id bigint [ref: > delivery_project_phases.id]
+  settings json
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    delivery_projects_id
+    is_system_default
+    is_active
+  }
+}
+
+Enum enum_orientation {
+  vertical
+  horizontal
+}
+
+Table delivery_project_view_configurations {
+  id bigint [pk, increment]
+  delivery_projects_id bigint [unique, ref: > delivery_projects.id]
+  default_view enum_default_view [default: 'table']
+  gantt_settings json
+  table_settings json
+  column_visibility json
+  created_at timestamp
+  updated_at timestamp
+}
+
+Enum enum_default_view {
+  table
+  gantt
+  scurve
+}
+
+Table delivery_project_planning {
+  id bigint [pk, increment]
+  delivery_projects_id bigint [ref: > delivery_projects.id]
+  phase_id bigint [ref: > delivery_project_phases.id]
+  parent_id bigint [ref: > delivery_project_planning.id]
+  stage_id bigint [ref: > activity_stages.id]
+  activity_id bigint [ref: > delivery_project_activities.id]
+  name varchar
+  group_name varchar
+  is_group boolean [default: false]
+  level integer [default: 0]
+  order_sequence integer [default: 0]
+  start_date date
+  end_date date
+  actual_start_date date
+  actual_end_date date
+  weight decimal(5,2) [default: 0]
+  status varchar [default: 'not_started']
+  progress_percentage decimal(5,2) [default: 0]
+  notes text
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (delivery_projects_id, is_group)
+    (delivery_projects_id, parent_id)
+    (delivery_projects_id, level)
+    phase_id
+    stage_id
+  }
+}
+
+Table delivery_project_activities {
+  id bigint [pk, increment]
+  delivery_projects_id bigint [ref: > delivery_projects.id]
+  delivery_project_phase_id bigint [ref: > delivery_project_phases.id]
+  stage_id bigint [ref: > activity_stages.id]
+  name varchar
+  description text
+  order_sequence integer [default: 0]
+  module varchar
+  new_requirement boolean [default: false]
+  object varchar
+  receive_type varchar
+  complexity varchar
+  deliverable text
+  start_date date
+  end_date date
+  actual_start_date date
+  actual_end_date date
+  status varchar [default: 'not_started']
+  progress_percentage decimal(5,2) [default: 0]
+  weight decimal(5,2) [default: 0]
+  notes text
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    delivery_projects_id
+    delivery_project_phase_id
+    stage_id
+  }
+}
+
+Table activity_stages {
+  id bigint [pk, increment]
+  planning_id bigint [ref: > delivery_project_planning.id]
+  activity_id bigint [ref: > delivery_project_activities.id]
+  name varchar
+  description text
+  planned_start_date date
+  planned_end_date date
+  actual_start_date date
+  actual_end_date date
+  progress decimal(5,2) [default: 0]
+  status enum_stage_status [default: 'not_started']
+  weight decimal(5,2) [default: 0]
+  custom_fields json
+  order_sequence integer [default: 0]
+  color varchar
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp
+
+  indexes {
+    planning_id
+    activity_id
+  }
+}
+
+Enum enum_stage_status {
+  not_started
+  in_progress
+  completed
+  delayed
+  on_hold
+}
+
+Table activity_employee {
+  id bigint [pk, increment]
+  delivery_project_activity_id bigint [ref: > delivery_project_activities.id]
+  employee_id bigint [ref: > employee.employee_id]
+  role enum_activity_role [default: 'member']
+  allocation_percentage decimal(5,2) [default: 100]
+  is_active boolean [default: true]
+  assigned_date date
+  notes text
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (delivery_project_activity_id, employee_id) [unique]
+    (employee_id, is_active)
+  }
+}
+
+Enum enum_activity_role {
+  lead
+  member
+  reviewer
+  support
+}
+
+
+// ============================================================================
+// DELIVERY LIST
+// ============================================================================
+
+Table delivery_list {
+  id bigint [pk, increment]
+}
+
+// ============================================================================
+// SUPPORT DELIVERY MANAGEMENT
+// ============================================================================
+
+Table delivery_support {
+  id bigint [pk, increment]
+  id_delivery_list bigint [ref: > delivery_list.id]
+  client_id bigint [ref: > customer.customer_id]
+  ticket_id int [unique, ref: > ticket.id]
+  start_date date
+  end_date date
+  resolution_estimated date
+  calculated_progress decimal(5,2) [default: 0]
+  name varchar
+  delivery_owner_id bigint [ref: > employee.employee_id]
+  support_manager_id bigint [ref: > employee.employee_id]
+  support_method varchar
+  total_mandays integer
+  created_by_id bigint [ref: > employee.employee_id]
+  approval_date date
+  approval_name varchar
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    client_id
+    ticket_id
+  }
+  
+  Note: 'Employee assignment menggunakan ticket_team dari ticket yang terhubung'
+}
+
+Enum enum_support_document_type {
+  "BAST/BAPP"
+  "Service Agreement"
+  "Problem Report"
+  "Solution Document"
+  "Test Results"
+  Others
+}
+
+Table delivery_support_phases {
+  id bigint [pk, increment]
+  delivery_support_id bigint [ref: > delivery_support.id]
+  name varchar
+  description text
+  order_sequence integer [default: 0]
+  color varchar [default: '#3B82F6']
+  weight decimal(5,2) [default: 0]
+  is_resolution_phase boolean [default: false]
+  is_visible boolean [default: true]
+  custom_settings json
+  is_system_default boolean [default: false]
+  is_optional boolean [default: false]
+  orientation enum_orientation [default: 'vertical']
+  is_active boolean [default: true]
+  parent_phase_id bigint [ref: > delivery_support_phases.id]
+  settings json
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    delivery_support_id
+    is_system_default
+    is_active
+  }
+}
+
+Table delivery_support_view_configurations {
+  id bigint [pk, increment]
+  delivery_support_id bigint [unique, ref: > delivery_support.id]
+  default_view enum_default_view [default: 'table']
+  gantt_settings json
+  table_settings json
+  column_visibility json
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table delivery_support_planning {
+  id bigint [pk, increment]
+  delivery_support_id bigint [ref: > delivery_support.id]
+  phase_id bigint [ref: > delivery_support_phases.id]
+  parent_id bigint [ref: > delivery_support_planning.id]
+  stage_id bigint [ref: > delivery_support_activity_stages.id]
+  activity_id bigint [ref: > delivery_support_activities.id]
+  name varchar
+  group_name varchar
+  is_group boolean [default: false]
+  level integer [default: 0]
+  order_sequence integer [default: 0]
+  start_date date
+  end_date date
+  actual_start_date date
+  actual_end_date date
+  weight decimal(5,2) [default: 0]
+  status varchar [default: 'not_started']
+  progress_percentage decimal(5,2) [default: 0]
+  notes text
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (delivery_support_id, is_group)
+    (delivery_support_id, parent_id)
+    (delivery_support_id, level)
+    phase_id
+    stage_id
+  }
+}
+
+Table delivery_support_activities {
+  id bigint [pk, increment]
+  delivery_support_id bigint [ref: > delivery_support.id]
+  delivery_support_phase_id bigint [ref: > delivery_support_phases.id]
+  stage_id bigint [ref: > delivery_support_activity_stages.id]
+  name varchar
+  description text
+  order_sequence integer [default: 0]
+  module varchar
+  new_issue boolean [default: false]
+  object varchar
+  incident_type varchar
+  complexity varchar
+  deliverable text
+  start_date date
+  end_date date
+  actual_start_date date
+  actual_end_date date
+  status varchar [default: 'not_started']
+  progress_percentage decimal(5,2) [default: 0]
+  weight decimal(5,2) [default: 0]
+  notes text
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    delivery_support_id
+    delivery_support_phase_id
+    stage_id
+  }
+}
+
+Table delivery_support_activity_stages {
+  id bigint [pk, increment]
+  planning_id bigint [ref: > delivery_support_planning.id]
+  activity_id bigint [ref: > delivery_support_activities.id]
+  name varchar
+  description text
+  planned_start_date date
+  planned_end_date date
+  actual_start_date date
+  actual_end_date date
+  progress decimal(5,2) [default: 0]
+  status enum_stage_status [default: 'not_started']
+  weight decimal(5,2) [default: 0]
+  custom_fields json
+  order_sequence integer [default: 0]
+  color varchar
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp
+
+  indexes {
+    planning_id
+    activity_id
+  }
+}
+
+// ============================================================================
+// TIMESHEET & EVENTS
+// ============================================================================
+
+Table timesheets {
+  id bigint [pk, increment]
+  activity_employee_id bigint
+  date date
+  start_time time
+  end_time time
+  duration_minutes integer [default: 0]
+  description text
+  activity_type enum_activity_type [default: 'development']
+  presence varchar
+  location text
+  status enum_timesheet_status [default: 'draft']
+  rejection_reason text
+  approved_by bigint [ref: > employee.employee_id]
+  approved_at timestamp
+  is_billable boolean [default: true]
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp
+
+  indexes {
+    activity_employee_id
+    date
+    status
+  }
+  
+  Note: 'activity_employee_id can reference either activity_employee.id (project) or delivery_support_activity_employee.id (support)'
+}
+
+Enum enum_activity_type {
+  development
+  meeting
+  documentation
+  testing
+  support
+  training
+  troubleshooting
+  analysis
+  deployment
+  monitoring
+  other
+}
+
+Enum enum_timesheet_status {
+  draft
+  submitted
+  approved
+  rejected
+}
+
+Table events {
+  id bigint [pk, increment]
+  title varchar
+  description text
+  start_date date
+  start_time time
+  end_date date
+  end_time time
+  location varchar
+  type enum_event_type [default: 'meeting']
+  all_day boolean [default: false]
+  color varchar
+  created_by bigint [ref: > employee.employee_id]
+  employee_id bigint [ref: > employee.employee_id]
+  customer_id bigint [ref: > customer.customer_id]
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp
+
+  indexes {
+    start_date
+    end_date
+    type
+  }
+}
+
+Enum enum_event_type {
+  meeting
+  task
+  deadline
+  urgent
+  reminder
+}
+
+// ============================================================================
+// SYSTEM TABLES
+// ============================================================================
+
+Table cache {
+  key varchar [pk]
+  value mediumtext
+  expiration integer
+}
+
+Table cache_locks {
+  key varchar [pk]
+  owner varchar
+  expiration integer
+}
+
+Table sessions {
+  id varchar [pk]
+  user_id bigint
+  ip_address varchar(45)
+  user_agent text
+  payload longtext
+  last_activity integer
+
+  indexes {
+    user_id
+    last_activity
+  }
+}
+
+Table jobs {
+  id bigint [pk, increment]
+  queue varchar
+  payload longtext
+  attempts tinyint
+  reserved_at integer
+  available_at integer
+  created_at integer
+
+  indexes {
+    queue
+  }
+}
+
+Table job_batches {
+  id varchar [pk]
+  name varchar
+  total_jobs integer
+  pending_jobs integer
+  failed_jobs integer
+  failed_job_ids longtext
+  options mediumtext
+  cancelled_at integer
+  created_at integer
+  finished_at integer
+}
+
+Table failed_jobs {
+  id bigint [pk, increment]
+  uuid varchar [unique]
+  connection text
+  queue text
+  payload longtext
+  exception longtext
+  failed_at timestamp
+}
