@@ -61,7 +61,7 @@ class MandaysController extends Controller
 
         $proposal = CustomerMandays::where('ticket_id', $ticketId)
             ->latestVersion()
-            ->with('details')
+            ->with(['details', 'canceledBy.basicData'])
             ->first();
 
         return response()->json([
@@ -212,7 +212,6 @@ class MandaysController extends Controller
             'details.*.activity'=> 'nullable|string|max:150',
             'details.*.module'  => 'required|string|max:100',
             'details.*.mandays' => 'required|numeric|min:0',
-            'notes'             => 'nullable|string|max:1000',
         ]);
 
         $proposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
@@ -237,7 +236,6 @@ class MandaysController extends Controller
 
         $proposal->update([
             'total_mandays' => $total,
-            'notes'         => $request->notes,
         ]);
 
         return response()->json([
@@ -277,12 +275,16 @@ class MandaysController extends Controller
         $ticket->update(['mandays_proposal_status' => 'sent_to_chat']);
 
         // Kirim email ke customer dengan tabel mandays
+        $emailSent   = false;
+        $emailWarning = null;
+
         try {
             $customerEmail = $this->resolveCustomerEmailForTicket($ticket);
 
-            if ($customerEmail) {
-                $subject = 'Ticket #' . $ticket->ticket_number . ': Mandays Proposal';
-
+            if (!$customerEmail) {
+                $emailWarning = 'No customer email address found. Status updated but email was not sent.';
+                Log::warning('MandaysController@submitToChat: no customer email', ['ticket_id' => $ticketId]);
+            } else {
                 // Ambil inReplyTo dari pesan email terakhir di thread
                 $lastEmailMsg = TicketMessage::where('ticket_id', $ticketId)
                     ->where('channel', 'email')
@@ -290,6 +292,15 @@ class MandaysController extends Controller
                     ->orderBy('created_at', 'desc')
                     ->first();
                 $inReplyTo = $lastEmailMsg?->email_message_id;
+
+                // Gunakan subject asli ticket.
+                // Prioritas: ticket.subject → description → ticket number
+                $originalSubject = $ticket->subject
+                    ?? ($ticket->description ? mb_substr($ticket->description, 0, 100) : null)
+                    ?? ('Ticket #' . ($ticket->ticket_number ?? ''));
+                $subject = stripos($originalSubject, 're:') === 0
+                    ? $originalSubject
+                    : 'Re: ' . $originalSubject;
 
                 // CC dari pesan pertama yang punya cc_emails
                 $firstMsgWithCc = TicketMessage::where('ticket_id', $ticketId)
@@ -309,12 +320,13 @@ class MandaysController extends Controller
                     $inReplyTo,
                     [],
                     $ccList,
-                    true
+                    true,
+                    $ticket->email_thread_id ?? null  // fallback: cari pesan lain di thread yg sama
                 );
 
                 // Simpan sebagai TicketMessage
-                $plainText = 'Mandays proposal telah dikirim. Total: ' . number_format($proposal->total_mandays, 1) . ' mandays.';
-                $ticketMsg = TicketMessage::create([
+                $plainText = 'Mandays proposal telah dikirim. Total: ' . number_format((float) $proposal->total_mandays, 1) . ' mandays.';
+                TicketMessage::create([
                     'ticket_id'           => $ticketId,
                     'sender_type'         => 'employee',
                     'sender_id'           => $senderId,
@@ -335,26 +347,33 @@ class MandaysController extends Controller
 
                 // Update last_message_at
                 $ticket->update([
-                    'last_message_at'      => now(),
-                    'last_agent_reply_at'  => now(),
+                    'last_message_at'     => now(),
+                    'last_agent_reply_at' => now(),
                 ]);
 
+                $emailSent = true;
                 Log::info('MandaysController@submitToChat: email sent', [
                     'ticket_id' => $ticketId,
                     'to'        => $customerEmail,
                 ]);
             }
-        } catch (\Exception $e) {
-            // Email gagal, tapi status sudah berhasil diupdate → tetap return success
+        } catch (\Throwable $e) {
+            // Email gagal, tapi status sudah berhasil diupdate → tetap return success dengan warning
+            $emailWarning = 'Status updated but email could not be sent: ' . $e->getMessage();
             Log::error('MandaysController@submitToChat: email failed', [
                 'ticket_id' => $ticketId,
                 'error'     => $e->getMessage(),
+                'trace'     => $e->getTraceAsString(),
             ]);
         }
 
         return response()->json([
             'success'               => true,
-            'message'               => 'Proposal sent to customer via email.',
+            'message'               => $emailSent
+                ? 'Proposal sent to customer via email.'
+                : ($emailWarning ?? 'Status updated.'),
+            'email_sent'            => $emailSent,
+            'email_warning'         => $emailWarning,
             'ticket_mandays_status' => 'sent_to_chat',
         ]);
     }
@@ -387,9 +406,9 @@ class MandaysController extends Controller
 
     /**
      * POST /api/tickets/{ticketId}/mandays/hd-draft/cancel
-     * Helpdesk cancel proposal.
+     * Helpdesk cancel proposal (with optional notes for PIC).
      */
-    public function cancelCustomerMandays($ticketId)
+    public function cancelCustomerMandays(Request $request, $ticketId)
     {
         $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
         $proposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
@@ -398,7 +417,15 @@ class MandaysController extends Controller
             return response()->json(['success' => false, 'message' => 'No active proposal to cancel.'], 422);
         }
 
-        $proposal->update(['status' => 'canceled']);
+        $cancelNotes    = $request->input('cancel_notes');
+        $sessionUser    = session('user');
+        $canceledById   = $sessionUser['id'] ?? null;
+
+        $proposal->update([
+            'status'          => 'canceled',
+            'notes'           => $cancelNotes ?: null,
+            'canceled_by_id'  => $canceledById,
+        ]);
         $ticket->update(['mandays_proposal_status' => 'canceled']);
 
         return response()->json([
@@ -428,29 +455,11 @@ class MandaysController extends Controller
         // Bangun people list: PIC + Members aktif + Past Members
         $people = $this->buildPeopleList($ticket, $proposal);
 
-        // Prefill data jika belum ada proposal
-        $prefillData = null;
-        if (!$proposal) {
-            $approvedCustomerMandays = CustomerMandays::where('ticket_id', $ticketId)
-                ->where('status', 'approved')
-                ->latestVersion()
-                ->with('details')
-                ->first();
-
-            if ($approvedCustomerMandays) {
-                $prefillData = [];
-                foreach ($approvedCustomerMandays->details as $d) {
-                    $prefillData[$d->module] = ($prefillData[$d->module] ?? 0) + (float)$d->mandays;
-                }
-            }
-        }
-
         $internalStatus = $ticket->internal_mandays_status ?? 'none';
 
         return response()->json([
             'success'                 => true,
             'data'                    => $proposal ? $this->formatInternalProposal($proposal) : null,
-            'prefill_data'            => $prefillData,
             'internal_mandays_status' => $internalStatus,
             'people'                  => $people,
         ]);
@@ -467,11 +476,13 @@ class MandaysController extends Controller
         $employeeId  = $sessionUser['id'] ?? null;
 
         $request->validate([
-            'details'              => 'required|array|min:1',
-            'details.*.employee_id'=> 'required|integer',
-            'details.*.module'     => 'nullable|string|max:100',
-            'details.*.mandays'    => 'required|numeric|min:0',
-            'notes'                => 'nullable|string|max:1000',
+            'details'                      => 'required|array|min:1',
+            'details.*.employee_id'        => 'required|integer',
+            'details.*.module'             => 'nullable|string|max:100',
+            'details.*.mandays'            => 'required|numeric|min:0',
+            'details.*.additional_mandays' => 'nullable|numeric|min:0',
+            'details.*.notes'              => 'nullable|string|max:500',
+            'notes'                        => 'nullable|string|max:1000',
         ]);
 
         $existing = ConsultantMandays::where('ticket_id', $ticketId)->latestPerTicket()->first();
@@ -510,12 +521,15 @@ class MandaysController extends Controller
             }
 
             foreach ($request->details as $d) {
-                if (($d['mandays'] ?? 0) > 0) {
+                if (($d['mandays'] ?? 0) > 0 || ($d['additional_mandays'] ?? 0) > 0) {
                     ConsultantMandaysDetail::create([
                         'consultant_mandays_id' => $proposal->id,
                         'employee_id'           => $d['employee_id'],
                         'module'                => $d['module'] ?? null,
-                        'mandays'               => $d['mandays'],
+                        'mandays'               => $d['mandays'] ?? 0,
+                        'additional_mandays'    => $d['additional_mandays'] ?? 0,
+                        'approved_additional'   => 0,
+                        'notes'                 => $d['notes'] ?? null,
                     ]);
                 }
             }
@@ -523,18 +537,18 @@ class MandaysController extends Controller
             $ticket->update(['internal_mandays_status' => 'draft']);
 
             DB::commit();
-
-            return response()->json([
-                'success'                 => true,
-                'message'                 => 'Internal draft saved.',
-                'data'                    => $this->formatInternalProposal($proposal->fresh(['details.employee.basicData'])),
-                'internal_mandays_status' => 'draft',
-            ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('saveInternalProposal error', ['e' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => 'Server error.'], 500);
+            Log::error('saveInternalProposal error', ['e' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return response()->json(['success' => false, 'message' => 'Server error: ' . $e->getMessage()], 500);
         }
+
+        return response()->json([
+            'success'                 => true,
+            'message'                 => 'Internal draft saved.',
+            'data'                    => $this->formatInternalProposal($proposal->fresh(['details.employee.basicData', 'proposedByAgent.basicData', 'approvedByHead.basicData'])),
+            'internal_mandays_status' => 'draft',
+        ]);
     }
 
     /**
@@ -546,7 +560,7 @@ class MandaysController extends Controller
         $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
         $proposal = ConsultantMandays::where('ticket_id', $ticketId)->latestPerTicket()->first();
 
-        if (!$proposal || !in_array($proposal->status, ['draft', 'needs_revision'])) {
+        if (!$proposal || !in_array($proposal->status, ['draft', 'needs_revision', 'approved'])) {
             return response()->json(['success' => false, 'message' => 'No draft to submit.'], 422);
         }
 
@@ -564,28 +578,60 @@ class MandaysController extends Controller
      * POST /api/tickets/{ticketId}/mandays/internal/approve
      * Head of Support approve.
      */
-    public function approveInternalProposal($ticketId)
+    public function approveInternalProposal(Request $request, $ticketId)
     {
-        $ticket      = Ticket::where('ticket_id', $ticketId)->firstOrFail();
-        $proposal    = ConsultantMandays::where('ticket_id', $ticketId)->latestPerTicket()->first();
+        $request->validate([
+            'approved_details'                      => 'nullable|array',
+            'approved_details.*.employee_id'        => 'required|integer',
+            'approved_details.*.approved_additional'=> 'required|numeric|min:0',
+        ]);
+
+        $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
+        $proposal = ConsultantMandays::where('ticket_id', $ticketId)->latestPerTicket()->first();
         $sessionUser = session('user');
-        $headId      = $sessionUser['id'] ?? null;
+        $headId   = $sessionUser['id'] ?? null;
 
         if (!$proposal || $proposal->status !== 'pending_approval') {
             return response()->json(['success' => false, 'message' => 'No pending proposal to approve.'], 422);
         }
 
-        $proposal->update([
-            'status'              => 'approved',
-            'approved_by_head_id' => $headId,
-            'approved_at'         => now(),
-        ]);
-        $ticket->update(['internal_mandays_status' => 'approved']);
+        DB::beginTransaction();
+        try {
+            // Update approved_additional per employee
+            if (!empty($request->approved_details)) {
+                foreach ($request->approved_details as $ad) {
+                    $proposal->details()
+                        ->where('employee_id', $ad['employee_id'])
+                        ->update(['approved_additional' => $ad['approved_additional']]);
+                }
+            }
+
+            // Recalculate total_mandays = sum(mandays + approved_additional)
+            $total = $proposal->details()->get()->sum(fn($d) => $d->mandays + $d->approved_additional);
+
+            $proposal->update([
+                'status'              => 'approved',
+                'approved_by_head_id' => $headId,
+                'approved_at'         => now(),
+                'total_mandays'       => $total,
+            ]);
+            $ticket->update([
+                'internal_mandays_status' => 'approved',
+                'man_days'                => $total,
+            ]);
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('approveInternalProposal error', ['e' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Server error: ' . $e->getMessage()], 500);
+        }
 
         return response()->json([
             'success'                 => true,
             'message'                 => 'Internal proposal approved.',
             'internal_mandays_status' => 'approved',
+            'total_mandays'           => $total,
         ]);
     }
 
@@ -774,12 +820,18 @@ class MandaysController extends Controller
 
     private function formatCustomerProposal(CustomerMandays $p): array
     {
+        $canceledBy = $p->canceledBy?->basicData;
+        $canceledByName = $canceledBy
+            ? trim(($canceledBy->first_name ?? '') . ' ' . ($canceledBy->last_name ?? ''))
+            : null;
+
         return [
             'id'                   => $p->id,
             'version'              => $p->version,
             'status'               => $p->status,
             'total_mandays'        => (float) $p->total_mandays,
-            'notes'                => $p->notes,
+            'cancel_notes'         => $p->notes,
+            'canceled_by_name'     => $canceledByName,
             'rejection_reason'     => $p->rejection_reason,
             'customer_notes'       => $p->customer_notes,
             'proposed_at'          => $p->proposed_at?->toISOString(),
@@ -809,11 +861,14 @@ class MandaysController extends Controller
                                  : null,
             'approved_at'      => $p->approved_at?->toISOString(),
             'details'          => $p->details->map(fn($d) => [
-                'id'            => $d->id,
-                'employee_id'   => $d->employee_id,
-                'employee_name' => $d->employee?->basicData?->first_name . ' ' . $d->employee?->basicData?->last_name,
-                'module'        => $d->module,
-                'mandays'       => (float) $d->mandays,
+                'id'                  => $d->id,
+                'employee_id'         => $d->employee_id,
+                'employee_name'       => $d->employee?->basicData?->first_name . ' ' . $d->employee?->basicData?->last_name,
+                'module'              => $d->module,
+                'mandays'             => (float) $d->mandays,
+                'additional_mandays'  => (float) ($d->additional_mandays ?? 0),
+                'approved_additional' => (float) ($d->approved_additional ?? 0),
+                'notes'               => $d->notes,
             ])->values()->all(),
         ];
     }

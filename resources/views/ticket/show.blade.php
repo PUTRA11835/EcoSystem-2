@@ -1,7 +1,15 @@
 @extends('dashboard')
-@section('title', 'Ticket #' . $ticket->ticket_id)
+@section('title', 'Ticket ' . $ticket->ticket_number)
 @section('page-title', 'Support Ticket')
-@section('page-subtitle', '#' . $ticket->ticket_number . ' - ' . Str::limit($ticket->description, 50))
+@section('page-subtitle')
+#{{ $ticket->ticket_number }} - {{ Str::limit($ticket->description, 50) }}
+@if(isset($deliverySupport) && $deliverySupport)
+<span id="headbarTopDsBadge" class="inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-100 text-blue-700 align-middle">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" /></svg>
+    DS: {{ $deliverySupport->name }}@if($deliverySupport->type) <span class="opacity-70">({{ $deliverySupport->type }})</span>@endif
+</span>
+@endif
+@endsection
 
 {{-- Override sidebar with ticket inbox --}}
 @section('sidebar-nav')
@@ -13,6 +21,22 @@
             <span class="font-medium">Back to Tickets</span>
         </a>
     </div>
+
+    {{-- Filter Tabs --}}
+    @if(in_array($user->role->role_id, [1, 2, 6, 7]))
+    <div class="px-4 pb-3">
+        <div class="flex bg-white bg-opacity-10 rounded-lg p-0.5 gap-0.5">
+            <button id="sidebarTabAll" onclick="switchSidebarView('all')"
+                class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all text-white" style="background:rgba(255,255,255,0.2)">
+                All Ticket
+            </button>
+            <button id="sidebarTabMy" onclick="switchSidebarView('my')"
+                class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all text-white opacity-60">
+                My Ticket
+            </button>
+        </div>
+    </div>
+    @endif
 
     {{-- Search --}}
     <div class="px-4 pb-3">
@@ -54,7 +78,7 @@
             <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-3 mb-1 flex-wrap">
                     <h2 class="text-lg font-bold text-gray-900">{{ $ticket->description ?: 'No description' }}</h2>
-                    <span class="text-sm text-gray-400 font-mono">#{{ $ticket->ticket_id }}</span>
+                    <span class="text-sm text-gray-400 font-mono">{{ $ticket->ticket_number }}</span>
                     @php
                         $statusColors = [
                             'open' => 'bg-blue-100 text-blue-700',
@@ -63,10 +87,12 @@
                             'cancel' => 'bg-gray-100 text-gray-500',
                             'closed' => 'bg-green-100 text-green-700',
                             'reply' => 'bg-purple-100 text-purple-700',
+                            'wait_to_close' => 'bg-teal-100 text-teal-700',
                         ];
                         $statusLabels = [
                             'open' => 'Open', 'in_progress' => 'In Progress', 'hold' => 'Hold',
                             'cancel' => 'Cancel', 'closed' => 'Closed', 'reply' => 'Reply',
+                            'wait_to_close' => 'Wait to Close',
                         ];
                     @endphp
                     <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
@@ -86,7 +112,7 @@
                     </span>
                     @endif
                 </div>
-                <div class="flex items-center gap-3 text-sm text-gray-500">
+                <div id="ticketHeadbarMeta" class="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
                     <span>{{ $ticket->customer?->basicData?->name_1 ?? 'Unknown Customer' }}</span>
                     <span class="text-gray-300">|</span>
                     <span>{{ $ticket->created_at->format('M d, Y h:i A') }}</span>
@@ -124,8 +150,15 @@
             @endif
 
             <div class="px-4 pt-2 pb-2">
-                <div class="bg-white border border-gray-300 rounded-lg overflow-hidden">
-                    <div id="quillEditor" style="min-height: 100px; max-height: 200px; overflow-y: auto;"></div>
+                {{-- Mention dropdown (positioned relative to editor wrapper) --}}
+                <div class="relative">
+                    <div class="bg-white border border-gray-300 rounded-lg overflow-hidden">
+                        <div id="quillEditor" style="min-height: 100px; max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+                    {{-- @mention autocomplete dropdown --}}
+                    <div id="mentionDropdown" class="hidden absolute z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-72 max-h-48 overflow-y-auto" style="bottom: calc(100% + 4px); left: 0;">
+                        <div id="mentionList" class="py-1"></div>
+                    </div>
                 </div>
 
                 {{-- Attachment Preview Area (toggled via JS: style.display flex/none) --}}
@@ -137,12 +170,10 @@
                 <div class="flex items-center justify-end mt-2 mb-1 gap-2">
                     <span id="attachCount" class="hidden text-xs text-blue-600 font-medium mr-auto"></span>
                     {{-- Send buttons --}}
-                    @if($user->role->role_id == 1 || $user->role->role_id == 2)
                     <button onclick="sendReply('internal_note')" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg hover:bg-amber-100 transition-all">
                         <i class="fas fa-lock text-[10px]"></i>
                         Internal Note
                     </button>
-                    @endif
                     @if($ticket->channel === 'email')
                     <button onclick="sendReply('reply')" class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all shadow-sm">
                         <i class="fas fa-envelope text-[10px]"></i>
@@ -159,19 +190,152 @@
         </div>
     </div>
 
-    {{-- Properties Sidebar --}}
-    <div class="hidden xl:block w-72 bg-white rounded-xl border border-gray-200 shadow-sm overflow-y-auto flex-shrink-0">
-        <div class="p-5">
-            <div class="flex items-center justify-between mb-4">
-                <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Properties</h4>
+    {{-- Right Sidebar --}}
+    @php
+        $mandaysStatus   = $ticket->mandays_proposal_status   ?? 'none';
+        $internalStatus  = $ticket->internal_mandays_status    ?? 'none';
+        $isPic           = $user->role->role_id == 2;
+        $isHelpdesk      = in_array($user->role->role_id, [6, 7]);
+        $isHead          = $user->role->role_id == 5;
+        $mandaysBadge    = [
+            'none'            => ['bg-gray-100 text-gray-500',   'None'],
+            'pic_draft'       => ['bg-yellow-100 text-yellow-700','Draft'],
+            'pending_helpdesk'=> ['bg-blue-100 text-blue-700',   'Pending Review'],
+            'sent_to_chat'    => ['bg-purple-100 text-purple-700','Sent to Chat'],
+            'approved'        => ['bg-green-100 text-green-700', 'Approved'],
+            'canceled'        => ['bg-red-100 text-red-700',     'Canceled'],
+        ];
+        $internalBadge   = [
+            'none'         => ['bg-gray-100 text-gray-500',   'None'],
+            'draft'        => ['bg-yellow-100 text-yellow-700','Draft'],
+            'pending_head' => ['bg-blue-100 text-blue-700',   'Pending Head'],
+            'approved'     => ['bg-green-100 text-green-700', 'Approved'],
+            'rejected'     => ['bg-red-100 text-red-700',     'Rejected'],
+        ];
+        [$mBadgeClass, $mBadgeLabel]  = $mandaysBadge[$mandaysStatus]  ?? ['bg-gray-100 text-gray-500', $mandaysStatus];
+        [$iBadgeClass, $iBadgeLabel]   = $internalBadge[$internalStatus] ?? ['bg-gray-100 text-gray-500', $internalStatus];
+        $picMandaysLabel = match($mandaysStatus) {
+            'none'  => 'Propose Mandays',
+            default => 'Update Proposal',
+        };
+        $picInternalLabel = match($internalStatus) {
+            'none'  => 'Propose Internal Mandays',
+            default => 'Update Internal Mandays',
+        };
+        $ticketAssigned    = $ticket->employee_id !== null;
+        $canTakeTicket     = !in_array($user->role->role_id, [1, 6, 7]) && !$ticketAssigned;
+        // Mandays buttons only visible when ticket has a PIC
+        $isPicMandays      = $isPic && $ticketAssigned;
+        $isHelpdeskMandays = $isHelpdesk && $ticketAssigned;
+        $isHeadMandays     = $isHead && $ticketAssigned && in_array($internalStatus, ['pending_head', 'approved', 'rejected']);
+        $hasMandaysSection = $isPicMandays || $isHelpdeskMandays || $isHeadMandays
+                           || $canTakeTicket || in_array($user->role->role_id, [1, 6, 7]);
+    @endphp
+
+    <div class="hidden xl:flex xl:flex-col w-72 gap-3 flex-shrink-0 overflow-y-auto">
+
+        {{-- ── Mandays Panel ── --}}
+        @if($hasMandaysSection)
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
+            <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+                 onclick="toggleSidebarPanel('mandaysPanel', 'mandaysChevron')">
+                <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Mandays</h4>
+                <i id="mandaysChevron" class="fas fa-chevron-up text-gray-400 text-xs transition-transform duration-200"></i>
+            </div>
+            <div id="mandaysPanel" class="px-4 pb-4 pt-3 space-y-4 border-t border-gray-100">
+                {{-- PIC: Customer Mandays & Internal Mandays --}}
+                @if($isPicMandays)
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-semibold text-gray-500">Customer Mandays</label>
+                        <span id="mandaysBadge" class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $mBadgeClass }}">{{ $mBadgeLabel }}</span>
+                    </div>
+                    <button onclick="openPicMandaysModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-all">
+                        <i class="fas fa-calculator text-[10px]"></i>
+                        {{ $picMandaysLabel }}
+                    </button>
+                </div>
+                <div class="pt-1 border-t border-gray-100">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-semibold text-gray-500">Internal Mandays</label>
+                        <span id="internalBadge" class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $iBadgeClass }}">{{ $iBadgeLabel }}</span>
+                    </div>
+                    <button onclick="openInternalMandaysModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 transition-all">
+                        <i class="fas fa-users text-[10px]"></i>
+                        {{ $picInternalLabel }}
+                    </button>
+                </div>
+                @endif
+                {{-- Helpdesk: Customer Mandays Review --}}
+                @if($isHelpdeskMandays)
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-semibold text-gray-500">Mandays Review</label>
+                        <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $mBadgeClass }}">{{ $mBadgeLabel }}</span>
+                    </div>
+                    @if(in_array($mandaysStatus, ['pic_draft', 'pending_helpdesk', 'sent_to_chat', 'approved', 'canceled']))
+                    <button onclick="openHdMandaysModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-all">
+                        <i class="fas fa-clipboard-check text-[10px]"></i>
+                        Review Mandays Proposal
+                    </button>
+                    @else
+                    <p class="text-[11px] text-gray-400 italic text-center py-1">
+                        {{ $mandaysStatus === 'none' ? 'Waiting for PIC proposal' : 'PIC is drafting proposal...' }}
+                    </p>
+                    @endif
+                </div>
+                @endif
+                {{-- Head of Support: Internal Mandays --}}
+                @if($isHeadMandays)
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-semibold text-gray-500">Internal Mandays</label>
+                        <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $iBadgeClass }}">{{ $iBadgeLabel }}</span>
+                    </div>
+                    <button onclick="openHeadInternalModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 transition-all">
+                        <i class="fas fa-user-check text-[10px]"></i>
+                        Review Internal Proposal
+                    </button>
+                </div>
+                @endif
+                {{-- Take Ticket (non-admin/helpdesk, unassigned only) --}}
+                @if($canTakeTicket)
+                <div>
+                    <button onclick="takeTicket()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-all">
+                        <i class="fas fa-hand-paper text-[10px]"></i>
+                        Take This Ticket
+                    </button>
+                </div>
+                @endif
+                {{-- Assign to Delivery Support (Admin/Helpdesk only) --}}
                 @if(in_array($user->role->role_id, [1, 6, 7]))
-                <button onclick="saveAllProperties()" class="inline-flex items-center gap-1 px-2.5 py-1 bg-red-700 text-white text-[10px] font-semibold rounded-md hover:bg-red-800 transition-all">
-                    <i class="fas fa-save text-[9px]"></i>
-                    Save All
-                </button>
+                <div class="{{ ($isPicMandays || $isHelpdeskMandays || $isHeadMandays) ? 'pt-1 border-t border-gray-100' : '' }}">
+                    <button onclick="openAssignSupportModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-all">
+                        <i class="fas fa-headset text-[10px]"></i>
+                        Assign to Delivery Support
+                    </button>
+                </div>
                 @endif
             </div>
-            <div class="space-y-3">
+        </div>
+        @endif
+
+        {{-- ── Properties Panel ── --}}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
+            <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+                 onclick="toggleSidebarPanel('propertiesPanel', 'propertiesChevron')">
+                <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Properties</h4>
+                <div class="flex items-center gap-2">
+                    @if(in_array($user->role->role_id, [1, 6, 7]))
+                    <button onclick="event.stopPropagation(); saveAllProperties()"
+                            class="inline-flex items-center gap-1 px-2.5 py-1 bg-red-700 text-white text-[10px] font-semibold rounded-md hover:bg-red-800 transition-all">
+                        <i class="fas fa-save text-[9px]"></i>Save All
+                    </button>
+                    @endif
+                    <i id="propertiesChevron" class="fas fa-chevron-up text-gray-400 text-xs transition-transform duration-200"></i>
+                </div>
+            </div>
+            <div id="propertiesPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
                 {{-- Status --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Status</label>
@@ -179,12 +343,12 @@
                         <option value="open" {{ $ticket->status == 'open' ? 'selected' : '' }}>Open</option>
                         <option value="in_progress" {{ $ticket->status == 'in_progress' ? 'selected' : '' }}>In Progress</option>
                         <option value="hold" {{ $ticket->status == 'hold' ? 'selected' : '' }}>Hold</option>
+                        <option value="wait_to_close" {{ $ticket->status == 'wait_to_close' ? 'selected' : '' }}>Wait to Close</option>
                         <option value="cancel" {{ $ticket->status == 'cancel' ? 'selected' : '' }}>Cancel</option>
                         <option value="closed" {{ $ticket->status == 'closed' ? 'selected' : '' }}>Closed</option>
                         <option value="reply" {{ $ticket->status == 'reply' ? 'selected' : '' }}>Reply</option>
                     </select>
                 </div>
-
                 {{-- Jarvies Status --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Jarvies Status</label>
@@ -197,7 +361,6 @@
                         <option value="closed" {{ $ticket->jarvies_status == 'closed' ? 'selected' : '' }}>Closed</option>
                     </select>
                 </div>
-
                 {{-- Priority --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Priority</label>
@@ -208,7 +371,6 @@
                         <option value="Low" {{ $ticket->ticket_priority == 'Low' ? 'selected' : '' }}>Low</option>
                     </select>
                 </div>
-
                 {{-- Ticket Type --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Ticket Type</label>
@@ -220,8 +382,7 @@
                         <option value="Consult" {{ $ticket->ticket_type == 'Consult' ? 'selected' : '' }}>Consult</option>
                     </select>
                 </div>
-
-                {{-- Agent (PIC) - Consultant Dropdown --}}
+                {{-- Agent (PIC) --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Agent (PIC)</label>
                     <select id="detailPIC" {{ in_array($user->role->role_id, [1, 6, 7]) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
@@ -233,7 +394,6 @@
                         @endforeach
                     </select>
                 </div>
-
                 {{-- Team Members --}}
                 @php
                     $canManageMembers = in_array($user->role->role_id, [1, 6, 7])
@@ -242,8 +402,6 @@
                 @endphp
                 <div class="pt-3 border-t border-gray-200">
                     <label class="text-xs font-semibold text-gray-500 mb-2 block">Team Members</label>
-
-                    {{-- Members list --}}
                     <div id="membersList" class="space-y-1 mb-2">
                         @forelse($ticket->members as $member)
                             @php $mName = trim(($member->basicData->first_name ?? '') . ' ' . ($member->basicData->last_name ?? '')); @endphp
@@ -260,8 +418,6 @@
                             <p class="text-xs text-gray-400 italic" id="noMembersText">No members assigned.</p>
                         @endforelse
                     </div>
-
-                    {{-- Add member row (visible for Admin, Helpdesk, PIC) --}}
                     @if($canManageMembers)
                     <div class="flex gap-1.5">
                         <select id="addMemberSelect"
@@ -281,14 +437,12 @@
                     </div>
                     @endif
                 </div>
-
-                {{-- Customer (read-only) --}}
+                {{-- Customer --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Customer</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->customer?->basicData?->name_1 ?? 'N/A' }}</p>
                 </div>
-
-                {{-- Info Tambahan (hanya tampil jika ada nilai) --}}
+                {{-- Additional Info --}}
                 @if($ticket->name || $ticket->no_hp || $ticket->module || $ticket->client)
                 <div class="pt-3 border-t border-gray-200">
                     <label class="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">Additional Info</label>
@@ -320,7 +474,6 @@
                     </div>
                 </div>
                 @endif
-
                 {{-- Man Days --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Man Days</label>
@@ -328,143 +481,54 @@
                         {{ in_array($user->role->role_id, [1, 6, 7]) ? '' : 'disabled' }}
                         class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white" placeholder="0.0">
                 </div>
-
-                {{-- ===== MANDAYS PROPOSAL SECTION ===== --}}
-                @php
-                    $mandaysStatus   = $ticket->mandays_proposal_status   ?? 'none';
-                    $internalStatus  = $ticket->internal_mandays_status    ?? 'none';
-                    $isPic           = $user->role->role_id == 2;
-                    $isHelpdesk      = in_array($user->role->role_id, [6, 7]);
-                    $isHead          = $user->role->role_id == 5;
-                    $mandaysBadge    = [
-                        'none'            => ['bg-gray-100 text-gray-500',   'None'],
-                        'pic_draft'       => ['bg-yellow-100 text-yellow-700','Draft'],
-                        'pending_helpdesk'=> ['bg-blue-100 text-blue-700',   'Pending Review'],
-                        'sent_to_chat'    => ['bg-purple-100 text-purple-700','Sent to Chat'],
-                        'approved'        => ['bg-green-100 text-green-700', 'Approved'],
-                        'canceled'        => ['bg-red-100 text-red-700',     'Canceled'],
-                    ];
-                    $internalBadge   = [
-                        'none'         => ['bg-gray-100 text-gray-500',   'None'],
-                        'draft'        => ['bg-yellow-100 text-yellow-700','Draft'],
-                        'pending_head' => ['bg-blue-100 text-blue-700',   'Pending Head'],
-                        'approved'     => ['bg-green-100 text-green-700', 'Approved'],
-                        'rejected'     => ['bg-red-100 text-red-700',     'Rejected'],
-                    ];
-                    [$mBadgeClass, $mBadgeLabel]  = $mandaysBadge[$mandaysStatus]  ?? ['bg-gray-100 text-gray-500', $mandaysStatus];
-                    [$iBadgeClass, $iBadgeLabel]   = $internalBadge[$internalStatus] ?? ['bg-gray-100 text-gray-500', $internalStatus];
-
-                    $picMandaysLabel = match($mandaysStatus) {
-                        'pic_draft'        => 'Update Draft',
-                        'pending_helpdesk' => 'View Proposal',
-                        'sent_to_chat'     => 'View Proposal',
-                        'approved'         => 'Submit New Proposal',
-                        default            => 'Propose Mandays',
-                    };
-                    $picInternalLabel = match($internalStatus) {
-                        'draft'        => 'Update Internal Draft',
-                        'pending_head' => 'View Internal Proposal',
-                        'approved'     => 'Update Internal Mandays',
-                        'rejected'     => 'Revise Internal Mandays',
-                        default        => 'Propose Internal Mandays',
-                    };
-                @endphp
-
-                {{-- PIC: Customer Mandays --}}
-                @if($isPic)
-                <div class="pt-3 border-t border-gray-200">
-                    <div class="flex items-center justify-between mb-1.5">
-                        <label class="text-xs font-semibold text-gray-500">Customer Mandays</label>
-                        <span id="mandaysBadge" class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $mBadgeClass }}">{{ $mBadgeLabel }}</span>
-                    </div>
-                    <button onclick="openPicMandaysModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-all">
-                        <i class="fas fa-calculator text-[10px]"></i>
-                        {{ $picMandaysLabel }}
-                    </button>
-                </div>
-                {{-- PIC: Internal Mandays --}}
-                <div>
-                    <div class="flex items-center justify-between mb-1.5">
-                        <label class="text-xs font-semibold text-gray-500">Internal Mandays</label>
-                        <span id="internalBadge" class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $iBadgeClass }}">{{ $iBadgeLabel }}</span>
-                    </div>
-                    <button onclick="openInternalMandaysModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 transition-all">
-                        <i class="fas fa-users text-[10px]"></i>
-                        {{ $picInternalLabel }}
-                    </button>
-                </div>
-                @endif
-
-                {{-- Helpdesk: Customer Mandays Review --}}
-                @if($isHelpdesk)
-                <div class="pt-3 border-t border-gray-200">
-                    <div class="flex items-center justify-between mb-1.5">
-                        <label class="text-xs font-semibold text-gray-500">Mandays Review</label>
-                        <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $mBadgeClass }}">{{ $mBadgeLabel }}</span>
-                    </div>
-                    @if(in_array($mandaysStatus, ['pending_helpdesk', 'sent_to_chat', 'approved', 'canceled']))
-                    <button onclick="openHdMandaysModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-all">
-                        <i class="fas fa-clipboard-check text-[10px]"></i>
-                        Review Mandays Proposal
-                    </button>
-                    @else
-                    <p class="text-[11px] text-gray-400 italic text-center py-1">
-                        {{ $mandaysStatus === 'none' ? 'Waiting for PIC proposal' : 'PIC is drafting proposal...' }}
-                    </p>
-                    @endif
-                </div>
-                @endif
-
-                {{-- Head of Support: Internal Mandays --}}
-                @if($isHead && in_array($internalStatus, ['pending_head', 'approved', 'rejected']))
-                <div class="pt-3 border-t border-gray-200">
-                    <div class="flex items-center justify-between mb-1.5">
-                        <label class="text-xs font-semibold text-gray-500">Internal Mandays</label>
-                        <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $iBadgeClass }}">{{ $iBadgeLabel }}</span>
-                    </div>
-                    <button onclick="openHeadInternalModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 transition-all">
-                        <i class="fas fa-user-check text-[10px]"></i>
-                        Review Internal Proposal
-                    </button>
-                </div>
-                @endif
-                {{-- ===== END MANDAYS SECTION ===== --}}
-
-                {{-- Start Date (read-only) --}}
+                {{-- Start Date --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Start Date</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->start_date ? \Carbon\Carbon::parse($ticket->start_date)->format('M d, Y') : 'Not started' }}</p>
                 </div>
-
-                {{-- Due Date (read-only) --}}
+                {{-- Due Date --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Due Date</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->end_date ? \Carbon\Carbon::parse($ticket->end_date)->format('M d, Y') : 'No due date' }}</p>
                 </div>
-
-                {{-- Created (read-only) --}}
+                {{-- Delivery Support --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Delivery Support</label>
+                    @if(isset($deliverySupport) && $deliverySupport)
+                        <a href="/delivery/support/{{ $deliverySupport->id }}"
+                           class="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 flex-shrink-0">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" />
+                            </svg>
+                            <span class="truncate">{{ $deliverySupport->name }}</span>
+                            @if($deliverySupport->type)
+                                <span class="flex-shrink-0 px-1.5 py-0.5 bg-blue-200 text-blue-800 rounded text-[10px] font-bold">{{ $deliverySupport->type }}</span>
+                            @endif
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3 flex-shrink-0 ml-auto opacity-50">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                            </svg>
+                        </a>
+                    @else
+                        <p id="propertiesDsBadge" class="text-xs text-gray-400 italic px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">Not assigned</p>
+                    @endif
+                </div>
+                {{-- Created --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Created</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('M d, Y h:i A') }}</p>
                 </div>
-
-                {{-- Admin/Helpdesk Actions --}}
-                @if(in_array($user->role->role_id, [1, 6, 7]))
-                <div class="pt-3 border-t border-gray-200 space-y-2">
-                    <button onclick="openAssignSupportModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-all">
-                        <i class="fas fa-headset text-[10px]"></i>
-                        Assign to Delivery Support
-                    </button>
-                    @if($user->role->role_id == 1)
+                {{-- Admin only: Delete Ticket --}}
+                @if($user->role->role_id == 1)
+                <div class="pt-3 border-t border-gray-200">
                     <button onclick="deleteTicket()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 transition-all">
                         <i class="fas fa-trash text-[10px]"></i>
                         Delete Ticket
                     </button>
-                    @endif
                 </div>
                 @endif
             </div>
         </div>
+
     </div>
 </div>
 
@@ -584,7 +648,7 @@
             {{-- Existing Delivery Support Selection --}}
             <div id="existingDeliverySupport">
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Select Delivery Support</label>
-                <select id="deliverySupportSelect" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+<select id="deliverySupportSelect" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                     <option value="">Loading...</option>
                 </select>
                 <p class="mt-1 text-xs text-gray-500">Ticket will be added as an activity under this delivery support</p>
@@ -595,6 +659,17 @@
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Support Name <span class="text-red-500">*</span></label>
                     <input type="text" id="newSupportName" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., Support - Customer Name">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Support Type <span class="text-red-500">*</span></label>
+                    <select id="newSupportType" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">Select Type</option>
+                        <option value="AMS">AMS</option>
+                        <option value="MO">MO</option>
+                        <option value="ATS">ATS</option>
+                        <option value="Project">Project</option>
+                        <option value="Internal">Internal</option>
+                    </select>
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Support Method</label>
@@ -658,8 +733,8 @@
             </button>
         </div>
         <div class="flex-1 overflow-y-auto p-6">
-            {{-- Rejection info --}}
-            <div id="picRejectionInfo" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
+            {{-- Rejection / cancellation info --}}
+            <div id="picRejectionInfo" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
             {{-- Activity rows management --}}
             <div id="picMandaysTableWrap" class="overflow-x-auto">
                 <div id="picMandaysLoading" class="py-8 text-center text-gray-400 text-sm">Loading...</div>
@@ -678,7 +753,10 @@
             </div>
         </div>
         <div id="picMandaysFooter" class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
-            <div class="text-xs text-gray-500">Total: <strong id="picTotalDisplay">0</strong> mandays</div>
+            <div class="flex items-center gap-3">
+                <div class="text-xs text-gray-500">Total: <strong id="picTotalDisplay">0</strong> mandays</div>
+                <button id="picBtnNewVersion" onclick="picStartNewVersion()" class="hidden px-4 py-2 bg-orange-500 text-white text-xs font-semibold rounded-lg hover:bg-orange-600 transition-all">New Version</button>
+            </div>
             <div class="flex gap-2">
                 <button id="picBtnSaveDraft" onclick="picSaveDraft()" class="px-4 py-2 bg-gray-600 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-all">Save Draft</button>
                 <button id="picBtnSubmit" onclick="picSubmitDraft()" class="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-all">Submit to Helpdesk</button>
@@ -706,10 +784,19 @@
                 <thead>
                     <tr class="bg-gray-50">
                         <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Name</th>
-                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200">Mandays</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">MD</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">Add</th>
+                        <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">Total MD</th>
                     </tr>
                 </thead>
                 <tbody id="internalBody"></tbody>
+                <tfoot>
+                    <tr class="bg-gray-50 font-bold">
+                        <td colspan="4" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                        <td class="px-3 py-2 border border-gray-200 text-center" id="internalFooterTotal">0</td>
+                    </tr>
+                </tfoot>
             </table>
             <div class="mt-4">
                 <label class="text-xs font-semibold text-gray-600">Notes for Head of Support</label>
@@ -757,18 +844,29 @@
                         <tfoot id="hdMandaysFoot"></tfoot>
                     </table>
                 </div>
-                <div id="hdNotesWrap">
-                    <label class="text-xs font-semibold text-gray-600">Helpdesk Notes</label>
-                    <textarea id="hdNotes" rows="2" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Optional internal notes..."></textarea>
+                {{-- Cancel confirm section (shown when clicking "Cancel Proposal") --}}
+                <div id="hdCancelConfirmWrap" class="hidden mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p class="text-xs font-semibold text-red-700 mb-2">Cancel Proposal — Confirmation</p>
+                    <label class="text-xs font-medium text-red-700">Reason / Notes for PIC <span class="text-gray-500 font-normal">(optional)</span></label>
+                    <textarea id="hdCancelNotes" rows="2" class="mt-1 w-full px-3 py-2 border border-red-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="Explain why you are canceling this proposal..."></textarea>
+                    <div class="flex gap-2 mt-2 justify-end">
+                        <button type="button" onclick="hdCancelAbort()" class="px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Back</button>
+                        <button type="button" onclick="hdCancelConfirm()" class="px-3 py-1.5 text-xs font-semibold text-white bg-red-700 rounded-lg hover:bg-red-800">Confirm Cancel</button>
+                    </div>
                 </div>
             </div>
         </div>
-        <div id="hdMandaysFooter" class="px-6 py-4 border-t border-gray-200 flex flex-wrap gap-2 justify-end flex-shrink-0">
-            <button id="hdBtnSendToChat"    onclick="hdSubmitToChat()"    class="hidden px-4 py-2 bg-purple-600 text-white text-xs font-semibold rounded-lg hover:bg-purple-700">Send to Chat</button>
-            <button id="hdBtnReviseResend"  onclick="hdReviseResend()"    class="hidden px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700">Revise &amp; Resend</button>
-            <button id="hdBtnApprove"       onclick="hdApprove()"         class="hidden px-4 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700">Approve</button>
-            <button id="hdBtnCancel"        onclick="hdCancel()"          class="hidden px-4 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700">Cancel Proposal</button>
-            <button id="hdBtnNewProposal"   onclick="hdCreateNewProposal()" class="hidden px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700">Create New Proposal</button>
+        <div id="hdMandaysFooter" class="px-6 py-4 border-t border-gray-200 flex flex-wrap gap-2 justify-between items-center flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="text-xs text-gray-500">Total: <strong id="hdTotalDisplay">0</strong> mandays</div>
+                <button id="hdBtnCancel" onclick="hdShowCancelConfirm()" class="hidden px-4 py-2 bg-red-100 text-red-700 text-xs font-semibold rounded-lg hover:bg-red-200 border border-red-300">Cancel Proposal</button>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button id="hdBtnSendToChat"    onclick="hdSubmitToChat()"      class="hidden px-4 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900">Send to Customer</button>
+                <button id="hdBtnReviseResend"  onclick="hdReviseResend()"      class="hidden px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700">Revise &amp; Resend</button>
+                <button id="hdBtnApprove"       onclick="hdApprove()"           class="hidden px-4 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700">Approve</button>
+                <button id="hdBtnNewProposal"   onclick="hdCreateNewProposal()" class="hidden px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700">Create New Proposal</button>
+            </div>
         </div>
     </div>
 </div>
@@ -789,18 +887,23 @@
         </div>
         <div class="flex-1 overflow-y-auto p-6">
             <div id="headInternalLoading" class="py-8 text-center text-gray-400 text-sm">Loading...</div>
+            <div id="headInternalStatusBanner" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
             <div id="headInternalContent" class="hidden">
                 <table class="w-full text-xs border-collapse mb-4">
                     <thead>
                         <tr class="bg-gray-50">
                             <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Name</th>
-                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200">Mandays</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-14">MD</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-14">Add</th>
+                            <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">Appr Add</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">Total MD</th>
                         </tr>
                     </thead>
                     <tbody id="headInternalBody"></tbody>
                     <tfoot>
                         <tr class="bg-gray-50 font-bold">
-                            <td class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                            <td colspan="5" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
                             <td class="px-3 py-2 border border-gray-200 text-center" id="headInternalTotal">0</td>
                         </tr>
                     </tfoot>
@@ -829,8 +932,25 @@
     const userRole      = {{ $user->role->role_id ?? 0 }};
     const ticketCustomerId = {{ $ticket->customer_id ?? 'null' }};
     const ticketChannel = @json($ticket->channel ?? 'web');
+    const assignedDsId   = {{ isset($deliverySupport) && $deliverySupport ? $deliverySupport->id : 'null' }};
+    const assignedDsName = @json(isset($deliverySupport) && $deliverySupport ? $deliverySupport->name : null);
+    const assignedDsType = @json(isset($deliverySupport) && $deliverySupport ? $deliverySupport->type : null);
     let quillEditor     = null;
+
+    // ── @mention state ───────────────────────────────────────────────────────
+    let pendingMentions   = [];   // [{ type:'employee'|'role', id, display }]
+    let mentionQuery      = null; // null = not in mention mode
+    let mentionStartIndex = -1;   // character index where '@' was typed
+    let mentionFetchTimer = null;
+
+    function toggleSidebarPanel(panelId, chevronId) {
+        const panel   = document.getElementById(panelId);
+        const chevron = document.getElementById(chevronId);
+        const hidden  = panel.classList.toggle('hidden');
+        if (chevron) chevron.style.transform = hidden ? 'rotate(180deg)' : '';
+    }
     let allSidebarTickets  = [];
+    let sidebarView        = 'all';
     let deliverySupportList = [];
     // Set berisi ID pesan yang sudah dirender ke DOM.
     // Digunakan agar polling tidak me-render ulang pesan lama → gambar tidak flicker.
@@ -885,10 +1005,121 @@
             toolbar.appendChild(attachGroup);
         }
 
+        // ── @mention: detect @ in quill text-change ──────────────────────────
+        quillEditor.on('text-change', function () {
+            const selection = quillEditor.getSelection();
+            if (!selection) return;
+
+            const cursorPos = selection.index;
+            const text      = quillEditor.getText(0, cursorPos);
+
+            // Find last '@' in text before cursor
+            const atIdx = text.lastIndexOf('@');
+            if (atIdx === -1) { closeMentionDropdown(); return; }
+
+            const query = text.slice(atIdx + 1);
+
+            // If there's a space after @, close dropdown
+            if (query.includes(' ')) { closeMentionDropdown(); return; }
+
+            mentionQuery      = query;
+            mentionStartIndex = atIdx;
+
+            // Debounce fetch
+            clearTimeout(mentionFetchTimer);
+            mentionFetchTimer = setTimeout(() => fetchMentionables(query), 200);
+        });
+
         loadMessages();
         loadSidebarTickets();
         markMessagesRead();
         startMessagePolling();
+    });
+
+    // ==================== @MENTION AUTOCOMPLETE ====================
+    function fetchMentionables(q) {
+        fetch(`/api/employees/mentionable?q=${encodeURIComponent(q)}`, {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) return;
+            const items = [];
+            (data.employees || []).forEach(e => items.push({ type: 'employee', id: e.id, display: e.display_name, sub: e.role_name }));
+            (data.roles     || []).forEach(r => items.push({ type: 'role',     id: r.id, display: '@' + r.name, sub: 'All in role' }));
+            renderMentionDropdown(items);
+        })
+        .catch(() => closeMentionDropdown());
+    }
+
+    function renderMentionDropdown(items) {
+        const list     = document.getElementById('mentionList');
+        const dropdown = document.getElementById('mentionDropdown');
+        if (!list || !dropdown) return;
+
+        if (!items.length) { closeMentionDropdown(); return; }
+
+        list.innerHTML = items.map((item, idx) => `
+            <div class="mention-item flex items-center gap-2 px-3 py-2 hover:bg-red-50 cursor-pointer transition-colors"
+                 data-idx="${idx}" data-type="${item.type}" data-id="${item.id}" data-display="${escHtml(item.display)}">
+                <div class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold
+                    ${item.type === 'role' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">
+                    ${item.type === 'role' ? '<i class="fas fa-users" style="font-size:9px"></i>' : item.display.charAt(0).toUpperCase()}
+                </div>
+                <div class="min-w-0">
+                    <div class="text-xs font-semibold text-gray-800 truncate">${escHtml(item.display)}</div>
+                    <div class="text-[10px] text-gray-400 truncate">${escHtml(item.sub)}</div>
+                </div>
+            </div>`
+        ).join('');
+
+        // mousedown (not click) to avoid quill losing focus before we handle it
+        list.querySelectorAll('.mention-item').forEach(el => {
+            el.addEventListener('mousedown', function (e) {
+                e.preventDefault();
+                insertMention(this.dataset.type, parseInt(this.dataset.id), this.dataset.display);
+            });
+        });
+
+        dropdown.classList.remove('hidden');
+    }
+
+    function insertMention(type, id, display) {
+        if (mentionStartIndex < 0) return;
+
+        const cursorPos = quillEditor.getSelection()?.index ?? mentionStartIndex + 1 + (mentionQuery?.length ?? 0);
+        const replaceLen = 1 + (mentionQuery?.length ?? 0); // '@' + typed query
+
+        // Delete the '@...' text
+        quillEditor.deleteText(mentionStartIndex, replaceLen);
+
+        // Insert styled mention chip
+        const chip = `@${display}`;
+        quillEditor.insertText(mentionStartIndex, chip + ' ', {
+            color: type === 'role' ? '#7c3aed' : '#1d4ed8',
+            bold: true,
+        });
+        // Reset formatting after chip
+        quillEditor.formatText(mentionStartIndex, chip.length + 1, { color: false, bold: false });
+        quillEditor.setSelection(mentionStartIndex + chip.length + 1);
+
+        // Track for payload
+        const already = pendingMentions.find(m => m.type === type && m.id === id);
+        if (!already) pendingMentions.push({ type, id, display });
+
+        closeMentionDropdown();
+    }
+
+    function closeMentionDropdown() {
+        document.getElementById('mentionDropdown')?.classList.add('hidden');
+        mentionQuery = null;
+        mentionStartIndex = -1;
+    }
+
+    // Close on Escape
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeMentionDropdown();
     });
 
     // ==================== AUTO POLLING: reload pesan & cek email baru ====================
@@ -1067,6 +1298,20 @@
         if (msg.channel === 'email' && msg.message_html) {
             return `<div class="message-content text-sm text-gray-700 email-html-body">${msg.message_html}</div>`;
         }
+
+        // Internal note: render Quill HTML (contains @mention chips with color formatting)
+        // Fall back to plain text with mention highlighting if no html
+        if (msg.message_type === 'internal_note') {
+            if (msg.message_html) {
+                return `<div class="message-content text-sm text-gray-700">${msg.message_html}</div>`;
+            }
+            if (!msg.message_body) return '';
+            const highlighted = msg.message_body.replace(/@([\w.]+(?:\s[\w.]+)*)/g, (match) =>
+                `<span class="inline-flex items-center px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-semibold">${escHtml(match)}</span>`
+            );
+            return `<div class="message-content text-sm text-gray-700">${highlighted}</div>`;
+        }
+
         // Web reply (Quill HTML) atau plain text — guard null untuk reply tanpa teks (file only)
         if (!msg.message_body) return '';
         return `<div class="message-content text-sm text-gray-700">${msg.message_body}</div>`;
@@ -1252,6 +1497,14 @@
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
             };
 
+            // Collect mention IDs for internal notes
+            const mentionedEmployeeIds = messageType === 'internal_note'
+                ? pendingMentions.filter(m => m.type === 'employee').map(m => m.id)
+                : [];
+            const mentionedRoleIds = messageType === 'internal_note'
+                ? pendingMentions.filter(m => m.type === 'role').map(m => m.id)
+                : [];
+
             if (hasFiles) {
                 // Kirim sebagai multipart/form-data
                 // Jangan set Content-Type manual — browser otomatis tambahkan boundary yang benar
@@ -1259,10 +1512,17 @@
                 formData.append('message_body', htmlContent);
                 formData.append('message_type', messageType);
                 selectedFiles.forEach(file => formData.append('attachments[]', file));
+                mentionedEmployeeIds.forEach(id => formData.append('mentioned_employee_ids[]', id));
+                mentionedRoleIds.forEach(id => formData.append('mentioned_role_ids[]', id));
                 requestBody = formData;
             } else {
                 headers['Content-Type'] = 'application/json';
-                requestBody = JSON.stringify({ message_body: htmlContent, message_type: messageType });
+                requestBody = JSON.stringify({
+                    message_body: htmlContent,
+                    message_type: messageType,
+                    mentioned_employee_ids: mentionedEmployeeIds,
+                    mentioned_role_ids: mentionedRoleIds,
+                });
             }
 
             const response = await fetch(`/api/tickets/${ticketId}/messages`, {
@@ -1277,6 +1537,7 @@
             if (data.success) {
                 quillEditor.setContents([]);
                 resetAttachments();
+                pendingMentions = []; // reset mentions
                 await loadMessages();
                 showNotification(messageType === 'internal_note' ? 'Internal note added' : 'Reply sent', 'success');
             } else {
@@ -1308,10 +1569,24 @@
     }
 
     // ==================== SIDEBAR TICKETS ====================
+    function switchSidebarView(view) {
+        sidebarView = view;
+        const tabAll = document.getElementById('sidebarTabAll');
+        const tabMy  = document.getElementById('sidebarTabMy');
+        if (tabAll && tabMy) {
+            tabAll.style.background = view === 'all' ? 'rgba(255,255,255,0.2)' : '';
+            tabAll.classList.toggle('opacity-60', view !== 'all');
+            tabMy.style.background  = view === 'my'  ? 'rgba(255,255,255,0.2)' : '';
+            tabMy.classList.toggle('opacity-60', view !== 'my');
+        }
+        loadSidebarTickets();
+    }
+
     async function loadSidebarTickets() {
         try {
             let endpoint = '/api/tickets';
             if (userRole === 3) endpoint = '/api/tickets/my';
+            else if ([1, 2, 6, 7].includes(userRole) && sidebarView === 'my') endpoint = '/api/tickets/my';
 
             const response = await fetch(endpoint, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -1322,7 +1597,7 @@
             document.getElementById('sidebarLoading').classList.add('hidden');
 
             if (data.success) {
-                allSidebarTickets = data.data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                allSidebarTickets = data.data.sort((a, b) => new Date(b.last_message_at || b.created_at) - new Date(a.last_message_at || a.created_at));
                 renderSidebarTickets(allSidebarTickets);
             }
         } catch (error) {
@@ -1337,7 +1612,9 @@
             const customerName = t.customer?.customer_name || 'Unknown';
             const desc = t.description || 'No description';
             const shortDesc = desc.length > 40 ? desc.substring(0, 40) + '...' : desc;
-            const timeAgo = formatTimeAgo(new Date(t.created_at));
+            const lastActivity = new Date(t.last_message_at || t.created_at);
+            const timeAgo = formatTimeAgo(lastActivity);
+            const timeTitle = lastActivity.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
             const prioColors = { 'Very High': 'bg-purple-500', 'High': 'bg-red-400', 'Medium': 'bg-blue-400', 'Low': 'bg-green-400' };
             const prioDot = prioColors[t.ticket_priority] || 'bg-gray-400';
@@ -1346,9 +1623,9 @@
                 <a href="/ticket/${t.ticket_id}" class="sidebar-ticket-item ${isActive ? 'active' : ''}">
                     <div class="flex items-center justify-between mb-0.5">
                         <span class="text-xs font-semibold text-gray-800 truncate max-w-[140px]">${customerName}</span>
-                        <span class="text-[10px] text-gray-400">${timeAgo}</span>
+                        <span class="text-[10px] text-gray-400" title="${timeTitle}">${timeAgo}</span>
                     </div>
-                    <p class="text-[11px] text-gray-500 truncate mb-1">#${t.ticket_id} - ${shortDesc}</p>
+                    <p class="text-[11px] text-gray-500 truncate mb-1">${t.ticket_number || 'No Number'} — ${shortDesc}</p>
                     <div class="flex items-center gap-1.5">
                         <div class="w-1.5 h-1.5 rounded-full ${prioDot}"></div>
                         <span class="text-[10px] text-gray-400">${t.ticket_priority || 'Medium'}</span>
@@ -1364,7 +1641,7 @@
             return;
         }
         const filtered = allSidebarTickets.filter(t =>
-            (t.ticket_id && t.ticket_id.toString().includes(term)) ||
+            (t.ticket_number && t.ticket_number.toLowerCase().includes(term)) ||
             (t.description && t.description.toLowerCase().includes(term)) ||
             (t.customer?.customer_name && t.customer.customer_name.toLowerCase().includes(term))
         );
@@ -1476,7 +1753,7 @@
 
         try {
             // Update status via dedicated endpoint
-            const statusResponse = await fetch(`/api/tickets/${ticketId}/update-status`, {
+            await fetch(`/api/tickets/${ticketId}/update-status`, {
                 method: 'PUT',
                 headers: getHeaders(),
                 credentials: 'same-origin',
@@ -1503,13 +1780,36 @@
 
             if (result.success) {
                 showNotification('All properties saved!', 'success');
-                // Refresh header info after a short delay
                 setTimeout(() => location.reload(), 800);
             } else {
                 showNotification(result.message || 'Failed to save', 'error');
             }
         } catch (error) {
             showNotification('Error: ' + error.message, 'error');
+        }
+    }
+
+    async function takeTicket() {
+        const btn = document.querySelector('button[onclick="takeTicket()"]');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Taking...'; }
+        try {
+            const response = await fetch(`/api/tickets/${ticketId}`, {
+                method: 'PUT',
+                headers: getHeaders(),
+                credentials: 'same-origin',
+                body: JSON.stringify({ employee_id: {{ $user->id }} }),
+            });
+            const result = await response.json();
+            if (result.success) {
+                showNotification('Ticket taken! You are now the PIC.', 'success');
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showNotification(result.message || 'Failed to take ticket.', 'error');
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-hand-paper text-xs"></i> Take This Ticket'; }
+            }
+        } catch (error) {
+            showNotification('Error: ' + error.message, 'error');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-hand-paper text-xs"></i> Take This Ticket'; }
         }
     }
 
@@ -1539,29 +1839,27 @@
 
     // ==================== HELPERS ====================
     function formatTimeAgo(date) {
+        const tz = 'Asia/Jakarta';
         const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
-        if (diffMins < 1) return 'now';
-        if (diffMins < 60) return diffMins + 'm';
-        if (diffHours < 24) return diffHours + 'h';
-        if (diffDays < 7) return diffDays + 'd';
-        return date.toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' });
+        const toDay = (d) => new Date(d.toLocaleDateString('en-CA', { timeZone: tz }));
+        const todayDate  = toDay(now);
+        const targetDate = toDay(date);
+        const diffDays = Math.round((todayDate - targetDate) / 86400000);
+
+        if (diffDays === 0) {
+            return date.toLocaleTimeString('id-ID', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+        if (diffDays === 1) return 'Yest';
+        if (diffDays < 7) {
+            return date.toLocaleDateString('en-GB', { timeZone: tz, weekday: 'short' });
+        }
+        if (date.getFullYear() === now.getFullYear()) {
+            return date.toLocaleDateString('en-GB', { timeZone: tz, day: '2-digit', month: 'short' });
+        }
+        return date.toLocaleDateString('en-GB', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
     }
 
-    function showNotification(message, type = 'info') {
-        const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-xl shadow-xl z-[100] transition-opacity duration-300 font-medium text-sm`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
+    // showNotification() is provided globally by the dashboard layout (toast system)
 
     // ==================== ASSIGN TO DELIVERY SUPPORT ====================
     async function openAssignSupportModal() {
@@ -1624,11 +1922,18 @@
                     option.textContent = `${support.name} (${support.client_name || 'Unknown Client'}), ${support.type}`;
                     select.appendChild(option);
                 });
+
+                // Auto-select currently assigned DS
+                if (assignedDsId) {
+                    const matchingOption = [...select.options].find(o => Number(o.value) === assignedDsId);
+                    if (matchingOption) {
+                        select.value = matchingOption.value;
+                    }
+                }
             } else {
                 select.innerHTML = '<option value="">Failed to load</option>';
             }
         } catch (error) {
-            console.error('Error loading delivery supports:', error);
             select.innerHTML = '<option value="">Error loading data</option>';
         }
     }
@@ -1664,6 +1969,7 @@
             if (data.success) {
                 showNotification('Ticket assigned to delivery support successfully!', 'success');
                 closeAssignSupportModal();
+                if (data.data?.support_name) updateDsBadges(data.data.support_id || supportId, data.data.support_name, data.data.support_type ?? null);
                 showAssignSuccessModal(`/delivery/support/${supportId}`);
             } else {
                 showNotification(data.message || 'Failed to assign ticket', 'error');
@@ -1675,11 +1981,16 @@
     }
 
     async function createNewSupportAndAssign() {
-        const supportName = document.getElementById('newSupportName').value.trim();
+        const supportName   = document.getElementById('newSupportName').value.trim();
+        const supportType   = document.getElementById('newSupportType').value;
         const supportMethod = document.getElementById('newSupportMethod').value;
 
         if (!supportName) {
             showNotification('Please enter a support name', 'error');
+            return;
+        }
+        if (!supportType) {
+            showNotification('Please select a support type', 'error');
             return;
         }
 
@@ -1690,6 +2001,7 @@
                 credentials: 'same-origin',
                 body: JSON.stringify({
                     name: supportName,
+                    type: supportType,
                     support_method: supportMethod
                 })
             });
@@ -1699,26 +2011,52 @@
             if (data.success) {
                 showNotification('Delivery support created and ticket assigned!', 'success');
                 closeAssignSupportModal();
+                if (data.data?.support_name) updateDsBadges(data.data.support_id, data.data.support_name, data.data.support_type ?? null);
                 if (data.data?.support_id) {
                     showAssignSuccessModal(`/delivery/support/${data.data.support_id}`);
                 }
             } else {
-                showNotification(data.message || 'Failed to create delivery support', 'error');
+                showApiErrors(data, 'Failed to create delivery support');
             }
         } catch (error) {
-            console.error('Error creating delivery support:', error);
             showNotification('Error: ' + error.message, 'error');
         }
     }
 
-    // Close modal on outside click
-    document.getElementById('assignSupportModal')?.addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeAssignSupportModal();
-        }
-    });
 
     // ==================== ASSIGN SUCCESS MODAL ====================
+
+    function updateDsBadges(dsId, dsName, dsType = null) {
+        const typeHtml = dsType ? ` <span style="opacity:.7">(${dsType})</span>` : '';
+        const svgPath = `M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z`;
+        const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="${svgPath}" /></svg>`;
+
+        // 1. Top headbar badge
+        const existing = document.getElementById('headbarTopDsBadge');
+        if (existing) existing.remove();
+        const subtitleEl = document.querySelector('.text-xs.text-gray-500');
+        if (subtitleEl) {
+            const badge = document.createElement('span');
+            badge.id = 'headbarTopDsBadge';
+            badge.className = 'inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-100 text-blue-700 align-middle';
+            badge.innerHTML = `${svgIcon}DS: ${dsName}${typeHtml}`;
+            subtitleEl.appendChild(badge);
+        }
+
+        // 2. Properties panel
+        const propBadge = document.getElementById('propertiesDsBadge');
+        if (propBadge && dsId) {
+            const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" /></svg>`;
+            const extIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3 flex-shrink-0 ml-auto opacity-50"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>`;
+            const link = document.createElement('a');
+            link.href = `/delivery/support/${dsId}`;
+            link.className = 'flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors';
+            const typeBadge = dsType ? `<span class="flex-shrink-0 px-1.5 py-0.5 bg-blue-200 text-blue-800 rounded text-[10px] font-bold">${dsType}</span>` : '';
+            link.innerHTML = `${svgIcon}<span class="truncate">${dsName}</span>${typeBadge}${extIcon}`;
+            propBadge.replaceWith(link);
+        }
+    }
+
     let assignSuccessRedirectUrl = '';
 
     function showAssignSuccessModal(url) {
@@ -1737,11 +2075,6 @@
         }
     }
 
-    document.getElementById('assignSuccessModal')?.addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeAssignSuccessModal();
-        }
-    });
 
     // ==================== MANDAYS — SHARED ====================
     let picMandaysModules  = [];
@@ -1765,6 +2098,7 @@
     }
 
     async function picLoadDraft() {
+        picDirty = false;
         document.getElementById('picMandaysLoading').classList.remove('hidden');
         document.getElementById('picMandaysTable').classList.add('hidden');
         document.getElementById('picAddRowWrap').classList.add('hidden');
@@ -1781,15 +2115,41 @@
 
             picDraftData      = draftData.data;
             const status      = draftData.ticket_mandays_status || 'none';
-            picReadOnly       = ['pending_helpdesk', 'sent_to_chat'].includes(status);
+            // Read-only when submitted/reviewed by helpdesk (PIC can't edit after submission unless canceled)
+            picReadOnly = ['pending_helpdesk', 'sent_to_chat', 'approved', 'canceled'].includes(status);
 
+            const picStatusLabels = {
+                none: 'None', pic_draft: 'Draft', pending_helpdesk: 'Submitted to Helpdesk',
+                sent_to_chat: 'Sent to Customer', approved: 'Approved', canceled: 'Canceled by Helpdesk'
+            };
             document.getElementById('picMandaysVersion').textContent      = picDraftData?.version ?? 'New';
-            document.getElementById('picMandaysStatusLabel').textContent  = status;
+            document.getElementById('picMandaysStatusLabel').textContent  = picStatusLabels[status] || status;
+            // Show "New Version" when proposal is canceled, approved, or sent back (customer rejected)
+            const canStartNew = picDraftData && (status === 'canceled' || status === 'approved' || (status === 'pending_helpdesk' && picDraftData?.rejection_reason));
+            document.getElementById('picBtnNewVersion').classList.toggle('hidden', !canStartNew);
 
-            if (picDraftData?.rejection_reason) {
-                const el = document.getElementById('picRejectionInfo');
-                el.textContent = 'Rejection: ' + picDraftData.rejection_reason;
-                el.classList.remove('hidden');
+            const picInfoEl = document.getElementById('picRejectionInfo');
+            if (status === 'canceled') {
+                picInfoEl.className = 'mb-4 p-3 rounded-lg text-sm bg-gray-100 border border-gray-300 text-gray-700';
+                const cancelNotes = picDraftData?.cancel_notes;
+                const canceledByName = picDraftData?.canceled_by_name;
+                let cancelHtml = '<p class="font-semibold text-gray-800 mb-1">Proposal Canceled by Helpdesk</p>';
+                if (cancelNotes) {
+                    cancelHtml += '<p class="text-xs text-gray-600">' + cancelNotes.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</p>';
+                } else {
+                    cancelHtml += '<p class="text-xs text-gray-500 italic">No reason provided.</p>';
+                }
+                if (canceledByName) {
+                    cancelHtml += '<p class="text-xs text-gray-500 mt-1">— ' + canceledByName.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</p>';
+                }
+                picInfoEl.innerHTML = cancelHtml;
+                picInfoEl.classList.remove('hidden');
+            } else if (picDraftData?.rejection_reason) {
+                picInfoEl.className = 'mb-4 p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700';
+                picInfoEl.innerHTML = '<p class="font-semibold mb-1">Customer Rejection</p><p class="text-xs">' + picDraftData.rejection_reason.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</p>';
+                picInfoEl.classList.remove('hidden');
+            } else {
+                picInfoEl.classList.add('hidden');
             }
 
             // Build valueMap from existing details
@@ -1799,8 +2159,7 @@
                 if (!valueMap[act]) valueMap[act] = {};
                 valueMap[act][d.module] = d.mandays;
             });
-            // If no activities, start with default
-            if (Object.keys(valueMap).length === 0) valueMap['General'] = {};
+            // If no activities, start with empty table
 
             // Kolom hanya dari qualification member ticket
             // Jika belum diisi di master data, PIC tambah manual via "+ Column"
@@ -1847,7 +2206,7 @@
                     <input type="number" min="0" step="0.5"
                         class="pic-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-indigo-50 ${picReadOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}"
                         data-activity="${act}" data-module="${m}" value="${val}"
-                        ${picReadOnly ? 'readonly' : ''} oninput="picUpdateTotal()">
+                        ${picReadOnly ? 'readonly' : ''} oninput="picDirty=true; picUpdateTotal()">
                     </td>`;
             });
             bodyHtml += '</tr>';
@@ -1863,9 +2222,8 @@
         document.getElementById('picMandaysFoot').innerHTML = footHtml;
 
         document.getElementById('picMandaysTable').classList.remove('hidden');
-        if (!picReadOnly) document.getElementById('picAddRowWrap').classList.remove('hidden');
-
-        // Buttons visibility
+        // Show editing controls only when PIC can still edit (draft state)
+        document.getElementById('picAddRowWrap').classList.toggle('hidden', picReadOnly);
         document.getElementById('picBtnSaveDraft').classList.toggle('hidden', picReadOnly);
         document.getElementById('picBtnSubmit').classList.toggle('hidden', picReadOnly);
 
@@ -1895,13 +2253,14 @@
         const currentMap = picGetCurrentValueMap();
         if (currentMap[name]) { showNotification('Activity already exists', 'warning'); return; }
         currentMap[name] = {};
+        picDirty = true;
         picRenderMatrix(currentMap);
     }
 
     function picRemoveActivityRow(act) {
         const currentMap = picGetCurrentValueMap();
         delete currentMap[act];
-        if (Object.keys(currentMap).length === 0) currentMap['General'] = {};
+        picDirty = true;
         picRenderMatrix(currentMap);
     }
 
@@ -1912,12 +2271,14 @@
         if (picMandaysModules.includes(name)) { showNotification('Module already exists', 'warning'); return; }
         input.value = '';
         picMandaysModules.push(name);
+        picDirty = true;
         picRenderMatrix(picGetCurrentValueMap());
     }
 
     function picRemoveModuleCol(mod) {
         picMandaysModules = picMandaysModules.filter(m => m !== mod);
         if (picMandaysModules.length === 0) { showNotification('At least one module is required', 'warning'); picMandaysModules.push(mod); return; }
+        picDirty = true;
         picRenderMatrix(picGetCurrentValueMap());
     }
 
@@ -1954,6 +2315,7 @@
             const data = await res.json();
             if (data.success) {
                 showNotification('Draft saved!', 'success');
+                picDirty = false;
                 picMandaysUpdateSidebarBadge(data.ticket_mandays_status);
                 picDraftData = data.data;
                 document.getElementById('picMandaysVersion').textContent = picDraftData?.version ?? '—';
@@ -1964,7 +2326,28 @@
         finally { btn.disabled = false; btn.textContent = 'Save Draft'; }
     }
 
+    function picStartNewVersion() {
+        if (picDirty) { showNotification('Please save the draft before starting a new version', 'warning'); return; }
+        const valueMap = {};
+        if (picDraftData?.details?.length) {
+            picDraftData.details.forEach(d => {
+                const act = d.activity || '';
+                if (!act) return;
+                if (!valueMap[act]) valueMap[act] = {};
+                valueMap[act][d.module] = d.mandays;
+            });
+        }
+        picDraftData = null;
+        picReadOnly = false;
+        picDirty = false;
+        document.getElementById('picMandaysVersion').textContent = 'New';
+        document.getElementById('picRejectionInfo').classList.add('hidden');
+        document.getElementById('picBtnNewVersion').classList.add('hidden');
+        picRenderMatrix(valueMap);
+    }
+
     async function picSubmitDraft() {
+        if (picDirty) { showNotification('Please save draft before submitting', 'warning'); return; }
         if (!picDraftData) { showNotification('Save draft first', 'warning'); return; }
         const btn = document.getElementById('picBtnSubmit');
         btn.disabled = true; btn.textContent = 'Submitting...';
@@ -2000,10 +2383,6 @@
         }
     }
 
-    // Close on backdrop click
-    document.getElementById('picMandaysModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closePicMandaysModal();
-    });
 
     // ==================== PIC: INTERNAL MANDAYS ====================
     async function openInternalMandaysModal() {
@@ -2027,35 +2406,51 @@
             internalPicData    = data.data;
             internalPicPeople  = data.people || [];
             const status       = data.internal_mandays_status || 'none';
-            internalPicReadOnly = status === 'pending_head';
 
-            document.getElementById('internalPicStatusLabel').textContent = status;
+            internalPicReadOnly = ['pending_head'].includes(status);
+
+            const statusLabels = {
+                'none':         'None',
+                'draft':        'Draft',
+                'pending_head': 'Pending Head of Support',
+                'approved':     'Approved',
+                'rejected':     'Needs Revision',
+            };
+            document.getElementById('internalPicStatusLabel').textContent = statusLabels[status] || status;
+
             document.getElementById('internalNotes').value = internalPicData?.notes || '';
             document.getElementById('internalNotes').readOnly = internalPicReadOnly;
+            document.getElementById('internalNotes').classList.toggle('bg-gray-50', internalPicReadOnly);
 
-            if (internalPicData?.rejection_reason) {
-                const el = document.getElementById('internalRejectionInfo');
-                el.textContent = 'Rejected: ' + internalPicData.rejection_reason;
-                el.classList.remove('hidden');
+            // Show info banner based on status
+            const infoEl = document.getElementById('internalRejectionInfo');
+            if (status === 'approved') {
+                infoEl.className = 'mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700';
+                infoEl.innerHTML = '<p class="font-semibold mb-1">Proposal Approved by Head of Support</p>'
+                    + (internalPicData?.approved_by_head ? '<p>Approved by: ' + internalPicData.approved_by_head + '</p>' : '')
+                    + '<p class="mt-1 text-green-600">You can still update the mandays and re-submit to Head of Support.</p>';
+                infoEl.classList.remove('hidden');
+            } else if (status === 'pending_head') {
+                infoEl.className = 'mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700';
+                infoEl.innerHTML = '<p class="font-semibold">Submitted — awaiting Head of Support review.</p>';
+                infoEl.classList.remove('hidden');
+            } else if (status === 'rejected' && internalPicData?.rejection_reason) {
+                infoEl.className = 'mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700';
+                infoEl.innerHTML = '<p class="font-semibold mb-1">Revision Required by Head of Support</p>'
+                    + '<p>' + internalPicData.rejection_reason + '</p>';
+                infoEl.classList.remove('hidden');
             }
 
-            // Build valueMap from existing details or prefill
+            // Build valueMap from existing details only — start from 0 if none
             const valueMap = {};
-            if (internalPicData?.details?.length) {
-                internalPicData.details.forEach(d => {
-                    if (!valueMap[d.employee_id]) valueMap[d.employee_id] = {};
-                    valueMap[d.employee_id][d.module] = d.mandays;
-                });
-            } else if (data.prefill_data) {
-                // Distribute prefill to first person who has each module
-                Object.entries(data.prefill_data).forEach(([mod, total]) => {
-                    const person = internalPicPeople.find(p => p.modules.includes(mod));
-                    if (person) {
-                        if (!valueMap[person.employee_id]) valueMap[person.employee_id] = {};
-                        valueMap[person.employee_id][mod] = total;
-                    }
-                });
-            }
+            (internalPicData?.details || []).forEach(d => {
+                valueMap[d.employee_id] = {
+                    mandays:             (valueMap[d.employee_id]?.mandays || 0) + d.mandays,
+                    additional_mandays:  (valueMap[d.employee_id]?.additional_mandays || 0) + (d.additional_mandays || 0),
+                    approved_additional: (valueMap[d.employee_id]?.approved_additional || 0) + (d.approved_additional || 0),
+                    notes:               d.notes || valueMap[d.employee_id]?.notes || '',
+                };
+            });
 
             internalPicRenderRows(valueMap);
         } catch(e) {
@@ -2069,39 +2464,78 @@
     function internalPicRenderRows(valueMap) {
         let html = '';
         internalPicPeople.forEach(person => {
-            // Sum all module values for this person as prefill
-            const existingMods = valueMap[person.employee_id] || {};
-            const total = Object.values(existingMods).reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
-            const val = total > 0 ? total : '';
+            const existing = valueMap[person.employee_id] || {};
+            const md  = existing.mandays || 0;
+            const add = existing.additional_mandays || 0;
+            const appAdd = existing.approved_additional || 0;
+            const totalMd = md + appAdd;
+            const mdVal  = md  > 0 ? md  : '';
+            const addVal = add > 0 ? add : '';
             html += `<tr>
                 <td class="px-3 py-2 border border-gray-200 font-medium text-gray-700">${person.name}</td>
                 <td class="border border-gray-200 p-0">
                     <input type="number" min="0" step="0.5"
-                        class="internal-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-teal-50 ${internalPicReadOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}"
-                        data-employee="${person.employee_id}" value="${val}"
-                        ${internalPicReadOnly ? 'readonly' : ''} oninput="internalUpdateTotal()">
+                        class="internal-md-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-teal-50 ${internalPicReadOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}"
+                        data-employee="${person.employee_id}" value="${mdVal}"
+                        ${internalPicReadOnly ? 'readonly' : ''} oninput="internalUpdateRowTotal(this)">
                 </td>
+                <td class="border border-gray-200 p-0">
+                    <input type="number" min="0" step="0.5"
+                        class="internal-add-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-teal-50 ${internalPicReadOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}"
+                        data-employee="${person.employee_id}" value="${addVal}"
+                        ${internalPicReadOnly ? 'readonly' : ''} oninput="internalUpdateRowTotal(this)">
+                </td>
+                <td class="border border-gray-200 p-0">
+                    <input type="text"
+                        class="internal-note-cell w-full px-2 py-1.5 text-xs focus:outline-none focus:bg-teal-50 ${internalPicReadOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}"
+                        data-employee="${person.employee_id}" value="${existing.notes || ''}"
+                        ${internalPicReadOnly ? 'readonly' : ''} placeholder="notes...">
+                </td>
+                <td class="px-2 py-1.5 border border-gray-200 text-xs text-center font-semibold bg-gray-50" data-emp-total="${person.employee_id}">${totalMd > 0 ? totalMd.toFixed(1) : '—'}</td>
             </tr>`;
         });
         document.getElementById('internalBody').innerHTML = html;
         document.getElementById('internalTable').classList.remove('hidden');
-
         document.getElementById('internalBtnSave').classList.toggle('hidden', internalPicReadOnly);
         document.getElementById('internalBtnSubmit').classList.toggle('hidden', internalPicReadOnly);
         internalUpdateTotal();
     }
 
+    function internalUpdateRowTotal(inp) {
+        const row = inp.closest('tr');
+        const mdVal  = parseFloat(row.querySelector('.internal-md-cell')?.value)  || 0;
+        const addVal = parseFloat(row.querySelector('.internal-add-cell')?.value) || 0;
+        // For PIC view, approved_additional comes from existing data (not editable here)
+        const empId = inp.dataset.employee;
+        const existingApproved = (internalPicData?.details || []).find(d => d.employee_id == empId)?.approved_additional || 0;
+        const totalMd = mdVal + existingApproved;
+        const totalCell = row.querySelector(`[data-emp-total="${empId}"]`);
+        if (totalCell) totalCell.textContent = totalMd > 0 ? totalMd.toFixed(1) : '—';
+        internalUpdateTotal();
+    }
+
     function internalUpdateTotal() {
         let total = 0;
-        document.querySelectorAll('.internal-cell').forEach(inp => total += parseFloat(inp.value) || 0);
+        document.querySelectorAll('[data-emp-total]').forEach(cell => {
+            const v = parseFloat(cell.textContent) || 0;
+            total += v;
+        });
         document.getElementById('internalTotalDisplay').textContent = total.toFixed(1);
+        const footer = document.getElementById('internalFooterTotal');
+        if (footer) footer.textContent = total.toFixed(1);
     }
 
     function internalPicGetPayload() {
         const details = [];
-        document.querySelectorAll('.internal-cell').forEach(inp => {
-            const v = parseFloat(inp.value) || 0;
-            if (v > 0) details.push({ employee_id: parseInt(inp.dataset.employee), mandays: v });
+        document.querySelectorAll('.internal-md-cell').forEach(inp => {
+            const row   = inp.closest('tr');
+            const empId = parseInt(inp.dataset.employee);
+            const md    = parseFloat(inp.value) || 0;
+            const add   = parseFloat(row.querySelector('.internal-add-cell')?.value) || 0;
+            const notes = row.querySelector('.internal-note-cell')?.value || '';
+            if (md > 0 || add > 0) {
+                details.push({ employee_id: empId, mandays: md, additional_mandays: add, notes });
+            }
         });
         return { details, notes: document.getElementById('internalNotes').value };
     }
@@ -2170,9 +2604,6 @@
         }
     }
 
-    document.getElementById('picInternalModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closePicInternalModal();
-    });
 
     // ==================== HELPDESK: CUSTOMER MANDAYS REVIEW ====================
     async function openHdMandaysModal() {
@@ -2182,6 +2613,7 @@
         document.getElementById('hdMandaysLoading').classList.remove('hidden');
         document.getElementById('hdMandaysContent').classList.add('hidden');
         document.getElementById('hdMandaysBanner').classList.add('hidden');
+        document.getElementById('hdCancelConfirmWrap')?.classList.add('hidden');
 
         try {
             const [modRes, draftRes] = await Promise.all([
@@ -2210,7 +2642,6 @@
             // ---- State-specific banner & UI ----
             const banner = document.getElementById('hdMandaysBanner');
             const rejWrap = document.getElementById('hdRejectionReasonWrap');
-            const notesWrap = document.getElementById('hdNotesWrap');
 
             banner.className = 'hidden mb-4 rounded-lg px-4 py-3 text-sm font-medium items-start gap-3';
             rejWrap.classList.add('hidden');
@@ -2221,7 +2652,20 @@
             const isApproved         = status === 'approved';
             const isCanceled         = status === 'canceled';
 
-            if (isApproved) {
+            if (isCanceled) {
+                let cancelHtml = `<span class="text-gray-600 text-base mt-0.5">✕</span>
+                    <div><p class="font-semibold text-gray-800">Proposal Canceled by Helpdesk</p>`;
+                if (proposal.cancel_notes) {
+                    cancelHtml += `<p class="text-xs font-normal text-gray-600 mt-0.5">${proposal.cancel_notes.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`;
+                }
+                if (proposal.canceled_by_name) {
+                    cancelHtml += `<p class="text-xs font-normal text-gray-500 mt-0.5">— ${proposal.canceled_by_name.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`;
+                }
+                cancelHtml += '</div>';
+                banner.innerHTML = cancelHtml;
+                banner.classList.remove('hidden');
+                banner.classList.add('flex', 'bg-gray-100', 'border', 'border-gray-300', 'text-gray-700');
+            } else if (isApproved) {
                 const ts = proposal.customer_response_at
                     ? new Date(proposal.customer_response_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) + ' WIB'
                     : '';
@@ -2230,7 +2674,6 @@
                     ${ts ? `<p class="text-xs font-normal text-green-700 mt-0.5">${ts}</p>` : ''}</div>`;
                 banner.classList.remove('hidden');
                 banner.classList.add('flex', 'bg-green-50', 'border', 'border-green-200', 'text-green-800');
-                notesWrap.classList.add('hidden');
             } else if (isCustomerRejected) {
                 const ts = proposal.customer_response_at
                     ? new Date(proposal.customer_response_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) + ' WIB'
@@ -2242,16 +2685,7 @@
                 banner.classList.add('flex', 'bg-red-50', 'border', 'border-red-200', 'text-red-800');
                 document.getElementById('hdRejectionReasonText').textContent = proposal.rejection_reason;
                 rejWrap.classList.remove('hidden');
-                notesWrap.classList.remove('hidden');
-            } else if (isSentToChat) {
-                notesWrap.classList.add('hidden');
-            } else if (isCanceled) {
-                notesWrap.classList.add('hidden');
-            } else {
-                notesWrap.classList.remove('hidden');
             }
-
-            document.getElementById('hdNotes').value = proposal?.notes || '';
 
             // Build table
             const valueMap = {};
@@ -2323,18 +2757,26 @@
     function closeHdMandaysModal() {
         const modal = document.getElementById('hdMandaysModal');
         if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+        // Reset cancel confirm section
+        document.getElementById('hdCancelConfirmWrap')?.classList.add('hidden');
+        const hdCancelNotes = document.getElementById('hdCancelNotes');
+        if (hdCancelNotes) hdCancelNotes.value = '';
     }
 
     function hdUpdateTotal() {
+        let grand = 0;
         const colTotals = {};
         document.querySelectorAll('.hd-cell').forEach(inp => {
             const v = parseFloat(inp.value) || 0;
             colTotals[inp.dataset.module] = (colTotals[inp.dataset.module] || 0) + v;
+            grand += v;
         });
         Object.entries(colTotals).forEach(([m, t]) => {
             const el = document.getElementById(`hdColTotal_${m}`);
             if (el) el.textContent = t.toFixed(1);
         });
+        const totalEl = document.getElementById('hdTotalDisplay');
+        if (totalEl) totalEl.textContent = grand.toFixed(1);
     }
 
     async function hdSaveAndAction(endpoint, method = 'POST', extraBody = {}) {
@@ -2347,7 +2789,7 @@
         if (details.length > 0) {
             await fetch(MANDAYS_API('hd-draft'), {
                 method: 'PUT', headers: getHeaders(), credentials: 'same-origin',
-                body: JSON.stringify({ details, notes: document.getElementById('hdNotes').value }),
+                body: JSON.stringify({ details }),
             });
         }
         const res = await fetch(MANDAYS_API(endpoint), {
@@ -2358,22 +2800,46 @@
     }
 
     async function hdSubmitToChat() {
+        const btn = document.getElementById('hdBtnSendToChat');
+        if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
         try {
             const data = await hdSaveAndAction('hd-draft/submit-chat');
             if (data.success) {
-                showNotification('Sent to customer via email!', 'success');
+                if (data.email_warning) {
+                    showNotification('Status updated. Warning: ' + data.email_warning, 'warning');
+                } else {
+                    showNotification(data.message || 'Sent to customer via email!', 'success');
+                }
                 closeHdMandaysModal();
-            } else showNotification(data.message || 'Failed', 'error');
-        } catch(e) { showNotification('Error: '+e.message,'error'); }
+            } else {
+                showNotification(data.message || 'Failed to send.', 'error');
+            }
+        } catch(e) {
+            showNotification('Error: ' + e.message, 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = 'Send to Customer'; }
+        }
     }
     async function hdReviseResend() {
+        const btn = document.getElementById('hdBtnReviseResend');
+        if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
         try {
             const data = await hdSaveAndAction('hd-draft/submit-chat');
             if (data.success) {
-                showNotification('Revised proposal sent to customer!', 'success');
+                if (data.email_warning) {
+                    showNotification('Status updated. Warning: ' + data.email_warning, 'warning');
+                } else {
+                    showNotification(data.message || 'Revised proposal sent to customer!', 'success');
+                }
                 closeHdMandaysModal();
-            } else showNotification(data.message || 'Failed', 'error');
-        } catch(e) { showNotification('Error: '+e.message,'error'); }
+            } else {
+                showNotification(data.message || 'Failed to send.', 'error');
+            }
+        } catch(e) {
+            showNotification('Error: ' + e.message, 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = 'Revise & Resend'; }
+        }
     }
     async function hdApprove() {
         try {
@@ -2384,24 +2850,49 @@
             } else showNotification(data.message || 'Failed', 'error');
         } catch(e) { showNotification('Error: '+e.message,'error'); }
     }
-    async function hdCancel() {
+    function hdShowCancelConfirm() {
+        // Hide action buttons and show cancel confirmation form
+        ['hdBtnSendToChat','hdBtnReviseResend','hdBtnApprove','hdBtnCancel','hdBtnNewProposal'].forEach(id => {
+            document.getElementById(id)?.classList.add('hidden');
+        });
+        document.getElementById('hdCancelConfirmWrap').classList.remove('hidden');
+        document.getElementById('hdCancelNotes').value = '';
+        document.getElementById('hdCancelNotes').focus();
+    }
+    function hdCancelAbort() {
+        document.getElementById('hdCancelConfirmWrap').classList.add('hidden');
+        // Restore buttons by re-running the open modal state (reload)
+        openHdMandaysModal();
+    }
+    async function hdCancelConfirm() {
+        const cancelNotes = document.getElementById('hdCancelNotes').value.trim();
+        const confirmBtn  = document.querySelector('#hdCancelConfirmWrap button:last-child');
+        if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Canceling...'; }
         try {
-            const data = await hdSaveAndAction('hd-draft/cancel');
+            const res = await fetch(MANDAYS_API('hd-draft/cancel'), {
+                method: 'POST',
+                headers: getHeaders(),
+                credentials: 'same-origin',
+                body: JSON.stringify({ cancel_notes: cancelNotes }),
+            });
+            const data = await res.json();
             if (data.success) {
                 showNotification('Proposal canceled.', 'success');
                 closeHdMandaysModal();
-            } else showNotification(data.message || 'Failed', 'error');
-        } catch(e) { showNotification('Error: '+e.message,'error'); }
+            } else {
+                showNotification(data.message || 'Failed to cancel.', 'error');
+                if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Cancel'; }
+            }
+        } catch(e) {
+            showNotification('Error: ' + e.message, 'error');
+            if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Cancel'; }
+        }
     }
     async function hdCreateNewProposal() {
-        // Canceled → PIC needs to create new draft; just close and inform
         showNotification('Ask the PIC to submit a new draft.', 'info');
         closeHdMandaysModal();
     }
 
-    document.getElementById('hdMandaysModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeHdMandaysModal();
-    });
 
     // ==================== HEAD OF SUPPORT: INTERNAL MANDAYS ====================
     async function openHeadInternalModal() {
@@ -2410,6 +2901,7 @@
         modal.classList.remove('hidden'); modal.classList.add('flex');
         document.getElementById('headInternalLoading').classList.remove('hidden');
         document.getElementById('headInternalContent').classList.add('hidden');
+        document.getElementById('headInternalStatusBanner').classList.add('hidden');
         document.getElementById('headRejectWrap').classList.add('hidden');
         document.getElementById('headBtnConfirmReject').classList.add('hidden');
 
@@ -2419,29 +2911,61 @@
             const proposal = data.data;
             const status   = data.internal_mandays_status || 'none';
 
-            document.getElementById('headInternalStatusLabel').textContent = status;
+            const headStatusLabels = {
+                'none':         'None',
+                'draft':        'Draft',
+                'pending_head': 'Pending Review',
+                'approved':     'Approved',
+                'rejected':     'Needs Revision',
+            };
+            document.getElementById('headInternalStatusLabel').textContent = headStatusLabels[status] || status;
 
             if (!proposal) {
-                document.getElementById('headInternalContent').innerHTML = '<p class="text-sm text-gray-400 text-center py-4">No proposal found.</p>';
+                document.getElementById('headInternalContent').innerHTML = '<p class="text-sm text-gray-400 text-center py-4">No proposal submitted yet.</p>';
                 document.getElementById('headInternalContent').classList.remove('hidden');
+                document.getElementById('headBtnApprove').classList.add('hidden');
+                document.getElementById('headBtnToggleReject').classList.add('hidden');
                 return;
             }
 
-            // Aggregate details by employee (sum mandays across modules)
+            // Build per-employee map (sum across modules)
             const empMap = {};
             (proposal.details || []).forEach(d => {
-                const name = d.employee_name || '—';
-                empMap[name] = (empMap[name] || 0) + parseFloat(d.mandays || 0);
+                const eid = d.employee_id;
+                if (!empMap[eid]) empMap[eid] = { name: d.employee_name || '—', mandays: 0, additional_mandays: 0, approved_additional: 0, notes: '' };
+                empMap[eid].mandays            += parseFloat(d.mandays || 0);
+                empMap[eid].additional_mandays += parseFloat(d.additional_mandays || 0);
+                empMap[eid].approved_additional+= parseFloat(d.approved_additional || 0);
+                if (d.notes) empMap[eid].notes = d.notes;
             });
+
+            const isPending = status === 'pending_head';
             let bodyHtml = '';
-            Object.entries(empMap).forEach(([name, total]) => {
+            let grandTotal = 0;
+            Object.entries(empMap).forEach(([eid, emp]) => {
+                const currentApprAdd = emp.approved_additional;
+                const rowTotal = emp.mandays + currentApprAdd;
+                grandTotal += rowTotal;
                 bodyHtml += `<tr>
-                    <td class="px-3 py-2 border border-gray-200 text-xs">${name}</td>
-                    <td class="px-3 py-2 border border-gray-200 text-xs text-center">${total.toFixed(1)}</td>
+                    <td class="px-3 py-2 border border-gray-200 text-xs font-medium">${emp.name}</td>
+                    <td class="px-3 py-2 border border-gray-200 text-xs text-center">${emp.mandays > 0 ? emp.mandays.toFixed(1) : '—'}</td>
+                    <td class="px-3 py-2 border border-gray-200 text-xs text-center">${emp.additional_mandays > 0 ? emp.additional_mandays.toFixed(1) : '—'}</td>
+                    <td class="px-3 py-2 border border-gray-200 text-xs text-gray-500">${emp.notes || ''}</td>
+                    <td class="border border-gray-200 p-0">
+                        ${isPending
+                            ? `<input type="number" min="0" step="0.5"
+                                class="head-approve-add w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-green-50 bg-white"
+                                data-employee="${eid}" data-mandays="${emp.mandays}"
+                                value="${currentApprAdd > 0 ? currentApprAdd : ''}"
+                                oninput="headUpdateRowTotal(this)">`
+                            : `<span class="block px-2 py-1.5 text-xs text-center">${currentApprAdd > 0 ? currentApprAdd.toFixed(1) : '—'}</span>`
+                        }
+                    </td>
+                    <td class="px-2 py-1.5 border border-gray-200 text-xs text-center font-semibold bg-gray-50" data-head-total="${eid}">${rowTotal > 0 ? rowTotal.toFixed(1) : '—'}</td>
                 </tr>`;
             });
             document.getElementById('headInternalBody').innerHTML = bodyHtml;
-            document.getElementById('headInternalTotal').textContent = (proposal.total_mandays||0).toFixed(1);
+            document.getElementById('headInternalTotal').textContent = grandTotal.toFixed(1);
 
             if (proposal.proposed_by) {
                 document.getElementById('headProposedBy').textContent = 'Proposed by: ' + proposal.proposed_by;
@@ -2452,8 +2976,25 @@
                 nw.classList.remove('hidden');
             }
 
+            // Status info banner
+            const bannerEl = document.getElementById('headInternalStatusBanner');
+            if (status === 'approved') {
+                bannerEl.className = 'mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700';
+                bannerEl.innerHTML = '<p class="font-semibold">Proposal Approved</p>'
+                    + (proposal.approved_by_head ? '<p class="text-xs mt-0.5">Approved by: ' + proposal.approved_by_head + '</p>' : '');
+                bannerEl.classList.remove('hidden');
+            } else if (status === 'draft') {
+                bannerEl.className = 'mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-700';
+                bannerEl.innerHTML = '<p class="font-semibold">Draft — not yet submitted for review.</p>';
+                bannerEl.classList.remove('hidden');
+            } else if (status === 'rejected') {
+                bannerEl.className = 'mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700';
+                bannerEl.innerHTML = '<p class="font-semibold">Proposal sent back for revision.</p>'
+                    + (proposal.rejection_reason ? '<p class="text-xs mt-0.5">Reason: ' + proposal.rejection_reason + '</p>' : '');
+                bannerEl.classList.remove('hidden');
+            }
+
             // Show approve/reject only if pending
-            const isPending = status === 'pending_head';
             document.getElementById('headBtnApprove').classList.toggle('hidden', !isPending);
             document.getElementById('headBtnToggleReject').classList.toggle('hidden', !isPending);
 
@@ -2479,11 +3020,37 @@
         btn.classList.toggle('hidden', !isHidden);
     }
 
+    function headUpdateRowTotal(inp) {
+        const row      = inp.closest('tr');
+        const md       = parseFloat(inp.dataset.mandays) || 0;
+        const apprAdd  = parseFloat(inp.value) || 0;
+        const total    = md + apprAdd;
+        const empId    = inp.dataset.employee;
+        const cell     = row.querySelector(`[data-head-total="${empId}"]`);
+        if (cell) cell.textContent = total > 0 ? total.toFixed(1) : '—';
+        // Update grand total
+        let grand = 0;
+        document.querySelectorAll('[data-head-total]').forEach(c => grand += parseFloat(c.textContent) || 0);
+        document.getElementById('headInternalTotal').textContent = grand.toFixed(1);
+    }
+
     async function headInternalApprove() {
         const btn = document.getElementById('headBtnApprove');
         btn.disabled = true; btn.textContent = 'Approving...';
         try {
-            const res  = await fetch(MANDAYS_API('internal/approve'), { method: 'POST', headers: getHeaders(), credentials: 'same-origin' });
+            // Collect approved_additional per employee
+            const approvedDetails = [];
+            document.querySelectorAll('.head-approve-add').forEach(inp => {
+                approvedDetails.push({
+                    employee_id:        parseInt(inp.dataset.employee),
+                    approved_additional: parseFloat(inp.value) || 0,
+                });
+            });
+
+            const res  = await fetch(MANDAYS_API('internal/approve'), {
+                method: 'POST', headers: getHeaders(), credentials: 'same-origin',
+                body: JSON.stringify({ approved_details: approvedDetails }),
+            });
             const data = await res.json();
             if (data.success) {
                 showNotification('Internal proposal approved!', 'success');
@@ -2514,8 +3081,5 @@
         finally { btn.disabled = false; btn.textContent = 'Confirm Reject'; }
     }
 
-    document.getElementById('headInternalModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeHeadInternalModal();
-    });
 </script>
 @endsection

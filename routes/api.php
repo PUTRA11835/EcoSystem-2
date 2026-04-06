@@ -28,9 +28,10 @@ use App\Http\Controllers\TimesheetController;
 use App\Http\Controllers\EmailController;
 use App\Http\Controllers\StagingTicketController;
 use App\Http\Controllers\MandaysController;
+use App\Http\Controllers\NotificationController;
 
 Route::middleware(['web'])->group(function () {
-
+    
     // ==================== AUTH ROUTES ====================
     Route::prefix('auth')->group(function () {
         Route::post('/login', [AuthController::class, 'login']);
@@ -39,14 +40,18 @@ Route::middleware(['web'])->group(function () {
     });
 
     // ==================== EMPLOYEE ROUTES ====================
-
+    
     // Main Employee endpoints
     Route::prefix('employees')->group(function () {
         Route::get('/', [EmployeeController::class, 'getData']);
         Route::post('/', [EmployeeController::class, 'store']);
-        Route::get('/{id}', [EmployeeController::class, 'show']);
+        Route::get('/roles', [EmployeeController::class, 'getRoles']);
+        Route::get('/mentionable', [EmployeeController::class, 'getMentionable']);
+        Route::get('/{id}', [EmployeeController::class, 'getDetail']);
         Route::put('/{id}', [EmployeeController::class, 'update']);
         Route::delete('/{id}', [EmployeeController::class, 'destroy']);
+        Route::patch('/{id}/change-password', [EmployeeController::class, 'changePassword']);
+        Route::patch('/{id}/change-role', [EmployeeController::class, 'changeRole']);
     });
 
     // Employee Basic Data endpoints
@@ -131,7 +136,7 @@ Route::middleware(['web'])->group(function () {
     });
 
     // ==================== CUSTOMER ROUTES ====================
-
+    
     // Main Customer endpoints
     Route::prefix('customers')->group(function () {
         Route::get('/', [CustomerController::class, 'getData']);
@@ -215,6 +220,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/', [StagingTicketController::class, 'index']);
         Route::post('/', [StagingTicketController::class, 'store']);
         Route::get('/{id}', [StagingTicketController::class, 'show']);
+        Route::get('/{id}/preview-body', [StagingTicketController::class, 'previewBody']);
         Route::post('/{id}/approve', [StagingTicketController::class, 'approve']);
         Route::post('/{id}/reject', [StagingTicketController::class, 'reject']);
     });
@@ -228,12 +234,12 @@ Route::middleware(['web'])->group(function () {
         Route::get('/pending-confirmations', [TicketController::class, 'pendingConfirmations']);
         Route::get('/pending-member-changes', [TicketController::class, 'pendingMemberChanges']);
         Route::post('/', [TicketController::class, 'store']);
-
+        
         // Routes with specific names
         Route::get('/status/{status}', [TicketController::class, 'getByStatus']);
         Route::post('/confirm-assignment/{confirmationId}', [TicketController::class, 'confirmAssignment']);
         Route::post('/member-change-requests/{changeRequestId}/{action}', [TicketController::class, 'processMemberChangeRequest']);
-
+        
         // Routes with {id} parameter last
         Route::get('/{id}', [TicketController::class, 'show']);
         Route::get('/{id}/mandays-history', [TicketController::class, 'getMandaysHistory']);
@@ -320,6 +326,15 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/reject', [TimesheetController::class, 'reject']);
     });
 
+    // ==================== NOTIFICATION ROUTES ====================
+    Route::prefix('notifications')->group(function () {
+        Route::get('/',              [NotificationController::class, 'apiIndex']);
+        Route::get('/unread-count',  [NotificationController::class, 'unreadCount']);
+        Route::put('/read-all',      [NotificationController::class, 'markAllRead']);
+        Route::put('/{id}/read',     [NotificationController::class, 'markRead']);
+        Route::delete('/bulk-delete',[NotificationController::class, 'bulkDelete']);
+    });
+
     // ==================== EMAIL ROUTES ====================
     Route::prefix('email')->group(function () {
         Route::get('/inbox', [EmailController::class, 'inbox']);
@@ -330,56 +345,6 @@ Route::middleware(['web'])->group(function () {
     });
 });
 
-// ==================== MOBILE AUTH — CUSTOMER ====================
-// Route::prefix('mobile')->group(function () {
-//     Route::post('/auth/login', [\App\Http\Controllers\Mobile\AuthController::class, 'login']);
-//     Route::post('/auth/refresh', [\App\Http\Controllers\Mobile\AuthController::class, 'refresh']);
-
-//     Route::middleware(['mobile.customer'])->group(function () {
-//         Route::post('/auth/logout', [\App\Http\Controllers\Mobile\AuthController::class, 'logout']);
-//         Route::get('/auth/me', [\App\Http\Controllers\Mobile\AuthController::class, 'me']);
-//     });
-// });
-
-// ==================== MOBILE AUTH — EMPLOYEE ====================
-Route::prefix('mobile/employee')->group(function () {
-    Route::post('/auth/login', [\App\Http\Controllers\Mobile\EmployeeAuthController::class, 'login']);
-    Route::post('/auth/refresh', [\App\Http\Controllers\Mobile\EmployeeAuthController::class, 'refresh']);
-
-    Route::middleware(['mobile.employee'])->group(function () {
-        Route::post('/auth/logout', [\App\Http\Controllers\Mobile\EmployeeAuthController::class, 'logout']);
-        Route::get('/auth/me', [\App\Http\Controllers\Mobile\EmployeeAuthController::class, 'me']);
-
-        // Dashboard
-        Route::get('/dashboard', [\App\Http\Controllers\Mobile\DashboardController::class, 'index']);
-
-        // ==================== TICKET ROUTES (MOBILE) ====================
-        Route::prefix('tickets')->group(function () {
-            Route::get('/',                            [\App\Http\Controllers\Mobile\TicketController::class, 'index']);
-            Route::post('/',                           [\App\Http\Controllers\Mobile\TicketController::class, 'store']);
-            Route::get('/stats',                       [\App\Http\Controllers\Mobile\TicketController::class, 'stats']);
-            Route::get('/{id}',                        [\App\Http\Controllers\Mobile\TicketController::class, 'show']);
-            Route::put('/{id}/status',                 [\App\Http\Controllers\Mobile\TicketController::class, 'updateStatus']);
-            Route::get('/{id}/messages',               [\App\Http\Controllers\Mobile\TicketController::class, 'getMessages']);
-            Route::post('/{id}/messages',              [\App\Http\Controllers\Mobile\TicketController::class, 'sendMessage']);
-            Route::post('/{id}/ownership',             [\App\Http\Controllers\Mobile\TicketController::class, 'takeOwnership']);
-            Route::put('/{id}/mandays',                [\App\Http\Controllers\Mobile\TicketController::class, 'updateMandays']);
-            Route::post('/{id}/send-to-customer',      [\App\Http\Controllers\Mobile\TicketController::class, 'sendToCustomer']);
-        });
-
-        // ==================== SUPPORT TICKET ROUTES (MOBILE) ====================
-        Route::prefix('support-tickets')->group(function () {
-            Route::get('/',      [\App\Http\Controllers\Mobile\SupportTicketController::class, 'index']);
-            Route::get('/{id}',  [\App\Http\Controllers\Mobile\SupportTicketController::class, 'show']);
-        });
-
-        // ==================== PROJECT ROUTES (MOBILE) ====================
-        Route::prefix('projects')->group(function () {
-            Route::get('/',               [\App\Http\Controllers\Mobile\ProjectController::class, 'index']);
-            Route::get('/{id}',           [\App\Http\Controllers\Mobile\ProjectController::class, 'show']);
-            Route::post('/{id}/updates',  [\App\Http\Controllers\Mobile\ProjectController::class, 'storeUpdate']);
-        });
-    });
 // ==================== JARVIES EXTERNAL API ====================
 // Diakses dari server Jarvies menggunakan X-Api-Key header
 // Tidak butuh browser session — autentikasi via JARVIES_API_KEY di .env

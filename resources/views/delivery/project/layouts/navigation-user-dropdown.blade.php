@@ -25,7 +25,7 @@
 
         {{-- Konten dropdown tetap sama --}}
         <x-slot name="content">
-            <x-dropdown-link :href="route('profile.edit')">
+            <x-dropdown-link :href="route('profile.my')">
                 {{ __('Profile') }}
             </x-dropdown-link>
 

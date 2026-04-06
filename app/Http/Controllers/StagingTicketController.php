@@ -296,6 +296,42 @@ class StagingTicketController extends Controller
         }
     }
 
+    // ─── API: Email body preview (resolve inline images as base64) ───────────
+
+    /**
+     * GET /api/staging-tickets/{id}/preview-body
+     * Mengembalikan email_body_html dengan cid: inline images diganti base64 data URI.
+     * Digunakan oleh modal staging agar gambar bisa ditampilkan sebelum ticket di-approve.
+     */
+    public function previewBody($id)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $staging = StagingTicket::findOrFail($id);
+        $html    = $staging->email_body_html ?? '';
+
+        $needsResolve = $staging->graph_message_id && (
+            str_contains($html, 'cid:') ||
+            ($staging->has_attachments && preg_match('/\[[^\]]+\.(png|jpe?g|gif|bmp|webp)\]/i', $html))
+        );
+        if ($html && $needsResolve) {
+            try {
+                $html = app(\App\Http\Controllers\EmailController::class)
+                    ->resolveInlineImagesAsDataUris($staging->graph_message_id, $html);
+            } catch (\Exception $e) {
+                Log::warning('StagingTicketController@previewBody: resolve images failed', [
+                    'staging_id' => $staging->id,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return response()->json(['success' => true, 'html' => $html]);
+    }
+
     // ─── API: Statistics (untuk badge/notif admin) ────────────────────────────
 
     /**
@@ -382,24 +418,24 @@ class StagingTicketController extends Controller
                 // Subject sama dengan format reply: "Ticket #XXXX: description"
                 $subject   = 'Ticket #' . $ticketNumber . ': ' . ($staging->description ?? 'Ticket Update');
                 $inReplyTo = $staging->email_message_id; // null untuk web-only → buat thread baru
+                $threadId  = $staging->email_thread_id;   // conversationId fallback
 
-                // Ambil CC dari staging (bisa format string array atau object array)
-                $ccList = [];
-                if (!empty($staging->cc_emails)) {
-                    $decoded = json_decode($staging->cc_emails, true);
-                    if (is_array($decoded)) {
-                        $ccList = $decoded; // sendTicketReply handles both string[] and object[]
-                    }
+                // Ambil CC dari staging — defensive parse (model cast atau raw JSON string)
+                $rawCc  = $staging->cc_emails;
+                if (is_string($rawCc)) {
+                    $rawCc = json_decode($rawCc, true) ?? [];
                 }
+                $ccList = is_array($rawCc) ? $rawCc : [];
 
                 $emailResult = app(EmailController::class)->sendTicketReply(
                     $customerEmail,
                     $subject,
                     $bodyHtml,
                     $inReplyTo,
-                    [],      // files
-                    $ccList, // ccList dari staging
-                    true     // noRePrefix — subject langsung tanpa "Re: "
+                    [],       // files
+                    $ccList,  // ccList dari staging
+                    true,     // noRePrefix — subject langsung tanpa "Re: "
+                    $threadId // conversationId fallback jika inReplyTo tidak ditemukan
                 );
 
                 // Simpan conversationId ke ticket agar reply berikutnya bisa threaded
@@ -467,6 +503,7 @@ class StagingTicketController extends Controller
             'email_thread_id'     => $s->email_thread_id,
             'email_body_html'     => $s->email_body_html,
             'has_attachments'     => $s->has_attachments,
+            'graph_message_id'    => $s->graph_message_id,
             'validated_by'        => $s->validated_by,
             'validator_name'      => $validatorName,
             'validated_at'        => $s->validated_at?->toDateTimeString(),

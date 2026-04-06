@@ -42,12 +42,16 @@ class EmailController extends Controller
         return $response->json('access_token');
     }
 
-    private function graphGet(string $path, array $query = []): array
+    private function graphGet(string $path, array $query = [], array $headers = []): array
     {
         $token   = $this->getAccessToken();
         $baseUrl = rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/');
 
-        $response = Http::withToken($token)->get("{$baseUrl}{$path}", $query);
+        $http = Http::withToken($token);
+        if (!empty($headers)) {
+            $http = $http->withHeaders($headers);
+        }
+        $response = $http->get("{$baseUrl}{$path}", $query);
 
         if (!$response->successful()) {
             throw new \RuntimeException("Graph GET {$path} gagal: " . $response->body());
@@ -250,7 +254,9 @@ class EmailController extends Controller
         try {
             $sender = env('MS_SENDER_EMAIL');
 
-            $select = 'id,subject,from,ccRecipients,receivedDateTime,body,internetMessageId,conversationId,hasAttachments';
+            $select      = 'id,subject,from,ccRecipients,receivedDateTime,body,internetMessageId,conversationId,hasAttachments';
+            // Minta body dalam format HTML agar inline image (cid:) tetap terjaga
+            $preferHtml  = ['Prefer' => 'outlook.body-content-type="html"'];
 
             // Query 1: semua unread (perilaku utama)
             $unreadData = $this->graphGet("/users/{$sender}/mailFolders/inbox/messages", [
@@ -258,7 +264,7 @@ class EmailController extends Controller
                 '$orderby' => 'receivedDateTime asc',
                 '$top'     => 50,
                 '$select'  => $select,
-            ]);
+            ], $preferHtml);
             $unreadMessages = $unreadData['value'] ?? [];
 
             // Query 2: email masuk dalam 60 menit terakhir (jaring pengaman untuk email
@@ -270,7 +276,7 @@ class EmailController extends Controller
                 '$orderby' => 'receivedDateTime asc',
                 '$top'     => 20,
                 '$select'  => $select,
-            ]);
+            ], $preferHtml);
             $recentMessages = $recentData['value'] ?? [];
 
             Log::info('EmailController@processInbox: fetch summary', [
@@ -468,6 +474,77 @@ class EmailController extends Controller
                 'message_html' => $this->replaceCidReferences($message->message_html, $cidMap),
             ]);
         }
+    }
+
+    /**
+     * Resolve inline cid: image references in an HTML body by embedding them
+     * as base64 data URIs fetched directly from Graph API.
+     * Used for staging ticket preview — no DB records are created.
+     *
+     * @param  string $graphMsgId  Graph message ID of the original email
+     * @param  string $html        Raw HTML body (may contain cid: references)
+     * @return string HTML with cid: replaced by data URIs (or original if fetch fails)
+     */
+    public function resolveInlineImagesAsDataUris(string $graphMsgId, string $html): string
+    {
+        $sender = env('MS_SENDER_EMAIL');
+        try {
+            $result = $this->graphGet("/users/{$sender}/messages/{$graphMsgId}/attachments");
+            foreach ($result['value'] ?? [] as $att) {
+                if (!str_contains($att['@odata.type'] ?? '', 'fileAttachment')) continue;
+                $contentId    = $att['contentId'] ?? null;
+                $mimeType     = $att['contentType'] ?? 'application/octet-stream';
+                $attName      = $att['name'] ?? null;
+                $attId        = $att['id'] ?? null;
+                $contentBytes = $att['contentBytes'] ?? null;
+
+                // Graph API omits contentBytes for larger attachments in list responses.
+                // If contentBytes is missing, individually fetch the attachment to get it.
+                if (!$contentBytes && $attId) {
+                    try {
+                        $single       = $this->graphGet("/users/{$sender}/messages/{$graphMsgId}/attachments/{$attId}");
+                        $contentBytes = $single['contentBytes'] ?? null;
+                        if (!$mimeType || $mimeType === 'application/octet-stream') {
+                            $mimeType = $single['contentType'] ?? $mimeType;
+                        }
+                    } catch (\Exception $e) {
+                        Log::warning('EmailController@resolveInlineImagesAsDataUris: individual fetch failed', [
+                            'att_id' => $attId,
+                            'error'  => $e->getMessage(),
+                        ]);
+                    }
+                }
+
+                if (!$contentBytes) continue;
+
+                $dataUri = "data:{$mimeType};base64,{$contentBytes}";
+
+                // Ganti referensi cid: (HTML email dengan inline attachment)
+                if ($contentId) {
+                    $cleanCid = trim($contentId, '<>');
+                    $html = str_replace('cid:' . $cleanCid, $dataUri, $html);
+                    $html = str_replace('cid:<' . $cleanCid . '>', $dataUri, $html);
+                    if ($contentId !== $cleanCid) {
+                        $html = str_replace('cid:' . $contentId, $dataUri, $html);
+                    }
+                }
+
+                // Ganti placeholder [filename.ext] yang muncul saat body disimpan sebagai plain-text
+                if ($attName && preg_match('/\.(png|jpe?g|gif|bmp|webp)$/i', $attName)) {
+                    $placeholder = '[' . $attName . ']';
+                    if (str_contains($html, $placeholder)) {
+                        $imgTag = '<img src="' . $dataUri . '" alt="' . htmlspecialchars($attName, ENT_QUOTES) . '" style="max-width:100%">';
+                        $html   = str_replace($placeholder, $imgTag, $html);
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning('EmailController@resolveInlineImagesAsDataUris: failed', [
+                'graph_msg_id' => $graphMsgId,
+                'error'        => $e->getMessage(),
+            ]);
+        }
+        return $html;
     }
 
     /**
@@ -672,7 +749,8 @@ class EmailController extends Controller
         ?string $inReplyTo = null,
         array $files = [],
         array $ccList = [],  // [{name, address}, ...] atau [address, ...]
-        bool $noRePrefix = false
+        bool $noRePrefix = false,
+        ?string $threadId = null  // M365 conversationId — fallback jika inReplyTo tidak ditemukan
     ): array {
         $sender         = env('MS_SENDER_EMAIL');
         $replySubject   = (!$noRePrefix && stripos($subject, 're:') !== 0) ? 'Re: ' . $subject : $subject;
@@ -710,10 +788,12 @@ class EmailController extends Controller
             $filterVal  = str_replace("'", "''", $inReplyTo);
             $originalId = null;
 
-            // Cari di Inbox dulu, lalu SentItems
+            // Cari di Inbox dulu, lalu SentItems, terakhir all messages (fallback global).
+            // Fallback global diperlukan jika email sudah dipindah ke subfolder atau custom folder.
             foreach ([
                 "/users/{$sender}/mailFolders/Inbox/messages",
                 "/users/{$sender}/mailFolders/SentItems/messages",
+                "/users/{$sender}/messages",   // ← global fallback: semua folder
             ] as $searchPath) {
                 try {
                     $result = $this->graphGet($searchPath, [
@@ -726,6 +806,11 @@ class EmailController extends Controller
                         if (!$conversationId && !empty($result['value'][0]['conversationId'])) {
                             $conversationId = $result['value'][0]['conversationId'];
                         }
+                        Log::info('EmailController@sendTicketReply: inReplyTo found', [
+                            'path'        => $searchPath,
+                            'in_reply_to' => $inReplyTo,
+                            'original_id' => $originalId,
+                        ]);
                         break;
                     }
                 } catch (\Exception $e) {
@@ -743,16 +828,19 @@ class EmailController extends Controller
                     $draftId        = $draft->json('id');
                     $conversationId = $draft->json('conversationId') ?? $conversationId;
 
-                    // SELALU patch toRecipients ke $toEmail agar tidak pernah salah kirim.
+                    // SELALU patch toRecipients dan ccRecipients agar tidak pernah salah kirim.
                     // Ini fix untuk kasus SentItems: createReply default-nya reply ke raditya sendiri.
+                    // ccRecipients selalu di-set eksplisit (bisa [] untuk hapus pre-populated CC yang salah).
+                    //
+                    // JANGAN override subject di sini — Exchange menghitung ulang conversationId
+                    // dari normalized subject. Jika subject diubah → conversationId baru →
+                    // email keluar dari thread di Outlook DAN SMTP In-Reply-To header hilang.
+                    // Graph sudah otomatis set "Re: {original_subject}" via createReply → biarkan.
                     $patchData = [
                         'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
-                        'subject'      => $replySubject,
                         'toRecipients' => [['emailAddress' => ['address' => $toEmail]]],
+                        'ccRecipients' => $ccRecipients,
                     ];
-                    if (!empty($ccRecipients)) {
-                        $patchData['ccRecipients'] = $ccRecipients;
-                    }
                     $this->graphPatch("/users/{$sender}/messages/{$draftId}", $patchData);
                 } catch (\Exception $e) {
                     Log::warning('EmailController@sendTicketReply: createReply gagal, fallback ke draft baru', [
@@ -762,9 +850,48 @@ class EmailController extends Controller
                     $draftId = null;
                 }
             } else {
-                Log::warning('EmailController@sendTicketReply: inReplyTo tidak ditemukan di Inbox/SentItems, pakai fallback draft', [
+                Log::warning('EmailController@sendTicketReply: inReplyTo tidak ditemukan di mana-mana, pakai fallback draft', [
                     'in_reply_to' => $inReplyTo,
                 ]);
+            }
+        }
+
+        // ── Fallback by threadId (conversationId) ─────────────────────────────
+        // Dipakai jika inReplyTo tidak ditemukan di manapun tapi kita punya email_thread_id.
+        // Cari pesan manapun dalam thread tsb (terbaru) → createReply agar tetap threaded.
+        if (!$draftId && $threadId) {
+            try {
+                $threadVal   = str_replace("'", "''", $threadId);
+                $threadResult = $this->graphGet("/users/{$sender}/messages", [
+                    '$filter'  => "conversationId eq '{$threadVal}'",
+                    '$select'  => 'id,conversationId',
+                    '$orderby' => 'receivedDateTime desc',
+                    '$top'     => 1,
+                ]);
+                if (!empty($threadResult['value'][0]['id'])) {
+                    $threadMsgId = $threadResult['value'][0]['id'];
+                    $draft       = $this->graphPost("/users/{$sender}/messages/{$threadMsgId}/createReply", []);
+                    $draftId     = $draft->json('id');
+                    if (!$conversationId) {
+                        $conversationId = $draft->json('conversationId') ?? $threadId;
+                    }
+                    $patchData = [
+                        'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
+                        'toRecipients' => [['emailAddress' => ['address' => $toEmail]]],
+                        'ccRecipients' => $ccRecipients,
+                    ];
+                    $this->graphPatch("/users/{$sender}/messages/{$draftId}", $patchData);
+                    Log::info('EmailController@sendTicketReply: threaded via conversationId fallback', [
+                        'thread_id'  => $threadId,
+                        'thread_msg' => $threadMsgId,
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::warning('EmailController@sendTicketReply: threadId fallback gagal', [
+                    'thread_id' => $threadId,
+                    'error'     => $e->getMessage(),
+                ]);
+                $draftId = null;
             }
         }
 

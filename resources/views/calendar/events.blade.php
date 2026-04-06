@@ -166,91 +166,142 @@
 </div>
 
 <!-- Create/Edit Event Modal -->
-<div id="eventModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
-    <div class="min-h-screen px-4 py-8 flex items-center justify-center">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full">
-            <div class="primary-gradient text-white px-6 py-4 rounded-t-2xl flex items-center justify-between">
-                <h3 class="text-xl font-bold flex items-center gap-2" id="eventModalTitle">
-                    <i class="fas fa-calendar-plus"></i>
-                    Create New Event
-                </h3>
-                <button onclick="closeEventModal()" class="text-white hover:text-gray-200 transition-colors">
-                    <i class="fas fa-times text-2xl"></i>
-                </button>
-            </div>
-            
-            <form id="eventForm" class="p-6 space-y-5">
-                <input type="hidden" id="eventId">
-                
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Event Title <span class="text-red-600">*</span>
-                    </label>
-                    <input type="text" id="eventTitleInput" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all" placeholder="e.g., Team Meeting">
-                </div>
+<div id="eventModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
 
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Description</label>
-                    <textarea id="eventDescriptionInput" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all resize-none" placeholder="Add event description..."></textarea>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Start Date <span class="text-red-600">*</span>
-                        </label>
-                        <input type="date" id="eventStartDate" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Start Time <span class="text-red-600">*</span>
-                        </label>
-                        <input type="time" id="eventStartTime" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">End Date</label>
-                        <input type="date" id="eventEndDate" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">End Time</label>
-                        <input type="time" id="eventEndTime" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Location</label>
-                    <input type="text" id="eventLocationInput" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all" placeholder="e.g., Meeting Room A">
-                </div>
-
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Event Type <span class="text-red-600">*</span>
-                    </label>
-                    <select id="eventTypeInput" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
-                        <option value="meeting">Meeting</option>
-                        <option value="task">Task</option>
-                        <option value="deadline">Deadline</option>
-                        <option value="urgent">Urgent</option>
-                        <option value="reminder">Reminder</option>
-                    </select>
-                </div>
-
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" id="allDayEvent" class="w-5 h-5 primary-text border-gray-300 rounded focus:ring-red-800">
-                    <label for="allDayEvent" class="text-sm font-semibold text-gray-700">All day event</label>
-                </div>
-
-                <div class="flex gap-3 pt-4 border-t border-gray-200">
-                    <button type="submit" class="flex-1 primary-bg hover:opacity-90 text-white font-semibold py-3 rounded-lg transition-all shadow-sm hover:shadow-md">
-                        <i class="fas fa-save mr-2"></i>
-                        Save Event
-                    </button>
-                    <button type="button" onclick="closeEventModal()" class="px-8 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-lg transition-all">
-                        Cancel
-                    </button>
-                </div>
-            </form>
+        <!-- Header -->
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
+            <h3 id="eventModalTitle" class="text-xl font-bold text-gray-900">Create New Event</h3>
+            <button onclick="closeEventModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                </svg>
+            </button>
         </div>
+
+        <!-- Body -->
+        <form id="eventForm" class="overflow-y-auto flex-1 p-6">
+            <input type="hidden" id="eventId">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+
+                <!-- Column 1: Event Details -->
+                <div class="space-y-5">
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Event Details</h4>
+                        <hr class="border-gray-200 mt-2 mb-5">
+                    </div>
+
+                    <!-- Title -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                            Event Title <span class="text-red-600">*</span>
+                        </label>
+                        <input type="text" id="eventTitleInput" required
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all"
+                            placeholder="e.g., Team Meeting">
+                    </div>
+
+                    <!-- Event Type -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                            Event Type <span class="text-red-600">*</span>
+                        </label>
+                        <div class="relative">
+                            <select id="eventTypeInput" required
+                                class="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg text-sm appearance-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                                <option value="meeting">Meeting</option>
+                                <option value="task">Task</option>
+                                <option value="deadline">Deadline</option>
+                                <option value="urgent">Urgent</option>
+                                <option value="reminder">Reminder</option>
+                            </select>
+                            <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
+                        <textarea id="eventDescriptionInput" rows="4"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all resize-none"
+                            placeholder="Add event description..."></textarea>
+                    </div>
+
+                    <!-- All Day -->
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="allDayEvent" class="w-4 h-4 text-red-800 border-gray-300 rounded focus:ring-red-800">
+                        <label for="allDayEvent" class="text-sm font-medium text-gray-700">All day event</label>
+                    </div>
+                </div>
+
+                <!-- Column 2: Schedule & Location -->
+                <div class="space-y-5">
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Schedule &amp; Location</h4>
+                        <hr class="border-gray-200 mt-2 mb-5">
+                    </div>
+
+                    <!-- Start Date + Start Time -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                                Start Date <span class="text-red-600">*</span>
+                            </label>
+                            <input type="date" id="eventStartDate" required
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                                Start Time <span class="text-red-600">*</span>
+                            </label>
+                            <input type="time" id="eventStartTime" required
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                        </div>
+                    </div>
+
+                    <!-- End Date + End Time -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1.5">End Date</label>
+                            <input type="date" id="eventEndDate"
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1.5">End Time</label>
+                            <input type="time" id="eventEndTime"
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                        </div>
+                    </div>
+
+                    <!-- Location -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Location</label>
+                        <input type="text" id="eventLocationInput"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all"
+                            placeholder="e.g., Meeting Room A">
+                    </div>
+                </div>
+
+            </div>
+        </form>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 flex-shrink-0">
+            <button type="button" onclick="closeEventModal()"
+                class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                Cancel
+            </button>
+            <button type="submit" form="eventForm"
+                class="px-5 py-2.5 text-sm font-medium text-white bg-red-800 hover:bg-red-900 rounded-lg transition-colors shadow-sm">
+                <i class="fas fa-save mr-2"></i>Save Event
+            </button>
+        </div>
+
     </div>
 </div>
 

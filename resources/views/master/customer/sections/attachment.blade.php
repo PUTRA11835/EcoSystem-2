@@ -100,16 +100,23 @@
                         <!-- Document Type -->
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1.5">Document Type <span class="text-red-600">*</span></label>
-                            <select id="modalDocumentType" required class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                                <option value="">Select Document Type</option>
-                                <option value="Identification (ID)">Identification (ID)</option>
-                                <option value="Contract">Contract</option>
-                                <option value="Agreement">Agreement</option>
-                                <option value="Invoice">Invoice</option>
-                                <option value="Purchase Order">Purchase Order</option>
-                                <option value="Certificate">Certificate</option>
-                                <option value="Other">Other</option>
-                            </select>
+                            <div class="relative">
+                                <select id="modalDocumentType" required class="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-red-800">
+                                    <option value="">Select Document Type</option>
+                                    <option value="Identification (ID)">Identification (ID)</option>
+                                    <option value="Contract">Contract</option>
+                                    <option value="Agreement">Agreement</option>
+                                    <option value="Invoice">Invoice</option>
+                                    <option value="Purchase Order">Purchase Order</option>
+                                    <option value="Certificate">Certificate</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                                <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
+                                    </svg>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Document Title -->
@@ -421,20 +428,6 @@
     /**
      * Show notification
      */
-    function showNotification(message, type = 'info') {
-        const bgColor = type === 'success' ? 'bg-green-500' : 
-                        type === 'error' ? 'bg-red-500' : 
-                        type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500';
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
@@ -442,10 +435,6 @@
         loadAttachments();
     });
 
-    // Close modal on outside click
-    document.getElementById('attachmentModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeAttachmentModal();
-    });
 
     // Close modal on Escape key
     document.addEventListener('keydown', function(e) {

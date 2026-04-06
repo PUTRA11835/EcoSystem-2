@@ -1,5 +1,7 @@
 @extends('dashboard')
-@section('title', 'Delivery Support')
+@section('title', 'Support Tickets')
+@section('page-title', 'Support Tickets')
+@section('page-subtitle', 'Manage and track all support requests')
 @section('content')
 
 <!-- Modern Helpdesk Header -->
@@ -11,13 +13,13 @@
         </div>
 
         <div class="flex items-center gap-3">
-            @if($user->role->role_id == 1 || $user->role->role_id == 2)
+            @if($user->role->role_id == 2)
             <div class="inline-flex bg-gray-100 rounded-xl p-1">
-                <button onclick="toggleView('all')" id="btnViewAll" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
-                    All Tickets
-                </button>
                 <button onclick="toggleView('my')" id="btnViewMy" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
                     My Tickets
+                </button>
+                <button onclick="toggleView('all')" id="btnViewAll" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
+                    All Tickets
                 </button>
             </div>
             @endif
@@ -153,11 +155,11 @@
 @if($user->role->role_id == 1)
 <div id="createTicketModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-hidden">
     <div class="h-full flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
-            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900">Create New Ticket</h3>
-                <button onclick="closeCreateTicketModal()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-gray-600">
+        <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl">
+            <div class="flex items-center justify-between px-6 py-5 border-b border-gray-200">
+                <h3 class="text-xl font-bold text-gray-900">Create New Ticket</h3>
+                <button onclick="closeCreateTicketModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
                     </svg>
                 </button>
@@ -167,13 +169,13 @@
                     <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Customer</label>
                     <div class="relative">
                         <input type="text" id="customerSearch"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
                             placeholder="Search customer..."
                             autocomplete="off"
                             onfocus="showCustomerDropdown()"
                             oninput="filterCustomers()">
                         <input type="hidden" id="newCustomerId" required>
-                        <div id="customerDropdown" class="hidden absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                        <div id="customerDropdown" class="hidden absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                             @foreach($customers as $customer)
                                 <div class="customer-option px-4 py-3 hover:bg-gray-100 cursor-pointer text-sm border-b border-gray-100 last:border-0"
                                      data-id="{{ $customer['customer_id'] }}"
@@ -189,11 +191,11 @@
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Description</label>
-                    <textarea id="newDescription" required rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" placeholder="Describe the issue..."></textarea>
+                    <textarea id="newDescription" required rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent" placeholder="Describe the issue..."></textarea>
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Priority</label>
-                    <select id="newPriority" required class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                    <select id="newPriority" required class="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
                         <option value="Very High">Very High</option>
                         <option value="High">High</option>
                         <option value="Medium" selected>Medium</option>
@@ -202,7 +204,7 @@
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Ticket Type <span class="text-gray-400 font-normal normal-case">(optional)</span></label>
-                    <select id="newTicketType" class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                    <select id="newTicketType" class="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
                         <option value="">-- Select Type --</option>
                         <option value="Incident">Incident</option>
                         <option value="Service Request">Service Request</option>
@@ -210,9 +212,9 @@
                         <option value="Consult">Consult</option>
                     </select>
                 </div>
-                <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                    <button type="button" onclick="closeCreateTicketModal()" class="px-6 py-3 bg-white text-gray-700 text-sm font-semibold rounded-xl border border-gray-300 hover:bg-gray-50">Cancel</button>
-                    <button type="submit" class="px-6 py-3 bg-red-700 text-white text-sm font-semibold rounded-xl hover:bg-red-800 shadow-sm">Create Ticket</button>
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                    <button type="button" onclick="closeCreateTicketModal()" class="px-5 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+                    <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 shadow-sm transition-all">Create Ticket</button>
                 </div>
             </form>
         </div>
@@ -253,7 +255,7 @@
     let currentPage = 1;
     let totalItems = 0;
     let totalPages = 0;
-    let currentView = 'all';
+    let currentView = ({{ $user->role->role_id ?? 0 }} === 2) ? 'my' : 'all';
     let userRole = {{ $user->role->role_id ?? 0 }};
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -341,7 +343,7 @@
             const data = await response.json();
 
             if (data.success) {
-                allTickets = data.data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                allTickets = data.data.sort((a, b) => new Date(b.last_message_at || b.created_at) - new Date(a.last_message_at || a.created_at));
                 filteredTickets = allTickets;
                 updateStats();
                 renderTickets();
@@ -395,7 +397,9 @@
 
     function createTicketCard(ticket) {
         const customerName = ticket.customer?.customer_name || 'Unknown';
-        const timeAgo = formatTimeAgo(new Date(ticket.created_at));
+        const lastActivity = new Date(ticket.last_message_at || ticket.created_at);
+        const timeStr = formatTimeAgo(lastActivity);
+        const timeTitle = lastActivity.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         const description = ticket.description || 'No description';
         const shortDesc = description.length > 100 ? description.substring(0, 100) + '...' : description;
         const agentName = ticket.employee?.employee_name || 'Unassigned';
@@ -407,6 +411,7 @@
             'open': { label: 'Open', class: 'bg-blue-50 text-blue-700' },
             'in_progress': { label: 'In Progress', class: 'bg-yellow-50 text-yellow-700' },
             'hold': { label: 'Hold', class: 'bg-orange-50 text-orange-700' },
+            'wait_to_close': { label: 'Wait to Close', class: 'bg-teal-50 text-teal-700' },
             'cancel': { label: 'Cancel', class: 'bg-gray-100 text-gray-500' },
             'closed': { label: 'Closed', class: 'bg-green-50 text-green-700' },
             'reply': { label: 'Reply', class: 'bg-purple-50 text-purple-700' }
@@ -419,9 +424,18 @@
             'Change Request': 'bg-amber-50 text-amber-600',
             'Consult': 'bg-teal-50 text-teal-600'
         };
-        const typeBadge = ticket.ticket_type
-            ? `<span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${typeColors[ticket.ticket_type] || 'bg-gray-100 text-gray-600'}">${ticket.ticket_type}</span>`
-            : '';
+        const typeLabel = ticket.ticket_type || '—';
+        const typeClass = typeColors[ticket.ticket_type] || 'bg-gray-100 text-gray-500';
+
+        const jarviesMap = {
+            'in process':        { label: 'In Process',        class: 'bg-blue-50 text-blue-600' },
+            'author action':     { label: 'Author Action',     class: 'bg-amber-50 text-amber-600' },
+            'proposed solution': { label: 'Proposed Solution', class: 'bg-purple-50 text-purple-600' },
+            'sent in to SAP':    { label: 'Sent to SAP',       class: 'bg-indigo-50 text-indigo-600' },
+            'sent it to support':{ label: 'To Support',        class: 'bg-cyan-50 text-cyan-600' },
+            'closed':            { label: 'Closed',            class: 'bg-green-50 text-green-700' },
+        };
+        const jarviesInfo = jarviesMap[ticket.jarvies_status] || { label: ticket.jarvies_status || '—', class: 'bg-gray-100 text-gray-500' };
 
         return `
             <a href="/ticket/${ticket.ticket_id}" class="ticket-list-item">
@@ -431,13 +445,14 @@
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center justify-between gap-2 mb-0.5">
                             <span class="text-sm font-semibold text-gray-900 truncate">${customerName}</span>
-                            <span class="text-xs text-gray-400 flex-shrink-0">${timeAgo}</span>
+                            <span class="text-xs text-gray-400 flex-shrink-0" title="${timeTitle}">${timeStr}</span>
                         </div>
-                        <p class="text-sm text-gray-700 font-medium truncate mb-1.5">${ticket.ticket_number || '#' + ticket.ticket_id} - ${shortDesc}</p>
+                        <p class="text-sm text-gray-700 font-medium truncate mb-1.5">${ticket.ticket_number || 'No Number'} — ${shortDesc}</p>
                         <div class="flex items-center gap-2 flex-wrap">
                             <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${statusInfo.class}">${statusInfo.label}</span>
+                            <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${jarviesInfo.class}">${jarviesInfo.label}</span>
+                            <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${typeClass}">${typeLabel}</span>
                             <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${priorityClass}">${ticket.ticket_priority || 'Medium'}</span>
-                            ${typeBadge}
                             <span class="text-[10px] text-gray-400">${agentName}</span>
                         </div>
                     </div>
@@ -496,7 +511,7 @@
 
         const options = {
             'jarvies_status': ['in process', 'author action', 'proposed solution', 'closed', 'sent in to SAP', 'sent it to support'],
-            'status': ['open', 'in_progress', 'hold', 'cancel', 'closed', 'reply'],
+            'status': ['open', 'in_progress', 'hold', 'wait_to_close', 'cancel', 'closed', 'reply'],
             'ticket_type': ['Incident', 'Service Request', 'Change Request', 'Consult'],
             'priority': ['Very High', 'High', 'Medium', 'Low']
         };
@@ -546,26 +561,26 @@
     }
 
     function formatTimeAgo(date) {
+        const tz = 'Asia/Jakarta';
         const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
-        if (diffMins < 1) return 'just now';
-        if (diffMins < 60) return `${diffMins}m ago`;
-        if (diffHours < 24) return `${diffHours}h ago`;
-        if (diffDays < 7) return `${diffDays}d ago`;
-        return date.toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' });
+        const toDay = (d) => new Date(d.toLocaleDateString('en-CA', { timeZone: tz }));
+        const todayDate  = toDay(now);
+        const targetDate = toDay(date);
+        const diffDays = Math.round((todayDate - targetDate) / 86400000);
+
+        if (diffDays === 0) {
+            return date.toLocaleTimeString('id-ID', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+        if (diffDays === 1) return 'Yesterday';
+        if (diffDays < 7) {
+            return date.toLocaleDateString('en-GB', { timeZone: tz, weekday: 'short' });
+        }
+        if (date.getFullYear() === now.getFullYear()) {
+            return date.toLocaleDateString('en-GB', { timeZone: tz, day: '2-digit', month: 'short' });
+        }
+        return date.toLocaleDateString('en-GB', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
     }
 
-    function showNotification(message, type = 'info') {
-        const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-xl shadow-xl z-[100] transition-opacity duration-300 font-medium text-sm`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        setTimeout(() => { notification.style.opacity = '0'; setTimeout(() => notification.remove(), 300); }, 3000);
-    }
 
     // ==================== ADMIN: CREATE TICKET ====================
     function openCreateTicketModal() { document.getElementById('createTicketModal').classList.remove('hidden'); }
@@ -612,7 +627,7 @@
             closeCreateTicketModal();
         }
     });
-    document.getElementById('createTicketModal')?.addEventListener('click', function(e) { if (e.target === this) closeCreateTicketModal(); });
+
 
     // ==================== CUSTOMER SEARCHABLE DROPDOWN ====================
     function showCustomerDropdown() {

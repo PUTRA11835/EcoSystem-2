@@ -48,6 +48,188 @@
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
         }
+
+        /* Toast Notification */
+        #toast-container {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-width: 22rem;
+            width: 100%;
+            pointer-events: none;
+        }
+
+        .toast {
+            pointer-events: all;
+            border-radius: 0.875rem;
+            padding: 1rem 1rem 0 1rem;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            overflow: hidden;
+            transform: translateX(110%);
+            opacity: 0;
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        .toast.hide {
+            transform: translateX(110%);
+            opacity: 0;
+            transition: transform 0.35s ease-in, opacity 0.3s ease-in;
+        }
+
+        .toast-body {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding-bottom: 0.875rem;
+        }
+
+        .toast-icon {
+            flex-shrink: 0;
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .toast-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .toast-title {
+            font-size: 0.8125rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .toast-message {
+            font-size: 0.8125rem;
+            margin-top: 0.2rem;
+            line-height: 1.4;
+        }
+
+        .toast-close {
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.1rem;
+            border-radius: 0.375rem;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+            line-height: 1;
+        }
+
+        .toast-close:hover { opacity: 1; }
+
+        .toast-progress {
+            height: 3px;
+            border-radius: 0 0 0.875rem 0.875rem;
+            margin: 0 -1rem;
+            transform-origin: left;
+            animation: progress-shrink linear forwards;
+        }
+
+        @keyframes progress-shrink {
+            from { transform: scaleX(1); }
+            to   { transform: scaleX(0); }
+        }
+
+        /* Error toast */
+        .toast-error {
+            background: #fff1f1;
+            border: 1.5px solid #fca5a5;
+        }
+        .toast-error .toast-icon { background: #fee2e2; }
+        .toast-error .toast-icon svg { color: #dc2626; }
+        .toast-error .toast-title { color: #991b1b; }
+        .toast-error .toast-message { color: #b91c1c; }
+        .toast-error .toast-close { color: #991b1b; }
+        .toast-error .toast-progress { background: #ef4444; }
+
+        /* Success toast */
+        .toast-success {
+            background: #f0fdf4;
+            border: 1.5px solid #86efac;
+        }
+        .toast-success .toast-icon { background: #dcfce7; }
+        .toast-success .toast-icon svg { color: #16a34a; }
+        .toast-success .toast-title { color: #14532d; }
+        .toast-success .toast-message { color: #15803d; }
+        .toast-success .toast-close { color: #14532d; }
+        .toast-success .toast-progress { background: #22c55e; }
+
+        /* Warning toast */
+        .toast-warning {
+            background: #fffbeb;
+            border: 1.5px solid #fcd34d;
+        }
+        .toast-warning .toast-icon { background: #fef9c3; }
+        .toast-warning .toast-icon svg { color: #d97706; }
+        .toast-warning .toast-title { color: #78350f; }
+        .toast-warning .toast-message { color: #92400e; }
+        .toast-warning .toast-close { color: #78350f; }
+        .toast-warning .toast-progress { background: #f59e0b; }
+
+        /* Info toast */
+        .toast-info {
+            background: #eff6ff;
+            border: 1.5px solid #93c5fd;
+        }
+        .toast-info .toast-icon { background: #dbeafe; }
+        .toast-info .toast-icon svg { color: #2563eb; }
+        .toast-info .toast-title { color: #1e3a8a; }
+        .toast-info .toast-message { color: #1d4ed8; }
+        .toast-info .toast-close { color: #1e3a8a; }
+        .toast-info .toast-progress { background: #3b82f6; }
+
+        /* ── Bubble bounce animations ── */
+        @keyframes bbl-1 {
+            0%   { transform: translate(0px,   0px); }
+            25%  { transform: translate(18px,  0px); }
+            50%  { transform: translate(18px, -18px); }
+            75%  { transform: translate(0px,  -18px); }
+            100% { transform: translate(0px,   0px); }
+        }
+        @keyframes bbl-2 {
+            0%   { transform: translate(0px,  0px); }
+            25%  { transform: translate(-18px, 0px); }
+            50%  { transform: translate(-18px, 18px); }
+            75%  { transform: translate(0px,   18px); }
+            100% { transform: translate(0px,   0px); }
+        }
+        @keyframes bbl-4 {
+            0%   { transform: translate(0px,   0px); }
+            25%  { transform: translate(14px,  14px); }
+            50%  { transform: translate(0px,   20px); }
+            75%  { transform: translate(-14px, 14px); }
+            100% { transform: translate(0px,   0px); }
+        }
+
+        .bubble {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(220, 80, 80, var(--op, 0.45));
+            border: none;
+            box-shadow: none;
+            pointer-events: none;
+            animation: var(--anim, bbl-1) var(--dur, 8s) ease-in-out infinite;
+            animation-delay: var(--delay, 0s);
+            will-change: transform;
+        }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-50 via-red-50 to-gray-100">
@@ -58,15 +240,25 @@
         <div class="absolute -bottom-1/2 -left-1/2 w-full h-full bg-gradient-to-tr from-red-600 to-red-900 rounded-full blur-3xl"></div>
     </div>
 
-    <main class="w-full max-w-5xl relative z-10">
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <main class="w-full max-w-[58rem] relative z-10">
         <div class="grid grid-cols-1 lg:grid-cols-5 bg-white rounded-3xl overflow-hidden shadow-2xl border border-gray-100">
             
             <!-- Left Side - Branding & Info -->
             <section class="lg:col-span-2 bg-gradient-to-br from-red-800 via-red-900 to-red-950 gradient-animated text-white p-8 lg:p-12 flex flex-col justify-between relative overflow-hidden">
-                
+
                 <!-- Decorative Elements -->
                 <div class="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -mr-32 -mt-32"></div>
                 <div class="absolute bottom-0 left-0 w-48 h-48 bg-white opacity-5 rounded-full -ml-24 -mb-24"></div>
+
+                <!-- Bubbles -->
+                <div class="absolute inset-0 pointer-events-none overflow-hidden">
+                    <div class="bubble" style="width:6px;  height:6px;  left:20%; top:35%; --op:0.55; --dur:8s;  --delay:0s;   --anim:bbl-2;"></div>
+                    <div class="bubble" style="width:10px; height:10px; left:55%; top:55%; --op:0.45; --dur:11s; --delay:2.5s; --anim:bbl-4;"></div>
+                    <div class="bubble" style="width:8px;  height:8px;  left:78%; top:25%; --op:0.50; --dur:9s;  --delay:5s;   --anim:bbl-1;"></div>
+                </div>
                 
                 <div class="relative z-10">
                     <!-- Logo Section -->
@@ -118,42 +310,13 @@
                         <p class="text-gray-600">Sign in to your ECoSystem account</p>
                     </div>
 
-                    {{-- Flash messages dari redirect (mis. setelah ganti password) --}}
+                    {{-- Flash messages — ditampilkan via JS toast --}}
                     @if(session('success'))
-                        <div class="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg text-sm text-green-700 font-medium">
-                            {{ session('success') }}
-                        </div>
+                        <script>window._flashSuccess = @json(session('success'));</script>
                     @endif
                     @if(session('error'))
-                        <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg text-sm text-red-700 font-medium">
-                            {{ session('error') }}
-                        </div>
+                        <script>window._flashError = @json(session('error'));</script>
                     @endif
-
-                    <!-- Alert Messages -->
-                    <div id="errorAlert" class="hidden mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg">
-                        <div class="flex items-start">
-                            <svg class="w-5 h-5 text-red-500 mr-3 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                            </svg>
-                            <div>
-                                <p class="text-sm font-semibold text-red-800">Error</p>
-                                <p id="errorMessage" class="text-sm text-red-700 mt-1"></p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="successAlert" class="hidden mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
-                        <div class="flex items-start">
-                            <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                            </svg>
-                            <div>
-                                <p class="text-sm font-semibold text-green-800">Success</p>
-                                <p id="successMessage" class="text-sm text-green-700 mt-1"></p>
-                            </div>
-                        </div>
-                    </div>
 
                     <!-- Login Form -->
                     <form id="loginForm" class="space-y-5">
@@ -281,7 +444,6 @@
         const submitBtn = document.getElementById('submitBtn');
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
-        const errorAlert = document.getElementById('errorAlert');
 
         // ── Toggle show/hide password ──────────────────────────────────────────
         document.getElementById('togglePassword').addEventListener('click', function () {
@@ -290,32 +452,77 @@
             document.getElementById('iconEye').classList.toggle('hidden', isHidden);
             document.getElementById('iconEyeOff').classList.toggle('hidden', !isHidden);
         });
-        const errorMessage = document.getElementById('errorMessage');
-        const successAlert = document.getElementById('successAlert');
-        const successMessage = document.getElementById('successMessage');
 
         const API_BASE_URL = '/api/auth';
+        const TOAST_DURATION = 5000; // ms
+
+        const toastIcons = {
+            success: `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>`,
+            error:   `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>`,
+            warning: `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>`,
+            info:    `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>`,
+        };
+
+        const toastLabels = {
+            success: 'Success',
+            error:   'Error',
+            warning: 'Warning',
+            info:    'Information',
+        };
+
+        function showToast(type, message, duration = TOAST_DURATION) {
+            const container = document.getElementById('toast-container');
+
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+
+            toast.innerHTML = `
+                <div class="toast-body">
+                    <div class="toast-icon">${toastIcons[type]}</div>
+                    <div class="toast-content">
+                        <p class="toast-title">${toastLabels[type]}</p>
+                        <p class="toast-message">${message}</p>
+                    </div>
+                    <button class="toast-close" aria-label="Tutup">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="toast-progress" style="animation-duration: ${duration}ms;"></div>
+            `;
+
+            container.appendChild(toast);
+
+            // Trigger slide-in
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => toast.classList.add('show'));
+            });
+
+            function dismiss() {
+                toast.classList.remove('show');
+                toast.classList.add('hide');
+                toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+            }
+
+            const timer = setTimeout(dismiss, duration);
+
+            toast.querySelector('.toast-close').addEventListener('click', () => {
+                clearTimeout(timer);
+                dismiss();
+            });
+
+            return toast;
+        }
+
+        function showError(message)   { showToast('error', message); }
+        function showSuccess(message) { showToast('success', message); }
+        function showWarning(message) { showToast('warning', message); }
+        function showInfo(message)    { showToast('info', message); }
+        function hideAlerts() { /* no-op — toast auto-dismisses */ }
 
         function getCsrfToken() {
             return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        }
-
-        function showError(message) {
-            errorMessage.textContent = message;
-            errorAlert.classList.remove('hidden');
-            successAlert.classList.add('hidden');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        function showSuccess(message) {
-            successMessage.textContent = message;
-            successAlert.classList.remove('hidden');
-            errorAlert.classList.add('hidden');
-        }
-
-        function hideAlerts() {
-            errorAlert.classList.add('hidden');
-            successAlert.classList.add('hidden');
         }
 
         function setLoading(isLoading) {
@@ -430,8 +637,11 @@
             }
         });
 
-        // Check if already logged in
+        // Flash messages dari server (session)
         window.addEventListener('load', function() {
+            if (window._flashSuccess) showSuccess(window._flashSuccess);
+            if (window._flashError)   showError(window._flashError);
+
             const token = getToken();
             if (token) {
                 console.log('User already has token in localStorage');

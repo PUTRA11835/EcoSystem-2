@@ -22,6 +22,7 @@ class CustomerMandays extends Model
         'customer_notes',
         'rejection_reason',
         'notes',
+        'canceled_by_id',
         'total_mandays',
         'customer_response_at',
     ];
@@ -42,6 +43,11 @@ class CustomerMandays extends Model
     public function proposedByAgent()
     {
         return $this->belongsTo(Employee::class, 'proposed_by_agent_id', 'employee_id');
+    }
+
+    public function canceledBy()
+    {
+        return $this->belongsTo(Employee::class, 'canceled_by_id', 'employee_id');
     }
 
     public function details()

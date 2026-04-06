@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find . -type f -name *login*)",
+      "Bash(for f:*)",
+      "Bash(do)",
+      "Read(//c/EcoSystem-2-main/**)",
+      "Bash(done)",
+      "Bash(find c:EcoSystem-2-mainresourcesviews -name *manday* -o -name *pic*)",
+      "Bash(find /c/EcoSystem-2-main -type f \\\\\\(-name *.vue -o -name *.blade.php -o -name *.js \\\\\\))",
+      "Bash(find /c/EcoSystem-2-main -type f -name *.vue)",
+      "Bash(grep -r \"Approve & Create\" /c/EcoSystem-2-main --include=*.php --include=*.blade.php --include=*.js)",
+      "Bash(grep -l \"ticket_message\\\\|TicketMessage\" /c/EcoSystem-2-main/database/migrations/*.php)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}

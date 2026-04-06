@@ -16,6 +16,8 @@ class ConsultantMandaysDetail extends Model
         'employee_id',
         'module',
         'mandays',
+        'additional_mandays',
+        'approved_additional',
         'notes',
     ];
 

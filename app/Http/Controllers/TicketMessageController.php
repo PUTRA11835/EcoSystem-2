@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\EmailController;
 use App\Models\Customer;
+use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
@@ -92,10 +93,14 @@ class TicketMessageController extends Controller
     public function store(Request $request, $ticketId)
     {
         $validator = Validator::make($request->all(), [
-            'message_body'  => 'nullable|string',
-            'message_type'  => 'required|in:reply,internal_note',
-            'attachments'   => 'nullable|array',
-            'attachments.*' => 'file|max:10240', // maks 10 MB per file
+            'message_body'            => 'nullable|string',
+            'message_type'            => 'required|in:reply,internal_note',
+            'attachments'             => 'nullable|array',
+            'attachments.*'           => 'file|max:10240', // maks 10 MB per file
+            'mentioned_employee_ids'  => 'nullable|array',
+            'mentioned_employee_ids.*'=> 'integer',
+            'mentioned_role_ids'      => 'nullable|array',
+            'mentioned_role_ids.*'    => 'integer',
         ]);
 
         if ($validator->fails()) {
@@ -132,9 +137,11 @@ class TicketMessageController extends Controller
             $senderType = 'employee';
             $senderId   = $sessionUser['id'];
 
-            // Employee selalu tampil sebagai "Helpdesk Support" agar konsisten
-            // (semua email dikirim dari 1 akun M365); nama asli diambil sebagai nick_name
-            $senderName = 'Helpdesk Support';
+            // For internal notes, use the employee's real name so mentions are attributed correctly.
+            // For public replies, always show "Helpdesk Support" for consistency (email sent from M365 shared inbox).
+            $isInternalNote = $request->message_type === 'internal_note';
+
+            $senderName = $isInternalNote ? ($sessionUser['name'] ?? 'Helpdesk Support') : 'Helpdesk Support';
 
             // Ambil nick_name dari session, fallback ke first_name dari DB
             $nickName = $sessionUser['nick_name'] ?? null;
@@ -200,20 +207,38 @@ class TicketMessageController extends Controller
 
             } else {
                 // Internal note — tidak pernah dikirim ke email
+                $mentionedEmployeeIds = $request->input('mentioned_employee_ids', []);
+                $mentionedRoleIds     = $request->input('mentioned_role_ids', []);
+
                 $message = TicketMessage::create([
-                    'ticket_id'           => $ticketId,
-                    'sender_type'         => $senderType,
-                    'sender_id'           => $senderId,
-                    'sender_name'         => $senderName,
-                    'message'             => trim(strip_tags($messageBody)),
-                    'message_html'        => $messageBody,
-                    'is_internal_note'    => true,
-                    'channel'             => 'web',
-                    'is_read_by_customer' => false,
-                    'is_read_by_agent'    => true,
+                    'ticket_id'              => $ticketId,
+                    'sender_type'            => $senderType,
+                    'sender_id'              => $senderId,
+                    'sender_name'            => $senderName,
+                    'message'                => trim(strip_tags($messageBody)),
+                    'message_html'           => $messageBody,
+                    'is_internal_note'       => true,
+                    'channel'                => 'web',
+                    'is_read_by_customer'    => false,
+                    'is_read_by_agent'       => true,
+                    'mentioned_employee_ids' => !empty($mentionedEmployeeIds) ? $mentionedEmployeeIds : null,
+                    'mentioned_role_ids'     => !empty($mentionedRoleIds) ? $mentionedRoleIds : null,
                 ]);
+
                 if (!empty($uploadedFiles)) {
                     $this->saveLocalAttachments($uploadedFiles, $message, $ticketId, $senderId);
+                }
+
+                // Fire mention notifications (non-fatal)
+                if (!empty($mentionedEmployeeIds) || !empty($mentionedRoleIds)) {
+                    $this->createMentionNotifications(
+                        $message,
+                        $ticket,
+                        $senderId,
+                        $senderName,
+                        $mentionedEmployeeIds,
+                        $mentionedRoleIds
+                    );
                 }
             }
 
@@ -367,6 +392,65 @@ class TicketMessageController extends Controller
                 'success' => false,
                 'message' => 'Failed to save message: ' . $e->getMessage(),
             ], 500);
+        }
+    }
+
+    /**
+     * Create mention notifications for employees/roles tagged in an internal note.
+     * Role mentions are fan-out expanded: each member of the role gets one notification.
+     * The sender never receives their own notification.
+     */
+    private function createMentionNotifications(
+        TicketMessage $message,
+        Ticket $ticket,
+        int $senderId,
+        string $senderName,
+        array $mentionedEmployeeIds,
+        array $mentionedRoleIds
+    ): void {
+        try {
+            $preview  = mb_substr(strip_tags($message->message ?? ''), 0, 120);
+            $ticketId = $message->ticket_id;
+
+            // Collect all recipient employee IDs (unique, exclude sender)
+            $recipientIds = collect($mentionedEmployeeIds)->map(fn ($id) => (int) $id)->toArray();
+
+            // Fan-out role mentions → individual employees
+            // Uses employee_role_assignment (many-to-many) which covers both primary and secondary role assignments
+            if (!empty($mentionedRoleIds)) {
+                $roleMembers = DB::table('employee_role_assignment as era')
+                    ->join('employee as e', 'era.employee_id', '=', 'e.employee_id')
+                    ->whereIn('era.role_id', $mentionedRoleIds)
+                    ->where('e.is_active', true)
+                    ->pluck('era.employee_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->toArray();
+                $recipientIds = array_merge($recipientIds, $roleMembers);
+            }
+
+            $recipientIds = array_unique($recipientIds);
+
+            foreach ($recipientIds as $recipientId) {
+                if ($recipientId === $senderId) {
+                    continue; // never notify yourself
+                }
+
+                Notification::create([
+                    'employee_id'      => $recipientId,
+                    'type'             => 'mention',
+                    'ticket_id'        => $ticketId,
+                    'message_id'       => $message->id,
+                    'from_employee_id' => $senderId,
+                    'from_name'        => $senderName,
+                    'preview'          => $preview,
+                    'is_read'          => false,
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::warning('createMentionNotifications: failed (non-fatal)', [
+                'message_id' => $message->id,
+                'error'      => $e->getMessage(),
+            ]);
         }
     }
 

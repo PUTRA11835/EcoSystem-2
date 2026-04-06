@@ -258,9 +258,17 @@ class EmployeeController extends Controller
 
             $employees = $query->orderBy('e.employee_id', 'desc')->get();
 
-            // Transform status
-            $employees = $employees->map(function($emp) {
-                // Tentukan status berdasarkan block dan deletion_flag
+            // Fetch roles for all employees via pivot table
+            $employeeIds = $employees->pluck('id')->all();
+            $roleAssignments = DB::table('employee_role_assignment as era')
+                ->join('employee_role as er', 'era.role_id', '=', 'er.id')
+                ->whereIn('era.employee_id', $employeeIds)
+                ->select('era.employee_id', 'er.id as role_id', 'er.name as role_name')
+                ->get()
+                ->groupBy('employee_id');
+
+            // Transform status & attach roles
+            $employees = $employees->map(function($emp) use ($roleAssignments) {
                 if ($emp->deletion_flag) {
                     $emp->status = 'deleted';
                 } elseif ($emp->block) {
@@ -268,6 +276,11 @@ class EmployeeController extends Controller
                 } else {
                     $emp->status = 'active';
                 }
+
+                $emp->roles = isset($roleAssignments[$emp->id])
+                    ? $roleAssignments[$emp->id]->map(fn($r) => ['id' => $r->role_id, 'name' => $r->role_name])->values()
+                    : collect();
+
                 return $emp;
             });
 
@@ -441,10 +454,19 @@ class EmployeeController extends Controller
 
         try {
             // Create employee (password disimpan di auth_users, bukan di tabel employee)
+            $defaultRoleId = $request->role ?? 2;
             $employeeId = DB::table('employee')->insertGetId([
                 'eci'       => $request->eci,
-                'role_id'   => $request->role ?? 2,
+                'role_id'   => $defaultRoleId,
                 'is_active' => 1,
+            ]);
+
+            // Insert default role into pivot table
+            DB::table('employee_role_assignment')->insertOrIgnore([
+                'employee_id' => $employeeId,
+                'role_id'     => $defaultRoleId,
+                'created_at'  => now(),
+                'updated_at'  => now(),
             ]);
 
             Log::info('Employee record created', [
@@ -708,6 +730,242 @@ class EmployeeController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update employee: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all employee roles (API)
+     */
+    /**
+     * GET /api/employees/mentionable
+     * Returns list of employees (id, name, role_name) for @mention autocomplete.
+     * Excludes the current session user from the list.
+     */
+    public function getMentionable(Request $request)
+    {
+        try {
+            $sessionUser = session('user');
+            $currentId   = $sessionUser['id'] ?? 0;
+
+            $q = $request->input('q', '');
+
+            $employees = DB::table('employee as e')
+                ->join('employee_role as r', 'e.role_id', '=', 'r.id')
+                ->leftJoin('employee_basic_data as bd', 'e.employee_id', '=', 'bd.employee_id')
+                ->where('e.employee_id', '!=', $currentId)
+                ->where('e.is_active', true)
+                ->where(function ($q2) {
+                    $q2->whereNull('bd.block')->orWhere('bd.block', false);
+                })
+                ->where(function ($q2) {
+                    $q2->whereNull('bd.deletion_flag')->orWhere('bd.deletion_flag', false);
+                })
+                ->when($q, function ($query) use ($q) {
+                    $query->where(function ($inner) use ($q) {
+                        $inner->where(DB::raw("CONCAT(COALESCE(bd.first_name,''), ' ', COALESCE(bd.last_name,''))"), 'like', "%{$q}%")
+                              ->orWhere('bd.nick_name', 'like', "%{$q}%");
+                    });
+                })
+                ->select(
+                    'e.employee_id as id',
+                    DB::raw("CONCAT(COALESCE(bd.first_name,''), ' ', COALESCE(bd.last_name,'')) as full_name"),
+                    DB::raw("COALESCE(NULLIF(bd.nick_name,''), CONCAT(COALESCE(bd.first_name,''), ' ', COALESCE(bd.last_name,''))) as display_name"),
+                    'r.name as role_name'
+                )
+                ->orderBy('bd.first_name')
+                ->limit(20)
+                ->get();
+
+            // Also include roles for @role-level mentions
+            $roles = DB::table('employee_role')
+                ->when($q, fn ($query) => $query->where('name', 'like', "%{$q}%"))
+                ->select('id', 'name', DB::raw("'role' as type"))
+                ->orderBy('name')
+                ->get();
+
+            return response()->json([
+                'success'   => true,
+                'employees' => $employees,
+                'roles'     => $roles,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('getMentionable error', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Error'], 500);
+        }
+    }
+
+    public function getRoles()
+    {
+        try {
+            $roles = DB::table('employee_role')->select('id', 'name', 'description')->orderBy('id')->get();
+
+            return response()->json([
+                'success' => true,
+                'data'    => $roles,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('=== API: ERROR FETCHING ROLES ===', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch roles',
+            ], 500);
+        }
+    }
+
+    /**
+     * Change employee password (API)
+     */
+    public function changePassword(Request $request, $id)
+    {
+        $currentUserECI = $this->getCurrentUserECI();
+
+        Log::info('=== API: CHANGE EMPLOYEE PASSWORD ===', [
+            'employee_id'    => $id,
+            'changed_by_eci' => $currentUserECI,
+        ]);
+
+        $validator = Validator::make($request->all(), [
+            'password'              => 'required|string|min:6|confirmed',
+            'password_confirmation' => 'required|string',
+        ], [
+            'password.required'              => 'Password baru wajib diisi',
+            'password.min'                   => 'Password minimal 6 karakter',
+            'password.confirmed'             => 'Konfirmasi password tidak cocok',
+            'password_confirmation.required' => 'Konfirmasi password wajib diisi',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $authUser = DB::table('auth_users')->where('employee_id', $id)->first();
+
+            if (!$authUser) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Auth account for this employee not found',
+                ], 404);
+            }
+
+            DB::table('auth_users')
+                ->where('employee_id', $id)
+                ->update([
+                    'password'   => Hash::make($request->password),
+                    'updated_at' => now(),
+                ]);
+
+            Log::info('=== API: EMPLOYEE PASSWORD CHANGED SUCCESSFULLY ===', [
+                'employee_id'    => $id,
+                'changed_by_eci' => $currentUserECI,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Password changed successfully',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('=== API: ERROR CHANGING PASSWORD ===', [
+                'employee_id' => $id,
+                'error'       => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to change password: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Sync employee roles — replaces all current roles with the given list (API)
+     */
+    public function changeRole(Request $request, $id)
+    {
+        $currentUserECI = $this->getCurrentUserECI();
+
+        Log::info('=== API: SYNC EMPLOYEE ROLES ===', [
+            'employee_id'    => $id,
+            'role_ids'       => $request->role_ids,
+            'changed_by_eci' => $currentUserECI,
+        ]);
+
+        $validator = Validator::make($request->all(), [
+            'role_ids'   => 'required|array|min:1',
+            'role_ids.*' => 'integer|exists:employee_role,id',
+        ], [
+            'role_ids.required' => 'Pilih minimal satu role',
+            'role_ids.min'      => 'Pilih minimal satu role',
+            'role_ids.*.exists' => 'Role tidak valid',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $employee = DB::table('employee')->where('employee_id', $id)->first();
+
+            if (!$employee) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Employee not found',
+                ], 404);
+            }
+
+            $roleIds = array_unique(array_map('intval', $request->role_ids));
+
+            // Sync pivot table (delete old, insert new)
+            DB::table('employee_role_assignment')->where('employee_id', $id)->delete();
+
+            $pivotRows = array_map(fn($roleId) => [
+                'employee_id' => (int) $id,
+                'role_id'     => $roleId,
+                'created_at'  => now(),
+                'updated_at'  => now(),
+            ], $roleIds);
+
+            DB::table('employee_role_assignment')->insert($pivotRows);
+
+            // Keep legacy role_id in sync with the first role
+            DB::table('employee')
+                ->where('employee_id', $id)
+                ->update(['role_id' => $roleIds[0]]);
+
+            $roles = DB::table('employee_role')->whereIn('id', $roleIds)->select('id', 'name')->get();
+
+            Log::info('=== API: EMPLOYEE ROLES SYNCED SUCCESSFULLY ===', [
+                'employee_id'    => $id,
+                'role_ids'       => $roleIds,
+                'changed_by_eci' => $currentUserECI,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Roles updated successfully',
+                'data'    => ['roles' => $roles],
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('=== API: ERROR SYNCING ROLES ===', [
+                'employee_id' => $id,
+                'error'       => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update roles: ' . $e->getMessage(),
             ], 500);
         }
     }

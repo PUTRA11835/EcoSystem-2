@@ -8,7 +8,7 @@
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
                     </svg>
-                    Clear
+                    New
                 </button>
                 <button type="button" onclick="saveFamily()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
@@ -23,7 +23,7 @@
         
         <!-- Personal Information Section -->
         <div class="mb-6">
-            <h5 class="text-sm font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">👤 Personal Information</h5>
+            <h5 class="text-sm font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200"> Personal Information</h5>
             <div class="grid grid-cols-6 gap-4">
                 <!-- Relation -->
                 <div class="col-span-1">
@@ -123,7 +123,7 @@
 
         <!-- Birth Information Section -->
         <div class="mb-6">
-            <h5 class="text-sm font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">🎂 Birth Information</h5>
+            <h5 class="text-sm font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200"> Birth Information</h5>
             <div class="grid grid-cols-6 gap-4">
                 <!-- Birth Place -->
                 <div class="col-span-2">
@@ -294,7 +294,7 @@
      */
     async function loadFamilies() {
         try {
-            console.log('📡 Loading families for employee:', employeeId);
+            console.log(' Loading families for employee:', employeeId);
             
             const response = await fetch(`/api/employees/${employeeId}/family`, {
                 method: 'GET',
@@ -306,7 +306,7 @@
             });
 
             const data = await response.json();
-            console.log('📦 Families loaded:', data);
+            console.log(' Families loaded:', data);
 
             if (data.success && data.data && data.data.length > 0) {
                 familiesData = data.data;
@@ -316,7 +316,7 @@
                 renderEmptyTable();
             }
         } catch (error) {
-            console.error('❌ Error loading families:', error);
+            console.error(' Error loading families:', error);
             familiesData = [];
             renderEmptyTable();
         }
@@ -403,7 +403,7 @@
      */
     function selectFamily(familyId) {
         selectedFamilyId = familyId;
-        console.log('📍 Selected family:', familyId);
+        console.log(' Selected family:', familyId);
         loadFamilyToForm(familyId);
     }
 
@@ -427,7 +427,7 @@
      */
     async function loadFamilyToForm(familyId) {
         try {
-            console.log('📝 Loading family to form:', familyId);
+            console.log(' Loading family to form:', familyId);
             
             const response = await fetch(`/api/employees/${employeeId}/family/${familyId}`, {
                 method: 'GET',
@@ -439,7 +439,7 @@
             });
 
             const data = await response.json();
-            console.log('📦 Family data loaded:', data);
+            console.log(' Family data loaded:', data);
 
             if (data.success && data.data) {
                 const family = data.data;
@@ -465,10 +465,10 @@
                 // Update button text
                 document.getElementById('saveFamilyButtonText').textContent = 'Update';
                 
-                console.log('✅ Family loaded to form fields');
+                console.log(' Family loaded to form fields');
             }
         } catch (error) {
-            console.error('❌ Error loading family:', error);
+            console.error(' Error loading family:', error);
         }
     }
 
@@ -542,8 +542,8 @@
             
             const method = isUpdate ? 'PUT' : 'POST';
             
-            console.log(`💾 ${isUpdate ? 'Updating' : 'Creating'} family:`, url);
-            console.log('📤 Family data:', familyData);
+            console.log(` ${isUpdate ? 'Updating' : 'Creating'} family:`, url);
+            console.log(' Family data:', familyData);
             
             const response = await fetch(url, {
                 method: method,
@@ -558,7 +558,7 @@
             });
 
             const data = await response.json();
-            console.log('📥 Save response:', data);
+            console.log(' Save response:', data);
             
             if (data.success) {
                 showNotification(
@@ -577,7 +577,7 @@
                 showNotification('Failed to save family member: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
-            console.error('❌ Error saving family:', error);
+            console.error(' Error saving family:', error);
             showNotification('An error occurred while saving family member', 'error');
         }
     }
@@ -633,7 +633,7 @@
         if (!deleteFamilyId) return;
 
         try {
-            console.log('🗑️ Deleting family:', deleteFamilyId);
+            console.log(' Deleting family:', deleteFamilyId);
             
             const response = await fetch(`/api/employees/${employeeId}/family/${deleteFamilyId}`, {
                 method: 'DELETE',
@@ -657,7 +657,7 @@
                 showNotification('Failed to delete family member: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
-            console.error('❌ Error deleting family:', error);
+            console.error(' Error deleting family:', error);
             showNotification('An error occurred while deleting family member', 'error');
         }
     }
@@ -665,31 +665,13 @@
     /**
      * Show notification
      */
-    function showNotification(message, type = 'info') {
-        const bgColor = type === 'success' ? 'bg-green-500' : 
-                        type === 'error' ? 'bg-red-500' : 
-                        type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500';
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 Family section initialized');
+        console.log(' Family section initialized');
         loadFamilies();
     });
 
-    // Close modals on outside click
-    document.getElementById('confirmDeleteFamilyModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeConfirmDeleteFamily();
-    });
 
     // Close modals on Escape key
     document.addEventListener('keydown', function(e) {

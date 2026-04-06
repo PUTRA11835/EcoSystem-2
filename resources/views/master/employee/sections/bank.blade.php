@@ -8,7 +8,7 @@
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
                     </svg>
-                    Clear
+                    New
                 </button>
                 <button type="button" onclick="saveBank()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
@@ -23,7 +23,7 @@
         
         <!-- Bank Account Details Section -->
         <div class="mb-6">
-            <h5 class="text-sm font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">🏦 Bank Account Details</h5>
+            <h5 class="text-sm font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200"> Bank Account Details</h5>
             <div class="grid grid-cols-6 gap-4">
                 <!-- Bank Name -->
                 <div class="col-span-2">
@@ -81,7 +81,7 @@
 
         <!-- Validity Period Section -->
         <div class="mb-6">
-            <h5 class="text-sm font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">📅 Validity Period</h5>
+            <h5 class="text-sm font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200"> Validity Period</h5>
             <div class="grid grid-cols-6 gap-4">
                 <!-- Valid From -->
                 <div class="col-span-3">
@@ -99,7 +99,7 @@
 
         <!-- Attachments Section -->
         <div class="bg-gray-50 rounded-lg p-4">
-            <h5 class="text-sm font-bold text-gray-900 mb-3">📎 Attachments</h5>
+            <h5 class="text-sm font-bold text-gray-900 mb-3"> Attachments</h5>
             <div class="grid grid-cols-6 gap-4">
                 <!-- Drive Link -->
                 <div class="col-span-3">
@@ -231,7 +231,7 @@
      */
     async function loadBanks() {
         try {
-            console.log('📡 Loading banks for employee:', employeeId);
+            console.log(' Loading banks for employee:', employeeId);
             
             const response = await fetch(`/api/employees/${employeeId}/bank`, {
                 method: 'GET',
@@ -243,7 +243,7 @@
             });
 
             const data = await response.json();
-            console.log('📦 Banks loaded:', data);
+            console.log(' Banks loaded:', data);
 
             if (data.success && data.data && data.data.length > 0) {
                 banksData = data.data;
@@ -253,7 +253,7 @@
                 renderEmptyTable();
             }
         } catch (error) {
-            console.error('❌ Error loading banks:', error);
+            console.error(' Error loading banks:', error);
             banksData = [];
             renderEmptyTable();
         }
@@ -378,7 +378,7 @@
      */
     function selectBank(bankId) {
         selectedBankId = bankId;
-        console.log('📍 Selected bank:', bankId);
+        console.log(' Selected bank:', bankId);
         loadBankToForm(bankId);
     }
 
@@ -402,7 +402,7 @@
      */
     async function loadBankToForm(bankId) {
         try {
-            console.log('📝 Loading bank to form:', bankId);
+            console.log(' Loading bank to form:', bankId);
             
             const response = await fetch(`/api/employees/${employeeId}/bank/${bankId}`, {
                 method: 'GET',
@@ -414,7 +414,7 @@
             });
 
             const data = await response.json();
-            console.log('📦 Bank data loaded:', data);
+            console.log(' Bank data loaded:', data);
 
             if (data.success && data.data) {
                 const bank = data.data;
@@ -435,10 +435,10 @@
                 // Update button text
                 document.getElementById('saveBankButtonText').textContent = 'Update';
                 
-                console.log('✅ Bank loaded to form fields');
+                console.log(' Bank loaded to form fields');
             }
         } catch (error) {
-            console.error('❌ Error loading bank:', error);
+            console.error(' Error loading bank:', error);
         }
     }
 
@@ -502,8 +502,8 @@
             
             const method = isUpdate ? 'PUT' : 'POST';
             
-            console.log(`💾 ${isUpdate ? 'Updating' : 'Creating'} bank:`, url);
-            console.log('📤 Bank data:', bankData);
+            console.log(` ${isUpdate ? 'Updating' : 'Creating'} bank:`, url);
+            console.log(' Bank data:', bankData);
             
             const response = await fetch(url, {
                 method: method,
@@ -518,7 +518,7 @@
             });
 
             const data = await response.json();
-            console.log('📥 Save response:', data);
+            console.log(' Save response:', data);
             
             if (data.success) {
                 showNotification(
@@ -537,7 +537,7 @@
                 showNotification('Failed to save bank account: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
-            console.error('❌ Error saving bank:', error);
+            console.error(' Error saving bank:', error);
             showNotification('An error occurred while saving bank account', 'error');
         }
     }
@@ -592,7 +592,7 @@
         if (!deleteBankId) return;
 
         try {
-            console.log('🗑️ Deleting bank:', deleteBankId);
+            console.log(' Deleting bank:', deleteBankId);
             
             const response = await fetch(`/api/employees/${employeeId}/bank/${deleteBankId}`, {
                 method: 'DELETE',
@@ -616,7 +616,7 @@
                 showNotification('Failed to delete bank account: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
-            console.error('❌ Error deleting bank:', error);
+            console.error(' Error deleting bank:', error);
             showNotification('An error occurred while deleting bank account', 'error');
         }
     }
@@ -624,31 +624,13 @@
     /**
      * Show notification
      */
-    function showNotification(message, type = 'info') {
-        const bgColor = type === 'success' ? 'bg-green-500' : 
-                        type === 'error' ? 'bg-red-500' : 
-                        type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500';
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 Bank section initialized');
+        console.log(' Bank section initialized');
         loadBanks();
     });
 
-    // Close modals on outside click
-    document.getElementById('confirmDeleteBankModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeConfirmDeleteBank();
-    });
 
     // Close modals on Escape key
     document.addEventListener('keydown', function(e) {

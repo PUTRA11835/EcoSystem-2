@@ -27,11 +27,12 @@
         </nav>
     </div>
 
-    {{-- Success Message --}}
+    {{-- Flash Notifications --}}
     @if(session('success'))
-        <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
-            <span class="block sm:inline">{{ session('success') }}</span>
-        </div>
+        <script>document.addEventListener('DOMContentLoaded',()=>showNotification(@json(session('success')),'success'));</script>
+    @endif
+    @if(session('error'))
+        <script>document.addEventListener('DOMContentLoaded',()=>showNotification(@json(session('error')),'error'));</script>
     @endif
     <div class="bg-white shadow-sm rounded-lg overflow-hidden">
         {{-- Card Header --}}

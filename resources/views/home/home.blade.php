@@ -4,6 +4,203 @@
 @section('page-title', 'Dashboard')
 
 @section('content')
+@if(($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) == 2)
+{{-- ===================== ROLE 2 EMPLOYEE DASHBOARD ===================== --}}
+<div class="space-y-6">
+
+    {{-- Ticket Status Stats --}}
+    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+        @php
+            $stats = $data['ticket_stats'] ?? [];
+            $statCards = [
+                ['label' => 'Total',             'key' => 'total',             'color' => 'text-gray-900'],
+                ['label' => 'Open',              'key' => 'open',              'color' => 'text-blue-600'],
+                ['label' => 'In Process',        'key' => 'in_process',        'color' => 'text-purple-600'],
+                ['label' => 'Action Required',   'key' => 'action_required',   'color' => 'text-orange-500'],
+                ['label' => 'Proposed Solution', 'key' => 'proposed_solution', 'color' => 'text-teal-600'],
+                ['label' => 'Closed',            'key' => 'closed',            'color' => 'text-green-600'],
+                ['label' => 'Pending Approval',  'key' => 'pending_approval',  'color' => 'text-orange-500'],
+            ];
+        @endphp
+        @foreach($statCards as $card)
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-shadow">
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide leading-tight mb-2">{{ $card['label'] }}</p>
+            <p class="text-3xl font-bold {{ $card['color'] }}">{{ $stats[$card['key']] ?? 0 }}</p>
+        </div>
+        @endforeach
+    </div>
+
+    {{-- Main Grid: Chart + Recent Tickets --}}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {{-- Ticket Submissions Chart --}}
+        <div class="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <div class="flex items-start justify-between mb-1">
+                <div>
+                    <h3 class="text-base font-bold text-gray-900">Ticket Submissions</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">Last 30 days</p>
+                </div>
+                <span class="text-xs text-gray-400">{{ now()->format('d M Y') }}</span>
+            </div>
+            <div class="mt-4">
+                <canvas id="ticketChart" height="100"></canvas>
+            </div>
+        </div>
+
+        {{-- Recent Tickets --}}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex flex-col">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-bold text-gray-900">Recent Tickets</h3>
+                <a href="{{ route('ticket.index') }}" class="text-xs font-semibold text-red-800 hover:text-red-900">
+                    View all &rarr;
+                </a>
+            </div>
+
+            @php $recentTickets = $data['recent_tickets'] ?? collect(); @endphp
+
+            @if($recentTickets->isEmpty())
+            <div class="flex-1 flex flex-col items-center justify-center text-center py-8">
+                <svg class="w-12 h-12 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+                <p class="text-sm font-medium text-gray-500">No tickets yet</p>
+            </div>
+            @else
+            <div class="space-y-3 flex-1 overflow-y-auto">
+                @foreach($recentTickets as $ticket)
+                @php
+                    $statusColors = [
+                        'open'          => 'bg-blue-100 text-blue-700',
+                        'in_progress'   => 'bg-purple-100 text-purple-700',
+                        'closed'        => 'bg-green-100 text-green-700',
+                        'wait_to_close' => 'bg-orange-100 text-orange-700',
+                        'hold'          => 'bg-gray-100 text-gray-600',
+                        'reply'         => 'bg-yellow-100 text-yellow-700',
+                        'cancel'        => 'bg-red-100 text-red-600',
+                    ];
+                    $statusClass = $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600';
+                    $statusLabel = match($ticket->status) {
+                        'open'          => 'Open',
+                        'in_progress'   => 'In Process',
+                        'closed'        => 'Closed',
+                        'wait_to_close' => 'Pending',
+                        'hold'          => 'Hold',
+                        'reply'         => 'Reply',
+                        'cancel'        => 'Cancelled',
+                        default         => ucfirst($ticket->jarvies_status ?? $ticket->status),
+                    };
+                @endphp
+                <a href="{{ route('ticket.show', $ticket->ticket_id) }}"
+                   class="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 border border-gray-100 hover:border-gray-200 transition-all block">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-semibold text-gray-800 truncate">
+                            {{ $ticket->ticket_number ?? '#'.$ticket->ticket_id }}
+                        </p>
+                        <p class="text-xs text-gray-500 truncate mt-0.5">
+                            {{ $ticket->customer_name ?? 'Unknown' }}
+                        </p>
+                        <p class="text-xs text-gray-400 mt-0.5">
+                            {{ \Carbon\Carbon::parse($ticket->created_at)->format('d M Y') }}
+                        </p>
+                    </div>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $statusClass }} whitespace-nowrap flex-shrink-0">
+                        {{ $statusLabel }}
+                    </span>
+                </a>
+                @endforeach
+            </div>
+            @endif
+        </div>
+    </div>
+
+    {{-- Quick Actions --}}
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <a href="{{ route('ticket.index') }}"
+           class="flex items-center gap-4 p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all group">
+            <div class="w-12 h-12 rounded-xl bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center flex-shrink-0 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-blue-600">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
+                </svg>
+            </div>
+            <div>
+                <p class="text-sm font-bold text-gray-900">My Tickets</p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                    {{ ($stats['open'] ?? 0) }} open &middot; {{ ($stats['closed'] ?? 0) }} closed
+                </p>
+            </div>
+        </a>
+
+        <a href="{{ route('profile.my') }}"
+           class="flex items-center gap-4 p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-gray-300 transition-all group">
+            <div class="w-12 h-12 rounded-xl bg-gray-100 group-hover:bg-gray-200 flex items-center justify-center flex-shrink-0 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-gray-600">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/>
+                </svg>
+            </div>
+            <div>
+                <p class="text-sm font-bold text-gray-900">My Profile</p>
+                <p class="text-xs text-gray-500 mt-0.5">View profile</p>
+            </div>
+        </a>
+    </div>
+
+</div>
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    const labels = @json($data['ticket_chart']['labels'] ?? []);
+    const chartData = @json($data['ticket_chart']['data'] ?? []);
+
+    const ctx = document.getElementById('ticketChart');
+    if (!ctx) return;
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Tickets',
+                data: chartData,
+                borderColor: '#ef4444',
+                backgroundColor: 'rgba(239,68,68,0.08)',
+                borderWidth: 2,
+                pointRadius: 3,
+                pointBackgroundColor: '#ef4444',
+                tension: 0.3,
+                fill: true,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ctx.parsed.y + ' ticket' + (ctx.parsed.y !== 1 ? 's' : '')
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 11 }, maxTicksLimit: 10, color: '#9ca3af' }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(0,0,0,0.05)' },
+                    ticks: { stepSize: 1, precision: 0, color: '#9ca3af', font: { size: 11 } }
+                }
+            }
+        }
+    });
+})();
+</script>
+@endpush
+
+@else
+{{-- ===================== DEFAULT DASHBOARD (non role-2) ===================== --}}
 <div class="space-y-6">
     <!-- Welcome Card -->
     <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
@@ -302,4 +499,5 @@
         </div>
     </div>
 </div>
+@endif
 @endsection

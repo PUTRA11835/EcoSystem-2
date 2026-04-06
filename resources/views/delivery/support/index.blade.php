@@ -755,7 +755,7 @@
                         
                         <!-- Title -->
                         <h3 class="text-base font-semibold text-gray-900 mb-2 line-clamp-1 group-hover:text-gray-700 transition-colors">
-                            ${ticket.description || 'No description'} #${ticket.ticket_id}
+                            ${ticket.ticket_number ? ticket.ticket_number + ' — ' : ''}${ticket.description || 'No description'}
                         </h3>
                         
                         <!-- Meta Information -->
@@ -1075,18 +1075,6 @@
         filterTickets('all');
     }
 
-    function showNotification(message, type = 'info') {
-        const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-xl shadow-xl z-50 transition-opacity duration-300 font-medium`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
 
     // Event listeners
     document.addEventListener('keydown', function(e) {
@@ -1095,11 +1083,6 @@
         }
     });
 
-    document.getElementById('ticketDetailModal')?.addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeTicketDetail();
-        }
-    });
 </script>
 
 @endsection
