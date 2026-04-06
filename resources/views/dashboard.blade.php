@@ -221,8 +221,68 @@
             }
         }
     </script>
+    <style>
+        #toast-container {
+            position: fixed; top: 1.5rem; right: 1.5rem; z-index: 9999;
+            display: flex; flex-direction: column; gap: 0.75rem;
+            max-width: 22rem; width: 100%; pointer-events: none;
+        }
+        .toast {
+            pointer-events: all; border-radius: 0.875rem;
+            padding: 1rem 1rem 0 1rem; display: flex; flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15); overflow: hidden;
+            transform: translateX(110%); opacity: 0;
+            transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s ease;
+        }
+        .toast.show { transform: translateX(0); opacity: 1; }
+        .toast.hide { transform: translateX(110%); opacity: 0; transition: transform 0.35s ease-in, opacity 0.3s ease-in; }
+        .toast-body { display: flex; align-items: flex-start; gap: 0.75rem; padding-bottom: 0.875rem; }
+        .toast-icon { flex-shrink: 0; width: 2rem; height: 2rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .toast-content { flex: 1; min-width: 0; }
+        .toast-title { font-size: 0.8125rem; font-weight: 700; line-height: 1.2; }
+        .toast-message { font-size: 0.8125rem; margin-top: 0.2rem; line-height: 1.4; }
+        .toast-close { flex-shrink: 0; background: none; border: none; cursor: pointer; padding: 0.1rem; border-radius: 0.375rem; opacity: 0.5; transition: opacity 0.2s; line-height: 1; }
+        .toast-close:hover { opacity: 1; }
+        .toast-progress { height: 3px; border-radius: 0 0 0.875rem 0.875rem; margin: 0 -1rem; transform-origin: left; animation: toast-progress-shrink linear forwards; }
+        @keyframes toast-progress-shrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+        .toast-success { background: #f0fdf4; border: 1.5px solid #86efac; }
+        .toast-success .toast-icon { background: #dcfce7; }
+        .toast-success .toast-icon svg { color: #16a34a; }
+        .toast-success .toast-title { color: #14532d; }
+        .toast-success .toast-message { color: #15803d; }
+        .toast-success .toast-close { color: #14532d; }
+        .toast-success .toast-progress { background: #22c55e; }
+        .toast-error { background: #fff1f1; border: 1.5px solid #fca5a5; }
+        .toast-error .toast-icon { background: #fee2e2; }
+        .toast-error .toast-icon svg { color: #dc2626; }
+        .toast-error .toast-title { color: #991b1b; }
+        .toast-error .toast-message { color: #b91c1c; }
+        .toast-error .toast-close { color: #991b1b; }
+        .toast-error .toast-progress { background: #ef4444; }
+        .toast-warning { background: #fffbeb; border: 1.5px solid #fcd34d; }
+        .toast-warning .toast-icon { background: #fef9c3; }
+        .toast-warning .toast-icon svg { color: #d97706; }
+        .toast-warning .toast-title { color: #78350f; }
+        .toast-warning .toast-message { color: #92400e; }
+        .toast-warning .toast-close { color: #78350f; }
+        .toast-warning .toast-progress { background: #f59e0b; }
+        .toast-info { background: #eff6ff; border: 1.5px solid #93c5fd; }
+        .toast-info .toast-icon { background: #dbeafe; }
+        .toast-info .toast-icon svg { color: #2563eb; }
+        .toast-info .toast-title { color: #1e3a8a; }
+        .toast-info .toast-message { color: #1d4ed8; }
+        .toast-info .toast-close { color: #1e3a8a; }
+        .toast-info .toast-progress { background: #3b82f6; }
+
+        /* Modal backdrop blur — applied automatically when overlay is visible */
+        .modal-blur-active {
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+    </style>
 </head>
 <body class="text-gray-900 min-h-screen" style="background-color: var(--bg-color);">
+    <div id="toast-container"></div>
     <div class="flex min-h-screen">
         
         <!-- Sidebar - Modern Design -->
@@ -452,23 +512,27 @@
                     
                     <div class="flex items-center gap-4">
                         <!-- Search Bar -->
-                        <div class="relative hidden lg:block">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <i class="fas fa-search text-gray-400"></i>
-                            </div>
-                            <input type="text" placeholder="Search anything..." class="w-72 pl-11 pr-4 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all bg-gray-50">
-                        </div>
-
-                        <!-- Notification & Message -->
-                        <div class="flex gap-2">
-                            <button class="relative w-10 h-10 flex items-center justify-center border-2 border-gray-200 rounded-xl hover:border-red-800 hover:bg-red-50 transition-all text-gray-600 hover:text-red-800">
+                        <!-- Notification Bell -->
+                        <div class="relative" id="bellWrapper">
+                            <button id="bellBtn" onclick="toggleBellDropdown()"
+                                class="relative w-10 h-10 flex items-center justify-center border-2 border-gray-200 rounded-xl hover:border-red-800 hover:bg-red-50 transition-all text-gray-600 hover:text-red-800">
                                 <i class="fas fa-bell"></i>
-                                <span class="absolute top-0 right-0 w-2 h-2 bg-red-600 rounded-full border-2 border-white"></span>
+                                <span id="bellBadge" class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-600 rounded-full border-2 border-white text-white text-[10px] font-bold flex items-center justify-center leading-none"></span>
                             </button>
-                            <button class="relative w-10 h-10 flex items-center justify-center border-2 border-gray-200 rounded-xl hover:border-red-800 hover:bg-red-50 transition-all text-gray-600 hover:text-red-800">
-                                <i class="fas fa-envelope"></i>
-                                <span class="absolute top-0 right-0 w-2 h-2 bg-green-600 rounded-full border-2 border-white"></span>
-                            </button>
+
+                            <!-- Notification Dropdown -->
+                            <div id="bellDropdown" class="hidden absolute top-full right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
+                                <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                                    <span class="text-sm font-semibold text-gray-800">Notifications</span>
+                                    <div class="flex gap-2">
+                                        <button onclick="markAllNotificationsRead()" class="text-xs text-red-700 hover:underline font-medium">Mark all read</button>
+                                        <a href="{{ route('notifications.index') }}" class="text-xs text-gray-500 hover:underline">View all</a>
+                                    </div>
+                                </div>
+                                <div id="bellNotifList" class="max-h-80 overflow-y-auto divide-y divide-gray-50">
+                                    <div class="px-4 py-6 text-center text-xs text-gray-400">Loading...</div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- User Menu -->
@@ -498,7 +562,7 @@
 
                             <div id="userDropdown" class="hidden absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border-2 border-gray-100 p-2 z-50">
                                 <!-- User Info -->
-                                <a href="{{ route('profile.edit') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-900 text-sm transition-all font-medium">
+                                <a href="{{ route('profile.my') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-900 text-sm transition-all font-medium">
                                     <i class="fas fa-user w-5 text-center text-gray-500"></i>
                                     <span>My Profile</span>
                                 </a>
@@ -654,6 +718,185 @@
             });
         });
     </script>
+    <script>
+        const _toastIcons = {
+            success: `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>`,
+            error:   `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>`,
+            warning: `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>`,
+            info:    `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>`,
+        };
+        const _toastLabels = {
+            success: 'Success',
+            error:   'Error',
+            warning: 'Warning',
+            info:    'Information',
+        };
+
+        function showToast(message, type, duration = 4000) {
+            type = type ?? 'info';
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <div class="toast-body">
+                    <div class="toast-icon">${_toastIcons[type] ?? _toastIcons.info}</div>
+                    <div class="toast-content">
+                        <p class="toast-title">${_toastLabels[type] ?? 'Info'}</p>
+                        <p class="toast-message">${message}</p>
+                    </div>
+                    <button class="toast-close" aria-label="Close">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="toast-progress" style="animation-duration: ${duration}ms;"></div>
+            `;
+            container.appendChild(toast);
+            requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('show')));
+            function dismiss() {
+                toast.classList.remove('show');
+                toast.classList.add('hide');
+                toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+            }
+            const timer = setTimeout(dismiss, duration);
+            toast.querySelector('.toast-close').addEventListener('click', () => { clearTimeout(timer); dismiss(); });
+        }
+
+        function showNotification(message, type = 'info') {
+            showToast(message, type);
+        }
+
+        function showToastClose(btn) {
+            const toast = btn.closest('.toast-close');
+            if (toast) toast.click();
+        }
+
+        // ── Modal backdrop blur (auto-applied, no per-modal changes needed) ──
+        (function() {
+            function _syncModalBlur() {
+                document.querySelectorAll('.fixed.inset-0').forEach(function(el) {
+                    var isOverlay = !el.classList.contains('hidden')
+                        && el.id !== 'toast-container'
+                        && !el.classList.contains('action-dropdown');
+                    el.classList.toggle('modal-blur-active', isOverlay);
+                });
+            }
+            new MutationObserver(_syncModalBlur).observe(document.body, {
+                subtree: true, attributes: true, attributeFilter: ['class', 'style']
+            });
+        })();
+    </script>
     @stack('scripts')
+
+    <!-- ==================== NOTIFICATION BELL JS ==================== -->
+    <script>
+    (function () {
+        let bellOpen = false;
+
+        function toggleBellDropdown() {
+            bellOpen = !bellOpen;
+            const dropdown = document.getElementById('bellDropdown');
+            if (bellOpen) {
+                dropdown.classList.remove('hidden');
+                loadBellNotifications();
+            } else {
+                dropdown.classList.add('hidden');
+            }
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function (e) {
+            if (!document.getElementById('bellWrapper')?.contains(e.target)) {
+                document.getElementById('bellDropdown')?.classList.add('hidden');
+                bellOpen = false;
+            }
+        });
+
+        function fetchUnreadCount() {
+            fetch('/api/notifications/unread-count', { credentials: 'same-origin' })
+                .then(r => r.json())
+                .then(data => {
+                    const badge = document.getElementById('bellBadge');
+                    if (!badge) return;
+                    const count = data.count || 0;
+                    if (count > 0) {
+                        badge.textContent = count > 99 ? '99+' : count;
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function loadBellNotifications() {
+            const list = document.getElementById('bellNotifList');
+            if (!list) return;
+            fetch('/api/notifications?limit=10', { credentials: 'same-origin' })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success || !data.data.length) {
+                        list.innerHTML = '<div class="px-4 py-6 text-center text-xs text-gray-400">No notifications</div>';
+                        return;
+                    }
+                    list.innerHTML = data.data.map(n => {
+                        const isUnread = !n.is_read;
+                        const ticketUrl = n.ticket_id ? '/ticket/' + n.ticket_id : '/notifications';
+                        return `<a href="${ticketUrl}" onclick="markNotifRead(${n.id}, event)"
+                            class="flex gap-3 px-4 py-3 hover:bg-gray-50 transition-colors ${isUnread ? 'bg-red-50' : ''}">
+                            <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
+                                <i class="fas fa-at text-red-700 text-xs"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-xs font-semibold text-gray-800 truncate">${escapeHtml(n.from_name || 'Someone')} mentioned you</p>
+                                <p class="text-xs text-gray-500 line-clamp-2 mt-0.5">${escapeHtml(n.preview || '')}</p>
+                                <p class="text-[10px] text-gray-400 mt-1">${escapeHtml(n.created_at || '')}</p>
+                            </div>
+                            ${isUnread ? '<span class="w-2 h-2 bg-red-500 rounded-full shrink-0 mt-2"></span>' : ''}
+                        </a>`;
+                    }).join('');
+                })
+                .catch(() => {
+                    list.innerHTML = '<div class="px-4 py-6 text-center text-xs text-gray-400">Failed to load</div>';
+                });
+        }
+
+        function markNotifRead(id, e) {
+            fetch('/api/notifications/' + id + '/read', {
+                method: 'PUT',
+                credentials: 'same-origin',
+                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' }
+            }).catch(() => {});
+            // Let the link navigate
+        }
+
+        function markAllNotificationsRead() {
+            fetch('/api/notifications/read-all', {
+                method: 'PUT',
+                credentials: 'same-origin',
+                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' }
+            }).then(() => {
+                fetchUnreadCount();
+                loadBellNotifications();
+            }).catch(() => {});
+        }
+
+        function escapeHtml(str) {
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        // Expose globally for onclick attributes
+        window.toggleBellDropdown     = toggleBellDropdown;
+        window.markAllNotificationsRead = markAllNotificationsRead;
+        window.markNotifRead          = markNotifRead;
+
+        // Initial count + polling every 30 s
+        fetchUnreadCount();
+        setInterval(fetchUnreadCount, 30000);
+    })();
+    </script>
 </body>
 </html>

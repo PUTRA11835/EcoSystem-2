@@ -8,7 +8,7 @@
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
                     </svg>
-                    Clear
+                    New
                 </button>
                 <button type="button" onclick="saveEducation()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
@@ -259,7 +259,7 @@
      */
     async function loadEducations() {
         try {
-            console.log('📡 Loading educations for employee:', employeeId);
+            console.log(' Loading educations for employee:', employeeId);
             
             const response = await fetch(`/api/employees/${employeeId}/education`, {
                 method: 'GET',
@@ -271,7 +271,7 @@
             });
 
             const data = await response.json();
-            console.log('📦 Educations loaded:', data);
+            console.log(' Educations loaded:', data);
 
             if (data.success && data.data && data.data.length > 0) {
                 educationsData = data.data;
@@ -281,7 +281,7 @@
                 renderEmptyTable();
             }
         } catch (error) {
-            console.error('❌ Error loading educations:', error);
+            console.error(' Error loading educations:', error);
             educationsData = [];
             renderEmptyTable();
         }
@@ -358,7 +358,7 @@
      */
     function selectEducation(educationId) {
         selectedEducationId = educationId;
-        console.log('📍 Selected education:', educationId);
+        console.log(' Selected education:', educationId);
         loadEducationToForm(educationId);
     }
 
@@ -382,7 +382,7 @@
      */
     async function loadEducationToForm(educationId) {
         try {
-            console.log('📝 Loading education to form:', educationId);
+            console.log(' Loading education to form:', educationId);
             
             const response = await fetch(`/api/employees/${employeeId}/education/${educationId}`, {
                 method: 'GET',
@@ -394,7 +394,7 @@
             });
 
             const data = await response.json();
-            console.log('📦 Education data loaded:', data);
+            console.log(' Education data loaded:', data);
 
             if (data.success && data.data) {
                 const education = data.data;
@@ -422,10 +422,10 @@
                 // Update button text
                 document.getElementById('saveEducationButtonText').textContent = 'Update';
                 
-                console.log('✅ Education loaded to form fields');
+                console.log(' Education loaded to form fields');
             }
         } catch (error) {
-            console.error('❌ Error loading education:', error);
+            console.error(' Error loading education:', error);
         }
     }
 
@@ -503,8 +503,8 @@
             
             const method = isUpdate ? 'PUT' : 'POST';
             
-            console.log(`💾 ${isUpdate ? 'Updating' : 'Creating'} education:`, url);
-            console.log('📤 Education data:', educationData);
+            console.log(` ${isUpdate ? 'Updating' : 'Creating'} education:`, url);
+            console.log(' Education data:', educationData);
             
             const response = await fetch(url, {
                 method: method,
@@ -519,7 +519,7 @@
             });
 
             const data = await response.json();
-            console.log('📥 Save response:', data);
+            console.log(' Save response:', data);
             
             if (data.success) {
                 showNotification(
@@ -538,7 +538,7 @@
                 showNotification('Failed to save education: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
-            console.error('❌ Error saving education:', error);
+            console.error(' Error saving education:', error);
             showNotification('An error occurred while saving education', 'error');
         }
     }
@@ -593,7 +593,7 @@
         if (!deleteEducationId) return;
 
         try {
-            console.log('🗑️ Deleting education:', deleteEducationId);
+            console.log(' Deleting education:', deleteEducationId);
             
             const response = await fetch(`/api/employees/${employeeId}/education/${deleteEducationId}`, {
                 method: 'DELETE',
@@ -617,7 +617,7 @@
                 showNotification('Failed to delete education: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
-            console.error('❌ Error deleting education:', error);
+            console.error(' Error deleting education:', error);
             showNotification('An error occurred while deleting education', 'error');
         }
     }
@@ -625,31 +625,13 @@
     /**
      * Show notification
      */
-    function showNotification(message, type = 'info') {
-        const bgColor = type === 'success' ? 'bg-green-500' : 
-                        type === 'error' ? 'bg-red-500' : 
-                        type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500';
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 Education section initialized');
+        console.log(' Education section initialized');
         loadEducations();
     });
 
-    // Close modals on outside click
-    document.getElementById('confirmDeleteEducationModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeConfirmDeleteEducation();
-    });
 
     // Close modals on Escape key
     document.addEventListener('keydown', function(e) {

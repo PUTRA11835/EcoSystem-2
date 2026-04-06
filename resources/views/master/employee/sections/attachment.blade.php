@@ -54,7 +54,7 @@ function uploadAttachment() {
 document.getElementById('fileInput')?.addEventListener('change', function(e) {
     const files = e.target.files;
     if (files.length > 0) {
-        alert(`Selected ${files.length} file(s). Upload functionality to be implemented.`);
+        showNotification(`${files.length} file(s) selected. Upload functionality coming soon.`, 'info');
     }
 });
 </script>

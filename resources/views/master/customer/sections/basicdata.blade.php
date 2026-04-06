@@ -1,8 +1,15 @@
 <div class="space-y-6">
     <!-- General Information -->
     <div>
-        <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">General Information</h3>
-
+        <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
+            <h3 class="text-base font-semibold text-gray-900">General Information</h3>
+            <button onclick="saveCustomerBasicData(customerId)" class="inline-flex items-center gap-2 px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
+                </svg>
+                Save Changes
+            </button>
+        </div>
         <div class="grid grid-cols-6 gap-4">
             <!-- Customer Code (Read-only) -->
             <div class="col-span-1">

@@ -1,40 +1,23 @@
 {{-- ============================================================================ --}}
 {{-- ACTIVITY MODAL - VANILLA JAVASCRIPT VERSION --}}
 {{-- ============================================================================ --}}
-<div id="activityModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
-    <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:p-0">
-        <!-- Background overlay -->
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeActivityModal()"></div>
-        
-        <!-- Modal panel -->
-        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle w-full sm:max-w-lg md:max-w-2xl lg:max-w-4xl">
-            
+<div id="activityModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg md:max-w-2xl lg:max-w-4xl flex flex-col max-h-[90vh]">
             <!-- Header -->
-            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 sm:px-6 py-3 sm:py-4">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center">
-                        <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-white bg-opacity-20">
-                            <svg class="h-5 w-5 sm:h-6 sm:w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
-                            </svg>
-                        </div>
-                        <div class="ml-3">
-                            <h3 class="text-base sm:text-lg font-semibold text-white" id="activityModalTitle">
-                                Add Activity
-                            </h3>
-                            <p class="text-xs sm:text-sm text-indigo-100 mt-0.5" id="activityModalSubtitle">Stage Name</p>
-                        </div>
-                    </div>
-                    <button type="button" onclick="closeActivityModal()" class="text-white hover:text-gray-200 transition">
-                        <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
+            <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
+                <div>
+                    <h3 class="text-xl font-bold text-gray-900" id="activityModalTitle">Add Activity</h3>
+                    <p class="text-sm text-gray-500 mt-0.5" id="activityModalSubtitle">Stage Name</p>
                 </div>
+                <button type="button" onclick="closeActivityModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                </button>
             </div>
 
             <!-- Form Body -->
-            <div class="bg-white px-4 sm:px-6 py-4 sm:py-5 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
+            <div class="px-4 sm:px-6 py-4 sm:py-5 overflow-y-auto flex-1">
                 <form id="activityForm" onsubmit="saveActivity(event)">
                     <div class="space-y-4">
                         <!-- Activity Name -->
@@ -200,21 +183,20 @@
             </div>
 
             <!-- Footer -->
-            <div class="bg-gray-50 px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
+            <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
                 <button type="button" onclick="closeActivityModal()"
-                    class="w-full sm:w-auto inline-flex justify-center items-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    class="px-5 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
                     Cancel
                 </button>
                 <button type="submit" id="activitySubmitBtn" onclick="saveActivity(event)"
-                    class="w-full sm:w-auto inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                    <svg class="w-4 h-4 sm:w-5 sm:h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    class="inline-flex items-center gap-2 px-5 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all shadow-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                     </svg>
-                    💾 Save Activity
+                    Save Activity
                 </button>
             </div>
         </div>
-    </div>
 </div>
 
 
@@ -554,10 +536,10 @@ function resetSubmitButton() {
     const submitBtn = document.getElementById('activitySubmitBtn');
     if (submitBtn) {
         submitBtn.innerHTML = `
-            <svg class="w-4 h-4 sm:w-5 sm:h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
             </svg>
-            💾 Save Activity
+            Save Activity
         `;
         submitBtn.disabled = false;
     }

@@ -1,43 +1,143 @@
 <div class="space-y-6">
-    <!-- Contact Information Section (Main Form - for viewing selected) -->
+    <!-- FORM HEADER -->
+    <div class="flex justify-between items-center pb-2 border-b border-gray-200">
+        <h3 class="text-base font-semibold text-gray-900">Contact Information</h3>
+        <div class="flex gap-2">
+            <input type="hidden" id="editContactId">
+            <button type="button" onclick="clearContactForm()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-gray-500 text-white text-xs font-semibold rounded-lg hover:bg-gray-600 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+                New
+            </button>
+            <button type="button" onclick="saveContactInline()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
+                </svg>
+                <span id="saveContactButtonText">Save</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- General Data -->
     <div>
-        <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Contact Information</h3>
-        
+        <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">General Data</h3>
         <div class="grid grid-cols-6 gap-4">
-            <!-- Title -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Title</label>
-                <input type="text" id="contactTitle" readonly class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-700">
+                <input type="text" id="contactTitle"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
-
-            <!-- Name -->
             <div class="col-span-2">
-                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Name</label>
-                <input type="text" id="contactName" readonly class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-700">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Full Name</label>
+                <input type="text" id="contactName"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
-
-            <!-- Position -->
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Nick Name</label>
+                <input type="text" id="contactNickName"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
             <div class="col-span-2">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Position</label>
-                <input type="text" id="contactPosition" readonly class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-700">
+                <input type="text" id="contactPosition"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
-
-            <!-- Cell Phone -->
+            <div class="col-span-2">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Department</label>
+                <input type="text" id="contactDepartment"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
             <div class="col-span-1">
-                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Cell Phone</label>
-                <input type="text" id="contactCellPhone" readonly class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-700">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Language</label>
+                <input type="text" id="contactLanguage"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
-
-            <!-- Valid From -->
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Entry Date</label>
+                <input type="date" id="contactEntryDate"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Valid From</label>
-                <input type="text" id="contactValidFrom" readonly class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-700">
+                <input type="date" id="contactValidFrom"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
-
-            <!-- Valid To -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Valid To</label>
-                <input type="text" id="contactValidTo" readonly class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-700">
+                <input type="date" id="contactValidTo"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+        </div>
+    </div>
+
+    <!-- Communication -->
+    <div>
+        <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Communication</h3>
+        <div class="grid grid-cols-6 gap-4">
+            <!-- Cell Phone -->
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Cell Phone Country</label>
+                <input type="text" id="contactCellPhoneCountry" placeholder="+62" maxlength="20"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Cell Phone</label>
+                <input type="text" id="contactCellPhone" maxlength="20"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+            <!-- Telephone -->
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Telephone Country</label>
+                <input type="text" id="contactTelCountry" placeholder="+62" maxlength="20"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Telephone</label>
+                <input type="text" id="contactTelephone"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Telephone Extension</label>
+                <input type="text" id="contactTelExt"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+            <!-- Fax -->
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Fax Country</label>
+                <input type="text" id="contactFaxCountry" placeholder="+62" maxlength="20"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Fax</label>
+                <input type="text" id="contactFax"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Fax Extension</label>
+                <input type="text" id="contactFaxExt"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+            <!-- Email & Web -->
+            <div class="col-span-2">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Email Personal</label>
+                <input type="text" id="contactEmailPersonal"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+            <div class="col-span-2">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Email Work</label>
+                <input type="text" id="contactEmailWork"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+            <div class="col-span-2">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Website</label>
+                <input type="text" id="contactWebsite"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+            <div class="col-span-2">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Preferred Communication</label>
+                <input type="text" id="contactPreferredComm"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
         </div>
     </div>
@@ -65,19 +165,9 @@
                     Copy
                 </button>
 
-                <button onclick="openCreateContactModal()" title="Create" class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    Create
-                </button>
 
-                <button onclick="openEditContactModal()" title="Update" class="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                    </svg>
-                    Update
-                </button>
+
+
 
                 <button onclick="openGrantLoginModal()" id="btnGrantLogin" title="Grant Jarvies Access" class="inline-flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-all hidden">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
@@ -119,8 +209,11 @@
                         </th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Title</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Name</th>
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Nick Name</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Position</th>
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Department</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Cell Phone</th>
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Email Work</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Valid From</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Valid To</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Jarvies Access</th>
@@ -133,12 +226,12 @@
                 </thead>
                 <tbody id="contactTableBody" class="bg-white divide-y divide-gray-100">
                     <tr>
-                        <td colspan="9" class="px-4 py-16 text-center">
+                        <td colspan="12" class="px-4 py-16 text-center">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-300">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                             </svg>
                             <p class="text-base font-medium text-gray-900 mb-2">No contacts found</p>
-                            <small class="text-sm text-gray-500">Click "Create" to add a new contact</small>
+                            <small class="text-sm text-gray-500">Fill the form above and click "Save" to add a new contact</small>
                         </td>
                     </tr>
                 </tbody>
@@ -147,264 +240,6 @@
     </div>
 </div>
 
-<!-- Create/Edit Contact Modal -->
-<div id="contactModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
-    <div class="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
-            <h3 id="contactModalTitle" class="text-xl font-bold text-gray-900">New Contact</h3>
-            <button onclick="closeContactModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
-            </button>
-        </div>
-
-        <!-- Tabs -->
-        <div class="border-b border-gray-200">
-            <nav class="flex -mb-px">
-                <button onclick="switchContactTab('general')" data-tab="general" class="contact-tab px-6 py-4 text-sm font-semibold border-b-2 border-red-800 text-red-800 whitespace-nowrap">
-                    General Data
-                </button>
-                <button onclick="switchContactTab('communication')" data-tab="communication" class="contact-tab px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-gray-600 hover:text-red-800 hover:border-gray-300 whitespace-nowrap">
-                    Communication
-                </button>
-                <button onclick="switchContactTab('validity')" data-tab="validity" class="contact-tab px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-gray-600 hover:text-red-800 hover:border-gray-300 whitespace-nowrap">
-                    Validity Period
-                </button>
-            </nav>
-        </div>
-
-        <div class="p-6">
-            <form id="contactForm">
-                <input type="hidden" id="editContactId">
-                
-                <!-- General Data Tab -->
-                <div id="tab-general" class="contact-tab-content">
-                    <h4 class="text-base font-semibold text-gray-900 mb-4">General Data</h4>
-                    
-                    <div class="grid grid-cols-6 gap-4">
-                        <!-- Title -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Title</label>
-                            <div class="relative">
-                                <input type="text" id="modalTitle" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-8">
-                                <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Full Name -->
-                        <div class="col-span-2">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Full Name <span class="text-red-600">*</span></label>
-                            <input type="text" id="modalFullName" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <!-- Nick Name -->
-                        <div class="col-span-2">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Nick Name</label>
-                            <input type="text" id="modalNickName" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <!-- Position -->
-                        <div class="col-span-2">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Position</label>
-                            <input type="text" id="modalContactPosition" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <!-- Valid From -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Valid From</label>
-                            <input type="date" id="modalContactValidFrom" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <!-- Entry Date -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Entry Date</label>
-                            <input type="date" id="modalEntryDate" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <!-- Department -->
-                        <div class="col-span-2">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Department</label>
-                            <input type="text" id="modalDepartment" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <!-- Valid To -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Valid To</label>
-                            <input type="date" id="modalContactValidTo" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Communication Tab -->
-                <div id="tab-communication" class="contact-tab-content hidden">
-                    <h4 class="text-base font-semibold text-gray-900 mb-4">Communication</h4>
-                    
-                    <div class="grid grid-cols-6 gap-4">
-                        <!-- Language -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Language</label>
-                            <div class="relative">
-                                <input type="text" id="modalLanguage" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-8">
-                                <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Cell Phone Country -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Cell Phone Country</label>
-                            <div class="relative">
-                                <input type="text" id="modalCellPhoneCountry" placeholder="+62" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-8">
-                                <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Telephone Country -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Telephone Country</label>
-                            <div class="relative">
-                                <input type="text" id="modalTelephoneCountry" placeholder="+62" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-8">
-                                <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Fax Country -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Fax Country</label>
-                            <div class="relative">
-                                <input type="text" id="modalFaxCountry" placeholder="+62" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-8">
-                                <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Email Personal -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Email Personal</label>
-                            <input type="email" id="modalEmailPersonal" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <!-- Website -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Website</label>
-                            <input type="url" id="modalWebsite" placeholder="https://" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <!-- Preferred Communication -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Preferred Communication</label>
-                            <div class="relative">
-                                <input type="text" id="modalPreferredCommunication" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-8">
-                                <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Cell Phone -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Cell Phone</label>
-                            <input type="text" id="modalCellPhone" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <!-- Telephone -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Telephone</label>
-                            <input type="text" id="modalTelephone" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <!-- Fax -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Fax</label>
-                            <input type="text" id="modalFax" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <!-- Email Work -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Email Work</label>
-                            <input type="email" id="modalEmailWork" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <!-- Extension (Telephone) -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Extension</label>
-                            <input type="text" id="modalTelephoneExt" placeholder="Ext" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <!-- Extension (Fax) -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Extension</label>
-                            <input type="text" id="modalFaxExt" placeholder="Ext" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Validity Period Tab -->
-                <div id="tab-validity" class="contact-tab-content hidden">
-                    <h4 class="text-base font-semibold text-gray-900 mb-4">Validity Period</h4>
-                    
-                    <div class="grid grid-cols-4 gap-4">
-                        <!-- Valid From -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Valid From</label>
-                            <div class="relative">
-                                <input type="date" id="modalValidityFrom" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-8">
-                                <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 pointer-events-none">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Valid To -->
-                        <div class="col-span-1">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Valid To</label>
-                            <div class="relative">
-                                <input type="date" id="modalValidityTo" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-8">
-                                <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 pointer-events-none">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex gap-3 justify-end mt-6 pt-6 border-t border-gray-200">
-                    <button type="button" onclick="closeContactModal()" class="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
-                        Cancel
-                    </button>
-                    <button type="button" onclick="saveContactFromModal()" class="px-5 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
-                        Apply
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 
 <div id="confirmDeleteContactModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
@@ -516,6 +351,26 @@
             if (data.success && data.data && data.data.length > 0) {
                 contactsData = data.data;
                 renderContactTable(data.data);
+
+                // Restore selection state if a contact was previously selected
+                if (selectedContactId) {
+                    const radio = document.querySelector(`input[name="selectedContact"][value="${selectedContactId}"]`);
+                    if (radio) {
+                        radio.checked = true;
+                        const contact = contactsData.find(c => parseInt(c.contact_id) === parseInt(selectedContactId));
+                        const btnGrant  = document.getElementById('btnGrantLogin');
+                        const btnRevoke = document.getElementById('btnRevokeLogin');
+                        if (contact && btnGrant && btnRevoke) {
+                            if (contact.auth_user_id) {
+                                btnGrant.classList.add('hidden');
+                                btnRevoke.classList.remove('hidden');
+                            } else {
+                                btnGrant.classList.remove('hidden');
+                                btnRevoke.classList.add('hidden');
+                            }
+                        }
+                    }
+                }
             } else {
                 contactsData = [];
                 renderEmptyContactTable();
@@ -562,9 +417,12 @@
                             class="w-4 h-4 text-red-800 focus:ring-red-800">
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-900">${contact.title || ''}</td>
-                    <td class="px-4 py-3 text-sm text-gray-900">${contact.full_name || '-'}</td>
+                    <td class="px-4 py-3 text-sm font-medium text-gray-900">${contact.full_name || '-'}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600">${contact.nick_name || '-'}</td>
                     <td class="px-4 py-3 text-sm text-gray-600">${contact.position || '-'}</td>
-                    <td class="px-4 py-3 text-sm text-gray-600">${contact.cell_phone || '-'}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600">${contact.department || '-'}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600">${contact.cell_phone_country ? contact.cell_phone_country + ' ' : ''}${contact.cell_phone || '-'}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600">${contact.email_work || '-'}</td>
                     <td class="px-4 py-3 text-sm text-gray-600">${validFrom}</td>
                     <td class="px-4 py-3 text-sm text-gray-600">${validTo}</td>
                     <td class="px-4 py-3">${loginBadge}</td>
@@ -587,12 +445,12 @@
         const tbody = document.getElementById('contactTableBody');
         tbody.innerHTML = `
             <tr>
-                <td colspan="9" class="px-4 py-16 text-center">
+                <td colspan="12" class="px-4 py-16 text-center">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-300">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                     </svg>
                     <p class="text-base font-medium text-gray-900 mb-2">No contacts found</p>
-                    <small class="text-sm text-gray-500">Click "Create" to add a new contact</small>
+                    <small class="text-sm text-gray-500">Fill the form above and click "Save" to add a new contact</small>
                 </td>
             </tr>
         `;
@@ -605,7 +463,7 @@
         selectedContactId = contactId;
         loadContactToForm(contactId);
 
-        const contact = contactsData.find(c => c.contact_id === contactId);
+        const contact = contactsData.find(c => parseInt(c.contact_id) === parseInt(contactId));
         const btnGrant  = document.getElementById('btnGrantLogin');
         const btnRevoke = document.getElementById('btnRevokeLogin');
 
@@ -636,34 +494,46 @@
     }
 
     /**
-     * Load contact to form (top form - view only)
+     * Load contact to form (inline editing)
      */
     async function loadContactToForm(contactId) {
         try {
             const response = await fetch(`/api/customers/{{ $customerId }}/contacts/${contactId}`, {
                 method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin'
             });
-
             const data = await response.json();
-
             if (data.success && data.data) {
-                const contact = data.data;
-                
-                // Update top form (view only)
-                document.getElementById('contactTitle').value = contact.title || '';
-                document.getElementById('contactName').value = contact.full_name || '';
-                document.getElementById('contactPosition').value = contact.position || '';
-                document.getElementById('contactCellPhone').value = contact.cell_phone || '';
-                document.getElementById('contactValidFrom').value = contact.valid_from ? new Date(contact.valid_from).toLocaleDateString('en-GB') : '';
-                document.getElementById('contactValidTo').value = contact.valid_to ? new Date(contact.valid_to).toLocaleDateString('en-GB') : '';
+                const c = data.data;
+                const fmtDate = (d) => d ? d.split('T')[0] : '';
+
+                document.getElementById('editContactId').value           = c.contact_id;
+                document.getElementById('contactTitle').value            = c.title || '';
+                document.getElementById('contactName').value             = c.full_name || '';
+                document.getElementById('contactNickName').value         = c.nick_name || '';
+                document.getElementById('contactPosition').value         = c.position || '';
+                document.getElementById('contactDepartment').value       = c.department || '';
+                document.getElementById('contactEntryDate').value        = fmtDate(c.entry_date);
+                document.getElementById('contactValidFrom').value        = fmtDate(c.valid_from);
+                document.getElementById('contactValidTo').value          = fmtDate(c.valid_to);
+                document.getElementById('contactLanguage').value         = c.language || '';
+                document.getElementById('contactCellPhoneCountry').value = c.cell_phone_country || '';
+                document.getElementById('contactCellPhone').value        = c.cell_phone || '';
+                document.getElementById('contactTelCountry').value       = c.telephone_country || '';
+                document.getElementById('contactTelephone').value        = c.telephone || '';
+                document.getElementById('contactTelExt').value           = c.telephone_extension || '';
+                document.getElementById('contactFaxCountry').value       = c.fax_country || '';
+                document.getElementById('contactFax').value              = c.fax || '';
+                document.getElementById('contactFaxExt').value           = c.fax_extension || '';
+                document.getElementById('contactEmailPersonal').value    = c.email_personal || '';
+                document.getElementById('contactEmailWork').value        = c.email_work || '';
+                document.getElementById('contactWebsite').value          = c.website || '';
+                document.getElementById('contactPreferredComm').value    = c.preferred_communication || '';
+                document.getElementById('saveContactButtonText').textContent = 'Update';
             }
         } catch (error) {
-            console.error('❌ Error loading contact:', error);
+            console.error('Error loading contact:', error);
         }
     }
 
@@ -687,148 +557,46 @@
         activeTab.classList.add('border-red-800', 'text-red-800');
     }
 
-    /**
-     * Open create contact modal
-     */
-    function openCreateContactModal() {
-        isEditMode = false;
-        document.getElementById('contactModalTitle').textContent = 'New Contact';
-        document.getElementById('contactForm').reset();
-        document.getElementById('editContactId').value = '';
-        document.getElementById('modalCellPhoneCountry').value = '+62';
-        document.getElementById('modalTelephoneCountry').value = '+62';
-        document.getElementById('modalFaxCountry').value = '+62';
-        
-        switchContactTab('general');
-        
-        document.getElementById('contactModal').classList.remove('hidden');
-        document.getElementById('contactModal').classList.add('flex');
-    }
 
     /**
-     * Open edit contact modal
+     * Save contact inline (create or update)
      */
-    async function openEditContactModal() {
-        if (!selectedContactId) {
-            showNotification('Please select a contact first', 'warning');
+    async function saveContactInline() {
+        const fullName = document.getElementById('contactName').value;
+        if (!fullName) {
+            showNotification('Full Name is required', 'error');
             return;
         }
-
-        isEditMode = true;
-        document.getElementById('contactModalTitle').textContent = 'Edit Contact';
-        
-        try {
-            const response = await fetch(`/api/customers/{{ $customerId }}/contacts/${selectedContactId}`, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                credentials: 'same-origin'
-            });
-
-            const data = await response.json();
-
-            if (data.success && data.data) {
-                const contact = data.data;
-                
-                // Fill modal form with existing data
-                document.getElementById('editContactId').value = contact.contact_id;
-                document.getElementById('modalTitle').value = contact.title || '';
-                document.getElementById('modalFullName').value = contact.full_name || '';
-                document.getElementById('modalNickName').value = contact.nick_name || '';
-                document.getElementById('modalContactPosition').value = contact.position || '';
-                document.getElementById('modalDepartment').value = contact.department || '';
-                document.getElementById('modalContactValidFrom').value = contact.valid_from || '';
-                document.getElementById('modalEntryDate').value = contact.entry_date || '';
-                document.getElementById('modalContactValidTo').value = contact.valid_to || '';
-                document.getElementById('modalLanguage').value = contact.language || '';
-                document.getElementById('modalCellPhoneCountry').value = contact.cell_phone_country || '+62';
-                document.getElementById('modalCellPhone').value = contact.cell_phone || '';
-                document.getElementById('modalTelephoneCountry').value = contact.telephone_country || '+62';
-                document.getElementById('modalTelephone').value = contact.telephone || '';
-                document.getElementById('modalTelephoneExt').value = contact.telephone_extension || '';
-                document.getElementById('modalFaxCountry').value = contact.fax_country || '+62';
-                document.getElementById('modalFax').value = contact.fax || '';
-                document.getElementById('modalFaxExt').value = contact.fax_extension || '';
-                document.getElementById('modalEmailPersonal').value = contact.email_personal || '';
-                document.getElementById('modalEmailWork').value = contact.email_work || '';
-                document.getElementById('modalWebsite').value = contact.website || '';
-                document.getElementById('modalPreferredCommunication').value = contact.preferred_communication || '';
-                document.getElementById('modalValidityFrom').value = contact.valid_from || '';
-                document.getElementById('modalValidityTo').value = contact.valid_to || '';
-                
-                switchContactTab('general');
-                
-                document.getElementById('contactModal').classList.remove('hidden');
-                document.getElementById('contactModal').classList.add('flex');
-            }
-        } catch (error) {
-            console.error('❌ Error loading contact for edit:', error);
-            showNotification('Failed to load contact data', 'error');
-        }
-    }
-
-    /**
-     * Close contact modal
-     */
-    function closeContactModal() {
-        document.getElementById('contactModal').classList.add('hidden');
-        document.getElementById('contactModal').classList.remove('flex');
-        isEditMode = false;
-    }
-
-    /**
-     * Save contact from modal (CREATE or UPDATE)
-     */
-    async function saveContactFromModal() {
-        const form = document.getElementById('contactForm');
-        
-        if (!form.checkValidity()) {
-            form.reportValidity();
-            return;
-        }
-
+        const contactId = document.getElementById('editContactId').value;
+        const isUpdate = contactId !== '';
         const contactData = {
-            title: document.getElementById('modalTitle').value,
-            full_name: document.getElementById('modalFullName').value,
-            nick_name: document.getElementById('modalNickName').value,
-            position: document.getElementById('modalContactPosition').value,
-            department: document.getElementById('modalDepartment').value,
-            language: document.getElementById('modalLanguage').value,
-            cell_phone_country: document.getElementById('modalCellPhoneCountry').value,
-            cell_phone: document.getElementById('modalCellPhone').value,
-            telephone_country: document.getElementById('modalTelephoneCountry').value,
-            telephone: document.getElementById('modalTelephone').value,
-            telephone_extension: document.getElementById('modalTelephoneExt').value,
-            fax_country: document.getElementById('modalFaxCountry').value,
-            fax: document.getElementById('modalFax').value,
-            fax_extension: document.getElementById('modalFaxExt').value,
-            email_personal: document.getElementById('modalEmailPersonal').value,
-            email_work: document.getElementById('modalEmailWork').value,
-            website: document.getElementById('modalWebsite').value,
-            preferred_communication: document.getElementById('modalPreferredCommunication').value,
-            entry_date: document.getElementById('modalEntryDate').value,
-            valid_from: document.getElementById('modalContactValidFrom').value || document.getElementById('modalValidityFrom').value,
-            valid_to: document.getElementById('modalContactValidTo').value || document.getElementById('modalValidityTo').value,
+            title: document.getElementById('contactTitle').value || null,
+            full_name: fullName,
+            nick_name: document.getElementById('contactNickName').value || null,
+            position: document.getElementById('contactPosition').value || null,
+            department: document.getElementById('contactDepartment').value || null,
+            language: document.getElementById('contactLanguage').value || null,
+            entry_date: document.getElementById('contactEntryDate').value || null,
+            valid_from: document.getElementById('contactValidFrom').value || null,
+            valid_to: document.getElementById('contactValidTo').value || null,
+            cell_phone_country: document.getElementById('contactCellPhoneCountry').value || null,
+            cell_phone: document.getElementById('contactCellPhone').value || null,
+            telephone_country: document.getElementById('contactTelCountry').value || null,
+            telephone: document.getElementById('contactTelephone').value || null,
+            telephone_extension: document.getElementById('contactTelExt').value || null,
+            fax_country: document.getElementById('contactFaxCountry').value || null,
+            fax: document.getElementById('contactFax').value || null,
+            fax_extension: document.getElementById('contactFaxExt').value || null,
+            email_personal: document.getElementById('contactEmailPersonal').value || null,
+            email_work: document.getElementById('contactEmailWork').value || null,
+            website: document.getElementById('contactWebsite').value || null,
+            preferred_communication: document.getElementById('contactPreferredComm').value || null
         };
-
         try {
-            let url, method, successMessage;
-            
-            if (isEditMode) {
-                // UPDATE
-                const contactId = document.getElementById('editContactId').value;
-                url = `/api/customers/{{ $customerId }}/contacts/${contactId}`;
-                method = 'PUT';
-                successMessage = 'Contact updated successfully!';
-            } else {
-                // CREATE
-                url = `/api/customers/{{ $customerId }}/contacts`;
-                method = 'POST';
-                successMessage = 'Contact created successfully!';
-            }
-
+            const url = isUpdate
+                ? `/api/customers/{{ $customerId }}/contacts/${contactId}`
+                : `/api/customers/{{ $customerId }}/contacts`;
+            const method = isUpdate ? 'PUT' : 'POST';
             const response = await fetch(url, {
                 method: method,
                 headers: {
@@ -840,27 +608,42 @@
                 credentials: 'same-origin',
                 body: JSON.stringify(contactData)
             });
-
             const data = await response.json();
-            
             if (data.success) {
-                showNotification(successMessage, 'success');
-                closeContactModal();
+                showNotification(isUpdate ? 'Contact updated successfully!' : 'Contact created successfully!', 'success');
                 loadContacts();
-                
-                // If we just updated, refresh the top form
-                if (isEditMode) {
-                    loadContactToForm(selectedContactId);
-                }
+                if (isUpdate) { loadContactToForm(contactId); } else { clearContactForm(); }
             } else {
-                showNotification('Failed to save: ' + (data.message || 'Unknown error'), 'error');
+                showNotification('Failed to save contact: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
-            console.error('❌ Error saving contact:', error);
-            showNotification('An error occurred while saving', 'error');
+            showNotification('An error occurred while saving contact', 'error');
         }
     }
 
+    /**
+     * Clear contact form (new mode)
+     */
+    function clearContactForm() {
+        document.getElementById('editContactId').value = '';
+        ['contactTitle','contactName','contactNickName','contactPosition','contactDepartment',
+         'contactLanguage','contactEntryDate','contactValidFrom','contactValidTo',
+         'contactCellPhone','contactTelephone','contactTelExt','contactFax','contactFaxExt',
+         'contactEmailPersonal','contactEmailWork','contactWebsite','contactPreferredComm'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        document.getElementById('contactCellPhoneCountry').value = '+62';
+        document.getElementById('contactTelCountry').value = '+62';
+        document.getElementById('contactFaxCountry').value = '+62';
+        const radios = document.querySelectorAll('input[name="selectedContact"]');
+        radios.forEach(r => r.checked = false);
+        selectedContactId = null;
+        document.getElementById('saveContactButtonText').textContent = 'Save';
+        showNotification('Form cleared. Ready to create new contact.', 'info');
+    }
+
+    
     /**
      * Copy selected contact
      */
@@ -1013,24 +796,6 @@
     }
 
     /**
-     * Show notification
-     */
-    function showNotification(message, type = 'info') {
-        const bgColor = type === 'success' ? 'bg-green-500' : 
-                        type === 'error' ? 'bg-red-500' : 
-                        type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500';
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
-
-    /**
      * Open Grant Login modal
      */
     function openGrantLoginModal() {
@@ -1136,7 +901,7 @@
                 showNotification(data.message, 'success');
                 loadContacts();
                 document.getElementById('btnRevokeLogin').classList.add('hidden');
-                document.getElementById('btnGrantLogin').classList.add('hidden');
+                document.getElementById('btnGrantLogin').classList.remove('hidden');
             } else {
                 showNotification(data.message || 'Failed to revoke access', 'error');
             }
@@ -1154,10 +919,8 @@
     window.selectContactRow = selectContactRow;
     window.loadContactToForm = loadContactToForm;
     window.switchContactTab = switchContactTab;
-    window.openCreateContactModal = openCreateContactModal;
-    window.openEditContactModal = openEditContactModal;
-    window.closeContactModal = closeContactModal;
-    window.saveContactFromModal = saveContactFromModal;
+    window.saveContactInline = saveContactInline;
+    window.clearContactForm = clearContactForm;
     window.copySelectedContact = copySelectedContact;
     window.deleteSelectedContact = deleteSelectedContact;
     window.closeConfirmDeleteContact = closeConfirmDeleteContact;
@@ -1168,6 +931,7 @@
     window.revokeLoginAccess = revokeLoginAccess;
     window.closeRevokeLoginModal = closeRevokeLoginModal;
     window.confirmRevokeLogin = confirmRevokeLogin;
+    window.loadContacts = loadContacts;
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
@@ -1175,24 +939,10 @@
         loadContacts();
     });
 
-    // Close modals on outside click
-    document.getElementById('contactModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeContactModal();
-    });
-    document.getElementById('confirmDeleteContactModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeConfirmDeleteContact();
-    });
-    document.getElementById('grantLoginModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeGrantLoginModal();
-    });
-    document.getElementById('revokeLoginModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeRevokeLoginModal();
-    });
 
     // Close modals on Escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            if (!document.getElementById('contactModal').classList.contains('hidden')) closeContactModal();
             if (!document.getElementById('confirmDeleteContactModal').classList.contains('hidden')) closeConfirmDeleteContact();
             if (!document.getElementById('grantLoginModal').classList.contains('hidden')) closeGrantLoginModal();
             if (!document.getElementById('revokeLoginModal').classList.contains('hidden')) closeRevokeLoginModal();

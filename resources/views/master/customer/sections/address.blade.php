@@ -1,4 +1,24 @@
 <div class="space-y-6">
+    <!-- FORM HEADER -->
+    <div class="flex justify-between items-center pb-2 border-b border-gray-200">
+        <h3 class="text-base font-semibold text-gray-900">Address Information</h3>
+        <div class="flex gap-2">
+            <input type="hidden" id="editAddressId">
+            <button type="button" onclick="clearAddressForm()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-gray-500 text-white text-xs font-semibold rounded-lg hover:bg-gray-600 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+                New
+            </button>
+            <button type="button" onclick="saveAddress()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
+                </svg>
+                <span id="saveAddressButtonText">Save</span>
+            </button>
+        </div>
+    </div>
+
     <!-- STANDARD ADDRESS SECTION -->
     <div>
         <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Standard Address</h3>
@@ -192,6 +212,18 @@
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Extension</label>
                 <input type="text" id="faxExt" placeholder="Ext" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
+
+            <!-- Valid From -->
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Valid From</label>
+                <input type="date" id="addrValidFrom" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+
+            <!-- Valid To -->
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Valid To</label>
+                <input type="date" id="addrValidTo" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
         </div>
     </div>
 
@@ -216,20 +248,6 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
                     </svg>
                     Copy
-                </button>
-
-                <button onclick="openCreateAddressModal()" title="Create" class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    Create
-                </button>
-
-                <button onclick="openEditAddressModal()" title="Update" class="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                    </svg>
-                    Update
                 </button>
 
                 <button onclick="deleteSelectedAddress()" title="Delete" class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-red-600 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-all">
@@ -285,7 +303,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
                             </svg>
                             <p class="text-base font-medium text-gray-900 mb-2">No addresses found</p>
-                            <small class="text-sm text-gray-500">Click "Create" to add a new address</small>
+                            <small class="text-sm text-gray-500">Fill the form above and click "Save" to add a new address</small>
                         </td>
                     </tr>
                 </tbody>
@@ -294,176 +312,6 @@
     </div>
 </div>
 
-<!-- Create/Edit Address Modal -->
-<div id="addressModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
-    <div class="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
-            <h3 id="addressModalTitle" class="text-xl font-bold text-gray-900">Create Address</h3>
-            <button onclick="closeAddressModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
-            </button>
-        </div>
-
-        <div class="p-6">
-            <form id="addressForm">
-                <input type="hidden" id="editAddressId">
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- Address Type -->
-                    <div class="flex flex-col">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">Address Type <span class="text-red-600">*</span></label>
-                        <select id="modalAddressType" required class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                            <option value="">Select Type</option>
-                            <option value="Home">Home</option>
-                            <option value="Office">Office</option>
-                            <option value="Warehouse">Warehouse</option>
-                            <option value="Branch">Branch</option>
-                            <option value="Billing">Billing</option>
-                            <option value="Shipping">Shipping</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-
-                    <!-- Country -->
-                    <div class="flex flex-col">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">Country <span class="text-red-600">*</span></label>
-                        <input type="text" id="modalCountry" value="Indonesia" required class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-
-                    <!-- Street -->
-                    <div class="flex flex-col md:col-span-2">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">Street <span class="text-red-600">*</span></label>
-                        <input type="text" id="modalStreet" required class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-
-                    <!-- House Number -->
-                    <div class="flex flex-col">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">House Number</label>
-                        <input type="text" id="modalHouseNumber" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-
-                    <!-- Postal Code -->
-                    <div class="flex flex-col">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">Postal Code</label>
-                        <input type="text" id="modalPostalCode" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-
-                    <!-- City -->
-                    <div class="flex flex-col">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">City <span class="text-red-600">*</span></label>
-                        <input type="text" id="modalCity" required class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-
-                    <!-- Region -->
-                    <div class="flex flex-col">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">Region/Province</label>
-                        <input type="text" id="modalRegion" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-
-                    <!-- District -->
-                    <div class="flex flex-col">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">District</label>
-                        <input type="text" id="modalDistrict" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-
-                    <!-- Village -->
-                    <div class="flex flex-col">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">Rural/Urban Village</label>
-                        <input type="text" id="modalVillage" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-
-                    <!-- Language -->
-                    <div class="flex flex-col">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">Language</label>
-                        <select id="modalLanguage" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                            <option value="">Select Language</option>
-                            <option value="Indonesian">Indonesian</option>
-                            <option value="English">English</option>
-                            <option value="Javanese">Javanese</option>
-                            <option value="Sundanese">Sundanese</option>
-                        </select>
-                    </div>
-
-                    <!-- Cell Phone -->
-                    <div class="flex flex-col">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">Cell Phone</label>
-                        <div class="flex gap-2">
-                            <input type="text" id="modalCellPhoneCountry" placeholder="+62" class="w-20 px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                            <input type="text" id="modalCellPhone" placeholder="812345678" class="flex-1 px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-                    </div>
-
-                    <!-- Telephone -->
-                    <div class="flex flex-col md:col-span-2">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">Telephone</label>
-                        <div class="flex gap-2">
-                            <input type="text" id="modalTelephoneCountry" placeholder="+62" class="w-20 px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                            <input type="text" id="modalTelephone" class="flex-1 px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                            <input type="text" id="modalTelephoneExt" placeholder="Ext" class="w-20 px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-                    </div>
-
-                    <!-- Fax -->
-                    <div class="flex flex-col md:col-span-2">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">Fax</label>
-                        <div class="flex gap-2">
-                            <input type="text" id="modalFaxCountry" placeholder="+62" class="w-20 px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                            <input type="text" id="modalFax" class="flex-1 px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                            <input type="text" id="modalFaxExt" placeholder="Ext" class="w-20 px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-                    </div>
-
-                    <!-- Email -->
-                    <div class="flex flex-col">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">Email</label>
-                        <input type="email" id="modalEmail" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-
-                    <!-- Website -->
-                    <div class="flex flex-col">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">Website</label>
-                        <input type="url" id="modalWebsite" placeholder="https://" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-
-                    <!-- Preferred Communication -->
-                    <div class="flex flex-col">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">Preferred Communication</label>
-                        <select id="modalPreferredCommunication" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                            <option value="">Select</option>
-                            <option value="Email">Email</option>
-                            <option value="Phone">Phone</option>
-                            <option value="SMS">SMS</option>
-                            <option value="WhatsApp">WhatsApp</option>
-                        </select>
-                    </div>
-
-                    <!-- Valid From -->
-                    <div class="flex flex-col">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">Valid From</label>
-                        <input type="date" id="modalValidFrom" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-
-                    <!-- Valid To -->
-                    <div class="flex flex-col">
-                        <label class="text-xs font-semibold text-gray-600 mb-1">Valid To</label>
-                        <input type="date" id="modalValidTo" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-                </div>
-
-                <div class="flex gap-3 justify-end mt-6">
-                    <button type="button" onclick="closeAddressModal()" class="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
-                        Cancel
-                    </button>
-                    <button type="button" onclick="saveAddressFromModal()" id="saveAddressBtn" class="px-5 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
-                        Save Address
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 
 <!-- Delete Confirmation Modal -->
 <div id="confirmDeleteAddressModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
@@ -577,7 +425,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
                     </svg>
                     <p class="text-base font-medium text-gray-900 mb-2">No addresses found</p>
-                    <small class="text-sm text-gray-500">Click "Create" to add a new address</small>
+                    <small class="text-sm text-gray-500">Fill the form above and click "Save" to add a new address</small>
                 </td>
             </tr>
         `;
@@ -616,24 +464,15 @@
      */
     async function loadAddressToForm(addressId) {
         try {
-            console.log('📝 Loading address to form:', addressId);
-            
             const response = await fetch(`/api/customers/{{ $customerId }}/addresses/${addressId}`, {
                 method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin'
             });
-
             const data = await response.json();
-            console.log('📦 Address data loaded:', data);
-
             if (data.success && data.data) {
                 const address = data.data;
-                
-                // Populate form fields (NOT modal fields)
+                document.getElementById('editAddressId').value = address.address_id;
                 document.getElementById('addressType').value = address.address_type || '';
                 document.getElementById('country').value = address.country || '';
                 document.getElementById('region').value = address.region || '';
@@ -655,170 +494,51 @@
                 document.getElementById('email').value = address.email || '';
                 document.getElementById('website').value = address.website || '';
                 document.getElementById('preferredCommunication').value = address.preferred_communication || '';
-                
-                console.log('✅ Address loaded to form fields');
+                document.getElementById('addrValidFrom').value = address.valid_from || '';
+                document.getElementById('addrValidTo').value = address.valid_to || '';
+                document.getElementById('saveAddressButtonText').textContent = 'Update';
             }
         } catch (error) {
-            console.error('❌ Error loading address:', error);
+            console.error('Error loading address:', error);
         }
     }
 
     /**
-     * Open modal for creating new address
+     * Save address inline (create or update)
      */
-    function openCreateAddressModal() {
-        document.getElementById('addressModalTitle').textContent = 'Create Address';
-        document.getElementById('addressForm').reset();
-        document.getElementById('editAddressId').value = '';
-        
-        // Set default values
-        document.getElementById('modalCountry').value = 'Indonesia';
-        document.getElementById('modalCellPhoneCountry').value = '+62';
-        document.getElementById('modalTelephoneCountry').value = '+62';
-        document.getElementById('modalFaxCountry').value = '+62';
-        
-        // Change button text to "Save"
-        document.getElementById('saveAddressBtn').textContent = 'Save Address';
-        document.getElementById('saveAddressBtn').className = 'px-5 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all';
-        
-        document.getElementById('addressModal').classList.remove('hidden');
-        document.getElementById('addressModal').classList.add('flex');
-    }
-
-    /**
-     * Open modal for editing existing address
-     */
-    async function openEditAddressModal() {
-        if (!selectedAddressId) {
-            showNotification('Please select an address first', 'warning');
-            return;
-        }
-
-        try {
-            console.log('📝 Loading address for edit:', selectedAddressId);
-            
-            const response = await fetch(`/api/customers/{{ $customerId }}/addresses/${selectedAddressId}`, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                credentials: 'same-origin'
-            });
-
-            const data = await response.json();
-            console.log('📦 Address data for edit:', data);
-
-            if (data.success && data.data) {
-                const address = data.data;
-                
-                // Set modal title to Update
-                document.getElementById('addressModalTitle').textContent = 'Update Address';
-                
-                // Store the address ID for update
-                document.getElementById('editAddressId').value = selectedAddressId;
-                
-                // Populate modal fields with existing data
-                document.getElementById('modalAddressType').value = address.address_type || '';
-                document.getElementById('modalCountry').value = address.country || 'Indonesia';
-                document.getElementById('modalStreet').value = address.street || '';
-                document.getElementById('modalHouseNumber').value = address.house_number || '';
-                document.getElementById('modalPostalCode').value = address.postal_code || '';
-                document.getElementById('modalCity').value = address.city || '';
-                document.getElementById('modalRegion').value = address.region || '';
-                document.getElementById('modalDistrict').value = address.district || '';
-                document.getElementById('modalVillage').value = address.rural_urban_village || '';
-                document.getElementById('modalLanguage').value = address.language || '';
-                document.getElementById('modalCellPhoneCountry').value = address.cell_phone_country || '+62';
-                document.getElementById('modalCellPhone').value = address.cell_phone || '';
-                document.getElementById('modalTelephoneCountry').value = address.telephone_country || '+62';
-                document.getElementById('modalTelephone').value = address.telephone || '';
-                document.getElementById('modalTelephoneExt').value = address.telephone_extension || '';
-                document.getElementById('modalFaxCountry').value = address.fax_country || '+62';
-                document.getElementById('modalFax').value = address.fax || '';
-                document.getElementById('modalFaxExt').value = address.fax_extension || '';
-                document.getElementById('modalEmail').value = address.email || '';
-                document.getElementById('modalWebsite').value = address.website || '';
-                document.getElementById('modalPreferredCommunication').value = address.preferred_communication || '';
-                document.getElementById('modalValidFrom').value = address.valid_from || '';
-                document.getElementById('modalValidTo').value = address.valid_to || '';
-                
-                // Change button text to "Update" and color to blue
-                document.getElementById('saveAddressBtn').textContent = 'Update Address';
-                document.getElementById('saveAddressBtn').className = 'px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all';
-                
-                // Open the modal
-                document.getElementById('addressModal').classList.remove('hidden');
-                document.getElementById('addressModal').classList.add('flex');
-                
-                console.log('✅ Address loaded to modal for editing');
-            } else {
-                showNotification('Failed to load address data', 'error');
-            }
-        } catch (error) {
-            console.error('❌ Error loading address for edit:', error);
-            showNotification('An error occurred while loading address', 'error');
-        }
-    }
-
-    /**
-     * Close address modal
-     */
-    function closeAddressModal() {
-        document.getElementById('addressModal').classList.add('hidden');
-        document.getElementById('addressModal').classList.remove('flex');
-    }
-
-    /**
-     * Save address from modal (handles both create and update)
-     */
-    async function saveAddressFromModal() {
-        const form = document.getElementById('addressForm');
-        
-        if (!form.checkValidity()) {
-            form.reportValidity();
-            return;
-        }
-
+    async function saveAddress() {
         const addressId = document.getElementById('editAddressId').value;
         const isUpdate = addressId !== '';
-
         const addressData = {
-            address_type: document.getElementById('modalAddressType').value,
-            country: document.getElementById('modalCountry').value,
-            street: document.getElementById('modalStreet').value,
-            house_number: document.getElementById('modalHouseNumber').value,
-            rural_urban_village: document.getElementById('modalVillage').value,
-            district: document.getElementById('modalDistrict').value,
-            city: document.getElementById('modalCity').value,
-            region: document.getElementById('modalRegion').value,
-            postal_code: document.getElementById('modalPostalCode').value,
-            language: document.getElementById('modalLanguage').value,
-            cell_phone_country: document.getElementById('modalCellPhoneCountry').value,
-            cell_phone: document.getElementById('modalCellPhone').value,
-            telephone_country: document.getElementById('modalTelephoneCountry').value,
-            telephone: document.getElementById('modalTelephone').value,
-            telephone_extension: document.getElementById('modalTelephoneExt').value,
-            fax_country: document.getElementById('modalFaxCountry').value,
-            fax: document.getElementById('modalFax').value,
-            fax_extension: document.getElementById('modalFaxExt').value,
-            email: document.getElementById('modalEmail').value,
-            website: document.getElementById('modalWebsite').value,
-            preferred_communication: document.getElementById('modalPreferredCommunication').value,
-            valid_from: document.getElementById('modalValidFrom').value,
-            valid_to: document.getElementById('modalValidTo').value,
+            address_type: document.getElementById('addressType').value,
+            country: document.getElementById('country').value,
+            street: document.getElementById('street').value,
+            house_number: document.getElementById('houseNumber').value,
+            rural_urban_village: document.getElementById('village').value,
+            district: document.getElementById('district').value,
+            city: document.getElementById('city').value,
+            region: document.getElementById('region').value,
+            postal_code: document.getElementById('postalCode').value,
+            language: document.getElementById('language').value,
+            cell_phone_country: document.getElementById('cellPhoneCountry').value,
+            cell_phone: document.getElementById('cellPhone').value,
+            telephone_country: document.getElementById('telephoneCountry').value,
+            telephone: document.getElementById('telephone').value,
+            telephone_extension: document.getElementById('telephoneExt').value,
+            fax_country: document.getElementById('faxCountry').value,
+            fax: document.getElementById('fax').value,
+            fax_extension: document.getElementById('faxExt').value,
+            email: document.getElementById('email').value,
+            website: document.getElementById('website').value,
+            preferred_communication: document.getElementById('preferredCommunication').value,
+            valid_from: document.getElementById('addrValidFrom').value || null,
+            valid_to: document.getElementById('addrValidTo').value || null
         };
-
         try {
-            const url = isUpdate 
+            const url = isUpdate
                 ? `/api/customers/{{ $customerId }}/addresses/${addressId}`
                 : `/api/customers/{{ $customerId }}/addresses`;
-            
             const method = isUpdate ? 'PUT' : 'POST';
-            
-            console.log(`💾 ${isUpdate ? 'Updating' : 'Creating'} address:`, url);
-            console.log('📤 Address data:', addressData);
-            
             const response = await fetch(url, {
                 method: method,
                 headers: {
@@ -830,31 +550,42 @@
                 credentials: 'same-origin',
                 body: JSON.stringify(addressData)
             });
-
             const data = await response.json();
-            console.log('📥 Save response:', data);
-            
             if (data.success) {
-                showNotification(
-                    isUpdate ? 'Address updated successfully!' : 'Address created successfully!', 
-                    'success'
-                );
-                closeAddressModal();
+                showNotification(isUpdate ? 'Address updated successfully!' : 'Address created successfully!', 'success');
                 loadAddresses();
-                
-                // If we just updated, reload the data to the form fields above
-                if (isUpdate) {
-                    loadAddressToForm(addressId);
-                }
+                if (isUpdate) { loadAddressToForm(addressId); } else { clearAddressForm(); }
             } else {
                 showNotification('Failed to save address: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
-            console.error('❌ Error saving address:', error);
             showNotification('An error occurred while saving address', 'error');
         }
     }
 
+    /**
+     * Clear address form (new address mode)
+     */
+    function clearAddressForm() {
+        document.getElementById('editAddressId').value = '';
+        ['addressType','region','city','district','village','street','houseNumber','postalCode',
+         'language','cellPhone','telephone','telephoneExt','fax','faxExt','email','website',
+         'preferredCommunication','addrValidFrom','addrValidTo'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        document.getElementById('country').value = 'Indonesia';
+        document.getElementById('cellPhoneCountry').value = '+62';
+        document.getElementById('telephoneCountry').value = '+62';
+        document.getElementById('faxCountry').value = '+62';
+        const radios = document.querySelectorAll('input[name="selectedAddress"]');
+        radios.forEach(r => r.checked = false);
+        selectedAddressId = null;
+        document.getElementById('saveAddressButtonText').textContent = 'Save';
+        showNotification('Form cleared. Ready to create new address.', 'info');
+    }
+
+    
     /**
      * Copy selected address
      */
@@ -945,20 +676,6 @@
     /**
      * Show notification
      */
-    function showNotification(message, type = 'info') {
-        const bgColor = type === 'success' ? 'bg-green-500' : 
-                        type === 'error' ? 'bg-red-500' : 
-                        type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500';
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
@@ -966,14 +683,6 @@
         loadAddresses();
     });
 
-    // Close modals on outside click
-    document.getElementById('addressModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeAddressModal();
-    });
-
-    document.getElementById('confirmDeleteAddressModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeConfirmDeleteAddress();
-    });
 
     // Close modals on Escape key
     document.addEventListener('keydown', function(e) {

@@ -37,8 +37,9 @@ class StagingTicket extends Model
     ];
 
     protected $casts = [
-        'validated_at'   => 'datetime',
+        'validated_at'    => 'datetime',
         'has_attachments' => 'boolean',
+        'cc_emails'       => 'array',
     ];
 
     // ─── Scopes ──────────────────────────────────────────────────────────────

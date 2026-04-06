@@ -28,6 +28,14 @@ class Employee extends Model
 
     // Relationships
 
+    /** Many-to-many roles via pivot table */
+    public function roles()
+    {
+        return $this->belongsToMany(EmployeeRole::class, 'employee_role_assignment', 'employee_id', 'role_id', 'employee_id', 'id')
+                    ->withTimestamps();
+    }
+
+    /** Legacy single-role accessor (kept for backward compatibility) */
     public function role()
     {
         return $this->belongsTo(EmployeeRole::class, 'role_id', 'id');

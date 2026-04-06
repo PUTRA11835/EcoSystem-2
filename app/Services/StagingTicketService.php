@@ -313,27 +313,19 @@ class StagingTicketService
 
     // ─── Private helpers ──────────────────────────────────────────────────────
 
-    /**
-     * Generate ticket number dengan format YYMM-XXXX-0000.
-     * Identik dengan TicketController@generateTicketNumber, dipindah ke service
-     * agar bisa dipakai saat promote tanpa ketergantungan pada controller.
-     */
     private function generateTicketNumber(?int $customerId): string
     {
-        $customer     = DB::table('customer')->where('customer_id', $customerId)->first();
-        $customerCode = strtoupper(substr(str_pad($customer->customer_code ?? 'UNKN', 4, 'X'), 0, 4));
-        $yearMonth    = date('ym');
-        $prefix       = $yearMonth . '-' . $customerCode . '-';
+        $year      = date('y');
+        $yearMonth = date('ym');
 
-        $lastTicket = DB::table('ticket')
-            ->where('ticket_number', 'like', $prefix . '%')
-            ->orderBy('ticket_number', 'desc')
-            ->first();
+        $lastNumber = DB::table('ticket')
+            ->where('ticket_number', 'like', $year . '%')
+            ->whereRaw("ticket_number NOT LIKE '%-%'")
+            ->orderByRaw('CAST(SUBSTRING(ticket_number, 5, 4) AS UNSIGNED) DESC')
+            ->value('ticket_number');
 
-        $nextNumber = $lastTicket
-            ? ((int) substr($lastTicket->ticket_number, -4)) + 1
-            : 1;
+        $nextNumber = $lastNumber ? ((int) substr($lastNumber, -4)) + 1 : 1;
 
-        return $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        return $yearMonth . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 }

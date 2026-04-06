@@ -99,6 +99,15 @@ class TicketViewController extends Controller
         $ticket = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
             ->findOrFail($id);
 
+        // Check if ticket is assigned to a delivery support
+        // First try via activities (newer method), then fallback to direct ticket_id on delivery_support (older method)
+        $deliverySupport = DB::table('delivery_support_activities')
+            ->join('delivery_support', 'delivery_support_activities.delivery_support_id', '=', 'delivery_support.id')
+            ->where('delivery_support_activities.ticket_id', $ticket->ticket_id)
+            ->select('delivery_support.id', 'delivery_support.name', 'delivery_support.type')
+            ->first();
+
+
         // Get consultants (employees with DSM qualification) for PIC dropdown
         $consultants = DB::table('employee')
             ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
@@ -137,11 +146,12 @@ class TicketViewController extends Controller
             ->toArray();
 
         return view('ticket.show', [
-            'user'        => $user,
-            'ticket'      => $ticket,
-            'consultants' => $consultants,
-            'employees'   => $employees,
-            'ticketId'    => $id,
+            'user'           => $user,
+            'ticket'         => $ticket,
+            'consultants'    => $consultants,
+            'employees'      => $employees,
+            'ticketId'       => $id,
+            'deliverySupport' => $deliverySupport,
         ]);
     }
 }

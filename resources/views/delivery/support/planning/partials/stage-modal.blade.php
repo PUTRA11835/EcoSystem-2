@@ -1,36 +1,20 @@
 {{-- Stage Management Modal for Support Planning --}}
-<div id="stageModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
-    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-        {{-- Backdrop --}}
-        <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onclick="closeStageModal()"></div>
-
-        {{-- Modal Content --}}
-        <div class="relative inline-block px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6">
-            <div class="absolute top-0 right-0 pt-4 pr-4">
-                <button type="button" onclick="closeStageModal()"
-                        class="text-gray-400 hover:text-gray-500 focus:outline-none">
-                    <span class="sr-only">Close</span>
-                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
+<div id="stageModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+        <!-- Header -->
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
+            <div>
+                <h3 class="text-xl font-bold text-gray-900" id="stageModalTitle">Manage Stages</h3>
+                <p class="text-sm text-gray-500 mt-0.5" id="stageModalSubtitle">Add and manage stages for the selected group</p>
             </div>
+            <button type="button" onclick="closeStageModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
 
-            <div class="sm:flex sm:items-start">
-                <div class="flex items-center justify-center flex-shrink-0 w-12 h-12 mx-auto bg-indigo-100 rounded-full sm:mx-0 sm:h-10 sm:w-10">
-                    <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                    </svg>
-                </div>
-                <div class="flex-1 mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <h3 class="text-lg font-medium leading-6 text-gray-900" id="stageModalTitle">
-                        Manage Stages
-                    </h3>
-                    <p class="mt-1 text-sm text-gray-500" id="stageModalSubtitle">
-                        Add and manage stages for the selected group
-                    </p>
-                </div>
-            </div>
+        <div class="overflow-y-auto flex-1 p-6">
 
             {{-- Stages List --}}
             <div class="mt-4">
@@ -56,27 +40,27 @@
                         <div>
                             <label for="stageName" class="block text-sm font-medium text-gray-700">Stage Name *</label>
                             <input type="text" id="stageName" name="name" required
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-red-800 focus:border-red-800 sm:text-sm"
                                    placeholder="Enter stage name">
                         </div>
 
                         <div>
                             <label for="stageWeight" class="block text-sm font-medium text-gray-700">Weight (%)</label>
                             <input type="number" id="stageWeight" name="weight" min="0" max="100" step="0.1"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-red-800 focus:border-red-800 sm:text-sm"
                                    placeholder="0">
                         </div>
 
                         <div>
                             <label for="stageColor" class="block text-sm font-medium text-gray-700">Color</label>
                             <input type="color" id="stageColor" name="color" value="#F59E0B"
-                                   class="mt-1 block w-full h-10 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                   class="mt-1 block w-full h-10 border-gray-300 rounded-md shadow-sm focus:ring-red-800 focus:border-red-800">
                         </div>
 
                         <div>
                             <label for="stageOrder" class="block text-sm font-medium text-gray-700">Order</label>
                             <input type="number" id="stageOrder" name="order_sequence" min="1"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-red-800 focus:border-red-800 sm:text-sm"
                                    placeholder="1">
                         </div>
                     </div>
@@ -84,30 +68,30 @@
                     <div class="mt-4">
                         <label for="stageDescription" class="block text-sm font-medium text-gray-700">Description</label>
                         <textarea id="stageDescription" name="description" rows="2"
-                                  class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                  class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-red-800 focus:border-red-800 sm:text-sm"
                                   placeholder="Optional description"></textarea>
                     </div>
 
-                    <div class="mt-4 flex justify-end space-x-3">
+                    <div class="mt-4 flex justify-end gap-3">
                         <button type="button" onclick="resetStageForm()"
-                                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                                class="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all">
                             Reset
                         </button>
                         <button type="submit"
-                                class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700">
+                                class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-red-800 rounded-lg hover:bg-red-900 transition-all shadow-sm">
                             <span id="stageSubmitText">Add Stage</span>
                         </button>
                     </div>
                 </form>
             </div>
+        </div>
 
-            {{-- Modal Footer --}}
-            <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                <button type="button" onclick="closeStageModal()"
-                        class="w-full px-4 py-2 mt-3 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm">
-                    Close
-                </button>
-            </div>
+        {{-- Modal Footer --}}
+        <div class="flex justify-end px-6 py-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+            <button type="button" onclick="closeStageModal()"
+                    class="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all">
+                Close
+            </button>
         </div>
     </div>
 </div>

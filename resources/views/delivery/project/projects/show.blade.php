@@ -2093,34 +2093,7 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// ============================================
-// TOAST NOTIFICATIONS
-// ============================================
-function showToast(message, type = 'success') {
-    const container = document.getElementById('toast-container');
-    const toast = document.createElement('div');
-    
-    const bgColor = type === 'success' ? 'bg-green-500' : 
-                    type === 'error' ? 'bg-red-500' : 
-                    type === 'info' ? 'bg-blue-500' : 'bg-gray-500';
-    
-    toast.className = `toast-notification ${bgColor} text-white px-6 py-4 rounded-lg shadow-lg flex items-center space-x-3 min-w-[300px]`;
-    toast.innerHTML = `
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            ${type === 'success' ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>' :
-              type === 'error' ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>' :
-              '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>'}
-        </svg>
-        <span class="font-medium">${message}</span>
-    `;
-    
-    container.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.style.animation = 'slideInRight 0.3s ease-out reverse';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
+// showToast is provided globally by dashboard.blade.php
 
 // Show success message if present
 @if(session('success'))

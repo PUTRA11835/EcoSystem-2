@@ -72,26 +72,16 @@ class TicketController extends Controller
                 Log::info('Admin viewing all tickets');
                 
                 $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
-                    ->orderBy('created_at', 'desc')
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
-                    
-            // Employee: cek DSM qualification
+
+            // Employee: tampilkan ticket unassigned (belum ada PIC)
             } elseif ($sessionUser['role']['id'] == 2) {
-                $employeeId = $sessionUser['id'];
+                Log::info('Employee viewing unassigned tickets');
 
-                // Cek apakah employee memiliki DSM qualification
-                if (!$this->isEmployeeQualified($employeeId)) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'You are not qualified for this section. DSM qualification required.'
-                    ], 403);
-                }
-
-                Log::info('Employee with DSM qualification viewing all tickets');
-
-                // Employee dengan DSM bisa lihat semua ticket
                 $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
-                    ->orderBy('created_at', 'desc')
+                    ->whereNull('employee_id')
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
 
             // Helpdesk (6), RPMO (7), Head of Project (4), Head of Support (5): lihat semua ticket
@@ -99,7 +89,7 @@ class TicketController extends Controller
                 Log::info('Staff viewing all tickets', ['role_id' => $sessionUser['role']['id']]);
 
                 $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
-                    ->orderBy('created_at', 'desc')
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
 
             } else {
@@ -357,44 +347,21 @@ class TicketController extends Controller
         }
     }
 
-    /**
-     * Generate ticket number with format YYMM-XXXX-0000
-     * YY = Year (2 digits)
-     * MM = Month (2 digits)
-     * XXXX = Customer Code (4 characters)
-     * 0000 = Sequential number (4 digits, padded)
-     */
     private function generateTicketNumber($customerId)
     {
-        // Get customer code
-        $customer = DB::table('customer')->where('customer_id', $customerId)->first();
-        $customerCode = $customer->customer_code ?? 'UNKN';
+        $year      = date('y');  // e.g., "26"
+        $yearMonth = date('ym'); // e.g., "2603"
 
-        // Ensure customer code is exactly 4 characters
-        $customerCode = strtoupper(substr(str_pad($customerCode, 4, 'X'), 0, 4));
+        // Find the highest sequence used THIS year across all months (exclude old dash-format)
+        $lastNumber = DB::table('ticket')
+            ->where('ticket_number', 'like', $year . '%')
+            ->whereRaw("ticket_number NOT LIKE '%-%'")
+            ->orderByRaw('CAST(SUBSTRING(ticket_number, 5, 4) AS UNSIGNED) DESC')
+            ->value('ticket_number');
 
-        // Get current year and month
-        $yearMonth = date('ym'); // e.g., "2602" for Feb 2026
+        $nextNumber = $lastNumber ? ((int) substr($lastNumber, -4)) + 1 : 1;
 
-        // Get the prefix for counting existing tickets
-        $prefix = $yearMonth . '-' . $customerCode . '-';
-
-        // Count existing tickets with this prefix to get the next sequence number
-        $lastTicket = DB::table('ticket')
-            ->where('ticket_number', 'like', $prefix . '%')
-            ->orderBy('ticket_number', 'desc')
-            ->first();
-
-        if ($lastTicket) {
-            // Extract the sequence number and increment
-            $lastNumber = (int) substr($lastTicket->ticket_number, -4);
-            $nextNumber = $lastNumber + 1;
-        } else {
-            $nextNumber = 1;
-        }
-
-        // Format: YYMM-XXXX-0000
-        return $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        return $yearMonth . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -428,7 +395,7 @@ class TicketController extends Controller
                                 $inner->where('ticket_member.employee_id', $employeeId);
                             });
                     })
-                    ->orderBy('ticket.created_at', 'desc')
+                    ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
                     ->get();
 
             } else {
@@ -996,9 +963,22 @@ class TicketController extends Controller
         $roleId = $sessionUser['role']['id'] ?? 0;
         $isAdmin    = $roleId == 1;
         $isHelpdesk = in_array($roleId, [6, 7]);
+        $isEmployee = $roleId >= 1; // any employee role (not customer)
 
-        // Admin and Helpdesk can update ticket
-        if (!$sessionUser || (!$isAdmin && !$isHelpdesk)) {
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        // Employees other than admin/helpdesk may ONLY self-assign PIC on unassigned tickets.
+        // All other fields require admin or helpdesk.
+        $ticketForCheck = Ticket::find($id);
+        $requestKeys    = array_keys($request->except(['_token', '_method']));
+        $isSelfAssignOnly = !$isAdmin && !$isHelpdesk
+            && $requestKeys === ['employee_id']
+            && $ticketForCheck
+            && $ticketForCheck->employee_id === null;
+
+        if (!$isAdmin && !$isHelpdesk && !$isSelfAssignOnly) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only admin or helpdesk can update ticket'
@@ -1422,7 +1402,7 @@ class TicketController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'status' => 'required|string|in:open,in_progress,hold,cancel,closed,reply',
+            'status' => 'required|string|in:open,in_progress,hold,cancel,closed,reply,wait_to_close',
         ]);
 
         if ($validator->fails()) {
@@ -2262,7 +2242,8 @@ class TicketController extends Controller
                 'data' => [
                     'activity_id' => $activityId,
                     'support_id' => $supportId,
-                    'support_name' => $support->name
+                    'support_name' => $support->name,
+                    'support_type' => $support->type ?? null,
                 ]
             ]);
 
@@ -2306,7 +2287,8 @@ class TicketController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
+            'name'           => 'required|string|max:255',
+            'type'           => 'required|in:AMS,MO,ATS,Project,Internal',
             'support_method' => 'nullable|string|max:100',
         ]);
 
@@ -2332,9 +2314,10 @@ class TicketController extends Controller
             // Create delivery support
             $supportId = DB::table('delivery_support')->insertGetId([
                 'id_delivery_list' => $deliveryListId,
-                'client_id' => $ticket->customer_id,
-                'name' => $request->name,
-                'support_method' => $request->support_method,
+                'client_id'        => $ticket->customer_id,
+                'name'             => $request->name,
+                'type'             => $request->type,
+                'support_method'   => $request->support_method,
                 'start_date' => $ticket->start_date ?? now(),
                 'end_date' => $ticket->end_date,
                 'created_by_id' => $sessionUser['id'],
@@ -2476,6 +2459,7 @@ class TicketController extends Controller
                 'data' => [
                     'support_id' => $supportId,
                     'support_name' => $request->name,
+                    'support_type' => $request->type,
                     'activity_id' => $activityId
                 ]
             ]);

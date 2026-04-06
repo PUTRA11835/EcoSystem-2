@@ -16,9 +16,7 @@ class Ticket extends Model
         'ticket_number',
         'customer_id',
         'employee_id',
-        'subject',
         'description',
-        'category',
         'start_date',
         'end_date',
         'ticket_priority',
@@ -32,8 +30,6 @@ class Ticket extends Model
         'channel',
         'email_thread_id',
         'last_message_at',
-        'last_agent_reply_at',
-        'last_customer_reply_at',
         'last_customer_reply_at',
         'last_agent_reply_at',
         // Field tambahan dari form Jarvies
@@ -131,6 +127,7 @@ class Ticket extends Model
             'cancel' => 'Cancelled',
             'closed' => 'Closed',
             'reply' => 'Reply',
+            'wait_to_close' => 'Wait to Close',
             default => 'Unknown'
         };
     }

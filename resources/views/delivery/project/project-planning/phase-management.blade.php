@@ -473,24 +473,7 @@ console.log('✅ editItem function loaded');
 
 
     window.showNotification = function(message, type) {
-        type = type || 'info';
-        console.log('📢 Notification [' + type + ']:', message);
-        
-        const existing = document.querySelectorAll('.notification-toast');
-        existing.forEach(function(n) { n.remove(); });
-        
-        const notification = document.createElement('div');
-        notification.className = 'notification-toast fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transition-all ' + 
-            (type === 'success' ? 'bg-green-500 text-white' :
-             type === 'error' ? 'bg-red-500 text-white' :
-             'bg-blue-500 text-white');
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(function() {
-            notification.classList.add('opacity-0');
-            setTimeout(function() { notification.remove(); }, 300);
-        }, 3000);
+        showToast(message, type || 'info');
     };
 
     // ==========================================

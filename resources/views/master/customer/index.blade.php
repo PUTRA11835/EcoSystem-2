@@ -15,7 +15,7 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Status</label>
-                <select id="filterStatus" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                <select id="filterStatus" onchange="applyFilters()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
                     <option value="">All Status</option>
                     <option value="active">Active</option>
                     <option value="blocked">Blocked</option>
@@ -23,11 +23,11 @@
             </div>
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Customer</label>
-                <input type="text" id="filterCustomer" placeholder="Search by email or company name..." class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                <input type="text" id="filterCustomer" placeholder="Search by email or company name..." oninput="debouncedApplyFilters()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
             </div>
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Customer Group</label>
-                <input type="text" id="filterCustomerGroup" placeholder="Search customer group..." class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                <input type="text" id="filterCustomerGroup" placeholder="Search customer group..." oninput="debouncedApplyFilters()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
             </div>
         </div>
         <div class="flex gap-3 justify-end">
@@ -258,6 +258,16 @@
     </div>
 </div>
 
+{{-- Floating action menu (fixed position to avoid table stacking context) --}}
+<div id="floatingCustMenu" class="hidden fixed z-[9999] w-40 bg-white border border-gray-200 rounded-lg shadow-xl py-1" onclick="event.stopPropagation()">
+    <button onclick="custMenuDelete()" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-all">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
+        </svg>
+        Delete
+    </button>
+</div>
+
 @endsection
 
 <style>
@@ -373,10 +383,10 @@
                     </span>
                 </td>
                 <td class="px-4 py-3.5 text-sm">
-                    <div class="flex gap-2 action-buttons">
-                        <button onclick="deleteCustomer(${cust.id}); event.stopPropagation();" title="Delete" class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                    <div class="action-buttons" onclick="event.stopPropagation()">
+                        <button onclick="openCustMenu(event, ${cust.id})" class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 transition-all">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
                             </svg>
                         </button>
                     </div>
@@ -529,6 +539,12 @@
         fetchCustomers(filters);
     }
 
+    let _customerSearchTimer;
+    function debouncedApplyFilters() {
+        clearTimeout(_customerSearchTimer);
+        _customerSearchTimer = setTimeout(applyFilters, 400);
+    }
+
     function resetFilters() {
         document.getElementById('filterStatus').value = '';
         document.getElementById('filterCustomer').value = '';
@@ -536,31 +552,7 @@
         fetchCustomers();
     }
 
-    function showNotification(message, type = 'info') {
-        const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
 
-    // Close modal on outside click
-    document.getElementById('customerModal')?.addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeModal();
-        }
-    });
-
-    document.getElementById('confirmDeleteModal')?.addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeConfirmDelete();
-        }
-    });
 
     // Close modal on Escape key
     document.addEventListener('keydown', function(e) {
@@ -579,5 +571,30 @@
         console.log('Page loaded, fetching customers...');
         fetchCustomers();
     });
+
+    let _custMenuId = null;
+
+    function openCustMenu(event, id) {
+        event.stopPropagation();
+        _custMenuId = id;
+        const menu = document.getElementById('floatingCustMenu');
+        const btn  = event.currentTarget;
+        const rect = btn.getBoundingClientRect();
+        menu.classList.remove('hidden');
+        const mw = menu.offsetWidth;
+        menu.style.top  = (rect.bottom + 4) + 'px';
+        menu.style.left = (rect.right - mw) + 'px';
+    }
+
+    function closeCustMenu() {
+        document.getElementById('floatingCustMenu').classList.add('hidden');
+    }
+
+    function custMenuDelete() {
+        closeCustMenu();
+        deleteCustomer(_custMenuId);
+    }
+
+    document.addEventListener('click', closeCustMenu);
 </script>
 @endpush

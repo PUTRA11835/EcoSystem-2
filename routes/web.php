@@ -22,6 +22,7 @@ use App\Http\Controllers\DeliveryProjectDataController;
 use App\Http\Controllers\DeliveryProjectStageManagementController;
 use App\Http\Controllers\DeliveryProjectPlanningExportController;
 use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\TicketViewController;
 use App\Http\Controllers\PasswordSetupController;
 use App\Http\Middleware\CheckAuthToken;
@@ -186,8 +187,8 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/staging-tickets', [StagingTicketController::class, 'view'])->name('staging.index');
     Route::get('/staging-tickets/rejected', [StagingTicketController::class, 'viewRejected'])->name('staging.rejected');
 
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::post('/profile/change-password', [ProfileController::class, 'changePassword'])->name('profile.change-password');
+    Route::get('/my-profile', [ProfileController::class, 'myProfile'])->name('profile.my');
+    Route::post('/my-profile/change-password', [ProfileController::class, 'changePassword'])->name('profile.change-password');
 
     // ==================== PROJECT PLANNING ROUTES ====================
 
@@ -273,6 +274,9 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/create', [TicketViewController::class, 'create'])->name('create');
         Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
     });
+
+    // ==================== NOTIFICATIONS ====================
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
 
     // ==================== ATTACHMENT PROXY ====================
     // Fetch file dari Microsoft Graph on-demand — tidak disimpan lokal

@@ -1,38 +1,96 @@
 <div class="space-y-6">
-    <!-- Identification Number Section (Main Form - for viewing selected) -->
+    <!-- Form Header -->
+    <div class="flex justify-between items-center pb-2 border-b border-gray-200">
+        <h3 class="text-base font-semibold text-gray-900">Identification</h3>
+        <div class="flex gap-2">
+            <input type="hidden" id="editIdentificationId">
+            <button type="button" onclick="clearIdentificationForm()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-gray-500 text-white text-xs font-semibold rounded-lg hover:bg-gray-600 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+                New
+            </button>
+            <button type="button" onclick="saveIdentification()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
+                </svg>
+                <span id="saveIdentificationButtonText">Save</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Identification Form Fields -->
     <div>
-        <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Identification Number</h3>
-        
+        <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Identification Data</h3>
         <div class="grid grid-cols-6 gap-4">
-            <!-- ID Type -->
+            <!-- Identification Type -->
             <div class="col-span-1">
-                <label class="block text-xs font-semibold text-gray-600 mb-1.5">ID Type</label>
-                <div class="relative">
-                    <input type="text" id="idType" readonly class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-700 pr-8">
-                    <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
-                </div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">ID Type <span class="text-red-600">*</span></label>
+                <input type="text" id="idType"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
             </div>
 
             <!-- Identification Number -->
             <div class="col-span-2">
-                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Identification Number</label>
-                <input type="text" id="identificationNumber" readonly class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-700">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Identification Number <span class="text-red-600">*</span></label>
+                <input type="text" id="identificationNumber"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
             </div>
 
             <!-- Responsible Institution -->
             <div class="col-span-2">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Responsible Institution</label>
-                <input type="text" id="responsibleInstitution" readonly class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-700">
+                <input type="text" id="responsibleInstitution"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+            </div>
+
+            <!-- Country -->
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Country</label>
+                <input type="text" id="identCountry" value="Indonesia"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+            </div>
+
+            <!-- Region -->
+            <div class="col-span-2">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Region</label>
+                <input type="text" id="identRegion"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
             </div>
 
             <!-- Valid From -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Valid From</label>
-                <input type="text" id="validFrom" readonly class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-700">
+                <input type="date" id="validFrom"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+            </div>
+
+            <!-- Valid To -->
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Valid To</label>
+                <input type="date" id="identValidTo"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+            </div>
+
+            <!-- Entry Date -->
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Entry Date</label>
+                <input type="date" id="identEntryDate"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+            </div>
+
+            <!-- Drive Link -->
+            <div class="col-span-3">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Drive Link</label>
+                <input type="url" id="identDriveLink" placeholder="https://drive.google.com/..."
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+            </div>
+
+            <!-- Verify Link -->
+            <div class="col-span-3">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Verify Link</label>
+                <input type="url" id="identVerifyLink" placeholder="https://..."
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
             </div>
         </div>
     </div>
@@ -58,20 +116,6 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
                     </svg>
                     Copy
-                </button>
-
-                <button onclick="openCreateIdentificationModal()" title="Create" class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    Create
-                </button>
-
-                <button onclick="openEditIdentificationModal()" title="Update" class="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                    </svg>
-                    Update
                 </button>
 
                 <button onclick="deleteSelectedIdentification()" title="Delete" class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-red-600 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-all">
@@ -101,8 +145,12 @@
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">ID Type</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Identification Number</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Responsible Institution</th>
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Region</th>
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Country</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Valid From</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Valid To</th>
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Entry Date</th>
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Links</th>
                         <th class="w-10 px-4 py-3 text-left">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-500">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
@@ -112,12 +160,12 @@
                 </thead>
                 <tbody id="identificationTableBody" class="bg-white divide-y divide-gray-100">
                     <tr>
-                        <td colspan="7" class="px-4 py-16 text-center">
+                        <td colspan="11" class="px-4 py-16 text-center">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-300">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Zm6-10.125a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.294 6.336a6.721 6.721 0 0 1-3.17.789 6.721 6.721 0 0 1-3.168-.789 3.376 3.376 0 0 1 6.338 0Z" />
                             </svg>
                             <p class="text-base font-medium text-gray-900 mb-2">No identification documents found</p>
-                            <small class="text-sm text-gray-500">Click "Create" to add a new identification</small>
+                            <small class="text-sm text-gray-500">Fill the form above and click "Save" to add a new identification</small>
                         </td>
                     </tr>
                 </tbody>
@@ -126,160 +174,6 @@
     </div>
 </div>
 
-<!-- Create/Edit Identification Modal -->
-<div id="identificationModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
-    <div class="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
-            <h3 id="identificationModalTitle" class="text-xl font-bold text-gray-900">New Identification Number</h3>
-            <button onclick="closeIdentificationModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
-            </button>
-        </div>
-
-        <!-- Tabs -->
-        <div class="border-b border-gray-200">
-            <nav class="flex -mb-px">
-                <button onclick="switchIdentificationTab('general')" data-tab="general" class="identification-tab px-6 py-4 text-sm font-semibold border-b-2 border-red-800 text-red-800 whitespace-nowrap">
-                    General Data
-                </button>
-                <button onclick="switchIdentificationTab('attachment')" data-tab="attachment" class="identification-tab px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-gray-600 hover:text-red-800 hover:border-gray-300 whitespace-nowrap">
-                    Attachment Link
-                </button>
-            </nav>
-        </div>
-
-        <div class="p-6">
-            <form id="identificationForm">
-                <input type="hidden" id="editIdentificationId">
-                
-                <!-- General Data Tab -->
-                <div id="tab-general" class="identification-tab-content">
-                    <h4 class="text-base font-semibold text-gray-900 mb-4">General Data</h4>
-                    
-                    <div class="grid grid-cols-6 gap-4">
-                        <!-- ID Type -->
-                        <div class="col-span-2">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">ID Type <span class="text-red-600">*</span></label>
-                            <div class="relative">
-                                <input type="text" id="modalIdType" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-8">
-                                <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Identification Number -->
-                        <div class="col-span-2">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Identification Number <span class="text-red-600">*</span></label>
-                            <input type="text" id="modalIdentificationNumber" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <!-- Responsible Institution -->
-                        <div class="col-span-2">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Responsible Institution</label>
-                            <input type="text" id="modalResponsibleInstitution" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <!-- Region -->
-                        <div class="col-span-2">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Region</label>
-                            <div class="relative">
-                                <input type="text" id="modalRegion" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-8">
-                                <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Valid From -->
-                        <div class="col-span-2">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Valid From</label>
-                            <div class="relative">
-                                <input type="date" id="modalValidFrom" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-8">
-                                <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 pointer-events-none">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Entry Date -->
-                        <div class="col-span-2">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Entry Date</label>
-                            <div class="relative">
-                                <input type="date" id="modalEntryDate" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-8">
-                                <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 pointer-events-none">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Country (Row 2) -->
-                        <div class="col-span-2">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Country</label>
-                            <div class="relative">
-                                <input type="text" id="modalCountry" value="Indonesia" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-8">
-                                <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Valid To -->
-                        <div class="col-span-2 col-start-5">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Valid To</label>
-                            <div class="relative">
-                                <input type="date" id="modalValidTo" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-8">
-                                <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 pointer-events-none">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Attachment Link Tab -->
-                <div id="tab-attachment" class="identification-tab-content hidden">
-                    <h4 class="text-base font-semibold text-gray-900 mb-4">Attachment Link</h4>
-                    
-                    <div class="space-y-4">
-                        <div class="flex flex-col">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5">Drive Link</label>
-                            <input type="url" id="modalDriveLink" placeholder="https://drive.google.com/..." class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-
-                        <div class="flex flex-col">
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5">Verify Link</label>
-                            <input type="url" id="modalVerifyLink" placeholder="https://..." class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex gap-3 justify-end mt-6 pt-6 border-t border-gray-200">
-                    <button type="button" onclick="closeIdentificationModal()" class="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
-                        Cancel
-                    </button>
-                    <button type="button" onclick="saveIdentificationFromModal()" class="px-5 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
-                        Apply
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 
 <!-- Delete Confirmation Modal -->
 <div id="confirmDeleteIdentificationModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
@@ -380,12 +274,12 @@
         const tbody = document.getElementById('identificationTableBody');
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="px-4 py-16 text-center">
+                <td colspan="11" class="px-4 py-16 text-center">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-300">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Zm6-10.125a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.294 6.336a6.721 6.721 0 0 1-3.17.789 6.721 6.721 0 0 1-3.168-.789 3.376 3.376 0 0 1 6.338 0Z" />
                     </svg>
                     <p class="text-base font-medium text-gray-900 mb-2">No identification documents found</p>
-                    <small class="text-sm text-gray-500">Click "Create" to add a new identification</small>
+                    <small class="text-sm text-gray-500">Fill the form above and click "Save" to add a new identification</small>
                 </td>
             </tr>
         `;
@@ -415,177 +309,65 @@
     }
 
     /**
-     * Load identification to form (top form view only)
+     * Load identification data to form fields
      */
     async function loadIdentificationToForm(identificationId) {
         try {
             const response = await fetch(`/api/customers/{{ $customerId }}/identifications/${identificationId}`, {
                 method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin'
             });
-
             const data = await response.json();
-
             if (data.success && data.data) {
-                const identification = data.data;
-                
-                // Update top form (view only)
-                document.getElementById('idType').value = identification.identification_type || '';
-                document.getElementById('identificationNumber').value = identification.identification_number || '';
-                document.getElementById('responsibleInstitution').value = identification.responsible_institution || '';
-                document.getElementById('validFrom').value = identification.valid_from ? new Date(identification.valid_from).toLocaleDateString('en-GB') : '';
+                const ident = data.data;
+                document.getElementById('editIdentificationId').value = ident.identification_id || ident.id;
+                document.getElementById('idType').value = ident.identification_type || '';
+                document.getElementById('identificationNumber').value = ident.identification_number || '';
+                document.getElementById('responsibleInstitution').value = ident.responsible_institution || '';
+                document.getElementById('identRegion').value = ident.region || '';
+                document.getElementById('validFrom').value = ident.valid_from ? ident.valid_from.split('T')[0] : '';
+                document.getElementById('identEntryDate').value = ident.entry_date ? ident.entry_date.split('T')[0] : '';
+                document.getElementById('identCountry').value = ident.country || 'Indonesia';
+                document.getElementById('identValidTo').value = ident.valid_to ? ident.valid_to.split('T')[0] : '';
+                document.getElementById('identDriveLink').value = ident.drive_link || '';
+                document.getElementById('identVerifyLink').value = ident.verify_link || '';
+                document.getElementById('saveIdentificationButtonText').textContent = 'Update';
             }
         } catch (error) {
-            console.error('❌ Error loading identification:', error);
+            console.error('Error loading identification:', error);
         }
     }
 
     /**
-     * Switch identification tab
+     * Save identification (create or update inline)
      */
-    function switchIdentificationTab(tabName) {
-        // Hide all tab contents
-        document.querySelectorAll('.identification-tab-content').forEach(content => {
-            content.classList.add('hidden');
-        });
-
-        // Remove active state from all tabs
-        document.querySelectorAll('.identification-tab').forEach(tab => {
-            tab.classList.remove('border-red-800', 'text-red-800');
-            tab.classList.add('border-transparent', 'text-gray-600');
-        });
-
-        // Show selected tab content
-        document.getElementById('tab-' + tabName).classList.remove('hidden');
-
-        // Add active state to selected tab
-        const activeTab = document.querySelector(`.identification-tab[data-tab="${tabName}"]`);
-        activeTab.classList.remove('border-transparent', 'text-gray-600');
-        activeTab.classList.add('border-red-800', 'text-red-800');
-    }
-
-    /**
-     * Open create identification modal
-     */
-    function openCreateIdentificationModal() {
-        isEditMode = false;
-        document.getElementById('identificationModalTitle').textContent = 'New Identification Number';
-        document.getElementById('identificationForm').reset();
-        document.getElementById('editIdentificationId').value = '';
-        document.getElementById('modalCountry').value = 'Indonesia';
-        
-        // Switch to first tab
-        switchIdentificationTab('general');
-        
-        document.getElementById('identificationModal').classList.remove('hidden');
-        document.getElementById('identificationModal').classList.add('flex');
-    }
-
-    /**
-     * Open edit identification modal
-     */
-    async function openEditIdentificationModal() {
-        if (!selectedIdentificationId) {
-            showNotification('Please select an identification first', 'warning');
+    async function saveIdentification() {
+        const idType = document.getElementById('idType').value;
+        const identificationNumber = document.getElementById('identificationNumber').value;
+        if (!idType || !identificationNumber) {
+            showNotification('ID Type and Identification Number are required', 'error');
             return;
         }
-
-        isEditMode = true;
-        document.getElementById('identificationModalTitle').textContent = 'Edit Identification Number';
-        
-        try {
-            const response = await fetch(`/api/customers/{{ $customerId }}/identifications/${selectedIdentificationId}`, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                credentials: 'same-origin'
-            });
-
-            const data = await response.json();
-
-            if (data.success && data.data) {
-                const identification = data.data;
-                
-                // Fill modal form with existing data
-                document.getElementById('editIdentificationId').value = identification.identification_id;
-                document.getElementById('modalIdType').value = identification.identification_type || '';
-                document.getElementById('modalIdentificationNumber').value = identification.identification_number || '';
-                document.getElementById('modalResponsibleInstitution').value = identification.responsible_institution || '';
-                document.getElementById('modalRegion').value = identification.region || '';
-                document.getElementById('modalCountry').value = identification.country || 'Indonesia';
-                document.getElementById('modalEntryDate').value = identification.entry_date || '';
-                document.getElementById('modalValidFrom').value = identification.valid_from || '';
-                document.getElementById('modalValidTo').value = identification.valid_to || '';
-                document.getElementById('modalDriveLink').value = identification.drive_link || '';
-                document.getElementById('modalVerifyLink').value = identification.verify_link || '';
-                
-                // Switch to first tab
-                switchIdentificationTab('general');
-                
-                document.getElementById('identificationModal').classList.remove('hidden');
-                document.getElementById('identificationModal').classList.add('flex');
-            }
-        } catch (error) {
-            console.error('❌ Error loading identification for edit:', error);
-            showNotification('Failed to load identification data', 'error');
-        }
-    }
-
-    /**
-     * Close identification modal
-     */
-    function closeIdentificationModal() {
-        document.getElementById('identificationModal').classList.add('hidden');
-        document.getElementById('identificationModal').classList.remove('flex');
-        isEditMode = false;
-    }
-
-    /**
-     * Save identification from modal (CREATE or UPDATE)
-     */
-    async function saveIdentificationFromModal() {
-        const form = document.getElementById('identificationForm');
-        
-        if (!form.checkValidity()) {
-            form.reportValidity();
-            return;
-        }
-
-        const identificationData = {
-            identification_type: document.getElementById('modalIdType').value,
-            identification_number: document.getElementById('modalIdentificationNumber').value,
-            responsible_institution: document.getElementById('modalResponsibleInstitution').value,
-            region: document.getElementById('modalRegion').value,
-            country: document.getElementById('modalCountry').value,
-            entry_date: document.getElementById('modalEntryDate').value,
-            valid_from: document.getElementById('modalValidFrom').value,
-            valid_to: document.getElementById('modalValidTo').value,
-            drive_link: document.getElementById('modalDriveLink').value,
-            verify_link: document.getElementById('modalVerifyLink').value,
+        const identificationId = document.getElementById('editIdentificationId').value;
+        const isUpdate = identificationId !== '';
+        const identData = {
+            identification_type: idType,
+            identification_number: identificationNumber,
+            responsible_institution: document.getElementById('responsibleInstitution').value || null,
+            region: document.getElementById('identRegion').value || null,
+            valid_from: document.getElementById('validFrom').value || null,
+            entry_date: document.getElementById('identEntryDate').value || null,
+            country: document.getElementById('identCountry').value || null,
+            valid_to: document.getElementById('identValidTo').value || null,
+            drive_link: document.getElementById('identDriveLink').value || null,
+            verify_link: document.getElementById('identVerifyLink').value || null
         };
-
         try {
-            let url, method, successMessage;
-            
-            if (isEditMode) {
-                // UPDATE
-                const identificationId = document.getElementById('editIdentificationId').value;
-                url = `/api/customers/{{ $customerId }}/identifications/${identificationId}`;
-                method = 'PUT';
-                successMessage = 'Identification updated successfully!';
-            } else {
-                // CREATE
-                url = `/api/customers/{{ $customerId }}/identifications`;
-                method = 'POST';
-                successMessage = 'Identification created successfully!';
-            }
-
+            const url = isUpdate
+                ? `/api/customers/{{ $customerId }}/identifications/${identificationId}`
+                : `/api/customers/{{ $customerId }}/identifications`;
+            const method = isUpdate ? 'PUT' : 'POST';
             const response = await fetch(url, {
                 method: method,
                 headers: {
@@ -595,29 +377,40 @@
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
                 },
                 credentials: 'same-origin',
-                body: JSON.stringify(identificationData)
+                body: JSON.stringify(identData)
             });
-
             const data = await response.json();
-            
             if (data.success) {
-                showNotification(successMessage, 'success');
-                closeIdentificationModal();
+                showNotification(isUpdate ? 'Identification updated successfully!' : 'Identification created successfully!', 'success');
                 loadIdentifications();
-                
-                // If we just updated, refresh the top form
-                if (isEditMode) {
-                    loadIdentificationToForm(selectedIdentificationId);
-                }
+                if (isUpdate) { loadIdentificationToForm(identificationId); } else { clearIdentificationForm(); }
             } else {
-                showNotification('Failed to save: ' + (data.message || 'Unknown error'), 'error');
+                showNotification('Failed to save identification: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
-            console.error('❌ Error saving identification:', error);
-            showNotification('An error occurred while saving', 'error');
+            showNotification('An error occurred while saving identification', 'error');
         }
     }
 
+    /**
+     * Clear identification form (new mode)
+     */
+    function clearIdentificationForm() {
+        document.getElementById('editIdentificationId').value = '';
+        ['idType','identificationNumber','responsibleInstitution','identRegion','validFrom',
+         'identEntryDate','identValidTo','identDriveLink','identVerifyLink'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        document.getElementById('identCountry').value = 'Indonesia';
+        const radios = document.querySelectorAll('input[name="selectedIdentification"]');
+        radios.forEach(r => r.checked = false);
+        selectedIdentificationId = null;
+        document.getElementById('saveIdentificationButtonText').textContent = 'Save';
+        showNotification('Form cleared. Ready to create new identification.', 'info');
+    }
+
+    
     /**
      * Copy selected identification
      */
@@ -742,11 +535,7 @@
                 selectedIdentificationId = null;
                 loadIdentifications();
                 
-                // Clear form fields
-                document.getElementById('idType').value = '';
-                document.getElementById('identificationNumber').value = '';
-                document.getElementById('responsibleInstitution').value = '';
-                document.getElementById('validFrom').value = '';
+                clearIdentificationForm();
             } else {
                 showNotification('Failed to delete: ' + (data.message || 'Unknown error'), 'error');
             }
@@ -759,20 +548,6 @@
     /**
      * Show notification
      */
-    function showNotification(message, type = 'info') {
-        const bgColor = type === 'success' ? 'bg-green-500' : 
-                        type === 'error' ? 'bg-red-500' : 
-                        type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500';
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
@@ -780,21 +555,10 @@
         loadIdentifications();
     });
 
-    // Close modals on outside click
-    document.getElementById('identificationModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeIdentificationModal();
-    });
-
-    document.getElementById('confirmDeleteIdentificationModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeConfirmDeleteIdentification();
-    });
 
     // Close modals on Escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            if (!document.getElementById('identificationModal').classList.contains('hidden')) {
-                closeIdentificationModal();
-            }
             if (!document.getElementById('confirmDeleteIdentificationModal').classList.contains('hidden')) {
                 closeConfirmDeleteIdentification();
             }

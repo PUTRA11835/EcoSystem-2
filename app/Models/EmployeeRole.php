@@ -23,6 +23,7 @@ class EmployeeRole extends Model
 
     public function employees()
     {
-        return $this->hasMany(Employee::class, 'role_id', 'id');
+        return $this->belongsToMany(Employee::class, 'employee_role_assignment', 'role_id', 'employee_id', 'id', 'employee_id')
+                    ->withTimestamps();
     }
 }

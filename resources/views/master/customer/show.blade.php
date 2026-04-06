@@ -269,19 +269,14 @@
                 setValue('email', basicData.email);
                 
                 // Customer Information
+                setValue('externalNumber', basicData.external_number);
                 setValue('customerGroup', basicData.customer_group);
                 setValue('customerCategory', basicData.customer_category);
-                setValue('industryCode', basicData.industry_code);
                 setValue('industrySector', basicData.industry_sector);
-                setValue('salesOrganization', basicData.sales_organization);
-                setValue('distributionChannel', basicData.distribution_channel);
-                setValue('division', basicData.division);
-                setValue('currency', basicData.currency);
-                setValue('accountGroup', basicData.account_group);
                 setValue('creditLimitType', basicData.credit_limit_type);
-                setValue('creditLimit', basicData.credit_limit);
-                setValue('paymentTerms', basicData.payment_terms);
-                setValue('incoterms', basicData.incoterms);
+                setValue('ecAccountExecutive', basicData.ec_account_executive);
+                setValue('sapAccountExecutive', basicData.sap_account_executive);
+                setValue('authorizationGroup', basicData.authorization_group);
                 
                 // Status
                 setCheckbox('block', basicData.block);
@@ -309,35 +304,16 @@
             title: getValue('title'),
             name_1: getValue('name1'),
             name_2: getValue('name2'),
-            name_3: getValue('name3'),
-            name_4: getValue('name4'),
             search_term_1: getValue('searchTerm1'),
             search_term_2: getValue('searchTerm2'),
-            street: getValue('street'),
-            postal_code: getValue('postalCode'),
-            city: getValue('city'),
-            country: getValue('country'),
-            region: getValue('region'),
-            district: getValue('district'),
-            rural_urban_village: getValue('village'),
-            language: getValue('language'),
-            telephone: getValue('telephone'),
-            cell_phone: getValue('cellPhone'),
-            fax: getValue('fax'),
-            email: getValue('email'),
+            external_number: getValue('externalNumber'),
             customer_group: getValue('customerGroup'),
             customer_category: getValue('customerCategory'),
-            industry_code: getValue('industryCode'),
-            industry_sector: getValue('industrySector'),
-            sales_organization: getValue('salesOrganization'),
-            distribution_channel: getValue('distributionChannel'),
-            division: getValue('division'),
-            currency: getValue('currency'),
-            account_group: getValue('accountGroup'),
             credit_limit_type: getValue('creditLimitType'),
-            credit_limit: getValue('creditLimit'),
-            payment_terms: getValue('paymentTerms'),
-            incoterms: getValue('incoterms'),
+            industry_sector: getValue('industrySector'),
+            ec_account_executive: getValue('ecAccountExecutive'),
+            sap_account_executive: getValue('sapAccountExecutive'),
+            authorization_group: getValue('authorizationGroup'),
             block: getCheckbox('block'),
             deletion_flag: getCheckbox('deletionFlag')
         };
@@ -409,19 +385,6 @@
             minute: '2-digit',
             second: '2-digit'
         });
-    }
-
-    function showNotification(message, type = 'info') {
-        const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
     }
 
     // Load data when page loads

@@ -1,7 +1,7 @@
 @extends('dashboard')
 
-@section('title', 'Employee Detail')
-@section('page-title', 'Employee Detail - ' . (($employee->first_name ?? '') . ' ' . ($employee->last_name ?? '') ?: 'N/A'))
+@section('title', isset($isOwnProfile) && $isOwnProfile ? 'My Profile' : 'Employee Detail')
+@section('page-title', isset($isOwnProfile) && $isOwnProfile ? 'My Profile' : 'Employee Detail - ' . (($employee->first_name ?? '') . ' ' . ($employee->last_name ?? '') ?: 'N/A'))
 
 @section('content')
 <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -9,12 +9,21 @@
 <div class="space-y-6">
     <!-- Header dengan tombol back -->
     <div class="flex items-center justify-between">
-        <a href="{{ route('master.employee.index') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-            </svg>
-            Back to List
-        </a>
+        @if(isset($isOwnProfile) && $isOwnProfile)
+            <a href="{{ route('dashboard') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+                </svg>
+                Back to Dashboard
+            </a>
+        @else
+            <a href="{{ route('master.employee.index') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+                </svg>
+                Back to List
+            </a>
+        @endif
     </div>
 
     <!-- Employee Profile Card -->
@@ -385,18 +394,7 @@
         });
     }
 
-    function showNotification(message, type = 'info') {
-        const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
+    // showNotification tersedia secara global dari dashboard.blade.php
 
     // Load data when page loads
     document.addEventListener('DOMContentLoaded', function() {

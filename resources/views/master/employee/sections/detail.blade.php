@@ -217,12 +217,12 @@
     }
 
     function checkEmployee() {
-        alert('Check employee data');
+        showNotification('Check employee data', 'info');
     }
 
     function saveEmployee() {
         if (confirm('Save changes to employee data?')) {
-            alert('Employee data saved successfully!');
+            showNotification('Employee data saved successfully!', 'success');
             window.location.href = '{{ route("master") }}';
         }
     }

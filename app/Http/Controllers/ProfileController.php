@@ -10,66 +10,85 @@ use Illuminate\Support\Facades\Log;
 class ProfileController extends Controller
 {
     /**
-     * Tampilkan halaman profil user yang sedang login.
+     * Tampilkan halaman My Profile dengan tampilan lengkap seperti employee detail.
      */
-    public function edit(Request $request)
+    public function myProfile()
     {
         $sessionUser = session('user');
 
-        if (!$sessionUser) {
+        if (!$sessionUser || ($sessionUser['type'] ?? null) !== 'employee') {
             return redirect()->route('login');
         }
 
-        $type    = $sessionUser['type'] ?? null;
-        $profile = null;
+        $employeeId = $sessionUser['id'];
 
-        if ($type === 'employee') {
-            $profile = DB::table('employee as e')
-                ->join('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
-                ->leftJoin('employee_address as ea', 'e.employee_id', '=', 'ea.employee_id')
-                ->leftJoin('employee_role as r', 'e.role_id', '=', 'r.id')
-                ->where('e.employee_id', $sessionUser['id'])
-                ->select(
-                    'e.employee_id',
-                    'e.eci',
-                    'e.is_active',
-                    'eb.title',
-                    'eb.first_name',
-                    'eb.last_name',
-                    'eb.nick_name',
-                    'eb.gender',
-                    'eb.birth_date',
-                    'eb.birth_place',
-                    'eb.religion',
-                    'eb.marital_status',
-                    'eb.since_date',
-                    'eb.position',
-                    'eb.division',
-                    'eb.department',
-                    'eb.employee_group',
-                    'eb.employee_subgroup',
-                    'ea.street',
-                    'ea.city',
-                    'ea.region',
-                    'ea.country',
-                    'ea.postal_code',
-                    'ea.cell_phone',
-                    'ea.telephone',
-                    'ea.email_personal',
-                    'ea.email_work',
-                    'r.name as role_name'
-                )
-                ->first();
-
-        }
-
-        // Email & phone dari auth_users (sumber utama login)
-        $authUser = DB::table('auth_users')
-            ->where('employee_id', $sessionUser['id'])
-            ->select('id', 'email', 'phone', 'username', 'last_login_at', 'created_at')
+        $employee = DB::table('employee as e')
+            ->leftJoin('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
+            ->leftJoin('employee_address as ea', 'e.employee_id', '=', 'ea.employee_id')
+            ->where('e.employee_id', $employeeId)
+            ->select(
+                'e.employee_id as id',
+                'e.eci',
+                'e.is_active',
+                'eb.basic_data_id',
+                'eb.title',
+                'eb.first_name',
+                'eb.last_name',
+                'eb.nick_name',
+                'eb.gender',
+                'eb.religion',
+                'eb.marital_status',
+                'eb.birth_date',
+                'eb.birth_place',
+                'eb.since_date',
+                'eb.personnel_area',
+                'eb.personnel_subarea',
+                'eb.employee_group',
+                'eb.employee_subgroup',
+                'eb.position',
+                'eb.division',
+                'eb.department',
+                'eb.direct_supervision',
+                'eb.manager',
+                'eb.authorization_group',
+                'eb.block',
+                'eb.deletion_flag',
+                'eb.created_by',
+                'eb.created_on',
+                'eb.last_changed_by',
+                'eb.last_changed_on',
+                'ea.address_id',
+                'ea.address_type',
+                'ea.country',
+                'ea.region',
+                'ea.city',
+                'ea.district',
+                'ea.rural_urban_village',
+                'ea.street',
+                'ea.house_number',
+                'ea.postal_code',
+                'ea.language',
+                'ea.cell_phone',
+                'ea.telephone',
+                'ea.telephone_extension',
+                'ea.fax',
+                'ea.email_personal',
+                'ea.email_work',
+                'ea.website',
+                'ea.is_primary',
+                'ea.valid_from',
+                'ea.valid_to'
+            )
             ->first();
 
-        return view('profile.edit', compact('profile', 'authUser', 'sessionUser'));
+        if (!$employee) {
+            return redirect()->route('dashboard');
+        }
+
+        return view('master.employee.show', [
+            'employee'     => $employee,
+            'isOwnProfile' => true,
+        ]);
     }
 
     /**
@@ -84,7 +103,6 @@ class ProfileController extends Controller
         }
 
         $request->validate([
-            'current_password'      => 'required|string',
             'password'              => 'required|string|min:8|confirmed',
             'password_confirmation' => 'required|string',
         ]);
@@ -95,14 +113,6 @@ class ProfileController extends Controller
 
         if (!$authUser) {
             return response()->json(['success' => false, 'message' => 'Account not found'], 404);
-        }
-
-        if (!Hash::check($request->current_password, $authUser->password)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Current password is incorrect',
-                'errors'  => ['current_password' => ['Current password is incorrect']],
-            ], 422);
         }
 
         DB::table('auth_users')->where('id', $authUser->id)->update([

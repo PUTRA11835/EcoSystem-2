@@ -13,18 +13,18 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Title</label>
-                <select id="title" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                    <option value="Mr.">Mr.</option>
-                    <option value="Mrs.">Mrs.</option>
-                    <option value="Ms.">Ms.</option>
-                    <option value="Dr.">Dr.</option>
-                </select>
-                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <rect x="2" y="3" width="12" height="2" fill="#374151"/>
-                        <rect x="2" y="7" width="12" height="2" fill="#374151"/>
-                        <rect x="2" y="11" width="12" height="2" fill="#374151"/>
-                    </svg>
+                <div class="relative">
+                    <select id="title" class="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                        <option value="Mr.">Mr.</option>
+                        <option value="Mrs.">Mrs.</option>
+                        <option value="Ms.">Ms.</option>
+                        <option value="Dr.">Dr.</option>
+                    </select>
+                    <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
+                        </svg>
+                    </div>
                 </div>
             </div>
             <div class="flex flex-col">
@@ -33,21 +33,35 @@
             </div>
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Gender</label>
-                <select id="gender" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                </select>
+                <div class="relative">
+                    <select id="gender" class="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                    </select>
+                    <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
+                        </svg>
+                    </div>
+                </div>
             </div>
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Religion</label>
-                <select id="religion" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                    <option value="Islam">Islam</option>
-                    <option value="Christian">Christian</option>
-                    <option value="Catholic">Catholic</option>
-                    <option value="Hindu">Hindu</option>
-                    <option value="Buddhist">Buddhist</option>
-                    <option value="Confucian">Confucian</option>
-                </select>
+                <div class="relative">
+                    <select id="religion" class="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                        <option value="Islam">Islam</option>
+                        <option value="Christian">Christian</option>
+                        <option value="Catholic">Catholic</option>
+                        <option value="Hindu">Hindu</option>
+                        <option value="Buddhist">Buddhist</option>
+                        <option value="Confucian">Confucian</option>
+                    </select>
+                    <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
+                        </svg>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -62,12 +76,19 @@
             </div>
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Marital Status</label>
-                <select id="maritalStatus" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                    <option value="Single">Single</option>
-                    <option value="Married">Married</option>
-                    <option value="Divorced">Divorced</option>
-                    <option value="Widow/Widower">Widow/Widower</option>
-                </select>
+                <div class="relative">
+                    <select id="maritalStatus" class="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                        <option value="Single">Single</option>
+                        <option value="Married">Married</option>
+                        <option value="Divorced">Divorced</option>
+                        <option value="Widow/Widower">Widow/Widower</option>
+                    </select>
+                    <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
+                        </svg>
+                    </div>
+                </div>
             </div>
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Birth Date</label>
@@ -385,18 +406,5 @@ function formatDateTime(dateString) {
     const minutes = String(date.getMinutes()).padStart(2, '0');
     const seconds = String(date.getSeconds()).padStart(2, '0');
     return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
-}
-
-function showNotification(message, type = 'info') {
-    const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
-    const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.style.opacity = '0';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
 }
 </script>

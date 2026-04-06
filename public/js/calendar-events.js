@@ -415,13 +415,13 @@ async function deleteEvent() {
         if (data.success) {
             closeDetailsModal();
             await loadEvents();
-            alert('✓ Event deleted successfully!');
+            showNotification('Event deleted successfully!', 'success');
         } else {
-            alert('Failed to delete event: ' + data.message);
+            showNotification('Failed to delete event: ' + data.message, 'error');
         }
     } catch (error) {
         console.error('Error deleting event:', error);
-        alert('Failed to delete event');
+        showNotification('Failed to delete event', 'error');
     }
 }
 
@@ -459,12 +459,12 @@ async function handleFormSubmit(e) {
         if (data.success) {
             closeEventModal();
             await loadEvents();
-            alert(eventId ? '✓ Event updated successfully!' : '✓ Event created successfully!');
+            showNotification(eventId ? 'Event updated successfully!' : 'Event created successfully!', 'success');
         } else {
-            alert('Failed to save event: ' + data.message);
+            showNotification('Failed to save event: ' + data.message, 'error');
         }
     } catch (error) {
         console.error('Error saving event:', error);
-        alert('Failed to save event');
+        showNotification('Failed to save event', 'error');
     }
 }

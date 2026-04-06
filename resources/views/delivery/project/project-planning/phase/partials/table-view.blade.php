@@ -773,7 +773,7 @@
             window.openActivityModal(null, groupId, activityId);
         } else {
             console.error('❌ openActivityModal not loaded!');
-            alert('Activity modal not ready. Please refresh.');
+            showNotification('Activity modal not ready. Please refresh the page.', 'error');
         }
     };
 
@@ -855,7 +855,7 @@
             window.openActivityModal(stageId, groupId);
         } else {
             console.error('❌ openActivityModal not loaded!');
-            alert('Activity modal not ready. Please refresh.');
+            showNotification('Activity modal not ready. Please refresh the page.', 'error');
         }
     };
 
@@ -872,7 +872,7 @@
             window.openActivityModal(null, groupId, null, groupName);
         } else {
             console.error('❌ openActivityModal not loaded!');
-            alert('Activity modal not ready. Please refresh.');
+            showNotification('Activity modal not ready. Please refresh the page.', 'error');
         }
     };
 
@@ -902,7 +902,7 @@
             window.openActivityModal(stageId, null, activityId);
         } else {
             console.error('❌ openActivityModal not loaded!');
-            alert('Activity modal not ready. Please refresh.');
+            showNotification('Activity modal not ready. Please refresh the page.', 'error');
         }
     };
 

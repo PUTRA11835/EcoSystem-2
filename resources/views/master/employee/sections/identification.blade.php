@@ -8,7 +8,7 @@
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
                     </svg>
-                    Clear
+                    New
                 </button>
                 <button type="button" onclick="saveIdentification()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
@@ -235,7 +235,7 @@
      */
     async function loadIdentifications() {
         try {
-            console.log('📡 Loading identifications for employee:', employeeId);
+            console.log(' Loading identifications for employee:', employeeId);
             
             const response = await fetch(`/api/employees/${employeeId}/identifications`, {
                 method: 'GET',
@@ -247,7 +247,7 @@
             });
 
             const data = await response.json();
-            console.log('📦 Identifications loaded:', data);
+            console.log(' Identifications loaded:', data);
 
             if (data.success && data.data && data.data.length > 0) {
                 identificationsData = data.data;
@@ -257,7 +257,7 @@
                 renderEmptyTable();
             }
         } catch (error) {
-            console.error('❌ Error loading identifications:', error);
+            console.error(' Error loading identifications:', error);
             identificationsData = [];
             renderEmptyTable();
         }
@@ -340,7 +340,7 @@
      */
     function selectIdentification(identificationId) {
         selectedIdentificationId = identificationId;
-        console.log('📍 Selected identification:', identificationId);
+        console.log(' Selected identification:', identificationId);
         loadIdentificationToForm(identificationId);
     }
 
@@ -364,7 +364,7 @@
      */
     async function loadIdentificationToForm(identificationId) {
         try {
-            console.log('📝 Loading identification to form:', identificationId);
+            console.log(' Loading identification to form:', identificationId);
             
             const response = await fetch(`/api/employees/${employeeId}/identifications/${identificationId}`, {
                 method: 'GET',
@@ -376,7 +376,7 @@
             });
 
             const data = await response.json();
-            console.log('📦 Identification data loaded:', data);
+            console.log(' Identification data loaded:', data);
 
             if (data.success && data.data) {
                 const ident = data.data;
@@ -399,10 +399,10 @@
                 // Update button text
                 document.getElementById('saveButtonText').textContent = 'Update';
                 
-                console.log('✅ Identification loaded to form fields');
+                console.log(' Identification loaded to form fields');
             }
         } catch (error) {
-            console.error('❌ Error loading identification:', error);
+            console.error(' Error loading identification:', error);
         }
     }
 
@@ -470,8 +470,8 @@
             
             const method = isUpdate ? 'PUT' : 'POST';
             
-            console.log(`💾 ${isUpdate ? 'Updating' : 'Creating'} identification:`, url);
-            console.log('📤 Identification data:', identificationData);
+            console.log(` ${isUpdate ? 'Updating' : 'Creating'} identification:`, url);
+            console.log(' Identification data:', identificationData);
             
             const response = await fetch(url, {
                 method: method,
@@ -486,7 +486,7 @@
             });
 
             const data = await response.json();
-            console.log('📥 Save response:', data);
+            console.log(' Save response:', data);
             
             if (data.success) {
                 showNotification(
@@ -505,7 +505,7 @@
                 showNotification('Failed to save identification: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
-            console.error('❌ Error saving identification:', error);
+            console.error(' Error saving identification:', error);
             showNotification('An error occurred while saving identification', 'error');
         }
     }
@@ -562,7 +562,7 @@
         if (!deleteIdentificationId) return;
 
         try {
-            console.log('🗑️ Deleting identification:', deleteIdentificationId);
+            console.log(' Deleting identification:', deleteIdentificationId);
             
             const response = await fetch(`/api/employees/${employeeId}/identifications/${deleteIdentificationId}`, {
                 method: 'DELETE',
@@ -586,7 +586,7 @@
                 showNotification('Failed to delete identification: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
-            console.error('❌ Error deleting identification:', error);
+            console.error(' Error deleting identification:', error);
             showNotification('An error occurred while deleting identification', 'error');
         }
     }
@@ -594,31 +594,13 @@
     /**
      * Show notification
      */
-    function showNotification(message, type = 'info') {
-        const bgColor = type === 'success' ? 'bg-green-500' : 
-                        type === 'error' ? 'bg-red-500' : 
-                        type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500';
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 Identification section initialized');
+        console.log(' Identification section initialized');
         loadIdentifications();
     });
 
-    // Close modals on outside click
-    document.getElementById('confirmDeleteIdentificationModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeConfirmDeleteIdentification();
-    });
 
     // Close modals on Escape key
     document.addEventListener('keydown', function(e) {

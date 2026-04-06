@@ -27,6 +27,8 @@ class TicketMessage extends Model
         'is_read_by_customer',
         'is_read_by_agent',
         'read_at',
+        'mentioned_employee_ids',
+        'mentioned_role_ids',
     ];
 
     protected $casts = [
@@ -34,6 +36,8 @@ class TicketMessage extends Model
         'is_read_by_customer' => 'boolean',
         'is_read_by_agent' => 'boolean',
         'read_at' => 'datetime',
+        'mentioned_employee_ids' => 'array',
+        'mentioned_role_ids' => 'array',
     ];
 
     public function ticket()

@@ -99,12 +99,15 @@
 
 {{-- ===== MODAL DETAIL / APPROVE / REJECT ===== --}}
 <div id="stagingModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" style="display:none">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col" style="max-height:90vh">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col" style="max-height:92vh">
         {{-- Header --}}
         <div class="px-7 py-5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-            <div>
-                <h3 class="text-base font-extrabold text-gray-900">Incoming Ticket Details</h3>
-                <p class="text-xs text-gray-400 mt-0.5" id="modalStagingId"></p>
+            <div class="flex items-center gap-3">
+                <div>
+                    <h3 class="text-base font-extrabold text-gray-900">Incoming Ticket Details</h3>
+                    <p class="text-xs text-gray-400 mt-0.5" id="modalStagingId"></p>
+                </div>
+                <span id="modalStatusBadge"></span>
             </div>
             <button onclick="closeModal()" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
                 <i class="fas fa-times"></i>
@@ -240,7 +243,10 @@ function renderTable(rows) {
             <td class="px-6 py-4 text-gray-600 max-w-xs text-xs">${escHtml(short)}</td>
             <td class="px-6 py-4">${prioBadge}</td>
             <td class="px-6 py-4">${ch}</td>
-            <td class="px-6 py-4">${statusBadge[s.status] ?? s.status}</td>
+            <td class="px-6 py-4">
+                ${statusBadge[s.status] ?? s.status}
+                ${s.status === 'approved' && s.ticket_number ? `<br><a href="/ticket/${s.ticket_id}" class="text-xs text-green-600 hover:underline font-mono mt-0.5 inline-block">${escHtml(s.ticket_number)}</a>` : ''}
+            </td>
             <td class="px-6 py-4 text-gray-500 text-xs whitespace-nowrap">${date}</td>
             <td class="px-6 py-4">${actionBtn}</td>
         </tr>`;
@@ -268,6 +274,7 @@ async function openModal(id) {
     currentStagingData = null;
     document.getElementById('stagingModal').style.display = 'flex';
     document.getElementById('modalStagingId').textContent  = `Staging #${id}`;
+    document.getElementById('modalStatusBadge').innerHTML  = '';
     document.getElementById('modalBody').innerHTML =
         `<div class="flex items-center justify-center py-12 text-gray-400">
             <i class="fas fa-spinner fa-spin text-2xl mr-2"></i> Loading...
@@ -292,207 +299,214 @@ function fillModal(s) {
     const isUnvalidated = s.status === 'unvalidated';
     const isEmail       = s.channel === 'email';
 
-    // ── Status badge ──
-    const statusColors = {
-        unvalidated: 'bg-amber-50 text-amber-700 border-amber-200',
-        approved:    'bg-green-50 text-green-700 border-green-200',
-        rejected:    'bg-red-50 text-red-700 border-red-200',
-    };
-    let statusHtml = `<div class="flex flex-wrap items-center gap-2 p-3 rounded-xl border ${statusColors[s.status] ?? ''} text-sm font-semibold mb-4">
-        <span>Status: ${s.status.charAt(0).toUpperCase() + s.status.slice(1)}</span>`;
-    if (s.status === 'approved' && s.ticket_number) {
-        statusHtml += ` <a href="/ticket/${s.ticket_id}" class="underline font-bold">→ Ticket ${escHtml(s.ticket_number)}</a>`;
-    }
-    if (s.status === 'rejected' && s.rejection_reason) {
-        statusHtml += `<span class="w-full font-normal text-xs">Reason: ${escHtml(s.rejection_reason)}</span>`;
-    }
-    statusHtml += '</div>';
+    // ── Helpers ──
+    const dateStr = s.created_at
+        ? new Date(s.created_at).toLocaleString('en-GB', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false }) + ' WIB'
+        : '—';
 
-    // ── Email header (for email-channel tickets) ──
-    let emailHeaderHtml = '';
+    const statusMap = {
+        unvalidated: { cls: 'bg-amber-100 text-amber-700',  icon: 'fas fa-clock',       label: 'Pending Validation' },
+        approved:    { cls: 'bg-green-100 text-green-700',  icon: 'fas fa-check-circle', label: 'Approved' },
+        rejected:    { cls: 'bg-red-100 text-red-700',      icon: 'fas fa-times-circle', label: 'Rejected' },
+    };
+    const st    = statusMap[s.status] ?? { cls: 'bg-gray-100 text-gray-600', icon: 'fas fa-question-circle', label: s.status };
+
+    // Set status badge in header
+    const badge = document.getElementById('modalStatusBadge');
+    if (badge) badge.innerHTML = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${st.cls}"><i class="${st.icon}"></i>${st.label}</span>`;
+
+    const prioColors = { 'Very High': 'bg-purple-100 text-purple-700', High: 'bg-red-100 text-red-700', Medium: 'bg-blue-100 text-blue-700', Low: 'bg-green-100 text-green-700' };
+    const typeColors = { Incident: 'bg-red-50 text-red-600 border-red-200', 'Service Request': 'bg-indigo-50 text-indigo-600 border-indigo-200', 'Change Request': 'bg-amber-50 text-amber-600 border-amber-200', Consult: 'bg-teal-50 text-teal-600 border-teal-200' };
+
+    // ── Parse CC ──
+    let ccDisplay = '';
+    if (s.cc_emails) {
+        try {
+            const ccParsed = typeof s.cc_emails === 'string' ? JSON.parse(s.cc_emails) : s.cc_emails;
+            if (Array.isArray(ccParsed)) {
+                ccDisplay = ccParsed.map(e => typeof e === 'object' && e.address
+                    ? escHtml((e.name && e.name !== e.address) ? `${e.name} <${e.address}>` : e.address)
+                    : escHtml(String(e))
+                ).join(', ');
+            }
+        } catch { ccDisplay = escHtml(String(s.cc_emails)); }
+    }
+
+    // ── Meta strip (email info or web info) ──
+    const metaRow = (label, value) =>
+        `<tr class="border-b border-gray-100 last:border-0">
+            <td class="px-5 py-2.5 text-xs font-semibold text-gray-400 whitespace-nowrap w-24 align-top">${label}</td>
+            <td class="px-5 py-2.5 text-sm text-gray-800">${value}</td>
+        </tr>`;
+
+    let metaHtml = '';
     if (isEmail) {
         const fromDisplay = s.sender_name
-            ? `${escHtml(s.sender_name)} &lt;${escHtml(s.submitted_by_email ?? '')}&gt;`
-            : escHtml(s.submitted_by_email ?? '—');
-        const ccRaw = s.cc_emails;
-        const ccDisplay = ccRaw
-            ? escHtml(Array.isArray(ccRaw) ? ccRaw.join(', ') : ccRaw)
-            : null;
+            ? `<span class="font-semibold">${escHtml(s.sender_name)}</span> <span class="text-gray-400 text-xs">&lt;${escHtml(s.submitted_by_email ?? '')}&gt;</span>`
+            : `<span class="text-gray-700">${escHtml(s.submitted_by_email ?? '—')}</span>`;
+        const rows = [
+            metaRow('From', fromDisplay),
+            metaRow('Date', `<span class="text-gray-500 text-xs">${dateStr}</span>`),
+            ccDisplay ? metaRow('CC', `<span class="text-gray-600 text-xs">${ccDisplay}</span>`) : '',
+            metaRow('Subject', `<span class="font-semibold">${escHtml(s.description ?? '—')}</span>`),
+        ].join('');
+        metaHtml = `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5"><table class="w-full">${rows}</table></div>`;
+    } else {
+        const custName = s.customer_name ?? s.sender_name ?? '—';
+        const extraFields = [
+            s.no_hp  ? ['Phone', s.no_hp]   : null,
+            s.module ? ['Module', s.module]  : null,
+            s.client ? ['Client', s.client]  : null,
+        ].filter(Boolean);
+        const rows = [
+            metaRow('Customer', `<span class="font-semibold">${escHtml(custName)}</span>${!s.customer_name && s.submitted_by_email ? ' <span class="text-amber-500 text-xs">(unidentified)</span>' : ''}`),
+            metaRow('Date', `<span class="text-gray-500 text-xs">${dateStr}</span>`),
+            metaRow('Subject', `<span class="font-semibold">${escHtml(s.description ?? '—')}</span>`),
+            ...extraFields.map(([k,v]) => metaRow(k, escHtml(v))),
+        ].join('');
+        metaHtml = `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5"><table class="w-full">${rows}</table></div>`;
+    }
 
-        emailHeaderHtml = `
-        <div class="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden mb-4">
-            <div class="px-4 py-2 border-b border-gray-200 bg-gray-100">
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                    <i class="fas fa-envelope mr-1.5"></i>Email Details
-                </span>
+    // ── Email body ──
+    let contentHtml = '';
+    if (isEmail) {
+        contentHtml = s.email_body_html
+            ? `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
+                <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+                    <i class="fas fa-envelope-open text-gray-400 text-xs"></i>
+                    <span class="text-xs font-semibold text-gray-500">Email Body</span>
+                </div>
+                <iframe id="emailBodyIframe" sandbox="allow-same-origin"
+                        class="w-full" style="min-height:280px;border:none;display:block" title="Email body"></iframe>
+            </div>`
+            : `<div class="border border-dashed border-gray-200 rounded-xl p-8 text-center text-gray-400 text-xs mb-5">
+                <i class="fas fa-envelope-open text-2xl mb-2 block opacity-30"></i>No email body stored.
+            </div>`;
+    } else {
+        // Web — show description as prose
+        contentHtml = `
+        <div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
+            <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+                <i class="fas fa-align-left text-gray-400 text-xs"></i>
+                <span class="text-xs font-semibold text-gray-500">Description</span>
             </div>
-            <div class="divide-y divide-gray-100 text-sm">
-                <div class="grid px-4 py-2" style="grid-template-columns:70px 1fr">
-                    <span class="text-xs font-semibold text-gray-500 pt-0.5">From</span>
-                    <span class="text-gray-800">${fromDisplay}</span>
-                </div>
-                ${ccDisplay ? `<div class="grid px-4 py-2" style="grid-template-columns:70px 1fr">
-                    <span class="text-xs font-semibold text-gray-500 pt-0.5">CC</span>
-                    <span class="text-gray-700">${ccDisplay}</span>
-                </div>` : ''}
-                <div class="grid px-4 py-2" style="grid-template-columns:70px 1fr">
-                    <span class="text-xs font-semibold text-gray-500 pt-0.5">Date</span>
-                    <span class="text-gray-700">${s.created_at ? new Date(s.created_at).toLocaleString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' (WIB)' : '—'}</span>
-                </div>
-                <div class="grid px-4 py-2" style="grid-template-columns:70px 1fr">
-                    <span class="text-xs font-semibold text-gray-500 pt-0.5">Subject</span>
-                    <span class="font-semibold text-gray-800">${escHtml(s.description ?? '—')}</span>
-                </div>
-            </div>
+            <div class="px-4 py-4 text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">${escHtml(s.description ?? '—')}</div>
         </div>`;
     }
 
-    // ── Email body / Description ──
-    let contentHtml = '';
-    if (isEmail) {
-        if (s.email_body_html) {
-            contentHtml = `
-            <div class="mb-4">
-                <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
-                    <i class="fas fa-file-alt mr-1"></i>Email Content
-                </p>
-                <div class="border border-gray-200 rounded-xl overflow-hidden bg-white">
-                    <iframe id="emailBodyIframe" sandbox="allow-same-origin"
-                            class="w-full" style="min-height:300px;border:none;display:block"
-                            title="Email content preview"></iframe>
-                </div>
-            </div>`;
-        } else {
-            contentHtml = `
-            <div class="mb-4 bg-gray-50 border border-dashed border-gray-300 rounded-xl p-6 text-center text-gray-400 text-sm">
-                <i class="fas fa-envelope-open text-3xl mb-2 block opacity-30"></i>
-                No email body content stored for this ticket.
-            </div>`;
-        }
-    } else {
-        // Web ticket — customer info + description
-        contentHtml = `
-        <div class="grid grid-cols-2 gap-3 mb-4">
-            <div class="bg-gray-50 rounded-xl p-3">
-                <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1">Customer</p>
-                <p class="text-sm font-bold text-gray-800">${escHtml(s.customer_name ?? s.sender_name ?? '—')}</p>
-                ${!s.customer_name && s.submitted_by_email ? `<p class="text-[11px] text-amber-500 mt-1">⚠ Customer not identified</p>` : ''}
-            </div>
-            <div class="bg-gray-50 rounded-xl p-3">
-                <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1">Submit Date</p>
-                <p class="text-sm font-bold text-gray-800">${s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric' }) : '—'}</p>
-            </div>
-        </div>
-        <div class="mb-4 bg-gray-50 rounded-xl p-4">
-            <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-2">Description</p>
-            <p class="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">${escHtml(s.description ?? '—')}</p>
-        </div>
-        ${(s.name || s.no_hp || s.module || s.client) ? `
-        <div class="mb-4 bg-blue-50 border border-blue-100 rounded-xl p-4">
-            <p class="text-[11px] text-blue-500 font-semibold uppercase tracking-wide mb-3">
-                <i class="fas fa-info-circle mr-1"></i>Additional Information
-            </p>
-            <div class="grid grid-cols-2 gap-x-4 gap-y-2">
-                ${s.name   ? `<div><p class="text-[10px] text-gray-400 font-semibold uppercase">Name</p><p class="text-xs text-gray-800 font-medium">${escHtml(s.name)}</p></div>` : ''}
-                ${s.no_hp  ? `<div><p class="text-[10px] text-gray-400 font-semibold uppercase">No HP</p><p class="text-xs text-gray-800 font-medium">${escHtml(s.no_hp)}</p></div>` : ''}
-                ${s.module ? `<div><p class="text-[10px] text-gray-400 font-semibold uppercase">Module</p><p class="text-xs text-gray-800 font-medium">${escHtml(s.module)}</p></div>` : ''}
-                ${s.client ? `<div><p class="text-[10px] text-gray-400 font-semibold uppercase">Client</p><p class="text-xs text-gray-800 font-medium">${escHtml(s.client)}</p></div>` : ''}
-            </div>
-        </div>` : ''}`;
-    }
-
-    // ── Validation form (type + priority) ──
+    // ── Validation panel ──
     let validationHtml = '';
     if (isUnvalidated) {
         validationHtml = `
-        <div class="border-t border-gray-100 pt-4 mt-2">
-            <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
-                <i class="fas fa-clipboard-check mr-1"></i>Set Ticket Details
-            </p>
-            <div class="grid grid-cols-2 gap-4">
+        <div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
+            <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+                <i class="fas fa-clipboard-check text-gray-500 text-xs"></i>
+                <span class="text-xs font-semibold text-gray-600">Ticket Classification</span>
+                <span class="text-xs text-gray-400 ml-1">— required before approving</span>
+            </div>
+            <div class="px-4 py-4 grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-1.5">
-                        Ticket Type <span class="text-red-500">*</span>
-                    </label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Type <span class="text-red-500">*</span></label>
                     <select id="approveTicketType"
-                            class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-green-600 focus:ring-4 focus:ring-green-600/10 transition-all">
-                        <option value="">-- Select Type --</option>
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
+                        <option value="">Select type…</option>
                         <option value="Incident">Incident</option>
                         <option value="Service Request">Service Request</option>
                         <option value="Change Request">Change Request</option>
                         <option value="Consult">Consult</option>
                     </select>
-                    <p id="typeError" class="hidden mt-1 text-xs text-red-600 font-medium">Please select a ticket type.</p>
+                    <p id="typeError" class="hidden mt-1 text-xs text-red-500">Required.</p>
                 </div>
                 <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-1.5">
-                        Priority <span class="text-red-500">*</span>
-                    </label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Priority <span class="text-red-500">*</span></label>
                     <select id="approvePriority"
-                            class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-green-600 focus:ring-4 focus:ring-green-600/10 transition-all">
-                        <option value="">-- Select Priority --</option>
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
+                        <option value="">Select priority…</option>
                         <option value="Very High">Very High</option>
                         <option value="High">High</option>
                         <option value="Medium">Medium</option>
                         <option value="Low">Low</option>
                     </select>
-                    <p id="priorityError" class="hidden mt-1 text-xs text-red-600 font-medium">Please select a priority.</p>
+                    <p id="priorityError" class="hidden mt-1 text-xs text-red-500">Required.</p>
                 </div>
             </div>
         </div>`;
-    } else {
-        // Show existing type/priority as info badges
-        const prioColor = { 'Very High': 'bg-purple-100 text-purple-700', High: 'bg-red-100 text-red-700', Medium: 'bg-blue-100 text-blue-700', Low: 'bg-green-100 text-green-700' };
-        const typeColor = { 'Incident': 'bg-red-50 text-red-600', 'Service Request': 'bg-indigo-50 text-indigo-600', 'Change Request': 'bg-amber-50 text-amber-600', 'Consult': 'bg-teal-50 text-teal-600' };
-        const typeBadge = s.ticket_type
-            ? `<span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold ${typeColor[s.ticket_type] ?? 'bg-gray-100 text-gray-600'}">${escHtml(s.ticket_type)}</span>`
-            : '<span class="text-sm text-gray-400 italic">—</span>';
-        const prioBadge = s.ticket_priority
-            ? `<span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold ${prioColor[s.ticket_priority] ?? 'bg-gray-100 text-gray-600'}">${escHtml(s.ticket_priority)}</span>`
-            : '<span class="text-sm text-gray-400 italic">—</span>';
-        validationHtml = `
-        <div class="grid grid-cols-2 gap-3 mt-4">
-            <div class="bg-gray-50 rounded-xl p-3">
-                <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-2">Ticket Type</p>
-                ${typeBadge}
-            </div>
-            <div class="bg-gray-50 rounded-xl p-3">
-                <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-2">Priority</p>
-                ${prioBadge}
-            </div>
+    } else if (s.ticket_type || s.ticket_priority) {
+        const typePill  = s.ticket_type     ? `<span class="px-2.5 py-1 rounded-full text-xs font-semibold border ${typeColors[s.ticket_type]  ?? 'bg-gray-50 text-gray-600 border-gray-200'}">${escHtml(s.ticket_type)}</span>`     : '';
+        const prioPill  = s.ticket_priority ? `<span class="px-2.5 py-1 rounded-full text-xs font-semibold ${prioColors[s.ticket_priority] ?? 'bg-gray-100 text-gray-600'}">${escHtml(s.ticket_priority)}</span>` : '';
+        const ticketLink = s.ticket_number  ? `<a href="/ticket/${s.ticket_id}" class="inline-flex items-center gap-1 text-xs font-semibold text-red-700 hover:underline ml-auto"><i class="fas fa-external-link-alt text-[10px]"></i> Ticket ${escHtml(s.ticket_number)}</a>` : '';
+        validationHtml  = `
+        <div class="flex items-center gap-2.5 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl mb-5 text-xs">
+            ${typePill}${prioPill}${ticketLink}
+        </div>`;
+    }
+
+    if (s.status === 'rejected' && s.rejection_reason) {
+        validationHtml += `<div class="flex gap-2.5 px-4 py-3 bg-red-50 border border-red-200 rounded-xl mb-5 text-xs">
+            <i class="fas fa-times-circle text-red-400 mt-0.5 shrink-0"></i>
+            <div><span class="font-semibold text-red-600">Rejection reason: </span><span class="text-red-700">${escHtml(s.rejection_reason)}</span></div>
         </div>`;
     }
 
     // ── Reject reason area ──
     const rejectAreaHtml = `
-    <div id="rejectReasonArea" class="hidden border-t border-gray-100 pt-4 mt-4">
-        <label class="block text-sm font-bold text-gray-700 mb-2">
-            Rejection Reason <span class="text-red-500">*</span>
-        </label>
-        <textarea id="rejectReasonInput" rows="3"
-                  placeholder="Explain the reason for rejecting this ticket..."
-                  class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all resize-none"></textarea>
-        <p id="rejectReasonError" class="hidden mt-1 text-xs text-red-600 font-medium"></p>
+    <div id="rejectReasonArea" class="hidden mb-5">
+        <div class="border border-red-200 rounded-xl overflow-hidden">
+            <div class="px-4 py-2.5 bg-red-50 border-b border-red-200 flex items-center gap-2">
+                <i class="fas fa-times-circle text-red-500 text-xs"></i>
+                <span class="text-xs font-semibold text-red-700">Reason for Rejection <span class="text-red-500">*</span></span>
+            </div>
+            <div class="p-4">
+                <textarea id="rejectReasonInput" rows="3"
+                          placeholder="Describe why this ticket is being rejected…"
+                          class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all resize-none"></textarea>
+                <p id="rejectReasonError" class="hidden mt-1.5 text-xs text-red-500"></p>
+            </div>
+        </div>
     </div>`;
 
     // ── Assemble body ──
     document.getElementById('modalBody').innerHTML =
-        statusHtml + emailHeaderHtml + contentHtml + validationHtml + rejectAreaHtml;
+        metaHtml + validationHtml + rejectAreaHtml + contentHtml;
 
     // Set iframe srcdoc after DOM is updated
     if (isEmail && s.email_body_html) {
         const iframe = document.getElementById('emailBodyIframe');
         if (iframe) {
-            iframe.srcdoc = s.email_body_html;
-            iframe.addEventListener('load', () => {
-                try {
-                    const h = iframe.contentDocument?.documentElement?.scrollHeight
-                           ?? iframe.contentDocument?.body?.scrollHeight;
-                    if (h && h > 100) {
-                        iframe.style.minHeight = Math.min(h + 24, 600) + 'px';
-                    }
-                } catch {}
-            }, { once: true });
+            const setIframeContent = (html) => {
+                iframe.srcdoc = html;
+                iframe.addEventListener('load', () => {
+                    try {
+                        const h = iframe.contentDocument?.documentElement?.scrollHeight
+                               ?? iframe.contentDocument?.body?.scrollHeight;
+                        if (h && h > 100) {
+                            iframe.style.minHeight = Math.min(h + 24, 600) + 'px';
+                        }
+                    } catch {}
+                }, { once: true });
+            };
+
+            // Fetch resolved version if:
+            // - body has cid: references (inline attachment), OR
+            // - has_attachments=true (some email clients don't use cid: but still have inline images), OR
+            // - body has [filename.ext] placeholders
+            // Only call if graph_message_id is available (needed for Graph API attachment fetch).
+            const needsImageResolve = s.graph_message_id && (
+                s.email_body_html.includes('cid:') ||
+                s.has_attachments ||
+                /\[[^\]]+\.(png|jpe?g|gif|bmp|webp)\]/i.test(s.email_body_html)
+            );
+            if (needsImageResolve && s.id) {
+                setIframeContent(s.email_body_html); // show immediately while loading
+                fetch(`/api/staging-tickets/${s.id}/preview-body`, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                }).then(r => r.json()).then(data => {
+                    if (data.success && data.html) setIframeContent(data.html);
+                }).catch(() => {}); // silently fall back to already-set srcdoc
+            } else {
+                setIframeContent(s.email_body_html);
+            }
         }
     }
 
@@ -568,10 +582,11 @@ async function submitApprove(id) {
             ticket_type:     ticketType,
             ticket_priority: priority,
         });
-        showNotif('Ticket approved! Number: ' + (res.data?.ticket_number ?? ''), 'success');
         closeModal();
         loadStagingTickets(currentPage);
         loadStats();
+        // Tampilkan toast setelah modal tertutup agar tidak tertutup backdrop
+        setTimeout(() => showNotif('Ticket created! Number: ' + (res.data?.ticket_number ?? ''), 'success'), 80);
     } catch (e) {
         showNotif(e.message || 'Failed to approve ticket.', 'error');
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Approve & Create Ticket'; }
@@ -593,10 +608,10 @@ async function submitReject(id) {
 
     try {
         await apiFetch(`/api/staging-tickets/${id}/reject`, 'POST', { reason });
-        showNotif('Ticket rejected successfully.', 'success');
         closeModal();
         loadStagingTickets(currentPage);
         loadStats();
+        setTimeout(() => showNotif('Ticket rejected.', 'info'), 80);
     } catch (e) {
         showNotif(e.message || 'Failed to reject ticket.', 'error');
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-times-circle"></i> Confirm Rejection'; }
@@ -631,12 +646,7 @@ function escHtml(str) {
 }
 
 function showNotif(msg, type = 'info') {
-    const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500' };
-    const el = document.createElement('div');
-    el.className = `fixed top-4 right-4 ${colors[type] ?? 'bg-gray-700'} text-white px-6 py-3 rounded-xl shadow-xl z-[200] text-sm font-semibold`;
-    el.textContent = msg;
-    document.body.appendChild(el);
-    setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, 3500);
+    showToast(msg, type);
 }
 
 // ─── Fetch Email Inbox ────────────────────────────────────────────────────────
@@ -670,7 +680,9 @@ async function fetchEmailInbox(silent = false) {
             if (data.errors?.length) {
                 console.warn(`[FetchEmail] ${ts} — Errors:`, data.errors);
             }
-            if (!silent && processed > 0) showNotif(`${processed} new email(s) added to staging.`, 'success');
+            // Selalu tampilkan toast saat ada email baru, termasuk saat auto-poll (silent=true)
+            if (processed > 0) showNotif(`${processed} new email(s) added to staging.`, 'success');
+            else if (!silent) showNotif('No new emails.', 'info');
             if (status) status.textContent = `Updated ${now} (WIB)${processed > 0 ? ` · ${processed} new` : ''}`;
             if (processed > 0) { loadStagingTickets(); loadStats(); }
         }

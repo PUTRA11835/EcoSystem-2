@@ -292,86 +292,117 @@
 @endif
 
 <!-- Create/Edit Timesheet Modal -->
-<div id="timesheetModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
-    <div class="min-h-screen px-4 py-8 flex items-center justify-center">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full">
-            <div class="primary-gradient text-white px-6 py-4 rounded-t-2xl flex items-center justify-between">
-                <h3 class="text-xl font-bold flex items-center gap-2" id="timesheetModalTitle">
-                    <i class="fas fa-clock"></i>
-                    Log Working Hours
-                </h3>
-                <button onclick="closeTimesheetModal()" class="text-white hover:text-gray-200 transition-colors">
-                    <i class="fas fa-times text-2xl"></i>
-                </button>
-            </div>
-            
-            <form id="timesheetForm" class="p-6 space-y-5">
-                <input type="hidden" id="timesheetId">
-                
-                <!-- ✅ ENABLED: Radio button type selection -->
-                <div class="border-b border-gray-200 pb-5">
-                    <label class="block text-sm font-semibold text-gray-700 mb-3">
-                        Timesheet Type <span class="text-red-600">*</span>
-                    </label>
-                    <div class="grid grid-cols-3 gap-3">
-                        <label class="relative flex items-center justify-center p-4 border-2 border-gray-300 rounded-lg cursor-pointer hover:border-red-800 transition-all group">
-                            <input type="radio" name="timesheetType" value="project" class="peer sr-only" onchange="handleTimesheetTypeChange()">
-                            <div class="flex flex-col items-center gap-2 peer-checked:text-red-800 transition-colors">
-                                <i class="fas fa-project-diagram text-2xl"></i>
-                                <span class="text-sm font-semibold">Project</span>
-                            </div>
-                            <div class="absolute inset-0 border-2 border-red-800 rounded-lg opacity-0 peer-checked:opacity-100 transition-opacity"></div>
-                        </label>
-                        
-                        <label class="relative flex items-center justify-center p-4 border-2 border-gray-300 rounded-lg cursor-pointer hover:border-red-800 transition-all group">
-                            <input type="radio" name="timesheetType" value="support" class="peer sr-only" checked onchange="handleTimesheetTypeChange()">
-                            <div class="flex flex-col items-center gap-2 peer-checked:text-red-800 transition-colors">
-                                <i class="fas fa-headset text-2xl"></i>
-                                <span class="text-sm font-semibold">Support</span>
-                            </div>
-                            <div class="absolute inset-0 border-2 border-red-800 rounded-lg opacity-0 peer-checked:opacity-100 transition-opacity"></div>
-                        </label>
-                        
-                        <label class="relative flex items-center justify-center p-4 border-2 border-gray-300 rounded-lg cursor-pointer hover:border-red-800 transition-all group">
-                            <input type="radio" name="timesheetType" value="office" class="peer sr-only" onchange="handleTimesheetTypeChange()">
-                            <div class="flex flex-col items-center gap-2 peer-checked:text-red-800 transition-colors">
-                                <i class="fas fa-building text-2xl"></i>
-                                <span class="text-sm font-semibold">Office</span>
-                            </div>
-                            <div class="absolute inset-0 border-2 border-red-800 rounded-lg opacity-0 peer-checked:opacity-100 transition-opacity"></div>
-                        </label>
-                    </div>
-                </div>
-                
-                <!-- Common Fields -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div id="timesheetModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
+
+        {{-- Header --}}
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
+            <h3 class="text-xl font-bold text-gray-900" id="timesheetModalTitle">Log Working Hours</h3>
+            <button type="button" onclick="closeTimesheetModal()"
+                class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        {{-- Body --}}
+        <form id="timesheetForm" class="overflow-y-auto flex-1 p-6">
+            <input type="hidden" id="timesheetId">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+
+                {{-- Column 1: Type & Period --}}
+                <div class="space-y-5">
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <h4 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Type &amp; Period</h4>
+                        <hr class="border-gray-200 mt-2 mb-5">
+                    </div>
+
+                    {{-- Timesheet Type --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-3">
+                            Timesheet Type <span class="text-red-600">*</span>
+                        </label>
+                        <div class="grid grid-cols-3 gap-3">
+                            <label class="relative flex items-center justify-center p-3 border-2 border-gray-300 rounded-lg cursor-pointer hover:border-red-800 transition-all">
+                                <input type="radio" name="timesheetType" value="project" class="peer sr-only" onchange="handleTimesheetTypeChange()">
+                                <div class="flex flex-col items-center gap-1.5 peer-checked:text-red-800 transition-colors">
+                                    <i class="fas fa-project-diagram text-xl"></i>
+                                    <span class="text-xs font-semibold">Project</span>
+                                </div>
+                                <div class="absolute inset-0 border-2 border-red-800 rounded-lg opacity-0 peer-checked:opacity-100 transition-opacity"></div>
+                            </label>
+                            <label class="relative flex items-center justify-center p-3 border-2 border-gray-300 rounded-lg cursor-pointer hover:border-red-800 transition-all">
+                                <input type="radio" name="timesheetType" value="support" class="peer sr-only" checked onchange="handleTimesheetTypeChange()">
+                                <div class="flex flex-col items-center gap-1.5 peer-checked:text-red-800 transition-colors">
+                                    <i class="fas fa-headset text-xl"></i>
+                                    <span class="text-xs font-semibold">Support</span>
+                                </div>
+                                <div class="absolute inset-0 border-2 border-red-800 rounded-lg opacity-0 peer-checked:opacity-100 transition-opacity"></div>
+                            </label>
+                            <label class="relative flex items-center justify-center p-3 border-2 border-gray-300 rounded-lg cursor-pointer hover:border-red-800 transition-all">
+                                <input type="radio" name="timesheetType" value="office" class="peer sr-only" onchange="handleTimesheetTypeChange()">
+                                <div class="flex flex-col items-center gap-1.5 peer-checked:text-red-800 transition-colors">
+                                    <i class="fas fa-building text-xl"></i>
+                                    <span class="text-xs font-semibold">Office</span>
+                                </div>
+                                <div class="absolute inset-0 border-2 border-red-800 rounded-lg opacity-0 peer-checked:opacity-100 transition-opacity"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    {{-- Date --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">
                             Date <span class="text-red-600">*</span>
                         </label>
-                        <input type="date" id="timesheetDate" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                        <input type="date" id="timesheetDate" required
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent">
                     </div>
+
+                    {{-- Duration --}}
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Duration in hours
-                        </label>
-                        <input type="text" id="timesheetDuration" readonly class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600" placeholder="Auto calculated">
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Duration (hours)</label>
+                        <input type="text" id="timesheetDuration" readonly
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-600" placeholder="Auto calculated">
+                    </div>
+
+                    {{-- Billable Section (only for Project type) --}}
+                    <div id="billableSection" class="hidden">
+                        <div class="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <input type="checkbox" id="timesheetBillable" checked
+                                class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                            <label for="timesheetBillable" class="text-sm font-medium text-gray-700">
+                                <i class="fas fa-dollar-sign text-green-600 mr-1"></i>
+                                Billable hours
+                            </label>
+                        </div>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {{-- Column 2: Time & Details --}}
+                <div class="space-y-5">
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <h4 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Time &amp; Details</h4>
+                        <hr class="border-gray-200 mt-2 mb-5">
+                    </div>
+
+                    {{-- Start Time --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">
                             Start Time <span class="text-red-600">*</span>
                         </label>
                         <div class="flex gap-2 items-center">
-                            <select id="timesheetStartHour" required class="flex-1 px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                            <select id="timesheetStartHour" required
+                                class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent">
                                 @for($h = 0; $h < 24; $h++)
                                     <option value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</option>
                                 @endfor
                             </select>
-                            <span class="text-xl font-bold text-gray-500">:</span>
-                            <select id="timesheetStartMinute" required class="flex-1 px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                            <span class="text-lg font-bold text-gray-400">:</span>
+                            <select id="timesheetStartMinute" required
+                                class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent">
                                 @for($m = 0; $m < 60; $m += 5)
                                     <option value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</option>
                                 @endfor
@@ -379,18 +410,22 @@
                         </div>
                         <input type="hidden" id="timesheetStartTime">
                     </div>
+
+                    {{-- End Time --}}
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">
                             End Time <span class="text-red-600">*</span>
                         </label>
                         <div class="flex gap-2 items-center">
-                            <select id="timesheetEndHour" required class="flex-1 px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                            <select id="timesheetEndHour" required
+                                class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent">
                                 @for($h = 0; $h < 24; $h++)
                                     <option value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</option>
                                 @endfor
                             </select>
-                            <span class="text-xl font-bold text-gray-500">:</span>
-                            <select id="timesheetEndMinute" required class="flex-1 px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                            <span class="text-lg font-bold text-gray-400">:</span>
+                            <select id="timesheetEndMinute" required
+                                class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent">
                                 @for($m = 0; $m < 60; $m += 5)
                                     <option value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</option>
                                 @endfor
@@ -398,51 +433,44 @@
                         </div>
                         <input type="hidden" id="timesheetEndTime">
                     </div>
-                </div>
 
-                <!-- ✅ Dynamic Fields Container (changes based on type) -->
-                <div id="dynamicFields">
-                    <!-- Fields will be injected here by JavaScript -->
-                </div>
+                    {{-- Dynamic Fields Container (injected by JS based on type) --}}
+                    <div id="dynamicFields"></div>
 
-                <!-- Activity Description (common for all) -->
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Activity Description <span class="text-red-600">*</span>
-                    </label>
-                    <textarea id="timesheetDescription" required rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent resize-none" placeholder="Write description activity here"></textarea>
-                </div>
-
-                <!-- Notes (optional for all) -->
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Notes
-                    </label>
-                    <textarea id="timesheetNotes" rows="2" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent resize-none" placeholder="Write notes here"></textarea>
-                </div>
-
-                <!-- ✅ Billable Section (only for Project type) -->
-                <div id="billableSection" class="hidden">
-                    <div class="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                        <input type="checkbox" id="timesheetBillable" checked class="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500">
-                        <label for="timesheetBillable" class="text-sm font-semibold text-gray-700">
-                            <i class="fas fa-dollar-sign text-green-600 mr-1"></i>
-                            Billable hours
+                    {{-- Activity Description --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                            Activity Description <span class="text-red-600">*</span>
                         </label>
+                        <textarea id="timesheetDescription" required rows="3"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent resize-none"
+                            placeholder="Write description activity here"></textarea>
+                    </div>
+
+                    {{-- Notes --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Notes</label>
+                        <textarea id="timesheetNotes" rows="2"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent resize-none"
+                            placeholder="Write notes here"></textarea>
                     </div>
                 </div>
 
-                <div class="flex gap-3 pt-4 border-t border-gray-200">
-                    <button type="submit" class="flex-1 primary-bg hover:opacity-90 text-white font-semibold py-3 rounded-lg transition-all shadow-sm hover:shadow-md">
-                        <i class="fas fa-save mr-2"></i>
-                        Save Timesheet
-                    </button>
-                    <button type="button" onclick="closeTimesheetModal()" class="px-8 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-lg transition-all">
-                        Cancel
-                    </button>
-                </div>
-            </form>
+            </div>
+        </form>
+
+        {{-- Footer --}}
+        <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 flex-shrink-0">
+            <button type="button" onclick="closeTimesheetModal()"
+                class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                Cancel
+            </button>
+            <button type="submit" form="timesheetForm"
+                class="px-5 py-2.5 text-sm font-medium text-white bg-red-800 hover:bg-red-900 rounded-lg transition-colors shadow-sm">
+                <i class="fas fa-save mr-2"></i>Save Timesheet
+            </button>
         </div>
+
     </div>
 </div>
 
