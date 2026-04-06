@@ -22,6 +22,7 @@ class Ticket extends Model
         'start_date',
         'end_date',
         'ticket_priority',
+        'ticket_type',
         'jarvies_status',
         'status',
         'wait_close',
@@ -33,13 +34,26 @@ class Ticket extends Model
         'last_message_at',
         'last_agent_reply_at',
         'last_customer_reply_at',
+        'last_customer_reply_at',
+        'last_agent_reply_at',
+        // Field tambahan dari form Jarvies
+        'name',
+        'no_hp',
+        'module',
+        'client',
+        // Mandays status
+        'mandays_proposal_status',
+        'internal_mandays_status',
     ];
 
     protected $casts = [
-        'start_date' => 'date',
-        'end_date' => 'date',
-        'man_days' => 'decimal:2',
-        'wait_close' => 'decimal:2',
+        'start_date'             => 'date',
+        'end_date'               => 'date',
+        'man_days'               => 'decimal:2',
+        'wait_close'             => 'decimal:2',
+        'last_message_at'        => 'datetime',
+        'last_customer_reply_at' => 'datetime',
+        'last_agent_reply_at'    => 'datetime',
     ];
 
     // Relasi ke Customer

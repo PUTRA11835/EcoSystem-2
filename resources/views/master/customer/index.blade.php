@@ -102,36 +102,17 @@
                     <!-- SECTION 1: GENERAL DATA -->
                     <div class="space-y-4">
                         <h4 class="text-base font-bold text-gray-900 mb-4 pb-2 border-b-2 border-gray-200">General Data</h4>
-                        
-                        <div class="flex flex-col">
-                            <label class="text-xs font-semibold text-gray-600 mb-1">Email <span class="text-red-600">*</span></label>
-                            <input type="email" id="email" placeholder="customer@company.com" required class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+
+                        <div class="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 flex-shrink-0 mt-0.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                            </svg>
+                            <span>Login access is managed per <strong>Contact Person</strong> — go to the Contact tab after saving to grant Jarvies access.</span>
                         </div>
 
                         <div class="flex flex-col">
-                            <label class="text-xs font-semibold text-gray-600 mb-1">Password <span class="text-red-600">*</span></label>
-                            <div class="relative">
-                                <input type="password" id="password" placeholder="Enter password" required class="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-10">
-                                <button type="button" onclick="togglePassword('password')" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
-                                    <svg id="eyeIconPassword" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="flex flex-col">
-                            <label class="text-xs font-semibold text-gray-600 mb-1">Confirm Password <span class="text-red-600">*</span></label>
-                            <div class="relative">
-                                <input type="password" id="confirmPassword" placeholder="Re-enter password" required class="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-10">
-                                <button type="button" onclick="togglePassword('confirmPassword')" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
-                                    <svg id="eyeIconConfirmPassword" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                                    </svg>
-                                </button>
-                            </div>
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Company Email</label>
+                            <input type="email" id="email" placeholder="info@company.com (optional)" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
                         </div>
 
                         <div class="flex flex-col">
@@ -440,30 +421,14 @@
 
     async function saveCustomer() {
         const form = document.getElementById('customerForm');
-        
-        // Validate password match
-        const password = document.getElementById('password').value;
-        const confirmPassword = document.getElementById('confirmPassword').value;
-        
-        if (password !== confirmPassword) {
-            showNotification('Passwords do not match!', 'error');
-            return;
-        }
-        
-        if (password.length < 6) {
-            showNotification('Password must be at least 6 characters long!', 'error');
-            return;
-        }
-        
+
         if (!form.checkValidity()) {
             form.reportValidity();
             return;
         }
 
         const customerData = {
-            email: document.getElementById('email').value,
-            password: password,
-            password_confirmation: confirmPassword,
+            email: document.getElementById('email').value || null,
             title: document.getElementById('title').value,
             name_1: document.getElementById('companyName').value,
             search_term_1: document.getElementById('searchTerm').value || document.getElementById('companyName').value.toUpperCase(),

@@ -171,14 +171,14 @@ class DeliveryDynamicPhaseController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Fase berhasil ditambahkan',
+                'message' => 'Phase added successfully',
                 'phase' => $projectPhase
             ]);
         } catch (\Exception $e) {
             Log::error('Error adding phase: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal menambahkan fase: ' . $e->getMessage()
+                'message' => 'Failed to add phase: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -228,14 +228,14 @@ class DeliveryDynamicPhaseController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Konfigurasi fase berhasil diperbarui',
+                'message' => 'Phase configuration updated successfully',
                 'phase' => $phase
             ]);
         } catch (\Exception $e) {
             Log::error('Error updating phase: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal memperbarui fase: ' . $e->getMessage()
+                'message' => 'Failed to update phase: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -254,7 +254,7 @@ class DeliveryDynamicPhaseController extends Controller
                 ->exists();
 
             if ($hasActivities) {
-                throw new \Exception('Fase tidak dapat dihapus karena memiliki aktivitas');
+                throw new \Exception('Phase cannot be deleted because it has existing activities');
             }
 
             // ✅ Hapus phase
@@ -264,7 +264,7 @@ class DeliveryDynamicPhaseController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Fase berhasil dihapus',
+                'message' => 'Phase deleted successfully',
             ]);
         } catch (\Exception $e) {
             Log::error('Error removing phase: ' . $e->getMessage());
@@ -299,13 +299,13 @@ class DeliveryDynamicPhaseController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Urutan fase berhasil diperbarui',
+                'message' => 'Phase order updated successfully',
             ]);
         } catch (\Exception $e) {
             Log::error('Error reordering phases: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal mengubah urutan fase: ' . $e->getMessage()
+                'message' => 'Failed to update phase order: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -332,13 +332,13 @@ class DeliveryDynamicPhaseController extends Controller
             return response()->json([
                 'success' => true,
                 'is_visible' => !$currentVisibility,
-                'message' => 'Visibilitas fase berhasil diubah',
+                'message' => 'Phase visibility updated successfully',
             ]);
         } catch (\Exception $e) {
             Log::error('Error toggling phase visibility: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal mengubah visibilitas fase: ' . $e->getMessage()
+                'message' => 'Failed to update phase visibility: ' . $e->getMessage()
             ], 500);
         }
     }

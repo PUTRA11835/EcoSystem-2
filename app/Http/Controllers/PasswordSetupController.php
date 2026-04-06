@@ -35,7 +35,7 @@ class PasswordSetupController extends Controller
         $token = $request->query('token', '');
 
         if (empty($token)) {
-            return redirect()->route('login')->with('error', 'Link tidak valid.');
+            return redirect()->route('login')->with('error', 'Invalid link.');
         }
 
         $authUser = DB::table('auth_users')
@@ -45,7 +45,7 @@ class PasswordSetupController extends Controller
 
         if (!$authUser) {
             return redirect()->route('login')
-                ->with('error', 'Link sudah tidak berlaku. Silakan minta link baru.');
+                ->with('error', 'This link has expired. Please request a new one.');
         }
 
         return view('auth.change-password', compact('token'));
@@ -69,7 +69,7 @@ class PasswordSetupController extends Controller
 
         if (!$authUser) {
             return back()->withErrors([
-                'token' => 'Link sudah tidak berlaku. Silakan minta link baru.',
+                'token' => 'This link has expired. Please request a new one.',
             ]);
         }
 
@@ -85,8 +85,16 @@ class PasswordSetupController extends Controller
             'auth_user_id' => $authUser->id,
         ]);
 
+        // Customers are redirected to Jarvies login, employees to EcoSystem login
+        $isCustomer = ($authUser->user_type ?? '') === 'customer' || !empty($authUser->customer_id);
+        if ($isCustomer) {
+            $jarviesLogin = rtrim(env('JARVIES_URL', config('app.url')), '/') . '/login';
+            return redirect($jarviesLogin)
+                ->with('success', 'Password set successfully. You can now log in to Jarvies with your new password.');
+        }
+
         return redirect()->route('login')
-            ->with('success', 'Password berhasil diatur. Silakan login dengan password baru Anda.');
+            ->with('success', 'Password set successfully. You can now log in with your new password.');
     }
 
     // =========================================================================
@@ -170,42 +178,47 @@ class PasswordSetupController extends Controller
         }
 
         try {
-            $link    = url('/change-password?token=' . $token);
-            $appName = config('app.name', 'ECoSystem');
+            // Customers (contact persons) set password through Jarvies portal
+            $isCustomer = !empty($authUser->customer_id);
+            $baseUrl = $isCustomer
+                ? rtrim(env('JARVIES_URL', config('app.url')), '/')
+                : rtrim(config('app.url'), '/');
+            $link    = $baseUrl . '/change-password?token=' . $token;
+            $appName = $isCustomer ? 'Jarvies' : config('app.name', 'ECoSystem');
 
             if ($type === 'reset') {
-                $subject = "Reset Password {$appName}";
+                $subject = "Reset Your {$appName} Password";
                 $body    = <<<HTML
-<p>Halo,</p>
-<p>Kami menerima permintaan reset password untuk akun Anda di <strong>{$appName}</strong>.</p>
-<p>Klik tombol di bawah ini untuk mengatur password baru:</p>
+<p>Hello,</p>
+<p>We received a request to reset the password for your <strong>{$appName}</strong> account.</p>
+<p>Click the button below to set a new password:</p>
 <p style="margin:24px 0;">
   <a href="{$link}"
      style="background:#991b1b;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;">
-    Reset Password Saya
+    Reset My Password
   </a>
 </p>
-<p>Link ini berlaku selama <strong>24 jam</strong>.</p>
-<p>Jika Anda tidak meminta reset password, abaikan email ini. Password Anda tidak akan berubah.</p>
+<p>This link is valid for <strong>24 hours</strong>.</p>
+<p>If you did not request a password reset, you can safely ignore this email. Your password will not change.</p>
 <br>
-<p>Salam,<br><strong>Tim {$appName}</strong></p>
+<p>Regards,<br><strong>The {$appName} Team</strong></p>
 HTML;
             } else {
-                $subject = "Aktivasi Akun {$appName} — Atur Password Anda";
+                $subject = "{$appName} Account Activation — Set Your Password";
                 $body    = <<<HTML
-<p>Halo,</p>
-<p>Akun Anda di <strong>{$appName}</strong> telah dibuat oleh tim kami.</p>
-<p>Silakan klik tombol di bawah ini untuk mengatur password Anda sebelum dapat masuk ke sistem:</p>
+<p>Hello,</p>
+<p>Your account on <strong>{$appName}</strong> has been created by our team.</p>
+<p>Please click the button below to set your password before you can sign in:</p>
 <p style="margin:24px 0;">
   <a href="{$link}"
      style="background:#991b1b;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;">
-    Atur Password Saya
+    Set My Password
   </a>
 </p>
-<p>Link ini berlaku selama <strong>24 jam</strong>.</p>
-<p>Jika Anda tidak merasa mendaftar, hubungi administrator.</p>
+<p>This link is valid for <strong>24 hours</strong>.</p>
+<p>If you did not request this, please contact your administrator.</p>
 <br>
-<p>Salam,<br><strong>Tim {$appName}</strong></p>
+<p>Regards,<br><strong>The {$appName} Team</strong></p>
 HTML;
             }
 
@@ -267,7 +280,7 @@ HTML;
         );
 
         if (!$response->successful()) {
-            throw new \RuntimeException('Gagal mendapatkan access token: ' . $response->body());
+            throw new \RuntimeException('Failed to obtain access token: ' . $response->body());
         }
 
         return $response->json('access_token');

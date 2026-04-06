@@ -13,6 +13,7 @@ class CustomerMandaysDetail extends Model
 
     protected $fillable = [
         'customer_mandays_id',
+        'activity',
         'module',
         'mandays',
         'notes',

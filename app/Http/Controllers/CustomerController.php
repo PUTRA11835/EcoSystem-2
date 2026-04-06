@@ -227,8 +227,7 @@ class CustomerController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
-            'email'         => 'required|email|unique:customer,email|unique:auth_users,email|max:255',
-            'password'      => 'required|string|min:6|confirmed',
+            'email'         => 'nullable|email|unique:customer,email|max:255',
             'name_1'        => 'required|string|max:255',
             'contact_phone' => 'nullable|string|max:50',
         ]);
@@ -244,10 +243,9 @@ class CustomerController extends Controller
         DB::beginTransaction();
 
         try {
-            // Prepare customer data (authentication)
+            // Prepare customer data (company record only — no login here)
             $customerData = [
-                'email' => $request->email,
-                'password' => $request->password, // Will be hashed by model mutator
+                'email' => $request->email ?: null,
                 'is_active' => 1,
             ];
 
@@ -297,20 +295,9 @@ class CustomerController extends Controller
                 ]);
             }
 
-            // Buat akun auth_users untuk login
-            // is_already_cp = false → customer harus verifikasi email & ganti password sebelum bisa login
-            DB::table('auth_users')->insert([
-                'employee_id'   => null,
-                'customer_id'   => $customer->customer_id,
-                'username'      => $customer->customer_code,
-                'email'         => $request->email,
-                'phone'         => $request->contact_phone ?: null,
-                'password'      => Hash::make($request->password),
-                'is_active'     => true,
-                'is_already_cp' => false,
-                'created_at'    => now(),
-                'updated_at'    => now(),
-            ]);
+            // Login accounts are now managed per-contact-person.
+            // Use POST /api/customers/{id}/contacts/{contactId}/create-login
+            // to grant Jarvies access to a specific contact person.
 
             DB::commit();
 
@@ -357,7 +344,7 @@ class CustomerController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
-            'email' => 'required|email|max:255|unique:customer,email,' . $id . ',customer_id',
+            'email' => 'nullable|email|max:255|unique:customer,email,' . $id . ',customer_id',
             'name_1' => 'required|string|max:255',
         ]);
 
@@ -381,9 +368,9 @@ class CustomerController extends Controller
                 ], 404);
             }
 
-            // Update customer
+            // Update customer (email is optional company contact email)
             $customer->update([
-                'email' => $request->email,
+                'email' => $request->email ?: null,
             ]);
 
             // Update or create basic data

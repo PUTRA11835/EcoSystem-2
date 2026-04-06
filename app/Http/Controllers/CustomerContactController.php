@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuthUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class CustomerContactController extends Controller
 {
@@ -19,9 +22,42 @@ class CustomerContactController extends Controller
                 'customer_id' => $customerId
             ]);
 
-            $contacts = DB::table('customer_contact')
-                ->where('customer_id', $customerId)
-                ->orderBy('contact_id', 'desc')
+            $contacts = DB::table('customer_contact as cc')
+                ->leftJoin('auth_users as au', 'au.contact_id', '=', 'cc.contact_id')
+                ->where('cc.customer_id', $customerId)
+                ->orderBy('cc.contact_id', 'desc')
+                ->select(
+                    'cc.contact_id',
+                    'cc.customer_id',
+                    'cc.title',
+                    'cc.full_name',
+                    'cc.nick_name',
+                    'cc.position',
+                    'cc.department',
+                    'cc.language',
+                    'cc.cell_phone_country',
+                    'cc.cell_phone',
+                    'cc.telephone_country',
+                    'cc.telephone',
+                    'cc.telephone_extension',
+                    'cc.fax_country',
+                    'cc.fax',
+                    'cc.fax_extension',
+                    'cc.email_personal',
+                    'cc.email_work',
+                    'cc.website',
+                    'cc.preferred_communication',
+                    'cc.entry_date',
+                    'cc.valid_from',
+                    'cc.valid_to',
+                    'cc.created_at',
+                    'cc.updated_at',
+                    'au.id as auth_user_id',
+                    'au.email as login_email',
+                    'au.is_active as login_active',
+                    'au.is_already_cp as login_setup_done',
+                    'au.last_login_at'
+                )
                 ->get();
 
             Log::info('=== API: CUSTOMER CONTACTS FETCHED SUCCESSFULLY ===', [
@@ -337,5 +373,135 @@ class CustomerContactController extends Controller
                 'message' => 'Failed to delete contact: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Grant Jarvies login access to a contact person.
+     * Creates an auth_users entry with is_already_cp=false,
+     * then immediately sends a password-setup email.
+     */
+    public function createLogin(Request $request, $customerId, $contactId)
+    {
+        $contact = DB::table('customer_contact')
+            ->where('customer_id', $customerId)
+            ->where('contact_id', $contactId)
+            ->first();
+
+        if (!$contact) {
+            return response()->json(['success' => false, 'message' => 'Contact not found'], 404);
+        }
+
+        $existing = DB::table('auth_users')->where('contact_id', $contactId)->first();
+        if ($existing) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This contact already has a login account'
+            ], 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'login_email' => 'required|email|unique:auth_users,email|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors'  => $validator->errors()
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $customer = DB::table('customer')->where('customer_id', $customerId)->first();
+            $customerCode = $customer->customer_code ?? 'CP';
+            $namePart = Str::slug($contact->full_name ?? $contactId, '');
+            $username = strtolower($customerCode . '_' . $namePart);
+
+            // Ensure username is unique
+            $base = $username;
+            $i = 1;
+            while (DB::table('auth_users')->where('username', $username)->exists()) {
+                $username = $base . $i++;
+            }
+
+            $authUserId = DB::table('auth_users')->insertGetId([
+                'user_type'     => 'customer',
+                'employee_id'   => null,
+                'customer_id'   => $customerId,
+                'contact_id'    => $contactId,
+                'username'      => $username,
+                'email'         => $request->login_email,
+                'phone'         => $contact->cell_phone ?: null,
+                'password'      => Hash::make(Str::random(32)),
+                'is_active'     => true,
+                'is_already_cp' => false,
+                'created_at'    => now(),
+                'updated_at'    => now(),
+            ]);
+
+            // Send password-setup email immediately
+            $authUser = AuthUser::find($authUserId);
+            PasswordSetupController::generateAndSendToken($authUser);
+
+            DB::commit();
+
+            Log::info('=== API: CONTACT LOGIN CREATED ===', [
+                'customer_id' => $customerId,
+                'contact_id'  => $contactId,
+                'email'       => $request->login_email,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Login access granted. A password setup email has been sent to ' . $request->login_email,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('=== API: ERROR CREATING CONTACT LOGIN ===', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create login: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Revoke Jarvies login access from a contact person.
+     * Deletes the auth_users entry linked to this contact.
+     */
+    public function revokeLogin($customerId, $contactId)
+    {
+        $contact = DB::table('customer_contact')
+            ->where('customer_id', $customerId)
+            ->where('contact_id', $contactId)
+            ->first();
+
+        if (!$contact) {
+            return response()->json(['success' => false, 'message' => 'Contact not found'], 404);
+        }
+
+        $authUser = DB::table('auth_users')->where('contact_id', $contactId)->first();
+        if (!$authUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No login account found for this contact'
+            ], 404);
+        }
+
+        DB::table('auth_users')->where('contact_id', $contactId)->delete();
+
+        Log::info('=== API: CONTACT LOGIN REVOKED ===', [
+            'customer_id' => $customerId,
+            'contact_id'  => $contactId,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Login access has been revoked successfully',
+        ]);
     }
 }

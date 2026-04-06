@@ -17,17 +17,21 @@ class CustomerMandays extends Model
         'proposed_by_agent_id',
         'proposed_at',
         'submitted_to_customer_at',
+        'sent_to_chat_at',
         'status',
-        'customer_response_at',
         'customer_notes',
+        'rejection_reason',
+        'notes',
         'total_mandays',
+        'customer_response_at',
     ];
 
     protected $casts = [
-        'proposed_at' => 'datetime',
+        'proposed_at'              => 'datetime',
         'submitted_to_customer_at' => 'datetime',
-        'customer_response_at' => 'datetime',
-        'total_mandays' => 'decimal:2',
+        'sent_to_chat_at'          => 'datetime',
+        'customer_response_at'     => 'datetime',
+        'total_mandays'            => 'decimal:2',
     ];
 
     public function ticket()
@@ -50,23 +54,26 @@ class CustomerMandays extends Model
         return $this->details()->sum('mandays');
     }
 
-    public function scopeDraft($query)
+    // Status scopes
+    public function scopeDraft($query)           { return $query->where('status', 'draft'); }
+    public function scopePendingHelpdesk($query) { return $query->where('status', 'pending_helpdesk'); }
+    public function scopeSentToChat($query)      { return $query->where('status', 'sent_to_chat'); }
+    public function scopeApproved($query)        { return $query->where('status', 'approved'); }
+    public function scopeCanceled($query)        { return $query->where('status', 'canceled'); }
+
+    public function scopeLatestVersion($query)
     {
-        return $query->where('status', 'draft');
+        return $query->orderBy('version', 'desc');
     }
 
-    public function scopePendingCustomer($query)
+    /** Pivot detail ke array Activity → Module → Mandays */
+    public function getMatrix(): array
     {
-        return $query->where('status', 'pending_customer');
-    }
-
-    public function scopeApproved($query)
-    {
-        return $query->where('status', 'approved');
-    }
-
-    public function scopeRejected($query)
-    {
-        return $query->where('status', 'rejected');
+        $matrix = [];
+        foreach ($this->details as $d) {
+            $act = $d->activity ?? 'General';
+            $matrix[$act][$d->module] = (float) $d->mandays;
+        }
+        return $matrix;
     }
 }

@@ -48,7 +48,7 @@ class AuthController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
             
-            return redirect()->route('login')->with('error', 'Terjadi kesalahan sistem');
+            return redirect()->route('login')->with('error', 'A system error occurred');
         }
     }
 
@@ -145,7 +145,7 @@ class AuthController extends Controller
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Email atau password salah',
+                    'message' => 'Invalid email or password',
                     'request_id' => $requestId
                 ], 401);
             }
@@ -169,7 +169,7 @@ class AuthController extends Controller
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Email atau password salah',
+                    'message' => 'Invalid email or password',
                     'request_id' => $requestId
                 ], 401);
             }
@@ -178,7 +178,23 @@ class AuthController extends Controller
             $isEmployee = !is_null($authUser->employee_id);
             $isCustomer = !is_null($authUser->customer_id);
 
-            // Cek is_already_cp — user baru (employee/customer) wajib verifikasi email & ganti password dulu
+            // Customer tidak memiliki akses ke EcoSystem — gunakan portal Jarvies
+            if ($isCustomer) {
+                Log::channel('daily')->warning('=== CUSTOMER LOGIN ATTEMPT BLOCKED ===', [
+                    'request_id'    => $requestId,
+                    'auth_user_id'  => $authUser->id,
+                    'ip_address'    => $request->ip(),
+                    'timestamp'     => now()->toDateTimeString(),
+                ]);
+
+                return response()->json([
+                    'success'    => false,
+                    'message'    => 'Access denied. Please use the Jarvies customer portal.',
+                    'request_id' => $requestId,
+                ], 403);
+            }
+
+            // Cek is_already_cp — user baru wajib verifikasi email & ganti password dulu
             if (!$authUser->is_already_cp) {
                 if (empty($authUser->email)) {
                     Log::channel('daily')->warning('=== USER REQUIRES PASSWORD SETUP BUT HAS NO EMAIL ===', [
@@ -188,7 +204,7 @@ class AuthController extends Controller
 
                     return response()->json([
                         'success' => false,
-                        'message' => 'Akun Anda belum memiliki email terdaftar. Hubungi administrator.',
+                        'message' => 'Your account does not have a registered email. Please contact your administrator.',
                         'request_id' => $requestId,
                     ], 403);
                 }
@@ -202,13 +218,12 @@ class AuthController extends Controller
                     'request_id'   => $requestId,
                     'auth_user_id' => $authUser->id,
                     'is_employee'  => $isEmployee,
-                    'is_customer'  => $isCustomer,
                 ]);
 
                 return response()->json([
                     'success'                 => true,
                     'require_password_change' => true,
-                    'message'                 => 'Silakan cek email Anda untuk mengatur password baru.',
+                    'message'                 => 'Please check your email to set up your new password.',
                     'email'                   => $maskedEmail,
                     'request_id'              => $requestId,
                 ]);
@@ -226,6 +241,7 @@ class AuthController extends Controller
                         'e.eci',
                         'e.is_active',
                         DB::raw("CONCAT(eb.first_name, ' ', COALESCE(eb.last_name, '')) as full_name"),
+                        'eb.nick_name',
                         'ea.email_personal as email',
                         'ea.cell_phone as phone_number',
                         'eb.position',
@@ -238,7 +254,7 @@ class AuthController extends Controller
                 if (!$employee || !$employee->is_active) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Akun Anda tidak aktif',
+                        'message' => 'Your account is inactive',
                         'request_id' => $requestId
                     ], 403);
                 }
@@ -250,16 +266,17 @@ class AuthController extends Controller
                 $token = base64_encode($tokenData);
 
                 $userData = [
-                    'id' => $employee->employee_id,
-                    'type' => 'employee',
-                    'eci' => $employee->eci,
-                    'name' => $employee->full_name,
-                    'email' => $authUser->email,
-                    'phone' => $employee->phone_number,
-                    'position' => $employee->position,
+                    'id'         => $employee->employee_id,
+                    'type'       => 'employee',
+                    'eci'        => $employee->eci,
+                    'name'       => $employee->full_name,
+                    'nick_name'  => $employee->nick_name ?: explode(' ', $employee->full_name)[0],
+                    'email'      => $authUser->email,
+                    'phone'      => $employee->phone_number,
+                    'position'   => $employee->position,
                     'department' => $employee->department,
                     'role' => [
-                        'id' => $employee->role_id,
+                        'id'   => $employee->role_id,
                         'name' => $employee->role_name
                     ]
                 ];
@@ -279,7 +296,7 @@ class AuthController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Login berhasil',
+                    'message' => 'Login successful',
                     'data' => [
                         'token' => $token,
                         'user' => $userData
@@ -287,75 +304,6 @@ class AuthController extends Controller
                     'request_id' => $requestId
                 ], 200);
 
-            } elseif ($isCustomer) {
-                // Login sebagai Customer
-                $customer = DB::table('customer as c')
-                    ->join('customer_basic_data as cb', 'c.customer_id', '=', 'cb.customer_id')
-                    ->where('c.customer_id', $authUser->customer_id)
-                    ->select(
-                        'c.customer_id',
-                        'c.customer_code',
-                        'c.email',
-                        'c.is_active',
-                        'cb.title',
-                        'cb.name_1',
-                        'cb.name_2',
-                        'cb.customer_category',
-                        'cb.customer_group'
-                    )
-                    ->first();
-
-                if (!$customer || !$customer->is_active) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Akun Anda tidak aktif',
-                        'request_id' => $requestId
-                    ], 403);
-                }
-
-                // Update last_login_at
-                DB::table('auth_users')->where('id', $authUser->id)->update(['last_login_at' => now()]);
-
-                $tokenData = $customer->customer_code . '|' . time() . '|customer';
-                $token = base64_encode($tokenData);
-                $companyName = trim($customer->title . ' ' . $customer->name_1 . ' ' . ($customer->name_2 ?? ''));
-
-                $userData = [
-                    'id' => $customer->customer_id,
-                    'type' => 'customer',
-                    'customer_code' => $customer->customer_code,
-                    'company_name' => $companyName,
-                    'email' => $authUser->email,
-                    'category' => $customer->customer_category,
-                    'group' => $customer->customer_group,
-                    'role' => [
-                        'id' => 3,
-                        'name' => 'Customer'
-                    ]
-                ];
-
-                $request->session()->put('auth_token', $token);
-                $request->session()->put('user', $userData);
-                $request->session()->regenerate();
-                $request->session()->save();
-
-                Log::channel('daily')->info('=== CUSTOMER LOGIN SUCCESSFUL ===', [
-                    'request_id' => $requestId,
-                    'customer_id' => $customer->customer_id,
-                    'customer_code' => $customer->customer_code,
-                    'ip_address' => $request->ip(),
-                    'timestamp' => now()->toDateTimeString()
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Login berhasil',
-                    'data' => [
-                        'token' => $token,
-                        'user' => $userData
-                    ],
-                    'request_id' => $requestId
-                ], 200);
             }
 
             // auth_user tanpa employee_id maupun customer_id
@@ -369,7 +317,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Email atau password salah',
+                'message' => 'Invalid email or password',
                 'request_id' => $requestId
             ], 404);
 
@@ -396,7 +344,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan sistem. Silakan coba lagi.',
+                'message' => 'A system error occurred. Please try again.',
                 'request_id' => $requestId,
                 'error_reference' => substr($requestId, -8)
             ], 500);
@@ -446,12 +394,12 @@ class AuthController extends Controller
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'Logout berhasil',
+                    'message' => 'Logout successful',
                     'request_id' => $requestId
                 ], 200);
             }
 
-            return redirect()->route('login')->with('success', 'Anda telah logout');
+            return redirect()->route('login')->with('success', 'You have been logged out');
 
         } catch (Exception $e) {
             Log::channel('daily')->error('Error during logout', [
@@ -463,7 +411,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan saat logout',
+                'message' => 'An error occurred during logout',
                 'request_id' => $requestId
             ], 500);
         }
@@ -501,7 +449,7 @@ class AuthController extends Controller
                 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Token tidak ditemukan',
+                    'message' => 'Token not found',
                     'request_id' => $requestId
                 ], 401);
             }
@@ -525,7 +473,7 @@ class AuthController extends Controller
                 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Token tidak valid',
+                    'message' => 'Invalid token',
                     'request_id' => $requestId
                 ], 401);
             }
@@ -581,7 +529,7 @@ class AuthController extends Controller
                     
                     return response()->json([
                         'success' => false,
-                        'message' => 'User tidak ditemukan',
+                        'message' => 'User not found',
                         'request_id' => $requestId
                     ], 404);
                 }
@@ -612,73 +560,6 @@ class AuthController extends Controller
                     'request_id' => $requestId
                 ], 200);
                 
-            } else {
-                Log::channel('daily')->info('Fetching customer data', [
-                    'request_id' => $requestId,
-                    'customer_code' => $identifier
-                ]);
-
-                $customer = DB::table('customer as c')
-                    ->join('customer_basic_data as cb', 'c.customer_id', '=', 'cb.customer_id')
-                    ->where('c.customer_code', $identifier)
-                    ->select(
-                        'c.customer_id',
-                        'c.customer_code',
-                        'c.email',
-                        'c.is_active',
-                        'cb.title',
-                        'cb.name_1',
-                        'cb.name_2',
-                        'cb.customer_category',
-                        'cb.customer_group'
-                    )
-                    ->first();
-
-                Log::channel('daily')->info('Customer lookup result', [
-                    'request_id' => $requestId,
-                    'found' => $customer ? 'YES' : 'NO',
-                    'customer_id' => $customer->customer_id ?? null
-                ]);
-
-                if (!$customer) {
-                    Log::channel('daily')->warning('Customer not found', [
-                        'request_id' => $requestId,
-                        'identifier' => $identifier
-                    ]);
-                    
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'User tidak ditemukan',
-                        'request_id' => $requestId
-                    ], 404);
-                }
-
-                $companyName = trim($customer->title . ' ' . $customer->name_1 . ' ' . ($customer->name_2 ?? ''));
-                
-                $responseData = [
-                    'id' => $customer->customer_id,
-                    'type' => 'customer',
-                    'customer_code' => $customer->customer_code,
-                    'company_name' => $companyName,
-                    'email' => $customer->email,
-                    'category' => $customer->customer_category,
-                    'group' => $customer->customer_group,
-                    'role' => [
-                        'id' => 3,
-                        'name' => 'Customer'
-                    ]
-                ];
-
-                Log::channel('daily')->info('Customer data retrieved successfully', [
-                    'request_id' => $requestId,
-                    'customer_id' => $customer->customer_id
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'data' => $responseData,
-                    'request_id' => $requestId
-                ], 200);
             }
 
         } catch (Exception $e) {
@@ -694,7 +575,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan',
+                'message' => 'An error occurred',
                 'request_id' => $requestId
             ], 500);
         }

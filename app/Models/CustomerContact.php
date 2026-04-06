@@ -50,4 +50,12 @@ class CustomerContact extends Model
     {
         return $this->belongsTo(Customer::class, 'customer_id', 'customer_id');
     }
+
+    /**
+     * Get the auth_users login account linked to this contact person
+     */
+    public function authUser()
+    {
+        return $this->hasOne(\App\Models\AuthUser::class, 'contact_id', 'contact_id');
+    }
 }

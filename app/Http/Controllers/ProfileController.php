@@ -61,38 +61,11 @@ class ProfileController extends Controller
                 )
                 ->first();
 
-        } elseif ($type === 'customer') {
-            $profile = DB::table('customer as c')
-                ->join('customer_basic_data as cb', 'c.customer_id', '=', 'cb.customer_id')
-                ->leftJoin('customer_contact as cc', 'c.customer_id', '=', 'cc.customer_id')
-                ->where('c.customer_id', $sessionUser['id'])
-                ->select(
-                    'c.customer_id',
-                    'c.customer_code',
-                    'c.email',
-                    'c.is_active',
-                    'cb.title',
-                    'cb.name_1',
-                    'cb.name_2',
-                    'cb.customer_group',
-                    'cb.customer_category',
-                    'cb.industry_sector',
-                    'cb.ec_account_executive',
-                    'cc.full_name as contact_name',
-                    'cc.cell_phone as contact_phone'
-                )
-                ->first();
         }
 
         // Email & phone dari auth_users (sumber utama login)
         $authUser = DB::table('auth_users')
-            ->where(function ($q) use ($sessionUser, $type) {
-                if ($type === 'employee') {
-                    $q->where('employee_id', $sessionUser['id']);
-                } else {
-                    $q->where('customer_id', $sessionUser['id']);
-                }
-            })
+            ->where('employee_id', $sessionUser['id'])
             ->select('id', 'email', 'phone', 'username', 'last_login_at', 'created_at')
             ->first();
 
@@ -116,27 +89,19 @@ class ProfileController extends Controller
             'password_confirmation' => 'required|string',
         ]);
 
-        $type = $sessionUser['type'] ?? null;
-
         $authUser = DB::table('auth_users')
-            ->where(function ($q) use ($sessionUser, $type) {
-                if ($type === 'employee') {
-                    $q->where('employee_id', $sessionUser['id']);
-                } else {
-                    $q->where('customer_id', $sessionUser['id']);
-                }
-            })
+            ->where('employee_id', $sessionUser['id'])
             ->first();
 
         if (!$authUser) {
-            return response()->json(['success' => false, 'message' => 'Akun tidak ditemukan'], 404);
+            return response()->json(['success' => false, 'message' => 'Account not found'], 404);
         }
 
         if (!Hash::check($request->current_password, $authUser->password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Password lama tidak sesuai',
-                'errors'  => ['current_password' => ['Password lama tidak sesuai']],
+                'message' => 'Current password is incorrect',
+                'errors'  => ['current_password' => ['Current password is incorrect']],
             ], 422);
         }
 
@@ -147,12 +112,11 @@ class ProfileController extends Controller
 
         Log::info('ProfileController: password berhasil diubah', [
             'auth_user_id' => $authUser->id,
-            'type'         => $type,
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Password berhasil diubah',
+            'message' => 'Password changed successfully',
         ]);
     }
 }

@@ -1437,14 +1437,14 @@ class EmployeeSeeder extends Seeder
 
         // Tambahan employee dengan format yang sama
         // employee_subgroup: Consultant, Sales, HR & Admin, Finance, Admin Delivery, Admin Support
-        // position: Senior Consultant, Consultant, Junior Consultant, Sales, HR Staff, Admin Staff, Finance Staff, Finance Manager, Admin Delivery, Admin Support, Project Manager
+        // position: Management Trainee, Junior Consultant, Associate Consultant, Middle Consultant, Senior Consultant, Expert Consultant, Sales, Sales Admin, Branch Head, HR Staff, Admin Staff, Finance Staff, Finance Manager, Admin Delivery, Admin Support (Diganti MO Support), Project Manager, Head Of Project (Ferdinand), Head of Support(Antonius)
         $additionalEmployees = [
             ['eci' => 'ECI006', 'first_name' => 'Agus', 'last_name' => 'Fahyadi', 'nick_name' => 'Agus Fahyadi', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant'],
             ['eci' => 'ECI007', 'first_name' => 'Raditya', 'last_name' => 'Budi Handoko', 'nick_name' => 'Raditya', 'employee_subgroup' => 'Consultant', 'position' => 'Junior Consultant'],
             ['eci' => 'ECI008', 'first_name' => 'Galih', 'last_name' => 'Pratama', 'nick_name' => 'Galih', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant'],
             ['eci' => 'ECI009', 'first_name' => 'Fawwaz', 'last_name' => 'Rahman', 'nick_name' => 'Fawwaz', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant'],
             ['eci' => 'ECI010', 'first_name' => 'Said', 'last_name' => 'Abdullah', 'nick_name' => 'Said', 'employee_subgroup' => 'Consultant', 'position' => 'Senior Consultant'],
-            ['eci' => 'ECI011', 'first_name' => 'Excel', 'last_name' => 'Wijaya', 'nick_name' => 'Excel', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant'],
+            ['eci' => 'ECI011', 'first_name' => 'Excel', 'last_name' => 'Verares', 'nick_name' => 'Excel', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant'],
             ['eci' => 'ECI012', 'first_name' => 'Agus', 'last_name' => 'Dwi Santoso', 'nick_name' => 'Agus Dwi', 'employee_subgroup' => 'Consultant', 'position' => 'Senior Consultant'],
             ['eci' => 'ECI013', 'first_name' => 'Alif', 'last_name' => 'Hidayat', 'nick_name' => 'Alif', 'employee_subgroup' => 'Consultant', 'position' => 'Junior Consultant'],
             ['eci' => 'ECI014', 'first_name' => 'Qoni', 'last_name' => 'Maulana', 'nick_name' => 'Qoni', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant'],
@@ -1453,11 +1453,11 @@ class EmployeeSeeder extends Seeder
             ['eci' => 'ECI017', 'first_name' => 'Gideon', 'last_name' => 'Siahaan', 'nick_name' => 'Gideon', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant', 'religion' => 'Kristen'],
             ['eci' => 'ECI018', 'first_name' => 'Resita', 'last_name' => 'Anggraini', 'nick_name' => 'Resita', 'employee_subgroup' => 'Admin Delivery', 'position' => 'Admin Delivery', 'gender' => 'Perempuan'],
             ['eci' => 'ECI019', 'first_name' => 'Putri', 'last_name' => 'Nurfita', 'nick_name' => 'Putrinurfita', 'employee_subgroup' => 'HR & Admin', 'position' => 'Admin Staff', 'gender' => 'Perempuan'],
-            ['eci' => 'ECI020', 'first_name' => 'Gian', 'last_name' => 'Ramadhan', 'nick_name' => 'Gian', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant'],
+            ['eci' => 'ECI020', 'first_name' => 'Gian', 'last_name' => 'Tanjung', 'nick_name' => 'Gian', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant'],
             ['eci' => 'ECI021', 'first_name' => 'Meitarisha', 'last_name' => 'Dewi', 'nick_name' => 'Meitarisha', 'employee_subgroup' => 'Sales', 'position' => 'Sales', 'gender' => 'Perempuan'],
-            ['eci' => 'ECI022', 'first_name' => 'Yudha', 'last_name' => 'Pratama', 'nick_name' => 'Yudha', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant'],
-            ['eci' => 'ECI023', 'first_name' => 'Dhira', 'last_name' => 'Ananda', 'nick_name' => 'Dhira', 'employee_subgroup' => 'Admin Support', 'position' => 'Admin Support', 'gender' => 'Perempuan'],
-            ['eci' => 'ECI024', 'first_name' => 'Farah', 'last_name' => 'Nabila', 'nick_name' => 'Farah', 'employee_subgroup' => 'HR & Admin', 'position' => 'HR Staff', 'gender' => 'Perempuan'],
+            ['eci' => 'ECI022', 'first_name' => 'Yudha', 'last_name' => 'Rares', 'nick_name' => 'Yudha', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant'],
+            ['eci' => 'ECI023', 'first_name' => 'Dhira', 'last_name' => 'Agustin', 'nick_name' => 'Dhira', 'employee_subgroup' => 'Consultant', 'position' => 'Junior Consultant', 'gender' => 'Perempuan'],
+            ['eci' => 'ECI024', 'first_name' => 'Farah', 'last_name' => 'Salsabila', 'nick_name' => 'Farah', 'employee_subgroup' => 'HR & Admin', 'position' => 'HR Staff', 'gender' => 'Perempuan'],
             ['eci' => 'ECI025', 'first_name' => 'Vira', 'last_name' => 'Safitri', 'nick_name' => 'Vira', 'employee_subgroup' => 'Sales', 'position' => 'Sales', 'gender' => 'Perempuan'],
             ['eci' => 'ECI026', 'first_name' => 'Wahyu', 'last_name' => 'Setiawan', 'nick_name' => 'Wahyu', 'employee_subgroup' => 'Consultant', 'position' => 'Junior Consultant'],
             ['eci' => 'ECI027', 'first_name' => 'Kahfi', 'last_name' => 'Maulana', 'nick_name' => 'Kahfi', 'employee_subgroup' => 'Consultant', 'position' => 'Junior Consultant'],
@@ -1465,7 +1465,7 @@ class EmployeeSeeder extends Seeder
             ['eci' => 'ECI029', 'first_name' => 'Loisa', 'last_name' => 'Margaretha', 'nick_name' => 'Loisa', 'employee_subgroup' => 'Finance', 'position' => 'Finance Staff', 'gender' => 'Perempuan', 'religion' => 'Kristen'],
             ['eci' => 'ECI030', 'first_name' => 'Meliza', 'last_name' => 'Putri', 'nick_name' => 'Meliza', 'employee_subgroup' => 'HR & Admin', 'position' => 'HR Staff', 'gender' => 'Perempuan'],
             ['eci' => 'ECI031', 'first_name' => 'Galih', 'last_name' => 'Saputra', 'nick_name' => 'Galih', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant'],
-            ['eci' => 'ECI032', 'first_name' => 'Devi', 'last_name' => 'Anggraeni', 'nick_name' => 'Devi', 'employee_subgroup' => 'Admin Support', 'position' => 'Admin Support', 'gender' => 'Perempuan'],
+            ['eci' => 'ECI032', 'first_name' => 'Devi', 'last_name' => 'Anggraeni', 'nick_name' => 'Devi', 'employee_subgroup' => 'Consultant', 'position' => 'Junior Consultant', 'gender' => 'Perempuan'],
             ['eci' => 'ECI033', 'first_name' => 'Ega', 'last_name' => 'Ramadhan', 'nick_name' => 'Ega', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant'],
             ['eci' => 'ECI034', 'first_name' => 'Luluk', 'last_name' => 'Rohmawati', 'nick_name' => 'Luluk', 'employee_subgroup' => 'Finance', 'position' => 'Finance Staff', 'gender' => 'Perempuan'],
             ['eci' => 'ECI035', 'first_name' => 'Erwin', 'last_name' => 'Setiawan', 'nick_name' => 'Erwin', 'employee_subgroup' => 'Consultant', 'position' => 'Senior Consultant'],
@@ -1483,9 +1483,16 @@ class EmployeeSeeder extends Seeder
             ['eci' => 'ECI047', 'first_name' => 'Dony', 'last_name' => 'Setiawan', 'nick_name' => 'Dony', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant'],
             ['eci' => 'ECI048', 'first_name' => 'Adi', 'last_name' => 'Nugroho', 'nick_name' => 'Adi Nugroho', 'employee_subgroup' => 'Consultant', 'position' => 'Senior Consultant'],
             ['eci' => 'ECI049', 'first_name' => 'Miftah', 'last_name' => 'Fauzan', 'nick_name' => 'Miftah', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant'],
-            ['eci' => 'ECI050', 'first_name' => 'Aaliya', 'last_name' => 'Azzahra', 'nick_name' => 'Aaliya', 'employee_subgroup' => 'Admin Support', 'position' => 'Admin Support', 'gender' => 'Perempuan'],
+            ['eci' => 'ECI050', 'first_name' => 'Aaliya', 'last_name' => 'Azzahra', 'nick_name' => 'Aaliya', 'employee_subgroup' => 'Consultant', 'position' => 'Junior Consultant', 'gender' => 'Perempuan'],
             ['eci' => 'ECI051', 'first_name' => 'Tami', 'last_name' => 'Wulandari', 'nick_name' => 'Tami', 'employee_subgroup' => 'Sales', 'position' => 'Sales', 'gender' => 'Perempuan'],
-            ['eci' => 'ECI052', 'first_name' => 'Rofiq', 'last_name' => 'Abdillah', 'nick_name' => 'Rofiq', 'employee_subgroup' => 'Consultant', 'position' => 'Consultant'],
+            ['eci' => 'ECI052', 'first_name' => 'Rofiq',       'last_name' => 'Abdillah',      'nick_name' => 'Rofiq',    'employee_subgroup' => 'Consultant',  'position' => 'Consultant'],
+            // ECI053+ → role Internship (role_id = 3)
+            ['eci' => 'ECI053', 'role_id' => 3, 'first_name' => 'Putra',        'last_name' => 'Palampang Tarung', 'nick_name' => 'Putra',    'employee_subgroup' => 'Internship',  'position' => 'Internship'],
+            ['eci' => 'ECI054', 'role_id' => 3, 'first_name' => 'Natanael Adi', 'last_name' => 'Wicaksono',        'nick_name' => 'Natanael', 'employee_subgroup' => 'Internship',  'position' => 'Internship'],
+            // ECI055+ → MO Support = Helpdesk (role_id = 6)
+            ['eci' => 'ECI055', 'role_id' => 6, 'first_name' => 'Ivan',   'last_name' => '',       'nick_name' => 'Ivan',   'employee_subgroup' => 'MO Support', 'position' => 'MO Support'],
+            ['eci' => 'ECI056', 'role_id' => 6, 'first_name' => 'Cely',   'last_name' => '',       'nick_name' => 'Cely',   'employee_subgroup' => 'MO Support', 'position' => 'MO Support', 'gender' => 'Perempuan'],
+            ['eci' => 'ECI057', 'role_id' => 6, 'first_name' => 'Carisa', 'last_name' => '',       'nick_name' => 'Carisa', 'employee_subgroup' => 'MO Support', 'position' => 'MO Support', 'gender' => 'Perempuan'],
         ];
 
         // Generate data lengkap untuk additional employees
@@ -1498,7 +1505,8 @@ class EmployeeSeeder extends Seeder
             // Removed is_external flag as Contractor position no longer exists
             
             $employee = [
-                'eci' => $addEmp['eci'],
+                'eci'     => $addEmp['eci'],
+                'role_id' => $addEmp['role_id'] ?? 2,
                 'basic' => [
                     'title' => $gender === 'Perempuan' ? 'Ms.' : 'Mr.',
                     'nick_name' => $addEmp['nick_name'],
@@ -1519,7 +1527,7 @@ class EmployeeSeeder extends Seeder
                     'employee_group' => 'Professional',
                     'employee_subgroup' => $addEmp['employee_subgroup'],
                     'position' => $addEmp['position'],
-                    'division' => in_array($addEmp['employee_subgroup'], ['Consultant', 'Admin Delivery', 'Admin Support']) ? 'Consulting Services' : (in_array($addEmp['employee_subgroup'], ['Sales']) ? 'Sales' : 'Corporate Services'),
+                    'division' => in_array($addEmp['employee_subgroup'], ['Consultant', 'Admin Delivery', 'MO Support', 'Internship']) ? 'Consulting Services' : (in_array($addEmp['employee_subgroup'], ['Sales']) ? 'Sales' : 'Corporate Services'),
                     'department' => $addEmp['employee_subgroup'] === 'Consultant' ? 'Business Consulting' : $addEmp['employee_subgroup'],
                     'direct_supervision' => 'ECI001',
                     'manager' => 'Ari Wibowo',
@@ -1543,8 +1551,8 @@ class EmployeeSeeder extends Seeder
                     'preferred_communication' => 'email',
                     'cell_phone' => sprintf('08123456%04d', 7000 + $index),
                     'telephone' => sprintf('0274-51%04d', 2350 + $index),
-                    'email_personal' => strtolower($addEmp['first_name'] . '.' . $addEmp['last_name']) . '@gmail.com',
-                    'email_work' => strtolower($addEmp['first_name']) . '@eclectic.co.id',
+                    'email_personal' => str_replace(' ', '.', strtolower($addEmp['first_name'] . '.' . $addEmp['last_name'])) . '@gmail.com',
+                    'email_work' => str_replace(' ', '.', strtolower($addEmp['first_name'])) . '@eclectic.co.id',
                     'valid_from' => Carbon::now()->subYears(2 + ($index % 5))->format('Y-m-d'),
                     'is_primary' => true,
                     'is_verified' => true,
@@ -1748,15 +1756,16 @@ class EmployeeSeeder extends Seeder
 
                 if (!$authExists) {
                     DB::table('auth_users')->insert([
-                        'employee_id' => $employeeId,
-                        'customer_id' => null,
-                        'username'    => $emp['eci'],
-                        'email'       => $authEmail,
-                        'phone'       => $authPhone,
-                        'password'    => Hash::make('password123'),
-                        'is_active'   => true,
-                        'created_at'  => Carbon::now(),
-                        'updated_at'  => Carbon::now(),
+                        'employee_id'   => $employeeId,
+                        'customer_id'   => null,
+                        'username'      => $emp['eci'],
+                        'email'         => $authEmail,
+                        'phone'         => $authPhone,
+                        'password'      => Hash::make('password123'),
+                        'is_active'     => true,
+                        'is_already_cp' => true, // password sudah di-set oleh seeder, bisa langsung login
+                        'created_at'    => Carbon::now(),
+                        'updated_at'    => Carbon::now(),
                     ]);
                 }
 

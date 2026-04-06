@@ -43,7 +43,7 @@
             <div class="flex items-center gap-3">
                 @if($authUser && $authUser->last_login_at)
                 <span class="text-xs text-gray-400 hidden sm:block">
-                    Login terakhir: {{ \Carbon\Carbon::parse($authUser->last_login_at)->format('d M Y, H:i') }}
+                    Last login: {{ \Carbon\Carbon::parse($authUser->last_login_at)->format('d M Y, H:i') }}
                 </span>
                 @endif
                 <span class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold
@@ -67,19 +67,19 @@
                     <button onclick="switchTab('profile')" data-tab="profile"
                             class="profile-tab w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all text-sm font-semibold bg-red-50 text-red-800 border-l-4 border-red-800">
                         <i class="fas fa-user w-4 text-center"></i>
-                        <span>Informasi Pribadi</span>
+                        <span>Personal Info</span>
                     </button>
                     <button onclick="switchTab('security')" data-tab="security"
                             class="profile-tab w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all text-sm font-semibold text-gray-600 hover:bg-gray-50 border-l-4 border-transparent">
                         <i class="fas fa-shield-alt w-4 text-center"></i>
-                        <span>Keamanan</span>
+                        <span>Security</span>
                     </button>
                 </div>
 
                 {{-- Account meta --}}
                 @if($authUser)
                 <div class="border-t border-gray-100 p-5 space-y-4">
-                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Info Akun</p>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Account Info</p>
 
                     <div class="flex items-start gap-3">
                         <div class="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -107,7 +107,7 @@
                             <i class="fas fa-clock text-amber-500 text-xs"></i>
                         </div>
                         <div>
-                            <p class="text-[10px] text-gray-400 font-medium">Login Terakhir</p>
+                            <p class="text-[10px] text-gray-400 font-medium">Last Login</p>
                             <p class="text-sm text-gray-800 font-semibold">{{ \Carbon\Carbon::parse($authUser->last_login_at)->format('d M Y') }}</p>
                             <p class="text-xs text-gray-400">{{ \Carbon\Carbon::parse($authUser->last_login_at)->format('H:i') }}</p>
                         </div>
@@ -119,7 +119,7 @@
                             <i class="fas fa-calendar-check text-green-500 text-xs"></i>
                         </div>
                         <div>
-                            <p class="text-[10px] text-gray-400 font-medium">Bergabung</p>
+                            <p class="text-[10px] text-gray-400 font-medium">Member Since</p>
                             <p class="text-sm text-gray-800 font-semibold">
                                 {{ $authUser->created_at ? \Carbon\Carbon::parse($authUser->created_at)->format('d M Y') : '-' }}
                             </p>
@@ -145,8 +145,8 @@
                                 <i class="fas fa-id-card text-red-800"></i>
                             </div>
                             <div>
-                                <h3 class="text-base font-bold text-gray-900">Data Pribadi</h3>
-                                <p class="text-xs text-gray-400">Informasi identitas karyawan</p>
+                                <h3 class="text-base font-bold text-gray-900">Personal Data</h3>
+                                <p class="text-xs text-gray-400">Employee identity information</p>
                             </div>
                         </div>
                         <div class="p-8">
@@ -154,14 +154,14 @@
                                 @php
                                 $fields = [
                                     ['icon' => 'fa-id-badge',    'label' => 'Employee ID (ECI)', 'value' => $profile->eci],
-                                    ['icon' => 'fa-user',        'label' => 'Nama Depan',        'value' => $profile->first_name],
-                                    ['icon' => 'fa-user',        'label' => 'Nama Belakang',     'value' => $profile->last_name],
-                                    ['icon' => 'fa-smile',       'label' => 'Nama Panggilan',    'value' => $profile->nick_name],
-                                    ['icon' => 'fa-venus-mars',  'label' => 'Jenis Kelamin',     'value' => $profile->gender],
-                                    ['icon' => 'fa-pray',        'label' => 'Agama',             'value' => $profile->religion],
-                                    ['icon' => 'fa-heart',       'label' => 'Status Perkawinan', 'value' => $profile->marital_status],
-                                    ['icon' => 'fa-birthday-cake','label' => 'Tanggal Lahir',    'value' => $profile->birth_date ? \Carbon\Carbon::parse($profile->birth_date)->format('d M Y') : null],
-                                    ['icon' => 'fa-map-marker-alt','label' => 'Tempat Lahir',   'value' => $profile->birth_place],
+                                    ['icon' => 'fa-user',        'label' => 'First Name',        'value' => $profile->first_name],
+                                    ['icon' => 'fa-user',        'label' => 'Last Name',         'value' => $profile->last_name],
+                                    ['icon' => 'fa-smile',       'label' => 'Nickname',          'value' => $profile->nick_name],
+                                    ['icon' => 'fa-venus-mars',  'label' => 'Gender',            'value' => $profile->gender],
+                                    ['icon' => 'fa-pray',        'label' => 'Religion',          'value' => $profile->religion],
+                                    ['icon' => 'fa-heart',       'label' => 'Marital Status',    'value' => $profile->marital_status],
+                                    ['icon' => 'fa-birthday-cake','label' => 'Date of Birth',    'value' => $profile->birth_date ? \Carbon\Carbon::parse($profile->birth_date)->format('d M Y') : null],
+                                    ['icon' => 'fa-map-marker-alt','label' => 'Place of Birth',  'value' => $profile->birth_place],
                                 ];
                                 @endphp
                                 @foreach($fields as $f)
@@ -181,21 +181,21 @@
                                 <i class="fas fa-briefcase text-blue-600"></i>
                             </div>
                             <div>
-                                <h3 class="text-base font-bold text-gray-900">Informasi Pekerjaan</h3>
-                                <p class="text-xs text-gray-400">Posisi dan penempatan kerja</p>
+                                <h3 class="text-base font-bold text-gray-900">Work Information</h3>
+                                <p class="text-xs text-gray-400">Position and work placement</p>
                             </div>
                         </div>
                         <div class="p-8">
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                 @php
                                 $workFields = [
-                                    ['label' => 'Jabatan',           'value' => $profile->position],
-                                    ['label' => 'Divisi',            'value' => $profile->division],
-                                    ['label' => 'Departemen',        'value' => $profile->department],
+                                    ['label' => 'Position',          'value' => $profile->position],
+                                    ['label' => 'Division',          'value' => $profile->division],
+                                    ['label' => 'Department',        'value' => $profile->department],
                                     ['label' => 'Employee Group',    'value' => $profile->employee_group],
                                     ['label' => 'Employee Subgroup', 'value' => $profile->employee_subgroup],
                                     ['label' => 'Role',              'value' => $profile->role_name],
-                                    ['label' => 'Tanggal Bergabung', 'value' => $profile->since_date ? \Carbon\Carbon::parse($profile->since_date)->format('d M Y') : null],
+                                    ['label' => 'Join Date',         'value' => $profile->since_date ? \Carbon\Carbon::parse($profile->since_date)->format('d M Y') : null],
                                 ];
                                 @endphp
                                 @foreach($workFields as $f)
@@ -215,8 +215,8 @@
                                 <i class="fas fa-address-book text-green-600"></i>
                             </div>
                             <div>
-                                <h3 class="text-base font-bold text-gray-900">Kontak & Alamat</h3>
-                                <p class="text-xs text-gray-400">Informasi kontak dan tempat tinggal</p>
+                                <h3 class="text-base font-bold text-gray-900">Contact & Address</h3>
+                                <p class="text-xs text-gray-400">Contact information and residence</p>
                             </div>
                         </div>
                         <div class="p-8">
@@ -224,10 +224,10 @@
                                 @php
                                 $contactFields = [
                                     ['label' => 'Email Login',     'value' => $authUser->email ?? null],
-                                    ['label' => 'Email Pribadi',   'value' => $profile->email_personal],
-                                    ['label' => 'Telepon Seluler', 'value' => $profile->cell_phone ?? $authUser->phone ?? null],
-                                    ['label' => 'Telepon Kantor',  'value' => $profile->telephone],
-                                    ['label' => 'Kode Pos',        'value' => $profile->postal_code],
+                                    ['label' => 'Personal Email',  'value' => $profile->email_personal],
+                                    ['label' => 'Mobile Phone',    'value' => $profile->cell_phone ?? $authUser->phone ?? null],
+                                    ['label' => 'Office Phone',    'value' => $profile->telephone],
+                                    ['label' => 'Postal Code',     'value' => $profile->postal_code],
                                 ];
                                 $alamat = collect([$profile->street, $profile->city, $profile->region, $profile->country])->filter()->implode(', ');
                                 @endphp
@@ -239,7 +239,7 @@
                                 @endforeach
                                 {{-- Alamat span 2 columns --}}
                                 <div class="bg-gray-50 rounded-xl p-4 hover:bg-green-50/30 transition-colors sm:col-span-2 lg:col-span-1">
-                                    <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1.5">Alamat</p>
+                                    <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1.5">Address</p>
                                     <p class="text-base text-gray-800 font-semibold">{{ $alamat ?: '-' }}</p>
                                 </div>
                             </div>
@@ -255,20 +255,20 @@
                                 <i class="fas fa-building text-red-800"></i>
                             </div>
                             <div>
-                                <h3 class="text-base font-bold text-gray-900">Informasi Perusahaan</h3>
-                                <p class="text-xs text-gray-400">Data perusahaan dan kategori</p>
+                                <h3 class="text-base font-bold text-gray-900">Company Information</h3>
+                                <p class="text-xs text-gray-400">Company data and category</p>
                             </div>
                         </div>
                         <div class="p-8">
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                 @php
                                 $custFields = [
-                                    ['label' => 'Kode Pelanggan',    'value' => $profile->customer_code],
-                                    ['label' => 'Nama Perusahaan 1', 'value' => $profile->name_1],
-                                    ['label' => 'Nama Perusahaan 2', 'value' => $profile->name_2],
-                                    ['label' => 'Kategori',          'value' => $profile->customer_category],
-                                    ['label' => 'Grup Pelanggan',    'value' => $profile->customer_group],
-                                    ['label' => 'Sektor Industri',   'value' => $profile->industry_sector],
+                                    ['label' => 'Customer Code',     'value' => $profile->customer_code],
+                                    ['label' => 'Company Name 1',    'value' => $profile->name_1],
+                                    ['label' => 'Company Name 2',    'value' => $profile->name_2],
+                                    ['label' => 'Category',          'value' => $profile->customer_category],
+                                    ['label' => 'Customer Group',    'value' => $profile->customer_group],
+                                    ['label' => 'Industry Sector',   'value' => $profile->industry_sector],
                                     ['label' => 'Account Executive', 'value' => $profile->ec_account_executive],
                                 ];
                                 @endphp
@@ -289,8 +289,8 @@
                                 <i class="fas fa-address-book text-green-600"></i>
                             </div>
                             <div>
-                                <h3 class="text-base font-bold text-gray-900">Kontak</h3>
-                                <p class="text-xs text-gray-400">Informasi kontak perusahaan</p>
+                                <h3 class="text-base font-bold text-gray-900">Contact</h3>
+                                <p class="text-xs text-gray-400">Company contact information</p>
                             </div>
                         </div>
                         <div class="p-8">
@@ -298,8 +298,8 @@
                                 @php
                                 $contactCustFields = [
                                     ['label' => 'Email Login', 'value' => $authUser->email ?? $profile->email ?? null],
-                                    ['label' => 'Telepon',     'value' => $authUser->phone ?? $profile->contact_phone ?? null],
-                                    ['label' => 'Nama Kontak', 'value' => $profile->contact_name],
+                                    ['label' => 'Phone',         'value' => $authUser->phone ?? $profile->contact_phone ?? null],
+                                    ['label' => 'Contact Name',  'value' => $profile->contact_name],
                                 ];
                                 @endphp
                                 @foreach($contactCustFields as $f)
@@ -315,7 +315,7 @@
                 @else
                     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-16 text-center text-gray-400">
                         <i class="fas fa-user-slash text-5xl mb-4 opacity-40"></i>
-                        <p class="text-lg font-medium">Data profil tidak ditemukan.</p>
+                        <p class="text-lg font-medium">Profile data not found.</p>
                     </div>
                 @endif
             </div>
@@ -330,8 +330,8 @@
                             <i class="fas fa-lock text-amber-600"></i>
                         </div>
                         <div>
-                            <h3 class="text-base font-bold text-gray-900">Ubah Password</h3>
-                            <p class="text-xs text-gray-400">Gunakan password yang kuat dan belum digunakan di platform lain.</p>
+                            <h3 class="text-base font-bold text-gray-900">Change Password</h3>
+                            <p class="text-xs text-gray-400">Use a strong password that hasn't been used on other platforms.</p>
                         </div>
                     </div>
                     <div class="p-8">
@@ -344,10 +344,10 @@
 
                             {{-- Password Lama --}}
                             <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-2">Password Lama</label>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">Current Password</label>
                                 <div class="relative">
                                     <input type="password" id="current_password" name="current_password"
-                                           placeholder="Masukkan password saat ini"
+                                           placeholder="Enter current password"
                                            class="w-full pl-4 pr-12 py-3.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all bg-gray-50 focus:bg-white"
                                            autocomplete="current-password"/>
                                     <button type="button" onclick="togglePw('current_password')"
@@ -360,10 +360,10 @@
 
                             {{-- Password Baru --}}
                             <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-2">Password Baru</label>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">New Password</label>
                                 <div class="relative">
                                     <input type="password" id="password" name="password"
-                                           placeholder="Minimal 8 karakter"
+                                           placeholder="At least 8 characters"
                                            class="w-full pl-4 pr-12 py-3.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all bg-gray-50 focus:bg-white"
                                            autocomplete="new-password"/>
                                     <button type="button" onclick="togglePw('password')"
@@ -376,10 +376,10 @@
 
                             {{-- Konfirmasi --}}
                             <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-2">Konfirmasi Password Baru</label>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">Confirm New Password</label>
                                 <div class="relative">
                                     <input type="password" id="password_confirmation" name="password_confirmation"
-                                           placeholder="Ulangi password baru"
+                                           placeholder="Repeat new password"
                                            class="w-full pl-4 pr-12 py-3.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all bg-gray-50 focus:bg-white"
                                            autocomplete="new-password"/>
                                     <button type="button" onclick="togglePw('password_confirmation')"
@@ -392,19 +392,19 @@
 
                             {{-- Strength hints --}}
                             <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
-                                <p class="text-xs font-bold text-gray-600 mb-3 uppercase tracking-wide">Syarat Password Baru</p>
+                                <p class="text-xs font-bold text-gray-600 mb-3 uppercase tracking-wide">New Password Requirements</p>
                                 <div class="space-y-2">
                                     <div id="hint-len" class="flex items-center gap-2.5 text-sm text-red-500">
                                         <span class="w-5 h-5 rounded-full border-2 border-current flex items-center justify-center text-xs flex-shrink-0">
                                             <i class="fas fa-times text-[9px]"></i>
                                         </span>
-                                        Minimal 8 karakter
+                                        At least 8 characters
                                     </div>
                                     <div id="hint-match" class="flex items-center gap-2.5 text-sm text-red-500">
                                         <span class="w-5 h-5 rounded-full border-2 border-current flex items-center justify-center text-xs flex-shrink-0">
                                             <i class="fas fa-times text-[9px]"></i>
                                         </span>
-                                        Password cocok dengan konfirmasi
+                                        Password matches confirmation
                                     </div>
                                 </div>
                             </div>
@@ -413,7 +413,7 @@
                                 <button type="button" onclick="confirmChangePassword()"
                                         class="inline-flex items-center gap-2 px-7 py-3.5 bg-gradient-to-r from-red-800 to-red-900 text-white text-sm font-bold rounded-xl transition-all hover:shadow-lg hover:shadow-red-900/30 hover:-translate-y-0.5 active:translate-y-0">
                                     <i class="fas fa-key"></i>
-                                    Ubah Password
+                                    Change Password
                                 </button>
                             </div>
                         </form>
@@ -428,8 +428,8 @@
                             <i class="fas fa-history text-purple-600"></i>
                         </div>
                         <div>
-                            <h3 class="text-base font-bold text-gray-900">Aktivitas Akun</h3>
-                            <p class="text-xs text-gray-400">Riwayat aktivitas login</p>
+                            <h3 class="text-base font-bold text-gray-900">Account Activity</h3>
+                            <p class="text-xs text-gray-400">Login activity history</p>
                         </div>
                     </div>
                     <div class="p-8">
@@ -438,11 +438,11 @@
                                 <i class="fas fa-sign-in-alt text-green-600 text-lg"></i>
                             </div>
                             <div>
-                                <p class="font-bold text-gray-800">Login Terakhir</p>
+                                <p class="font-bold text-gray-800">Last Login</p>
                                 <p class="text-sm text-gray-500 mt-0.5">
                                     {{ \Carbon\Carbon::parse($authUser->last_login_at)->isoFormat('dddd, D MMMM YYYY') }}
                                     &bull;
-                                    {{ \Carbon\Carbon::parse($authUser->last_login_at)->format('H:i') }} WIB
+                                    {{ \Carbon\Carbon::parse($authUser->last_login_at)->format('H:i') }}
                                 </p>
                             </div>
                         </div>
@@ -464,24 +464,24 @@
                     <i class="fas fa-exclamation-triangle text-amber-600 text-2xl"></i>
                 </div>
                 <div>
-                    <h3 class="text-lg font-extrabold text-gray-900">Konfirmasi Ubah Password</h3>
-                    <p class="text-sm text-gray-500 mt-0.5">Tindakan ini tidak dapat dibatalkan.</p>
+                    <h3 class="text-lg font-extrabold text-gray-900">Confirm Password Change</h3>
+                    <p class="text-sm text-gray-500 mt-0.5">This action cannot be undone.</p>
                 </div>
             </div>
             <p class="text-sm text-gray-600 bg-amber-50 border border-amber-200 rounded-xl p-4 leading-relaxed">
-                Apakah Anda yakin ingin mengubah password akun Anda?<br>
-                Setelah berhasil, gunakan password baru untuk login berikutnya.
+                Are you sure you want to change your account password?<br>
+                Once changed, use your new password for future logins.
             </p>
         </div>
         <div class="border-t border-gray-100 px-7 py-4 flex justify-end gap-3 bg-gray-50">
             <button onclick="closeModal()"
                     class="px-6 py-2.5 text-sm font-bold text-gray-700 border-2 border-gray-200 rounded-xl hover:bg-white transition-all">
-                Batal
+                Cancel
             </button>
             <button id="confirmBtn" onclick="submitChangePassword()"
                     class="px-6 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-red-800 to-red-900 rounded-xl hover:shadow-lg transition-all flex items-center gap-2">
                 <i class="fas fa-key"></i>
-                Ya, Ubah Password
+                Yes, Change Password
             </button>
         </div>
     </div>
@@ -584,9 +584,9 @@ function confirmChangePassword() {
     const conf = document.getElementById('password_confirmation').value;
 
     let hasError = false;
-    if (!cur)          { showFieldError('current_password', 'Password lama wajib diisi'); hasError = true; }
-    if (pw.length < 8) { showFieldError('password', 'Password baru minimal 8 karakter'); hasError = true; }
-    if (pw !== conf)   { showFieldError('password_confirmation', 'Konfirmasi password tidak cocok'); hasError = true; }
+    if (!cur)          { showFieldError('current_password', 'Current password is required'); hasError = true; }
+    if (pw.length < 8) { showFieldError('password', 'New password must be at least 8 characters'); hasError = true; }
+    if (pw !== conf)   { showFieldError('password_confirmation', 'Password confirmation does not match'); hasError = true; }
     if (hasError) return;
 
     document.getElementById('confirmModal').style.display = 'flex';
@@ -604,7 +604,7 @@ document.getElementById('confirmModal').addEventListener('click', function(e) {
 async function submitChangePassword() {
     const btn = document.getElementById('confirmBtn');
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
     closeModal();
 
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
@@ -624,20 +624,20 @@ async function submitChangePassword() {
         const data = await res.json();
 
         if (data.success) {
-            showAlert('success', data.message || 'Password berhasil diubah.');
+            showAlert('success', data.message || 'Password changed successfully.');
             document.getElementById('changePasswordForm').reset();
             updateHints();
         } else {
-            showAlert('error', data.message || 'Gagal mengubah password.');
+            showAlert('error', data.message || 'Failed to change password.');
             if (data.errors) {
                 Object.entries(data.errors).forEach(([field, msgs]) => showFieldError(field, msgs[0]));
             }
         }
     } catch {
-        showAlert('error', 'Terjadi kesalahan jaringan. Silakan coba lagi.');
+        showAlert('error', 'A network error occurred. Please try again.');
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-key"></i> Ya, Ubah Password';
+        btn.innerHTML = '<i class="fas fa-key"></i> Yes, Change Password';
     }
 }
 </script>

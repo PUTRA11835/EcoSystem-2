@@ -79,6 +79,20 @@
                     Update
                 </button>
 
+                <button onclick="openGrantLoginModal()" id="btnGrantLogin" title="Grant Jarvies Access" class="inline-flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-all hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 0 1 21.75 8.25Z" />
+                    </svg>
+                    Grant Access
+                </button>
+
+                <button onclick="revokeLoginAccess()" id="btnRevokeLogin" title="Revoke Jarvies Access" class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-orange-500 text-orange-600 text-xs font-semibold rounded-lg hover:bg-orange-50 transition-all hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+                    </svg>
+                    Revoke Access
+                </button>
+
                 <button onclick="deleteSelectedContact()" title="Delete" class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-red-600 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-all">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -109,6 +123,7 @@
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Cell Phone</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Valid From</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Valid To</th>
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Jarvies Access</th>
                         <th class="w-10 px-4 py-3 text-left">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-500">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
@@ -118,7 +133,7 @@
                 </thead>
                 <tbody id="contactTableBody" class="bg-white divide-y divide-gray-100">
                     <tr>
-                        <td colspan="8" class="px-4 py-16 text-center">
+                        <td colspan="9" class="px-4 py-16 text-center">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-300">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                             </svg>
@@ -410,10 +425,71 @@
     </div>
 </div>
 
+<!-- Revoke Login Modal -->
+<div id="revokeLoginModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
+            <h3 class="text-lg font-bold text-gray-900">Revoke Jarvies Access</h3>
+            <button onclick="closeRevokeLoginModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="p-6 space-y-3">
+            <div class="flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-orange-500 flex-shrink-0">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+                <p class="text-sm text-orange-800 font-medium">This action cannot be undone easily.</p>
+            </div>
+            <p class="text-sm text-gray-600">
+                Revoke Jarvies login access for <strong id="revokeLoginContactName"></strong>?
+                They will no longer be able to log in to Jarvies.
+            </p>
+        </div>
+        <div class="flex gap-3 px-6 py-4 border-t border-gray-200">
+            <button onclick="closeRevokeLoginModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+            <button id="btnConfirmRevokeLogin" onclick="confirmRevokeLogin()" class="flex-1 px-4 py-2.5 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 transition-all">Revoke Access</button>
+        </div>
+    </div>
+</div>
+
+<!-- Grant Login Modal -->
+<div id="grantLoginModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
+            <h3 class="text-lg font-bold text-gray-900">Grant Jarvies Access</h3>
+            <button onclick="closeGrantLoginModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="p-6 space-y-4">
+            <p class="text-sm text-gray-600">
+                Grant Jarvies login access to <strong id="grantLoginContactName"></strong>.
+                A password setup email will be sent automatically.
+            </p>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Login Email <span class="text-red-600">*</span></label>
+                <input type="email" id="grantLoginEmail" required
+                    placeholder="contact@company.com"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                <p class="text-xs text-gray-400 mt-1">This will be the email used to log in to Jarvies.</p>
+            </div>
+        </div>
+        <div class="flex gap-3 px-6 py-4 border-t border-gray-200">
+            <button onclick="closeGrantLoginModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+            <button id="btnConfirmGrantLogin" onclick="confirmGrantLogin()" class="flex-1 px-4 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all">Grant Access</button>
+        </div>
+    </div>
+</div>
+
 <script>
 (function() {
     'use strict';
-    
+
     let contactsData = [];
     let selectedContactId = null;
     let deleteContactId = null;
@@ -461,11 +537,28 @@
             const validFrom = contact.valid_from ? new Date(contact.valid_from).toLocaleDateString('en-GB') : '';
             const validTo = contact.valid_to ? new Date(contact.valid_to).toLocaleDateString('en-GB') : '';
 
+            let loginBadge;
+            if (contact.auth_user_id) {
+                if (!contact.login_setup_done) {
+                    loginBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">
+                        <span class="w-1.5 h-1.5 rounded-full bg-yellow-500 inline-block"></span>Pending Setup</span>`;
+                } else if (contact.login_active) {
+                    loginBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>Active</span>
+                        <div class="text-xs text-gray-400 mt-0.5">${contact.login_email || ''}</div>`;
+                } else {
+                    loginBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
+                        <span class="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block"></span>Inactive</span>`;
+                }
+            } else {
+                loginBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-400">No Access</span>`;
+            }
+
             return `
                 <tr class="hover:bg-gray-50 transition-colors cursor-pointer" onclick="window.selectContactRow(${contact.contact_id}, event)">
                     <td class="px-4 py-3">
-                        <input type="radio" name="selectedContact" value="${contact.contact_id}" 
-                            onclick="window.selectContact(${contact.contact_id})" 
+                        <input type="radio" name="selectedContact" value="${contact.contact_id}"
+                            onclick="window.selectContact(${contact.contact_id})"
                             class="w-4 h-4 text-red-800 focus:ring-red-800">
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-900">${contact.title || ''}</td>
@@ -474,6 +567,7 @@
                     <td class="px-4 py-3 text-sm text-gray-600">${contact.cell_phone || '-'}</td>
                     <td class="px-4 py-3 text-sm text-gray-600">${validFrom}</td>
                     <td class="px-4 py-3 text-sm text-gray-600">${validTo}</td>
+                    <td class="px-4 py-3">${loginBadge}</td>
                     <td class="px-4 py-3">
                         <button onclick="window.loadContactToForm(${contact.contact_id}); event.stopPropagation();" class="text-gray-400 hover:text-gray-600">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
@@ -493,7 +587,7 @@
         const tbody = document.getElementById('contactTableBody');
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="px-4 py-16 text-center">
+                <td colspan="9" class="px-4 py-16 text-center">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-300">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                     </svg>
@@ -505,11 +599,25 @@
     }
 
     /**
-     * Select contact
+     * Select contact — update Grant/Revoke buttons based on login status
      */
     function selectContact(contactId) {
         selectedContactId = contactId;
         loadContactToForm(contactId);
+
+        const contact = contactsData.find(c => c.contact_id === contactId);
+        const btnGrant  = document.getElementById('btnGrantLogin');
+        const btnRevoke = document.getElementById('btnRevokeLogin');
+
+        if (contact) {
+            if (contact.auth_user_id) {
+                btnGrant.classList.add('hidden');
+                btnRevoke.classList.remove('hidden');
+            } else {
+                btnGrant.classList.remove('hidden');
+                btnRevoke.classList.add('hidden');
+            }
+        }
     }
 
     /**
@@ -922,6 +1030,125 @@
         }, 3000);
     }
 
+    /**
+     * Open Grant Login modal
+     */
+    function openGrantLoginModal() {
+        if (!selectedContactId) {
+            showNotification('Please select a contact first', 'warning');
+            return;
+        }
+        const contact = contactsData.find(c => c.contact_id === selectedContactId);
+        const defaultEmail = contact?.email_work || contact?.email_personal || '';
+        document.getElementById('grantLoginEmail').value = defaultEmail;
+        document.getElementById('grantLoginContactName').textContent = contact?.full_name || 'this contact';
+        document.getElementById('grantLoginModal').classList.remove('hidden');
+        document.getElementById('grantLoginModal').classList.add('flex');
+    }
+
+    function closeGrantLoginModal() {
+        document.getElementById('grantLoginModal').classList.add('hidden');
+        document.getElementById('grantLoginModal').classList.remove('flex');
+    }
+
+    async function confirmGrantLogin() {
+        const email = document.getElementById('grantLoginEmail').value.trim();
+        if (!email) {
+            showNotification('Please enter a login email', 'warning');
+            return;
+        }
+
+        const btn = document.getElementById('btnConfirmGrantLogin');
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+
+        try {
+            const response = await fetch(`/api/customers/{{ $customerId }}/contacts/${selectedContactId}/create-login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ login_email: email })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                showNotification(data.message, 'success');
+                closeGrantLoginModal();
+                loadContacts();
+            } else {
+                const errMsg = data.errors?.login_email?.[0] || data.message || 'Failed to grant access';
+                showNotification(errMsg, 'error');
+            }
+        } catch (error) {
+            console.error('❌ Error granting login:', error);
+            showNotification('An error occurred', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Grant Access';
+        }
+    }
+
+    /**
+     * Revoke login access for selected contact
+     */
+    function revokeLoginAccess() {
+        if (!selectedContactId) {
+            showNotification('Please select a contact first', 'warning');
+            return;
+        }
+        const contact = contactsData.find(c => c.contact_id === selectedContactId);
+        document.getElementById('revokeLoginContactName').textContent = contact?.full_name || 'this contact';
+        const modal = document.getElementById('revokeLoginModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeRevokeLoginModal() {
+        const modal = document.getElementById('revokeLoginModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    async function confirmRevokeLogin() {
+        const btn = document.getElementById('btnConfirmRevokeLogin');
+        btn.disabled = true;
+        btn.textContent = 'Revoking...';
+
+        try {
+            const response = await fetch(`/api/customers/{{ $customerId }}/contacts/${selectedContactId}/revoke-login`, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin'
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                closeRevokeLoginModal();
+                showNotification(data.message, 'success');
+                loadContacts();
+                document.getElementById('btnRevokeLogin').classList.add('hidden');
+                document.getElementById('btnGrantLogin').classList.add('hidden');
+            } else {
+                showNotification(data.message || 'Failed to revoke access', 'error');
+            }
+        } catch (error) {
+            console.error('❌ Error revoking login:', error);
+            showNotification('An error occurred', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Revoke Access';
+        }
+    }
+
     // Expose functions to window for onclick handlers
     window.selectContact = selectContact;
     window.selectContactRow = selectContactRow;
@@ -935,6 +1162,12 @@
     window.deleteSelectedContact = deleteSelectedContact;
     window.closeConfirmDeleteContact = closeConfirmDeleteContact;
     window.confirmDeleteContact = confirmDeleteContact;
+    window.openGrantLoginModal = openGrantLoginModal;
+    window.closeGrantLoginModal = closeGrantLoginModal;
+    window.confirmGrantLogin = confirmGrantLogin;
+    window.revokeLoginAccess = revokeLoginAccess;
+    window.closeRevokeLoginModal = closeRevokeLoginModal;
+    window.confirmRevokeLogin = confirmRevokeLogin;
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
@@ -946,20 +1179,23 @@
     document.getElementById('contactModal')?.addEventListener('click', function(e) {
         if (e.target === this) closeContactModal();
     });
-
     document.getElementById('confirmDeleteContactModal')?.addEventListener('click', function(e) {
         if (e.target === this) closeConfirmDeleteContact();
+    });
+    document.getElementById('grantLoginModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closeGrantLoginModal();
+    });
+    document.getElementById('revokeLoginModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closeRevokeLoginModal();
     });
 
     // Close modals on Escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            if (!document.getElementById('contactModal').classList.contains('hidden')) {
-                closeContactModal();
-            }
-            if (!document.getElementById('confirmDeleteContactModal').classList.contains('hidden')) {
-                closeConfirmDeleteContact();
-            }
+            if (!document.getElementById('contactModal').classList.contains('hidden')) closeContactModal();
+            if (!document.getElementById('confirmDeleteContactModal').classList.contains('hidden')) closeConfirmDeleteContact();
+            if (!document.getElementById('grantLoginModal').classList.contains('hidden')) closeGrantLoginModal();
+            if (!document.getElementById('revokeLoginModal').classList.contains('hidden')) closeRevokeLoginModal();
         }
     });
 })();
