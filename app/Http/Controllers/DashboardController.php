@@ -39,11 +39,13 @@ class DashboardController extends Controller
                 ->whereNotIn('status', ['completed', 'closed', 'cancel'])
                 ->count();
 
+            $totalTickets = DB::table('ticket')->whereNull('deleted_at')->count();
+
             $dashboardData = [
                 'employee' => $totalEmployees,
                 'customers' => $totalCustomers,
                 'active_projects' => $activeProjects,
-                'revenue' => 0,
+                'total_tickets' => $totalTickets,
                 'recent_activities' => [],
             ];
 

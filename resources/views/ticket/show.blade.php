@@ -74,7 +74,7 @@
     {{-- Main Content: Conversation Thread --}}
     <div class="flex-1 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {{-- Ticket Header --}}
-        <div class="flex items-start justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
+        <div class="flex items-start justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0 sticky top-0 bg-white z-10">
             <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-3 mb-1 flex-wrap">
                     <h2 class="text-lg font-bold text-gray-900">{{ $ticket->description ?: 'No description' }}</h2>
@@ -122,6 +122,21 @@
                     @endif
                 </div>
             </div>
+            @php
+                $canViewCredential =
+                    in_array($user->role->role_id, [1, 5, 6, 7])
+                    || $ticket->employee_id == $user->id
+                    || $ticket->members->contains('employee_id', $user->id);
+            @endphp
+            @if($canViewCredential && $ticket->customer_id)
+            <button onclick="openCredentialModal()"
+                title="Customer Credential"
+                class="ml-4 flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+            </button>
+            @endif
         </div>
 
         {{-- Messages Thread --}}
@@ -1413,7 +1428,7 @@
         const maxSize = 10 * 1024 * 1024; // 10 MB per file
         Array.from(this.files).forEach(file => {
             if (file.size > maxSize) {
-                showNotification(`${file.name} terlalu besar (maks 10 MB)`, 'error');
+                showNotification(`${file.name} is too large (max 10 MB)`, 'error');
                 return;
             }
             // Hindari duplikat berdasarkan nama + ukuran
@@ -3081,5 +3096,92 @@
         finally { btn.disabled = false; btn.textContent = 'Confirm Reject'; }
     }
 
+
+    // ==================== CUSTOMER CREDENTIAL MODAL ====================
+    @if($canViewCredential ?? false)
+    const _credentialCustomerId = {{ $ticket->customer_id ?? 'null' }};
+
+    async function openCredentialModal() {
+        if (!_credentialCustomerId) return;
+
+        document.getElementById('credentialModalContent').innerHTML =
+            '<div class="flex items-center justify-center py-10">' +
+            '<svg class="animate-spin h-6 w-6 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">' +
+            '<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>' +
+            '<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>' +
+            '</svg></div>';
+
+        document.getElementById('credentialModal').classList.remove('hidden');
+        document.getElementById('credentialModal').classList.add('flex');
+
+        try {
+            const res  = await fetch(`/api/customers/${_credentialCustomerId}/credential`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+            });
+            const data = await res.json();
+
+            const area = document.getElementById('credentialModalContent');
+            if (data.success && data.credential && data.credential.notes) {
+                const escaped = data.credential.notes
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/(https?:\/\/[^\s]+)/g,
+                        '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">$1</a>');
+                area.innerHTML = `<div class="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed">${escaped}</div>`;
+                if (data.credential.updated_by) {
+                    const d = data.credential.updated_at ? new Date(data.credential.updated_at).toLocaleString('en-GB') : '';
+                    area.innerHTML += `<p class="mt-4 text-xs text-gray-400">Last saved by ${data.credential.updated_by}${d ? ' — ' + d : ''}</p>`;
+                }
+            } else {
+                area.innerHTML = '<p class="text-sm text-gray-400 italic py-4 text-center">No credential recorded</p>';
+            }
+        } catch (err) {
+            document.getElementById('credentialModalContent').innerHTML =
+                '<p class="text-sm text-red-600 py-4 text-center">Failed to load credential</p>';
+        }
+    }
+
+    function closeCredentialModal() {
+        document.getElementById('credentialModal').classList.add('hidden');
+        document.getElementById('credentialModal').classList.remove('flex');
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('credentialModal');
+            if (modal && !modal.classList.contains('hidden')) closeCredentialModal();
+        }
+    });
+    @endif
 </script>
+
+@if($canViewCredential ?? false)
+{{-- Customer Credential Modal --}}
+<div id="credentialModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-500">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+                <h3 class="text-base font-bold text-gray-900">Customer Credential — {{ $ticket->customer?->basicData?->name_1 ?? 'Unknown Customer' }}</h3>
+            </div>
+            <button onclick="closeCredentialModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div id="credentialModalContent" class="px-6 py-5 max-h-96 overflow-y-auto"></div>
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
+            <button onclick="closeCredentialModal()" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
+                Close
+            </button>
+        </div>
+    </div>
+    {{-- Click outside to close --}}
+    <div class="absolute inset-0 -z-10" onclick="closeCredentialModal()"></div>
+</div>
+@endif
+
 @endsection

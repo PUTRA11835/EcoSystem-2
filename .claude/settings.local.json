@@ -6,11 +6,7 @@
       "Bash(grep -l \"ticket_message\\\\|TicketMessage\" database/migrations/*.php)",
       "Bash(grep -n \"email_message_id\\\\|email_in_reply_to\" c:/EcoSystem-2-main/database/migrations/*.php)",
       "Bash(grep -n \"toast\\\\|notification\\\\|showNotification\\\\|Toastr\\\\|alert\\\\|snackbar\" /c/EcoSystem-2-main/resources/views/staging/*.blade.php)",
-      "Bash(git fetch:*)",
-      "Bash(git checkout:*)",
-      "Bash(git stash:*)",
-      "Bash(git add:*)",
-      "Bash(git commit -m ':*)"
+      "Bash(composer dump-autoload:*)"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",

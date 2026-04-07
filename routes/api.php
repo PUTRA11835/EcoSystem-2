@@ -20,6 +20,7 @@ use App\Http\Controllers\CustomerIdentificationController;
 use App\Http\Controllers\CustomerBankController;
 use App\Http\Controllers\CustomerAttachmentController;
 use App\Http\Controllers\CustomerHistoryController;
+use App\Http\Controllers\CustomerCredentialController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TicketMessageController;
@@ -205,6 +206,10 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/{attachmentId}', [CustomerAttachmentController::class, 'destroy']);
         Route::get('/{attachmentId}/download', [CustomerAttachmentController::class, 'download']);
     });
+
+    // Customer Credential endpoints
+    Route::get('customers/{customerId}/credential', [CustomerCredentialController::class, 'show']);
+    Route::post('customers/{customerId}/credential', [CustomerCredentialController::class, 'store']);
 
     // Customer History endpoints
     Route::prefix('customers/{customerId}/history')->group(function () {
