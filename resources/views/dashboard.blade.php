@@ -496,7 +496,7 @@
         </aside>
 
         <!-- Main Content -->
-        <main id="mainContent" class="sidebar-transition flex-1 ml-64">
+        <main id="mainContent" class="sidebar-transition flex-1 ml-64 min-w-0 overflow-x-hidden">
             <!-- Header - Modern Design -->
             <header class="sticky top-0 z-40 shadow-sm border-b border-gray-100" style="background-color: var(--card-bg);">
                 <div class="px-6 py-4 flex justify-between items-center">

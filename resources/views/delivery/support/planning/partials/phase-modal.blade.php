@@ -586,7 +586,7 @@ window.confirmDeletePhase = function() {
             window.phaseChanges.toCreate = window.phaseChanges.toCreate.filter(p => p.tempId !== phaseId);
             phaseItem.remove();
             if (typeof showNotification === 'function') {
-                showNotification('Fase baru berhasil dihapus dari list', 'success');
+                showNotification('New phase removed from list', 'success');
             }
         } else {
             // Mark existing phase for deletion
@@ -618,7 +618,7 @@ window.confirmDeletePhase = function() {
             }
 
             if (typeof showNotification === 'function') {
-                showNotification('Fase ditandai untuk dihapus. Klik "Simpan Konfigurasi" untuk menerapkan.', 'warning');
+                showNotification('Phase marked for deletion. Click "Save Configuration" to apply.', 'warning');
             }
         }
     }
@@ -673,7 +673,7 @@ window.addNewPhaseToList = function() {
     // Validation
     if (!name) {
         if (typeof showNotification === 'function') {
-            showNotification('Nama fase tidak boleh kosong', 'error');
+            showNotification('Phase name cannot be empty', 'error');
         }
         nameInput.focus();
         return;
@@ -681,7 +681,7 @@ window.addNewPhaseToList = function() {
 
     if (weight <= 0 || weight > 100) {
         if (typeof showNotification === 'function') {
-            showNotification('Bobot harus antara 0.1 dan 100', 'error');
+            showNotification('Weight must be between 0.1 and 100', 'error');
         }
         weightInput.focus();
         return;
@@ -761,7 +761,7 @@ window.addNewPhaseToList = function() {
     calculateTotalWeights();
 
     if (typeof showNotification === 'function') {
-        showNotification('Fase ditambahkan ke list. Klik "Simpan Konfigurasi" untuk menyimpan.', 'success');
+        showNotification('Phase added to list. Click "Save Configuration" to save.', 'success');
     }
 };
 
@@ -783,7 +783,7 @@ window.saveAllPhaseChanges = async function() {
 
     if (Math.abs(totalWeight - 100) >= 0.1) {
         if (typeof showNotification === 'function') {
-            showNotification('Total bobot harus 100% sebelum menyimpan', 'error');
+            showNotification('Total weight must be 100% before saving', 'error');
         }
         return;
     }
@@ -867,7 +867,7 @@ window.saveAllPhaseChanges = async function() {
         }
 
         if (typeof showNotification === 'function') {
-            showNotification('✅ Konfigurasi fase berhasil disimpan!', 'success');
+            showNotification('Phase configuration saved successfully!', 'success');
         }
 
         // Reset changes

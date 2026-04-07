@@ -864,11 +864,11 @@
             return;
         }
         if (password.length < 6) {
-            showNotification('Password minimal 6 karakter', 'error');
+            showNotification('Password must be at least 6 characters', 'error');
             return;
         }
         if (password !== confirmation) {
-            showNotification('Konfirmasi password tidak cocok', 'error');
+            showNotification('Password confirmation does not match', 'error');
             return;
         }
 
@@ -888,13 +888,13 @@
             const data = await response.json();
 
             if (data.success) {
-                showNotification('Password berhasil diubah!', 'success');
+                showNotification('Password updated successfully!', 'success');
                 closeChangePasswordModal();
             } else {
-                showApiErrors(data, 'Gagal mengubah password');
+                showApiErrors(data, 'Failed to update password');
             }
         } catch (error) {
-            showNotification('Terjadi kesalahan, coba lagi', 'error');
+            showNotification('An error occurred, please try again', 'error');
         }
     }
 
@@ -911,7 +911,7 @@
             const data = await response.json();
             if (data.success) allRoles = data.data;
         } catch (e) {
-            showNotification('Gagal memuat daftar role', 'error');
+            showNotification('Failed to load roles', 'error');
         }
     }
 
@@ -953,7 +953,7 @@
         const checked = [...document.querySelectorAll('.cr-role-checkbox:checked')].map(cb => parseInt(cb.value));
 
         if (!checked.length) {
-            showNotification('Pilih minimal satu role', 'error');
+            showNotification('Please select at least one role', 'error');
             return;
         }
 
@@ -974,14 +974,14 @@
 
             if (data.success) {
                 const names = data.data.roles.map(r => r.name).join(', ');
-                showNotification(`Role berhasil diperbarui: ${names}`, 'success');
+                showNotification(`Role updated successfully: ${names}`, 'success');
                 closeChangeRoleModal();
                 fetchEmployees();
             } else {
-                showApiErrors(data, 'Gagal mengubah role');
+                showApiErrors(data, 'Failed to update role');
             }
         } catch (error) {
-            showNotification('Terjadi kesalahan, coba lagi', 'error');
+            showNotification('An error occurred, please try again', 'error');
         }
     }
 

@@ -9,6 +9,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\CustomerCredential;
 use Illuminate\Support\Facades\DB;
 
 class Customer extends Authenticatable
@@ -145,8 +146,18 @@ class Customer extends Authenticatable
     }
 
     /**
+     * Get the credential for the customer (one-to-one)
+     *
+     * @return HasOne
+     */
+    public function credential(): HasOne
+    {
+        return $this->hasOne(CustomerCredential::class, 'customer_id', 'customer_id');
+    }
+
+    /**
      * Get all attachments for the customer (one-to-many)
-     * 
+     *
      * @return HasMany
      */
     public function attachments(): HasMany

@@ -127,9 +127,39 @@
     </div>
 </div>
 
-<!-- Ticket List -->
-<div id="ticketsContainer" class="space-y-2">
-    <div id="ticketsListBody"></div>
+<!-- Ticket Table -->
+<div id="ticketsContainer" class="hidden">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="overflow-auto" style="max-height: calc(100vh - 360px); min-height: 200px;">
+            <table class="w-full text-sm border-collapse" style="min-width: 2200px;">
+                <thead class="sticky top-0 z-10 bg-gray-50">
+                    <tr>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 sticky left-0 bg-gray-50 z-20" style="min-width:110px;">Last Update</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 sticky bg-gray-50 z-20" style="min-width:120px;left:110px;">Tiket</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:260px;">Description</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Date</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:160px;">Customer</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">PIC</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:90px;">Priority</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Scale</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Status</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Jarvies Status</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Type</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Assign Delivery</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:140px;">Customer Mandays</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:170px;">Target Respon Time (Hour)</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Respon Time (Hour)</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Respon Time Status</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:170px;">Target Resolution Time</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:200px;">Due Date/Time Resolution Time</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:140px;">Resolution Time</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:160px;">Resolution Time Status</th>
+                    </tr>
+                </thead>
+                <tbody id="ticketsListBody" class="divide-y divide-gray-100 bg-white"></tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <!-- Loading State -->
@@ -223,28 +253,22 @@
 @endif
 
 <style>
-/* Ticket List Item */
-.ticket-list-item {
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.75rem;
-    padding: 1rem 1.25rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: block;
-    text-decoration: none;
-    color: inherit;
-}
-.ticket-list-item:hover {
-    background: #f9fafb;
-    border-color: #9ca3af;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    transform: translateY(-1px);
-}
-
 /* View Toggle */
 #btnViewAll, #btnViewMy { background: transparent; color: #6b7280; }
 #btnViewAll.active, #btnViewMy.active { background: white; color: #111827; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+/* Table rows */
+#ticketsListBody tr { cursor: pointer; transition: background 0.15s; }
+#ticketsListBody tr:hover { background: #fafafa; }
+
+/* Sticky columns */
+#ticketsListBody tr td:first-child,
+#ticketsListBody tr td:nth-child(2) {
+    z-index: 5;
+    box-shadow: 2px 0 4px rgba(0,0,0,0.04);
+}
+#ticketsListBody tr:hover td:first-child,
+#ticketsListBody tr:hover td:nth-child(2) { background: #fafafa; }
 </style>
 
 <script>
@@ -391,78 +415,124 @@
         const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
         const paginatedTickets = filteredTickets.slice(startIndex, endIndex);
 
-        listBody.innerHTML = paginatedTickets.map(ticket => createTicketCard(ticket)).join('');
+        listBody.innerHTML = paginatedTickets.map(ticket => createTicketRow(ticket)).join('');
         updatePaginationDisplay();
     }
 
-    function createTicketCard(ticket) {
+    function relativeTime(date) {
+        const now     = new Date();
+        const diffMs  = now - date;
+        const diffSec = Math.floor(diffMs / 1000);
+        const diffMin = Math.floor(diffSec / 60);
+        const diffHr  = Math.floor(diffMin / 60);
+        const diffDay = Math.floor(diffHr  / 24);
+        const diffWk  = Math.floor(diffDay / 7);
+        const diffMo  = Math.floor(diffDay / 30);
+        const diffYr  = Math.floor(diffDay / 365);
+
+        if (diffSec < 60)  return 'Just now';
+        if (diffMin === 1) return '1 minute ago';
+        if (diffMin < 60)  return `${diffMin} minutes ago`;
+        if (diffHr  === 1) return '1 hour ago';
+        if (diffHr  < 24)  return `${diffHr} hours ago`;
+        if (diffDay === 1) return 'Yesterday';
+        if (diffDay < 7)   return `${diffDay} days ago`;
+        if (diffWk  === 1) return '1 week ago';
+        if (diffWk  < 5)   return `${diffWk} weeks ago`;
+        if (diffMo  === 1) return '1 month ago';
+        if (diffMo  < 12)  return `${diffMo} months ago`;
+        if (diffYr  === 1) return '1 year ago';
+        return `${diffYr} years ago`;
+    }
+
+    function createTicketRow(ticket) {
         const customerName = ticket.customer?.customer_name || 'Unknown';
         const lastActivity = new Date(ticket.last_message_at || ticket.created_at);
-        const timeStr = formatTimeAgo(lastActivity);
-        const timeTitle = lastActivity.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-        const description = ticket.description || 'No description';
-        const shortDesc = description.length > 100 ? description.substring(0, 100) + '...' : description;
-        const agentName = ticket.employee?.employee_name || 'Unassigned';
+        const createdAt    = new Date(ticket.created_at);
+        const endDate      = ticket.end_date ? new Date(ticket.end_date) : null;
 
-        const priorityColors = { 'Very High': 'bg-purple-100 text-purple-700', 'High': 'bg-red-100 text-red-700', 'Medium': 'bg-blue-100 text-blue-700', 'Low': 'bg-green-100 text-green-700' };
-        const priorityClass = priorityColors[ticket.ticket_priority] || 'bg-gray-100 text-gray-700';
+        const fmt    = d => d.toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' });
+        const fmtDT  = d => d.toLocaleString('en-GB',    { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+
+        const lastUpdateStr = relativeTime(lastActivity);
+        const lastUpdateTitle = fmtDT(lastActivity);
+        const dateStr       = fmt(createdAt);
+        const endDateStr    = endDate ? fmt(endDate) : '—';
+
+        const agentName = ticket.employee?.employee_name || '<span class="text-gray-400">Unassigned</span>';
+
+        const priorityColors = {
+            'Very High': 'bg-purple-100 text-purple-700',
+            'High':      'bg-red-100 text-red-700',
+            'Medium':    'bg-blue-100 text-blue-700',
+            'Low':       'bg-green-100 text-green-700'
+        };
+        const priorityClass = priorityColors[ticket.ticket_priority] || 'bg-gray-100 text-gray-500';
+        const priorityLabel = ticket.ticket_priority || '—';
 
         const statusMap = {
-            'open': { label: 'Open', class: 'bg-blue-50 text-blue-700' },
-            'in_progress': { label: 'In Progress', class: 'bg-yellow-50 text-yellow-700' },
-            'hold': { label: 'Hold', class: 'bg-orange-50 text-orange-700' },
-            'wait_to_close': { label: 'Wait to Close', class: 'bg-teal-50 text-teal-700' },
-            'cancel': { label: 'Cancel', class: 'bg-gray-100 text-gray-500' },
-            'closed': { label: 'Closed', class: 'bg-green-50 text-green-700' },
-            'reply': { label: 'Reply', class: 'bg-purple-50 text-purple-700' }
+            'open':          { label: 'Open',          cls: 'bg-blue-50 text-blue-700' },
+            'in_progress':   { label: 'In Progress',   cls: 'bg-yellow-50 text-yellow-700' },
+            'hold':          { label: 'Hold',           cls: 'bg-orange-50 text-orange-700' },
+            'wait_to_close': { label: 'Wait to Close', cls: 'bg-teal-50 text-teal-700' },
+            'cancel':        { label: 'Cancel',         cls: 'bg-gray-100 text-gray-500' },
+            'closed':        { label: 'Closed',         cls: 'bg-green-50 text-green-700' },
+            'reply':         { label: 'Reply',          cls: 'bg-purple-50 text-purple-700' },
         };
-        const statusInfo = statusMap[ticket.status] || { label: 'Open', class: 'bg-gray-100 text-gray-600' };
-
-        const typeColors = {
-            'Incident': 'bg-red-50 text-red-600',
-            'Service Request': 'bg-indigo-50 text-indigo-600',
-            'Change Request': 'bg-amber-50 text-amber-600',
-            'Consult': 'bg-teal-50 text-teal-600'
-        };
-        const typeLabel = ticket.ticket_type || '—';
-        const typeClass = typeColors[ticket.ticket_type] || 'bg-gray-100 text-gray-500';
-
         const jarviesMap = {
-            'in process':        { label: 'In Process',        class: 'bg-blue-50 text-blue-600' },
-            'author action':     { label: 'Author Action',     class: 'bg-amber-50 text-amber-600' },
-            'proposed solution': { label: 'Proposed Solution', class: 'bg-purple-50 text-purple-600' },
-            'sent in to SAP':    { label: 'Sent to SAP',       class: 'bg-indigo-50 text-indigo-600' },
-            'sent it to support':{ label: 'To Support',        class: 'bg-cyan-50 text-cyan-600' },
-            'closed':            { label: 'Closed',            class: 'bg-green-50 text-green-700' },
+            'in process':         { label: 'In Process',        cls: 'bg-blue-50 text-blue-600' },
+            'author action':      { label: 'Author Action',     cls: 'bg-amber-50 text-amber-600' },
+            'proposed solution':  { label: 'Proposed Solution', cls: 'bg-purple-50 text-purple-600' },
+            'sent in to SAP':     { label: 'Sent to SAP',       cls: 'bg-indigo-50 text-indigo-600' },
+            'sent it to support': { label: 'To Support',        cls: 'bg-cyan-50 text-cyan-600' },
+            'closed':             { label: 'Closed',            cls: 'bg-green-50 text-green-700' },
         };
-        const jarviesInfo = jarviesMap[ticket.jarvies_status] || { label: ticket.jarvies_status || '—', class: 'bg-gray-100 text-gray-500' };
+        const typeColors = {
+            'Incident':       'bg-red-50 text-red-600',
+            'Service Request':'bg-indigo-50 text-indigo-600',
+            'Change Request': 'bg-amber-50 text-amber-600',
+            'Consult':        'bg-teal-50 text-teal-600',
+        };
 
-        return `
-            <a href="/ticket/${ticket.ticket_id}" class="ticket-list-item">
-                <div class="flex items-start gap-3">
-                    <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(customerName)}&background=6b7280&color=fff&size=40&rounded=true"
-                         alt="${customerName}" class="w-10 h-10 rounded-full flex-shrink-0 mt-0.5">
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center justify-between gap-2 mb-0.5">
-                            <span class="text-sm font-semibold text-gray-900 truncate">${customerName}</span>
-                            <span class="text-xs text-gray-400 flex-shrink-0" title="${timeTitle}">${timeStr}</span>
-                        </div>
-                        <p class="text-sm text-gray-700 font-medium truncate mb-1.5">${ticket.ticket_number || 'No Number'} — ${shortDesc}</p>
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${statusInfo.class}">${statusInfo.label}</span>
-                            <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${jarviesInfo.class}">${jarviesInfo.label}</span>
-                            <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${typeClass}">${typeLabel}</span>
-                            <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${priorityClass}">${ticket.ticket_priority || 'Medium'}</span>
-                            <span class="text-[10px] text-gray-400">${agentName}</span>
-                        </div>
-                    </div>
-                    <div class="flex-shrink-0 mt-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-gray-300">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                        </svg>
-                    </div>
-                </div>
-            </a>`;
+        const sInfo = statusMap[ticket.status]          || { label: ticket.status          || '—', cls: 'bg-gray-100 text-gray-500' };
+        const jInfo = jarviesMap[ticket.jarvies_status] || { label: ticket.jarvies_status  || '—', cls: 'bg-gray-100 text-gray-500' };
+        const typeLabel = ticket.ticket_type || '—';
+        const typeCls   = typeColors[ticket.ticket_type] || 'bg-gray-100 text-gray-500';
+
+        const mandays = ticket.man_days != null ? ticket.man_days : '—';
+
+        const badge = (label, cls) => `<span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${cls}">${label}</span>`;
+        const cell  = (content, extraCls = '') => `<td class="px-3 py-2.5 text-sm text-gray-700 whitespace-nowrap ${extraCls}">${content}</td>`;
+        const dash  = () => `<td class="px-3 py-2.5 text-sm text-gray-300 whitespace-nowrap">—</td>`;
+
+        return `<tr onclick="window.location='/ticket/${ticket.ticket_id}'">
+            <td class="px-3 py-2.5 whitespace-nowrap sticky left-0 bg-white" title="${lastUpdateTitle}">
+                <span class="text-xs text-gray-500">${lastUpdateStr}</span>
+            </td>
+            <td class="px-3 py-2.5 whitespace-nowrap sticky bg-white border-r border-gray-100" style="left:110px;">
+                <span class="font-mono text-xs font-semibold text-gray-800">${ticket.ticket_number || '—'}</span>
+            </td>
+            <td class="px-3 py-2.5 text-sm text-gray-700" style="min-width:260px;max-width:320px;">
+                <span class="block truncate" title="${(ticket.description||'').replace(/"/g,'&quot;')}">${ticket.description || '—'}</span>
+            </td>
+            ${cell(dateStr)}
+            ${cell(`<span class="font-medium text-gray-900">${customerName}</span>`)}
+            ${cell(ticket.employee?.employee_name || '<span class="text-gray-400 text-xs">Unassigned</span>')}
+            ${cell(badge(priorityLabel, priorityClass))}
+            ${dash()}
+            ${cell(badge(sInfo.label, sInfo.cls))}
+            ${cell(ticket.jarvies_status ? badge(jInfo.label, jInfo.cls) : '<span class="text-gray-300">—</span>')}
+            ${cell(ticket.ticket_type ? badge(typeLabel, typeCls) : '—')}
+            ${dash()}
+            ${cell(mandays !== '—' ? `<span class="font-medium">${mandays}</span>` : '—')}
+            ${dash()}
+            ${dash()}
+            ${dash()}
+            ${dash()}
+            ${cell(endDateStr)}
+            ${dash()}
+            ${dash()}
+        </tr>`;
     }
 
     function updatePaginationDisplay() {
@@ -510,7 +580,7 @@
         filterValue.innerHTML = '<option value="">Select value</option>';
 
         const options = {
-            'jarvies_status': ['in process', 'author action', 'proposed solution', 'closed', 'sent in to SAP', 'sent it to support'],
+            'jarvies_status': ['sent it to support', 'in process', 'author action', 'proposed solution', 'closed', 'sent in to SAP'],
             'status': ['open', 'in_progress', 'hold', 'wait_to_close', 'cancel', 'closed', 'reply'],
             'ticket_type': ['Incident', 'Service Request', 'Change Request', 'Consult'],
             'priority': ['Very High', 'High', 'Medium', 'Low']
