@@ -372,12 +372,16 @@ function fillModal(s) {
     }
 
     // ── Message body (email iframe OR web body/description) ──
-    // Both channels use an iframe for consistent rendering
+    // Both channels use an iframe for consistent rendering.
+    // hasEmailSource = true jika ticket ini punya email di Graph (channel email ATAU web + graph_message_id).
+    // Dalam kasus ini, body ditampilkan via previewBody agar inline images bisa di-resolve.
+    const hasEmailSource = isEmail || !!(s.graph_message_id);
+    const hasEmailBody   = !!(s.email_body_html);
     let contentHtml = '';
-    const bodySource = isEmail ? s.email_body_html : (s.body || null);
-    const bodyLabel  = isEmail ? 'Email Body' : 'Message Body';
+    const bodySource = hasEmailBody ? s.email_body_html : (s.body || null);
+    const bodyLabel  = hasEmailSource ? 'Email Body' : 'Message Body';
 
-    if (bodySource) {
+    if (bodySource || (hasEmailSource && s.graph_message_id)) {
         contentHtml = `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
             <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
                 <i class="fas fa-envelope-open text-gray-400 text-xs"></i>
@@ -397,40 +401,21 @@ function fillModal(s) {
         </div>`;
     }
 
-    // ── Attachments (web uploads from Jarvies) ──
+    // ── Attachments (web uploads from Jarvies local storage) ──
     let attachmentsHtml = '';
     const webAttachments = Array.isArray(s.attachments) ? s.attachments : [];
     if (webAttachments.length > 0) {
-        const mimeIcon = (mime) => {
-            if (!mime) return 'fa-file';
-            if (mime.startsWith('image/')) return 'fa-file-image';
-            if (mime === 'application/pdf') return 'fa-file-pdf';
-            if (mime.includes('word')) return 'fa-file-word';
-            if (mime.includes('excel') || mime.includes('spreadsheet')) return 'fa-file-excel';
-            if (mime.includes('zip') || mime.includes('compressed')) return 'fa-file-archive';
-            return 'fa-file-alt';
-        };
-        const fmtSize = (bytes) => {
-            if (!bytes) return '';
-            if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-        };
-        const fileList = webAttachments.map(f => `
-            <a href="${escHtml(f.url)}" target="_blank" rel="noopener"
-               class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0 group">
-                <i class="fas ${mimeIcon(f.mime_type)} text-gray-400 group-hover:text-red-500 text-base w-5 text-center flex-shrink-0"></i>
-                <span class="text-sm text-gray-800 truncate flex-1">${escHtml(f.original_name || f.file_name)}</span>
-                <span class="text-xs text-gray-400 flex-shrink-0">${fmtSize(f.file_size)}</span>
-                <i class="fas fa-download text-gray-300 group-hover:text-red-500 text-xs flex-shrink-0"></i>
-            </a>`).join('');
-        attachmentsHtml = `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
+        attachmentsHtml = buildAttachmentsBlock(webAttachments, 'local');
+    } else if (s.graph_message_id) {
+        // Placeholder — email attachments loaded lazily after DOM insert
+        attachmentsHtml = `<div id="emailAttachmentsBlock" class="border border-gray-200 rounded-xl overflow-hidden mb-5">
             <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
                 <i class="fas fa-paperclip text-gray-400 text-xs"></i>
                 <span class="text-xs font-semibold text-gray-500">Attachments</span>
-                <span class="ml-auto text-xs text-gray-400">${webAttachments.length} file${webAttachments.length !== 1 ? 's' : ''}</span>
             </div>
-            ${fileList}
+            <div class="px-4 py-3 text-xs text-gray-400 flex items-center gap-2">
+                <i class="fas fa-spinner fa-spin"></i> Loading attachments…
+            </div>
         </div>`;
     }
 
@@ -509,6 +494,11 @@ function fillModal(s) {
     document.getElementById('modalBody').innerHTML =
         metaHtml + validationHtml + rejectAreaHtml + contentHtml + attachmentsHtml;
 
+    // ── Lazy-load email attachments from Graph if no local attachments ──
+    if (!webAttachments.length && s.graph_message_id) {
+        loadEmailAttachments(s.id);
+    }
+
     // Set iframe srcdoc after DOM is updated (works for both email and web body)
     if (bodySource) {
         const iframe = document.getElementById('emailBodyIframe');
@@ -552,6 +542,7 @@ function fillModal(s) {
                     return att ? `src="${att.url}"` : match;
                 });
                 setIframeContent(resolved);
+                }).catch(() => { if (bodySource) setIframeContent(bodySource); });
             } else {
                 setIframeContent(bodySource);
             }
@@ -577,6 +568,80 @@ function renderFooter(s) {
     } else {
         footer.innerHTML = `
             <button onclick="closeModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Close</button>`;
+    }
+}
+
+// ─── Attachment helpers ───────────────────────────────────────────────────────
+
+function mimeIcon(mime) {
+    if (!mime) return 'fa-file';
+    if (mime.startsWith('image/')) return 'fa-file-image';
+    if (mime === 'application/pdf') return 'fa-file-pdf';
+    if (mime.includes('word')) return 'fa-file-word';
+    if (mime.includes('excel') || mime.includes('spreadsheet')) return 'fa-file-excel';
+    if (mime.includes('zip') || mime.includes('compressed')) return 'fa-file-archive';
+    return 'fa-file-alt';
+}
+
+function fmtSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+/**
+ * Build the attachments card HTML from an array of attachment objects.
+ * source = 'local' (from staging_attachments) or 'email' (from Graph)
+ */
+function buildAttachmentsBlock(files, source = 'local') {
+    if (!files.length) return '';
+    const fileList = files.map(f => {
+        const name     = escHtml(f.original_name || f.name || f.file_name || 'attachment');
+        const mime     = f.mime_type || f.content_type || f.contentType || '';
+        const size     = fmtSize(f.file_size || f.size);
+        const url      = escHtml(f.url || '#');
+        const icon     = mimeIcon(mime);
+        const isImage  = mime.startsWith('image/');
+        const preview  = isImage
+            ? `<img src="${url}" alt="${name}" class="max-h-32 max-w-full rounded object-contain border border-gray-200 mt-2" onerror="this.remove()">`
+            : '';
+        return `<div class="border-b border-gray-100 last:border-0">
+            <a href="${url}" target="_blank" rel="noopener"
+               class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors group">
+                <i class="fas ${icon} text-gray-400 group-hover:text-red-500 text-base w-5 text-center flex-shrink-0"></i>
+                <span class="text-sm text-gray-800 truncate flex-1">${name}</span>
+                ${size ? `<span class="text-xs text-gray-400 flex-shrink-0">${size}</span>` : ''}
+                <i class="fas fa-download text-gray-300 group-hover:text-red-500 text-xs flex-shrink-0"></i>
+            </a>
+            ${preview ? `<div class="px-4 pb-3">${preview}</div>` : ''}
+        </div>`;
+    }).join('');
+
+    const label = source === 'email' ? 'Email Attachments' : 'Attachments';
+    return `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
+        <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+            <i class="fas fa-paperclip text-gray-400 text-xs"></i>
+            <span class="text-xs font-semibold text-gray-500">${label}</span>
+            <span class="ml-auto text-xs text-gray-400">${files.length} file${files.length !== 1 ? 's' : ''}</span>
+        </div>
+        ${fileList}
+    </div>`;
+}
+
+async function loadEmailAttachments(stagingId) {
+    const block = document.getElementById('emailAttachmentsBlock');
+    if (!block) return;
+    try {
+        const res = await apiFetch(`/api/staging-tickets/${stagingId}/email-attachments`);
+        const atts = res.data ?? [];
+        if (atts.length === 0) {
+            block.remove();
+        } else {
+            block.outerHTML = buildAttachmentsBlock(atts, 'email');
+        }
+    } catch {
+        if (block) block.remove();
     }
 }
 
@@ -693,11 +758,7 @@ function showNotif(msg, type = 'info') {
     showToast(msg, type);
 }
 
-// ─── Refresh (fetch email + reload list) ─────────────────────────────────────
-async function handleRefresh() {
-    await fetchEmailInbox(false);
-}
-
+// ─── Fetch Email (Inbox + Sent Items) ────────────────────────────────────────
 async function fetchEmailInbox(silent = false) {
     const btn    = document.getElementById('btnRefresh');
     const status = document.getElementById('fetchEmailStatus');
@@ -706,34 +767,54 @@ async function fetchEmailInbox(silent = false) {
     if (status) { status.textContent = 'Refreshing...'; }
 
     const ts = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-    console.log(`[FetchEmail] ${ts} — Memulai fetch inbox${silent ? ' (auto-poll)' : ' (manual)'}`);
+    console.log(`[FetchEmail] ${ts} — Memulai fetch${silent ? ' (auto-poll)' : ' (manual)'}`);
+
+    const postJson = (url) => fetch(url, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+        credentials: 'same-origin',
+    }).then(r => r.json());
 
     try {
-        const res  = await fetch('/api/email/process-inbox', {
-            method: 'POST',
-            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
-            credentials: 'same-origin',
-        });
-        const data = await res.json();
-        const now  = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
+        // Jalankan kedua fetch secara paralel
+        const [inboxData, sentData] = await Promise.allSettled([
+            postJson('/api/email/process-inbox'),
+            postJson('/api/email/process-sent'),
+        ]);
 
-        if (data.status === 'error') {
-            console.error(`[FetchEmail] ${ts} — ERROR:`, data.message ?? 'Unknown error');
-            if (!silent) showNotif('Fetch failed: ' + (data.message ?? 'Unknown error'), 'error');
-            if (status) status.textContent = `Error ${now} (WIB)`;
-        } else {
-            const processed = data.processed ?? 0;
-            const skipped   = data.skipped   ?? 0;
-            console.log(`[FetchEmail] ${ts} — Selesai. Diproses: ${processed}, Dilewati: ${skipped}`);
-            if (data.errors?.length) {
-                console.warn(`[FetchEmail] ${ts} — Errors:`, data.errors);
-            }
-            // Selalu tampilkan toast saat ada email baru, termasuk saat auto-poll (silent=true)
-            if (processed > 0) showNotif(`${processed} new email(s) added to staging.`, 'success');
+        const now = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
+
+        const inbox = inboxData.status === 'fulfilled' ? inboxData.value : {};
+        const sent  = sentData.status  === 'fulfilled' ? sentData.value  : {};
+
+        if (inboxData.status === 'rejected') console.error(`[FetchEmail] process-inbox failed:`, inboxData.reason);
+        if (sentData.status  === 'rejected') console.error(`[FetchEmail] process-sent failed:`, sentData.reason);
+
+        const newFromInbox = inbox.processed ?? 0;
+        const linkedSent   = sent.linked     ?? 0;
+
+        console.log(`[FetchEmail] ${ts} — Inbox: ${newFromInbox} new | Sent: ${linkedSent} linked (total scanned: ${sent.total ?? '?'})`);
+        if (inbox.errors?.length) console.warn(`[FetchEmail] Inbox errors:`, inbox.errors);
+        if (sent.errors?.length)  console.warn(`[FetchEmail] Sent errors:`, sent.errors);
+        if (!sent.success && sent.message) console.warn(`[FetchEmail] process-sent error:`, sent.message);
+
+        const hasChanges = newFromInbox > 0 || linkedSent > 0;
+
+        if (!silent || hasChanges) {
+            const parts = [];
+            if (newFromInbox > 0) parts.push(`${newFromInbox} new ticket(s) from inbox`);
+            if (linkedSent > 0)   parts.push(`${linkedSent} staging(s) linked to sent email`);
+            if (parts.length > 0) showNotif(parts.join(', ') + '.', 'success');
             else if (!silent) showNotif('No new emails.', 'info');
-            if (status) status.textContent = `Updated ${now} (WIB)${processed > 0 ? ` · ${processed} new` : ''}`;
-            if (processed > 0) { loadStagingTickets(); loadStats(); }
         }
+
+        const statusParts = [];
+        if (newFromInbox > 0) statusParts.push(`${newFromInbox} inbox`);
+        if (linkedSent > 0)   statusParts.push(`${linkedSent} linked`);
+        if (status) status.textContent = `Updated ${now} (WIB)${statusParts.length ? ' · ' + statusParts.join(', ') : ''}`;
+
+        if (hasChanges) { loadStagingTickets(); loadStats(); }
+
     } catch (err) {
         const now = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
         console.error(`[FetchEmail] ${ts} — Exception:`, err);

@@ -9,8 +9,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('ticket_message', function (Blueprint $table) {
-            $table->json('mentioned_employee_ids')->nullable()->after('cc_emails');
-            $table->json('mentioned_role_ids')->nullable()->after('mentioned_employee_ids');
+            if (!Schema::hasColumn('ticket_message', 'mentioned_employee_ids')) {
+                $table->json('mentioned_employee_ids')->nullable()->after('cc_emails');
+            }
+            if (!Schema::hasColumn('ticket_message', 'mentioned_role_ids')) {
+                $table->json('mentioned_role_ids')->nullable()->after('mentioned_employee_ids');
+            }
         });
     }
 

@@ -18,9 +18,11 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('ticket', function (Blueprint $table) {
-            $table->json('cc_emails')->nullable()->after('email_thread_id');
-        });
+        if (!Schema::hasColumn('ticket', 'cc_emails')) {
+            Schema::table('ticket', function (Blueprint $table) {
+                $table->json('cc_emails')->nullable()->after('email_thread_id');
+            });
+        }
     }
 
     public function down(): void

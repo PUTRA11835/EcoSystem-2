@@ -18,10 +18,11 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('staging_tickets', function (Blueprint $table) {
-            // HTML body dari Quill editor (Jarvies web form)
-            $table->longText('body')->nullable()->after('description');
-        });
+        if (!Schema::hasColumn('staging_tickets', 'body')) {
+            Schema::table('staging_tickets', function (Blueprint $table) {
+                $table->longText('body')->nullable()->after('description');
+            });
+        }
     }
 
     public function down(): void
