@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use App\Models\Customer;
+use App\Models\StagingAttachment;
 use App\Models\StagingTicket;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
@@ -10,6 +12,7 @@ use App\Services\StagingTicketService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * StagingTicketController
@@ -39,7 +42,7 @@ class StagingTicketController extends Controller
         ];
 
         // Hanya admin (1) dan helpdesk (6,7) yang boleh akses
-        if (!in_array($user->role->role_id, [1, 2, 6, 7])) {
+        if (!in_array($user->role->role_id, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
             abort(403, 'Unauthorized');
         }
 
@@ -56,7 +59,7 @@ class StagingTicketController extends Controller
             'role' => (object) ['role_id' => $sessionUser['role']['id'] ?? 0],
         ];
 
-        if (!in_array($user->role->role_id, [1, 2, 6, 7])) {
+        if (!in_array($user->role->role_id, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
             abort(403, 'Unauthorized');
         }
 
@@ -78,7 +81,7 @@ class StagingTicketController extends Controller
 
         $roleId = $sessionUser['role']['id'];
 
-        if (in_array($roleId, [1, 2, 3, 6, 7])) {
+        if (in_array($roleId, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value, RoleId::CUSTOMER->value], RoleId::HELPDESK_GROUP), true)) {
             $query = StagingTicket::query();
         } else {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
@@ -119,7 +122,7 @@ class StagingTicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $staging = StagingTicket::with(['customer.basicData', 'validator.basicData', 'ticket'])
+        $staging = StagingTicket::with(['customer.basicData', 'validator.basicData', 'ticket', 'attachments'])
             ->findOrFail($id);
 
         return response()->json(['success' => true, 'data' => $this->formatStaging($staging)]);
@@ -171,6 +174,85 @@ class StagingTicketController extends Controller
         }
     }
 
+    // ─── API: JARVIES external submit (via X-Api-Key, tanpa session) ─────────
+
+    /**
+     * POST /jarvies/staging-tickets
+     * Dipanggil oleh JARVIES saat customer submit tiket dari portal mereka.
+     * Autentikasi via X-Api-Key middleware (bukan session).
+     * customer_id diambil dari payload, bukan dari session.
+     */
+    public function jarviesStore(Request $request)
+    {
+        $validated = $request->validate([
+            'description'        => 'required|string|max:5000',
+            'body'               => 'nullable|string',
+            'ticket_priority'    => 'nullable|in:Very High,High,Medium,Low',
+            'sender_name'        => 'nullable|string|max:255',
+            'submitted_by_email' => 'nullable|email|max:255',
+            'cc_emails'          => 'nullable|string',    // JSON string dari JARVIES
+            'customer_id'        => 'required|integer',
+            'contact_id'         => 'nullable|integer',
+            'name'               => 'nullable|string|max:255',
+            'no_hp'              => 'nullable|string|max:255',
+            'module'             => 'nullable|string|max:255',
+            'client'             => 'nullable|string|max:255',
+            // Checklist J: attachment dari web form (opsional, multipart/form-data)
+            'attachments'        => 'nullable|array',
+            'attachments.*'      => 'file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,xlsx,xls,zip',
+        ]);
+
+        try {
+            // Decode cc_emails jika dikirim sebagai JSON string
+            if (isset($validated['cc_emails']) && is_string($validated['cc_emails'])) {
+                $decoded = json_decode($validated['cc_emails'], true);
+                if (is_array($decoded)) {
+                    $validated['cc_emails'] = $decoded;
+                }
+            }
+
+            $staging = $this->service->createFromWeb($validated, (int) $validated['customer_id']);
+
+            // Simpan attachment jika ada (Checklist J)
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $file) {
+                    $fileName = time() . '_' . $file->getClientOriginalName();
+                    $filePath = $file->storeAs('staging_attachments/' . $staging->id, $fileName, 'public');
+
+                    StagingAttachment::create([
+                        'staging_id'    => $staging->id,
+                        'file_name'     => $fileName,
+                        'file_path'     => $filePath,
+                        'file_size'     => $file->getSize(),
+                        'mime_type'     => $file->getMimeType(),
+                        'original_name' => $file->getClientOriginalName(),
+                    ]);
+                }
+            }
+
+            Log::info('StagingTicketController@jarviesStore: staging created from JARVIES', [
+                'staging_id'       => $staging->id,
+                'customer_id'      => $validated['customer_id'],
+                'attachment_count' => $request->hasFile('attachments') ? count($request->file('attachments')) : 0,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'id'      => $staging->id,
+                'message' => 'Staging ticket created successfully',
+            ], 201);
+
+        } catch (\Exception $e) {
+            Log::error('StagingTicketController@jarviesStore: gagal simpan staging', [
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to submit ticket: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     // ─── API: Admin approve ───────────────────────────────────────────────────
 
     /**
@@ -185,7 +267,7 @@ class StagingTicketController extends Controller
         }
 
         $roleId = $sessionUser['role']['id'];
-        if (!in_array($roleId, [1, 2, 6, 7])) {
+        if (!in_array($roleId, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -264,7 +346,7 @@ class StagingTicketController extends Controller
         }
 
         $roleId = $sessionUser['role']['id'];
-        if (!in_array($roleId, [1, 2, 6, 7])) {
+        if (!in_array($roleId, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -340,7 +422,7 @@ class StagingTicketController extends Controller
     public function statistics()
     {
         $sessionUser = session('user');
-        if (!$sessionUser || !in_array($sessionUser['role']['id'], [1, 2, 6, 7])) {
+        if (!$sessionUser || !in_array($sessionUser['role']['id'], array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -487,6 +569,19 @@ class StagingTicketController extends Controller
             $validatorName = $bd ? trim(($bd->first_name ?? '') . ' ' . ($bd->last_name ?? '')) : null;
         }
 
+        // Attachments (dari staging_attachments — web/Jarvies uploads)
+        $attachments = [];
+        if ($s->relationLoaded('attachments')) {
+            $attachments = $s->attachments->map(fn ($a) => [
+                'id'            => $a->id,
+                'original_name' => $a->original_name,
+                'file_name'     => $a->file_name,
+                'file_size'     => $a->file_size,
+                'mime_type'     => $a->mime_type,
+                'url'           => $a->public_url,
+            ])->toArray();
+        }
+
         return [
             'id'                  => $s->id,
             'customer_id'         => $s->customer_id,
@@ -495,6 +590,7 @@ class StagingTicketController extends Controller
             'sender_name'         => $s->sender_name,
             'cc_emails'           => $s->cc_emails,
             'description'         => $s->description,
+            'body'                => $s->body,           // ← full message body dari Jarvies/web form
             'ticket_priority'     => $s->ticket?->ticket_priority ?? $s->ticket_priority,
             'ticket_type'         => $s->ticket?->ticket_type,
             'status'              => $s->status,
@@ -502,7 +598,7 @@ class StagingTicketController extends Controller
             'channel'             => $s->channel,
             'email_thread_id'     => $s->email_thread_id,
             'email_body_html'     => $s->email_body_html,
-            'has_attachments'     => $s->has_attachments,
+            'has_attachments'     => $s->has_attachments || count($attachments) > 0,
             'graph_message_id'    => $s->graph_message_id,
             'validated_by'        => $s->validated_by,
             'validator_name'      => $validatorName,
@@ -510,6 +606,7 @@ class StagingTicketController extends Controller
             'ticket_id'           => $s->ticket_id,
             'ticket_number'       => $s->ticket?->ticket_number,
             'created_at'          => $s->created_at?->toDateTimeString(),
+            'attachments'         => $attachments,       // ← file attachments (web uploads)
             // Field tambahan
             'name'                => $s->name,
             'no_hp'               => $s->no_hp,

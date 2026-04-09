@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use App\Models\Customer;
 use App\Models\StagingTicket;
 use App\Models\Ticket;
@@ -333,6 +334,19 @@ class EmailController extends Controller
                         $ticket = Ticket::whereHas('messages', function ($q) use ($internetMsgId) {
                             $q->where('email_message_id', $internetMsgId);
                         })->first();
+                    }
+                    // Fallback: cek staging yang sudah approved dengan thread yang sama
+                    // Ini menangani kasus di mana customer membalas email pada tiket yang
+                    // sudah diapprove dari staging — ticket.email_thread_id mungkin sudah ter-set
+                    // tapi bisa juga tidak ter-index. Cek via staging sebagai jembatan.
+                    if (!$ticket && $conversationId) {
+                        $approvedStaging = \App\Models\StagingTicket::where('email_thread_id', $conversationId)
+                            ->where('status', 'approved')
+                            ->whereNotNull('ticket_id')
+                            ->first();
+                        if ($approvedStaging) {
+                            $ticket = Ticket::find($approvedStaging->ticket_id);
+                        }
                     }
 
                     // Cari customer: cek customer.email dulu, fallback ke auth_users.email
@@ -672,7 +686,7 @@ class EmailController extends Controller
     public function reprocessAttachments(Request $request, int $messageId)
     {
         $sessionUser = session('user');
-        if (!$sessionUser || !in_array($sessionUser['role']['id'], [1, 2, 6, 7])) {
+        if (!$sessionUser || !in_array($sessionUser['role']['id'], array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 

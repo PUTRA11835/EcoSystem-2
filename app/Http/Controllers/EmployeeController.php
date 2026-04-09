@@ -445,7 +445,7 @@ class EmployeeController extends Controller
             
             return response()->json([
                 'success' => false,
-                'message' => 'Validation error',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -612,7 +612,7 @@ class EmployeeController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Validation error',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -795,7 +795,7 @@ class EmployeeController extends Controller
         }
     }
 
-    public function getRoles()
+public function getRoles()
     {
         try {
             $roles = DB::table('employee_role')->select('id', 'name', 'description')->orderBy('id')->get();
@@ -839,7 +839,7 @@ class EmployeeController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation error',
+                'message' => $validator->errors()->first(),
                 'errors'  => $validator->errors(),
             ], 422);
         }
@@ -909,7 +909,7 @@ class EmployeeController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation error',
+                'message' => $validator->errors()->first(),
                 'errors'  => $validator->errors(),
             ], 422);
         }

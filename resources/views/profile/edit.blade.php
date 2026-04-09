@@ -411,8 +411,7 @@
 
                             <div>
                                 <button type="button" onclick="confirmChangePassword()"
-                                        class="inline-flex items-center gap-2 px-7 py-3.5 bg-gradient-to-r from-red-800 to-red-900 text-white text-sm font-bold rounded-xl transition-all hover:shadow-lg hover:shadow-red-900/30 hover:-translate-y-0.5 active:translate-y-0">
-                                    <i class="fas fa-key"></i>
+                                        class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                                     Change Password
                                 </button>
                             </div>
@@ -475,12 +474,11 @@
         </div>
         <div class="border-t border-gray-100 px-7 py-4 flex justify-end gap-3 bg-gray-50">
             <button onclick="closeModal()"
-                    class="px-6 py-2.5 text-sm font-bold text-gray-700 border-2 border-gray-200 rounded-xl hover:bg-white transition-all">
+                    class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                 Cancel
             </button>
             <button id="confirmBtn" onclick="submitChangePassword()"
-                    class="px-6 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-red-800 to-red-900 rounded-xl hover:shadow-lg transition-all flex items-center gap-2">
-                <i class="fas fa-key"></i>
+                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Yes, Change Password
             </button>
         </div>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use App\Models\Ticket;
 use App\Models\Customer;
 use Illuminate\Http\Request;
@@ -48,7 +49,7 @@ class TicketViewController extends Controller
 
         // Get customers for Admin create ticket dropdown
         $customers = [];
-        if ($user->role->role_id == 1) {
+        if ($user->role->role_id === RoleId::ADMIN->value) {
             $customers = Customer::with('basicData')
                 ->where('is_active', true)
                 ->get()

@@ -489,14 +489,20 @@ class TicketMessageController extends Controller
             // Bungkus pesan customer dalam template email yang proper
             $relayBody = $this->buildCustomerRelayHtml($messageBody, $ticket, $senderName);
 
-            // Ambil CC dari pesan email pertama tiket (agar CC tetap dikirimi balasan)
-            $firstEmailMsg = TicketMessage::where('ticket_id', $ticket->ticket_id)
-                ->whereNotNull('cc_emails')
-                ->orderBy('created_at', 'asc')
-                ->first();
-            $ccList = $firstEmailMsg?->cc_emails
-                ? json_decode($firstEmailMsg->cc_emails, true)
-                : [];
+            // Ambil CC: utamakan ticket.cc_emails (sumber terpercaya), fallback ke pesan pertama
+            $ccList = [];
+            if (!empty($ticket->cc_emails)) {
+                $ccList = is_array($ticket->cc_emails) ? $ticket->cc_emails : (json_decode($ticket->cc_emails, true) ?? []);
+            }
+            if (empty($ccList)) {
+                $firstEmailMsg = TicketMessage::where('ticket_id', $ticket->ticket_id)
+                    ->whereNotNull('cc_emails')
+                    ->orderBy('created_at', 'asc')
+                    ->first();
+                $ccList = $firstEmailMsg?->cc_emails
+                    ? (is_array($firstEmailMsg->cc_emails) ? $firstEmailMsg->cc_emails : (json_decode($firstEmailMsg->cc_emails, true) ?? []))
+                    : [];
+            }
 
             $emailController = new EmailController();
             $result = $emailController->sendTicketReply(
@@ -611,14 +617,20 @@ class TicketMessageController extends Controller
                 ->first();
             $inReplyTo = $lastEmailMsg?->email_message_id;
 
-            // CC dari pesan pertama yang menyertakan cc_emails
-            $firstMsgWithCc = TicketMessage::where('ticket_id', $ticketId)
-                ->whereNotNull('cc_emails')
-                ->orderBy('created_at', 'asc')
-                ->first();
-            $ccList = $firstMsgWithCc?->cc_emails
-                ? json_decode($firstMsgWithCc->cc_emails, true)
-                : [];
+            // Ambil CC: utamakan ticket.cc_emails (sumber terpercaya), fallback ke pesan pertama
+            $ccList = [];
+            if (!empty($ticket->cc_emails)) {
+                $ccList = is_array($ticket->cc_emails) ? $ticket->cc_emails : (json_decode($ticket->cc_emails, true) ?? []);
+            }
+            if (empty($ccList)) {
+                $firstMsgWithCc = TicketMessage::where('ticket_id', $ticketId)
+                    ->whereNotNull('cc_emails')
+                    ->orderBy('created_at', 'asc')
+                    ->first();
+                $ccList = $firstMsgWithCc?->cc_emails
+                    ? (is_array($firstMsgWithCc->cc_emails) ? $firstMsgWithCc->cc_emails : (json_decode($firstMsgWithCc->cc_emails, true) ?? []))
+                    : [];
+            }
 
             // ── Kirim email ───────────────────────────────────────────────────
             $result = app(EmailController::class)->sendTicketReply(

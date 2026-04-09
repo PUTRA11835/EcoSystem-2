@@ -30,125 +30,72 @@
         </div>
         @if(!$isApprovalMode)
         <div class="flex gap-2">
-            <button onclick="openTimesheetModal()" class="inline-flex items-center px-4 py-2.5 primary-bg hover:opacity-90 text-white font-medium rounded-lg transition-all shadow-sm hover:shadow-md">
-                <i class="fas fa-plus mr-2"></i>
-                Log Hours
+            <button onclick="openTimesheetModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Create Timesheet
             </button>
         </div>
         @endif
     </div>
 
-    <!-- Statistics Cards -->
+    <!-- Stats Cards -->
     @if($isApprovalMode)
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-600">Pending Review</p>
-                    <p id="statPendingCount" class="text-2xl font-bold text-yellow-600 mt-1">0</p>
-                </div>
-                <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                    <i class="fas fa-hourglass-half text-yellow-600 text-xl"></i>
-                </div>
-            </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
+        <div id="cardAll" class="bg-white rounded-lg border-2 border-red-600 p-3 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterByStatus('')">
+            <p class="text-xs font-medium text-gray-500 mb-1">Total</p>
+            <p class="text-2xl font-bold text-gray-900" id="statTotal">0</p>
         </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-600">Approved</p>
-                    <p id="statApprovedCount" class="text-2xl font-bold text-green-600 mt-1">0</p>
-                </div>
-                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                    <i class="fas fa-check-circle text-green-600 text-xl"></i>
-                </div>
-            </div>
+        <div id="cardSubmitted" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('submitted')">
+            <p class="text-xs font-medium text-gray-500 mb-1">Pending Review</p>
+            <p class="text-2xl font-bold text-gray-900" id="statSubmittedCount">0</p>
         </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-600">Rejected</p>
-                    <p id="statRejectedCount" class="text-2xl font-bold text-red-600 mt-1">0</p>
-                </div>
-                <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                    <i class="fas fa-times-circle text-red-600 text-xl"></i>
-                </div>
-            </div>
+        <div id="cardApproved" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('approved')">
+            <p class="text-xs font-medium text-gray-500 mb-1">Approved</p>
+            <p class="text-2xl font-bold text-gray-900" id="statApprovedCount">0</p>
         </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-600">Total Hours</p>
-                    <p id="statTotalHours" class="text-2xl font-bold text-blue-600 mt-1">0.00</p>
-                </div>
-                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <i class="fas fa-clock text-blue-600 text-xl"></i>
-                </div>
-            </div>
+        <div id="cardRejected" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('rejected')">
+            <p class="text-xs font-medium text-gray-500 mb-1">Rejected</p>
+            <p class="text-2xl font-bold text-gray-900" id="statRejectedCount">0</p>
         </div>
     </div>
     @else
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-600">Total Hours</p>
-                    <p id="statTotalHours" class="text-2xl font-bold text-gray-900 mt-1">0.00</p>
-                </div>
-                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <i class="fas fa-clock text-blue-600 text-xl"></i>
-                </div>
-            </div>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-2">
+        <div id="cardAll" class="bg-white rounded-lg border-2 border-red-600 p-3 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterByStatus('')">
+            <p class="text-xs font-medium text-gray-500 mb-1">Total</p>
+            <p class="text-2xl font-bold text-gray-900" id="statTotal">0</p>
         </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-600">Billable Hours</p>
-                    <p id="statBillableHours" class="text-2xl font-bold text-green-600 mt-1">0.00</p>
-                </div>
-                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                    <i class="fas fa-dollar-sign text-green-600 text-xl"></i>
-                </div>
-            </div>
+        <div id="cardDraft" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('draft')">
+            <p class="text-xs font-medium text-gray-500 mb-1">Draft</p>
+            <p class="text-2xl font-bold text-gray-900" id="statDraftCount">0</p>
         </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-600">This Week</p>
-                    <p id="statWeekHours" class="text-2xl font-bold text-purple-600 mt-1">0.00</p>
-                </div>
-                <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <i class="fas fa-calendar-week text-purple-600 text-xl"></i>
-                </div>
-            </div>
+        <div id="cardSubmitted" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('submitted')">
+            <p class="text-xs font-medium text-gray-500 mb-1">Submitted</p>
+            <p class="text-2xl font-bold text-gray-900" id="statSubmittedCount">0</p>
         </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-600">Pending Approval</p>
-                    <p id="statPendingCount" class="text-2xl font-bold text-yellow-600 mt-1">0</p>
-                </div>
-                <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                    <i class="fas fa-hourglass-half text-yellow-600 text-xl"></i>
-                </div>
-            </div>
+        <div id="cardApproved" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('approved')">
+            <p class="text-xs font-medium text-gray-500 mb-1">Approved</p>
+            <p class="text-2xl font-bold text-gray-900" id="statApprovedCount">0</p>
+        </div>
+        <div id="cardRejected" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('rejected')">
+            <p class="text-xs font-medium text-gray-500 mb-1">Rejected</p>
+            <p class="text-2xl font-bold text-gray-900" id="statRejectedCount">0</p>
         </div>
     </div>
     @endif
 
-    <!-- Filter & Controls -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-                <input type="date" id="filterStartDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800" value="">
+    <!-- Filters & Search -->
+    <div class="bg-white rounded-xl border border-gray-200 p-4 mb-6 shadow-sm">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Start Date</label>
+                <input type="date" id="filterStartDate" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white" value="">
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">End Date</label>
-                <input type="date" id="filterEndDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800" value="">
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">End Date</label>
+                <input type="date" id="filterEndDate" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white" value="">
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                <select id="filterStatus" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800">
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Status</label>
+                <select id="filterStatus" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white">
                     <option value="">All Status</option>
                     <option value="draft">Draft</option>
                     <option value="submitted">Submitted</option>
@@ -156,9 +103,9 @@
                     <option value="rejected">Rejected</option>
                 </select>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Activity Type</label>
-                <select id="filterActivityType" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800">
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Activity Type</label>
+                <select id="filterActivityType" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white">
                     <option value="">All Types</option>
                     <option value="development">Development</option>
                     <option value="meeting">Meeting</option>
@@ -169,84 +116,105 @@
                     <option value="other">Other</option>
                 </select>
             </div>
-            <div class="flex items-end">
-                <button onclick="applyFilters()" class="w-full primary-bg hover:opacity-90 text-white font-medium px-4 py-2 rounded-lg transition-all">
-                    <i class="fas fa-filter mr-2"></i>Apply Filters
-                </button>
-            </div>
+        </div>
+        <div class="flex gap-2 justify-end mt-3 pt-3 border-t border-gray-100">
+            <button onclick="applyFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Apply
+            </button>
+            <button onclick="resetFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                Reset
+            </button>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="flex items-center justify-between mb-4">
+        @if(!$isApprovalMode)
+        <!-- Bulk Actions Bar (Hidden by default) - Only for employee mode -->
+        <div id="bulkActions" class="hidden items-center gap-2">
+            <span class="text-sm font-medium text-gray-700">
+                <span id="selectedCount">0</span> selected
+            </span>
+            <button id="btnBulkEdit" onclick="editSelectedTimesheet()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Edit
+            </button>
+            <button id="btnBulkSubmit" onclick="openBulkSubmitModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Submit
+            </button>
+            <button id="btnBulkDelete" onclick="openBulkDeleteModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Delete
+            </button>
+        </div>
+        <span id="noBulkActions" class="text-sm text-gray-500">
+            <span id="currentRangeStart">1</span>–<span id="currentRangeEnd">20</span> of <span id="totalItems">0</span> timesheets
+        </span>
+        @else
+        <span class="text-sm text-gray-500">
+            <span id="currentRangeStart">1</span>–<span id="currentRangeEnd">20</span> of <span id="totalItems">0</span> timesheets
+        </span>
+        @endif
+        <div class="flex items-center gap-1">
+            <button onclick="previousPage()" id="btnPrevPage" disabled class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-600">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                </svg>
+            </button>
+            <button onclick="nextPage()" id="btnNextPage" class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-600">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                </svg>
+            </button>
         </div>
     </div>
 
     <!-- Timesheets Table -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        @if(!$isApprovalMode)
-        <!-- Bulk Actions Bar (Hidden by default) - Only for employee mode -->
-        <div id="bulkActions" class="hidden items-center justify-between px-6 py-3 bg-blue-50 border-b border-blue-200">
-            <div class="text-sm font-medium text-blue-900">
-                <i class="fas fa-check-circle text-blue-600 mr-2"></i>
-                <span id="selectedCount">0</span> item(s) selected
-            </div>
-            <div class="flex gap-2">
-                <button id="btnBulkEdit" onclick="editSelectedTimesheet()" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-all shadow-sm">
-                    <i class="fas fa-edit mr-2"></i>
-                    Edit
-                </button>
-                <button id="btnBulkSubmit" onclick="openBulkSubmitModal()" class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-all shadow-sm">
-                    <i class="fas fa-paper-plane mr-2"></i>
-                    Submit
-                </button>
-                <button id="btnBulkDelete" onclick="openBulkDeleteModal()" class="inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-all shadow-sm">
-                    <i class="fas fa-trash mr-2"></i>
-                    Delete
-                </button>
-            </div>
-        </div>
-        @endif
-
-        <div class="overflow-x-auto">
-            <table class="w-full">
-                <thead class="bg-gray-50 border-b border-gray-200">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="overflow-auto" style="max-height: calc(100vh - 380px); min-height: 200px;">
+            <table class="w-full text-sm border-collapse" style="min-width: 900px;">
+                <thead class="sticky top-0 z-10 bg-gray-50">
                     @if($isApprovalMode)
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Employee</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Time</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Duration</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Project</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Activity</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Description</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Employee</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Date</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Time</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Duration</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Project/Ticket</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Activity</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:200px;">Description</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Status</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:140px;">Actions</th>
                     </tr>
                     @else
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:36px;">
                             <input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300">
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Time</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Duration</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Project/Ticket</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Activity</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Description</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Date</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Time</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Duration</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Project/Ticket</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Activity</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:200px;">Description</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Status</th>
                     </tr>
                     @endif
                 </thead>
-                <tbody id="timesheetsTableBody" class="divide-y divide-gray-200">
+                <tbody id="timesheetsTableBody" class="divide-y divide-gray-100 bg-white">
                     <!-- Data will be loaded here -->
                 </tbody>
             </table>
         </div>
 
-        <div id="emptyState" class="hidden py-12 text-center">
-            <i class="fas fa-clock text-gray-300 text-6xl mb-4"></i>
+        <div id="emptyState" class="hidden text-center py-16">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 text-gray-300 mx-auto mb-3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
             @if($isApprovalMode)
-            <p class="text-gray-500 text-lg">No timesheets pending approval</p>
-            <p class="text-gray-400 text-sm mt-2">All employee timesheets have been reviewed</p>
+            <p class="text-gray-600 font-semibold mb-1">No timesheets pending approval</p>
+            <p class="text-gray-400 text-xs">All employee timesheets have been reviewed</p>
             @else
-            <p class="text-gray-500 text-lg">No timesheets found</p>
-            <p class="text-gray-400 text-sm mt-2">Start logging your hours by clicking "Log Hours" button</p>
+            <p class="text-gray-600 font-semibold mb-1">No timesheets found</p>
+            <p class="text-gray-400 text-xs mb-4">Start logging your hours by clicking "Log Hours" button</p>
             @endif
         </div>
     </div>
@@ -374,7 +342,7 @@
                             <input type="checkbox" id="timesheetBillable" checked
                                 class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
                             <label for="timesheetBillable" class="text-sm font-medium text-gray-700">
-                                <i class="fas fa-dollar-sign text-green-600 mr-1"></i>
+                                <span class="text-green-600 font-bold mr-1">Rp</span>
                                 Billable hours
                             </label>
                         </div>
@@ -462,12 +430,12 @@
         {{-- Footer --}}
         <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 flex-shrink-0">
             <button type="button" onclick="closeTimesheetModal()"
-                class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                 Cancel
             </button>
             <button type="submit" form="timesheetForm"
-                class="px-5 py-2.5 text-sm font-medium text-white bg-red-800 hover:bg-red-900 rounded-lg transition-colors shadow-sm">
-                <i class="fas fa-save mr-2"></i>Save Timesheet
+                class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Save Timesheet
             </button>
         </div>
 

@@ -40,6 +40,8 @@ class Ticket extends Model
         // Mandays status
         'mandays_proposal_status',
         'internal_mandays_status',
+        // CC recipients (disalin dari staging saat approve)
+        'cc_emails',
     ];
 
     protected $casts = [
@@ -50,6 +52,7 @@ class Ticket extends Model
         'last_message_at'        => 'datetime',
         'last_customer_reply_at' => 'datetime',
         'last_agent_reply_at'    => 'datetime',
+        'cc_emails'              => 'array',
     ];
 
     // Relasi ke Customer

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Delivery;
 
+use App\Enums\RoleId;
 use App\Http\Controllers\Controller;
 use App\Models\DeliverySupport;
 use App\Models\DeliverySupportPhase;
@@ -232,7 +233,7 @@ class DeliverySupportController extends Controller
                 case 'support-info':
                     $sessionUser = session('user');
                     $roleId = $sessionUser['role']['id'] ?? null;
-                    $canEditType = in_array($roleId, [1, 6, 7]);
+                    $canEditType = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
 
                     $rules = [
                         'name' => 'required|string|max:255',

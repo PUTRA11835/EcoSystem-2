@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -49,8 +50,8 @@ class DashboardController extends Controller
                 'recent_activities' => [],
             ];
 
-            // Extra data for role 2 (Employee) dashboard
-            if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) == 2) {
+            // Extra data for Employee dashboard
+            if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::EMPLOYEE->value) {
                 $employeeId = $user['id'];
 
                 // Collect ticket IDs where this employee is PIC or member

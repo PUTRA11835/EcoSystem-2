@@ -33,18 +33,18 @@
                 <option value="rejected">Rejected</option>
             </select>
             <button onclick="loadStagingTickets()"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-200 transition-all">
-                <i class="fas fa-sync-alt text-xs"></i> Refresh
+                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Refresh
             </button>
             <button onclick="fetchEmailInbox()" id="btnFetchEmail"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all">
-                <i class="fas fa-envelope-open-text text-xs"></i> Fetch Email
+                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Fetch Email
             </button>
             <span id="fetchEmailStatus" class="text-xs text-gray-400 hidden sm:inline"></span>
             <a href="{{ route('staging.rejected') }}"
-               class="inline-flex items-center gap-1.5 px-4 py-2 bg-red-50 text-red-700 border border-red-200 text-sm font-semibold rounded-lg hover:bg-red-100 transition-all">
-                <i class="fas fa-ban text-xs"></i> View Rejected
-                <span id="rejectedNavBadge" class="hidden bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center"></span>
+               class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                View Rejected
+                <span id="rejectedNavBadge" class="hidden bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center ml-1.5"></span>
             </a>
         </div>
     </div>
@@ -332,7 +332,7 @@ function fillModal(s) {
         } catch { ccDisplay = escHtml(String(s.cc_emails)); }
     }
 
-    // ── Meta strip (email info or web info) ──
+    // ── Meta strip (unified for email & web) ──
     const metaRow = (label, value) =>
         `<tr class="border-b border-gray-100 last:border-0">
             <td class="px-5 py-2.5 text-xs font-semibold text-gray-400 whitespace-nowrap w-24 align-top">${label}</td>
@@ -353,44 +353,85 @@ function fillModal(s) {
         metaHtml = `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5"><table class="w-full">${rows}</table></div>`;
     } else {
         const custName = s.customer_name ?? s.sender_name ?? '—';
+        const senderEmail = s.submitted_by_email
+            ? ` <span class="text-gray-400 text-xs">&lt;${escHtml(s.submitted_by_email)}&gt;</span>` : '';
+        const unidentified = !s.customer_name && s.submitted_by_email
+            ? ' <span class="text-amber-500 text-xs">(unidentified)</span>' : '';
         const extraFields = [
-            s.no_hp  ? ['Phone', s.no_hp]   : null,
-            s.module ? ['Module', s.module]  : null,
-            s.client ? ['Client', s.client]  : null,
+            s.no_hp  ? ['Phone',  s.no_hp]  : null,
+            s.module ? ['Module', s.module] : null,
+            s.client ? ['Client', s.client] : null,
         ].filter(Boolean);
         const rows = [
-            metaRow('Customer', `<span class="font-semibold">${escHtml(custName)}</span>${!s.customer_name && s.submitted_by_email ? ' <span class="text-amber-500 text-xs">(unidentified)</span>' : ''}`),
+            metaRow('From', `<span class="font-semibold">${escHtml(custName)}</span>${senderEmail}${unidentified}`),
             metaRow('Date', `<span class="text-gray-500 text-xs">${dateStr}</span>`),
+            ccDisplay ? metaRow('CC', `<span class="text-gray-600 text-xs">${ccDisplay}</span>`) : '',
             metaRow('Subject', `<span class="font-semibold">${escHtml(s.description ?? '—')}</span>`),
             ...extraFields.map(([k,v]) => metaRow(k, escHtml(v))),
         ].join('');
         metaHtml = `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5"><table class="w-full">${rows}</table></div>`;
     }
 
-    // ── Email body ──
+    // ── Message body (email iframe OR web body/description) ──
+    // Both channels use an iframe for consistent rendering
     let contentHtml = '';
-    if (isEmail) {
-        contentHtml = s.email_body_html
-            ? `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
-                <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
-                    <i class="fas fa-envelope-open text-gray-400 text-xs"></i>
-                    <span class="text-xs font-semibold text-gray-500">Email Body</span>
-                </div>
-                <iframe id="emailBodyIframe" sandbox="allow-same-origin"
-                        class="w-full" style="min-height:280px;border:none;display:block" title="Email body"></iframe>
-            </div>`
-            : `<div class="border border-dashed border-gray-200 rounded-xl p-8 text-center text-gray-400 text-xs mb-5">
-                <i class="fas fa-envelope-open text-2xl mb-2 block opacity-30"></i>No email body stored.
-            </div>`;
+    const bodySource = isEmail ? s.email_body_html : (s.body || null);
+    const bodyLabel  = isEmail ? 'Email Body' : 'Message Body';
+
+    if (bodySource) {
+        contentHtml = `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
+            <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+                <i class="fas fa-envelope-open text-gray-400 text-xs"></i>
+                <span class="text-xs font-semibold text-gray-500">${bodyLabel}</span>
+            </div>
+            <iframe id="emailBodyIframe" sandbox="allow-same-origin"
+                    class="w-full" style="min-height:280px;border:none;display:block" title="${bodyLabel}"></iframe>
+        </div>`;
     } else {
-        // Web — show description as prose
-        contentHtml = `
-        <div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
+        // Fallback: description as plain text (when no body stored)
+        contentHtml = `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
             <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
                 <i class="fas fa-align-left text-gray-400 text-xs"></i>
                 <span class="text-xs font-semibold text-gray-500">Description</span>
             </div>
             <div class="px-4 py-4 text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">${escHtml(s.description ?? '—')}</div>
+        </div>`;
+    }
+
+    // ── Attachments (web uploads from Jarvies) ──
+    let attachmentsHtml = '';
+    const webAttachments = Array.isArray(s.attachments) ? s.attachments : [];
+    if (webAttachments.length > 0) {
+        const mimeIcon = (mime) => {
+            if (!mime) return 'fa-file';
+            if (mime.startsWith('image/')) return 'fa-file-image';
+            if (mime === 'application/pdf') return 'fa-file-pdf';
+            if (mime.includes('word')) return 'fa-file-word';
+            if (mime.includes('excel') || mime.includes('spreadsheet')) return 'fa-file-excel';
+            if (mime.includes('zip') || mime.includes('compressed')) return 'fa-file-archive';
+            return 'fa-file-alt';
+        };
+        const fmtSize = (bytes) => {
+            if (!bytes) return '';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        };
+        const fileList = webAttachments.map(f => `
+            <a href="${escHtml(f.url)}" target="_blank" rel="noopener"
+               class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0 group">
+                <i class="fas ${mimeIcon(f.mime_type)} text-gray-400 group-hover:text-red-500 text-base w-5 text-center flex-shrink-0"></i>
+                <span class="text-sm text-gray-800 truncate flex-1">${escHtml(f.original_name || f.file_name)}</span>
+                <span class="text-xs text-gray-400 flex-shrink-0">${fmtSize(f.file_size)}</span>
+                <i class="fas fa-download text-gray-300 group-hover:text-red-500 text-xs flex-shrink-0"></i>
+            </a>`).join('');
+        attachmentsHtml = `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
+            <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+                <i class="fas fa-paperclip text-gray-400 text-xs"></i>
+                <span class="text-xs font-semibold text-gray-500">Attachments</span>
+                <span class="ml-auto text-xs text-gray-400">${webAttachments.length} file${webAttachments.length !== 1 ? 's' : ''}</span>
+            </div>
+            ${fileList}
         </div>`;
     }
 
@@ -467,14 +508,17 @@ function fillModal(s) {
 
     // ── Assemble body ──
     document.getElementById('modalBody').innerHTML =
-        metaHtml + validationHtml + rejectAreaHtml + contentHtml;
+        metaHtml + validationHtml + rejectAreaHtml + contentHtml + attachmentsHtml;
 
-    // Set iframe srcdoc after DOM is updated
-    if (isEmail && s.email_body_html) {
+    // Set iframe srcdoc after DOM is updated (works for both email and web body)
+    if (bodySource) {
         const iframe = document.getElementById('emailBodyIframe');
         if (iframe) {
             const setIframeContent = (html) => {
-                iframe.srcdoc = html;
+                // Wrap bare text/HTML in basic styling for consistent look
+                const wrapped = html.startsWith('<') ? html
+                    : `<div style="font-family:system-ui,sans-serif;font-size:14px;color:#374151;padding:4px;white-space:pre-wrap">${html}</div>`;
+                iframe.srcdoc = wrapped;
                 iframe.addEventListener('load', () => {
                     try {
                         const h = iframe.contentDocument?.documentElement?.scrollHeight
@@ -486,15 +530,12 @@ function fillModal(s) {
                 }, { once: true });
             };
 
-            // Fetch resolved version if:
-            // - body has cid: references (inline attachment), OR
-            // - has_attachments=true (some email clients don't use cid: but still have inline images), OR
-            // - body has [filename.ext] placeholders
-            // Only call if graph_message_id is available (needed for Graph API attachment fetch).
-            const needsImageResolve = s.graph_message_id && (
-                s.email_body_html.includes('cid:') ||
+            // For email: try to resolve inline images via Graph API
+            // For web: just set content directly (no cid: references)
+            const needsImageResolve = isEmail && s.graph_message_id && (
+                (s.email_body_html || '').includes('cid:') ||
                 s.has_attachments ||
-                /\[[^\]]+\.(png|jpe?g|gif|bmp|webp)\]/i.test(s.email_body_html)
+                /\[[^\]]+\.(png|jpe?g|gif|bmp|webp)\]/i.test(s.email_body_html || '')
             );
             if (needsImageResolve && s.id) {
                 setIframeContent(s.email_body_html); // show immediately while loading
@@ -503,9 +544,9 @@ function fillModal(s) {
                     credentials: 'same-origin',
                 }).then(r => r.json()).then(data => {
                     if (data.success && data.html) setIframeContent(data.html);
-                }).catch(() => {}); // silently fall back to already-set srcdoc
+                }).catch(() => {});
             } else {
-                setIframeContent(s.email_body_html);
+                setIframeContent(bodySource);
             }
         }
     }
@@ -518,18 +559,18 @@ function renderFooter(s) {
     const footer = document.getElementById('modalFooter');
     if (s.status === 'unvalidated') {
         footer.innerHTML = `
-            <button onclick="closeModal()" class="px-5 py-2.5 text-sm font-semibold text-gray-700 border-2 border-gray-200 rounded-xl hover:bg-gray-50 transition-all">Cancel</button>
+            <button onclick="closeModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Cancel</button>
             <button onclick="showRejectInput(${s.id})" id="btnReject"
-                    class="px-5 py-2.5 text-sm font-bold text-white bg-gray-600 rounded-xl hover:bg-gray-700 transition-all flex items-center gap-2">
-                <i class="fas fa-times"></i> Reject
+                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Reject
             </button>
             <button onclick="submitApprove(${s.id})" id="btnApprove"
-                    class="px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-green-600 to-green-700 rounded-xl hover:shadow-lg transition-all flex items-center gap-2">
-                <i class="fas fa-check"></i> Approve & Create Ticket
+                    class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all duration-200">
+                Approve & Create Ticket
             </button>`;
     } else {
         footer.innerHTML = `
-            <button onclick="closeModal()" class="px-5 py-2.5 text-sm font-semibold text-gray-700 border-2 border-gray-200 rounded-xl hover:bg-gray-50 transition-all">Close</button>`;
+            <button onclick="closeModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Close</button>`;
     }
 }
 
@@ -541,10 +582,10 @@ function showRejectInput(id) {
     }
     const footer = document.getElementById('modalFooter');
     footer.innerHTML = `
-        <button onclick="cancelReject()" class="px-5 py-2.5 text-sm font-semibold text-gray-700 border-2 border-gray-200 rounded-xl hover:bg-gray-50 transition-all">Cancel</button>
+        <button onclick="cancelReject()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Cancel</button>
         <button onclick="submitReject(${id})" id="btnConfirmReject"
-                class="px-5 py-2.5 text-sm font-bold text-white bg-red-700 rounded-xl hover:bg-red-800 transition-all flex items-center gap-2">
-            <i class="fas fa-times-circle"></i> Confirm Rejection
+                class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+            Confirm Rejection
         </button>`;
 }
 
@@ -575,7 +616,7 @@ async function submitApprove(id) {
     if (!valid) return;
 
     const btn = document.getElementById('btnApprove');
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Processing…'; }
 
     try {
         const res = await apiFetch(`/api/staging-tickets/${id}/approve`, 'POST', {
@@ -585,11 +626,10 @@ async function submitApprove(id) {
         closeModal();
         loadStagingTickets(currentPage);
         loadStats();
-        // Tampilkan toast setelah modal tertutup agar tidak tertutup backdrop
         setTimeout(() => showNotif('Ticket created! Number: ' + (res.data?.ticket_number ?? ''), 'success'), 80);
     } catch (e) {
         showNotif(e.message || 'Failed to approve ticket.', 'error');
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Approve & Create Ticket'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Approve & Create Ticket'; }
     }
 }
 
@@ -604,7 +644,7 @@ async function submitReject(id) {
     if (errEl) errEl.classList.add('hidden');
 
     const btn = document.getElementById('btnConfirmReject');
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Processing…'; }
 
     try {
         await apiFetch(`/api/staging-tickets/${id}/reject`, 'POST', { reason });
@@ -614,7 +654,7 @@ async function submitReject(id) {
         setTimeout(() => showNotif('Ticket rejected.', 'info'), 80);
     } catch (e) {
         showNotif(e.message || 'Failed to reject ticket.', 'error');
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-times-circle"></i> Confirm Rejection'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Confirm Rejection'; }
     }
 }
 

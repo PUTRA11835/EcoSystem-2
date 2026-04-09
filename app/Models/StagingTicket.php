@@ -97,4 +97,9 @@ class StagingTicket extends Model
     {
         return $this->belongsTo(Ticket::class, 'ticket_id', 'ticket_id');
     }
+
+    public function attachments()
+    {
+        return $this->hasMany(StagingAttachment::class, 'staging_id');
+    }
 }

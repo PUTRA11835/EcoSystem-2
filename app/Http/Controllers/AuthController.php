@@ -93,10 +93,10 @@ class AuthController extends Controller
                     'errors' => $validator->errors()->toArray(),
                     'input_email' => $request->input('email')
                 ]);
-                
+
                 return response()->json([
                     'success' => false,
-                    'message' => 'Validation error',
+                    'message' => $validator->errors()->first(),
                     'errors' => $validator->errors(),
                     'request_id' => $requestId
                 ], 422);
@@ -266,7 +266,7 @@ class AuthController extends Controller
                 $token = base64_encode($tokenData);
 
                 $userData = [
-                    'id'         => $employee->employee_id,
+                    'id'         => (int) $employee->employee_id,
                     'type'       => 'employee',
                     'eci'        => $employee->eci,
                     'name'       => $employee->full_name,
@@ -276,7 +276,7 @@ class AuthController extends Controller
                     'position'   => $employee->position,
                     'department' => $employee->department,
                     'role' => [
-                        'id'   => $employee->role_id,
+                        'id'   => (int) $employee->role_id,
                         'name' => $employee->role_name
                     ]
                 ];

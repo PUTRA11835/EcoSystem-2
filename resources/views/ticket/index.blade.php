@@ -13,7 +13,7 @@
         </div>
 
         <div class="flex items-center gap-3">
-            @if($user->role->role_id == 2)
+            @if($user->role->role_id === \App\Enums\RoleId::EMPLOYEE->value)
             <div class="inline-flex bg-gray-100 rounded-xl p-1">
                 <button onclick="toggleView('my')" id="btnViewMy" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
                     My Tickets
@@ -24,11 +24,8 @@
             </div>
             @endif
 
-            @if($user->role->role_id == 1)
-            <button onclick="openCreateTicketModal()" class="inline-flex items-center gap-2 px-4 py-2 bg-red-700 text-white text-sm font-semibold rounded-xl hover:bg-red-800 transition-all duration-200 shadow-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
+            @if($user->role->role_id === \App\Enums\RoleId::ADMIN->value)
+            <button onclick="openCreateTicketModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Create Ticket
             </button>
             @endif
@@ -37,10 +34,14 @@
 </div>
 
 <!-- Stats Cards -->
-<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
     <div id="filterAll" class="bg-white rounded-lg border-2 border-red-600 p-3 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('all')">
         <p class="text-xs font-medium text-gray-500 mb-1">Total</p>
         <p class="text-2xl font-bold text-gray-900" id="totalCount">0</p>
+    </div>
+    <div id="filterSupport" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('sent it to support')">
+        <p class="text-xs font-medium text-gray-500 mb-1">Sent to Support</p>
+        <p class="text-2xl font-bold text-gray-900" id="supportCount">0</p>
     </div>
     <div id="filterInProcess" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('in process')">
         <p class="text-xs font-medium text-gray-500 mb-1">In Process</p>
@@ -99,7 +100,7 @@
         </div>
     </div>
     <div class="flex gap-2 justify-end mt-3 pt-3 border-t border-gray-100">
-        <button onclick="applyAdvancedFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-all duration-200">
+        <button onclick="applyAdvancedFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
             Apply
         </button>
         <button onclick="resetFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
@@ -178,11 +179,11 @@
     </svg>
     <p class="text-gray-600 font-semibold mb-1">No tickets found</p>
     <p class="text-gray-400 text-xs mb-4">Try adjusting your filters</p>
-    <button onclick="resetFilters()" class="px-4 py-2 bg-red-700 text-white text-sm font-semibold rounded-lg hover:bg-red-800">Clear Filters</button>
+    <button onclick="resetFilters()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Clear Filters</button>
 </div>
 
 <!-- Create Ticket Modal (Admin) -->
-@if($user->role->role_id == 1)
+@if($user->role->role_id === \App\Enums\RoleId::ADMIN->value)
 <div id="createTicketModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-hidden">
     <div class="h-full flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl">
@@ -243,8 +244,8 @@
                     </select>
                 </div>
                 <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                    <button type="button" onclick="closeCreateTicketModal()" class="px-5 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
-                    <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 shadow-sm transition-all">Create Ticket</button>
+                    <button type="button" onclick="closeCreateTicketModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Cancel</button>
+                    <button type="submit" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Create Ticket</button>
                 </div>
             </form>
         </div>
@@ -279,7 +280,7 @@
     let currentPage = 1;
     let totalItems = 0;
     let totalPages = 0;
-    let currentView = ({{ $user->role->role_id ?? 0 }} === 2) ? 'my' : 'all';
+    let currentView = ({{ $user->role->role_id ?? 0 }} === {{ \App\Enums\RoleId::EMPLOYEE->value }}) ? 'my' : 'all';
     let userRole = {{ $user->role->role_id ?? 0 }};
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -385,12 +386,13 @@
     }
 
     function updateStats() {
-        document.getElementById('totalCount').textContent = allTickets.length;
+        document.getElementById('totalCount').textContent   = allTickets.length;
+        document.getElementById('supportCount').textContent = allTickets.filter(t => t.jarvies_status === 'sent it to support').length;
         document.getElementById('processCount').textContent = allTickets.filter(t => t.jarvies_status === 'in process').length;
-        document.getElementById('authorCount').textContent = allTickets.filter(t => t.jarvies_status === 'author action').length;
-        document.getElementById('proposedCount').textContent = allTickets.filter(t => t.jarvies_status === 'proposed solution').length;
-        document.getElementById('sapCount').textContent = allTickets.filter(t => t.jarvies_status === 'sent in to SAP').length;
-        document.getElementById('closedCount').textContent = allTickets.filter(t => t.jarvies_status === 'closed').length;
+        document.getElementById('authorCount').textContent  = allTickets.filter(t => t.jarvies_status === 'author action').length;
+        document.getElementById('proposedCount').textContent= allTickets.filter(t => t.jarvies_status === 'proposed solution').length;
+        document.getElementById('sapCount').textContent     = allTickets.filter(t => t.jarvies_status === 'sent in to SAP').length;
+        document.getElementById('closedCount').textContent  = allTickets.filter(t => t.jarvies_status === 'closed').length;
     }
 
     function renderTickets() {
@@ -480,11 +482,11 @@
             'reply':         { label: 'Reply',          cls: 'bg-purple-50 text-purple-700' },
         };
         const jarviesMap = {
+            'sent it to support': { label: 'To Support',        cls: 'bg-cyan-50 text-cyan-600' },
             'in process':         { label: 'In Process',        cls: 'bg-blue-50 text-blue-600' },
             'author action':      { label: 'Author Action',     cls: 'bg-amber-50 text-amber-600' },
             'proposed solution':  { label: 'Proposed Solution', cls: 'bg-purple-50 text-purple-600' },
             'sent in to SAP':     { label: 'Sent to SAP',       cls: 'bg-indigo-50 text-indigo-600' },
-            'sent it to support': { label: 'To Support',        cls: 'bg-cyan-50 text-cyan-600' },
             'closed':             { label: 'Closed',            cls: 'bg-green-50 text-green-700' },
         };
         const typeColors = {
@@ -550,15 +552,20 @@
 
     function filterTickets(status) {
         currentFilter = status;
-        ['filterAll', 'filterInProcess', 'filterAuthorAction', 'filterProposed', 'filterSAP', 'filterClosed'].forEach(id => {
+        ['filterAll', 'filterSupport', 'filterInProcess', 'filterAuthorAction', 'filterProposed', 'filterSAP', 'filterClosed'].forEach(id => {
             const el = document.getElementById(id);
             el.classList.remove('border-red-600', 'shadow-md', 'border-2');
             el.classList.add('border-gray-200', 'border');
         });
 
         const filterMap = {
-            'all': 'filterAll', 'in process': 'filterInProcess', 'author action': 'filterAuthorAction',
-            'proposed solution': 'filterProposed', 'sent in to SAP': 'filterSAP', 'closed': 'filterClosed'
+            'all':                'filterAll',
+            'sent it to support': 'filterSupport',
+            'in process':         'filterInProcess',
+            'author action':      'filterAuthorAction',
+            'proposed solution':  'filterProposed',
+            'sent in to SAP':     'filterSAP',
+            'closed':             'filterClosed',
         };
         if (filterMap[status]) {
             const el = document.getElementById(filterMap[status]);

@@ -151,25 +151,26 @@ class EmployeeContractController extends Controller
 
         $validator = Validator::make($request->all(), [
             // Contract Details
-            'contract_number' => 'required|string|max:100',
+            'contract_number' => 'required|string|max:100|unique:employee_contract,contract_number',
             'contract_name' => 'required|string|max:255',
             'contract_type' => 'required|string|max:50',
             'position' => 'required|string|max:255',
             'contract_date' => 'nullable|date',
-            
+
             // Employment Period & Compensation
             'start_date' => 'required|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'salary' => 'nullable|numeric|min:0',
-            
+
             // Status
             'is_active' => 'boolean',
-            
+
             // Attachments
             'drive_link' => 'nullable|url|max:500',
             'verify_link' => 'nullable|url|max:500',
         ], [
             'contract_number.required' => 'Contract number is required',
+            'contract_number.unique' => 'Contract number already exists, please use a different number',
             'contract_name.required' => 'Contract name is required',
             'contract_type.required' => 'Contract type is required',
             'position.required' => 'Position is required',
@@ -189,7 +190,7 @@ class EmployeeContractController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -286,25 +287,26 @@ class EmployeeContractController extends Controller
 
         $validator = Validator::make($request->all(), [
             // Contract Details
-            'contract_number' => 'required|string|max:100',
+            'contract_number' => 'required|string|max:100|unique:employee_contract,contract_number,' . $contractId . ',contract_id',
             'contract_name' => 'required|string|max:255',
             'contract_type' => 'required|string|max:50',
             'position' => 'required|string|max:255',
             'contract_date' => 'nullable|date',
-            
+
             // Employment Period & Compensation
             'start_date' => 'required|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'salary' => 'nullable|numeric|min:0',
-            
+
             // Status
             'is_active' => 'boolean',
-            
+
             // Attachments
             'drive_link' => 'nullable|url|max:500',
             'verify_link' => 'nullable|url|max:500',
         ], [
             'contract_number.required' => 'Contract number is required',
+            'contract_number.unique' => 'Contract number already exists, please use a different number',
             'contract_name.required' => 'Contract name is required',
             'contract_type.required' => 'Contract type is required',
             'position.required' => 'Position is required',
@@ -325,7 +327,7 @@ class EmployeeContractController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }

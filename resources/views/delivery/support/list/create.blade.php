@@ -230,13 +230,11 @@
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                     <div class="p-6 space-y-3">
                         <button type="submit"
-                                class="w-full inline-flex items-center justify-center px-4 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
-                            <i class="fas fa-save mr-2"></i>
-                            Create  Delivery Support
+                                class="w-full inline-flex items-center justify-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                            Create Delivery Support
                         </button>
                         <a href="{{ route('delivery.support.index') }}"
-                           class="w-full inline-flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition">
-                            <i class="fas fa-times mr-2"></i>
+                           class="w-full inline-flex items-center justify-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                             Cancel
                         </a>
                     </div>

@@ -591,8 +591,10 @@ class MandaysController extends Controller
         $sessionUser = session('user');
         $headId   = $sessionUser['id'] ?? null;
 
-        if (!$proposal || $proposal->status !== 'pending_approval') {
-            return response()->json(['success' => false, 'message' => 'No pending proposal to approve.'], 422);
+        // Head of support dapat menyimpan additional mandays dari status apapun kecuali belum ada proposal
+        $saveable = ['draft', 'pending_approval', 'needs_revision', 'approved'];
+        if (!$proposal || !in_array($proposal->status, $saveable)) {
+            return response()->json(['success' => false, 'message' => 'No proposal to save.'], 422);
         }
 
         DB::beginTransaction();
@@ -632,36 +634,6 @@ class MandaysController extends Controller
             'message'                 => 'Internal proposal approved.',
             'internal_mandays_status' => 'approved',
             'total_mandays'           => $total,
-        ]);
-    }
-
-    /**
-     * POST /api/tickets/{ticketId}/mandays/internal/reject
-     * Head of Support reject.
-     */
-    public function rejectInternalProposal(Request $request, $ticketId)
-    {
-        $request->validate([
-            'rejection_reason' => 'required|string|max:1000',
-        ]);
-
-        $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
-        $proposal = ConsultantMandays::where('ticket_id', $ticketId)->latestPerTicket()->first();
-
-        if (!$proposal || $proposal->status !== 'pending_approval') {
-            return response()->json(['success' => false, 'message' => 'No pending proposal to reject.'], 422);
-        }
-
-        $proposal->update([
-            'status'           => 'needs_revision',
-            'rejection_reason' => $request->rejection_reason,
-        ]);
-        $ticket->update(['internal_mandays_status' => 'rejected']);
-
-        return response()->json([
-            'success'                 => true,
-            'message'                 => 'Internal proposal rejected.',
-            'internal_mandays_status' => 'rejected',
         ]);
     }
 

@@ -32,8 +32,7 @@
     {{-- Action Buttons --}}
     <div class="flex justify-end gap-3 mb-6">
         <a href="{{ route('delivery.support.planning.index', $support->id) }}"
-           class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
-            <i class="fas fa-tasks mr-2"></i>
+           class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
             Open Planning
         </a>
         <form action="{{ route('delivery.support.destroy', $support->id) }}" method="POST" class="inline"
@@ -41,8 +40,7 @@
             @csrf
             @method('DELETE')
             <button type="submit"
-                    class="inline-flex items-center px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition">
-                <i class="fas fa-trash mr-2"></i>
+                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Delete
             </button>
         </form>
@@ -331,7 +329,7 @@
                         </div>
                     </div>
                     @php $roleId = session('user.role.id'); @endphp
-                    @if(in_array($roleId, [1, 6, 7]))
+                    @if(in_array($roleId, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true))
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
                         <select name="type" id="edit-type"
@@ -374,11 +372,11 @@
                 </div>
                 <div class="bg-gray-50 px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
                     <button type="button" onclick="closeEditModal('support-info')"
-                            class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 text-sm font-medium">
+                            class="inline-flex items-center justify-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                         Cancel
                     </button>
                     <button type="submit"
-                            class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium">
+                            class="inline-flex items-center justify-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Save Changes
                     </button>
                 </div>
@@ -420,11 +418,11 @@
                 </div>
                 <div class="bg-gray-50 px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
                     <button type="button" onclick="closeEditModal('approval-info')"
-                            class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 text-sm font-medium">
+                            class="inline-flex items-center justify-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                         Cancel
                     </button>
                     <button type="submit"
-                            class="w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium">
+                            class="inline-flex items-center justify-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Save Changes
                     </button>
                 </div>
@@ -477,11 +475,11 @@
                 </div>
                 <div class="bg-gray-50 px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
                     <button type="button" onclick="closeEditModal('team-info')"
-                            class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 text-sm font-medium">
+                            class="inline-flex items-center justify-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                         Cancel
                     </button>
                     <button type="submit"
-                            class="w-full sm:w-auto px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm font-medium">
+                            class="inline-flex items-center justify-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Save Changes
                     </button>
                 </div>

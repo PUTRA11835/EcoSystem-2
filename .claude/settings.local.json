@@ -6,7 +6,16 @@
       "Bash(grep -l \"ticket_message\\\\|TicketMessage\" database/migrations/*.php)",
       "Bash(grep -n \"email_message_id\\\\|email_in_reply_to\" c:/EcoSystem-2-main/database/migrations/*.php)",
       "Bash(grep -n \"toast\\\\|notification\\\\|showNotification\\\\|Toastr\\\\|alert\\\\|snackbar\" /c/EcoSystem-2-main/resources/views/staging/*.blade.php)",
-      "Bash(composer dump-autoload:*)"
+      "Bash(composer dump-autoload:*)",
+      "Bash(grep -n \"head.*support\\\\|head_support\" c:/EcoSystem-2/app/Http/Controllers/*.php)",
+      "Bash(find c:/EcoSystem-2/app/Models -name \"*Manday*\" -exec basename {} \\\\;)",
+      "Bash(grep -A 10 'protected $casts' /c/EcoSystem-2/app/Models/TicketMessage.php)",
+      "Bash(grep -A 10 'protected $casts' /c/EcoSystem-2/app/Models/Ticket.php)",
+      "Bash(php --version)",
+      "Bash(grep -n \"<button\" c:\\\\EcoSystem-2\\\\resources\\\\views\\\\**\\\\*.blade.php)",
+      "Bash(find c:\\\\EcoSystem-2\\\\resources\\\\views -name \"*.blade.php\" -exec grep -l \"<button\" {} \\\\;)",
+      "Bash(find /c/EcoSystem-2/resources/views -name \"*.blade.php\" -exec grep -l \"<button\" {} \\\\;)",
+      "Bash(grep -n \"<button\" /c/EcoSystem-2/resources/views/delivery/project/project-planning/phase/partials/*.blade.php)"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",

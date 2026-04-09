@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use App\Models\Timesheet;
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectActivity;
@@ -24,7 +25,7 @@ class TimesheetController extends Controller
             $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
 
             // Only Admin (1), Head of Project (4), and Head of Support (5) can access this
-            if (!in_array($roleId, [1, 4, 5], true)) {
+            if (!in_array($roleId, array_merge([RoleId::ADMIN->value], RoleId::HEAD_GROUP), true)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized access'
@@ -400,7 +401,7 @@ class TimesheetController extends Controller
             $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
 
             // Only Admin (1), Head of Project (4), and Head of Support (5) can approve
-            if (!in_array($roleId, [1, 4, 5], true)) {
+            if (!in_array($roleId, array_merge([RoleId::ADMIN->value], RoleId::HEAD_GROUP), true)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized: Only managers can approve timesheets'
@@ -448,7 +449,7 @@ class TimesheetController extends Controller
             $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
 
             // Only Admin (1), Head of Project (4), and Head of Support (5) can reject
-            if (!in_array($roleId, [1, 4, 5], true)) {
+            if (!in_array($roleId, array_merge([RoleId::ADMIN->value], RoleId::HEAD_GROUP), true)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized: Only managers can reject timesheets'
