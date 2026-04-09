@@ -842,14 +842,11 @@ class EmailController extends Controller
                     $draftId        = $draft->json('id');
                     $conversationId = $draft->json('conversationId') ?? $conversationId;
 
-                    // SELALU patch toRecipients dan ccRecipients agar tidak pernah salah kirim.
-                    // Ini fix untuk kasus SentItems: createReply default-nya reply ke raditya sendiri.
-                    // ccRecipients selalu di-set eksplisit (bisa [] untuk hapus pre-populated CC yang salah).
-                    //
-                    // JANGAN override subject di sini — Exchange menghitung ulang conversationId
-                    // dari normalized subject. Jika subject diubah → conversationId baru →
-                    // email keluar dari thread di Outlook DAN SMTP In-Reply-To header hilang.
-                    // Graph sudah otomatis set "Re: {original_subject}" via createReply → biarkan.
+                    // SELALU patch toRecipients, ccRecipients, body.
+                    // Subject TIDAK di-patch agar conversationId Exchange tidak berubah.
+                    // Patching subject pada createReply akan mengubah conversationId Exchange
+                    // sehingga reply muncul di percakapan berbeda di Outlook.
+                    // Nomor ticket dimasukkan ke body saja.
                     $patchData = [
                         'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
                         'toRecipients' => [['emailAddress' => ['address' => $toEmail]]],
@@ -889,6 +886,7 @@ class EmailController extends Controller
                     if (!$conversationId) {
                         $conversationId = $draft->json('conversationId') ?? $threadId;
                     }
+                    // Subject TIDAK di-patch — menjaga conversationId Exchange tetap sama.
                     $patchData = [
                         'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
                         'toRecipients' => [['emailAddress' => ['address' => $toEmail]]],

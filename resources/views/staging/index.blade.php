@@ -23,7 +23,10 @@
 {{-- ===== TOOLBAR ===== --}}
 <div class="bg-white rounded-xl border border-gray-200 p-4 mb-6 shadow-sm">
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h3 class="text-sm font-semibold text-gray-700">Incoming Tickets</h3>
+        <div class="flex items-center gap-3">
+            <h3 class="text-sm font-semibold text-gray-700">Incoming Tickets</h3>
+            <span id="fetchEmailStatus" class="text-xs text-gray-400"></span>
+        </div>
         <div class="flex items-center gap-2 flex-wrap">
             <select id="filterStatus" onchange="loadStagingTickets()"
                     class="pl-3 pr-8 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
@@ -32,17 +35,12 @@
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
             </select>
-            <button onclick="loadStagingTickets()"
-                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+            <button onclick="handleRefresh()" id="btnRefresh"
+                class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Refresh
             </button>
-            <button onclick="fetchEmailInbox()" id="btnFetchEmail"
-                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Fetch Email
-            </button>
-            <span id="fetchEmailStatus" class="text-xs text-gray-400 hidden sm:inline"></span>
             <a href="{{ route('staging.rejected') }}"
-               class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                 View Rejected
                 <span id="rejectedNavBadge" class="hidden bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center ml-1.5"></span>
             </a>
@@ -142,7 +140,8 @@ document.addEventListener('DOMContentLoaded', () => {
     loadStats();
     loadStagingTickets();
     fetchEmailInbox(true);                              // fetch sekali saat halaman dibuka
-    setInterval(() => fetchEmailInbox(true), 60000);   // auto-poll tiap 60 detik
+    setInterval(() => fetchEmailInbox(true), 60000);   // auto-poll email tiap 60 detik
+    setInterval(() => { loadStats(); loadStagingTickets(); }, 30000); // auto-refresh list tiap 30 detik
 });
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
@@ -224,12 +223,12 @@ function renderTable(rows) {
 
         const actionBtn = s.status === 'unvalidated'
             ? `<button onclick="openModal(${s.id})"
-                       class="inline-flex items-center gap-1 px-3 py-1.5 bg-red-700 text-white text-xs font-bold rounded-lg hover:bg-red-800 transition-all">
-                   <i class="fas fa-gavel text-[10px]"></i> Validate
+                       class="inline-flex items-center px-3 py-1.5 primary-gradient text-white text-xs font-bold rounded-lg hover:opacity-90 transition-all">
+                   Validate
                </button>`
             : `<button onclick="openModal(${s.id})"
-                       class="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-all">
-                   <i class="fas fa-eye text-[10px]"></i> Detail
+                       class="inline-flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-all">
+                   Detail
                </button>`;
 
         const senderDisplay = s.customer_name ?? s.sender_name ?? 'Unknown';
@@ -530,14 +529,14 @@ function fillModal(s) {
                 }, { once: true });
             };
 
-            // For email: try to resolve inline images via Graph API
-            // For web: just set content directly (no cid: references)
-            const needsImageResolve = isEmail && s.graph_message_id && (
+            // For email: resolve inline images via Graph API (cid: → base64 data URI)
+            // For web: resolve cid:img-N@jarvies references from staging_attachments list
+            const needsEmailImageResolve = isEmail && s.graph_message_id && (
                 (s.email_body_html || '').includes('cid:') ||
                 s.has_attachments ||
                 /\[[^\]]+\.(png|jpe?g|gif|bmp|webp)\]/i.test(s.email_body_html || '')
             );
-            if (needsImageResolve && s.id) {
+            if (needsEmailImageResolve && s.id) {
                 setIframeContent(s.email_body_html); // show immediately while loading
                 fetch(`/api/staging-tickets/${s.id}/preview-body`, {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -545,6 +544,14 @@ function fillModal(s) {
                 }).then(r => r.json()).then(data => {
                     if (data.success && data.html) setIframeContent(data.html);
                 }).catch(() => {});
+            } else if (!isEmail && bodySource && bodySource.includes('cid:')) {
+                // Web channel: replace cid:img-N@jarvies with actual attachment public URLs
+                const imageAtts = (s.attachments || []).filter(a => a.mime_type?.startsWith('image/'));
+                let resolved = bodySource.replace(/src="cid:img-(\d+)@jarvies"/gi, (match, n) => {
+                    const att = imageAtts[parseInt(n, 10) - 1];
+                    return att ? `src="${att.url}"` : match;
+                });
+                setIframeContent(resolved);
             } else {
                 setIframeContent(bodySource);
             }
@@ -559,14 +566,13 @@ function renderFooter(s) {
     const footer = document.getElementById('modalFooter');
     if (s.status === 'unvalidated') {
         footer.innerHTML = `
-            <button onclick="closeModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Cancel</button>
             <button onclick="showRejectInput(${s.id})" id="btnReject"
-                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                 Reject
             </button>
             <button onclick="submitApprove(${s.id})" id="btnApprove"
-                    class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all duration-200">
-                Approve & Create Ticket
+                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Approve
             </button>`;
     } else {
         footer.innerHTML = `
@@ -629,7 +635,7 @@ async function submitApprove(id) {
         setTimeout(() => showNotif('Ticket created! Number: ' + (res.data?.ticket_number ?? ''), 'success'), 80);
     } catch (e) {
         showNotif(e.message || 'Failed to approve ticket.', 'error');
-        if (btn) { btn.disabled = false; btn.textContent = 'Approve & Create Ticket'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Approve'; }
     }
 }
 
@@ -663,8 +669,6 @@ function closeModal() {
     currentStagingId   = null;
     currentStagingData = null;
 }
-document.getElementById('stagingModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 async function apiFetch(url, method = 'GET', body = null) {
     const opts = {
@@ -689,13 +693,17 @@ function showNotif(msg, type = 'info') {
     showToast(msg, type);
 }
 
-// ─── Fetch Email Inbox ────────────────────────────────────────────────────────
+// ─── Refresh (fetch email + reload list) ─────────────────────────────────────
+async function handleRefresh() {
+    await fetchEmailInbox(false);
+}
+
 async function fetchEmailInbox(silent = false) {
-    const btn    = document.getElementById('btnFetchEmail');
+    const btn    = document.getElementById('btnRefresh');
     const status = document.getElementById('fetchEmailStatus');
 
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Fetching...'; }
-    if (status) { status.textContent = 'Fetching...'; status.classList.remove('hidden'); }
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i>'; }
+    if (status) { status.textContent = 'Refreshing...'; }
 
     const ts = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     console.log(`[FetchEmail] ${ts} — Memulai fetch inbox${silent ? ' (auto-poll)' : ' (manual)'}`);
@@ -732,7 +740,7 @@ async function fetchEmailInbox(silent = false) {
         if (!silent) showNotif('Failed to connect to email server.', 'error');
         if (status) status.textContent = `Error ${now} (WIB)`;
     } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope-open-text text-xs"></i> Fetch Email'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = 'Refresh'; }
     }
 }
 </script>

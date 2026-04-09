@@ -510,9 +510,10 @@ class TicketMessageController extends Controller
                 $subject,
                 $relayBody,
                 $inReplyTo,
-                [],     // no file attachments
+                [],                         // no file attachments
                 $ccList,
-                true    // noRePrefix
+                true,                       // noRePrefix
+                $ticket->email_thread_id    // conversationId fallback jika inReplyTo tidak ditemukan
             );
 
             // Simpan internetMessageId relay ke ticket_message agar inReplyTo berikutnya bisa threaded
@@ -640,7 +641,8 @@ class TicketMessageController extends Controller
                 $inReplyTo,
                 $files,
                 $ccList,
-                true  // noRePrefix — subject langsung "Ticket #XXXX: desc" tanpa "Re: "
+                true,                       // noRePrefix — subject langsung "Ticket #XXXX: desc" tanpa "Re: "
+                $ticket->email_thread_id    // conversationId fallback jika inReplyTo tidak ditemukan
             );
 
             // ── Simpan TicketMessage SETELAH email berhasil ───────────────────

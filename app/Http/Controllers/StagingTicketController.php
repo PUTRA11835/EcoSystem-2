@@ -468,8 +468,34 @@ class StagingTicketController extends Controller
             $ticketNumber = $ticket->ticket_number ?? '—';
 
             $bodyPlain = "Baik akan disampaikan dengan Nomor Ticket {$ticketNumber}\n\nBest Regards,\n{$signatureName}";
-            $bodyHtml  = "<p>Baik akan disampaikan dengan Nomor Ticket <strong>{$ticketNumber}</strong></p>"
-                       . "<br><p>Best Regards,<br><strong>{$signatureName}</strong></p>";
+            $safeNum  = htmlspecialchars($ticketNumber, ENT_QUOTES, 'UTF-8');
+            $safeAgent = htmlspecialchars($signatureName, ENT_QUOTES, 'UTF-8');
+            $safeDesc  = htmlspecialchars(mb_substr($staging->description ?? '', 0, 90), ENT_QUOTES, 'UTF-8');
+            $bodyHtml  = <<<HTML
+            <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                   style="font-family:Arial,Helvetica,sans-serif;max-width:600px;border-collapse:collapse;">
+                <tr>
+                    <td style="background-color:#8b1a1a;padding:16px 24px;border-radius:6px 6px 0 0;">
+                        <p style="color:#ffffff;font-size:16px;font-weight:bold;margin:0;line-height:1.3;">PT Eclectic Consulting</p>
+                        <p style="color:rgba(255,255,255,0.7);font-size:11px;margin:3px 0 0 0;">Helpdesk Support &nbsp;&middot;&nbsp; Ticket #{$safeNum}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="background-color:#ffffff;padding:24px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;font-size:14px;color:#374151;line-height:1.7;">
+                        <p>Baik akan disampaikan dengan Nomor Ticket <strong>#{$safeNum}</strong></p>
+                        <p>Best Regards,<br><strong>{$safeAgent}</strong></p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="background-color:#f9fafb;padding:14px 24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 6px 6px;">
+                        <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
+                            Sent by <strong style="color:#6b7280;">{$safeAgent}</strong> &mdash; PT Eclectic Consulting Yogyakarta<br>
+                            Ticket: <strong style="color:#6b7280;">#{$safeNum}</strong> &mdash; {$safeDesc}
+                        </p>
+                    </td>
+                </tr>
+            </table>
+            HTML;
 
             // ── Simpan TicketMessage (tampil di semua channel — termasuk Jarvies web) ──
             $message = TicketMessage::create([
@@ -516,7 +542,7 @@ class StagingTicketController extends Controller
                     $inReplyTo,
                     [],       // files
                     $ccList,  // ccList dari staging
-                    true,     // noRePrefix — subject langsung tanpa "Re: "
+                    false,    // noRePrefix = false → subject jadi "Re: Ticket #XXXX: ..."
                     $threadId // conversationId fallback jika inReplyTo tidak ditemukan
                 );
 
