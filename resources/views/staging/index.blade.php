@@ -542,7 +542,6 @@ function fillModal(s) {
                     return att ? `src="${att.url}"` : match;
                 });
                 setIframeContent(resolved);
-                }).catch(() => { if (bodySource) setIframeContent(bodySource); });
             } else {
                 setIframeContent(bodySource);
             }
@@ -756,6 +755,12 @@ function escHtml(str) {
 
 function showNotif(msg, type = 'info') {
     showToast(msg, type);
+}
+
+function handleRefresh() {
+    loadStats();
+    loadStagingTickets();
+    fetchEmailInbox(false);
 }
 
 // ─── Fetch Email (Inbox + Sent Items) ────────────────────────────────────────

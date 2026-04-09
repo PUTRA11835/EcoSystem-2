@@ -660,7 +660,7 @@ class StagingTicketController extends Controller
             }
 
             if ($customerEmail) {
-                // Subject sama dengan format reply: "Ticket #XXXX: description"
+                // Subject format: "Ticket #26040014: FIX BISA"
                 $subject   = 'Ticket #' . $ticketNumber . ': ' . ($staging->description ?? 'Ticket Update');
                 $inReplyTo = $staging->email_message_id; // null untuk web-only → buat thread baru
                 $threadId  = $staging->email_thread_id;   // conversationId fallback
@@ -679,8 +679,10 @@ class StagingTicketController extends Controller
                     $inReplyTo,
                     [],       // files
                     $ccList,  // ccList dari staging
-                    false,    // noRePrefix = false → subject jadi "Re: Ticket #XXXX: ..."
-                    $threadId // conversationId fallback jika inReplyTo tidak ditemukan
+                    true,     // noRePrefix = true → subject tidak ditambah "Re:"
+                    $threadId,// conversationId fallback
+                    true      // forceNewDraft = true → buat draft baru dengan In-Reply-To eksplisit
+                              // agar Gmail thread tetap satu conversation meski subject berubah
                 );
 
                 // Simpan conversationId ke ticket agar reply berikutnya bisa threaded

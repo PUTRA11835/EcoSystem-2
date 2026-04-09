@@ -955,9 +955,11 @@ class EmailController extends Controller
         string $body,
         ?string $inReplyTo = null,
         array $files = [],
-        array $ccList = [],  // [{name, address}, ...] atau [address, ...]
+        array $ccList = [],       // [{name, address}, ...] atau [address, ...]
         bool $noRePrefix = false,
-        ?string $threadId = null  // M365 conversationId — fallback jika inReplyTo tidak ditemukan
+        ?string $threadId = null, // M365 conversationId — fallback jika inReplyTo tidak ditemukan
+        bool $forceNewDraft = false // true = skip createReply, buat draft baru dengan In-Reply-To eksplisit
+                                    // Gunakan saat subject sengaja diubah agar Gmail tetap thread dengan benar
     ): array {
         $sender         = env('MS_SENDER_EMAIL');
         $replySubject   = (!$noRePrefix && stripos($subject, 're:') !== 0) ? 'Re: ' . $subject : $subject;
@@ -991,7 +993,7 @@ class EmailController extends Controller
         //   - SentItems msg: createReply salah arah (ke raditya sendiri) → patch fix ke customer
         //
         // Dengan selalu patch toRecipients, kita tidak perlu membedakan Inbox vs SentItems.
-        if ($inReplyTo) {
+        if ($inReplyTo && !$forceNewDraft) {
             $filterVal  = str_replace("'", "''", $inReplyTo);
             $originalId = null;
 
@@ -1035,12 +1037,11 @@ class EmailController extends Controller
                     $draftId        = $draft->json('id');
                     $conversationId = $draft->json('conversationId') ?? $conversationId;
 
-                    // SELALU patch toRecipients, ccRecipients, body.
-                    // Subject TIDAK di-patch agar conversationId Exchange tidak berubah.
-                    // Patching subject pada createReply akan mengubah conversationId Exchange
-                    // sehingga reply muncul di percakapan berbeda di Outlook.
-                    // Nomor ticket dimasukkan ke body saja.
+                    // PATCH: subject, body, toRecipients, ccRecipients.
+                    // internetMessageHeaders TIDAK di-patch — field ini read-only pada createReply draft.
+                    // Exchange sudah otomatis set In-Reply-To + References yang benar dari originalId.
                     $patchData = [
+                        'subject'      => $replySubject,
                         'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
                         'toRecipients' => [['emailAddress' => ['address' => $toEmail]]],
                         'ccRecipients' => $ccRecipients,
@@ -1063,7 +1064,7 @@ class EmailController extends Controller
         // ── Fallback by threadId (conversationId) ─────────────────────────────
         // Dipakai jika inReplyTo tidak ditemukan di manapun tapi kita punya email_thread_id.
         // Cari pesan manapun dalam thread tsb (terbaru) → createReply agar tetap threaded.
-        if (!$draftId && $threadId) {
+        if (!$draftId && $threadId && !$forceNewDraft) {
             try {
                 $threadVal   = str_replace("'", "''", $threadId);
                 $threadResult = $this->graphGet("/users/{$sender}/messages", [
@@ -1079,8 +1080,8 @@ class EmailController extends Controller
                     if (!$conversationId) {
                         $conversationId = $draft->json('conversationId') ?? $threadId;
                     }
-                    // Subject TIDAK di-patch — menjaga conversationId Exchange tetap sama.
                     $patchData = [
+                        'subject'      => $replySubject,
                         'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
                         'toRecipients' => [['emailAddress' => ['address' => $toEmail]]],
                         'ccRecipients' => $ccRecipients,
