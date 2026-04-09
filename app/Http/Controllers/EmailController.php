@@ -43,6 +43,42 @@ class EmailController extends Controller
         return $response->json('access_token');
     }
 
+    /**
+     * Public wrapper agar controller lain bisa mendapatkan Graph access token.
+     */
+    public function getAccessTokenPublic(): string
+    {
+        return $this->getAccessToken();
+    }
+
+    /**
+     * Public wrapper untuk graphGet — digunakan controller lain yang butuh raw Graph call.
+     */
+    public function graphGetPublic(string $path, array $query = []): array
+    {
+        return $this->graphGet($path, $query);
+    }
+
+    /**
+     * Kembalikan daftar attachment NON-INLINE dari sebuah message Graph API.
+     * Digunakan untuk menampilkan attachment di modal validasi staging ticket.
+     *
+     * @return array  [{id, name, size, contentType, isInline}, ...]
+     */
+    public function listNonInlineAttachments(string $graphMsgId): array
+    {
+        $sender = env('MS_SENDER_EMAIL');
+        $result = $this->graphGet(
+            "/users/{$sender}/messages/{$graphMsgId}/attachments",
+            ['$select' => 'id,name,size,contentType,isInline']
+        );
+
+        return array_values(array_filter(
+            $result['value'] ?? [],
+            fn ($att) => empty($att['isInline'])
+        ));
+    }
+
     private function graphGet(string $path, array $query = [], array $headers = []): array
     {
         $token   = $this->getAccessToken();
@@ -313,6 +349,11 @@ class EmailController extends Controller
                     $internetMsgId  = $msg['internetMessageId'] ?? null;
                     $conversationId = $msg['conversationId'] ?? null;
                     $hasAttachments = $msg['hasAttachments'] ?? false;
+                    // receivedDateTime dari Graph API selalu UTC — parse ke UTC Carbon agar
+                    // created_at mencerminkan waktu email diterima, bukan waktu scheduler jalan
+                    $receivedAt = isset($msg['receivedDateTime'])
+                        ? \Carbon\Carbon::parse($msg['receivedDateTime'])->utc()
+                        : null;
 
                     // Ekstrak CC recipients: [{name, address}, ...]
                     $ccEmails = collect($msg['ccRecipients'] ?? [])
@@ -386,6 +427,16 @@ class EmailController extends Controller
                             'is_read_by_customer' => true,
                             'is_read_by_agent'    => false,
                         ]);
+
+                        // Gunakan waktu asli email (bukan waktu scheduler) untuk created_at
+                        if ($receivedAt) {
+                            \DB::table('ticket_message')->where('id', $message->id)->update([
+                                'created_at' => $receivedAt->toDateTimeString(),
+                                'updated_at' => $receivedAt->toDateTimeString(),
+                            ]);
+                            $message->created_at = $receivedAt;
+                            $message->updated_at = $receivedAt;
+                        }
 
                         // Ambil metadata attachment & ganti referensi cid: di message_html.
                         // Cek dua kondisi: hasAttachments flag ATAU ada cid: references di body
@@ -462,6 +513,148 @@ class EmailController extends Controller
             return response()->json([
                 'status'  => 'error',
                 'message' => 'Failed to access inbox: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    // =========================================================================
+    // SENT ITEMS PROCESSOR — link staging tickets ke email [Menunggu Validasi]
+    // =========================================================================
+
+    /**
+     * Scan Sent Items Raditya untuk email "[Menunggu Validasi]" / "[PENDING]" yang
+     * belum di-link ke staging ticket, lalu hubungkan berdasarkan subject + recipient.
+     *
+     * Endpoint: POST /api/email/process-sent
+     * Dipanggil dari tombol "Fetch Email" di halaman staging validation.
+     *
+     * Matching:
+     *   - Bersihkan prefix dari subject → cocokkan dengan staging.description
+     *   - Cocokkan toRecipients[0] dengan staging.submitted_by_email
+     *   - Staging harus belum punya graph_message_id (unlinked)
+     *   - Dibuat dalam 7 hari terakhir
+     *
+     * Setelah link berhasil: staging.channel = 'email', graph_message_id tersimpan,
+     * email_body_html tersimpan → modal validasi bisa render body + attachment.
+     */
+    public function processSentItems(Request $request)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        try {
+            $sender     = env('MS_SENDER_EMAIL');
+            $preferHtml = ['Prefer' => 'outlook.body-content-type="html"'];
+            $select     = 'id,subject,toRecipients,sentDateTime,body,internetMessageId,conversationId,hasAttachments';
+            $since      = \Carbon\Carbon::now('UTC')->subDays(7)->format('Y-m-d\TH:i:s\Z');
+
+            // Fetch 50 sent items terbaru dalam 7 hari terakhir,
+            // lalu filter subject di PHP (menghindari masalah OData escaping untuk '[' dan ']')
+            $data = $this->graphGet("/users/{$sender}/mailFolders/SentItems/messages", [
+                '$filter'  => "sentDateTime ge {$since}",
+                '$orderby' => 'sentDateTime desc',
+                '$top'     => 50,
+                '$select'  => $select,
+            ], $preferHtml);
+
+            // Filter: hanya email dengan prefix [Menunggu Validasi] atau [PENDING]
+            $emails = array_filter(
+                $data['value'] ?? [],
+                fn ($e) => preg_match('/^\[(Menunggu Validasi|PENDING)\]/iu', $e['subject'] ?? '')
+            );
+
+            $linked  = 0;
+            $skipped = 0;
+            $errors  = [];
+
+            foreach ($emails as $email) {
+                try {
+                    $graphMsgId      = $email['id'];
+                    $rawSubject      = $email['subject'] ?? '';
+                    $internetMsgId   = $email['internetMessageId'] ?? null;
+                    $conversationId  = $email['conversationId'] ?? null;
+                    $hasAttachments  = $email['hasAttachments'] ?? false;
+                    $bodyHtml        = $email['body']['content'] ?? null;
+
+                    // Ambil recipient pertama sebagai "to email"
+                    $toEmail = $email['toRecipients'][0]['emailAddress']['address'] ?? null;
+
+                    // Bersihkan prefix dari subject
+                    $cleanSubject = trim(preg_replace('/^\[(Menunggu Validasi|PENDING)\]\s*/iu', '', $rawSubject));
+
+                    // Anggap "already linked" hanya jika graph_message_id sudah terisi.
+                    // email_message_id bisa sudah ada (dari linkStagingToEmail yang partial)
+                    // tapi graph_message_id masih null → perlu diproses ulang.
+                    $alreadyLinked = \App\Models\StagingTicket::where('graph_message_id', $graphMsgId)->exists();
+
+                    if ($alreadyLinked) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    // Cari staging yang cocok:
+                    // 1. description == cleanSubject (case-insensitive)
+                    // 2. submitted_by_email cocok ATAU null
+                    // 3. dibuat dalam 7 hari terakhir
+                    $staging = \App\Models\StagingTicket::whereRaw('LOWER(description) = ?', [mb_strtolower($cleanSubject)])
+                        ->where(function ($q) use ($toEmail) {
+                            if ($toEmail) {
+                                $q->where('submitted_by_email', $toEmail)
+                                  ->orWhereNull('submitted_by_email');
+                            }
+                        })
+                        ->where('created_at', '>=', now()->subDays(7))
+                        ->latest()
+                        ->first();
+
+                    if (!$staging) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    $update = [
+                        'graph_message_id' => $graphMsgId,
+                        'email_thread_id'  => $conversationId,
+                        'email_message_id' => $internetMsgId,
+                        'channel'          => 'email',
+                        'has_attachments'  => $hasAttachments || $staging->has_attachments,
+                    ];
+                    if ($bodyHtml) {
+                        $update['email_body_html'] = $bodyHtml;
+                    }
+                    $staging->update($update);
+
+                    Log::info('EmailController@processSentItems: linked staging to sent email', [
+                        'staging_id'       => $staging->id,
+                        'graph_message_id' => $graphMsgId,
+                        'subject'          => $rawSubject,
+                    ]);
+                    $linked++;
+
+                } catch (\Exception $e) {
+                    $errors[] = $e->getMessage();
+                    Log::warning('EmailController@processSentItems: error processing email', [
+                        'subject' => $email['subject'] ?? '?',
+                        'error'   => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'linked'  => $linked,
+                'skipped' => $skipped,
+                'total'   => count($emails),
+                'errors'  => $errors,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('EmailController@processSentItems: failed', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to process sent items: ' . $e->getMessage(),
             ], 500);
         }
     }

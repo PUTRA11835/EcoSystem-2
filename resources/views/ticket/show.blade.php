@@ -1350,11 +1350,20 @@
         return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    // Ganti sisa referensi cid: yang tidak ter-replace backend dengan placeholder
+    function sanitizeEmailHtml(html) {
+        if (!html) return html;
+        return html.replace(/<img\b([^>]*)\bsrc\s*=\s*["']cid:[^"']*["']([^>]*)>/gi,
+            '<span class="inline-flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded px-2 py-1">' +
+            '<i class="fas fa-image" style="font-size:10px"></i> Image unavailable</span>'
+        );
+    }
+
     // ── Pilih konten pesan: HTML dari email atau plain text dari web ────────────
     function messageContent(msg) {
-        // Email dengan HTML body → render HTML mentah (sudah disanitasi oleh extractReplyBody)
+        // Email dengan HTML body → render HTML (cid: refs yang tersisa diganti placeholder)
         if (msg.channel === 'email' && msg.message_html) {
-            return `<div class="message-content text-sm text-gray-700 email-html-body">${msg.message_html}</div>`;
+            return `<div class="message-content text-sm text-gray-700 email-html-body">${sanitizeEmailHtml(msg.message_html)}</div>`;
         }
 
         // Internal note: render Quill HTML (contains @mention chips with color formatting)

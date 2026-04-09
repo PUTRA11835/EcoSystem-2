@@ -234,6 +234,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [StagingTicketController::class, 'store']);
         Route::get('/{id}', [StagingTicketController::class, 'show']);
         Route::get('/{id}/preview-body', [StagingTicketController::class, 'previewBody']);
+        Route::get('/{id}/email-attachments', [StagingTicketController::class, 'emailAttachments']);
         Route::post('/{id}/approve', [StagingTicketController::class, 'approve']);
         Route::post('/{id}/reject', [StagingTicketController::class, 'reject']);
     });
@@ -351,6 +352,7 @@ Route::middleware(['web'])->group(function () {
     Route::prefix('email')->group(function () {
         Route::get('/inbox', [EmailController::class, 'inbox']);
         Route::post('/process-inbox', [EmailController::class, 'processInbox']);
+        Route::post('/process-sent',  [EmailController::class, 'processSentItems']);
         Route::post('/send', [EmailController::class, 'send']);
         Route::post('/reply', [EmailController::class, 'reply']);
         Route::post('/messages/{messageId}/reprocess-attachments', [EmailController::class, 'reprocessAttachments']);
