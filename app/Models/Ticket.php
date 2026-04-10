@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Sanctum\HasApiTokens;
 
 class Ticket extends Model
 {
@@ -123,7 +124,7 @@ class Ticket extends Model
     // Accessor untuk status label
     public function getStatusLabelAttribute()
     {
-        return match($this->status) {
+        return match ($this->status) {
             'open' => 'Open',
             'in_progress' => 'In Progress',
             'hold' => 'Hold',
@@ -138,7 +139,7 @@ class Ticket extends Model
     // Accessor untuk priority badge color
     public function getPriorityColorAttribute()
     {
-        return match($this->ticket_priority) {
+        return match ($this->ticket_priority) {
             'Low' => 'gray',
             'High' => 'red',
             'Medium' => 'blue',

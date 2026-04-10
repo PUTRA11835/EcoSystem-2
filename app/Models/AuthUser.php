@@ -5,12 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 use App\Models\CustomerContact;
 
 class AuthUser extends Authenticatable
 {
     use HasFactory;
     use Notifiable;
+    use HasApiTokens;
 
     protected $table = 'auth_users';
 

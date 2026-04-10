@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'auth.session'    => CheckAuthToken::class,
             'jarvies.api_key' => CheckJarviesApiKey::class,
+            'mobile.employee' => \App\Http\Middleware\EnsureMobileEmployee::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
