@@ -12,6 +12,8 @@ use App\Services\StagingTicketService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class EmailController extends Controller
 {
@@ -784,25 +786,26 @@ class EmailController extends Controller
     }
 
     /**
-     * Ambil metadata attachment dari Graph API dan simpan ke DB.
-     * File TIDAK diunduh ke server — disimpan via proxy route /attachments/{id}.
+     * Ambil attachment dari Graph API dan simpan ke DB.
+     *
+     * - Inline image (is_inline=true, ada contentId, mime image/*):
+     *   Download binary dari Graph → simpan ke storage/public → cidMap berisi storage URL.
+     *   URL storage bisa diakses langsung oleh browser / Jarvies tanpa perlu session EcoSystem.
+     *
+     * - Non-inline / file biasa:
+     *   Simpan metadata saja → cidMap berisi proxy URL /attachments/{id} (butuh session).
      *
      * @param  string         $senderEmail   email akun MS Graph (MS_SENDER_EMAIL)
      * @param  string         $graphMsgId    Graph internal message ID
      * @param  TicketMessage  $message       record pesan yang baru dibuat
      * @param  int            $ticketId
-     * @return array          Mapping [contentId => attachmentDbId] untuk inline image CID replacement
+     * @return array          Mapping [contentId => replacementUrl] untuk CID replacement di HTML
      */
     private function storeEmailAttachments(string $senderEmail, string $graphMsgId, TicketMessage $message, int $ticketId): array
     {
         $cidMap = [];
 
         try {
-            // Fetch semua field attachment tanpa $select.
-            // Catatan: $select TIDAK bisa dipakai untuk contentId maupun contentBytes karena
-            // keduanya adalah properti derived type (fileAttachment), bukan base type (attachment).
-            // Graph API mengembalikan semua field termasuk contentBytes — namun kita hanya
-            // menggunakan metadata dan TIDAK menyimpan contentBytes ke disk.
             $result = $this->graphGet("/users/{$senderEmail}/messages/{$graphMsgId}/attachments");
 
             foreach ($result['value'] ?? [] as $att) {
@@ -812,23 +815,73 @@ class EmailController extends Controller
                     continue;
                 }
 
-                // Lewati jika tidak ada nama (attachment tidak valid)
                 if (empty($att['name'])) {
                     continue;
                 }
 
-                $graphAttId  = $att['id'];
+                $graphAttId   = $att['id'];
                 $originalName = $att['name'];
-                $mimeType    = $att['contentType'] ?? 'application/octet-stream';
-                $isInline    = $att['isInline'] ?? false;
-                $fileSize    = $att['size'] ?? 0;
-                $contentId   = $att['contentId'] ?? null; // CID untuk inline images
+                $mimeType     = $att['contentType'] ?? 'application/octet-stream';
+                $isInline     = $att['isInline'] ?? false;
+                $fileSize     = $att['size'] ?? 0;
+                $contentId    = $att['contentId'] ?? null;
 
                 // Lewati jika sudah pernah disimpan
                 $existing = TicketAttachment::where('graph_attachment_id', $graphAttId)->first();
                 if ($existing) {
-                    if ($contentId) $cidMap[$contentId] = $existing->id;
+                    if ($contentId) {
+                        // Gunakan storage URL jika ada file_path, fallback ke proxy
+                        $cidMap[$contentId] = $existing->file_path
+                            ? Storage::disk('public')->url($existing->file_path)
+                            : '/attachments/' . $existing->id;
+                    }
                     continue;
+                }
+
+                $filePath   = null;
+                $storageUrl = null;
+
+                // ── Inline image: download binary dan simpan ke storage ──────────
+                if ($isInline && $contentId && str_starts_with($mimeType, 'image/')) {
+                    $contentBytes = $att['contentBytes'] ?? null;
+
+                    // Graph kadang menghapus contentBytes dari list response untuk file besar
+                    if (!$contentBytes) {
+                        try {
+                            $single       = $this->graphGet("/users/{$senderEmail}/messages/{$graphMsgId}/attachments/{$graphAttId}");
+                            $contentBytes = $single['contentBytes'] ?? null;
+                            if (!$mimeType || $mimeType === 'application/octet-stream') {
+                                $mimeType = $single['contentType'] ?? $mimeType;
+                            }
+                        } catch (\Exception $e) {
+                            Log::warning('EmailController@storeEmailAttachments: gagal fetch individual inline attachment', [
+                                'att_id' => $graphAttId,
+                                'error'  => $e->getMessage(),
+                            ]);
+                        }
+                    }
+
+                    if ($contentBytes) {
+                        try {
+                            $ext        = pathinfo($originalName, PATHINFO_EXTENSION) ?: 'png';
+                            $safeName   = Str::uuid() . '.' . $ext;
+                            $filePath   = "ticket-inline-images/{$ticketId}/{$safeName}";
+                            Storage::disk('public')->put($filePath, base64_decode($contentBytes));
+                            $storageUrl = Storage::disk('public')->url($filePath);
+
+                            Log::info('EmailController@storeEmailAttachments: inline image disimpan ke storage', [
+                                'ticket_id' => $ticketId,
+                                'file_path' => $filePath,
+                                'mime'      => $mimeType,
+                            ]);
+                        } catch (\Exception $e) {
+                            Log::warning('EmailController@storeEmailAttachments: gagal simpan inline image ke storage', [
+                                'error' => $e->getMessage(),
+                            ]);
+                            $filePath   = null;
+                            $storageUrl = null;
+                        }
+                    }
                 }
 
                 $record = TicketAttachment::create([
@@ -844,10 +897,13 @@ class EmailController extends Controller
                     'graph_attachment_id' => $graphAttId,
                     'graph_message_id'    => $graphMsgId,
                     'content_id'          => $contentId,
+                    'file_path'           => $filePath,
                 ]);
 
                 if ($contentId) {
-                    $cidMap[$contentId] = $record->id;
+                    // Inline image yang berhasil disimpan → storage URL (akses publik)
+                    // Selainnya → proxy URL (butuh session EcoSystem)
+                    $cidMap[$contentId] = $storageUrl ?? '/attachments/' . $record->id;
                 }
             }
         } catch (\Exception $e) {
@@ -856,32 +912,29 @@ class EmailController extends Controller
                 'ticket_id'    => $ticketId,
                 'error'        => $e->getMessage(),
             ]);
-            // Jangan throw — gagal attachment tidak boleh membatalkan penyimpanan pesan
         }
 
         return $cidMap;
     }
 
     /**
-     * Ganti referensi cid:xxx di HTML email dengan URL proxy attachment.
+     * Ganti referensi cid:xxx di HTML email dengan URL replacement.
      * Dipanggil setelah storeEmailAttachments() berhasil menyimpan record.
      *
-     * @param  string $html    HTML body pesan
-     * @param  array  $cidMap  [contentId => attachmentDbId]
+     * @param  string $html       HTML body pesan
+     * @param  array  $cidUrlMap  [contentId => url] — storage URL (inline) atau proxy URL
      * @return string HTML yang sudah diganti referensi cid-nya
      */
-    private function replaceCidReferences(string $html, array $cidMap): string
+    private function replaceCidReferences(string $html, array $cidUrlMap): string
     {
-        foreach ($cidMap as $cid => $attachmentId) {
-            $proxyUrl = '/attachments/' . $attachmentId;
+        foreach ($cidUrlMap as $cid => $url) {
             // Graph bisa mengembalikan contentId dengan atau tanpa angle brackets: <xxx> atau xxx
             $cleanCid = trim($cid, '<>');
             // Replace semua variasi yang mungkin muncul di HTML
-            $html = str_replace('cid:' . $cleanCid,        $proxyUrl, $html);
-            $html = str_replace('cid:<' . $cleanCid . '>', $proxyUrl, $html);
-            // Kalau cid asli berbeda dari cleanCid (ada angle brackets), replace juga
+            $html = str_replace('cid:' . $cleanCid,        $url, $html);
+            $html = str_replace('cid:<' . $cleanCid . '>', $url, $html);
             if ($cid !== $cleanCid) {
-                $html = str_replace('cid:' . $cid, $proxyUrl, $html);
+                $html = str_replace('cid:' . $cid, $url, $html);
             }
         }
         return $html;
