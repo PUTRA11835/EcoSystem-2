@@ -77,14 +77,30 @@ class StagingTicketController extends Controller
     {
         $sessionUser = session('user');
         if (!$sessionUser) {
+            Log::warning('StagingTicketController@index: unauthorized — no session user', [
+                'session_id' => session()->getId(),
+                'ip'         => $request->ip(),
+            ]);
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $roleId = $sessionUser['role']['id'];
+        $roleId = $sessionUser['role']['id'] ?? null;
+
+        Log::info('StagingTicketController@index: request received', [
+            'user_id'     => $sessionUser['id'] ?? null,
+            'role_id'     => $roleId,
+            'filters'     => $request->only(['status', 'customer_id', 'per_page']),
+            'session_id'  => session()->getId(),
+            'ip'          => $request->ip(),
+        ]);
 
         if (in_array($roleId, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value, RoleId::CUSTOMER->value], RoleId::HELPDESK_GROUP), true)) {
             $query = StagingTicket::query();
         } else {
+            Log::warning('StagingTicketController@index: forbidden — role not allowed', [
+                'user_id' => $sessionUser['id'] ?? null,
+                'role_id' => $roleId,
+            ]);
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -100,7 +116,22 @@ class StagingTicketController extends Controller
               ->orderBy('created_at', 'desc');
 
         $perPage = min((int) $request->get('per_page', 20), 100);
-        $data    = $query->paginate($perPage);
+
+        try {
+            $data = $query->paginate($perPage);
+        } catch (\Exception $e) {
+            Log::error('StagingTicketController@index: query failed', [
+                'error'   => $e->getMessage(),
+                'user_id' => $sessionUser['id'] ?? null,
+            ]);
+            return response()->json(['success' => false, 'message' => 'Query failed: ' . $e->getMessage()], 500);
+        }
+
+        Log::info('StagingTicketController@index: success', [
+            'total'   => $data->total(),
+            'per_page' => $data->perPage(),
+            'user_id' => $sessionUser['id'] ?? null,
+        ]);
 
         return response()->json([
             'success' => true,

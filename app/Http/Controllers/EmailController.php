@@ -565,6 +565,15 @@ class EmailController extends Controller
                 fn ($e) => preg_match('/^\[(Menunggu Validasi|PENDING)\]/iu', $e['subject'] ?? '')
             );
 
+            $totalFetched = count($data['value'] ?? []);
+            $totalPending = count($emails);
+
+            Log::info('EmailController@processSentItems: scan started', [
+                'total_fetched_from_graph' => $totalFetched,
+                'after_subject_filter'     => $totalPending,
+                'since_utc'               => $since,
+            ]);
+
             $linked  = 0;
             $skipped = 0;
             $errors  = [];
@@ -585,11 +594,12 @@ class EmailController extends Controller
                     $cleanSubject = trim(preg_replace('/^\[(Menunggu Validasi|PENDING)\]\s*/iu', '', $rawSubject));
 
                     // Anggap "already linked" hanya jika graph_message_id sudah terisi.
-                    // email_message_id bisa sudah ada (dari linkStagingToEmail yang partial)
-                    // tapi graph_message_id masih null → perlu diproses ulang.
                     $alreadyLinked = \App\Models\StagingTicket::where('graph_message_id', $graphMsgId)->exists();
 
                     if ($alreadyLinked) {
+                        Log::info('EmailController@processSentItems: skip (already linked)', [
+                            'subject' => $rawSubject,
+                        ]);
                         $skipped++;
                         continue;
                     }
@@ -610,6 +620,25 @@ class EmailController extends Controller
                         ->first();
 
                     if (!$staging) {
+                        // Log detail kandidat staging yang ada untuk debug matching
+                        $candidates = \App\Models\StagingTicket::where('created_at', '>=', now()->subDays(7))
+                            ->whereNull('graph_message_id')
+                            ->select('id', 'description', 'submitted_by_email', 'created_at')
+                            ->get()
+                            ->map(fn ($s) => [
+                                'id'          => $s->id,
+                                'description' => $s->description,
+                                'email'       => $s->submitted_by_email,
+                                'created_at'  => $s->created_at,
+                            ])->toArray();
+
+                        Log::info('EmailController@processSentItems: no matching staging for sent email', [
+                            'subject'          => $rawSubject,
+                            'clean_subject'    => $cleanSubject,
+                            'to'               => $toEmail,
+                            'graph_message_id' => $graphMsgId,
+                            'unlinked_staging_candidates' => $candidates,
+                        ]);
                         $skipped++;
                         continue;
                     }

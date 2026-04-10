@@ -180,16 +180,42 @@ async function loadStagingTickets(page = 1) {
     const params = new URLSearchParams({ per_page: 15, page });
     if (status) params.append('status', status);
 
+    const url = '/api/staging-tickets?' + params.toString();
+    const ts = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    console.log(`[StagingFetch] ${ts} — Memulai fetch: ${url}`);
+
     const tbody = document.getElementById('stagingTableBody');
     tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-12 text-center text-gray-400">
         <i class="fas fa-spinner fa-spin text-2xl mb-2 block"></i>Loading...</td></tr>`;
 
     try {
-        const res = await apiFetch('/api/staging-tickets?' + params.toString());
-        meta = res.meta ?? {};
-        renderTable(res.data ?? []);
+        const opts = {
+            method: 'GET',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+            credentials: 'same-origin',
+        };
+        const rawRes = await fetch(url, opts);
+        console.log(`[StagingFetch] HTTP ${rawRes.status} ${rawRes.statusText} | url: ${url}`);
+
+        const data = await rawRes.json();
+        console.log(`[StagingFetch] Response:`, {
+            success: data.success,
+            total:   data.meta?.total ?? '?',
+            page:    data.meta?.current_page ?? '?',
+            count:   data.data?.length ?? 0,
+            message: data.message ?? null,
+        });
+
+        if (!data.success) {
+            console.error(`[StagingFetch] Server error:`, data.message ?? data);
+            throw new Error(data.message || 'Request failed');
+        }
+
+        meta = data.meta ?? {};
+        renderTable(data.data ?? []);
         renderPagination();
-    } catch {
+    } catch (err) {
+        console.error(`[StagingFetch] Exception:`, err);
         tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-10 text-center text-red-500 text-sm">
             <i class="fas fa-exclamation-circle mr-1"></i>Failed to load data.</td></tr>`;
     }
@@ -774,11 +800,17 @@ async function fetchEmailInbox(silent = false) {
     const ts = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     console.log(`[FetchEmail] ${ts} — Memulai fetch${silent ? ' (auto-poll)' : ' (manual)'}`);
 
-    const postJson = (url) => fetch(url, {
-        method: 'POST',
-        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
-        credentials: 'same-origin',
-    }).then(r => r.json());
+    const postJson = async (url) => {
+        const r = await fetch(url, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+            credentials: 'same-origin',
+        });
+        console.log(`[FetchEmail] ${url} → HTTP ${r.status} ${r.statusText}`);
+        const body = await r.json();
+        console.log(`[FetchEmail] ${url} response:`, body);
+        return body;
+    };
 
     try {
         // Jalankan kedua fetch secara paralel
@@ -792,16 +824,17 @@ async function fetchEmailInbox(silent = false) {
         const inbox = inboxData.status === 'fulfilled' ? inboxData.value : {};
         const sent  = sentData.status  === 'fulfilled' ? sentData.value  : {};
 
-        if (inboxData.status === 'rejected') console.error(`[FetchEmail] process-inbox failed:`, inboxData.reason);
-        if (sentData.status  === 'rejected') console.error(`[FetchEmail] process-sent failed:`, sentData.reason);
+        if (inboxData.status === 'rejected') console.error(`[FetchEmail] process-inbox NETWORK ERROR:`, inboxData.reason);
+        if (sentData.status  === 'rejected') console.error(`[FetchEmail] process-sent NETWORK ERROR:`, sentData.reason);
 
         const newFromInbox = inbox.processed ?? 0;
         const linkedSent   = sent.linked     ?? 0;
 
-        console.log(`[FetchEmail] ${ts} — Inbox: ${newFromInbox} new | Sent: ${linkedSent} linked (total scanned: ${sent.total ?? '?'})`);
+        console.log(`[FetchEmail] ${ts} — Inbox: ${newFromInbox} new | Sent: ${linkedSent} linked (total scanned: ${sent.total ?? '?'}) | skipped: ${sent.skipped ?? '?'} | errors: ${sent.errors?.length ?? 0}`);
         if (inbox.errors?.length) console.warn(`[FetchEmail] Inbox errors:`, inbox.errors);
         if (sent.errors?.length)  console.warn(`[FetchEmail] Sent errors:`, sent.errors);
-        if (!sent.success && sent.message) console.warn(`[FetchEmail] process-sent error:`, sent.message);
+        if (!inbox.success && inbox.message) console.warn(`[FetchEmail] process-inbox server error:`, inbox.message);
+        if (!sent.success && sent.message)   console.warn(`[FetchEmail] process-sent server error:`, sent.message);
 
         const hasChanges = newFromInbox > 0 || linkedSent > 0;
 
@@ -822,7 +855,7 @@ async function fetchEmailInbox(silent = false) {
 
     } catch (err) {
         const now = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
-        console.error(`[FetchEmail] ${ts} — Exception:`, err);
+        console.error(`[FetchEmail] ${ts} — Unhandled exception:`, err);
         if (!silent) showNotif('Failed to connect to email server.', 'error');
         if (status) status.textContent = `Error ${now} (WIB)`;
     } finally {
