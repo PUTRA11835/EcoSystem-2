@@ -139,17 +139,19 @@ class StagingTicketController extends Controller
         }
 
         $validated = $request->validate([
-            'description'        => 'required|string|max:5000',
-            'body'               => 'nullable|string',               // Isi tiket dari Jarvies (form body)
-            'ticket_priority'    => 'required|in:Very High,High,Medium,Low',
-            'sender_name'        => 'nullable|string|max:255',
-            'submitted_by_email' => 'nullable|email|max:255',        // Email login customer
-            'cc_emails'          => 'nullable|string',               // JSON string: ["a@x.com","b@y.com"]
+            'description'          => 'required|string|max:5000',
+            'body'                 => 'nullable|string',               // Isi tiket dari Jarvies (form body)
+            'ticket_priority'      => 'required|in:Very High,High,Medium,Low',
+            'sender_name'          => 'nullable|string|max:255',
+            'submitted_by_email'   => 'nullable|email|max:255',        // Email login customer
+            'cc_emails'            => 'nullable|string',               // JSON string: ["a@x.com","b@y.com"]
+            'internet_message_id'  => 'nullable|string|max:1000',     // internetMessageId email [Menunggu Validasi] dari Jarvies
             // Field tambahan (opsional)
-            'name'               => 'nullable|string|max:255',       // Nama contact person
-            'no_hp'              => 'nullable|string|max:255',       // Nomor HP
-            'module'             => 'nullable|string|max:255',       // Modul terkait
-            'client'             => 'nullable|string|max:255',       // Nama client
+            'name'                 => 'nullable|string|max:255',       // Nama contact person
+            'no_hp'                => 'nullable|string|max:255',       // Nomor HP
+            'module'               => 'nullable|string|max:255',       // Modul terkait
+            'client'               => 'nullable|string|max:255',       // Nama client
+            'contact_id'           => 'nullable|integer',
         ]);
 
         try {
@@ -385,8 +387,33 @@ class StagingTicketController extends Controller
 
             $ticketNumber = $ticket->ticket_number ?? '—';
 
+            // Bangun detail tiket (metadata: phone, module, client, description)
+            // agar email approval berisi isi tiket yang sama seperti tampilan Jarvies
+            $detailRows = '';
+            if (!empty($staging->no_hp))  $detailRows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Phone</td><td>: ' . e($staging->no_hp)  . '</td></tr>';
+            if (!empty($staging->module)) $detailRows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Module</td><td>: ' . e($staging->module) . '</td></tr>';
+            if (!empty($staging->client)) $detailRows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Client</td><td>: ' . e($staging->client) . '</td></tr>';
+
+            $metaTable = $detailRows
+                ? '<table style="border-collapse:collapse;margin-bottom:16px">' . $detailRows . '</table>'
+                : '';
+
+            $descSection = !empty($staging->body)
+                ? '<div style="margin-bottom:16px"><strong>Description:</strong>'
+                  . '<div style="margin-top:8px;padding:12px;background:#f9f9f9;border:1px solid #e0e0e0;border-radius:4px">'
+                  . $staging->body
+                  . '</div></div>'
+                : '';
+
+            $detailBlock = ($metaTable || $descSection)
+                ? '<div style="margin:16px 0;padding:16px;background:#f9fafb;border-left:4px solid #c62828;border-radius:4px">'
+                  . $metaTable . $descSection
+                  . '</div>'
+                : '';
+
             $bodyPlain = "Baik akan disampaikan dengan Nomor Ticket {$ticketNumber}\n\nBest Regards,\n{$signatureName}";
             $bodyHtml  = "<p>Baik akan disampaikan dengan Nomor Ticket <strong>{$ticketNumber}</strong></p>"
+                       . $detailBlock
                        . "<br><p>Best Regards,<br><strong>{$signatureName}</strong></p>";
 
             // ── Simpan TicketMessage (tampil di semua channel — termasuk Jarvies web) ──

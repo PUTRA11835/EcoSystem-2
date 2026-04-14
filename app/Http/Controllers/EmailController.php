@@ -832,15 +832,24 @@ class EmailController extends Controller
                     // Ini fix untuk kasus SentItems: createReply default-nya reply ke raditya sendiri.
                     // ccRecipients selalu di-set eksplisit (bisa [] untuk hapus pre-populated CC yang salah).
                     //
-                    // JANGAN override subject di sini — Exchange menghitung ulang conversationId
-                    // dari normalized subject. Jika subject diubah → conversationId baru →
-                    // email keluar dari thread di Outlook DAN SMTP In-Reply-To header hilang.
-                    // Graph sudah otomatis set "Re: {original_subject}" via createReply → biarkan.
+                    // Subject: secara default TIDAK dioverride agar conversationId Exchange tetap
+                    // terjaga (threading di Outlook). Graph auto-set "Re: {original_subject}".
+                    //
+                    // PENGECUALIAN: jika $noRePrefix=true, caller menginginkan subject spesifik
+                    // (contoh: approval email dengan "Ticket #XXXX: desc"). Dalam kasus ini kita
+                    // patch subject. SMTP headers In-Reply-To & References sudah tertanam saat
+                    // createReply → tetap ada setelah patch subject → Gmail/client SMTP tetap thread.
+                    // Exchange conversationId akan berubah (Outlook mungkin tampilkan sebagai
+                    // thread terpisah) tapi ini trade-off yang diterima untuk subject yang benar.
                     $patchData = [
                         'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
                         'toRecipients' => [['emailAddress' => ['address' => $toEmail]]],
                         'ccRecipients' => $ccRecipients,
                     ];
+                    if ($noRePrefix) {
+                        // Override subject ke nilai yang diminta caller (misal "Ticket #XXXX: desc")
+                        $patchData['subject'] = $replySubject;
+                    }
                     $this->graphPatch("/users/{$sender}/messages/{$draftId}", $patchData);
                 } catch (\Exception $e) {
                     Log::warning('EmailController@sendTicketReply: createReply gagal, fallback ke draft baru', [
@@ -880,6 +889,9 @@ class EmailController extends Controller
                         'toRecipients' => [['emailAddress' => ['address' => $toEmail]]],
                         'ccRecipients' => $ccRecipients,
                     ];
+                    if ($noRePrefix) {
+                        $patchData['subject'] = $replySubject;
+                    }
                     $this->graphPatch("/users/{$sender}/messages/{$draftId}", $patchData);
                     Log::info('EmailController@sendTicketReply: threaded via conversationId fallback', [
                         'thread_id'  => $threadId,
