@@ -55,7 +55,13 @@ class TicketMessageController extends Controller
                     'email_message_id'    => $message->email_message_id,
                     'is_read_by_customer' => $message->is_read_by_customer,
                     'is_read_by_agent'    => $message->is_read_by_agent,
-                    'cc_emails'           => $message->cc_emails ?? [],
+                    'cc_emails'           => (function($cc) {
+                                                // Model cast 'array' normalnya mengembalikan array.
+                                                // Jika tersimpan double-encoded (JSON string), decode sekali lagi.
+                                                if (is_array($cc)) return $cc;
+                                                if (is_string($cc) && $cc !== '') return json_decode($cc, true) ?? [];
+                                                return [];
+                                            })($message->cc_emails),
                     'created_at'          => $message->created_at,
                     'attachments'         => $message->attachments->map(fn ($a) => [
                         'id'              => $a->id,
@@ -549,36 +555,21 @@ class TicketMessageController extends Controller
 
     /**
      * Template HTML untuk relay email customer reply.
+     * Format minimal: isi pesan + tanda tangan kecil (tanpa box/layout branding).
      */
     private function buildCustomerRelayHtml(string $body, Ticket $ticket, string $senderName): string
     {
-        $ticketNum   = htmlspecialchars($ticket->ticket_number ?? '', ENT_QUOTES, 'UTF-8');
-        $description = htmlspecialchars(mb_substr($ticket->description ?? '', 0, 90), ENT_QUOTES, 'UTF-8');
-        $name        = htmlspecialchars($senderName, ENT_QUOTES, 'UTF-8');
+        $ticketNum = htmlspecialchars($ticket->ticket_number ?? '', ENT_QUOTES, 'UTF-8');
+        $name      = htmlspecialchars($senderName, ENT_QUOTES, 'UTF-8');
 
         return <<<HTML
-        <table width="100%" cellpadding="0" cellspacing="0" border="0"
-               style="font-family:Arial,Helvetica,sans-serif;max-width:600px;border-collapse:collapse;">
-            <tr>
-                <td style="background-color:#8b1a1a;padding:16px 24px;border-radius:6px 6px 0 0;">
-                    <p style="color:#ffffff;font-size:16px;font-weight:bold;margin:0;line-height:1.3;">PT Eclectic Consulting</p>
-                    <p style="color:rgba(255,255,255,0.7);font-size:11px;margin:3px 0 0 0;">Helpdesk Support &nbsp;&middot;&nbsp; Ticket #{$ticketNum}</p>
-                </td>
-            </tr>
-            <tr>
-                <td style="background-color:#ffffff;padding:24px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;font-size:14px;color:#374151;line-height:1.7;">
-                    {$body}
-                </td>
-            </tr>
-            <tr>
-                <td style="background-color:#f9fafb;padding:14px 24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 6px 6px;">
-                    <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
-                        Sent by <strong style="color:#6b7280;">{$name}</strong> via Jarvies Customer Portal<br>
-                        Ticket: <strong style="color:#6b7280;">#{$ticketNum}</strong> &mdash; {$description}
-                    </p>
-                </td>
-            </tr>
-        </table>
+        <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#374151;line-height:1.7;max-width:600px;">
+            {$body}
+            <p style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;">
+                Sent by <strong style="color:#6b7280;">{$name}</strong> via Jarvies Customer Portal<br>
+                Ticket: <strong style="color:#6b7280;">#{$ticketNum}</strong>
+            </p>
+        </div>
         HTML;
     }
 
@@ -706,49 +697,23 @@ class TicketMessageController extends Controller
     }
 
     /**
-     * Bungkus body pesan dari Quill dalam HTML email template yang proper.
-     * Template dengan branding perusahaan dan konteks tiket membuat email
-     * lebih terlihat legitimate oleh spam filter.
+     * Bungkus body pesan dari Quill untuk dikirim via email.
+     * Format minimal: isi pesan + tanda tangan kecil.
+     * Tidak ada box/layout branding agar tampilan email sama dengan tampilan di website.
      */
     private function buildEmailHtml(string $body, Ticket $ticket, string $agentName): string
     {
-        $ticketNum   = htmlspecialchars($ticket->ticket_number ?? '', ENT_QUOTES, 'UTF-8');
-        $description = htmlspecialchars(mb_substr($ticket->description ?? '', 0, 90), ENT_QUOTES, 'UTF-8');
-        $agent       = htmlspecialchars($agentName, ENT_QUOTES, 'UTF-8');
+        $ticketNum = htmlspecialchars($ticket->ticket_number ?? '', ENT_QUOTES, 'UTF-8');
+        $agent     = htmlspecialchars($agentName, ENT_QUOTES, 'UTF-8');
 
-        // Kembalikan hanya fragment HTML (tanpa <!DOCTYPE>, <html>, <body>).
-        // Graph API sudah menyediakan outer HTML structure sendiri.
-        // Full HTML document di dalam body email menyebabkan rendering gagal di Gmail.
         return <<<HTML
-        <table width="100%" cellpadding="0" cellspacing="0" border="0"
-               style="font-family:Arial,Helvetica,sans-serif;max-width:600px;border-collapse:collapse;">
-
-            <!-- Header -->
-            <tr>
-                <td style="background-color:#8b1a1a;padding:16px 24px;border-radius:6px 6px 0 0;">
-                    <p style="color:#ffffff;font-size:16px;font-weight:bold;margin:0;line-height:1.3;">PT Eclectic Consulting</p>
-                    <p style="color:rgba(255,255,255,0.7);font-size:11px;margin:3px 0 0 0;">Helpdesk Support &nbsp;&middot;&nbsp; Ticket #{$ticketNum}</p>
-                </td>
-            </tr>
-
-            <!-- Body -->
-            <tr>
-                <td style="background-color:#ffffff;padding:24px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;font-size:14px;color:#374151;line-height:1.7;">
-                    {$body}
-                </td>
-            </tr>
-
-            <!-- Footer -->
-            <tr>
-                <td style="background-color:#f9fafb;padding:14px 24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 6px 6px;">
-                    <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
-                        Sent by <strong style="color:#6b7280;">{$agent}</strong> &mdash; PT Eclectic Consulting Yogyakarta<br>
-                        Ticket: <strong style="color:#6b7280;">#{$ticketNum}</strong> &mdash; {$description}
-                    </p>
-                </td>
-            </tr>
-
-        </table>
+        <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#374151;line-height:1.7;max-width:600px;">
+            {$body}
+            <p style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;">
+                Sent by <strong style="color:#6b7280;">{$agent}</strong> &mdash; PT Eclectic Consulting Yogyakarta<br>
+                Ticket: <strong style="color:#6b7280;">#{$ticketNum}</strong>
+            </p>
+        </div>
         HTML;
     }
 
