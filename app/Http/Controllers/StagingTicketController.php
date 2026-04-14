@@ -722,18 +722,32 @@ class StagingTicketController extends Controller
                 $customerEmail = Customer::find($ticket->customer_id)?->email;
             }
 
+            Log::info('StagingTicketController@sendApprovalNotification: resolving customer email', [
+                'staging_id'           => $staging->id,
+                'ticket_id'            => $ticket->ticket_id,
+                'submitted_by_email'   => $staging->submitted_by_email,
+                'customer_email'       => $customerEmail,
+                'email_message_id'     => $staging->email_message_id,
+                'email_thread_id'      => $staging->email_thread_id,
+            ]);
+
             if ($customerEmail) {
                 // Subject format: "Ticket #26040014: FIX BISA"
                 $subject   = 'Ticket #' . $ticketNumber . ': ' . ($staging->description ?? 'Ticket Update');
                 $inReplyTo = $staging->email_message_id; // null untuk web-only → buat thread baru
                 $threadId  = $staging->email_thread_id;   // conversationId fallback
 
-                // Ambil CC dari staging — defensive parse (model cast atau raw JSON string)
+                // Ambil CC dari staging — model sudah cast ke array, tidak perlu json_decode ulang
                 $rawCc  = $staging->cc_emails;
-                if (is_string($rawCc)) {
-                    $rawCc = json_decode($rawCc, true) ?? [];
-                }
                 $ccList = is_array($rawCc) ? $rawCc : [];
+
+                Log::info('StagingTicketController@sendApprovalNotification: sending email', [
+                    'to'          => $customerEmail,
+                    'subject'     => $subject,
+                    'in_reply_to' => $inReplyTo,
+                    'thread_id'   => $threadId,
+                    'cc_count'    => count($ccList),
+                ]);
 
                 $emailResult = app(EmailController::class)->sendTicketReply(
                     $customerEmail,
@@ -744,8 +758,8 @@ class StagingTicketController extends Controller
                     $ccList,  // ccList dari staging
                     true,     // noRePrefix = true → subject tidak ditambah "Re:"
                     $threadId,// conversationId fallback
-                    true      // forceNewDraft = true → buat draft baru dengan In-Reply-To eksplisit
-                              // agar Gmail thread tetap satu conversation meski subject berubah
+                    false     // forceNewDraft = false → pakai createReply agar Exchange auto-set
+                              // In-Reply-To + References yang benar (Graph menolak header ini di draft baru)
                 );
 
                 // Simpan conversationId ke ticket agar reply berikutnya bisa threaded
@@ -763,12 +777,24 @@ class StagingTicketController extends Controller
                         'channel'          => 'email',
                     ]);
                 }
+
+                Log::info('StagingTicketController@sendApprovalNotification: email terkirim', [
+                    'ticket_id'          => $ticket->ticket_id,
+                    'internet_message_id'=> $internetMsgId,
+                    'conversation_id'    => $newConvId,
+                ]);
+            } else {
+                Log::warning('StagingTicketController@sendApprovalNotification: customer email tidak ditemukan, email dilewati', [
+                    'staging_id'  => $staging->id,
+                    'ticket_id'   => $ticket->ticket_id,
+                    'customer_id' => $ticket->customer_id,
+                ]);
             }
 
-            Log::info('StagingTicketController@sendApprovalNotification: notifikasi approval terkirim', [
-                'ticket_id'     => $ticket->ticket_id,
-                'ticket_number' => $ticketNumber,
-                'channel'       => $ticket->channel,
+            Log::info('StagingTicketController@sendApprovalNotification: selesai', [
+                'ticket_id'      => $ticket->ticket_id,
+                'ticket_number'  => $ticketNumber,
+                'email_sent'     => $customerEmail !== null,
             ]);
 
         } catch (\Exception $e) {

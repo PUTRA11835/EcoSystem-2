@@ -55,7 +55,7 @@ class TicketMessageController extends Controller
                     'email_message_id'    => $message->email_message_id,
                     'is_read_by_customer' => $message->is_read_by_customer,
                     'is_read_by_agent'    => $message->is_read_by_agent,
-                    'cc_emails'           => $message->cc_emails ? json_decode($message->cc_emails, true) : [],
+                    'cc_emails'           => $message->cc_emails ?? [],
                     'created_at'          => $message->created_at,
                     'attachments'         => $message->attachments->map(fn ($a) => [
                         'id'              => $a->id,
