@@ -1207,16 +1207,21 @@ class EmailController extends Controller
 
         // ── Fallback: buat draft baru ─────────────────────────────────────────
         // Dipakai jika: inReplyTo null, message tidak ditemukan, atau createReply gagal.
-        // In-Reply-To + References di-set manual agar Gmail/Outlook tetap bisa thread.
+        // Email baru tanpa threading — Graph API melarang header 'In-Reply-To'/'References'
+        // di internetMessageHeaders (hanya 'x-*' yang diizinkan).
         // toRecipients = $toEmail (selalu customer, tidak pernah raditya sendiri).
         if (!$draftId) {
+            // CATATAN: Graph API hanya izinkan header dengan prefix 'x-' atau 'X-' di internetMessageHeaders.
+            // Header standard seperti 'In-Reply-To' dan 'References' TIDAK bisa di-set manual di sini.
+            // Threading via SMTP header hanya bisa dilakukan melalui createReply (path di atas).
+            // Fallback ini mengirim email baru tanpa threading — lebih baik daripada 500 error.
             $headers = [
                 ['name' => 'X-Mailer',        'value' => 'EcoSystem-Helpdesk'],
                 ['name' => 'X-Entity-Ref-ID', 'value' => uniqid('ecosys-', true)],
             ];
             if ($inReplyTo) {
-                $headers[] = ['name' => 'In-Reply-To', 'value' => $inReplyTo];
-                $headers[] = ['name' => 'References',  'value' => $inReplyTo];
+                // Simpan reference sebagai custom header (tidak untuk threading, hanya untuk traceability)
+                $headers[] = ['name' => 'X-Original-Message-ID', 'value' => $inReplyTo];
             }
             $newMsgPayload = [
                 'subject'                => $replySubject,

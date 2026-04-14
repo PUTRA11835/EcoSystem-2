@@ -38,6 +38,30 @@ class StagingTicketService
      */
     public function createFromWeb(array $data, int $customerId): StagingTicket
     {
+        // ── Dedup: cegah duplikat saat Jarvies Step 4a + Step 4b keduanya menulis ──
+        //
+        // Alur Jarvies:
+        //   Step 4a — Jarvies langsung tulis ke DB shared (channel=web, tanpa linkStagingToEmail)
+        //   Step 4b — Jarvies POST ke EcoSystem API → masuk sini lagi
+        //
+        // internet_message_id dari M365 Graph bersifat globally unique → pakai sebagai kunci dedup.
+        // Jika sudah ada staging unvalidated dengan email_message_id yang sama, kembalikan yang
+        // lama agar linkStagingToEmail() (dipanggil jarviesStore) memperkayanya, bukan bikin baru.
+        if (!empty($data['internet_message_id'])) {
+            $existing = StagingTicket::where('email_message_id', $data['internet_message_id'])
+                ->where('status', 'unvalidated')
+                ->first();
+
+            if ($existing) {
+                Log::info('StagingTicketService@createFromWeb: dedup — returning existing staging', [
+                    'existing_id'      => $existing->id,
+                    'email_message_id' => $data['internet_message_id'],
+                    'customer_id'      => $customerId,
+                ]);
+                return $existing;
+            }
+        }
+
         return StagingTicket::create([
             'customer_id'        => $customerId,
             'description'        => $data['description'],

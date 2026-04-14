@@ -26,7 +26,9 @@
       "Bash(cmd /c \"more C:\\\\JARVIES-new-main\\\\routes\\\\web.php\")",
       "Bash(grep -n \"Very High\\\\|ticket_priority\" c:/EcoSystem-2/database/migrations/*.php)",
       "Bash(curl -X POST http://127.0.0.1:8000/api/jarvies/staging-tickets -H 'X-Api-Key: jarvies_e00e2bbf84559de81545ae7a6f4f2a8a217b5201dbaf6e3202a7afe3bd54f880' -H 'Content-Type: application/json' -d '{\"description\": \"Test ticket dari Jarvies\", \"customer_id\": 4, \"ticket_priority\": \"High\"}')",
-      "Bash(curl -s -X POST http://127.0.0.1:8000/api/jarvies/staging-tickets -H 'X-Api-Key: jarvies_e00e2bbf84559de81545ae7a6f4f2a8a217b5201dbaf6e3202a7afe3bd54f880' -H 'Content-Type: application/json' -d '{\"description\": \"Test ticket dari Jarvies\", \"customer_id\": 4, \"ticket_priority\": \"High\"}')"
+      "Bash(curl -s -X POST http://127.0.0.1:8000/api/jarvies/staging-tickets -H 'X-Api-Key: jarvies_e00e2bbf84559de81545ae7a6f4f2a8a217b5201dbaf6e3202a7afe3bd54f880' -H 'Content-Type: application/json' -d '{\"description\": \"Test ticket dari Jarvies\", \"customer_id\": 4, \"ticket_priority\": \"High\"}')",
+      "Read(//d/Magang/PT Eclectic Consulting Yogyakarta/Project/JARVIES-main/**)",
+      "Bash(php artisan tinker '--execute=:*)"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",

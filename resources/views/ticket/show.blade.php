@@ -1379,7 +1379,12 @@
             return `<div class="message-content text-sm text-gray-700">${highlighted}</div>`;
         }
 
-        // Web reply (Quill HTML) atau plain text — guard null untuk reply tanpa teks (file only)
+        // Employee reply dengan message_html → render HTML (trusted content)
+        if (msg.sender_type === 'employee' && msg.message_html) {
+            return `<div class="message-content text-sm text-gray-700 email-html-body">${sanitizeEmailHtml(msg.message_html)}</div>`;
+        }
+
+        // Web reply atau customer message → plain text (aman dari XSS customer input)
         if (!msg.message_body) return '';
         return `<div class="message-content text-sm text-gray-700">${msg.message_body}</div>`;
     }
