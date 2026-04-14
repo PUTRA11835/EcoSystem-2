@@ -23,7 +23,10 @@
 {{-- ===== TOOLBAR ===== --}}
 <div class="bg-white rounded-xl border border-gray-200 p-4 mb-6 shadow-sm">
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h3 class="text-sm font-semibold text-gray-700">Incoming Tickets</h3>
+        <div class="flex items-center gap-3">
+            <h3 class="text-sm font-semibold text-gray-700">Incoming Tickets</h3>
+            <span id="fetchEmailStatus" class="text-xs text-gray-400"></span>
+        </div>
         <div class="flex items-center gap-2 flex-wrap">
             <select id="filterStatus" onchange="loadStagingTickets()"
                     class="pl-3 pr-8 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
@@ -32,19 +35,14 @@
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
             </select>
-            <button onclick="loadStagingTickets()"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-200 transition-all">
-                <i class="fas fa-sync-alt text-xs"></i> Refresh
+            <button onclick="handleRefresh()" id="btnRefresh"
+                class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Refresh
             </button>
-            <button onclick="fetchEmailInbox()" id="btnFetchEmail"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all">
-                <i class="fas fa-envelope-open-text text-xs"></i> Fetch Email
-            </button>
-            <span id="fetchEmailStatus" class="text-xs text-gray-400 hidden sm:inline"></span>
             <a href="{{ route('staging.rejected') }}"
-               class="inline-flex items-center gap-1.5 px-4 py-2 bg-red-50 text-red-700 border border-red-200 text-sm font-semibold rounded-lg hover:bg-red-100 transition-all">
-                <i class="fas fa-ban text-xs"></i> View Rejected
-                <span id="rejectedNavBadge" class="hidden bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center"></span>
+                class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                View Rejected
+                <span id="rejectedNavBadge" class="hidden bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center ml-1.5"></span>
             </a>
         </div>
     </div>
@@ -142,7 +140,8 @@ document.addEventListener('DOMContentLoaded', () => {
     loadStats();
     loadStagingTickets();
     fetchEmailInbox(true);                              // fetch sekali saat halaman dibuka
-    setInterval(() => fetchEmailInbox(true), 60000);   // auto-poll tiap 60 detik
+    setInterval(() => fetchEmailInbox(true), 60000);   // auto-poll email tiap 60 detik
+    setInterval(() => { loadStats(); loadStagingTickets(); }, 30000); // auto-refresh list tiap 30 detik
 });
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
@@ -181,16 +180,42 @@ async function loadStagingTickets(page = 1) {
     const params = new URLSearchParams({ per_page: 15, page });
     if (status) params.append('status', status);
 
+    const url = '/api/staging-tickets?' + params.toString();
+    const ts = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    console.log(`[StagingFetch] ${ts} — Memulai fetch: ${url}`);
+
     const tbody = document.getElementById('stagingTableBody');
     tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-12 text-center text-gray-400">
         <i class="fas fa-spinner fa-spin text-2xl mb-2 block"></i>Loading...</td></tr>`;
 
     try {
-        const res = await apiFetch('/api/staging-tickets?' + params.toString());
-        meta = res.meta ?? {};
-        renderTable(res.data ?? []);
+        const opts = {
+            method: 'GET',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+            credentials: 'same-origin',
+        };
+        const rawRes = await fetch(url, opts);
+        console.log(`[StagingFetch] HTTP ${rawRes.status} ${rawRes.statusText} | url: ${url}`);
+
+        const data = await rawRes.json();
+        console.log(`[StagingFetch] Response:`, {
+            success: data.success,
+            total:   data.meta?.total ?? '?',
+            page:    data.meta?.current_page ?? '?',
+            count:   data.data?.length ?? 0,
+            message: data.message ?? null,
+        });
+
+        if (!data.success) {
+            console.error(`[StagingFetch] Server error:`, data.message ?? data);
+            throw new Error(data.message || 'Request failed');
+        }
+
+        meta = data.meta ?? {};
+        renderTable(data.data ?? []);
         renderPagination();
-    } catch {
+    } catch (err) {
+        console.error(`[StagingFetch] Exception:`, err);
         tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-10 text-center text-red-500 text-sm">
             <i class="fas fa-exclamation-circle mr-1"></i>Failed to load data.</td></tr>`;
     }
@@ -224,12 +249,12 @@ function renderTable(rows) {
 
         const actionBtn = s.status === 'unvalidated'
             ? `<button onclick="openModal(${s.id})"
-                       class="inline-flex items-center gap-1 px-3 py-1.5 bg-red-700 text-white text-xs font-bold rounded-lg hover:bg-red-800 transition-all">
-                   <i class="fas fa-gavel text-[10px]"></i> Validate
+                       class="inline-flex items-center px-3 py-1.5 primary-gradient text-white text-xs font-bold rounded-lg hover:opacity-90 transition-all">
+                   Validate
                </button>`
             : `<button onclick="openModal(${s.id})"
-                       class="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-all">
-                   <i class="fas fa-eye text-[10px]"></i> Detail
+                       class="inline-flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-all">
+                   Detail
                </button>`;
 
         const senderDisplay = s.customer_name ?? s.sender_name ?? 'Unknown';
@@ -332,7 +357,7 @@ function fillModal(s) {
         } catch { ccDisplay = escHtml(String(s.cc_emails)); }
     }
 
-    // ── Meta strip (email info or web info) ──
+    // ── Meta strip (unified for email & web) ──
     const metaRow = (label, value) =>
         `<tr class="border-b border-gray-100 last:border-0">
             <td class="px-5 py-2.5 text-xs font-semibold text-gray-400 whitespace-nowrap w-24 align-top">${label}</td>
@@ -353,44 +378,70 @@ function fillModal(s) {
         metaHtml = `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5"><table class="w-full">${rows}</table></div>`;
     } else {
         const custName = s.customer_name ?? s.sender_name ?? '—';
+        const senderEmail = s.submitted_by_email
+            ? ` <span class="text-gray-400 text-xs">&lt;${escHtml(s.submitted_by_email)}&gt;</span>` : '';
+        const unidentified = !s.customer_name && s.submitted_by_email
+            ? ' <span class="text-amber-500 text-xs">(unidentified)</span>' : '';
         const extraFields = [
-            s.no_hp  ? ['Phone', s.no_hp]   : null,
-            s.module ? ['Module', s.module]  : null,
-            s.client ? ['Client', s.client]  : null,
+            s.no_hp  ? ['Phone',  s.no_hp]  : null,
+            s.module ? ['Module', s.module] : null,
+            s.client ? ['Client', s.client] : null,
         ].filter(Boolean);
         const rows = [
-            metaRow('Customer', `<span class="font-semibold">${escHtml(custName)}</span>${!s.customer_name && s.submitted_by_email ? ' <span class="text-amber-500 text-xs">(unidentified)</span>' : ''}`),
+            metaRow('From', `<span class="font-semibold">${escHtml(custName)}</span>${senderEmail}${unidentified}`),
             metaRow('Date', `<span class="text-gray-500 text-xs">${dateStr}</span>`),
+            ccDisplay ? metaRow('CC', `<span class="text-gray-600 text-xs">${ccDisplay}</span>`) : '',
             metaRow('Subject', `<span class="font-semibold">${escHtml(s.description ?? '—')}</span>`),
             ...extraFields.map(([k,v]) => metaRow(k, escHtml(v))),
         ].join('');
         metaHtml = `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5"><table class="w-full">${rows}</table></div>`;
     }
 
-    // ── Email body ──
+    // ── Message body (email iframe OR web body/description) ──
+    // Both channels use an iframe for consistent rendering.
+    // hasEmailSource = true jika ticket ini punya email di Graph (channel email ATAU web + graph_message_id).
+    // Dalam kasus ini, body ditampilkan via previewBody agar inline images bisa di-resolve.
+    const hasEmailSource = isEmail || !!(s.graph_message_id);
+    const hasEmailBody   = !!(s.email_body_html);
     let contentHtml = '';
-    if (isEmail) {
-        contentHtml = s.email_body_html
-            ? `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
-                <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
-                    <i class="fas fa-envelope-open text-gray-400 text-xs"></i>
-                    <span class="text-xs font-semibold text-gray-500">Email Body</span>
-                </div>
-                <iframe id="emailBodyIframe" sandbox="allow-same-origin"
-                        class="w-full" style="min-height:280px;border:none;display:block" title="Email body"></iframe>
-            </div>`
-            : `<div class="border border-dashed border-gray-200 rounded-xl p-8 text-center text-gray-400 text-xs mb-5">
-                <i class="fas fa-envelope-open text-2xl mb-2 block opacity-30"></i>No email body stored.
-            </div>`;
+    const bodySource = hasEmailBody ? s.email_body_html : (s.body || null);
+    const bodyLabel  = hasEmailSource ? 'Email Body' : 'Message Body';
+
+    if (bodySource || (hasEmailSource && s.graph_message_id)) {
+        contentHtml = `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
+            <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+                <i class="fas fa-envelope-open text-gray-400 text-xs"></i>
+                <span class="text-xs font-semibold text-gray-500">${bodyLabel}</span>
+            </div>
+            <iframe id="emailBodyIframe" sandbox="allow-same-origin"
+                    class="w-full" style="min-height:280px;border:none;display:block" title="${bodyLabel}"></iframe>
+        </div>`;
     } else {
-        // Web — show description as prose
-        contentHtml = `
-        <div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
+        // Fallback: description as plain text (when no body stored)
+        contentHtml = `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
             <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
                 <i class="fas fa-align-left text-gray-400 text-xs"></i>
                 <span class="text-xs font-semibold text-gray-500">Description</span>
             </div>
             <div class="px-4 py-4 text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">${escHtml(s.description ?? '—')}</div>
+        </div>`;
+    }
+
+    // ── Attachments (web uploads from Jarvies local storage) ──
+    let attachmentsHtml = '';
+    const webAttachments = Array.isArray(s.attachments) ? s.attachments : [];
+    if (webAttachments.length > 0) {
+        attachmentsHtml = buildAttachmentsBlock(webAttachments, 'local');
+    } else if (s.graph_message_id) {
+        // Placeholder — email attachments loaded lazily after DOM insert
+        attachmentsHtml = `<div id="emailAttachmentsBlock" class="border border-gray-200 rounded-xl overflow-hidden mb-5">
+            <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+                <i class="fas fa-paperclip text-gray-400 text-xs"></i>
+                <span class="text-xs font-semibold text-gray-500">Attachments</span>
+            </div>
+            <div class="px-4 py-3 text-xs text-gray-400 flex items-center gap-2">
+                <i class="fas fa-spinner fa-spin"></i> Loading attachments…
+            </div>
         </div>`;
     }
 
@@ -467,14 +518,22 @@ function fillModal(s) {
 
     // ── Assemble body ──
     document.getElementById('modalBody').innerHTML =
-        metaHtml + validationHtml + rejectAreaHtml + contentHtml;
+        metaHtml + validationHtml + rejectAreaHtml + contentHtml + attachmentsHtml;
 
-    // Set iframe srcdoc after DOM is updated
-    if (isEmail && s.email_body_html) {
+    // ── Lazy-load email attachments from Graph if no local attachments ──
+    if (!webAttachments.length && s.graph_message_id) {
+        loadEmailAttachments(s.id);
+    }
+
+    // Set iframe srcdoc after DOM is updated (works for both email and web body)
+    if (bodySource) {
         const iframe = document.getElementById('emailBodyIframe');
         if (iframe) {
             const setIframeContent = (html) => {
-                iframe.srcdoc = html;
+                // Wrap bare text/HTML in basic styling for consistent look
+                const wrapped = html.startsWith('<') ? html
+                    : `<div style="font-family:system-ui,sans-serif;font-size:14px;color:#374151;padding:4px;white-space:pre-wrap">${html}</div>`;
+                iframe.srcdoc = wrapped;
                 iframe.addEventListener('load', () => {
                     try {
                         const h = iframe.contentDocument?.documentElement?.scrollHeight
@@ -486,26 +545,31 @@ function fillModal(s) {
                 }, { once: true });
             };
 
-            // Fetch resolved version if:
-            // - body has cid: references (inline attachment), OR
-            // - has_attachments=true (some email clients don't use cid: but still have inline images), OR
-            // - body has [filename.ext] placeholders
-            // Only call if graph_message_id is available (needed for Graph API attachment fetch).
-            const needsImageResolve = s.graph_message_id && (
-                s.email_body_html.includes('cid:') ||
+            // For email: resolve inline images via Graph API (cid: → base64 data URI)
+            // For web: resolve cid:img-N@jarvies references from staging_attachments list
+            const needsEmailImageResolve = isEmail && s.graph_message_id && (
+                (s.email_body_html || '').includes('cid:') ||
                 s.has_attachments ||
-                /\[[^\]]+\.(png|jpe?g|gif|bmp|webp)\]/i.test(s.email_body_html)
+                /\[[^\]]+\.(png|jpe?g|gif|bmp|webp)\]/i.test(s.email_body_html || '')
             );
-            if (needsImageResolve && s.id) {
+            if (needsEmailImageResolve && s.id) {
                 setIframeContent(s.email_body_html); // show immediately while loading
                 fetch(`/api/staging-tickets/${s.id}/preview-body`, {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'same-origin',
                 }).then(r => r.json()).then(data => {
                     if (data.success && data.html) setIframeContent(data.html);
-                }).catch(() => {}); // silently fall back to already-set srcdoc
+                }).catch(() => {});
+            } else if (!isEmail && bodySource && bodySource.includes('cid:')) {
+                // Web channel: replace cid:img-N@jarvies with actual attachment public URLs
+                const imageAtts = (s.attachments || []).filter(a => a.mime_type?.startsWith('image/'));
+                let resolved = bodySource.replace(/src="cid:img-(\d+)@jarvies"/gi, (match, n) => {
+                    const att = imageAtts[parseInt(n, 10) - 1];
+                    return att ? `src="${att.url}"` : match;
+                });
+                setIframeContent(resolved);
             } else {
-                setIframeContent(s.email_body_html);
+                setIframeContent(bodySource);
             }
         }
     }
@@ -518,18 +582,91 @@ function renderFooter(s) {
     const footer = document.getElementById('modalFooter');
     if (s.status === 'unvalidated') {
         footer.innerHTML = `
-            <button onclick="closeModal()" class="px-5 py-2.5 text-sm font-semibold text-gray-700 border-2 border-gray-200 rounded-xl hover:bg-gray-50 transition-all">Cancel</button>
             <button onclick="showRejectInput(${s.id})" id="btnReject"
-                    class="px-5 py-2.5 text-sm font-bold text-white bg-gray-600 rounded-xl hover:bg-gray-700 transition-all flex items-center gap-2">
-                <i class="fas fa-times"></i> Reject
+                    class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                Reject
             </button>
             <button onclick="submitApprove(${s.id})" id="btnApprove"
-                    class="px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-green-600 to-green-700 rounded-xl hover:shadow-lg transition-all flex items-center gap-2">
-                <i class="fas fa-check"></i> Approve & Create Ticket
+                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Approve
             </button>`;
     } else {
         footer.innerHTML = `
-            <button onclick="closeModal()" class="px-5 py-2.5 text-sm font-semibold text-gray-700 border-2 border-gray-200 rounded-xl hover:bg-gray-50 transition-all">Close</button>`;
+            <button onclick="closeModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Close</button>`;
+    }
+}
+
+// ─── Attachment helpers ───────────────────────────────────────────────────────
+
+function mimeIcon(mime) {
+    if (!mime) return 'fa-file';
+    if (mime.startsWith('image/')) return 'fa-file-image';
+    if (mime === 'application/pdf') return 'fa-file-pdf';
+    if (mime.includes('word')) return 'fa-file-word';
+    if (mime.includes('excel') || mime.includes('spreadsheet')) return 'fa-file-excel';
+    if (mime.includes('zip') || mime.includes('compressed')) return 'fa-file-archive';
+    return 'fa-file-alt';
+}
+
+function fmtSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+/**
+ * Build the attachments card HTML from an array of attachment objects.
+ * source = 'local' (from staging_attachments) or 'email' (from Graph)
+ */
+function buildAttachmentsBlock(files, source = 'local') {
+    if (!files.length) return '';
+    const fileList = files.map(f => {
+        const name     = escHtml(f.original_name || f.name || f.file_name || 'attachment');
+        const mime     = f.mime_type || f.content_type || f.contentType || '';
+        const size     = fmtSize(f.file_size || f.size);
+        const url      = escHtml(f.url || '#');
+        const icon     = mimeIcon(mime);
+        const isImage  = mime.startsWith('image/');
+        const preview  = isImage
+            ? `<img src="${url}" alt="${name}" class="max-h-32 max-w-full rounded object-contain border border-gray-200 mt-2" onerror="this.remove()">`
+            : '';
+        return `<div class="border-b border-gray-100 last:border-0">
+            <a href="${url}" target="_blank" rel="noopener"
+               class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors group">
+                <i class="fas ${icon} text-gray-400 group-hover:text-red-500 text-base w-5 text-center flex-shrink-0"></i>
+                <span class="text-sm text-gray-800 truncate flex-1">${name}</span>
+                ${size ? `<span class="text-xs text-gray-400 flex-shrink-0">${size}</span>` : ''}
+                <i class="fas fa-download text-gray-300 group-hover:text-red-500 text-xs flex-shrink-0"></i>
+            </a>
+            ${preview ? `<div class="px-4 pb-3">${preview}</div>` : ''}
+        </div>`;
+    }).join('');
+
+    const label = source === 'email' ? 'Email Attachments' : 'Attachments';
+    return `<div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
+        <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+            <i class="fas fa-paperclip text-gray-400 text-xs"></i>
+            <span class="text-xs font-semibold text-gray-500">${label}</span>
+            <span class="ml-auto text-xs text-gray-400">${files.length} file${files.length !== 1 ? 's' : ''}</span>
+        </div>
+        ${fileList}
+    </div>`;
+}
+
+async function loadEmailAttachments(stagingId) {
+    const block = document.getElementById('emailAttachmentsBlock');
+    if (!block) return;
+    try {
+        const res = await apiFetch(`/api/staging-tickets/${stagingId}/email-attachments`);
+        const atts = res.data ?? [];
+        if (atts.length === 0) {
+            block.remove();
+        } else {
+            block.outerHTML = buildAttachmentsBlock(atts, 'email');
+        }
+    } catch {
+        if (block) block.remove();
     }
 }
 
@@ -541,10 +678,10 @@ function showRejectInput(id) {
     }
     const footer = document.getElementById('modalFooter');
     footer.innerHTML = `
-        <button onclick="cancelReject()" class="px-5 py-2.5 text-sm font-semibold text-gray-700 border-2 border-gray-200 rounded-xl hover:bg-gray-50 transition-all">Cancel</button>
+        <button onclick="cancelReject()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Cancel</button>
         <button onclick="submitReject(${id})" id="btnConfirmReject"
-                class="px-5 py-2.5 text-sm font-bold text-white bg-red-700 rounded-xl hover:bg-red-800 transition-all flex items-center gap-2">
-            <i class="fas fa-times-circle"></i> Confirm Rejection
+                class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+            Confirm Rejection
         </button>`;
 }
 
@@ -575,7 +712,7 @@ async function submitApprove(id) {
     if (!valid) return;
 
     const btn = document.getElementById('btnApprove');
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Processing…'; }
 
     try {
         const res = await apiFetch(`/api/staging-tickets/${id}/approve`, 'POST', {
@@ -585,11 +722,10 @@ async function submitApprove(id) {
         closeModal();
         loadStagingTickets(currentPage);
         loadStats();
-        // Tampilkan toast setelah modal tertutup agar tidak tertutup backdrop
         setTimeout(() => showNotif('Ticket created! Number: ' + (res.data?.ticket_number ?? ''), 'success'), 80);
     } catch (e) {
         showNotif(e.message || 'Failed to approve ticket.', 'error');
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Approve & Create Ticket'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Approve'; }
     }
 }
 
@@ -604,7 +740,7 @@ async function submitReject(id) {
     if (errEl) errEl.classList.add('hidden');
 
     const btn = document.getElementById('btnConfirmReject');
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Processing…'; }
 
     try {
         await apiFetch(`/api/staging-tickets/${id}/reject`, 'POST', { reason });
@@ -614,7 +750,7 @@ async function submitReject(id) {
         setTimeout(() => showNotif('Ticket rejected.', 'info'), 80);
     } catch (e) {
         showNotif(e.message || 'Failed to reject ticket.', 'error');
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-times-circle"></i> Confirm Rejection'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Confirm Rejection'; }
     }
 }
 
@@ -623,8 +759,6 @@ function closeModal() {
     currentStagingId   = null;
     currentStagingData = null;
 }
-document.getElementById('stagingModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 async function apiFetch(url, method = 'GET', body = null) {
     const opts = {
@@ -649,50 +783,83 @@ function showNotif(msg, type = 'info') {
     showToast(msg, type);
 }
 
-// ─── Fetch Email Inbox ────────────────────────────────────────────────────────
+function handleRefresh() {
+    loadStats();
+    loadStagingTickets();
+    fetchEmailInbox(false);
+}
+
+// ─── Fetch Email (Inbox + Sent Items) ────────────────────────────────────────
 async function fetchEmailInbox(silent = false) {
-    const btn    = document.getElementById('btnFetchEmail');
+    const btn    = document.getElementById('btnRefresh');
     const status = document.getElementById('fetchEmailStatus');
 
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Fetching...'; }
-    if (status) { status.textContent = 'Fetching...'; status.classList.remove('hidden'); }
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i>'; }
+    if (status) { status.textContent = 'Refreshing...'; }
 
     const ts = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-    console.log(`[FetchEmail] ${ts} — Memulai fetch inbox${silent ? ' (auto-poll)' : ' (manual)'}`);
+    console.log(`[FetchEmail] ${ts} — Memulai fetch${silent ? ' (auto-poll)' : ' (manual)'}`);
 
-    try {
-        const res  = await fetch('/api/email/process-inbox', {
+    const postJson = async (url) => {
+        const r = await fetch(url, {
             method: 'POST',
             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
             credentials: 'same-origin',
         });
-        const data = await res.json();
-        const now  = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
+        console.log(`[FetchEmail] ${url} → HTTP ${r.status} ${r.statusText}`);
+        const body = await r.json();
+        console.log(`[FetchEmail] ${url} response:`, body);
+        return body;
+    };
 
-        if (data.status === 'error') {
-            console.error(`[FetchEmail] ${ts} — ERROR:`, data.message ?? 'Unknown error');
-            if (!silent) showNotif('Fetch failed: ' + (data.message ?? 'Unknown error'), 'error');
-            if (status) status.textContent = `Error ${now} (WIB)`;
-        } else {
-            const processed = data.processed ?? 0;
-            const skipped   = data.skipped   ?? 0;
-            console.log(`[FetchEmail] ${ts} — Selesai. Diproses: ${processed}, Dilewati: ${skipped}`);
-            if (data.errors?.length) {
-                console.warn(`[FetchEmail] ${ts} — Errors:`, data.errors);
-            }
-            // Selalu tampilkan toast saat ada email baru, termasuk saat auto-poll (silent=true)
-            if (processed > 0) showNotif(`${processed} new email(s) added to staging.`, 'success');
+    try {
+        // Jalankan kedua fetch secara paralel
+        const [inboxData, sentData] = await Promise.allSettled([
+            postJson('/api/email/process-inbox'),
+            postJson('/api/email/process-sent'),
+        ]);
+
+        const now = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
+
+        const inbox = inboxData.status === 'fulfilled' ? inboxData.value : {};
+        const sent  = sentData.status  === 'fulfilled' ? sentData.value  : {};
+
+        if (inboxData.status === 'rejected') console.error(`[FetchEmail] process-inbox NETWORK ERROR:`, inboxData.reason);
+        if (sentData.status  === 'rejected') console.error(`[FetchEmail] process-sent NETWORK ERROR:`, sentData.reason);
+
+        const newFromInbox = inbox.processed ?? 0;
+        const linkedSent   = sent.linked     ?? 0;
+
+        console.log(`[FetchEmail] ${ts} — Inbox: ${newFromInbox} new | Sent: ${linkedSent} linked (total scanned: ${sent.total ?? '?'}) | skipped: ${sent.skipped ?? '?'} | errors: ${sent.errors?.length ?? 0}`);
+        if (inbox.errors?.length) console.warn(`[FetchEmail] Inbox errors:`, inbox.errors);
+        if (sent.errors?.length)  console.warn(`[FetchEmail] Sent errors:`, sent.errors);
+        if (!inbox.success && inbox.message) console.warn(`[FetchEmail] process-inbox server error:`, inbox.message);
+        if (!sent.success && sent.message)   console.warn(`[FetchEmail] process-sent server error:`, sent.message);
+
+        const hasChanges = newFromInbox > 0 || linkedSent > 0;
+
+        if (!silent || hasChanges) {
+            const parts = [];
+            if (newFromInbox > 0) parts.push(`${newFromInbox} new ticket(s) from inbox`);
+            if (linkedSent > 0)   parts.push(`${linkedSent} staging(s) linked to sent email`);
+            if (parts.length > 0) showNotif(parts.join(', ') + '.', 'success');
             else if (!silent) showNotif('No new emails.', 'info');
-            if (status) status.textContent = `Updated ${now} (WIB)${processed > 0 ? ` · ${processed} new` : ''}`;
-            if (processed > 0) { loadStagingTickets(); loadStats(); }
         }
+
+        const statusParts = [];
+        if (newFromInbox > 0) statusParts.push(`${newFromInbox} inbox`);
+        if (linkedSent > 0)   statusParts.push(`${linkedSent} linked`);
+        if (status) status.textContent = `Updated ${now} (WIB)${statusParts.length ? ' · ' + statusParts.join(', ') : ''}`;
+
+        if (hasChanges) { loadStagingTickets(); loadStats(); }
+
     } catch (err) {
         const now = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
-        console.error(`[FetchEmail] ${ts} — Exception:`, err);
+        console.error(`[FetchEmail] ${ts} — Unhandled exception:`, err);
         if (!silent) showNotif('Failed to connect to email server.', 'error');
         if (status) status.textContent = `Error ${now} (WIB)`;
     } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope-open-text text-xs"></i> Fetch Email'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = 'Refresh'; }
     }
 }
 </script>

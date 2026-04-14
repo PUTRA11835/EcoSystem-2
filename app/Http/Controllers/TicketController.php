@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use App\Models\Ticket;
 use App\Services\StagingTicketService;
+use App\Services\TicketNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -12,16 +14,18 @@ use Illuminate\Support\Facades\Auth;
 
 class TicketController extends Controller
 {
+    public function __construct(private readonly TicketNumberService $ticketNumbers) {}
+
     /**
      * Get user info for history
      */
     private function getUserInfo($sessionUser)
     {
         $roleName = match($sessionUser['role']['id']) {
-            1 => 'Admin',
-            2 => 'Employee',
-            3 => 'Customer',
-            default => 'Unknown'
+            RoleId::ADMIN->value    => 'Admin',
+            RoleId::EMPLOYEE->value => 'Employee',
+            RoleId::CUSTOMER->value => 'Customer',
+            default                 => 'Unknown'
         };
         
         $userName = $sessionUser['name'] ?? $sessionUser['email'] ?? 'Unknown User';
@@ -68,15 +72,15 @@ class TicketController extends Controller
             ]);
 
             // Admin: bisa lihat semua ticket tanpa pembatasan
-            if ($sessionUser['role']['id'] == 1) {
+            if ($sessionUser['role']['id'] === RoleId::ADMIN->value) {
                 Log::info('Admin viewing all tickets');
-                
+
                 $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
 
             // Employee: tampilkan ticket unassigned (belum ada PIC)
-            } elseif ($sessionUser['role']['id'] == 2) {
+            } elseif ($sessionUser['role']['id'] === RoleId::EMPLOYEE->value) {
                 Log::info('Employee viewing unassigned tickets');
 
                 $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
@@ -84,8 +88,8 @@ class TicketController extends Controller
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
 
-            // Helpdesk (6), RPMO (7), Head of Project (4), Head of Support (5): lihat semua ticket
-            } elseif (in_array($sessionUser['role']['id'], [4, 5, 6, 7])) {
+            // Helpdesk, RPMO, Head of Project, Head of Support: lihat semua ticket
+            } elseif (in_array($sessionUser['role']['id'], array_merge(RoleId::HEAD_GROUP, RoleId::HELPDESK_GROUP), true)) {
                 Log::info('Staff viewing all tickets', ['role_id' => $sessionUser['role']['id']]);
 
                 $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
@@ -93,7 +97,6 @@ class TicketController extends Controller
                     ->get();
 
             } else {
-                // role 3 (Internship) dan role lain tidak punya akses
                 return response()->json([
                     'success' => false,
                     'message' => 'Access denied'
@@ -188,7 +191,7 @@ class TicketController extends Controller
         $roleId = $user['role']['id'];
 
         // ── Admin (role 1) → langsung buat ticket (bypass staging) ────────────
-        if ($roleId == 1) {
+        if ($roleId === RoleId::ADMIN->value) {
             $validated = $request->validate([
                 'description'     => 'required|string',
                 'ticket_priority' => 'required|in:Very High,High,Medium,Low',
@@ -200,10 +203,10 @@ class TicketController extends Controller
             $validated['jarvies_status'] = 'in process';
 
             try {
-                $ticketNumber             = $this->generateTicketNumber($validated['customer_id']);
-                $validated['ticket_number'] = $ticketNumber;
-
-                $ticket = Ticket::create($validated);
+                $ticket = DB::transaction(function () use ($validated) {
+                    $validated['ticket_number'] = $this->ticketNumbers->generate();
+                    return Ticket::create($validated);
+                });
 
                 return response()->json([
                     'success' => true,
@@ -274,17 +277,16 @@ class TicketController extends Controller
                 ], 404);
             }
 
-            $data = [
-                'customer_id' => $customerId,
-                'description' => $payload['description'] ?? null,
-                'ticket_priority' => null,
-                'status' => 'open',
-                'jarvies_status' => 'in process',
-            ];
-
-            $data['ticket_number'] = $this->generateTicketNumber($customerId);
-
-            $ticket = Ticket::create($data);
+            $ticket = DB::transaction(function () use ($customerId, $payload) {
+                return Ticket::create([
+                    'customer_id'     => $customerId,
+                    'description'     => $payload['description'] ?? null,
+                    'ticket_priority' => null,
+                    'status'          => 'open',
+                    'jarvies_status'  => 'in process',
+                    'ticket_number'   => $this->ticketNumbers->generate(),
+                ]);
+            });
 
             return response()->json([
                 'success' => true,
@@ -347,22 +349,7 @@ class TicketController extends Controller
         }
     }
 
-    private function generateTicketNumber($customerId)
-    {
-        $year      = date('y');  // e.g., "26"
-        $yearMonth = date('ym'); // e.g., "2603"
 
-        // Find the highest sequence used THIS year across all months (exclude old dash-format)
-        $lastNumber = DB::table('ticket')
-            ->where('ticket_number', 'like', $year . '%')
-            ->whereRaw("ticket_number NOT LIKE '%-%'")
-            ->orderByRaw('CAST(SUBSTRING(ticket_number, 5, 4) AS UNSIGNED) DESC')
-            ->value('ticket_number');
-
-        $nextNumber = $lastNumber ? ((int) substr($lastNumber, -4)) + 1 : 1;
-
-        return $yearMonth . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
-    }
 
     /**
      * Get my tickets (for customer and employee)
@@ -382,7 +369,7 @@ class TicketController extends Controller
             Log::info('My Tickets - Session User:', $sessionUser);
 
             // Employee / Helpdesk: tampilkan tiket dimana mereka PIC atau member
-            if (in_array($sessionUser['role']['id'], [2, 6, 7])) {
+            if (in_array($sessionUser['role']['id'], array_merge([RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
                 $employeeId = $sessionUser['id'];
 
                 Log::info('My Tickets - Filtering for employee/helpdesk', ['employee_id' => $employeeId]);
@@ -518,7 +505,7 @@ class TicketController extends Controller
             }
             
             // Pastikan user adalah employee
-            if ($sessionUser['role']['id'] != 2) {
+            if ($sessionUser['role']['id'] !== RoleId::EMPLOYEE->value) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Only employees can take tickets'
@@ -594,7 +581,7 @@ class TicketController extends Controller
         try {
             $sessionUser = session('user');
             
-            if (!$sessionUser || $sessionUser['role']['id'] != 1) {
+            if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::ADMIN->value) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Admin only'
@@ -661,7 +648,7 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
         
-        if (!$sessionUser || $sessionUser['role']['id'] != 1) {
+        if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::ADMIN->value) {
             return response()->json([
                 'success' => false,
                 'message' => 'Admin only'
@@ -762,7 +749,7 @@ class TicketController extends Controller
         $sessionUser = session('user');
         
         // Only admin can update man days
-        if (!$sessionUser || $sessionUser['role']['id'] !== 1) {
+        if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::ADMIN->value) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized. Only admin can update man days.'
@@ -892,7 +879,7 @@ class TicketController extends Controller
                 ->findOrFail($id);
 
             // Employee harus punya DSM qualification (kecuali Admin)
-            if ($sessionUser['role']['id'] == 2 && !$this->isEmployeeQualified($sessionUser['id'])) {
+            if ($sessionUser['role']['id'] === RoleId::EMPLOYEE->value && !$this->isEmployeeQualified($sessionUser['id'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You are not qualified for this section. DSM qualification required.'
@@ -960,10 +947,10 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
 
-        $roleId = $sessionUser['role']['id'] ?? 0;
-        $isAdmin    = $roleId == 1;
-        $isHelpdesk = in_array($roleId, [6, 7]);
-        $isEmployee = $roleId >= 1; // any employee role (not customer)
+        $roleId     = $sessionUser['role']['id'] ?? 0;
+        $isAdmin    = $roleId === RoleId::ADMIN->value;
+        $isHelpdesk = in_array($roleId, RoleId::HELPDESK_GROUP, true);
+        $isEmployee = $roleId !== RoleId::CUSTOMER->value && $roleId > 0;
 
         if (!$sessionUser) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
@@ -1065,7 +1052,7 @@ class TicketController extends Controller
             }
 
             // Employee harus punya DSM qualification
-            if ($sessionUser['role']['id'] == 2 && !$this->isEmployeeQualified($sessionUser['id'])) {
+            if ($sessionUser['role']['id'] === RoleId::EMPLOYEE->value && !$this->isEmployeeQualified($sessionUser['id'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You are not qualified for this section. DSM qualification required.'
@@ -1106,7 +1093,7 @@ class TicketController extends Controller
             }
 
             // Employee harus punya DSM qualification (kecuali Admin)
-            if ($sessionUser['role']['id'] == 2 && !$this->isEmployeeQualified($sessionUser['id'])) {
+            if ($sessionUser['role']['id'] === RoleId::EMPLOYEE->value && !$this->isEmployeeQualified($sessionUser['id'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You are not qualified for this section. DSM qualification required.'
@@ -1152,7 +1139,7 @@ class TicketController extends Controller
             }
 
             // Employee harus punya DSM qualification (kecuali Admin)
-            if ($sessionUser['role']['id'] == 2 && !$this->isEmployeeQualified($sessionUser['id'])) {
+            if ($sessionUser['role']['id'] === RoleId::EMPLOYEE->value && !$this->isEmployeeQualified($sessionUser['id'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You are not qualified for this section. DSM qualification required.'
@@ -1394,7 +1381,7 @@ class TicketController extends Controller
         $sessionUser = session('user');
         
         $roleId = $sessionUser['role']['id'] ?? 0;
-        if (!$sessionUser || !in_array($roleId, [1, 6, 7])) {
+        if (!$sessionUser || !in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only admin or helpdesk can update ticket status'
@@ -1446,7 +1433,7 @@ class TicketController extends Controller
         try {
             $sessionUser = session('user');
             
-            if (!$sessionUser || $sessionUser['role']['id'] != 1) {
+            if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::ADMIN->value) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Admin only'
@@ -1512,10 +1499,10 @@ class TicketController extends Controller
         }
 
         $ticket  = Ticket::with('members.basicData')->findOrFail($id);
-        $roleId  = $sessionUser['role']['id'];
-        $isAdmin = $roleId == 1;
-        $isHelpdesk = in_array($roleId, [6, 7]);
-        $isPic   = $roleId == 2 && $ticket->employee_id == $sessionUser['id'];
+        $roleId     = $sessionUser['role']['id'];
+        $isAdmin    = $roleId === RoleId::ADMIN->value;
+        $isHelpdesk = in_array($roleId, RoleId::HELPDESK_GROUP, true);
+        $isPic      = $roleId === RoleId::EMPLOYEE->value && $ticket->employee_id == $sessionUser['id'];
 
         if (!$isAdmin && !$isHelpdesk && !$isPic) {
             return response()->json([
@@ -1573,10 +1560,10 @@ class TicketController extends Controller
         }
 
         $ticket  = Ticket::findOrFail($id);
-        $roleId  = $sessionUser['role']['id'];
-        $isAdmin = $roleId == 1;
-        $isHelpdesk = in_array($roleId, [6, 7]);
-        $isPic   = $roleId == 2 && $ticket->employee_id == $sessionUser['id'];
+        $roleId     = $sessionUser['role']['id'];
+        $isAdmin    = $roleId === RoleId::ADMIN->value;
+        $isHelpdesk = in_array($roleId, RoleId::HELPDESK_GROUP, true);
+        $isPic      = $roleId === RoleId::EMPLOYEE->value && $ticket->employee_id == $sessionUser['id'];
 
         if (!$isAdmin && !$isHelpdesk && !$isPic) {
             return response()->json([
@@ -1627,7 +1614,7 @@ class TicketController extends Controller
         $sessionUser = session('user');
         
         // Only employee can request
-        if (!$sessionUser || $sessionUser['role']['id'] != 2) {
+        if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::EMPLOYEE->value) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only employees can request member changes'
@@ -1697,10 +1684,10 @@ class TicketController extends Controller
         }
 
         $ticket  = Ticket::with('members.basicData')->findOrFail($ticketId);
-        $roleId  = $sessionUser['role']['id'];
-        $isAdmin = $roleId == 1;
-        $isHelpdesk = in_array($roleId, [6, 7]);
-        $isPic   = $roleId == 2 && $ticket->employee_id == $sessionUser['id'];
+        $roleId     = $sessionUser['role']['id'];
+        $isAdmin    = $roleId === RoleId::ADMIN->value;
+        $isHelpdesk = in_array($roleId, RoleId::HELPDESK_GROUP, true);
+        $isPic      = $roleId === RoleId::EMPLOYEE->value && $ticket->employee_id == $sessionUser['id'];
 
         if (!$isAdmin && !$isHelpdesk && !$isPic) {
             return response()->json([
@@ -1751,7 +1738,7 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
         
-        if (!$sessionUser || $sessionUser['role']['id'] != 2) {
+        if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::EMPLOYEE->value) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only employees can request member removal'
@@ -1805,7 +1792,7 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
         
-        if (!$sessionUser || $sessionUser['role']['id'] != 1) {
+        if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::ADMIN->value) {
             return response()->json([
                 'success' => false,
                 'message' => 'Admin only'
@@ -1898,7 +1885,7 @@ class TicketController extends Controller
         try {
             $sessionUser = session('user');
             
-            if (!$sessionUser || $sessionUser['role']['id'] != 1) {
+            if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::ADMIN->value) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Admin only'
@@ -1979,7 +1966,7 @@ class TicketController extends Controller
             }
 
             // Only Admin and Helpdesk can assign tickets to support
-            if (!in_array($sessionUser['role']['id'], [1, 6])) {
+            if (!in_array($sessionUser['role']['id'], [RoleId::ADMIN->value, RoleId::HELPDESK->value], true)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Only Admin and Helpdesk can assign tickets to delivery support'
@@ -2057,7 +2044,7 @@ class TicketController extends Controller
         }
 
         // Only Admin and Helpdesk can assign tickets
-        if (!in_array($sessionUser['role']['id'], [1, 6])) {
+        if (!in_array($sessionUser['role']['id'], [RoleId::ADMIN->value, RoleId::HELPDESK->value], true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only Admin and Helpdesk can assign tickets to delivery support'
@@ -2279,7 +2266,7 @@ class TicketController extends Controller
         }
 
         // Only Admin, Helpdesk, and RPMO can create delivery supports
-        if (!in_array($sessionUser['role']['id'], [1, 6, 7])) {
+        if (!in_array($sessionUser['role']['id'], RoleId::TICKET_MANAGER_GROUP, true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only Admin, Helpdesk, and RPMO can create delivery supports'

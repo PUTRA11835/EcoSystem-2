@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use App\Models\Customer;
+use App\Models\StagingAttachment;
 use App\Models\StagingTicket;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
 use App\Services\StagingTicketService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * StagingTicketController
@@ -39,7 +43,7 @@ class StagingTicketController extends Controller
         ];
 
         // Hanya admin (1) dan helpdesk (6,7) yang boleh akses
-        if (!in_array($user->role->role_id, [1, 2, 6, 7])) {
+        if (!in_array($user->role->role_id, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
             abort(403, 'Unauthorized');
         }
 
@@ -56,7 +60,7 @@ class StagingTicketController extends Controller
             'role' => (object) ['role_id' => $sessionUser['role']['id'] ?? 0],
         ];
 
-        if (!in_array($user->role->role_id, [1, 2, 6, 7])) {
+        if (!in_array($user->role->role_id, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
             abort(403, 'Unauthorized');
         }
 
@@ -73,14 +77,30 @@ class StagingTicketController extends Controller
     {
         $sessionUser = session('user');
         if (!$sessionUser) {
+            Log::warning('StagingTicketController@index: unauthorized — no session user', [
+                'session_id' => session()->getId(),
+                'ip'         => $request->ip(),
+            ]);
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $roleId = $sessionUser['role']['id'];
+        $roleId = $sessionUser['role']['id'] ?? null;
 
-        if (in_array($roleId, [1, 2, 3, 6, 7])) {
+        Log::info('StagingTicketController@index: request received', [
+            'user_id'     => $sessionUser['id'] ?? null,
+            'role_id'     => $roleId,
+            'filters'     => $request->only(['status', 'customer_id', 'per_page']),
+            'session_id'  => session()->getId(),
+            'ip'          => $request->ip(),
+        ]);
+
+        if (in_array($roleId, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value, RoleId::CUSTOMER->value], RoleId::HELPDESK_GROUP), true)) {
             $query = StagingTicket::query();
         } else {
+            Log::warning('StagingTicketController@index: forbidden — role not allowed', [
+                'user_id' => $sessionUser['id'] ?? null,
+                'role_id' => $roleId,
+            ]);
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -96,7 +116,22 @@ class StagingTicketController extends Controller
               ->orderBy('created_at', 'desc');
 
         $perPage = min((int) $request->get('per_page', 20), 100);
-        $data    = $query->paginate($perPage);
+
+        try {
+            $data = $query->paginate($perPage);
+        } catch (\Exception $e) {
+            Log::error('StagingTicketController@index: query failed', [
+                'error'   => $e->getMessage(),
+                'user_id' => $sessionUser['id'] ?? null,
+            ]);
+            return response()->json(['success' => false, 'message' => 'Query failed: ' . $e->getMessage()], 500);
+        }
+
+        Log::info('StagingTicketController@index: success', [
+            'total'   => $data->total(),
+            'per_page' => $data->perPage(),
+            'user_id' => $sessionUser['id'] ?? null,
+        ]);
 
         return response()->json([
             'success' => true,
@@ -119,7 +154,7 @@ class StagingTicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $staging = StagingTicket::with(['customer.basicData', 'validator.basicData', 'ticket'])
+        $staging = StagingTicket::with(['customer.basicData', 'validator.basicData', 'ticket', 'attachments'])
             ->findOrFail($id);
 
         return response()->json(['success' => true, 'data' => $this->formatStaging($staging)]);
@@ -173,6 +208,102 @@ class StagingTicketController extends Controller
         }
     }
 
+    // ─── API: JARVIES external submit (via X-Api-Key, tanpa session) ─────────
+
+    /**
+     * POST /jarvies/staging-tickets
+     * Dipanggil oleh JARVIES saat customer submit tiket dari portal mereka.
+     * Autentikasi via X-Api-Key middleware (bukan session).
+     * customer_id diambil dari payload, bukan dari session.
+     */
+    public function jarviesStore(Request $request)
+    {
+        $validated = $request->validate([
+            'description'          => 'required|string|max:5000',
+            'body'                 => 'nullable|string',
+            'ticket_priority'      => 'nullable|in:Very High,High,Medium,Low',
+            'sender_name'          => 'nullable|string|max:255',
+            'submitted_by_email'   => 'nullable|email|max:255',
+            'cc_emails'            => 'nullable|string',    // JSON string dari JARVIES
+            'customer_id'          => 'required|integer',
+            'contact_id'           => 'nullable|integer',
+            'name'                 => 'nullable|string|max:255',
+            'no_hp'                => 'nullable|string|max:255',
+            'module'               => 'nullable|string|max:255',
+            'client'               => 'nullable|string|max:255',
+            // Jika Jarvies sudah kirim email sendiri, kirim internet_message_id-nya
+            // agar EcoSystem bisa link staging ke email tersebut (ambil graph_message_id + body)
+            'internet_message_id'  => 'nullable|string|max:1000',
+            // Checklist J: attachment dari web form (opsional, multipart/form-data)
+            'attachments'          => 'nullable|array',
+            'attachments.*'        => 'file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,xlsx,xls,zip',
+        ]);
+
+        try {
+            // Decode cc_emails jika dikirim sebagai JSON string
+            if (isset($validated['cc_emails']) && is_string($validated['cc_emails'])) {
+                $decoded = json_decode($validated['cc_emails'], true);
+                if (is_array($decoded)) {
+                    $validated['cc_emails'] = $decoded;
+                }
+            }
+
+            $staging = $this->service->createFromWeb($validated, (int) $validated['customer_id']);
+
+            // Kumpulkan file attachment untuk dikirim via email
+            $attachmentFiles = [];
+
+            // Simpan attachment jika ada (Checklist J)
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $file) {
+                    $fileName = time() . '_' . $file->getClientOriginalName();
+                    $filePath = $file->storeAs('staging_attachments/' . $staging->id, $fileName, 'public');
+
+                    StagingAttachment::create([
+                        'staging_id'    => $staging->id,
+                        'file_name'     => $fileName,
+                        'file_path'     => $filePath,
+                        'file_size'     => $file->getSize(),
+                        'mime_type'     => $file->getMimeType(),
+                        'original_name' => $file->getClientOriginalName(),
+                    ]);
+
+                    $attachmentFiles[] = $file;
+                }
+            }
+
+            Log::info('StagingTicketController@jarviesStore: staging created from JARVIES', [
+                'staging_id'       => $staging->id,
+                'customer_id'      => $validated['customer_id'],
+                'attachment_count' => count($attachmentFiles),
+            ]);
+
+            // ── Link ke email Jarvies (jika internet_message_id dikirim) ─────────
+            // Jika Jarvies kirim internet_message_id → langsung link ke email tersebut.
+            // Jika tidak → biarkan processSentItems() menemukannya saat Fetch Email berikutnya.
+            // EcoSystem TIDAK lagi kirim email duplikat karena Jarvies sudah kirim sendiri.
+            $internetMsgId = $validated['internet_message_id'] ?? null;
+            if ($internetMsgId) {
+                $this->linkStagingToEmail($staging, $internetMsgId);
+            }
+
+            return response()->json([
+                'success' => true,
+                'id'      => $staging->id,
+                'message' => 'Staging ticket created successfully',
+            ], 201);
+
+        } catch (\Exception $e) {
+            Log::error('StagingTicketController@jarviesStore: gagal simpan staging', [
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to submit ticket: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     // ─── API: Admin approve ───────────────────────────────────────────────────
 
     /**
@@ -187,7 +318,7 @@ class StagingTicketController extends Controller
         }
 
         $roleId = $sessionUser['role']['id'];
-        if (!in_array($roleId, [1, 2, 6, 7])) {
+        if (!in_array($roleId, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -266,7 +397,7 @@ class StagingTicketController extends Controller
         }
 
         $roleId = $sessionUser['role']['id'];
-        if (!in_array($roleId, [1, 2, 6, 7])) {
+        if (!in_array($roleId, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -298,6 +429,101 @@ class StagingTicketController extends Controller
         }
     }
 
+    // ─── API: Email attachment list from Graph ────────────────────────────────
+
+    /**
+     * GET /api/staging-tickets/{id}/email-attachments
+     * Mengembalikan daftar attachment non-inline dari email di Graph API
+     * (menggunakan staging.graph_message_id).
+     * Digunakan modal validasi agar admin bisa lihat/download attachment sebelum approve.
+     */
+    public function emailAttachments($id)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $staging = StagingTicket::findOrFail($id);
+
+        if (!$staging->graph_message_id) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        try {
+            $attachments = app(EmailController::class)
+                ->listNonInlineAttachments($staging->graph_message_id);
+
+            // Map ke format yang dipakai modal — tambahkan proxy URL per item
+            $data = array_map(fn ($att) => [
+                'id'            => $att['id'],
+                'name'          => $att['name'],
+                'size'          => $att['size'],
+                'content_type'  => $att['contentType'] ?? $att['content_type'] ?? null,
+                'is_inline'     => $att['isInline'] ?? false,
+                'url'           => "/staging-email-attachments/{$id}/{$att['id']}",
+            ], $attachments);
+
+            return response()->json(['success' => true, 'data' => $data]);
+        } catch (\Exception $e) {
+            Log::warning('StagingTicketController@emailAttachments: gagal fetch dari Graph', [
+                'staging_id'       => $id,
+                'graph_message_id' => $staging->graph_message_id,
+                'error'            => $e->getMessage(),
+            ]);
+            return response()->json(['success' => true, 'data' => []]);
+        }
+    }
+
+    // ─── Web: Proxy download email attachment dari Graph ─────────────────────
+
+    /**
+     * GET /staging-email-attachments/{stagingId}/{attId}
+     * Stream attachment langsung dari Graph API ke browser.
+     * Tidak disimpan di disk — selalu fresh dari Graph.
+     */
+    public function proxyEmailAttachment($stagingId, $attId)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            abort(401);
+        }
+
+        $staging = StagingTicket::findOrFail($stagingId);
+
+        if (!$staging->graph_message_id) {
+            abort(404, 'No email associated with this staging ticket.');
+        }
+
+        try {
+            $emailCtrl = app(EmailController::class);
+            $token     = $emailCtrl->getAccessTokenPublic();
+            $sender    = env('MS_SENDER_EMAIL');
+            $baseUrl   = rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/');
+
+            $response = Http::withToken($token)->get(
+                "{$baseUrl}/users/{$sender}/messages/{$staging->graph_message_id}/attachments/{$attId}"
+            );
+
+            if (!$response->successful()) {
+                abort(404, 'Attachment not found.');
+            }
+
+            $data         = $response->json();
+            $contentBytes = base64_decode($data['contentBytes'] ?? '');
+            $contentType  = $data['contentType'] ?? 'application/octet-stream';
+            $name         = $data['name'] ?? 'attachment';
+
+            return response($contentBytes, 200, [
+                'Content-Type'        => $contentType,
+                'Content-Disposition' => 'inline; filename="' . $name . '"',
+                'Content-Length'      => strlen($contentBytes),
+            ]);
+        } catch (\Exception $e) {
+            abort(500, 'Failed to retrieve attachment.');
+        }
+    }
+
     // ─── API: Email body preview (resolve inline images as base64) ───────────
 
     /**
@@ -314,6 +540,30 @@ class StagingTicketController extends Controller
 
         $staging = StagingTicket::findOrFail($id);
         $html    = $staging->email_body_html ?? '';
+
+        // Fallback: jika email_body_html kosong tapi graph_message_id ada,
+        // fetch body langsung dari Graph (untuk staging lama atau web tickets yang baru dapat graph_message_id)
+        if (!$html && $staging->graph_message_id) {
+            try {
+                $sender   = env('MS_SENDER_EMAIL');
+                $emailCtrl = app(EmailController::class);
+                $msg = $emailCtrl->graphGetPublic(
+                    "/users/{$sender}/messages/{$staging->graph_message_id}",
+                    ['$select' => 'body']
+                );
+                $html = $msg['body']['content'] ?? '';
+                // Simpan ke DB agar request berikutnya tidak perlu fetch ulang
+                if ($html) {
+                    $staging->update(['email_body_html' => $html]);
+                }
+            } catch (\Exception $e) {
+                Log::warning('StagingTicketController@previewBody: gagal fetch body dari Graph', [
+                    'staging_id'       => $staging->id,
+                    'graph_message_id' => $staging->graph_message_id,
+                    'error'            => $e->getMessage(),
+                ]);
+            }
+        }
 
         $needsResolve = $staging->graph_message_id && (
             str_contains($html, 'cid:') ||
@@ -342,7 +592,7 @@ class StagingTicketController extends Controller
     public function statistics()
     {
         $sessionUser = session('user');
-        if (!$sessionUser || !in_array($sessionUser['role']['id'], [1, 2, 6, 7])) {
+        if (!$sessionUser || !in_array($sessionUser['role']['id'], array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -412,9 +662,40 @@ class StagingTicketController extends Controller
                 : '';
 
             $bodyPlain = "Baik akan disampaikan dengan Nomor Ticket {$ticketNumber}\n\nBest Regards,\n{$signatureName}";
+
             $bodyHtml  = "<p>Baik akan disampaikan dengan Nomor Ticket <strong>{$ticketNumber}</strong></p>"
                        . $detailBlock
                        . "<br><p>Best Regards,<br><strong>{$signatureName}</strong></p>";
+
+            $safeNum  = htmlspecialchars($ticketNumber, ENT_QUOTES, 'UTF-8');
+            $safeAgent = htmlspecialchars($signatureName, ENT_QUOTES, 'UTF-8');
+            $safeDesc  = htmlspecialchars(mb_substr($staging->description ?? '', 0, 90), ENT_QUOTES, 'UTF-8');
+            $bodyHtml  = <<<HTML
+            <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                   style="font-family:Arial,Helvetica,sans-serif;max-width:600px;border-collapse:collapse;">
+                <tr>
+                    <td style="background-color:#8b1a1a;padding:16px 24px;border-radius:6px 6px 0 0;">
+                        <p style="color:#ffffff;font-size:16px;font-weight:bold;margin:0;line-height:1.3;">PT Eclectic Consulting</p>
+                        <p style="color:rgba(255,255,255,0.7);font-size:11px;margin:3px 0 0 0;">Helpdesk Support &nbsp;&middot;&nbsp; Ticket #{$safeNum}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="background-color:#ffffff;padding:24px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;font-size:14px;color:#374151;line-height:1.7;">
+                        <p>Baik akan disampaikan dengan Nomor Ticket <strong>#{$safeNum}</strong></p>
+                        <p>Best Regards,<br><strong>{$safeAgent}</strong></p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="background-color:#f9fafb;padding:14px 24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 6px 6px;">
+                        <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
+                            Sent by <strong style="color:#6b7280;">{$safeAgent}</strong> &mdash; PT Eclectic Consulting Yogyakarta<br>
+                            Ticket: <strong style="color:#6b7280;">#{$safeNum}</strong> &mdash; {$safeDesc}
+                        </p>
+                    </td>
+                </tr>
+            </table>
+            HTML;
+
 
             // ── Simpan TicketMessage (tampil di semua channel — termasuk Jarvies web) ──
             $message = TicketMessage::create([
@@ -442,7 +723,7 @@ class StagingTicketController extends Controller
             }
 
             if ($customerEmail) {
-                // Subject sama dengan format reply: "Ticket #XXXX: description"
+                // Subject format: "Ticket #26040014: FIX BISA"
                 $subject   = 'Ticket #' . $ticketNumber . ': ' . ($staging->description ?? 'Ticket Update');
                 $inReplyTo = $staging->email_message_id; // null untuk web-only → buat thread baru
                 $threadId  = $staging->email_thread_id;   // conversationId fallback
@@ -461,8 +742,10 @@ class StagingTicketController extends Controller
                     $inReplyTo,
                     [],       // files
                     $ccList,  // ccList dari staging
-                    true,     // noRePrefix — subject langsung tanpa "Re: "
-                    $threadId // conversationId fallback jika inReplyTo tidak ditemukan
+                    true,     // noRePrefix = true → subject tidak ditambah "Re:"
+                    $threadId,// conversationId fallback
+                    true      // forceNewDraft = true → buat draft baru dengan In-Reply-To eksplisit
+                              // agar Gmail thread tetap satu conversation meski subject berubah
                 );
 
                 // Simpan conversationId ke ticket agar reply berikutnya bisa threaded
@@ -498,6 +781,219 @@ class StagingTicketController extends Controller
         }
     }
 
+    // ─── Private: Email konfirmasi saat customer submit tiket ───────────────
+
+    /**
+     * Kirim email konfirmasi ke customer setelah staging ticket dibuat dari Jarvies.
+     *
+     * Email dikirim dari M365 helpdesk (Raditya) ke submitted_by_email customer.
+     * Attachment dari form turut dilampirkan agar bisa diakses via Graph API
+     * saat admin melakukan validasi staging ticket.
+     *
+     * Hasil pengiriman (conversation_id, graph_message_id, internet_message_id)
+     * disimpan ke staging agar approval nanti bisa thread ke email ini.
+     *
+     * Non-fatal: gagal kirim email tidak membatalkan pembuatan staging.
+     */
+    private function sendSubmissionEmail(StagingTicket $staging, array $files, array $validated): void
+    {
+        $toEmail = $staging->submitted_by_email ?? ($validated['submitted_by_email'] ?? null);
+        if (!$toEmail) {
+            Log::info('StagingTicketController@sendSubmissionEmail: skip — no customer email', [
+                'staging_id' => $staging->id,
+            ]);
+            return;
+        }
+
+        try {
+            $subject  = '[PENDING] ' . $staging->description;
+            $bodyHtml = $this->buildStagingEmailBody($staging);
+
+            // Decode cc_emails dari staging (sudah di-decode di awal jarviesStore)
+            $rawCc  = $staging->cc_emails;
+            if (is_string($rawCc)) {
+                $rawCc = json_decode($rawCc, true) ?? [];
+            }
+            $ccList = is_array($rawCc) ? $rawCc : [];
+
+            $emailResult = app(EmailController::class)->sendTicketReply(
+                $toEmail,
+                $subject,
+                $bodyHtml,
+                null,    // $inReplyTo — email baru, bukan reply
+                $files,  // attachment dari form (UploadedFile[])
+                $ccList,
+                true,    // $noRePrefix — pakai subject apa adanya (sudah ada [PENDING])
+                null     // $threadId
+            );
+
+            // Simpan identitas email ke staging agar approval bisa thread ke sini.
+            // Ubah channel ke 'email' supaya modal validasi menampilkan email_body_html
+            // (termasuk inline images dan attachment dari Graph) alih-alih body teks biasa.
+            $staging->update([
+                'email_thread_id'  => $emailResult['conversation_id']     ?? null,
+                'graph_message_id' => $emailResult['graph_message_id']    ?? null,
+                'email_message_id' => $emailResult['internet_message_id'] ?? null,
+                'channel'          => 'email',
+                'email_body_html'  => $bodyHtml,
+            ]);
+
+            Log::info('StagingTicketController@sendSubmissionEmail: email terkirim', [
+                'staging_id'          => $staging->id,
+                'to'                  => $toEmail,
+                'internet_message_id' => $emailResult['internet_message_id'] ?? null,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::warning('StagingTicketController@sendSubmissionEmail: gagal kirim email', [
+                'staging_id' => $staging->id,
+                'to'         => $toEmail,
+                'error'      => $e->getMessage(),
+            ]);
+            // Tidak throw — gagal email tidak membatalkan staging yang sudah dibuat
+        }
+    }
+
+    /**
+     * Link staging ticket ke email yang sudah dikirim Jarvies.
+     *
+     * Jarvies mengirim emailnya sendiri (subject "[Menunggu Validasi]") dan
+     * mengoper internetMessageId ke API ini. EcoSystem mencari email tersebut
+     * di Sent Items M365, lalu menyimpan graph_message_id, conversation_id,
+     * email_body_html, dan mengubah channel ke 'email'.
+     *
+     * Setelah ini, modal validasi dapat menampilkan body email asli + attachment
+     * yang terlampir di email tersebut via Graph API.
+     *
+     * Non-fatal: gagal link tidak membatalkan staging yang sudah dibuat.
+     */
+    private function linkStagingToEmail(StagingTicket $staging, string $internetMessageId): void
+    {
+        try {
+            $sender    = env('MS_SENDER_EMAIL');
+            $emailCtrl = app(EmailController::class);
+            $filterVal = str_replace("'", "''", $internetMessageId);
+
+            // Cari di Sent Items (paling mungkin) lalu fallback global
+            $graphMsgId     = null;
+            $conversationId = null;
+            foreach ([
+                "/users/{$sender}/mailFolders/SentItems/messages",
+                "/users/{$sender}/messages",
+            ] as $path) {
+                try {
+                    $result = $emailCtrl->graphGetPublic($path, [
+                        '$filter' => "internetMessageId eq '{$filterVal}'",
+                        '$select' => 'id,conversationId',
+                        '$top'    => 1,
+                    ]);
+                    if (!empty($result['value'][0]['id'])) {
+                        $graphMsgId     = $result['value'][0]['id'];
+                        $conversationId = $result['value'][0]['conversationId'] ?? null;
+                        break;
+                    }
+                } catch (\Exception) {
+                    // lanjut ke fallback berikutnya
+                }
+            }
+
+            if (!$graphMsgId) {
+                Log::warning('StagingTicketController@linkStagingToEmail: pesan tidak ditemukan di Graph', [
+                    'staging_id'          => $staging->id,
+                    'internet_message_id' => $internetMessageId,
+                ]);
+                return;
+            }
+
+            // Fetch body email untuk ditampilkan di modal validasi
+            $emailBodyHtml = null;
+            try {
+                $msg           = $emailCtrl->graphGetPublic(
+                    "/users/{$sender}/messages/{$graphMsgId}",
+                    ['$select' => 'body']
+                );
+                $emailBodyHtml = $msg['body']['content'] ?? null;
+            } catch (\Exception $e) {
+                Log::warning('StagingTicketController@linkStagingToEmail: gagal fetch body', [
+                    'staging_id' => $staging->id,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
+
+            $update = [
+                'graph_message_id' => $graphMsgId,
+                'email_thread_id'  => $conversationId,
+                'email_message_id' => $internetMessageId,
+                'channel'          => 'email',
+                'has_attachments'  => true,   // Jarvies sudah lampirkan file di emailnya
+            ];
+            if ($emailBodyHtml) {
+                $update['email_body_html'] = $emailBodyHtml;
+            }
+            $staging->update($update);
+
+            Log::info('StagingTicketController@linkStagingToEmail: berhasil link ke email', [
+                'staging_id'          => $staging->id,
+                'graph_message_id'    => $graphMsgId,
+                'internet_message_id' => $internetMessageId,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::warning('StagingTicketController@linkStagingToEmail: gagal', [
+                'staging_id'          => $staging->id,
+                'internet_message_id' => $internetMessageId,
+                'error'               => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Bangun HTML body untuk email konfirmasi submission ke customer.
+     */
+    private function buildStagingEmailBody(StagingTicket $staging): string
+    {
+        $rows = '';
+        $rows .= $this->optionalRow('Subject', $staging->description);
+        $rows .= $this->optionalRow('Priority', $staging->ticket_priority);
+        $rows .= $this->optionalRow('Module', $staging->module);
+        $rows .= $this->optionalRow('Client', $staging->client);
+        $rows .= $this->optionalRow('Contact', $staging->name);
+        $rows .= $this->optionalRow('Phone', $staging->no_hp);
+
+        $table = $rows
+            ? "<table style='border-collapse:collapse;width:100%;margin-bottom:16px'>{$rows}</table>"
+            : '';
+
+        $bodySection = '';
+        if (!empty($staging->body)) {
+            $bodySection = "<div style='margin-bottom:16px'><strong>Description:</strong><div style='margin-top:8px;padding:12px;background:#f9f9f9;border:1px solid #e0e0e0;border-radius:4px'>{$staging->body}</div></div>";
+        }
+
+        return "
+<p>Dear Customer,</p>
+<p>Your support ticket has been submitted and is currently under review. Our helpdesk team will process it shortly.</p>
+{$table}
+{$bodySection}
+<p>We will notify you once your ticket has been approved and assigned a ticket number.</p>
+<br>
+<p>Best Regards,<br><strong>Helpdesk Support</strong></p>
+";
+    }
+
+    /**
+     * Bangun satu baris &lt;tr&gt; tabel untuk email, hanya jika $value tidak kosong.
+     */
+    private function optionalRow(string $label, ?string $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+        return "<tr>"
+            . "<td style='padding:6px 12px 6px 0;font-weight:600;white-space:nowrap;vertical-align:top;color:#555'>{$label}</td>"
+            . "<td style='padding:6px 0'>: " . e($value) . "</td>"
+            . "</tr>";
+    }
+
     // ─── Private formatter ────────────────────────────────────────────────────
 
     private function formatStaging(StagingTicket $s): array
@@ -514,6 +1010,19 @@ class StagingTicketController extends Controller
             $validatorName = $bd ? trim(($bd->first_name ?? '') . ' ' . ($bd->last_name ?? '')) : null;
         }
 
+        // Attachments (dari staging_attachments — web/Jarvies uploads)
+        $attachments = [];
+        if ($s->relationLoaded('attachments')) {
+            $attachments = $s->attachments->map(fn ($a) => [
+                'id'            => $a->id,
+                'original_name' => $a->original_name,
+                'file_name'     => $a->file_name,
+                'file_size'     => $a->file_size,
+                'mime_type'     => $a->mime_type,
+                'url'           => $a->public_url,
+            ])->toArray();
+        }
+
         return [
             'id'                  => $s->id,
             'customer_id'         => $s->customer_id,
@@ -522,6 +1031,7 @@ class StagingTicketController extends Controller
             'sender_name'         => $s->sender_name,
             'cc_emails'           => $s->cc_emails,
             'description'         => $s->description,
+            'body'                => $s->body,           // ← full message body dari Jarvies/web form
             'ticket_priority'     => $s->ticket?->ticket_priority ?? $s->ticket_priority,
             'ticket_type'         => $s->ticket?->ticket_type,
             'status'              => $s->status,
@@ -529,7 +1039,7 @@ class StagingTicketController extends Controller
             'channel'             => $s->channel,
             'email_thread_id'     => $s->email_thread_id,
             'email_body_html'     => $s->email_body_html,
-            'has_attachments'     => $s->has_attachments,
+            'has_attachments'     => $s->has_attachments || count($attachments) > 0,
             'graph_message_id'    => $s->graph_message_id,
             'validated_by'        => $s->validated_by,
             'validator_name'      => $validatorName,
@@ -537,6 +1047,7 @@ class StagingTicketController extends Controller
             'ticket_id'           => $s->ticket_id,
             'ticket_number'       => $s->ticket?->ticket_number,
             'created_at'          => $s->created_at?->toDateTimeString(),
+            'attachments'         => $attachments,       // ← file attachments (web uploads)
             // Field tambahan
             'name'                => $s->name,
             'no_hp'               => $s->no_hp,

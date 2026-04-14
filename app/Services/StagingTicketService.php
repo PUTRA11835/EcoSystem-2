@@ -2,11 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\StagingAttachment;
 use App\Models\StagingTicket;
 use App\Models\Ticket;
+use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\TicketNumberService;
 
 /**
  * StagingTicketService
@@ -21,6 +24,8 @@ use Illuminate\Support\Facades\Log;
  */
 class StagingTicketService
 {
+    public function __construct(private readonly TicketNumberService $ticketNumbers) {}
+
     // ─── 1. Create from web form (Customer Project / Jarvies) ────────────────
 
     /**
@@ -68,8 +73,12 @@ class StagingTicketService
     public function createFromEmail(array $emailData): StagingTicket
     {
         // Cegah duplikat: cek conversation_id dulu, fallback ke internet_message_id
+        // CATATAN: hanya dedup untuk staging yang UNVALIDATED — jangan kembalikan staging
+        // yang sudah approved/rejected karena emailnya harus diproses sebagai TicketMessage.
         if (!empty($emailData['conversation_id'])) {
-            $existing = StagingTicket::where('email_thread_id', $emailData['conversation_id'])->first();
+            $existing = StagingTicket::where('email_thread_id', $emailData['conversation_id'])
+                ->where('status', 'unvalidated')
+                ->first();
             if ($existing) {
                 return $existing;
             }
@@ -162,11 +171,17 @@ class StagingTicketService
 
         return DB::transaction(function () use ($staging, $validatedBy, $ticketType, $ticketPriority) {
 
-            // Generate ticket number (format: YYMM-XXXX-0000)
-            $ticketNumber = $this->generateTicketNumber($staging->customer_id);
+            // Generate ticket number (format: YYMM####, locked against race condition)
+            $ticketNumber = $this->ticketNumbers->generate();
 
             // Priority: use what validator set, fallback to staging's stored priority
             $finalPriority = $ticketPriority ?? $staging->ticket_priority ?? 'Medium';
+
+            // Normalize cc_emails dari staging (bisa array atau JSON string)
+            $ccEmails = $staging->cc_emails;
+            if (is_string($ccEmails)) {
+                $ccEmails = json_decode($ccEmails, true) ?? null;
+            }
 
             // Buat ticket resmi
             $ticket = Ticket::create([
@@ -176,9 +191,10 @@ class StagingTicketService
                 'ticket_priority' => $finalPriority,
                 'ticket_type'     => $ticketType,
                 'status'          => 'open',
-                'jarvies_status'  => 'sent it to support',
+                'jarvies_status'  => 'in process',
                 'channel'         => $staging->channel,
                 'email_thread_id' => $staging->email_thread_id,
+                'cc_emails'       => $ccEmails,              // checklist G
                 'start_date'      => now()->toDateString(),
                 // Salin field tambahan dari staging
                 'name'            => $staging->name,
@@ -279,6 +295,33 @@ class StagingTicketService
                 ]);
             }
 
+            // Checklist J: Pindahkan staging_attachments → ticket_attachment
+            $stagingAttachments = StagingAttachment::where('staging_id', $staging->id)->get();
+            foreach ($stagingAttachments as $sa) {
+                TicketAttachment::create([
+                    'ticket_id'        => $ticket->ticket_id,
+                    'message_id'       => $firstMessage?->id,
+                    'uploaded_by_type' => 'customer',
+                    'uploaded_by_id'   => $staging->customer_id,
+                    'attachment_type'  => 'file',
+                    'link_url'         => '/storage/' . $sa->file_path,
+                    'link_title'       => $sa->original_name ?? $sa->file_name,
+                    'file_path'        => $sa->file_path,
+                    'file_name'        => $sa->file_name,
+                    'file_size'        => $sa->file_size,
+                    'mime_type'        => $sa->mime_type,
+                    'is_inline'        => false,
+                ]);
+            }
+
+            if ($stagingAttachments->isNotEmpty()) {
+                Log::info('StagingTicketService@approve: staging attachments moved to ticket_attachment', [
+                    'staging_id' => $staging->id,
+                    'ticket_id'  => $ticket->ticket_id,
+                    'count'      => $stagingAttachments->count(),
+                ]);
+            }
+
             Log::info('StagingTicketService@approve: staging promoted to ticket', [
                 'staging_id'       => $staging->id,
                 'ticket_id'        => $ticket->ticket_id,
@@ -328,6 +371,7 @@ class StagingTicketService
 
         return $staging;
     }
+
 
     // ─── Private helpers ──────────────────────────────────────────────────────
 
@@ -390,3 +434,4 @@ class StagingTicketService
         return $yearMonth . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 }
+

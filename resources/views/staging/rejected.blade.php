@@ -41,8 +41,8 @@
                        class="pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent w-72">
             </div>
             <button onclick="loadRejectedTickets()"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-200 transition-all">
-                <i class="fas fa-sync-alt text-xs"></i> Refresh
+                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Refresh
             </button>
         </div>
     </div>
@@ -119,7 +119,7 @@
 
         {{-- Footer --}}
         <div class="border-t border-gray-100 px-7 py-4 bg-gray-50 flex justify-end">
-            <button onclick="closeModal()" class="px-5 py-2.5 text-sm font-semibold text-gray-700 border-2 border-gray-200 rounded-xl hover:bg-white transition-all">
+            <button onclick="closeModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                 Close
             </button>
         </div>

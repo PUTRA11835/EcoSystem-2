@@ -12,6 +12,7 @@ use App\Http\Controllers\EmployeeQualificationController;
 use App\Http\Controllers\EmployeeContractController;
 use App\Http\Controllers\EmployeeBankController;
 use App\Http\Controllers\EmployeePaymentController;
+use App\Http\Controllers\EmployeeAttachmentController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerBasicDataController;
 use App\Http\Controllers\CustomerAddressController;
@@ -136,7 +137,14 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/{paymentId}', [EmployeePaymentController::class, 'destroy']);
     });
 
-    // ==================== CUSTOMER ROUTES ====================
+    // Employee Attachment endpoints
+    Route::prefix('employees/{employeeId}/attachments')->group(function () {
+        Route::get('/', [EmployeeAttachmentController::class, 'index']);
+        Route::post('/', [EmployeeAttachmentController::class, 'store']);
+        Route::delete('/{attachmentId}', [EmployeeAttachmentController::class, 'destroy']);
+    });
+
+// ==================== CUSTOMER ROUTES ====================
 
     // Main Customer endpoints
     Route::prefix('customers')->group(function () {
@@ -226,6 +234,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [StagingTicketController::class, 'store']);
         Route::get('/{id}', [StagingTicketController::class, 'show']);
         Route::get('/{id}/preview-body', [StagingTicketController::class, 'previewBody']);
+        Route::get('/{id}/email-attachments', [StagingTicketController::class, 'emailAttachments']);
         Route::post('/{id}/approve', [StagingTicketController::class, 'approve']);
         Route::post('/{id}/reject', [StagingTicketController::class, 'reject']);
     });
@@ -296,7 +305,6 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{ticketId}/mandays/internal', [MandaysController::class, 'saveInternalProposal']);
         Route::post('/{ticketId}/mandays/internal/submit', [MandaysController::class, 'submitInternalProposal']);
         Route::post('/{ticketId}/mandays/internal/approve', [MandaysController::class, 'approveInternalProposal']);
-        Route::post('/{ticketId}/mandays/internal/reject', [MandaysController::class, 'rejectInternalProposal']);
     });
 
     // ==================== DELIVERY SUPPORT API ROUTES ====================
@@ -344,6 +352,7 @@ Route::middleware(['web'])->group(function () {
     Route::prefix('email')->group(function () {
         Route::get('/inbox', [EmailController::class, 'inbox']);
         Route::post('/process-inbox', [EmailController::class, 'processInbox']);
+        Route::post('/process-sent',  [EmailController::class, 'processSentItems']);
         Route::post('/send', [EmailController::class, 'send']);
         Route::post('/reply', [EmailController::class, 'reply']);
         Route::post('/messages/{messageId}/reprocess-attachments', [EmailController::class, 'reprocessAttachments']);
@@ -433,7 +442,7 @@ Route::middleware(['jarvies.api_key'])->prefix('jarvies')->group(function () {
     Route::put('/tickets/{ticketId}/messages/mark-all-read', [TicketMessageController::class, 'markAllRead']);
 
     // --- Staging tickets (submit new ticket from Jarvies) ---
-    Route::post('/staging-tickets', [StagingTicketController::class, 'store']);
+    Route::post('/staging-tickets', [StagingTicketController::class, 'jarviesStore']);
     Route::get('/staging-tickets', [StagingTicketController::class, 'index']);
     Route::get('/staging-tickets/{id}', [StagingTicketController::class, 'show']);
 

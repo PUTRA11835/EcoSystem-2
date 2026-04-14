@@ -148,18 +148,13 @@
                 {{-- Form Actions - Sticky on Mobile --}}
                 <div class="p-4 sm:p-6 bg-gray-50 border-t border-gray-200">
                     <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
-                        <a href="{{ route('projects.show', $update->project_id) }}" 
-                           class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors text-center">
+                        <a href="{{ route('projects.show', $update->project_id) }}"
+                           class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200 text-center justify-center">
                             Batal
                         </a>
-                        <button type="submit" 
-                                class="w-full sm:w-auto px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                            <span class="flex items-center justify-center">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                </svg>
-                                Update Isu
-                            </span>
+                        <button type="submit"
+                                class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                            Update Isu
                         </button>
                     </div>
                 </div>

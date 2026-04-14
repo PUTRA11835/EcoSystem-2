@@ -11,8 +11,7 @@
             <h2 class="text-2xl font-bold text-gray-900">Events Calendar</h2>
             <p class="text-gray-600 mt-1">View and manage your events</p>
         </div>
-        <button onclick="openEventModal()" class="inline-flex items-center px-4 py-2.5 primary-bg hover:opacity-90 text-white font-medium rounded-lg transition-all shadow-sm hover:shadow-md">
-            <i class="fas fa-plus mr-2"></i>
+        <button onclick="openEventModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
             Create Event
         </button>
     </div>
@@ -153,11 +152,11 @@
                 </div>
 
                 <div class="flex gap-3 pt-4 border-t border-gray-200">
-                    <button onclick="editEvent()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-all">
-                        <i class="fas fa-edit mr-2"></i>Edit
+                    <button onclick="editEvent()" class="flex-1 inline-flex items-center justify-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                        Edit
                     </button>
-                    <button onclick="deleteEvent()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-lg transition-all">
-                        <i class="fas fa-trash mr-2"></i>Delete
+                    <button onclick="deleteEvent()" class="flex-1 inline-flex items-center justify-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                        Delete
                     </button>
                 </div>
             </div>
@@ -293,12 +292,12 @@
         <!-- Footer -->
         <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 flex-shrink-0">
             <button type="button" onclick="closeEventModal()"
-                class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                 Cancel
             </button>
             <button type="submit" form="eventForm"
-                class="px-5 py-2.5 text-sm font-medium text-white bg-red-800 hover:bg-red-900 rounded-lg transition-colors shadow-sm">
-                <i class="fas fa-save mr-2"></i>Save Event
+                class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Save Event
             </button>
         </div>
 

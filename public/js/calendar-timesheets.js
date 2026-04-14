@@ -1,5 +1,6 @@
-// Calendar Timesheets JavaScript - UPDATED: User tickets only, no activity dropdown
+// Calendar Timesheets JavaScript
 let timesheets = [];
+let filteredTimesheets = [];
 let selectedTimesheetId = null;
 let deleteTimesheetId = null;
 let currentFilters = {
@@ -8,6 +9,8 @@ let currentFilters = {
     status: '',
     activity_type: ''
 };
+let itemsPerPage = 20;
+let currentPage = 1;
 
 const activityTypeIcons = {
     development: 'fa-code',
@@ -69,7 +72,9 @@ async function loadSubmittedTimesheets() {
 
         if (data.success) {
             timesheets = data.data;
-            renderApprovalTimesheets();
+            currentPage = 1;
+            applyStatusFilter();
+            updateStatCards(timesheets);
         } else {
             showEmptyState();
             showNotification('Failed to load timesheets', 'error');
@@ -83,120 +88,13 @@ async function loadSubmittedTimesheets() {
 
 // Load statistics for approval mode
 async function loadApprovalStatistics() {
-    try {
-        const params = new URLSearchParams();
-        if (currentFilters.start_date) params.append('start_date', currentFilters.start_date);
-        if (currentFilters.end_date) params.append('end_date', currentFilters.end_date);
-
-        const response = await fetch(`/api/timesheets/submitted-for-approval?${params}`);
-        const data = await response.json();
-
-        if (data.success) {
-            const allTimesheets = data.data;
-
-            const pendingCount = allTimesheets.filter(t => t.status === 'submitted').length;
-            const approvedCount = allTimesheets.filter(t => t.status === 'approved').length;
-            const rejectedCount = allTimesheets.filter(t => t.status === 'rejected').length;
-            const totalHours = allTimesheets.reduce((sum, t) => sum + (t.duration_hours || 0), 0);
-
-            const statPendingCount = document.getElementById('statPendingCount');
-            const statApprovedCount = document.getElementById('statApprovedCount');
-            const statRejectedCount = document.getElementById('statRejectedCount');
-            const statTotalHours = document.getElementById('statTotalHours');
-
-            if (statPendingCount) statPendingCount.textContent = pendingCount;
-            if (statApprovedCount) statApprovedCount.textContent = approvedCount;
-            if (statRejectedCount) statRejectedCount.textContent = rejectedCount;
-            if (statTotalHours) statTotalHours.textContent = totalHours.toFixed(2);
-        }
-    } catch (error) {
-        console.error('Error loading approval statistics:', error);
-    }
+    // Stats are computed from the already-loaded timesheets array
+    updateStatCards(timesheets);
 }
 
-// Render timesheets for approval mode
+// Render timesheets for approval mode (uses shared renderTimesheetRows)
 function renderApprovalTimesheets() {
-    const tbody = document.getElementById('timesheetsTableBody');
-    const emptyState = document.getElementById('emptyState');
-
-    if (!tbody) return;
-
-    if (timesheets.length === 0) {
-        tbody.innerHTML = '';
-        if (emptyState) emptyState.classList.remove('hidden');
-        return;
-    }
-
-    if (emptyState) emptyState.classList.add('hidden');
-
-    let filteredTimesheets = timesheets;
-    if (currentFilters.status) {
-        filteredTimesheets = timesheets.filter(t => t.status === currentFilters.status);
-    }
-
-    tbody.innerHTML = filteredTimesheets.map(timesheet => {
-        const statusColor = statusColors[timesheet.status] || statusColors.draft;
-        const duration = timesheet.duration_hours ? timesheet.duration_hours.toFixed(2) : '0.00';
-        const canApprove = timesheet.status === 'submitted';
-
-        return `
-            <tr class="hover:bg-gray-50">
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-medium text-gray-900">${timesheet.employee_name || 'Unknown'}</div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-medium text-gray-900">${formatDisplayDate(timesheet.date)}</div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm text-gray-900">${timesheet.start_time} - ${timesheet.end_time}</div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-semibold text-gray-900">${duration}h</div>
-                </td>
-                <td class="px-6 py-4">
-                    <div class="text-sm text-gray-900">
-                        ${timesheet.project_name || '-'}
-                    </div>
-                </td>
-                <td class="px-6 py-4">
-                    <div class="text-sm text-gray-900">
-                        ${timesheet.activity_name || timesheet.activity_type || '-'}
-                    </div>
-                </td>
-                <td class="px-6 py-4">
-                    <div class="text-sm text-gray-900 truncate max-w-xs" title="${timesheet.description || ''}">
-                        ${timesheet.description || '-'}
-                    </div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor.bg} ${statusColor.text}">
-                        ${timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
-                    </span>
-                    ${timesheet.is_billable ? '<i class="fas fa-dollar-sign text-green-600 ml-2" title="Billable"></i>' : ''}
-                    ${timesheet.status === 'approved' && timesheet.approver_name ? `<div class="text-xs text-gray-500 mt-1">by ${timesheet.approver_name}</div>` : ''}
-                    ${timesheet.status === 'rejected' && timesheet.rejection_reason ? `<div class="text-xs text-red-500 mt-1" title="${timesheet.rejection_reason}"><i class="fas fa-info-circle"></i> ${timesheet.rejection_reason.substring(0, 20)}...</div>` : ''}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div class="flex items-center gap-2">
-                        ${canApprove ? `
-                            <button onclick="openApproveModal(${timesheet.id})" class="inline-flex items-center px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-all" title="Approve">
-                                <i class="fas fa-check mr-1"></i> Approve
-                            </button>
-                            <button onclick="openRejectModal(${timesheet.id})" class="inline-flex items-center px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-all" title="Reject">
-                                <i class="fas fa-times mr-1"></i> Reject
-                            </button>
-                        ` : ''}
-                        ${timesheet.status === 'rejected' ? `
-                            <span class="text-xs text-gray-500">Rejected</span>
-                        ` : ''}
-                        ${timesheet.status === 'approved' ? `
-                            <span class="text-xs text-gray-500">Approved</span>
-                        ` : ''}
-                    </div>
-                </td>
-            </tr>
-        `;
-    }).join('');
+    renderTimesheetRows();
 }
 
 // Open approve confirmation modal
@@ -867,7 +765,9 @@ async function loadTimesheets() {
         
         if (data.success) {
             timesheets = data.data;
-            renderTimesheets();
+            currentPage = 1;
+            applyStatusFilter();
+            updateStatCards(timesheets);
         } else {
             showEmptyState();
             showNotification('Failed to load timesheets', 'error');
@@ -879,61 +779,172 @@ async function loadTimesheets() {
 }
 
 async function loadStatistics() {
-    try {
-        const params = new URLSearchParams();
-        if (currentFilters.start_date) params.append('start_date', currentFilters.start_date);
-        if (currentFilters.end_date) params.append('end_date', currentFilters.end_date);
-        
-        const response = await fetch(`/api/timesheets/statistics?${params}`);
-        const data = await response.json();
-        
-        if (data.success) {
-            updateStatistics(data.data);
-        }
-    } catch (error) {
-        // Silently fail
-    }
+    // Stats are computed client-side from the loaded timesheets array
+    updateStatCards(timesheets);
 }
 
-function updateStatistics(stats) {
-    const statTotalHours = document.getElementById('statTotalHours');
-    const statBillableHours = document.getElementById('statBillableHours');
-    const statWeekHours = document.getElementById('statWeekHours');
-    const statPendingCount = document.getElementById('statPendingCount');
-    
-    if (statTotalHours) statTotalHours.textContent = stats.total_hours.toFixed(2);
-    if (statBillableHours) statBillableHours.textContent = stats.billable_hours.toFixed(2);
-    
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekTimesheets = timesheets.filter(t => new Date(t.date) >= weekAgo);
-    const weekHours = weekTimesheets.reduce((sum, t) => sum + (t.duration_minutes / 60), 0);
-    if (statWeekHours) statWeekHours.textContent = weekHours.toFixed(2);
-    
-    const pendingCount = timesheets.filter(t => t.status === 'submitted').length;
-    if (statPendingCount) statPendingCount.textContent = pendingCount;
+// Update all stat cards from the full timesheets array (not filtered)
+function updateStatCards(all) {
+    const total = all.length;
+    const draft = all.filter(t => t.status === 'draft').length;
+    const submitted = all.filter(t => t.status === 'submitted').length;
+    const approved = all.filter(t => t.status === 'approved').length;
+    const rejected = all.filter(t => t.status === 'rejected').length;
+
+    const el = id => document.getElementById(id);
+    if (el('statTotal'))         el('statTotal').textContent         = total;
+    if (el('statDraftCount'))    el('statDraftCount').textContent    = draft;
+    if (el('statSubmittedCount'))el('statSubmittedCount').textContent= submitted;
+    if (el('statApprovedCount')) el('statApprovedCount').textContent = approved;
+    if (el('statRejectedCount')) el('statRejectedCount').textContent = rejected;
+}
+
+// Apply status-based client-side filter and re-render
+function applyStatusFilter() {
+    if (currentFilters.status) {
+        filteredTimesheets = timesheets.filter(t => t.status === currentFilters.status);
+    } else if (currentFilters.activity_type) {
+        filteredTimesheets = timesheets.filter(t => t.activity_type === currentFilters.activity_type);
+    } else {
+        filteredTimesheets = timesheets;
+    }
+    renderTimesheetRows();
+}
+
+// Stat card click handler
+function filterByStatus(status) {
+    currentFilters.status = status;
+    currentPage = 1;
+
+    // Update active card visual
+    const cardIds = ['cardAll', 'cardDraft', 'cardSubmitted', 'cardApproved', 'cardRejected'];
+    const statusMap = { '': 'cardAll', draft: 'cardDraft', submitted: 'cardSubmitted', approved: 'cardApproved', rejected: 'cardRejected' };
+    cardIds.forEach(id => {
+        const card = document.getElementById(id);
+        if (!card) return;
+        card.classList.remove('border-2', 'border-red-600');
+        card.classList.add('border', 'border-gray-200');
+    });
+    const activeCard = document.getElementById(statusMap[status] || 'cardAll');
+    if (activeCard) {
+        activeCard.classList.remove('border', 'border-gray-200');
+        activeCard.classList.add('border-2', 'border-red-600');
+    }
+
+    // Sync the filter select
+    const filterStatus = document.getElementById('filterStatus');
+    if (filterStatus) filterStatus.value = status;
+
+    applyStatusFilter();
+}
+
+function resetFilters() {
+    const filterStartDate = document.getElementById('filterStartDate');
+    const filterEndDate = document.getElementById('filterEndDate');
+    const filterStatus = document.getElementById('filterStatus');
+    const filterActivityType = document.getElementById('filterActivityType');
+
+    initializeDateFilters();
+    if (filterStatus) filterStatus.value = '';
+    if (filterActivityType) filterActivityType.value = '';
+
+    currentFilters.status = '';
+    currentFilters.activity_type = '';
+    currentPage = 1;
+
+    filterByStatus(''); // reset active card to Total
+
+    if (window.isApprovalMode) {
+        loadSubmittedTimesheets();
+    } else {
+        loadTimesheets();
+    }
 }
 
 function renderTimesheets() {
+    applyStatusFilter();
+}
+
+function renderTimesheetRows() {
     const tbody = document.getElementById('timesheetsTableBody');
     const emptyState = document.getElementById('emptyState');
-    
+
     if (!tbody) return;
-    
-    if (timesheets.length === 0) {
+
+    if (filteredTimesheets.length === 0) {
         tbody.innerHTML = '';
         if (emptyState) emptyState.classList.remove('hidden');
+        updatePagination(0);
         return;
     }
-    
+
     if (emptyState) emptyState.classList.add('hidden');
-    
-    let filteredTimesheets = timesheets;
-    if (currentFilters.activity_type) {
-        filteredTimesheets = timesheets.filter(t => t.activity_type === currentFilters.activity_type);
+
+    // Pagination
+    const total = filteredTimesheets.length;
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = Math.min(start + itemsPerPage, total);
+    const pageItems = filteredTimesheets.slice(start, end);
+    updatePagination(total, start + 1, end);
+
+    if (window.isApprovalMode) {
+        tbody.innerHTML = pageItems.map(timesheet => {
+            const statusColor = statusColors[timesheet.status] || statusColors.draft;
+            const duration = timesheet.duration_hours ? timesheet.duration_hours.toFixed(2) : '0.00';
+            const canApprove = timesheet.status === 'submitted';
+            return `
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-3 py-2.5 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900">${timesheet.employee_name || 'Unknown'}</div>
+                    </td>
+                    <td class="px-3 py-2.5 whitespace-nowrap">
+                        <div class="text-sm text-gray-900">${formatDisplayDate(timesheet.date)}</div>
+                    </td>
+                    <td class="px-3 py-2.5 whitespace-nowrap">
+                        <div class="text-sm text-gray-600">${timesheet.start_time} – ${timesheet.end_time}</div>
+                    </td>
+                    <td class="px-3 py-2.5 whitespace-nowrap">
+                        <div class="text-sm font-semibold text-gray-900">${duration}h</div>
+                    </td>
+                    <td class="px-3 py-2.5">
+                        <div class="text-sm text-gray-900">${timesheet.project_name || (timesheet.ticket_id ? `Ticket #${timesheet.ticket_id}` : '-')}</div>
+                    </td>
+                    <td class="px-3 py-2.5">
+                        <div class="text-sm text-gray-600">${timesheet.activity_name || timesheet.activity_type || '-'}</div>
+                    </td>
+                    <td class="px-3 py-2.5">
+                        <div class="text-sm text-gray-900 truncate max-w-xs" title="${escapeHtml(timesheet.description || '')}">
+                            ${timesheet.description || '-'}
+                        </div>
+                    </td>
+                    <td class="px-3 py-2.5 whitespace-nowrap">
+                        <span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full ${statusColor.bg} ${statusColor.text}">
+                            ${timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
+                        </span>
+                        ${timesheet.is_billable ? '<span class="text-green-600 font-bold text-xs ml-1" title="Billable">Rp</span>' : ''}
+                        ${timesheet.status === 'approved' && timesheet.approver_name ? `<div class="text-xs text-gray-500 mt-0.5">by ${timesheet.approver_name}</div>` : ''}
+                        ${timesheet.status === 'rejected' && timesheet.rejection_reason ? `<div class="text-xs text-red-500 mt-0.5" title="${escapeHtml(timesheet.rejection_reason)}"><i class="fas fa-info-circle"></i> ${timesheet.rejection_reason.substring(0, 25)}…</div>` : ''}
+                    </td>
+                    <td class="px-3 py-2.5 whitespace-nowrap">
+                        <div class="flex items-center gap-1.5">
+                            ${canApprove ? `
+                                <button onclick="openApproveModal(${timesheet.id})" class="inline-flex items-center px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-all">
+                                    <i class="fas fa-check mr-1"></i>Approve
+                                </button>
+                                <button onclick="openRejectModal(${timesheet.id})" class="inline-flex items-center px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-all">
+                                    <i class="fas fa-times mr-1"></i>Reject
+                                </button>
+                            ` : `<span class="text-xs text-gray-400">${timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}</span>`}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        return;
     }
-    
-    tbody.innerHTML = filteredTimesheets.map(timesheet => {
+
+    // Employee mode
+    tbody.innerHTML = pageItems.map(timesheet => {
         const statusColor = statusColors[timesheet.status] || statusColors.draft;
         const duration = (timesheet.duration_minutes / 60).toFixed(2);
         const canEdit = ['draft', 'rejected'].includes(timesheet.status);
@@ -948,49 +959,82 @@ function renderTimesheets() {
         }
 
         return `
-            <tr class="hover:bg-gray-50 ${canEdit ? 'cursor-pointer' : ''}" ${canEdit ? `onclick="toggleRowSelection(event, ${timesheet.id})"` : ''}>
-                <td class="px-6 py-4">
-                    ${canEdit ? `<input type="checkbox" class="timesheet-checkbox w-4 h-4 rounded border-gray-300" data-id="${timesheet.id}" data-status="${timesheet.status}" onchange="updateBulkActionButtons()" onclick="event.stopPropagation()">` : '<span class="text-gray-300"><i class="fas fa-lock text-xs" title="Cannot edit (${timesheet.status})"></i></span>'}
+            <tr class="hover:bg-gray-50 transition-colors ${canEdit ? 'cursor-pointer' : ''}" ${canEdit ? `onclick="toggleRowSelection(event, ${timesheet.id})"` : ''}>
+                <td class="px-3 py-2.5">
+                    ${canEdit ? `<input type="checkbox" class="timesheet-checkbox w-4 h-4 rounded border-gray-300" data-id="${timesheet.id}" data-status="${timesheet.status}" onchange="updateBulkActionButtons()" onclick="event.stopPropagation()">` : `<span class="text-gray-300"><i class="fas fa-lock text-xs" title="Cannot edit (${timesheet.status})"></i></span>`}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap">
+                <td class="px-3 py-2.5 whitespace-nowrap">
                     <div class="text-sm font-medium text-gray-900">${formatDisplayDate(timesheet.date)}</div>
-                    <div class="text-xs text-gray-500">${typeInfo}</div>
+                    <div class="text-xs text-gray-500 mt-0.5">${typeInfo}</div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm text-gray-900">${timesheet.start_time} - ${timesheet.end_time}</div>
+                <td class="px-3 py-2.5 whitespace-nowrap">
+                    <div class="text-sm text-gray-600">${timesheet.start_time} – ${timesheet.end_time}</div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap">
+                <td class="px-3 py-2.5 whitespace-nowrap">
                     <div class="text-sm font-semibold text-gray-900">${duration}h</div>
                 </td>
-                <td class="px-6 py-4">
+                <td class="px-3 py-2.5">
                     <div class="text-sm text-gray-900">
-                        ${timesheet.delivery_projects_id ? `<i class="fas fa-project-diagram mr-1"></i>Project #${timesheet.delivery_projects_id}` : ''}
-                        ${timesheet.ticket_id ? `<i class="fas fa-ticket-alt mr-1"></i>Ticket #${timesheet.ticket_id}` : ''}
-                        ${!timesheet.delivery_projects_id && !timesheet.ticket_id ? '<i class="fas fa-building mr-1"></i>Office/Idle' : ''}
+                        ${timesheet.delivery_projects_id ? `<i class="fas fa-project-diagram mr-1 text-blue-500"></i>Project #${timesheet.delivery_projects_id}` : ''}
+                        ${timesheet.ticket_id ? `<i class="fas fa-ticket-alt mr-1 text-purple-500"></i>Ticket #${timesheet.ticket_id}` : ''}
+                        ${!timesheet.delivery_projects_id && !timesheet.ticket_id ? '<i class="fas fa-building mr-1 text-gray-400"></i>Office/Idle' : ''}
                     </div>
-                    ${timesheet.activity ? `<div class="text-xs text-gray-500 mt-1"><i class="fas fa-tasks mr-1"></i>${timesheet.activity.name}</div>` : ''}
+                    ${timesheet.activity ? `<div class="text-xs text-gray-500 mt-0.5"><i class="fas fa-tasks mr-1"></i>${timesheet.activity.name}</div>` : ''}
                 </td>
-                <td class="px-6 py-4">
-                    <div class="flex items-center gap-2">
-                        <i class="fas ${activityTypeIcons[timesheet.activity_type] || 'fa-circle'} text-gray-500"></i>
-                        <span class="text-sm text-gray-900">${timesheet.activity ? timesheet.activity.name : (timesheet.activity_type ? timesheet.activity_type.charAt(0).toUpperCase() + timesheet.activity_type.slice(1) : '-')}</span>
+                <td class="px-3 py-2.5">
+                    <div class="flex items-center gap-1.5">
+                        <i class="fas ${activityTypeIcons[timesheet.activity_type] || 'fa-circle'} text-gray-400 text-xs"></i>
+                        <span class="text-sm text-gray-700">${timesheet.activity ? timesheet.activity.name : (timesheet.activity_type ? timesheet.activity_type.charAt(0).toUpperCase() + timesheet.activity_type.slice(1) : '-')}</span>
                     </div>
                 </td>
-                <td class="px-6 py-4">
-                    <div class="text-sm text-gray-900 truncate max-w-xs" title="${timesheet.description || ''}">
+                <td class="px-3 py-2.5">
+                    <div class="text-sm text-gray-900 truncate max-w-xs" title="${escapeHtml(timesheet.description || '')}">
                         ${timesheet.description || '-'}
                     </div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor.bg} ${statusColor.text}">
+                <td class="px-3 py-2.5 whitespace-nowrap">
+                    <span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full ${statusColor.bg} ${statusColor.text}">
                         ${timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
                     </span>
-                    ${timesheet.is_billable ? '<i class="fas fa-dollar-sign text-green-600 ml-2" title="Billable"></i>' : ''}
-                    ${timesheet.status === 'rejected' && timesheet.rejection_reason ? `<i class="fas fa-info-circle text-yellow-500 ml-2 cursor-pointer" title="${timesheet.rejection_reason}" onclick="event.stopPropagation(); showRejectionReason(${timesheet.id})"></i>` : ''}
+                    ${timesheet.is_billable ? '<span class="text-green-600 font-bold text-xs ml-1" title="Billable">Rp</span>' : ''}
+                    ${timesheet.status === 'rejected' && timesheet.rejection_reason ? `<i class="fas fa-info-circle text-yellow-500 ml-1 cursor-pointer text-xs" title="${escapeHtml(timesheet.rejection_reason)}" onclick="event.stopPropagation(); showRejectionReason(${timesheet.id})"></i>` : ''}
                 </td>
             </tr>
         `;
     }).join('');
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function updatePagination(total, start, end) {
+    const elStart = document.getElementById('currentRangeStart');
+    const elEnd = document.getElementById('currentRangeEnd');
+    const elTotal = document.getElementById('totalItems');
+    const btnPrev = document.getElementById('btnPrevPage');
+    const btnNext = document.getElementById('btnNextPage');
+
+    if (elStart) elStart.textContent = total > 0 ? start : 0;
+    if (elEnd) elEnd.textContent = total > 0 ? end : 0;
+    if (elTotal) elTotal.textContent = total;
+    if (btnPrev) btnPrev.disabled = currentPage <= 1;
+    if (btnNext) btnNext.disabled = end >= total;
+}
+
+function previousPage() {
+    if (currentPage > 1) {
+        currentPage--;
+        renderTimesheetRows();
+    }
+}
+
+function nextPage() {
+    const maxPage = Math.ceil(filteredTimesheets.length / itemsPerPage);
+    if (currentPage < maxPage) {
+        currentPage++;
+        renderTimesheetRows();
+    }
 }
 
 // Toggle row selection when clicking on the row
@@ -1018,6 +1062,8 @@ function showEmptyState() {
     const emptyState = document.getElementById('emptyState');
     if (tbody) tbody.innerHTML = '';
     if (emptyState) emptyState.classList.remove('hidden');
+    filteredTimesheets = [];
+    updatePagination(0, 0, 0);
 }
 
 function applyFilters() {
@@ -1031,13 +1077,16 @@ function applyFilters() {
     if (filterStatus) currentFilters.status = filterStatus.value;
     if (filterActivityType) currentFilters.activity_type = filterActivityType.value;
 
-    // Check if we are in approval mode
+    currentPage = 1;
+
+    // Sync active stat card with dropdown selection
+    if (filterStatus) filterByStatus(filterStatus.value);
+
+    // Date range change requires re-fetch
     if (window.isApprovalMode) {
         loadSubmittedTimesheets();
-        loadApprovalStatistics();
     } else {
         loadTimesheets();
-        loadStatistics();
     }
 }
 
@@ -1331,6 +1380,10 @@ function updateBulkActionButtons() {
     } else {
         bulkActions.classList.add('hidden');
         bulkActions.classList.remove('flex');
+    }
+    const noBulkActions = document.getElementById('noBulkActions');
+    if (noBulkActions) {
+        noBulkActions.classList.toggle('hidden', checkboxes.length > 0);
     }
 }
 

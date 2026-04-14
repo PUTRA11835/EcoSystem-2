@@ -23,7 +23,8 @@
     </div>
 
     {{-- Filter Tabs --}}
-    @if(in_array($user->role->role_id, [1, 2, 6, 7]))
+    @php $ticketManagerOrEmployee = array_merge(\App\Enums\RoleId::TICKET_MANAGER_GROUP, [\App\Enums\RoleId::EMPLOYEE->value]); @endphp
+    @if(in_array($user->role->role_id, $ticketManagerOrEmployee, true))
     <div class="px-4 pb-3">
         <div class="flex bg-white bg-opacity-10 rounded-lg p-0.5 gap-0.5">
             <button id="sidebarTabAll" onclick="switchSidebarView('all')"
@@ -124,7 +125,7 @@
             </div>
             @php
                 $canViewCredential =
-                    in_array($user->role->role_id, [1, 5, 6, 7])
+                    in_array($user->role->role_id, array_merge(\App\Enums\RoleId::TICKET_MANAGER_GROUP, [\App\Enums\RoleId::HEAD_OF_SUPPORT->value]), true)
                     || $ticket->employee_id == $user->id
                     || $ticket->members->contains('employee_id', $user->id);
             @endphp
@@ -185,18 +186,15 @@
                 <div class="flex items-center justify-end mt-2 mb-1 gap-2">
                     <span id="attachCount" class="hidden text-xs text-blue-600 font-medium mr-auto"></span>
                     {{-- Send buttons --}}
-                    <button onclick="sendReply('internal_note')" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg hover:bg-amber-100 transition-all">
-                        <i class="fas fa-lock text-[10px]"></i>
+                    <button onclick="sendReply('internal_note')" class="inline-flex items-center px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg hover:bg-amber-100 transition-all">
                         Internal Note
                     </button>
                     @if($ticket->channel === 'email')
-                    <button onclick="sendReply('reply')" class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all shadow-sm">
-                        <i class="fas fa-envelope text-[10px]"></i>
+                    <button onclick="sendReply('reply')" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Send via Email
                     </button>
                     @else
-                    <button onclick="sendReply('reply')" class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all shadow-sm">
-                        <i class="fas fa-paper-plane text-[10px]"></i>
+                    <button onclick="sendReply('reply')" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Send Reply
                     </button>
                     @endif
@@ -209,9 +207,9 @@
     @php
         $mandaysStatus   = $ticket->mandays_proposal_status   ?? 'none';
         $internalStatus  = $ticket->internal_mandays_status    ?? 'none';
-        $isPic           = $user->role->role_id == 2;
-        $isHelpdesk      = in_array($user->role->role_id, [6, 7]);
-        $isHead          = $user->role->role_id == 5;
+        $isPic           = $user->role->role_id === \App\Enums\RoleId::EMPLOYEE->value;
+        $isHelpdesk      = in_array($user->role->role_id, \App\Enums\RoleId::HELPDESK_GROUP, true);
+        $isHead          = $user->role->role_id === \App\Enums\RoleId::HEAD_OF_SUPPORT->value;
         $mandaysBadge    = [
             'none'            => ['bg-gray-100 text-gray-500',   'None'],
             'pic_draft'       => ['bg-yellow-100 text-yellow-700','Draft'],
@@ -238,13 +236,14 @@
             default => 'Update Internal Mandays',
         };
         $ticketAssigned    = $ticket->employee_id !== null;
-        $canTakeTicket     = !in_array($user->role->role_id, [1, 6, 7]) && !$ticketAssigned;
+        $canTakeTicket     = !in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) && !$ticketAssigned;
         // Mandays buttons only visible when ticket has a PIC
         $isPicMandays      = $isPic && $ticketAssigned;
         $isHelpdeskMandays = $isHelpdesk && $ticketAssigned;
-        $isHeadMandays     = $isHead && $ticketAssigned && in_array($internalStatus, ['pending_head', 'approved', 'rejected']);
-        $hasMandaysSection = $isPicMandays || $isHelpdeskMandays || $isHeadMandays
-                           || $canTakeTicket || in_array($user->role->role_id, [1, 6, 7]);
+        $isHeadMandays          = $isHead && $ticketAssigned && in_array($internalStatus, ['pending_head', 'approved', 'rejected', 'draft']);
+        $isHeadCustomerMandays  = $isHead && $ticketAssigned && in_array($mandaysStatus, ['pic_draft', 'pending_helpdesk', 'sent_to_chat', 'approved', 'canceled']);
+        $hasMandaysSection = $isPicMandays || $isHelpdeskMandays || $isHeadMandays || $isHeadCustomerMandays
+                           || $canTakeTicket || in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true);
     @endphp
 
     <div class="hidden xl:flex xl:flex-col w-72 gap-3 flex-shrink-0 overflow-y-auto">
@@ -265,8 +264,7 @@
                         <label class="text-xs font-semibold text-gray-500">Customer Mandays</label>
                         <span id="mandaysBadge" class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $mBadgeClass }}">{{ $mBadgeLabel }}</span>
                     </div>
-                    <button onclick="openPicMandaysModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-all">
-                        <i class="fas fa-calculator text-[10px]"></i>
+                    <button onclick="openPicMandaysModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         {{ $picMandaysLabel }}
                     </button>
                 </div>
@@ -275,8 +273,7 @@
                         <label class="text-xs font-semibold text-gray-500">Internal Mandays</label>
                         <span id="internalBadge" class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $iBadgeClass }}">{{ $iBadgeLabel }}</span>
                     </div>
-                    <button onclick="openInternalMandaysModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 transition-all">
-                        <i class="fas fa-users text-[10px]"></i>
+                    <button onclick="openInternalMandaysModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         {{ $picInternalLabel }}
                     </button>
                 </div>
@@ -289,8 +286,7 @@
                         <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $mBadgeClass }}">{{ $mBadgeLabel }}</span>
                     </div>
                     @if(in_array($mandaysStatus, ['pic_draft', 'pending_helpdesk', 'sent_to_chat', 'approved', 'canceled']))
-                    <button onclick="openHdMandaysModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-all">
-                        <i class="fas fa-clipboard-check text-[10px]"></i>
+                    <button onclick="openHdMandaysModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Review Mandays Proposal
                     </button>
                     @else
@@ -300,15 +296,26 @@
                     @endif
                 </div>
                 @endif
+                {{-- Head of Support: Customer Mandays (view only) --}}
+                @if($isHeadCustomerMandays)
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-semibold text-gray-500">Customer Mandays</label>
+                        <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $mBadgeClass }}">{{ $mBadgeLabel }}</span>
+                    </div>
+                    <button onclick="openHeadCustomerMandaysModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                        View Mandays Proposal
+                    </button>
+                </div>
+                @endif
                 {{-- Head of Support: Internal Mandays --}}
                 @if($isHeadMandays)
-                <div>
+                <div {{ $isHeadCustomerMandays ? 'class="pt-1 border-t border-gray-100"' : '' }}>
                     <div class="flex items-center justify-between mb-1.5">
                         <label class="text-xs font-semibold text-gray-500">Internal Mandays</label>
                         <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $iBadgeClass }}">{{ $iBadgeLabel }}</span>
                     </div>
-                    <button onclick="openHeadInternalModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 transition-all">
-                        <i class="fas fa-user-check text-[10px]"></i>
+                    <button onclick="openHeadInternalModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Review Internal Proposal
                     </button>
                 </div>
@@ -316,17 +323,15 @@
                 {{-- Take Ticket (non-admin/helpdesk, unassigned only) --}}
                 @if($canTakeTicket)
                 <div>
-                    <button onclick="takeTicket()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-all">
-                        <i class="fas fa-hand-paper text-[10px]"></i>
+                    <button onclick="takeTicket()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Take This Ticket
                     </button>
                 </div>
                 @endif
                 {{-- Assign to Delivery Support (Admin/Helpdesk only) --}}
-                @if(in_array($user->role->role_id, [1, 6, 7]))
+                @if(in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true))
                 <div class="{{ ($isPicMandays || $isHelpdeskMandays || $isHeadMandays) ? 'pt-1 border-t border-gray-100' : '' }}">
-                    <button onclick="openAssignSupportModal()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-all">
-                        <i class="fas fa-headset text-[10px]"></i>
+                    <button onclick="openAssignSupportModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Assign to Delivery Support
                     </button>
                 </div>
@@ -341,10 +346,10 @@
                  onclick="toggleSidebarPanel('propertiesPanel', 'propertiesChevron')">
                 <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Properties</h4>
                 <div class="flex items-center gap-2">
-                    @if(in_array($user->role->role_id, [1, 6, 7]))
+                    @if(in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true))
                     <button onclick="event.stopPropagation(); saveAllProperties()"
-                            class="inline-flex items-center gap-1 px-2.5 py-1 bg-red-700 text-white text-[10px] font-semibold rounded-md hover:bg-red-800 transition-all">
-                        <i class="fas fa-save text-[9px]"></i>Save All
+                            class="inline-flex items-center px-2.5 py-1 primary-gradient text-white text-[10px] font-semibold rounded-md hover:opacity-90 transition-all duration-200">
+                        Save All
                     </button>
                     @endif
                     <i id="propertiesChevron" class="fas fa-chevron-up text-gray-400 text-xs transition-transform duration-200"></i>
@@ -354,7 +359,7 @@
                 {{-- Status --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Status</label>
-                    <select id="detailStatus" {{ in_array($user->role->role_id, [1, 6, 7]) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
+                    <select id="detailStatus" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
                         <option value="open" {{ $ticket->status == 'open' ? 'selected' : '' }}>Open</option>
                         <option value="in_progress" {{ $ticket->status == 'in_progress' ? 'selected' : '' }}>In Progress</option>
                         <option value="hold" {{ $ticket->status == 'hold' ? 'selected' : '' }}>Hold</option>
@@ -367,7 +372,7 @@
                 {{-- Jarvies Status --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Jarvies Status</label>
-                    <select id="detailJarviesStatus" {{ in_array($user->role->role_id, [1, 6, 7]) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
+                    <select id="detailJarviesStatus" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
                         <option value="in process" {{ $ticket->jarvies_status == 'in process' ? 'selected' : '' }}>In Process</option>
                         <option value="author action" {{ $ticket->jarvies_status == 'author action' ? 'selected' : '' }}>Author Action</option>
                         <option value="proposed solution" {{ $ticket->jarvies_status == 'proposed solution' ? 'selected' : '' }}>Proposed Solution</option>
@@ -379,7 +384,7 @@
                 {{-- Priority --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Priority</label>
-                    <select id="detailPriority" {{ in_array($user->role->role_id, [1, 6, 7]) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
+                    <select id="detailPriority" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
                         <option value="Very High" {{ $ticket->ticket_priority == 'Very High' ? 'selected' : '' }}>Very High</option>
                         <option value="High" {{ $ticket->ticket_priority == 'High' ? 'selected' : '' }}>High</option>
                         <option value="Medium" {{ $ticket->ticket_priority == 'Medium' ? 'selected' : '' }}>Medium</option>
@@ -389,7 +394,7 @@
                 {{-- Ticket Type --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Ticket Type</label>
-                    <select id="detailType" {{ in_array($user->role->role_id, [1, 6, 7]) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
+                    <select id="detailType" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
                         <option value="" {{ !$ticket->ticket_type ? 'selected' : '' }}>-- Select Type --</option>
                         <option value="Incident" {{ $ticket->ticket_type == 'Incident' ? 'selected' : '' }}>Incident</option>
                         <option value="Service Request" {{ $ticket->ticket_type == 'Service Request' ? 'selected' : '' }}>Service Request</option>
@@ -400,7 +405,7 @@
                 {{-- Agent (PIC) --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Agent (PIC)</label>
-                    <select id="detailPIC" {{ in_array($user->role->role_id, [1, 6, 7]) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
+                    <select id="detailPIC" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
                         <option value="" {{ !$ticket->employee_id ? 'selected' : '' }}>-- Unassigned --</option>
                         @foreach($consultants as $consultant)
                             <option value="{{ $consultant['employee_id'] }}" {{ $ticket->employee_id == $consultant['employee_id'] ? 'selected' : '' }}>
@@ -411,8 +416,8 @@
                 </div>
                 {{-- Team Members --}}
                 @php
-                    $canManageMembers = in_array($user->role->role_id, [1, 6, 7])
-                        || ($user->role->role_id == 2 && $ticket->employee_id == $user->id);
+                    $canManageMembers = in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true)
+                        || ($user->role->role_id === \App\Enums\RoleId::EMPLOYEE->value && $ticket->employee_id == $user->id);
                     $currentMemberIds = $ticket->members->pluck('employee_id')->toArray();
                 @endphp
                 <div class="pt-3 border-t border-gray-200">
@@ -493,7 +498,7 @@
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Man Days</label>
                     <input type="number" id="detailManDays" value="{{ $ticket->man_days ?? '' }}" step="0.5" min="0" max="9999.99"
-                        {{ in_array($user->role->role_id, [1, 6, 7]) ? '' : 'disabled' }}
+                        {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }}
                         class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white" placeholder="0.0">
                 </div>
                 {{-- Start Date --}}
@@ -533,10 +538,9 @@
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('M d, Y h:i A') }}</p>
                 </div>
                 {{-- Admin only: Delete Ticket --}}
-                @if($user->role->role_id == 1)
+                @if($user->role->role_id === \App\Enums\RoleId::ADMIN->value)
                 <div class="pt-3 border-t border-gray-200">
-                    <button onclick="deleteTicket()" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 transition-all">
-                        <i class="fas fa-trash text-[10px]"></i>
+                    <button onclick="deleteTicket()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Delete Ticket
                     </button>
                 </div>
@@ -633,7 +637,7 @@
 </style>
 
 {{-- Assign to Delivery Support Modal --}}
-@if(in_array($user->role->role_id, [1, 6, 7]))
+@if(in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true))
 <div id="assignSupportModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl">
         <div class="px-6 py-4 border-b border-gray-200">
@@ -698,11 +702,11 @@
             </div>
         </div>
         <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-            <button onclick="closeAssignSupportModal()" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-300 transition-all">
+            <button onclick="closeAssignSupportModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                 Cancel
             </button>
-            <button onclick="confirmAssignSupport()" class="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all">
-                <i class="fas fa-check mr-1"></i> Assign
+            <button onclick="confirmAssignSupport()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Assign
             </button>
         </div>
     </div>
@@ -720,10 +724,10 @@
             <h3 class="text-lg font-bold text-gray-900 mb-2">Ticket Assigned!</h3>
             <p class="text-sm text-gray-600 mb-6">Ticket has been successfully assigned to delivery support. Do you want to view it?</p>
             <div class="flex gap-3">
-                <button onclick="closeAssignSuccessModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition">
+                <button onclick="closeAssignSuccessModal()" class="flex-1 inline-flex items-center justify-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                     Stay Here
                 </button>
-                <button id="btnViewDeliverySupport" onclick="goToDeliverySupport()" class="flex-1 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition">
+                <button id="btnViewDeliverySupport" onclick="goToDeliverySupport()" class="flex-1 inline-flex items-center justify-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                     View Support
                 </button>
             </div>
@@ -773,8 +777,8 @@
                 <button id="picBtnNewVersion" onclick="picStartNewVersion()" class="hidden px-4 py-2 bg-orange-500 text-white text-xs font-semibold rounded-lg hover:bg-orange-600 transition-all">New Version</button>
             </div>
             <div class="flex gap-2">
-                <button id="picBtnSaveDraft" onclick="picSaveDraft()" class="px-4 py-2 bg-gray-600 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-all">Save Draft</button>
-                <button id="picBtnSubmit" onclick="picSubmitDraft()" class="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-all">Submit to Helpdesk</button>
+                <button id="picBtnSaveDraft" onclick="picSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save Draft</button>
+                <button id="picBtnSubmit" onclick="picSubmitDraft()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Submit to Helpdesk</button>
             </div>
         </div>
     </div>
@@ -821,8 +825,8 @@
         <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
             <div class="text-xs text-gray-500">Total: <strong id="internalTotalDisplay">0</strong> mandays</div>
             <div class="flex gap-2">
-                <button id="internalBtnSave" onclick="internalPicSaveDraft()" class="px-4 py-2 bg-gray-600 text-white text-xs font-semibold rounded-lg hover:bg-gray-700">Save Draft</button>
-                <button id="internalBtnSubmit" onclick="internalPicSubmit()" class="px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700">Submit to Head</button>
+                <button id="internalBtnSave" onclick="internalPicSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save Draft</button>
+                <button id="internalBtnSubmit" onclick="internalPicSubmit()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Submit to Head</button>
             </div>
         </div>
     </div>
@@ -865,8 +869,8 @@
                     <label class="text-xs font-medium text-red-700">Reason / Notes for PIC <span class="text-gray-500 font-normal">(optional)</span></label>
                     <textarea id="hdCancelNotes" rows="2" class="mt-1 w-full px-3 py-2 border border-red-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="Explain why you are canceling this proposal..."></textarea>
                     <div class="flex gap-2 mt-2 justify-end">
-                        <button type="button" onclick="hdCancelAbort()" class="px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Back</button>
-                        <button type="button" onclick="hdCancelConfirm()" class="px-3 py-1.5 text-xs font-semibold text-white bg-red-700 rounded-lg hover:bg-red-800">Confirm Cancel</button>
+                        <button type="button" onclick="hdCancelAbort()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Back</button>
+                        <button type="button" onclick="hdCancelConfirm()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Confirm Cancel</button>
                     </div>
                 </div>
             </div>
@@ -877,10 +881,10 @@
                 <button id="hdBtnCancel" onclick="hdShowCancelConfirm()" class="hidden px-4 py-2 bg-red-100 text-red-700 text-xs font-semibold rounded-lg hover:bg-red-200 border border-red-300">Cancel Proposal</button>
             </div>
             <div class="flex flex-wrap gap-2">
-                <button id="hdBtnSendToChat"    onclick="hdSubmitToChat()"      class="hidden px-4 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900">Send to Customer</button>
-                <button id="hdBtnReviseResend"  onclick="hdReviseResend()"      class="hidden px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700">Revise &amp; Resend</button>
-                <button id="hdBtnApprove"       onclick="hdApprove()"           class="hidden px-4 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700">Approve</button>
-                <button id="hdBtnNewProposal"   onclick="hdCreateNewProposal()" class="hidden px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700">Create New Proposal</button>
+                <button id="hdBtnSendToChat"    onclick="hdSubmitToChat()"      class="hidden inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Send to Customer</button>
+                <button id="hdBtnReviseResend"  onclick="hdReviseResend()"      class="hidden inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Revise &amp; Resend</button>
+                <button id="hdBtnApprove"       onclick="hdApprove()"           class="hidden inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Approve</button>
+                <button id="hdBtnNewProposal"   onclick="hdCreateNewProposal()" class="hidden inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Create New Proposal</button>
             </div>
         </div>
     </div>
@@ -925,17 +929,56 @@
                 </table>
                 <div id="headProposedBy" class="text-xs text-gray-500 mb-1"></div>
                 <div id="headInternalNoteWrap" class="hidden p-3 bg-gray-50 rounded-lg text-xs text-gray-600 mb-3"></div>
-                {{-- Reject reason input --}}
-                <div id="headRejectWrap" class="hidden mt-3">
-                    <label class="text-xs font-semibold text-gray-600">Rejection Reason</label>
-                    <textarea id="headRejectReason" rows="2" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="Explain why you reject this proposal..."></textarea>
-                </div>
             </div>
         </div>
         <div id="headInternalFooter" class="px-6 py-4 border-t border-gray-200 flex gap-2 justify-end flex-shrink-0">
-            <button id="headBtnApprove" onclick="headInternalApprove()" class="px-4 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700">Approve</button>
-            <button id="headBtnToggleReject" onclick="headToggleReject()" class="px-4 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700">Reject</button>
-            <button id="headBtnConfirmReject" onclick="headInternalReject()" class="hidden px-4 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900">Confirm Reject</button>
+            <button onclick="closeHeadInternalModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Close</button>
+            <button id="headBtnApprove" onclick="headInternalApprove()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Save</button>
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- Head of Support: Customer Mandays View-Only Modal --}}
+@if(isset($isHead) && $isHead)
+<div id="headCustomerMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 flex-shrink-0">
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">Customer Mandays Proposal</h3>
+                <p class="text-xs text-gray-500 mt-0.5">View Only — Status: <span id="headCustMandaysStatus">—</span></p>
+            </div>
+            <button onclick="closeHeadCustomerMandaysModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6">
+            <div id="headCustMandaysLoading" class="py-8 text-center text-gray-400 text-sm">Loading...</div>
+            <div id="headCustMandaysContent" class="hidden space-y-4">
+                <div id="headCustMandaysEmpty" class="hidden text-center text-sm text-gray-400 py-4">No proposal submitted yet.</div>
+                <div id="headCustMandaysTable" class="hidden overflow-x-auto">
+                    <table class="w-full text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Activity</th>
+                                <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Module</th>
+                                <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">Mandays</th>
+                            </tr>
+                        </thead>
+                        <tbody id="headCustMandaysBody"></tbody>
+                        <tfoot>
+                            <tr class="bg-gray-50 font-bold">
+                                <td colspan="2" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                                <td class="px-3 py-2 border border-gray-200 text-center" id="headCustMandaysTotal">0</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    <div id="headCustMandaysNotes" class="hidden mt-3 p-3 bg-gray-50 rounded-lg text-xs text-gray-600"></div>
+                </div>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end flex-shrink-0">
+            <button onclick="closeHeadCustomerMandaysModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Close</button>
         </div>
     </div>
 </div>
@@ -1307,11 +1350,20 @@
         return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    // Ganti sisa referensi cid: yang tidak ter-replace backend dengan placeholder
+    function sanitizeEmailHtml(html) {
+        if (!html) return html;
+        return html.replace(/<img\b([^>]*)\bsrc\s*=\s*["']cid:[^"']*["']([^>]*)>/gi,
+            '<span class="inline-flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded px-2 py-1">' +
+            '<i class="fas fa-image" style="font-size:10px"></i> Image unavailable</span>'
+        );
+    }
+
     // ── Pilih konten pesan: HTML dari email atau plain text dari web ────────────
     function messageContent(msg) {
-        // Email dengan HTML body → render HTML mentah (sudah disanitasi oleh extractReplyBody)
+        // Email dengan HTML body → render HTML (cid: refs yang tersisa diganti placeholder)
         if (msg.channel === 'email' && msg.message_html) {
-            return `<div class="message-content text-sm text-gray-700 email-html-body">${msg.message_html}</div>`;
+            return `<div class="message-content text-sm text-gray-700 email-html-body">${sanitizeEmailHtml(msg.message_html)}</div>`;
         }
 
         // Internal note: render Quill HTML (contains @mention chips with color formatting)
@@ -2917,8 +2969,6 @@
         document.getElementById('headInternalLoading').classList.remove('hidden');
         document.getElementById('headInternalContent').classList.add('hidden');
         document.getElementById('headInternalStatusBanner').classList.add('hidden');
-        document.getElementById('headRejectWrap').classList.add('hidden');
-        document.getElementById('headBtnConfirmReject').classList.add('hidden');
 
         try {
             const res  = await fetch(MANDAYS_API('internal'), { headers: getHeaders(), credentials: 'same-origin' });
@@ -2939,7 +2989,6 @@
                 document.getElementById('headInternalContent').innerHTML = '<p class="text-sm text-gray-400 text-center py-4">No proposal submitted yet.</p>';
                 document.getElementById('headInternalContent').classList.remove('hidden');
                 document.getElementById('headBtnApprove').classList.add('hidden');
-                document.getElementById('headBtnToggleReject').classList.add('hidden');
                 return;
             }
 
@@ -2954,7 +3003,7 @@
                 if (d.notes) empMap[eid].notes = d.notes;
             });
 
-            const isPending = status === 'pending_head';
+            // Additional MD always editable by head of support
             let bodyHtml = '';
             let grandTotal = 0;
             Object.entries(empMap).forEach(([eid, emp]) => {
@@ -2967,14 +3016,11 @@
                     <td class="px-3 py-2 border border-gray-200 text-xs text-center">${emp.additional_mandays > 0 ? emp.additional_mandays.toFixed(1) : '—'}</td>
                     <td class="px-3 py-2 border border-gray-200 text-xs text-gray-500">${emp.notes || ''}</td>
                     <td class="border border-gray-200 p-0">
-                        ${isPending
-                            ? `<input type="number" min="0" step="0.5"
-                                class="head-approve-add w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-green-50 bg-white"
-                                data-employee="${eid}" data-mandays="${emp.mandays}"
-                                value="${currentApprAdd > 0 ? currentApprAdd : ''}"
-                                oninput="headUpdateRowTotal(this)">`
-                            : `<span class="block px-2 py-1.5 text-xs text-center">${currentApprAdd > 0 ? currentApprAdd.toFixed(1) : '—'}</span>`
-                        }
+                        <input type="number" min="0" step="0.5"
+                            class="head-approve-add w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-teal-50 bg-white"
+                            data-employee="${eid}" data-mandays="${emp.mandays}"
+                            value="${currentApprAdd > 0 ? currentApprAdd : ''}"
+                            oninput="headUpdateRowTotal(this)">
                     </td>
                     <td class="px-2 py-1.5 border border-gray-200 text-xs text-center font-semibold bg-gray-50" data-head-total="${eid}">${rowTotal > 0 ? rowTotal.toFixed(1) : '—'}</td>
                 </tr>`;
@@ -2995,23 +3041,21 @@
             const bannerEl = document.getElementById('headInternalStatusBanner');
             if (status === 'approved') {
                 bannerEl.className = 'mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700';
-                bannerEl.innerHTML = '<p class="font-semibold">Proposal Approved</p>'
+                bannerEl.innerHTML = '<p class="font-semibold">Saved — Proposal Approved</p>'
                     + (proposal.approved_by_head ? '<p class="text-xs mt-0.5">Approved by: ' + proposal.approved_by_head + '</p>' : '');
                 bannerEl.classList.remove('hidden');
             } else if (status === 'draft') {
                 bannerEl.className = 'mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-700';
-                bannerEl.innerHTML = '<p class="font-semibold">Draft — not yet submitted for review.</p>';
+                bannerEl.innerHTML = '<p class="font-semibold">Draft — PIC has not submitted yet.</p>';
                 bannerEl.classList.remove('hidden');
             } else if (status === 'rejected') {
-                bannerEl.className = 'mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700';
-                bannerEl.innerHTML = '<p class="font-semibold">Proposal sent back for revision.</p>'
-                    + (proposal.rejection_reason ? '<p class="text-xs mt-0.5">Reason: ' + proposal.rejection_reason + '</p>' : '');
+                bannerEl.className = 'mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-700';
+                bannerEl.innerHTML = '<p class="font-semibold">Needs Revision — PIC is revising.</p>';
                 bannerEl.classList.remove('hidden');
             }
 
-            // Show approve/reject only if pending
-            document.getElementById('headBtnApprove').classList.toggle('hidden', !isPending);
-            document.getElementById('headBtnToggleReject').classList.toggle('hidden', !isPending);
+            // Always show Save button when proposal exists (editable at any status)
+            document.getElementById('headBtnApprove').classList.remove('hidden');
 
             document.getElementById('headInternalContent').classList.remove('hidden');
         } catch(e) {
@@ -3025,14 +3069,6 @@
     function closeHeadInternalModal() {
         const modal = document.getElementById('headInternalModal');
         if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
-    }
-
-    function headToggleReject() {
-        const wrap = document.getElementById('headRejectWrap');
-        const btn  = document.getElementById('headBtnConfirmReject');
-        const isHidden = wrap.classList.contains('hidden');
-        wrap.classList.toggle('hidden', !isHidden);
-        btn.classList.toggle('hidden', !isHidden);
     }
 
     function headUpdateRowTotal(inp) {
@@ -3051,13 +3087,12 @@
 
     async function headInternalApprove() {
         const btn = document.getElementById('headBtnApprove');
-        btn.disabled = true; btn.textContent = 'Approving...';
+        btn.disabled = true; btn.textContent = 'Saving...';
         try {
-            // Collect approved_additional per employee
             const approvedDetails = [];
             document.querySelectorAll('.head-approve-add').forEach(inp => {
                 approvedDetails.push({
-                    employee_id:        parseInt(inp.dataset.employee),
+                    employee_id:         parseInt(inp.dataset.employee),
                     approved_additional: parseFloat(inp.value) || 0,
                 });
             });
@@ -3068,32 +3103,70 @@
             });
             const data = await res.json();
             if (data.success) {
-                showNotification('Internal proposal approved!', 'success');
+                showNotification('Internal mandays saved!', 'success');
                 internalUpdateSidebarBadge?.(data.internal_mandays_status);
                 closeHeadInternalModal();
             } else showNotification(data.message || 'Failed', 'error');
         } catch(e) { showNotification('Error: '+e.message,'error'); }
-        finally { btn.disabled = false; btn.textContent = 'Approve'; }
+        finally { btn.disabled = false; btn.textContent = 'Save'; }
     }
 
-    async function headInternalReject() {
-        const reason = document.getElementById('headRejectReason').value.trim();
-        if (!reason) { showNotification('Please provide a rejection reason', 'warning'); return; }
-        const btn = document.getElementById('headBtnConfirmReject');
-        btn.disabled = true; btn.textContent = 'Rejecting...';
+    // ==================== HEAD OF SUPPORT: CUSTOMER MANDAYS VIEW ====================
+    async function openHeadCustomerMandaysModal() {
+        const modal = document.getElementById('headCustomerMandaysModal');
+        if (!modal) return;
+        modal.classList.remove('hidden'); modal.classList.add('flex');
+        document.getElementById('headCustMandaysLoading').classList.remove('hidden');
+        document.getElementById('headCustMandaysContent').classList.add('hidden');
+
         try {
-            const res  = await fetch(MANDAYS_API('internal/reject'), {
-                method: 'POST', headers: getHeaders(), credentials: 'same-origin',
-                body: JSON.stringify({ rejection_reason: reason }),
-            });
+            const res  = await fetch(MANDAYS_API('hd-draft'), { headers: getHeaders(), credentials: 'same-origin' });
             const data = await res.json();
-            if (data.success) {
-                showNotification('Proposal rejected.', 'success');
-                internalUpdateSidebarBadge?.(data.internal_mandays_status);
-                closeHeadInternalModal();
-            } else showNotification(data.message || 'Failed', 'error');
-        } catch(e) { showNotification('Error: '+e.message,'error'); }
-        finally { btn.disabled = false; btn.textContent = 'Confirm Reject'; }
+            const proposal = data.data;
+            const status   = data.ticket_mandays_status || 'none';
+
+            const statusLabels = {
+                'none': 'None', 'pic_draft': 'Draft', 'pending_helpdesk': 'Pending Review',
+                'sent_to_chat': 'Sent to Customer', 'approved': 'Approved', 'canceled': 'Canceled',
+            };
+            document.getElementById('headCustMandaysStatus').textContent = statusLabels[status] || status;
+
+            if (!proposal || !proposal.details || proposal.details.length === 0) {
+                document.getElementById('headCustMandaysEmpty').classList.remove('hidden');
+                document.getElementById('headCustMandaysTable').classList.add('hidden');
+            } else {
+                let bodyHtml = '';
+                let total = 0;
+                (proposal.details || []).forEach(d => {
+                    total += parseFloat(d.mandays || 0);
+                    bodyHtml += `<tr>
+                        <td class="px-3 py-2 border border-gray-200 text-xs">${d.activity || '—'}</td>
+                        <td class="px-3 py-2 border border-gray-200 text-xs">${d.module || '—'}</td>
+                        <td class="px-3 py-2 border border-gray-200 text-xs text-center font-semibold">${parseFloat(d.mandays || 0).toFixed(1)}</td>
+                    </tr>`;
+                });
+                document.getElementById('headCustMandaysBody').innerHTML = bodyHtml;
+                document.getElementById('headCustMandaysTotal').textContent = total.toFixed(1);
+
+                if (proposal.notes) {
+                    const nw = document.getElementById('headCustMandaysNotes');
+                    nw.textContent = 'Notes: ' + proposal.notes;
+                    nw.classList.remove('hidden');
+                }
+                document.getElementById('headCustMandaysTable').classList.remove('hidden');
+            }
+            document.getElementById('headCustMandaysContent').classList.remove('hidden');
+        } catch(e) {
+            console.error(e);
+            showNotification('Failed to load customer mandays', 'error');
+        } finally {
+            document.getElementById('headCustMandaysLoading').classList.add('hidden');
+        }
+    }
+
+    function closeHeadCustomerMandaysModal() {
+        const modal = document.getElementById('headCustomerMandaysModal');
+        if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
     }
 
 

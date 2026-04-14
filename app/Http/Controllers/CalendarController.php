@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use App\Models\Event;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
@@ -33,9 +34,8 @@ class CalendarController extends Controller
         // Role is stored as nested array: $user['role']['id']
         $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
 
-        // Role IDs: 1=Admin, 2=Employee, 3=Customer, 4=Head of Project, 5=Head of Support
-        $isHead = in_array($roleId, [4, 5], true);
-        $isAdmin = $roleId === 1;
+        $isHead  = in_array($roleId, RoleId::HEAD_GROUP, true);
+        $isAdmin = $roleId === RoleId::ADMIN->value;
 
         return view('calendar.timesheets', [
             'user' => $user,

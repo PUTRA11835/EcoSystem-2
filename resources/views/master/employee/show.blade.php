@@ -160,6 +160,7 @@
             <div id="section-attachment" class="section-content hidden">
                 @include('master.employee.sections.attachment', ['employee' => $employee, 'employeeId' => $employee->id])
             </div>
+
         </div>
     </div>
 </div>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use App\Models\Customer;
 use App\Models\StagingTicket;
 use App\Models\Ticket;
@@ -11,6 +12,8 @@ use App\Services\StagingTicketService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class EmailController extends Controller
 {
@@ -40,6 +43,42 @@ class EmailController extends Controller
         }
 
         return $response->json('access_token');
+    }
+
+    /**
+     * Public wrapper agar controller lain bisa mendapatkan Graph access token.
+     */
+    public function getAccessTokenPublic(): string
+    {
+        return $this->getAccessToken();
+    }
+
+    /**
+     * Public wrapper untuk graphGet — digunakan controller lain yang butuh raw Graph call.
+     */
+    public function graphGetPublic(string $path, array $query = []): array
+    {
+        return $this->graphGet($path, $query);
+    }
+
+    /**
+     * Kembalikan daftar attachment NON-INLINE dari sebuah message Graph API.
+     * Digunakan untuk menampilkan attachment di modal validasi staging ticket.
+     *
+     * @return array  [{id, name, size, contentType, isInline}, ...]
+     */
+    public function listNonInlineAttachments(string $graphMsgId): array
+    {
+        $sender = env('MS_SENDER_EMAIL');
+        $result = $this->graphGet(
+            "/users/{$sender}/messages/{$graphMsgId}/attachments",
+            ['$select' => 'id,name,size,contentType,isInline']
+        );
+
+        return array_values(array_filter(
+            $result['value'] ?? [],
+            fn ($att) => empty($att['isInline'])
+        ));
     }
 
     private function graphGet(string $path, array $query = [], array $headers = []): array
@@ -312,6 +351,11 @@ class EmailController extends Controller
                     $internetMsgId  = $msg['internetMessageId'] ?? null;
                     $conversationId = $msg['conversationId'] ?? null;
                     $hasAttachments = $msg['hasAttachments'] ?? false;
+                    // receivedDateTime dari Graph API selalu UTC — parse ke UTC Carbon agar
+                    // created_at mencerminkan waktu email diterima, bukan waktu scheduler jalan
+                    $receivedAt = isset($msg['receivedDateTime'])
+                        ? \Carbon\Carbon::parse($msg['receivedDateTime'])->utc()
+                        : null;
 
                     // Ekstrak CC recipients: [{name, address}, ...]
                     $ccEmails = collect($msg['ccRecipients'] ?? [])
@@ -333,6 +377,19 @@ class EmailController extends Controller
                         $ticket = Ticket::whereHas('messages', function ($q) use ($internetMsgId) {
                             $q->where('email_message_id', $internetMsgId);
                         })->first();
+                    }
+                    // Fallback: cek staging yang sudah approved dengan thread yang sama
+                    // Ini menangani kasus di mana customer membalas email pada tiket yang
+                    // sudah diapprove dari staging — ticket.email_thread_id mungkin sudah ter-set
+                    // tapi bisa juga tidak ter-index. Cek via staging sebagai jembatan.
+                    if (!$ticket && $conversationId) {
+                        $approvedStaging = \App\Models\StagingTicket::where('email_thread_id', $conversationId)
+                            ->where('status', 'approved')
+                            ->whereNotNull('ticket_id')
+                            ->first();
+                        if ($approvedStaging) {
+                            $ticket = Ticket::find($approvedStaging->ticket_id);
+                        }
                     }
 
                     // Cari customer: cek customer.email dulu, fallback ke auth_users.email
@@ -372,6 +429,16 @@ class EmailController extends Controller
                             'is_read_by_customer' => true,
                             'is_read_by_agent'    => false,
                         ]);
+
+                        // Gunakan waktu asli email (bukan waktu scheduler) untuk created_at
+                        if ($receivedAt) {
+                            \DB::table('ticket_message')->where('id', $message->id)->update([
+                                'created_at' => $receivedAt->toDateTimeString(),
+                                'updated_at' => $receivedAt->toDateTimeString(),
+                            ]);
+                            $message->created_at = $receivedAt;
+                            $message->updated_at = $receivedAt;
+                        }
 
                         // Ambil metadata attachment & ganti referensi cid: di message_html.
                         // Cek dua kondisi: hasAttachments flag ATAU ada cid: references di body
@@ -448,6 +515,177 @@ class EmailController extends Controller
             return response()->json([
                 'status'  => 'error',
                 'message' => 'Failed to access inbox: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    // =========================================================================
+    // SENT ITEMS PROCESSOR — link staging tickets ke email [Menunggu Validasi]
+    // =========================================================================
+
+    /**
+     * Scan Sent Items Raditya untuk email "[Menunggu Validasi]" / "[PENDING]" yang
+     * belum di-link ke staging ticket, lalu hubungkan berdasarkan subject + recipient.
+     *
+     * Endpoint: POST /api/email/process-sent
+     * Dipanggil dari tombol "Fetch Email" di halaman staging validation.
+     *
+     * Matching:
+     *   - Bersihkan prefix dari subject → cocokkan dengan staging.description
+     *   - Cocokkan toRecipients[0] dengan staging.submitted_by_email
+     *   - Staging harus belum punya graph_message_id (unlinked)
+     *   - Dibuat dalam 7 hari terakhir
+     *
+     * Setelah link berhasil: staging.channel = 'email', graph_message_id tersimpan,
+     * email_body_html tersimpan → modal validasi bisa render body + attachment.
+     */
+    public function processSentItems(Request $request)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        try {
+            $sender     = env('MS_SENDER_EMAIL');
+            $preferHtml = ['Prefer' => 'outlook.body-content-type="html"'];
+            $select     = 'id,subject,toRecipients,sentDateTime,body,internetMessageId,conversationId,hasAttachments';
+            $since      = \Carbon\Carbon::now('UTC')->subDays(7)->format('Y-m-d\TH:i:s\Z');
+
+            // Fetch 50 sent items terbaru dalam 7 hari terakhir,
+            // lalu filter subject di PHP (menghindari masalah OData escaping untuk '[' dan ']')
+            $data = $this->graphGet("/users/{$sender}/mailFolders/SentItems/messages", [
+                '$filter'  => "sentDateTime ge {$since}",
+                '$orderby' => 'sentDateTime desc',
+                '$top'     => 50,
+                '$select'  => $select,
+            ], $preferHtml);
+
+            // Filter: hanya email dengan prefix [Menunggu Validasi] atau [PENDING]
+            $emails = array_filter(
+                $data['value'] ?? [],
+                fn ($e) => preg_match('/^\[(Menunggu Validasi|PENDING)\]/iu', $e['subject'] ?? '')
+            );
+
+            $totalFetched = count($data['value'] ?? []);
+            $totalPending = count($emails);
+
+            Log::info('EmailController@processSentItems: scan started', [
+                'total_fetched_from_graph' => $totalFetched,
+                'after_subject_filter'     => $totalPending,
+                'since_utc'               => $since,
+            ]);
+
+            $linked  = 0;
+            $skipped = 0;
+            $errors  = [];
+
+            foreach ($emails as $email) {
+                try {
+                    $graphMsgId      = $email['id'];
+                    $rawSubject      = $email['subject'] ?? '';
+                    $internetMsgId   = $email['internetMessageId'] ?? null;
+                    $conversationId  = $email['conversationId'] ?? null;
+                    $hasAttachments  = $email['hasAttachments'] ?? false;
+                    $bodyHtml        = $email['body']['content'] ?? null;
+
+                    // Ambil recipient pertama sebagai "to email"
+                    $toEmail = $email['toRecipients'][0]['emailAddress']['address'] ?? null;
+
+                    // Bersihkan prefix dari subject
+                    $cleanSubject = trim(preg_replace('/^\[(Menunggu Validasi|PENDING)\]\s*/iu', '', $rawSubject));
+
+                    // Anggap "already linked" hanya jika graph_message_id sudah terisi.
+                    $alreadyLinked = \App\Models\StagingTicket::where('graph_message_id', $graphMsgId)->exists();
+
+                    if ($alreadyLinked) {
+                        Log::info('EmailController@processSentItems: skip (already linked)', [
+                            'subject' => $rawSubject,
+                        ]);
+                        $skipped++;
+                        continue;
+                    }
+
+                    // Cari staging yang cocok:
+                    // 1. description == cleanSubject (case-insensitive)
+                    // 2. submitted_by_email cocok ATAU null
+                    // 3. dibuat dalam 7 hari terakhir
+                    $staging = \App\Models\StagingTicket::whereRaw('LOWER(description) = ?', [mb_strtolower($cleanSubject)])
+                        ->where(function ($q) use ($toEmail) {
+                            if ($toEmail) {
+                                $q->where('submitted_by_email', $toEmail)
+                                  ->orWhereNull('submitted_by_email');
+                            }
+                        })
+                        ->where('created_at', '>=', now()->subDays(7))
+                        ->latest()
+                        ->first();
+
+                    if (!$staging) {
+                        // Log detail kandidat staging yang ada untuk debug matching
+                        $candidates = \App\Models\StagingTicket::where('created_at', '>=', now()->subDays(7))
+                            ->whereNull('graph_message_id')
+                            ->select('id', 'description', 'submitted_by_email', 'created_at')
+                            ->get()
+                            ->map(fn ($s) => [
+                                'id'          => $s->id,
+                                'description' => $s->description,
+                                'email'       => $s->submitted_by_email,
+                                'created_at'  => $s->created_at,
+                            ])->toArray();
+
+                        Log::info('EmailController@processSentItems: no matching staging for sent email', [
+                            'subject'          => $rawSubject,
+                            'clean_subject'    => $cleanSubject,
+                            'to'               => $toEmail,
+                            'graph_message_id' => $graphMsgId,
+                            'unlinked_staging_candidates' => $candidates,
+                        ]);
+                        $skipped++;
+                        continue;
+                    }
+
+                    $update = [
+                        'graph_message_id' => $graphMsgId,
+                        'email_thread_id'  => $conversationId,
+                        'email_message_id' => $internetMsgId,
+                        'channel'          => 'email',
+                        'has_attachments'  => $hasAttachments || $staging->has_attachments,
+                    ];
+                    if ($bodyHtml) {
+                        $update['email_body_html'] = $bodyHtml;
+                    }
+                    $staging->update($update);
+
+                    Log::info('EmailController@processSentItems: linked staging to sent email', [
+                        'staging_id'       => $staging->id,
+                        'graph_message_id' => $graphMsgId,
+                        'subject'          => $rawSubject,
+                    ]);
+                    $linked++;
+
+                } catch (\Exception $e) {
+                    $errors[] = $e->getMessage();
+                    Log::warning('EmailController@processSentItems: error processing email', [
+                        'subject' => $email['subject'] ?? '?',
+                        'error'   => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'linked'  => $linked,
+                'skipped' => $skipped,
+                'total'   => count($emails),
+                'errors'  => $errors,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('EmailController@processSentItems: failed', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to process sent items: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -548,25 +786,26 @@ class EmailController extends Controller
     }
 
     /**
-     * Ambil metadata attachment dari Graph API dan simpan ke DB.
-     * File TIDAK diunduh ke server — disimpan via proxy route /attachments/{id}.
+     * Ambil attachment dari Graph API dan simpan ke DB.
+     *
+     * - Inline image (is_inline=true, ada contentId, mime image/*):
+     *   Download binary dari Graph → simpan ke storage/public → cidMap berisi storage URL.
+     *   URL storage bisa diakses langsung oleh browser / Jarvies tanpa perlu session EcoSystem.
+     *
+     * - Non-inline / file biasa:
+     *   Simpan metadata saja → cidMap berisi proxy URL /attachments/{id} (butuh session).
      *
      * @param  string         $senderEmail   email akun MS Graph (MS_SENDER_EMAIL)
      * @param  string         $graphMsgId    Graph internal message ID
      * @param  TicketMessage  $message       record pesan yang baru dibuat
      * @param  int            $ticketId
-     * @return array          Mapping [contentId => attachmentDbId] untuk inline image CID replacement
+     * @return array          Mapping [contentId => replacementUrl] untuk CID replacement di HTML
      */
     private function storeEmailAttachments(string $senderEmail, string $graphMsgId, TicketMessage $message, int $ticketId): array
     {
         $cidMap = [];
 
         try {
-            // Fetch semua field attachment tanpa $select.
-            // Catatan: $select TIDAK bisa dipakai untuk contentId maupun contentBytes karena
-            // keduanya adalah properti derived type (fileAttachment), bukan base type (attachment).
-            // Graph API mengembalikan semua field termasuk contentBytes — namun kita hanya
-            // menggunakan metadata dan TIDAK menyimpan contentBytes ke disk.
             $result = $this->graphGet("/users/{$senderEmail}/messages/{$graphMsgId}/attachments");
 
             foreach ($result['value'] ?? [] as $att) {
@@ -576,23 +815,73 @@ class EmailController extends Controller
                     continue;
                 }
 
-                // Lewati jika tidak ada nama (attachment tidak valid)
                 if (empty($att['name'])) {
                     continue;
                 }
 
-                $graphAttId  = $att['id'];
+                $graphAttId   = $att['id'];
                 $originalName = $att['name'];
-                $mimeType    = $att['contentType'] ?? 'application/octet-stream';
-                $isInline    = $att['isInline'] ?? false;
-                $fileSize    = $att['size'] ?? 0;
-                $contentId   = $att['contentId'] ?? null; // CID untuk inline images
+                $mimeType     = $att['contentType'] ?? 'application/octet-stream';
+                $isInline     = $att['isInline'] ?? false;
+                $fileSize     = $att['size'] ?? 0;
+                $contentId    = $att['contentId'] ?? null;
 
                 // Lewati jika sudah pernah disimpan
                 $existing = TicketAttachment::where('graph_attachment_id', $graphAttId)->first();
                 if ($existing) {
-                    if ($contentId) $cidMap[$contentId] = $existing->id;
+                    if ($contentId) {
+                        // Gunakan storage URL jika ada file_path, fallback ke proxy
+                        $cidMap[$contentId] = $existing->file_path
+                            ? Storage::disk('public')->url($existing->file_path)
+                            : '/attachments/' . $existing->id;
+                    }
                     continue;
+                }
+
+                $filePath   = null;
+                $storageUrl = null;
+
+                // ── Inline image: download binary dan simpan ke storage ──────────
+                if ($isInline && $contentId && str_starts_with($mimeType, 'image/')) {
+                    $contentBytes = $att['contentBytes'] ?? null;
+
+                    // Graph kadang menghapus contentBytes dari list response untuk file besar
+                    if (!$contentBytes) {
+                        try {
+                            $single       = $this->graphGet("/users/{$senderEmail}/messages/{$graphMsgId}/attachments/{$graphAttId}");
+                            $contentBytes = $single['contentBytes'] ?? null;
+                            if (!$mimeType || $mimeType === 'application/octet-stream') {
+                                $mimeType = $single['contentType'] ?? $mimeType;
+                            }
+                        } catch (\Exception $e) {
+                            Log::warning('EmailController@storeEmailAttachments: gagal fetch individual inline attachment', [
+                                'att_id' => $graphAttId,
+                                'error'  => $e->getMessage(),
+                            ]);
+                        }
+                    }
+
+                    if ($contentBytes) {
+                        try {
+                            $ext        = pathinfo($originalName, PATHINFO_EXTENSION) ?: 'png';
+                            $safeName   = Str::uuid() . '.' . $ext;
+                            $filePath   = "ticket-inline-images/{$ticketId}/{$safeName}";
+                            Storage::disk('public')->put($filePath, base64_decode($contentBytes));
+                            $storageUrl = Storage::disk('public')->url($filePath);
+
+                            Log::info('EmailController@storeEmailAttachments: inline image disimpan ke storage', [
+                                'ticket_id' => $ticketId,
+                                'file_path' => $filePath,
+                                'mime'      => $mimeType,
+                            ]);
+                        } catch (\Exception $e) {
+                            Log::warning('EmailController@storeEmailAttachments: gagal simpan inline image ke storage', [
+                                'error' => $e->getMessage(),
+                            ]);
+                            $filePath   = null;
+                            $storageUrl = null;
+                        }
+                    }
                 }
 
                 $record = TicketAttachment::create([
@@ -608,10 +897,13 @@ class EmailController extends Controller
                     'graph_attachment_id' => $graphAttId,
                     'graph_message_id'    => $graphMsgId,
                     'content_id'          => $contentId,
+                    'file_path'           => $filePath,
                 ]);
 
                 if ($contentId) {
-                    $cidMap[$contentId] = $record->id;
+                    // Inline image yang berhasil disimpan → storage URL (akses publik)
+                    // Selainnya → proxy URL (butuh session EcoSystem)
+                    $cidMap[$contentId] = $storageUrl ?? '/attachments/' . $record->id;
                 }
             }
         } catch (\Exception $e) {
@@ -620,32 +912,29 @@ class EmailController extends Controller
                 'ticket_id'    => $ticketId,
                 'error'        => $e->getMessage(),
             ]);
-            // Jangan throw — gagal attachment tidak boleh membatalkan penyimpanan pesan
         }
 
         return $cidMap;
     }
 
     /**
-     * Ganti referensi cid:xxx di HTML email dengan URL proxy attachment.
+     * Ganti referensi cid:xxx di HTML email dengan URL replacement.
      * Dipanggil setelah storeEmailAttachments() berhasil menyimpan record.
      *
-     * @param  string $html    HTML body pesan
-     * @param  array  $cidMap  [contentId => attachmentDbId]
+     * @param  string $html       HTML body pesan
+     * @param  array  $cidUrlMap  [contentId => url] — storage URL (inline) atau proxy URL
      * @return string HTML yang sudah diganti referensi cid-nya
      */
-    private function replaceCidReferences(string $html, array $cidMap): string
+    private function replaceCidReferences(string $html, array $cidUrlMap): string
     {
-        foreach ($cidMap as $cid => $attachmentId) {
-            $proxyUrl = '/attachments/' . $attachmentId;
+        foreach ($cidUrlMap as $cid => $url) {
             // Graph bisa mengembalikan contentId dengan atau tanpa angle brackets: <xxx> atau xxx
             $cleanCid = trim($cid, '<>');
             // Replace semua variasi yang mungkin muncul di HTML
-            $html = str_replace('cid:' . $cleanCid,        $proxyUrl, $html);
-            $html = str_replace('cid:<' . $cleanCid . '>', $proxyUrl, $html);
-            // Kalau cid asli berbeda dari cleanCid (ada angle brackets), replace juga
+            $html = str_replace('cid:' . $cleanCid,        $url, $html);
+            $html = str_replace('cid:<' . $cleanCid . '>', $url, $html);
             if ($cid !== $cleanCid) {
-                $html = str_replace('cid:' . $cid, $proxyUrl, $html);
+                $html = str_replace('cid:' . $cid, $url, $html);
             }
         }
         return $html;
@@ -672,7 +961,7 @@ class EmailController extends Controller
     public function reprocessAttachments(Request $request, int $messageId)
     {
         $sessionUser = session('user');
-        if (!$sessionUser || !in_array($sessionUser['role']['id'], [1, 2, 6, 7])) {
+        if (!$sessionUser || !in_array($sessionUser['role']['id'], array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -748,9 +1037,11 @@ class EmailController extends Controller
         string $body,
         ?string $inReplyTo = null,
         array $files = [],
-        array $ccList = [],  // [{name, address}, ...] atau [address, ...]
+        array $ccList = [],       // [{name, address}, ...] atau [address, ...]
         bool $noRePrefix = false,
-        ?string $threadId = null  // M365 conversationId — fallback jika inReplyTo tidak ditemukan
+        ?string $threadId = null, // M365 conversationId — fallback jika inReplyTo tidak ditemukan
+        bool $forceNewDraft = false // true = skip createReply, buat draft baru dengan In-Reply-To eksplisit
+                                    // Gunakan saat subject sengaja diubah agar Gmail tetap thread dengan benar
     ): array {
         $sender         = env('MS_SENDER_EMAIL');
         $replySubject   = (!$noRePrefix && stripos($subject, 're:') !== 0) ? 'Re: ' . $subject : $subject;
@@ -784,7 +1075,7 @@ class EmailController extends Controller
         //   - SentItems msg: createReply salah arah (ke raditya sendiri) → patch fix ke customer
         //
         // Dengan selalu patch toRecipients, kita tidak perlu membedakan Inbox vs SentItems.
-        if ($inReplyTo) {
+        if ($inReplyTo && !$forceNewDraft) {
             $filterVal  = str_replace("'", "''", $inReplyTo);
             $originalId = null;
 
@@ -828,6 +1119,7 @@ class EmailController extends Controller
                     $draftId        = $draft->json('id');
                     $conversationId = $draft->json('conversationId') ?? $conversationId;
 
+
                     // SELALU patch toRecipients dan ccRecipients agar tidak pernah salah kirim.
                     // Ini fix untuk kasus SentItems: createReply default-nya reply ke raditya sendiri.
                     // ccRecipients selalu di-set eksplisit (bisa [] untuk hapus pre-populated CC yang salah).
@@ -841,7 +1133,12 @@ class EmailController extends Controller
                     // createReply → tetap ada setelah patch subject → Gmail/client SMTP tetap thread.
                     // Exchange conversationId akan berubah (Outlook mungkin tampilkan sebagai
                     // thread terpisah) tapi ini trade-off yang diterima untuk subject yang benar.
+
+                    // PATCH: subject, body, toRecipients, ccRecipients.
+                    // internetMessageHeaders TIDAK di-patch — field ini read-only pada createReply draft.
+                    // Exchange sudah otomatis set In-Reply-To + References yang benar dari originalId.
                     $patchData = [
+                        'subject'      => $replySubject,
                         'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
                         'toRecipients' => [['emailAddress' => ['address' => $toEmail]]],
                         'ccRecipients' => $ccRecipients,
@@ -868,7 +1165,7 @@ class EmailController extends Controller
         // ── Fallback by threadId (conversationId) ─────────────────────────────
         // Dipakai jika inReplyTo tidak ditemukan di manapun tapi kita punya email_thread_id.
         // Cari pesan manapun dalam thread tsb (terbaru) → createReply agar tetap threaded.
-        if (!$draftId && $threadId) {
+        if (!$draftId && $threadId && !$forceNewDraft) {
             try {
                 $threadVal   = str_replace("'", "''", $threadId);
                 $threadResult = $this->graphGet("/users/{$sender}/messages", [
@@ -885,6 +1182,7 @@ class EmailController extends Controller
                         $conversationId = $draft->json('conversationId') ?? $threadId;
                     }
                     $patchData = [
+                        'subject'      => $replySubject,
                         'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
                         'toRecipients' => [['emailAddress' => ['address' => $toEmail]]],
                         'ccRecipients' => $ccRecipients,

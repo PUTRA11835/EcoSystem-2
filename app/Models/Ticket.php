@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Sanctum\HasApiTokens;
 
 class Ticket extends Model
 {
@@ -40,6 +41,8 @@ class Ticket extends Model
         // Mandays status
         'mandays_proposal_status',
         'internal_mandays_status',
+        // CC recipients (disalin dari staging saat approve)
+        'cc_emails',
     ];
 
     protected $casts = [
@@ -50,6 +53,7 @@ class Ticket extends Model
         'last_message_at'        => 'datetime',
         'last_customer_reply_at' => 'datetime',
         'last_agent_reply_at'    => 'datetime',
+        'cc_emails'              => 'array',
     ];
 
     // Relasi ke Customer
@@ -120,7 +124,7 @@ class Ticket extends Model
     // Accessor untuk status label
     public function getStatusLabelAttribute()
     {
-        return match($this->status) {
+        return match ($this->status) {
             'open' => 'Open',
             'in_progress' => 'In Progress',
             'hold' => 'Hold',
@@ -135,7 +139,7 @@ class Ticket extends Model
     // Accessor untuk priority badge color
     public function getPriorityColorAttribute()
     {
-        return match($this->ticket_priority) {
+        return match ($this->ticket_priority) {
             'Low' => 'gray',
             'High' => 'red',
             'Medium' => 'blue',
