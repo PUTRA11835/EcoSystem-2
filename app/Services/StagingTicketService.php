@@ -48,6 +48,9 @@ class StagingTicketService
             'submitted_by_email' => $data['submitted_by_email'] ?? null,
             'sender_name'        => $data['sender_name'] ?? null,
             'cc_emails'          => $data['cc_emails'] ?? null,
+            // internetMessageId dari email [Menunggu Validasi] yang dikirim Jarvies
+            // Digunakan sebagai In-Reply-To saat EcoSystem kirim email notifikasi approval
+            'email_message_id'   => $data['internet_message_id'] ?? null,
             // Field tambahan (opsional dari Jarvies)
             'name'               => $data['name'] ?? null,
             'no_hp'              => $data['no_hp'] ?? null,
@@ -233,7 +236,7 @@ class StagingTicketService
                 ]);
 
             } elseif ($staging->channel === 'web' && !empty($staging->body)) {
-                // Staging dari web form → gunakan body sebagai pesan pertama customer
+                // Staging dari web form (Jarvies) → buat pesan pertama customer.
                 // Cek anti-duplikat: jika sudah ada message dari email (misal OAuth), skip
                 $alreadyFromEmail = TicketMessage::where('ticket_id', $ticket->ticket_id)
                     ->where('channel', 'email')
@@ -253,19 +256,34 @@ class StagingTicketService
                         'resolved_as'         => $senderName,
                     ]);
 
+                    // Bangun HTML lengkap seperti email Jarvies:
+                    // [metadata: phone/module/client] + [description body]
+                    $messageHtml = $this->buildJarviesEmailBody($staging);
+
+                    // Jika staging punya email_message_id (internet_message_id dari Jarvies),
+                    // tandai channel='email' agar reply berikutnya bisa dilanjutkan via email.
+                    $msgChannel = $staging->email_message_id ? 'email' : 'web';
+
                     $firstMessage = TicketMessage::create([
                         'ticket_id'           => $ticket->ticket_id,
                         'sender_type'         => 'customer',
                         'sender_id'           => $staging->customer_id,
                         'sender_email'        => $staging->submitted_by_email,
                         'sender_name'         => $senderName,
-                        'message'             => $staging->body,
+                        'message'             => strip_tags($messageHtml),
+                        'message_html'        => $messageHtml,
                         'is_internal_note'    => false,
-                        'channel'             => 'web',
+                        'channel'             => $msgChannel,
+                        'email_message_id'    => $staging->email_message_id,
                         'cc_emails'           => $staging->cc_emails,
                         'is_read_by_customer' => true,
                         'is_read_by_agent'    => false,
                     ]);
+
+                    // Gunakan waktu staging dibuat sebagai created_at pesan pertama
+                    // agar timestamp di ticket chat konsisten dengan kapan customer submit
+                    $firstMessage->timestamps = false;
+                    $firstMessage->update(['created_at' => $staging->created_at]);
                 }
             }
 
@@ -354,5 +372,66 @@ class StagingTicketService
         return $staging;
     }
 
+
+    // ─── Private helpers ──────────────────────────────────────────────────────
+
+    /**
+     * Bangun HTML body pesan pertama customer dari staging web/Jarvies.
+     * Format konsisten dengan email yang dikirim Jarvies ke customer:
+     *   - Header [Tiket dari ... via Jarvies]
+     *   - Tabel metadata (Phone, Module, Client) jika ada
+     *   - Blok Description berisi body Quill
+     */
+    private function buildJarviesEmailBody(StagingTicket $staging): string
+    {
+        $rows = '';
+        if (!empty($staging->no_hp)) {
+            $rows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Phone</td>'
+                   . '<td>: ' . e($staging->no_hp) . '</td></tr>';
+        }
+        if (!empty($staging->module)) {
+            $rows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Module</td>'
+                   . '<td>: ' . e($staging->module) . '</td></tr>';
+        }
+        if (!empty($staging->client)) {
+            $rows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Client</td>'
+                   . '<td>: ' . e($staging->client) . '</td></tr>';
+        }
+
+        $metaTable = $rows
+            ? '<table style="border-collapse:collapse;margin-bottom:16px">' . $rows . '</table>'
+            : '';
+
+        $descSection = !empty($staging->body)
+            ? '<div style="margin-bottom:16px"><strong>Description:</strong>'
+              . '<div style="margin-top:8px;padding:12px;background:#f9f9f9;border:1px solid #e0e0e0;border-radius:4px">'
+              . $staging->body   // HTML dari Quill — sudah trusted input dari Jarvies
+              . '</div></div>'
+            : '';
+
+        $headerNote = !empty($staging->sender_name)
+            ? '[Tiket dari ' . e($staging->sender_name) . ' via Jarvies]'
+            : '[Tiket baru via Jarvies]';
+
+        return '<p>' . $headerNote . '</p>'
+             . $metaTable
+             . $descSection;
+    }
+
+    private function generateTicketNumber(?int $customerId): string
+    {
+        $year      = date('y');
+        $yearMonth = date('ym');
+
+        $lastNumber = DB::table('ticket')
+            ->where('ticket_number', 'like', $year . '%')
+            ->whereRaw("ticket_number NOT LIKE '%-%'")
+            ->orderByRaw('CAST(SUBSTRING(ticket_number, 5, 4) AS UNSIGNED) DESC')
+            ->value('ticket_number');
+
+        $nextNumber = $lastNumber ? ((int) substr($lastNumber, -4)) + 1 : 1;
+
+        return $yearMonth . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+    }
 }
 
