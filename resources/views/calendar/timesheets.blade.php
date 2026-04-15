@@ -652,6 +652,6 @@
     window.userRoleId = {{ $roleId ?? 'null' }};
     window.lockedType = {{ $lockedType ? "'{$lockedType}'" : 'null' }};
 </script>
-<script src="/js/calendar-timesheets.js"></script>
+<script src="/js/calendar-timesheets.js?v={{ filemtime(public_path('js/calendar-timesheets.js')) }}"></script>
 @endpush
 @endsection
