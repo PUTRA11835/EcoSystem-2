@@ -153,7 +153,14 @@ class StagingTicketService
             }
         }
 
-        return StagingTicket::create([
+        // Gunakan receivedDateTime email sebagai created_at agar waktu sesuai email asli.
+        // $emailData['received_at'] adalah Carbon UTC dari Graph API → konversi ke app timezone.
+        $appTz      = config('app.timezone', 'Asia/Jakarta');
+        $receivedAt = isset($emailData['received_at'])
+            ? $emailData['received_at']->copy()->setTimezone($appTz)
+            : now();
+
+        $staging = StagingTicket::create([
             'customer_id'        => $emailData['customer_id'] ?? null,
             'description'        => $emailData['subject'] ?? substr(strip_tags($emailData['body_html'] ?? ''), 0, 255),
             'ticket_priority'    => null,
@@ -168,6 +175,19 @@ class StagingTicketService
             'has_attachments'    => $emailData['has_attachments'] ?? false,
             'cc_emails'          => $emailData['cc_emails'] ?? null,
         ]);
+
+        // Override created_at dengan waktu asli email (Eloquent timestamps() auto-set now())
+        if (isset($emailData['received_at'])) {
+            \Illuminate\Support\Facades\DB::table('staging_tickets')
+                ->where('id', $staging->id)
+                ->update([
+                    'created_at' => $receivedAt->toDateTimeString(),
+                    'updated_at' => $receivedAt->toDateTimeString(),
+                ]);
+            $staging->created_at = $receivedAt;
+        }
+
+        return $staging;
     }
 
     // ─── 3. Approve → promote staging ke ticket ───────────────────────────────
