@@ -99,7 +99,7 @@ class ActivityManagementController extends Controller
                         ]);
 
                         if (($currentTotal + $validated['weight']) > 100.01) {
-                            throw new \Exception('Total weight would exceed 100%. Current: ' . number_format($currentTotal, 2) . '%, trying to add: ' . $validated['weight'] . '%');
+                            throw new \Exception('Total weight would exceed 100%. Current' . number_format($currentTotal, 2) . '%, trying to add' . $validated['weight'] . '%');
                         }
                     }
                 }
@@ -232,13 +232,13 @@ class ActivityManagementController extends Controller
             
         } catch (\Exception $e) {
             Log::error('=== CREATE ERROR ===', [
-                'message' => $e->getMessage(),
+                'message' => 'An error occurred',
                 'trace' => $e->getTraceAsString()
             ]);
             
             return response()->json([
                 'success' => false,
-                'message' => 'Server error: ' . $e->getMessage()
+                'message' => 'Server error'
             ], 500);
         }
     }
@@ -400,7 +400,7 @@ class ActivityManagementController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Activity not found: ' . $e->getMessage()
+                'message' => 'Activity not found'
             ], 404);
         }
     }
@@ -658,7 +658,7 @@ class ActivityManagementController extends Controller
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update: ' . $e->getMessage()
+                'message' => 'Failed to update'
             ], 500);
         }
     }
@@ -669,7 +669,7 @@ class ActivityManagementController extends Controller
     public function destroy(DeliveryProject $project, $activityId)
     {
         if (is_null($activityId) || $activityId === 'null' || !is_numeric($activityId) || $activityId <= 0) {
-            Log::error("Invalid activity ID for deletion: '{$activityId}'", [
+            Log::error("Invalid activity ID for deletion'{$activityId}'", [
                 'delivery_projects_id' => $project->id
             ]);
             return response()->json([
@@ -777,7 +777,7 @@ class ActivityManagementController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => 'An error occurred'
             ], 422);
         }
     }
@@ -880,7 +880,7 @@ class ActivityManagementController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to assign member: ' . $e->getMessage()
+                'message' => 'Failed to assign member'
             ], 500);
         }
     }

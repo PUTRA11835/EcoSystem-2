@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Auth;
 use App\Models\Employee;
 use App\Models\EmployeeBasicData;
 
@@ -18,18 +17,7 @@ class EmployeeController extends Controller
      */
     private function getCurrentUserECI()
     {
-        // Cek dari Auth user (jika ada relasi)
-        if (Auth::check() && Auth::user()->eci) {
-            return Auth::user()->eci;
-        }
-        
-        // Cek dari session
-        if (session()->has('user') && isset(session('user')['eci'])) {
-            return session('user')['eci'];
-        }
-        
-        // Fallback ke System jika tidak ada
-        return 'System';
+        return session('user.eci') ?? 'System';
     }
 
     /**
@@ -304,7 +292,7 @@ class EmployeeController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch employees: ' . $e->getMessage()
+                'message' => 'Failed to fetch employees'
             ], 500);
         }
     }
@@ -396,7 +384,7 @@ class EmployeeController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch employee: ' . $e->getMessage()
+                'message' => 'Failed to fetch employee'
             ], 500);
         }
     }
@@ -576,7 +564,7 @@ class EmployeeController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create employee: ' . $e->getMessage()
+                'message' => 'Failed to create employee'
             ], 500);
         }
     }
@@ -729,7 +717,7 @@ class EmployeeController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update employee: ' . $e->getMessage()
+                'message' => 'Failed to update employee'
             ], 500);
         }
     }
@@ -879,7 +867,7 @@ public function getRoles()
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to change password: ' . $e->getMessage(),
+                'message' => 'Failed to change password',
             ], 500);
         }
     }
@@ -965,7 +953,7 @@ public function getRoles()
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update roles: ' . $e->getMessage(),
+                'message' => 'Failed to update roles',
             ], 500);
         }
     }
@@ -1058,7 +1046,7 @@ public function getRoles()
 
             return response()->json([
                 'success' => false,
-                'message' => 'Database error while deleting employee: ' . $e->getMessage()
+                'message' => 'Database error while deleting employee'
             ], 500);
 
         } catch (\Exception $e) {
@@ -1072,7 +1060,7 @@ public function getRoles()
 
             return response()->json([
                 'success' => false,
-                'message' => 'An unexpected error occurred while deleting employee: ' . $e->getMessage()
+                'message' => 'An unexpected error occurred while deleting employee'
             ], 500);
         }
     }

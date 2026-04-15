@@ -38,7 +38,7 @@ class CustomerCredentialController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch credential: ' . $e->getMessage(),
+                'message' => 'Failed to fetch credential',
             ], 500);
         }
     }
@@ -82,7 +82,7 @@ class CustomerCredentialController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to save credential: ' . $e->getMessage(),
+                'message' => 'Failed to save credential',
             ], 500);
         }
     }

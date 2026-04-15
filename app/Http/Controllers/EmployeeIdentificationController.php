@@ -151,7 +151,7 @@ class EmployeeIdentificationController extends Controller
                 'entry_date' => $request->entry_date,
                 'drive_link' => $request->drive_link,
                 'verify_link' => $request->verify_link,
-                'created_by' => auth()->user()->name ?? 'System'
+                'created_by' => session('user.eci') ?? session('user.name') ?? 'System'
             ]);
 
             DB::commit();

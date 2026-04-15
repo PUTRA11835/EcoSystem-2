@@ -186,7 +186,7 @@ class DeliverySupportController extends Controller
 
             return back()
                 ->withInput()
-                ->with('error', 'Failed to create support delivery: ' . $e->getMessage());
+                ->with('error', 'Failed to create support delivery');
         }
     }
 
@@ -318,7 +318,7 @@ class DeliverySupportController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update: ' . $e->getMessage()
+                'message' => 'Failed to update'
             ], 500);
         }
     }
@@ -616,7 +616,7 @@ class DeliverySupportController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to assign ticket: ' . $e->getMessage()
+                'message' => 'Failed to assign ticket'
             ], 500);
         }
     }

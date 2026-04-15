@@ -6,7 +6,6 @@ use App\Models\Employee;
 use App\Models\EmployeeBasicData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class EmployeeBasicDataController extends Controller
@@ -16,18 +15,7 @@ class EmployeeBasicDataController extends Controller
      */
     private function getCurrentUserECI()
     {
-        // Cek dari Auth user (jika ada relasi)
-        if (Auth::check() && Auth::user()->eci) {
-            return Auth::user()->eci;
-        }
-        
-        // Cek dari session
-        if (session()->has('user') && isset(session('user')['eci'])) {
-            return session('user')['eci'];
-        }
-        
-        // Fallback ke System jika tidak ada
-        return 'System';
+        return session('user.eci') ?? 'System';
     }
 
     /**
@@ -89,7 +77,7 @@ class EmployeeBasicDataController extends Controller
                 try {
                     $data['birth_date'] = date('Y-m-d', strtotime($data['birth_date']));
                 } catch (\Exception $e) {
-                    \Log::error('Error formatting birth_date: ' . $e->getMessage());
+                    \Log::error('Error formatting birth_date');
                     $data['birth_date'] = null;
                 }
             }
@@ -98,7 +86,7 @@ class EmployeeBasicDataController extends Controller
                 try {
                     $data['since_date'] = date('Y-m-d', strtotime($data['since_date']));
                 } catch (\Exception $e) {
-                    \Log::error('Error formatting since_date: ' . $e->getMessage());
+                    \Log::error('Error formatting since_date');
                     $data['since_date'] = null;
                 }
             }
@@ -109,10 +97,10 @@ class EmployeeBasicDataController extends Controller
                 'data' => $data
             ]);
         } catch (\Exception $e) {
-            \Log::error('Error in EmployeeBasicDataController@show: ' . $e->getMessage());
+            \Log::error('Error in EmployeeBasicDataController@show');
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving basic data: ' . $e->getMessage()
+                'message' => 'Error retrieving basic data'
             ], 500);
         }
     }
@@ -231,10 +219,10 @@ class EmployeeBasicDataController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('Error in EmployeeBasicDataController@store: ' . $e->getMessage());
+            \Log::error('Error in EmployeeBasicDataController@store');
             return response()->json([
                 'success' => false,
-                'message' => 'Error saving basic data: ' . $e->getMessage()
+                'message' => 'Error saving basic data'
             ], 500);
         }
     }
@@ -329,10 +317,10 @@ class EmployeeBasicDataController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('Error in EmployeeBasicDataController@update: ' . $e->getMessage());
+            \Log::error('Error in EmployeeBasicDataController@update');
             return response()->json([
                 'success' => false,
-                'message' => 'Error updating basic data: ' . $e->getMessage()
+                'message' => 'Error updating basic data'
             ], 500);
         }
     }
@@ -367,7 +355,7 @@ class EmployeeBasicDataController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Error deleting basic data: ' . $e->getMessage()
+                'message' => 'Error deleting basic data'
             ], 500);
         }
     }
@@ -409,7 +397,7 @@ class EmployeeBasicDataController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Error marking data for deletion: ' . $e->getMessage()
+                'message' => 'Error marking data for deletion'
             ], 500);
         }
     }
@@ -459,7 +447,7 @@ class EmployeeBasicDataController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Error toggling block status: ' . $e->getMessage()
+                'message' => 'Error toggling block status'
             ], 500);
         }
     }

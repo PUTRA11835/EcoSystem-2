@@ -2,46 +2,92 @@
 
 namespace App\Http\Middleware;
 
+use App\Http\Controllers\AuthController;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
-use Illuminate\Support\Facades\Log;
 
 class CheckAuthToken
 {
     public function handle(Request $request, Closure $next): Response
     {
-        // Skip check untuk route tertentu
-        if ($request->is('api/auth/login') || $request->is('api/auth/logout')) {
+        // ── 1. Session masih valid (jalur normal) ────────────────────────────
+        if (session()->has('auth_token')) {
             return $next($request);
         }
 
-        Log::info('CheckAuthToken middleware triggered', [
-            'url' => $request->fullUrl(),
-            'session_has_token' => session()->has('auth_token'),
-            'session_has_user' => session()->has('user'),
-            'session_id' => session()->getId()
-        ]);
+        // ── 2. Session expired — coba restore via remember-me cookie ─────────
+        $rememberCookie = $request->cookie(AuthController::REMEMBER_COOKIE);
 
-        // Cek token dari session
-        if (!session()->has('auth_token')) {
-            Log::warning('No auth token in session', [
-                'url' => $request->fullUrl(),
-                'session_id' => session()->getId()
-            ]);
-
-            if ($request->expectsJson() || $request->is('api/*')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthorized'
-                ], 401);
+        if ($rememberCookie) {
+            $restored = $this->tryRestoreSession($request, $rememberCookie);
+            if ($restored) {
+                return $next($request);
             }
-            
-            return redirect()->route('login')->with('error', 'Please login first');
+
+            // Cookie ada tapi tidak valid — bersihkan
+            $expired = cookie(AuthController::REMEMBER_COOKIE, '', -1);
         }
 
-        Log::info('Auth token found, allowing request');
+        // ── 3. Tidak ada session dan tidak ada cookie valid ───────────────────
+        if ($request->expectsJson() || $request->is('api/*')) {
+            $response = response()->json([
+                'success' => false,
+                'message' => 'Unauthorized',
+            ], 401);
 
-        return $next($request);
+            if (isset($expired)) {
+                $response->withCookie($expired);
+            }
+
+            return $response;
+        }
+
+        $redirect = redirect()->route('login')->with('error', 'Please login first');
+
+        if (isset($expired)) {
+            $redirect->withCookie($expired);
+        }
+
+        return $redirect;
+    }
+
+    /**
+     * Coba restore session dari remember-me cookie.
+     * Return true jika berhasil, false jika token tidak valid / user tidak aktif.
+     */
+    private function tryRestoreSession(Request $request, string $rawToken): bool
+    {
+        // Hash cookie value dan cari di DB
+        $hashed  = hash('sha256', $rawToken);
+        $authUser = DB::table('auth_users')
+            ->where('remember_token', $hashed)
+            ->where('is_active', true)
+            ->first();
+
+        if (!$authUser || empty($authUser->employee_id)) {
+            return false;
+        }
+
+        // Bangun ulang session data employee
+        $sessionData = AuthController::buildEmployeeSessionData($authUser->employee_id);
+
+        if (!$sessionData) {
+            return false;
+        }
+
+        // Update last_login_at
+        DB::table('auth_users')
+            ->where('id', $authUser->id)
+            ->update(['last_login_at' => now()]);
+
+        // Regenerate session (keamanan) & isi ulang
+        $request->session()->regenerate();
+        $request->session()->put('auth_token', $sessionData['token']);
+        $request->session()->put('user', $sessionData['userData']);
+        $request->session()->save();
+
+        return true;
     }
 }

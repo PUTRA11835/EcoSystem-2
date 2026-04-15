@@ -70,7 +70,7 @@ class EmployeeEducationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving education records: ' . $e->getMessage()
+                'message' => 'Error retrieving education records'
             ], 500);
         }
     }
@@ -134,7 +134,7 @@ class EmployeeEducationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving education record: ' . $e->getMessage()
+                'message' => 'Error retrieving education record'
             ], 500);
         }
     }
@@ -256,7 +256,7 @@ class EmployeeEducationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error creating education record: ' . $e->getMessage()
+                'message' => 'Error creating education record'
             ], 500);
         }
     }
@@ -392,7 +392,7 @@ class EmployeeEducationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error updating education record: ' . $e->getMessage()
+                'message' => 'Error updating education record'
             ], 500);
         }
     }
@@ -456,7 +456,7 @@ class EmployeeEducationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error deleting education record: ' . $e->getMessage()
+                'message' => 'Error deleting education record'
             ], 500);
         }
     }
@@ -525,7 +525,7 @@ class EmployeeEducationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving education statistics: ' . $e->getMessage()
+                'message' => 'Error retrieving education statistics'
             ], 500);
         }
     }
@@ -580,7 +580,7 @@ class EmployeeEducationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving education records: ' . $e->getMessage()
+                'message' => 'Error retrieving education records'
             ], 500);
         }
     }

@@ -41,7 +41,7 @@ class CustomerIdentificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch identifications: ' . $e->getMessage()
+                'message' => 'Failed to fetch identifications'
             ], 500);
         }
     }
@@ -84,7 +84,7 @@ class CustomerIdentificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch identification: ' . $e->getMessage()
+                'message' => 'Failed to fetch identification'
             ], 500);
         }
     }
@@ -164,7 +164,7 @@ class CustomerIdentificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create identification: ' . $e->getMessage()
+                'message' => 'Failed to create identification'
             ], 500);
         }
     }
@@ -241,7 +241,7 @@ class CustomerIdentificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update identification: ' . $e->getMessage()
+                'message' => 'Failed to update identification'
             ], 500);
         }
     }
@@ -284,7 +284,7 @@ class CustomerIdentificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete identification: ' . $e->getMessage()
+                'message' => 'Failed to delete identification'
             ], 500);
         }
     }

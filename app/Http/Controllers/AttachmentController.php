@@ -38,9 +38,9 @@ class AttachmentController extends Controller
         }
 
         try {
-            $sender  = env('MS_SENDER_EMAIL');
+            $sender  = config('services.microsoft_graph.sender_email');
             $token   = $this->getGraphToken();
-            $baseUrl = rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/');
+            $baseUrl = rtrim(config('services.microsoft_graph.base_url', 'https://graph.microsoft.com/v1.0'), '/');
 
             // Fetch attachment beserta contentBytes dari Graph
             $response = Http::withToken($token)->get(
@@ -62,7 +62,7 @@ class AttachmentController extends Controller
                             // OData $filter pada internetMessageId tidak reliable di SentItems.
                             // Ambil pesan terbaru dan cocokkan internetMessageId di PHP.
                             $sentMsgId = null;
-                            $baseUrl   = rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/');
+                            $baseUrl   = rtrim(config('services.microsoft_graph.base_url', 'https://graph.microsoft.com/v1.0'), '/');
                             for ($retryAttempt = 1; $retryAttempt <= 3; $retryAttempt++) {
                                 if ($retryAttempt > 1) sleep(1);
                                 $searchResult = Http::withToken($token)->get(
@@ -172,17 +172,17 @@ class AttachmentController extends Controller
     private function getGraphToken(): string
     {
         $response = Http::asForm()->post(
-            'https://login.microsoftonline.com/' . env('MS_TENANT_ID') . '/oauth2/v2.0/token',
+            'https://login.microsoftonline.com/' . config('services.microsoft_graph.tenant_id') . '/oauth2/v2.0/token',
             [
                 'grant_type'    => 'client_credentials',
-                'client_id'     => env('MS_CLIENT_ID'),
-                'client_secret' => env('MS_CLIENT_SECRET'),
+                'client_id'     => config('services.microsoft_graph.client_id'),
+                'client_secret' => config('services.microsoft_graph.client_secret'),
                 'scope'         => 'https://graph.microsoft.com/.default',
             ]
         );
 
         if (!$response->successful()) {
-            throw new \RuntimeException('Gagal mendapatkan access token Graph: ' . $response->body());
+            throw new \RuntimeException('Gagal mendapatkan access token Graph' . $response->body());
         }
 
         return $response->json('access_token');

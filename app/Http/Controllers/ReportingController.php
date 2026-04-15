@@ -54,8 +54,8 @@ class ReportingController extends Controller
                 ],
             ]);
         } catch (\Exception $e) {
-            Log::error('currentPeriod error: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            Log::error('currentPeriod error');
+            return response()->json(['success' => false, 'message' => 'An error occurred'], 500);
         }
     }
 
@@ -88,8 +88,8 @@ class ReportingController extends Controller
                 'message' => 'Period ' . $this->monthName($current['month']) . ' ' . $current['year'] . ' has been closed.',
             ]);
         } catch (\Exception $e) {
-            Log::error('closePeriod error: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            Log::error('closePeriod error');
+            return response()->json(['success' => false, 'message' => 'An error occurred'], 500);
         }
     }
 
@@ -177,8 +177,8 @@ class ReportingController extends Controller
             return response()->json(['success' => true, 'data' => $data]);
 
         } catch (\Exception $e) {
-            Log::error('Reporting timesheetSupport: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            Log::error('Reporting timesheetSupport');
+            return response()->json(['success' => false, 'message' => 'An error occurred'], 500);
         }
     }
 
@@ -299,8 +299,8 @@ class ReportingController extends Controller
             );
 
         } catch (\Exception $e) {
-            Log::error('exportExcel error: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            Log::error('exportExcel error');
+            return response()->json(['success' => false, 'message' => 'An error occurred'], 500);
         }
     }
 
@@ -361,8 +361,8 @@ class ReportingController extends Controller
             return response()->json(['success' => true, 'data' => $data]);
 
         } catch (\Exception $e) {
-            Log::error('mdRecap error: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            Log::error('mdRecap error');
+            return response()->json(['success' => false, 'message' => 'An error occurred'], 500);
         }
     }
 
@@ -410,7 +410,7 @@ class ReportingController extends Controller
             return Excel::download(new MdRecapExport(collect($exportRows), $month, $year), $filename);
 
         } catch (\Exception $e) {
-            Log::error('exportMdRecap error: ' . $e->getMessage());
+            Log::error('exportMdRecap error');
             abort(500, $e->getMessage());
         }
     }

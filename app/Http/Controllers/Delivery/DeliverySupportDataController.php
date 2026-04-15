@@ -79,7 +79,7 @@ class DeliverySupportDataController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to load table data: ' . $e->getMessage()
+                'message' => 'Failed to load table data'
             ], 500);
         }
     }
@@ -147,7 +147,7 @@ class DeliverySupportDataController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to load gantt data: ' . $e->getMessage()
+                'message' => 'Failed to load gantt data'
             ], 500);
         }
     }
@@ -211,7 +211,7 @@ class DeliverySupportDataController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to load s-curve data: ' . $e->getMessage()
+                'message' => 'Failed to load s-curve data'
             ], 500);
         }
     }

@@ -6,14 +6,14 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class CheckJarviesApiKey
+class CheckExternalApiKey
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $apiKey   = $request->header('X-Api-Key') ?? $request->query('api_key');
-        $expected = config('services.jarvies.api_key');
+        $apiKey = $request->header('X-Api-Key') ?? $request->query('api_key');
 
-        // hash_equals mencegah timing attack; env() diganti config() agar berfungsi saat config:cache
+        $expected = config('services.external_ticket.api_key');
+
         if (empty($apiKey) || empty($expected) || !hash_equals($expected, $apiKey)) {
             return response()->json([
                 'success' => false,

@@ -121,7 +121,7 @@ class DeliveryStageController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create stage: ' . $e->getMessage()
+                'message' => 'Failed to create stage'
             ], 500);
         }
     }
@@ -244,7 +244,7 @@ class DeliveryStageController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update stage: ' . $e->getMessage()
+                'message' => 'Failed to update stage'
             ], 500);
         }
     }
@@ -288,7 +288,7 @@ class DeliveryStageController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete stage: ' . $e->getMessage()
+                'message' => 'Failed to delete stage'
             ], 500);
         }
     }
@@ -419,7 +419,7 @@ class DeliveryStageController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to move stage: ' . $e->getMessage()
+                'message' => 'Failed to move stage'
             ], 500);
         }
     }

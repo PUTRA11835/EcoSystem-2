@@ -107,11 +107,11 @@ class TimesheetController extends Controller
                 'message' => 'Submitted timesheets retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving submitted timesheets: ' . $e->getMessage());
+            Log::error('Error retrieving submitted timesheets');
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve submitted timesheets: ' . $e->getMessage()
+                'message' => 'Failed to retrieve submitted timesheets'
             ], 500);
         }
     }
@@ -226,11 +226,11 @@ class TimesheetController extends Controller
                 'message' => 'Timesheets retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving timesheets: ' . $e->getMessage());
+            Log::error('Error retrieving timesheets');
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve timesheets: ' . $e->getMessage()
+                'message' => 'Failed to retrieve timesheets'
             ], 500);
         }
     }
@@ -250,7 +250,7 @@ class TimesheetController extends Controller
                 'message' => 'Timesheet retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving timesheet: ' . $e->getMessage());
+            Log::error('Error retrieving timesheet');
             
             return response()->json([
                 'success' => false,
@@ -342,12 +342,12 @@ class TimesheetController extends Controller
             ], 422);
             
         } catch (\Exception $e) {
-            Log::error('Error creating timesheet: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
+            Log::error('Error creating timesheet');
+            Log::error('Stack trace' . $e->getTraceAsString());
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create timesheet: ' . $e->getMessage()
+                'message' => 'Failed to create timesheet'
             ], 500);
         }
     }
@@ -428,11 +428,11 @@ class TimesheetController extends Controller
             ], 422);
             
         } catch (\Exception $e) {
-            Log::error('Error updating timesheet: ' . $e->getMessage());
+            Log::error('Error updating timesheet');
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update timesheet: ' . $e->getMessage()
+                'message' => 'Failed to update timesheet'
             ], 500);
         }
     }
@@ -459,11 +459,11 @@ class TimesheetController extends Controller
                 'message' => 'Timesheet deleted successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error deleting timesheet: ' . $e->getMessage());
+            Log::error('Error deleting timesheet');
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete timesheet: ' . $e->getMessage()
+                'message' => 'Failed to delete timesheet'
             ], 500);
         }
     }
@@ -493,11 +493,11 @@ class TimesheetController extends Controller
                 'message' => 'Timesheet submitted for approval'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error submitting timesheet: ' . $e->getMessage());
+            Log::error('Error submitting timesheet');
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to submit timesheet: ' . $e->getMessage()
+                'message' => 'Failed to submit timesheet'
             ], 500);
         }
     }
@@ -557,7 +557,7 @@ class TimesheetController extends Controller
                 ]);
             }
         } catch (\Exception $e) {
-            Log::error('notifyHeadsOnSubmit failed: ' . $e->getMessage());
+            Log::error('notifyHeadsOnSubmit failed');
         }
     }
 
@@ -600,11 +600,11 @@ class TimesheetController extends Controller
                 'message' => 'Timesheet approved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error approving timesheet: ' . $e->getMessage());
+            Log::error('Error approving timesheet');
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to approve timesheet: ' . $e->getMessage()
+                'message' => 'Failed to approve timesheet'
             ], 500);
         }
     }
@@ -651,11 +651,11 @@ class TimesheetController extends Controller
                 'message' => 'Timesheet rejected'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error rejecting timesheet: ' . $e->getMessage());
+            Log::error('Error rejecting timesheet');
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to reject timesheet: ' . $e->getMessage()
+                'message' => 'Failed to reject timesheet'
             ], 500);
         }
     }
@@ -730,12 +730,12 @@ class TimesheetController extends Controller
                 'message' => 'Statistics retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving statistics: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
+            Log::error('Error retrieving statistics');
+            Log::error('Stack trace' . $e->getTraceAsString());
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve statistics: ' . $e->getMessage()
+                'message' => 'Failed to retrieve statistics'
             ], 500);
         }
     }
@@ -771,11 +771,11 @@ class TimesheetController extends Controller
                 'message' => 'Projects retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving my projects: ' . $e->getMessage());
+            Log::error('Error retrieving my projects');
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve projects: ' . $e->getMessage()
+                'message' => 'Failed to retrieve projects'
             ], 500);
         }
     }
@@ -816,11 +816,11 @@ class TimesheetController extends Controller
                 'message' => 'Activities retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving my activities: ' . $e->getMessage());
+            Log::error('Error retrieving my activities');
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve activities: ' . $e->getMessage()
+                'message' => 'Failed to retrieve activities'
             ], 500);
         }
     }
@@ -883,11 +883,11 @@ class TimesheetController extends Controller
                 'message' => 'All assigned activities retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving all my activities: ' . $e->getMessage());
+            Log::error('Error retrieving all my activities');
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve activities: ' . $e->getMessage()
+                'message' => 'Failed to retrieve activities'
             ], 500);
         }
     }

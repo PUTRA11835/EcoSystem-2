@@ -29,13 +29,8 @@ use App\Http\Middleware\CheckAuthToken;
 
 // ==================== PUBLIC ROUTES ====================
 
-// ✅ CSRF Cookie Route - Required untuk AJAX login
-Route::get('/sanctum/csrf-cookie', function () {
-    return response()->json(['message' => 'CSRF cookie set']);
-});
-
 Route::prefix('api/auth')->group(function () {
-    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 });
@@ -55,8 +50,8 @@ Route::get('/forgot-password', [PasswordSetupController::class, 'showForgotPassw
 // Forgot password — proses kirim email reset
 Route::post('/forgot-password', [PasswordSetupController::class, 'submitForgotPassword'])->name('password-setup.forgot.submit');
 
-// Login API
-Route::post('/auth/login', [AuthController::class, 'login'])->name('auth.login');
+// NOTE: /auth/login (POST) sudah didefinisikan di prefix group 'api/auth' di atas.
+// Route standalone ini dihapus untuk menghindari duplikasi.
 
 // Logout routes
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');

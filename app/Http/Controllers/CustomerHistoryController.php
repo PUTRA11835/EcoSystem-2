@@ -80,7 +80,7 @@ class CustomerHistoryController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch history: ' . $e->getMessage()
+                'message' => 'Failed to fetch history'
             ], 500);
         }
     }
@@ -110,8 +110,8 @@ class CustomerHistoryController extends Controller
                 'action' => $request->action ?? 'update',
                 'description' => $request->description ?? '',
                 'section' => $request->section ?? 'general',
-                'user_id' => auth()->id() ?? null,
-                'user_name' => auth()->user()->username ?? 'system',
+                'user_id' => session('user.id') ?? null,
+                'user_name' => session('user.eci') ?? session('user.name') ?? 'system',
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
                 'created_at' => now(),
@@ -136,7 +136,7 @@ class CustomerHistoryController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create history record: ' . $e->getMessage()
+                'message' => 'Failed to create history record'
             ], 500);
         }
     }
@@ -188,7 +188,7 @@ class CustomerHistoryController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch statistics: ' . $e->getMessage()
+                'message' => 'Failed to fetch statistics'
             ], 500);
         }
     }
@@ -228,7 +228,7 @@ class CustomerHistoryController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to cleanup history: ' . $e->getMessage()
+                'message' => 'Failed to cleanup history'
             ], 500);
         }
     }

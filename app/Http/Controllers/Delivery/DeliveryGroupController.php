@@ -140,7 +140,7 @@ class DeliveryGroupController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create group: ' . $e->getMessage()
+                'message' => 'Failed to create group'
             ], 500);
         }
     }
@@ -244,7 +244,7 @@ class DeliveryGroupController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update group: ' . $e->getMessage()
+                'message' => 'Failed to update group'
             ], 500);
         }
     }
@@ -314,7 +314,7 @@ class DeliveryGroupController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete group: ' . $e->getMessage()
+                'message' => 'Failed to delete group'
             ], 500);
         }
     }
@@ -402,7 +402,7 @@ class DeliveryGroupController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to move group: ' . $e->getMessage()
+                'message' => 'Failed to move group'
             ], 500);
         }
     }

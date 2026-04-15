@@ -70,7 +70,7 @@ class EmployeePaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving payment records: ' . $e->getMessage()
+                'message' => 'Error retrieving payment records'
             ], 500);
         }
     }
@@ -134,7 +134,7 @@ class EmployeePaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving payment record: ' . $e->getMessage()
+                'message' => 'Error retrieving payment record'
             ], 500);
         }
     }
@@ -250,7 +250,7 @@ class EmployeePaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error creating payment record: ' . $e->getMessage()
+                'message' => 'Error creating payment record'
             ], 500);
         }
     }
@@ -375,7 +375,7 @@ class EmployeePaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error updating payment record: ' . $e->getMessage()
+                'message' => 'Error updating payment record'
             ], 500);
         }
     }
@@ -439,7 +439,7 @@ class EmployeePaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error deleting payment record: ' . $e->getMessage()
+                'message' => 'Error deleting payment record'
             ], 500);
         }
     }
@@ -524,7 +524,7 @@ class EmployeePaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving payment statistics: ' . $e->getMessage()
+                'message' => 'Error retrieving payment statistics'
             ], 500);
         }
     }
@@ -579,7 +579,7 @@ class EmployeePaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving payment records: ' . $e->getMessage()
+                'message' => 'Error retrieving payment records'
             ], 500);
         }
     }
@@ -634,7 +634,7 @@ class EmployeePaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving payment records: ' . $e->getMessage()
+                'message' => 'Error retrieving payment records'
             ], 500);
         }
     }
@@ -686,7 +686,7 @@ class EmployeePaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving completed payments: ' . $e->getMessage()
+                'message' => 'Error retrieving completed payments'
             ], 500);
         }
     }
@@ -738,7 +738,7 @@ class EmployeePaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving pending payments: ' . $e->getMessage()
+                'message' => 'Error retrieving pending payments'
             ], 500);
         }
     }
@@ -806,7 +806,7 @@ class EmployeePaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving payments: ' . $e->getMessage()
+                'message' => 'Error retrieving payments'
             ], 500);
         }
     }

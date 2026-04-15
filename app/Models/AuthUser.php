@@ -26,6 +26,9 @@ class AuthUser extends Authenticatable
         'password',
         'last_login_at',
         'is_active',
+        'is_already_cp',
+        'cp_token',
+        'cp_token_expires_at',
         'email_verified_at',
         'phone_verified_at',
     ];
@@ -33,13 +36,16 @@ class AuthUser extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'cp_token',           // jangan ekspos token di response JSON
     ];
 
     protected $casts = [
-        'last_login_at' => 'datetime',
-        'is_active' => 'boolean',
-        'email_verified_at' => 'datetime',
-        'phone_verified_at' => 'datetime',
+        'last_login_at'       => 'datetime',
+        'is_active'           => 'boolean',
+        'is_already_cp'       => 'boolean',
+        'cp_token_expires_at' => 'datetime',
+        'email_verified_at'   => 'datetime',
+        'phone_verified_at'   => 'datetime',
     ];
 
     public function employee()

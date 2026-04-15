@@ -137,7 +137,7 @@ class ActivityStageController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create stage: ' . $e->getMessage()
+                'message' => 'Failed to create stage'
             ], 500);
         }
     }
@@ -180,7 +180,7 @@ class ActivityStageController extends Controller
             
             return response()->json([
                 'success' => false,
-                'message' => 'Stage not found: ' . $e->getMessage()
+                'message' => 'Stage not found'
             ], 404);
         }
     }
@@ -292,7 +292,7 @@ class ActivityStageController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update stage: ' . $e->getMessage()
+                'message' => 'Failed to update stage'
             ], 500);
         }
     }
@@ -349,7 +349,7 @@ class ActivityStageController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete stage: ' . $e->getMessage()
+                'message' => 'Failed to delete stage'
             ], 500);
         }
     }
@@ -399,7 +399,7 @@ class ActivityStageController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to reorder stages: ' . $e->getMessage()
+                'message' => 'Failed to reorder stages'
             ], 500);
         }
     }
@@ -465,7 +465,7 @@ class ActivityStageController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create stages: ' . $e->getMessage()
+                'message' => 'Failed to create stages'
             ], 500);
         }
     }

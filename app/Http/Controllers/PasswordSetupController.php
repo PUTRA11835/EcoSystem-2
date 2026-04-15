@@ -38,8 +38,9 @@ class PasswordSetupController extends Controller
             return redirect()->route('login')->with('error', 'Invalid link.');
         }
 
+        // Token dibandingkan sebagai hash (token di URL = plaintext, DB = sha256 hash)
         $authUser = DB::table('auth_users')
-            ->where('cp_token', $token)
+            ->where('cp_token', hash('sha256', $token))
             ->where('cp_token_expires_at', '>', now())
             ->first();
 
@@ -62,8 +63,9 @@ class PasswordSetupController extends Controller
             'password_confirmation' => 'required|string',
         ]);
 
+        // Token di URL adalah plaintext; DB menyimpan sha256 hash
         $authUser = DB::table('auth_users')
-            ->where('cp_token', $request->token)
+            ->where('cp_token', hash('sha256', $request->token))
             ->where('cp_token_expires_at', '>', now())
             ->first();
 
@@ -88,7 +90,9 @@ class PasswordSetupController extends Controller
         // Customers are redirected to Jarvies login, employees to EcoSystem login
         $isCustomer = ($authUser->user_type ?? '') === 'customer' || !empty($authUser->customer_id);
         if ($isCustomer) {
-            $jarviesLogin = rtrim(env('JARVIES_URL', config('app.url')), '/') . '/login';
+            // Gunakan config() bukan env() agar berfungsi saat config:cache
+            $jarviesBase  = rtrim(config('services.jarvies.url', config('app.url')), '/');
+            $jarviesLogin = $jarviesBase . '/login';
             return redirect($jarviesLogin)
                 ->with('success', 'Password set successfully. You can now log in to Jarvies with your new password.');
         }
@@ -156,7 +160,7 @@ class PasswordSetupController extends Controller
 
     /**
      * Generate token, simpan ke auth_users, kirim email.
-     * $type: 'setup' (akun baru) | 'reset' (forgot password)
+     * $type'setup' (akun baru) | 'reset' (forgot password)
      * Dipanggil dari AuthController (setup) dan submitForgotPassword (reset).
      */
     public static function generateAndSendToken(object $authUser, string $type = 'setup'): void
@@ -164,8 +168,9 @@ class PasswordSetupController extends Controller
         $token   = Str::random(64);
         $expires = now()->addHours(24);
 
+        // Simpan hash di DB; URL memakai plaintext token
         DB::table('auth_users')->where('id', $authUser->id)->update([
-            'cp_token'            => $token,
+            'cp_token'            => hash('sha256', $token),
             'cp_token_expires_at' => $expires,
             'updated_at'          => now(),
         ]);
@@ -182,6 +187,7 @@ class PasswordSetupController extends Controller
             // After successful setup, customers are redirected to Jarvies automatically.
             $isCustomer = !empty($authUser->customer_id);
             $baseUrl = rtrim(config('app.url'), '/');
+            // URL memakai plaintext token; DB menyimpan hash-nya
             $link    = $baseUrl . '/change-password?token=' . $token;
             $appName = $isCustomer ? 'Jarvies' : config('app.name', 'ECoSystem');
 
@@ -221,11 +227,11 @@ HTML;
 HTML;
             }
 
-            $sender     = env('MS_SENDER_EMAIL');
+            $sender     = config('services.microsoft_graph.sender_email');
             $graphToken = self::getGraphToken();
 
             Http::withToken($graphToken)->post(
-                rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/') . "/users/{$sender}/sendMail",
+                rtrim(config('services.microsoft_graph.base_url', 'https://graph.microsoft.com/v1.0'), '/') . "/users/{$sender}/sendMail",
                 [
                     'message' => [
                         'subject' => $subject,
@@ -267,19 +273,20 @@ HTML;
      */
     private static function getGraphToken(): string
     {
-        $tenantId = env('MS_TENANT_ID');
+        // Gunakan config() agar berfungsi saat config:cache di production
+        $tenantId = config('services.microsoft_graph.tenant_id');
         $response = Http::asForm()->post(
             "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
             [
                 'grant_type'    => 'client_credentials',
-                'client_id'     => env('MS_CLIENT_ID'),
-                'client_secret' => env('MS_CLIENT_SECRET'),
+                'client_id'     => config('services.microsoft_graph.client_id'),
+                'client_secret' => config('services.microsoft_graph.client_secret'),
                 'scope'         => 'https://graph.microsoft.com/.default',
             ]
         );
 
         if (!$response->successful()) {
-            throw new \RuntimeException('Failed to obtain access token: ' . $response->body());
+            throw new \RuntimeException('Failed to obtain access token' . $response->body());
         }
 
         return $response->json('access_token');

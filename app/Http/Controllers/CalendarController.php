@@ -93,7 +93,7 @@ class CalendarController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve events: ' . $e->getMessage()
+                'message' => 'Failed to retrieve events'
             ], 500);
         }
     }
@@ -162,7 +162,7 @@ class CalendarController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create event: ' . $e->getMessage()
+                'message' => 'Failed to create event'
             ], 500);
         }
     }
@@ -206,7 +206,7 @@ class CalendarController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update event: ' . $e->getMessage()
+                'message' => 'Failed to update event'
             ], 500);
         }
     }
@@ -227,7 +227,7 @@ class CalendarController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete event: ' . $e->getMessage()
+                'message' => 'Failed to delete event'
             ], 500);
         }
     }
@@ -261,7 +261,7 @@ class CalendarController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve statistics: ' . $e->getMessage()
+                'message' => 'Failed to retrieve statistics'
             ], 500);
         }
     }

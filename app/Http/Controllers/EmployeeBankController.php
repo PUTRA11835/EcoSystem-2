@@ -69,7 +69,7 @@ class EmployeeBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving bank records: ' . $e->getMessage()
+                'message' => 'Error retrieving bank records'
             ], 500);
         }
     }
@@ -133,7 +133,7 @@ class EmployeeBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving bank record: ' . $e->getMessage()
+                'message' => 'Error retrieving bank record'
             ], 500);
         }
     }
@@ -242,7 +242,7 @@ class EmployeeBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error creating bank record: ' . $e->getMessage()
+                'message' => 'Error creating bank record'
             ], 500);
         }
     }
@@ -366,7 +366,7 @@ class EmployeeBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error updating bank record: ' . $e->getMessage()
+                'message' => 'Error updating bank record'
             ], 500);
         }
     }
@@ -430,7 +430,7 @@ class EmployeeBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error deleting bank record: ' . $e->getMessage()
+                'message' => 'Error deleting bank record'
             ], 500);
         }
     }
@@ -501,7 +501,7 @@ class EmployeeBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving bank statistics: ' . $e->getMessage()
+                'message' => 'Error retrieving bank statistics'
             ], 500);
         }
     }
@@ -556,7 +556,7 @@ class EmployeeBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving bank records: ' . $e->getMessage()
+                'message' => 'Error retrieving bank records'
             ], 500);
         }
     }
@@ -608,7 +608,7 @@ class EmployeeBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving expired bank accounts: ' . $e->getMessage()
+                'message' => 'Error retrieving expired bank accounts'
             ], 500);
         }
     }
@@ -660,7 +660,7 @@ class EmployeeBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving valid bank accounts: ' . $e->getMessage()
+                'message' => 'Error retrieving valid bank accounts'
             ], 500);
         }
     }
@@ -712,7 +712,7 @@ class EmployeeBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving bank accounts expiring soon: ' . $e->getMessage()
+                'message' => 'Error retrieving bank accounts expiring soon'
             ], 500);
         }
     }

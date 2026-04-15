@@ -34,12 +34,15 @@ use App\Http\Controllers\NotificationController;
 
 Route::middleware(['web'])->group(function () {
 
-    // ==================== AUTH ROUTES ====================
+    // ==================== AUTH ROUTES (PUBLIC — no session required) ====================
     Route::prefix('auth')->group(function () {
-        Route::post('/login', [AuthController::class, 'login']);
+        Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me', [AuthController::class, 'me']);
     });
+
+    // ==================== PROTECTED ROUTES (requires valid session) ====================
+    Route::middleware(['auth.session'])->group(function () {
 
     // ==================== EMPLOYEE ROUTES ====================
 
@@ -272,7 +275,6 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/{id}/members/{employeeId}', [TicketController::class, 'removeMember']);
         Route::post('/{id}/update-members', [TicketController::class, 'updateMembers']);
         Route::post('/{id}/request-member-change', [TicketController::class, 'requestMemberChange']);
-        Route::delete('/{id}/remove-member/{employeeId}', [TicketController::class, 'removeMember']);
         Route::delete('/{id}/request-member-removal/{employeeId}', [TicketController::class, 'requestMemberRemoval']);
 
         // Ticket Messages
@@ -370,6 +372,8 @@ Route::middleware(['web'])->group(function () {
         Route::post('/reply', [EmailController::class, 'reply']);
         Route::post('/messages/{messageId}/reprocess-attachments', [EmailController::class, 'reprocessAttachments']);
     });
+
+    }); // end auth.session protected group
 });
 
 // ==================== MOBILE AUTH — CUSTOMER ====================
@@ -466,9 +470,12 @@ Route::middleware(['jarvies.api_key'])->prefix('jarvies')->group(function () {
 });
 
 // ==================== EXTERNAL TICKET API ====================
-Route::get('/external/tickets', [TicketController::class, 'externalIndex']);
-Route::get('/external/tickets/create', [TicketController::class, 'storeExternalQuery']);
-Route::get('/external/tickets/{data}', [TicketController::class, 'storeExternal']);
+// Requires X-Api-Key header matching EXTERNAL_TICKET_API_KEY
+Route::middleware(['external.api_key'])->prefix('external')->group(function () {
+    Route::get('/tickets', [TicketController::class, 'externalIndex']);
+    Route::get('/tickets/create', [TicketController::class, 'storeExternalQuery']);
+    Route::get('/tickets/{data}', [TicketController::class, 'storeExternal']);
+});
 
 // ==================== TEST ROUTE ====================
 Route::get('/test', function () {

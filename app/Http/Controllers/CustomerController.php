@@ -8,8 +8,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Auth;
-
 class CustomerController extends Controller
 {
     /**
@@ -17,29 +15,7 @@ class CustomerController extends Controller
      */
     private function getCurrentUserIdentifier()
     {
-        // Try to get from session first (most reliable)
-        if (session()->has('user')) {
-            $user = session('user');
-            if (isset($user['eci']) && !empty($user['eci'])) {
-                return $user['eci'];
-            } elseif (isset($user['email']) && !empty($user['email'])) {
-                return $user['email'];
-            } elseif (isset($user['name']) && !empty($user['name'])) {
-                return $user['name'];
-            }
-        }
-        
-        // Fallback to Auth
-        if (Auth::check()) {
-            $authUser = Auth::user();
-            if (isset($authUser->eci) && !empty($authUser->eci)) {
-                return $authUser->eci;
-            } elseif (isset($authUser->email) && !empty($authUser->email)) {
-                return $authUser->email;
-            }
-        }
-        
-        return 'System';
+        return session('user.eci') ?? session('user.email') ?? session('user.name') ?? 'System';
     }
 
     // ==================== WEB METHODS (untuk render views) ====================
@@ -209,7 +185,7 @@ class CustomerController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch customers: ' . $e->getMessage()
+                'message' => 'Failed to fetch customers'
             ], 500);
         }
     }
@@ -325,7 +301,7 @@ class CustomerController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create customer: ' . $e->getMessage()
+                'message' => 'Failed to create customer'
             ], 500);
         }
     }
@@ -460,7 +436,7 @@ class CustomerController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update customer: ' . $e->getMessage()
+                'message' => 'Failed to update customer'
             ], 500);
         }
     }
@@ -511,7 +487,7 @@ class CustomerController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete customer: ' . $e->getMessage()
+                'message' => 'Failed to delete customer'
             ], 500);
         }
     }
@@ -545,7 +521,7 @@ class CustomerController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch statistics: ' . $e->getMessage()
+                'message' => 'Failed to fetch statistics'
             ], 500);
         }
     }
@@ -594,7 +570,7 @@ class CustomerController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to search customers: ' . $e->getMessage()
+                'message' => 'Failed to search customers'
             ], 500);
         }
     }
@@ -639,7 +615,7 @@ class CustomerController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete customer: ' . $e->getMessage()
+                'message' => 'Failed to delete customer'
             ], 500);
         }
     }
@@ -685,7 +661,7 @@ class CustomerController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to restore customer: ' . $e->getMessage()
+                'message' => 'Failed to restore customer'
             ], 500);
         }
     }

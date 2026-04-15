@@ -10,7 +10,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Auth;
 
 class TicketController extends Controller
 {
@@ -220,7 +219,7 @@ class TicketController extends Controller
                 ]);
                 return response()->json([
                     'success' => false,
-                    'message' => 'Failed to create ticket: ' . $e->getMessage(),
+                    'message' => 'Failed to create ticket',
                 ], 500);
             }
         }
@@ -301,7 +300,7 @@ class TicketController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create ticket: ' . $e->getMessage()
+                'message' => 'Failed to create ticket'
             ], 500);
         }
     }
@@ -956,6 +955,16 @@ class TicketController extends Controller
             $ticket = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
                 ->findOrFail($id);
 
+            // Customer can only see their own tickets
+            if ($sessionUser['role']['id'] === RoleId::CUSTOMER->value) {
+                if ((int) $ticket->customer_id !== (int) $sessionUser['id']) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Access denied'
+                    ], 403);
+                }
+            }
+
             // Employee harus punya DSM qualification (kecuali Admin)
             if ($sessionUser['role']['id'] === RoleId::EMPLOYEE->value && !$this->isEmployeeQualified($sessionUser['id'])) {
                 return response()->json([
@@ -1267,7 +1276,7 @@ class TicketController extends Controller
             'ticket_id' => $ticketId,
             'proposed_mandays' => $ticket->man_days,
             'proposed_by' => 'admin',
-            'proposed_by_user_id' => auth()->id(),
+            'proposed_by_user_id' => session('user.id'),
             'notes' => $request->notes,
             'status' => 'pending'
         ]);
@@ -1320,9 +1329,9 @@ class TicketController extends Controller
                 'ticket_id' => $ticketId,
                 'old_mandays' => $ticket->man_days,
                 'new_mandays' => $ticket->current_negotiated_mandays,
-                'changed_by' => auth()->id(),
+                'changed_by' => session('user.id'),
                 'changed_by_role' => 'Customer',
-                'reason' => 'Accepted negotiation: ' . $request->notes
+                'reason' => 'Accepted negotiation' . $request->notes
             ]);
             
             return response()->json([
@@ -1340,7 +1349,7 @@ class TicketController extends Controller
                 'ticket_id' => $ticketId,
                 'proposed_mandays' => $request->proposed_mandays,
                 'proposed_by' => 'customer',
-                'proposed_by_user_id' => auth()->id(),
+                'proposed_by_user_id' => session('user.id'),
                 'notes' => $request->notes,
                 'status' => 'pending'
             ]);
@@ -1386,9 +1395,9 @@ class TicketController extends Controller
                 'ticket_id' => $ticketId,
                 'old_mandays' => $ticket->man_days,
                 'new_mandays' => $ticket->current_negotiated_mandays,
-                'changed_by' => auth()->id(),
+                'changed_by' => session('user.id'),
                 'changed_by_role' => 'Admin',
-                'reason' => 'Accepted customer counter: ' . $request->notes
+                'reason' => 'Accepted customer counter' . $request->notes
             ]);
             
             return response()->json([
@@ -1406,7 +1415,7 @@ class TicketController extends Controller
                 'ticket_id' => $ticketId,
                 'proposed_mandays' => $request->proposed_mandays,
                 'proposed_by' => 'admin',
-                'proposed_by_user_id' => auth()->id(),
+                'proposed_by_user_id' => session('user.id'),
                 'notes' => $request->notes,
                 'status' => 'pending'
             ]);
@@ -1937,7 +1946,7 @@ class TicketController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => $action === 'approve' 
-                    ? 'Member change approved successfully' 
+                    ? 'Member change approved successfully'
                     : 'Member change rejected'
             ]);
         } catch (\Exception $e) {

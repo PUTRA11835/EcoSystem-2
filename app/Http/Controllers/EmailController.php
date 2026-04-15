@@ -26,20 +26,20 @@ class EmailController extends Controller
      */
     private function getAccessToken(): string
     {
-        $tenantId = env('MS_TENANT_ID');
+        $tenantId = config('services.microsoft_graph.tenant_id');
 
         $response = Http::asForm()->post(
             "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
             [
                 'grant_type'    => 'client_credentials',
-                'client_id'     => env('MS_CLIENT_ID'),
-                'client_secret' => env('MS_CLIENT_SECRET'),
+                'client_id'     => config('services.microsoft_graph.client_id'),
+                'client_secret' => config('services.microsoft_graph.client_secret'),
                 'scope'         => 'https://graph.microsoft.com/.default',
             ]
         );
 
         if (!$response->successful()) {
-            throw new \RuntimeException('Gagal mendapatkan access token: ' . $response->body());
+            throw new \RuntimeException('Gagal mendapatkan access token' . $response->body());
         }
 
         return $response->json('access_token');
@@ -69,7 +69,7 @@ class EmailController extends Controller
      */
     public function listNonInlineAttachments(string $graphMsgId): array
     {
-        $sender = env('MS_SENDER_EMAIL');
+        $sender = config('services.microsoft_graph.sender_email');
         $result = $this->graphGet(
             "/users/{$sender}/messages/{$graphMsgId}/attachments",
             ['$select' => 'id,name,size,contentType,isInline']
@@ -84,7 +84,7 @@ class EmailController extends Controller
     private function graphGet(string $path, array $query = [], array $headers = []): array
     {
         $token   = $this->getAccessToken();
-        $baseUrl = rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/');
+        $baseUrl = rtrim(config('services.microsoft_graph.base_url', 'https://graph.microsoft.com/v1.0'), '/');
 
         $http = Http::withToken($token);
         if (!empty($headers)) {
@@ -102,7 +102,7 @@ class EmailController extends Controller
     private function graphPost(string $path, array $body): \Illuminate\Http\Client\Response
     {
         $token   = $this->getAccessToken();
-        $baseUrl = rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/');
+        $baseUrl = rtrim(config('services.microsoft_graph.base_url', 'https://graph.microsoft.com/v1.0'), '/');
 
         $response = Http::withToken($token)->post("{$baseUrl}{$path}", $body);
 
@@ -116,7 +116,7 @@ class EmailController extends Controller
     private function graphPatch(string $path, array $body): void
     {
         $token   = $this->getAccessToken();
-        $baseUrl = rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/');
+        $baseUrl = rtrim(config('services.microsoft_graph.base_url', 'https://graph.microsoft.com/v1.0'), '/');
 
         $response = Http::withToken($token)->patch("{$baseUrl}{$path}", $body);
 
@@ -192,7 +192,7 @@ class EmailController extends Controller
      */
     public function inbox()
     {
-        $email = env('MS_SENDER_EMAIL');
+        $email = config('services.microsoft_graph.sender_email');
 
         $data = $this->graphGet("/users/{$email}/mailFolders/inbox/messages", [
             '$top'     => 20,
@@ -214,7 +214,7 @@ class EmailController extends Controller
             'body'    => ['required', 'string'],
         ]);
 
-        $sender = env('MS_SENDER_EMAIL');
+        $sender = config('services.microsoft_graph.sender_email');
 
         $this->graphPost("/users/{$sender}/sendMail", [
             'message' => [
@@ -244,7 +244,7 @@ class EmailController extends Controller
             'in_reply_to' => ['nullable', 'string'],
         ]);
 
-        $sender  = env('MS_SENDER_EMAIL');
+        $sender  = config('services.microsoft_graph.sender_email');
         $subject = stripos($data['subject'], 're:') !== 0 ? 'Re: ' . $data['subject'] : $data['subject'];
 
         if (!empty($data['in_reply_to'])) {
@@ -291,7 +291,7 @@ class EmailController extends Controller
     public function processInbox(Request $request)
     {
         try {
-            $sender = env('MS_SENDER_EMAIL');
+            $sender = config('services.microsoft_graph.sender_email');
 
             // internetMessageHeaders dibutuhkan untuk mengekstrak In-Reply-To + References
             // agar reply customer dari Gmail/ext. client bisa di-thread ke tiket yang ada
@@ -572,7 +572,7 @@ class EmailController extends Controller
 
             return response()->json([
                 'status'  => 'error',
-                'message' => 'Failed to access inbox: ' . $e->getMessage(),
+                'message' => 'Failed to access inbox',
             ], 500);
         }
     }
@@ -605,7 +605,7 @@ class EmailController extends Controller
         }
 
         try {
-            $sender     = env('MS_SENDER_EMAIL');
+            $sender     = config('services.microsoft_graph.sender_email');
             $preferHtml = ['Prefer' => 'outlook.body-content-type="html"'];
             $select     = 'id,subject,toRecipients,sentDateTime,body,internetMessageId,conversationId,hasAttachments';
             $since      = \Carbon\Carbon::now('UTC')->subDays(7)->format('Y-m-d\TH:i:s\Z');
@@ -743,7 +743,7 @@ class EmailController extends Controller
             Log::error('EmailController@processSentItems: failed', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to process sent items: ' . $e->getMessage(),
+                'message' => 'Failed to process sent items',
             ], 500);
         }
     }
@@ -762,7 +762,7 @@ class EmailController extends Controller
      */
     public function processAttachmentsForMessage(string $graphMsgId, TicketMessage $message, int $ticketId): void
     {
-        $sender = env('MS_SENDER_EMAIL');
+        $sender = config('services.microsoft_graph.sender_email');
         $cidMap = $this->storeEmailAttachments($sender, $graphMsgId, $message, $ticketId);
 
         if (!empty($cidMap) && $message->message_html) {
@@ -783,7 +783,7 @@ class EmailController extends Controller
      */
     public function resolveInlineImagesAsDataUris(string $graphMsgId, string $html): string
     {
-        $sender = env('MS_SENDER_EMAIL');
+        $sender = config('services.microsoft_graph.sender_email');
         try {
             $result = $this->graphGet("/users/{$sender}/messages/{$graphMsgId}/attachments");
             foreach ($result['value'] ?? [] as $att) {
@@ -1029,7 +1029,7 @@ class EmailController extends Controller
             return response()->json(['success' => false, 'message' => 'This message is not from an email or has no email_message_id'], 422);
         }
 
-        $sender = env('MS_SENDER_EMAIL');
+        $sender = config('services.microsoft_graph.sender_email');
 
         try {
             // Cari Graph message ID berdasarkan internetMessageId
@@ -1068,7 +1068,7 @@ class EmailController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => 'An error occurred'], 500);
         }
     }
 
@@ -1101,7 +1101,7 @@ class EmailController extends Controller
         bool $forceNewDraft = false // true = skip createReply, buat draft baru dengan In-Reply-To eksplisit
                                     // Gunakan saat subject sengaja diubah agar Gmail tetap thread dengan benar
     ): array {
-        $sender         = env('MS_SENDER_EMAIL');
+        $sender         = config('services.microsoft_graph.sender_email');
         $replySubject   = (!$noRePrefix && stripos($subject, 're:') !== 0) ? 'Re: ' . $subject : $subject;
         $draftId        = null;
         $conversationId = null;

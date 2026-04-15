@@ -41,7 +41,7 @@ class CustomerBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch bank accounts: ' . $e->getMessage()
+                'message' => 'Failed to fetch bank accounts'
             ], 500);
         }
     }
@@ -84,7 +84,7 @@ class CustomerBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch bank account: ' . $e->getMessage()
+                'message' => 'Failed to fetch bank account'
             ], 500);
         }
     }
@@ -160,7 +160,7 @@ class CustomerBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create bank account: ' . $e->getMessage()
+                'message' => 'Failed to create bank account'
             ], 500);
         }
     }
@@ -245,7 +245,7 @@ class CustomerBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update bank account: ' . $e->getMessage()
+                'message' => 'Failed to update bank account'
             ], 500);
         }
     }
@@ -288,7 +288,7 @@ class CustomerBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete bank account: ' . $e->getMessage()
+                'message' => 'Failed to delete bank account'
             ], 500);
         }
     }

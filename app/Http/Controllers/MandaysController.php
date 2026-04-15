@@ -331,7 +331,7 @@ class MandaysController extends Controller
                 );
 
                 // Simpan sebagai TicketMessage
-                $plainText = 'Mandays proposal telah dikirim. Total: ' . number_format((float) $proposal->total_mandays, 1) . ' mandays.';
+                $plainText = 'Mandays proposal telah dikirim. Total' . number_format((float) $proposal->total_mandays, 1) . ' mandays.';
                 TicketMessage::create([
                     'ticket_id'           => $ticketId,
                     'sender_type'         => 'employee',
@@ -365,7 +365,7 @@ class MandaysController extends Controller
             }
         } catch (\Throwable $e) {
             // Email gagal, tapi status sudah berhasil diupdate → tetap return success dengan warning
-            $emailWarning = 'Status updated but email could not be sent: ' . $e->getMessage();
+            $emailWarning = 'Status updated but email could not be sent';
             Log::error('MandaysController@submitToChat: email failed', [
                 'ticket_id' => $ticketId,
                 'error'     => $e->getMessage(),
@@ -546,7 +546,7 @@ class MandaysController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('saveInternalProposal error', ['e' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            return response()->json(['success' => false, 'message' => 'Server error: ' . $e->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => 'Server error'], 500);
         }
 
         return response()->json([
@@ -632,7 +632,7 @@ class MandaysController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('approveInternalProposal error', ['e' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => 'Server error: ' . $e->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => 'Server error'], 500);
         }
 
         return response()->json([

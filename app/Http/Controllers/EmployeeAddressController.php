@@ -70,7 +70,7 @@ class EmployeeAddressController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving addresses: ' . $e->getMessage()
+                'message' => 'Error retrieving addresses'
             ], 500);
         }
     }
@@ -134,7 +134,7 @@ class EmployeeAddressController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving address: ' . $e->getMessage()
+                'message' => 'Error retrieving address'
             ], 500);
         }
     }
@@ -280,7 +280,7 @@ class EmployeeAddressController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error creating address: ' . $e->getMessage()
+                'message' => 'Error creating address'
             ], 500);
         }
     }
@@ -439,7 +439,7 @@ class EmployeeAddressController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error updating address: ' . $e->getMessage()
+                'message' => 'Error updating address'
             ], 500);
         }
     }
@@ -516,7 +516,7 @@ class EmployeeAddressController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error deleting address: ' . $e->getMessage()
+                'message' => 'Error deleting address'
             ], 500);
         }
     }
@@ -582,7 +582,7 @@ class EmployeeAddressController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error setting primary address: ' . $e->getMessage()
+                'message' => 'Error setting primary address'
             ], 500);
         }
     }

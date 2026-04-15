@@ -170,7 +170,7 @@ class DeliverySupportActivityController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create activity: ' . $e->getMessage()
+                'message' => 'Failed to create activity'
             ], 500);
         }
     }
@@ -284,7 +284,7 @@ class DeliverySupportActivityController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update activity: ' . $e->getMessage()
+                'message' => 'Failed to update activity'
             ], 500);
         }
     }
@@ -324,7 +324,7 @@ class DeliverySupportActivityController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete activity: ' . $e->getMessage()
+                'message' => 'Failed to delete activity'
             ], 500);
         }
     }
@@ -499,7 +499,7 @@ class DeliverySupportActivityController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to assign employee: ' . $e->getMessage()
+                'message' => 'Failed to assign employee'
             ], 500);
         }
     }

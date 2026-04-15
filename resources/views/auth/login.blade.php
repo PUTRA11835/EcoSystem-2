@@ -476,21 +476,42 @@
             const toast = document.createElement('div');
             toast.className = `toast toast-${type}`;
 
-            toast.innerHTML = `
-                <div class="toast-body">
-                    <div class="toast-icon">${toastIcons[type]}</div>
-                    <div class="toast-content">
-                        <p class="toast-title">${toastLabels[type]}</p>
-                        <p class="toast-message">${message}</p>
-                    </div>
-                    <button class="toast-close" aria-label="Tutup">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                    </button>
-                </div>
-                <div class="toast-progress" style="animation-duration: ${duration}ms;"></div>
-            `;
+            // Gunakan createElement + textContent untuk mencegah XSS (bukan innerHTML untuk pesan)
+            const body = document.createElement('div');
+            body.className = 'toast-body';
+
+            const iconWrap = document.createElement('div');
+            iconWrap.className = 'toast-icon';
+            iconWrap.innerHTML = toastIcons[type]; // icon SVG aman (hardcoded di atas)
+
+            const content = document.createElement('div');
+            content.className = 'toast-content';
+
+            const title = document.createElement('p');
+            title.className = 'toast-title';
+            title.textContent = toastLabels[type]; // textContent — no XSS
+
+            const msg = document.createElement('p');
+            msg.className = 'toast-message';
+            msg.textContent = message; // textContent — no XSS
+
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'toast-close';
+            closeBtn.setAttribute('aria-label', 'Tutup');
+            closeBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>`;
+
+            content.appendChild(title);
+            content.appendChild(msg);
+            body.appendChild(iconWrap);
+            body.appendChild(content);
+            body.appendChild(closeBtn);
+
+            const progress = document.createElement('div');
+            progress.className = 'toast-progress';
+            progress.style.animationDuration = `${duration}ms`;
+
+            toast.appendChild(body);
+            toast.appendChild(progress);
 
             container.appendChild(toast);
 
@@ -554,7 +575,7 @@
         loginForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             hideAlerts();
-            
+
             const email = emailInput.value.trim();
             const password = passwordInput.value;
             const remember = document.getElementById('remember').checked;
@@ -567,8 +588,6 @@
             setLoading(true);
 
             try {
-                console.log('Sending login request...');
-                
                 const response = await fetch(`${API_BASE_URL}/login`, {
                     method: 'POST',
                     headers: {
@@ -585,10 +604,7 @@
                     }),
                 });
 
-
-                console.log('Response status:', response.status);
                 const data = await response.json();
-                console.log('Response data:', data);
 
                 if (response.ok && data.success) {
                     // New account — must verify email & set password first
@@ -606,8 +622,6 @@
 
                     showSuccess('Login successful! Redirecting to dashboard...');
 
-                    console.log('User logged in:', data.data.user);
-
                     setTimeout(() => {
                         window.location.href = '/dashboard';
                     }, 1000);
@@ -616,7 +630,6 @@
                     setLoading(false);
                 }
             } catch (error) {
-                console.error('Login error:', error);
                 showError('An error occurred. Please try again.');
                 setLoading(false);
             }
@@ -641,11 +654,6 @@
         window.addEventListener('load', function() {
             if (window._flashSuccess) showSuccess(window._flashSuccess);
             if (window._flashError)   showError(window._flashError);
-
-            const token = getToken();
-            if (token) {
-                console.log('User already has token in localStorage');
-            }
         });
     </script>
 

@@ -41,7 +41,7 @@ class CustomerAddressController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch addresses: ' . $e->getMessage()
+                'message' => 'Failed to fetch addresses'
             ], 500);
         }
     }
@@ -84,7 +84,7 @@ class CustomerAddressController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch address: ' . $e->getMessage()
+                'message' => 'Failed to fetch address'
             ], 500);
         }
     }
@@ -190,7 +190,7 @@ class CustomerAddressController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create address: ' . $e->getMessage()
+                'message' => 'Failed to create address'
             ], 500);
         }
     }
@@ -293,7 +293,7 @@ class CustomerAddressController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update address: ' . $e->getMessage()
+                'message' => 'Failed to update address'
             ], 500);
         }
     }
@@ -336,7 +336,7 @@ class CustomerAddressController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete address: ' . $e->getMessage()
+                'message' => 'Failed to delete address'
             ], 500);
         }
     }
