@@ -1670,7 +1670,10 @@
             : `<span class="msg-channel-badge msg-channel-web"><svg style="width:9px;height:9px;display:inline" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clip-rule="evenodd"/></svg> Web</span>`;
 
         // CC badge — hanya tampil kalau ada CC
-        const ccList   = msg.cc_emails || [];
+        // Normalisasi: API mungkin kembalikan array atau JSON string (data lama) → selalu array
+        const rawCc  = msg.cc_emails;
+        const ccList = Array.isArray(rawCc) ? rawCc
+                     : (typeof rawCc === 'string' && rawCc ? ((() => { try { return JSON.parse(rawCc); } catch(e) { return []; } })()) : []);
         const ccBadge  = ccList.length > 0
             ? `<span class="inline-flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
                 <svg style="width:9px;height:9px;flex-shrink:0" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
@@ -1833,8 +1836,27 @@
     }
 
     // ==================== SEND REPLY ====================
+
+    /**
+     * Hapus <p><br></p> dan <p></p> yang kosong di awal dan akhir HTML Quill.
+     * Quill menambahkan empty paragraphs saat user menekan Enter tanpa mengetik,
+     * menyebabkan whitespace besar di atas/bawah pesan yang ditampilkan.
+     */
+    function trimQuillHtml(html) {
+        // Ulangi penghapusan sampai tidak ada lagi empty paragraph di tepi
+        let prev;
+        do {
+            prev = html;
+            html = html
+                .replace(/^(\s*<p[^>]*>\s*(<br\s*\/?>)?\s*<\/p>\s*)+/i, '')
+                .replace(/(\s*<p[^>]*>\s*(<br\s*\/?>)?\s*<\/p>\s*)+$/i, '');
+        } while (html !== prev);
+        return html.trim();
+    }
+
     async function sendReply(messageType) {
-        const htmlContent  = quillEditor.root.innerHTML;
+        const rawHtml      = quillEditor.root.innerHTML;
+        const htmlContent  = trimQuillHtml(rawHtml);
         const plainContent = quillEditor.getText().trim();
         const hasFiles     = selectedFiles.length > 0;
 

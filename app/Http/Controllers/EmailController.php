@@ -293,7 +293,10 @@ class EmailController extends Controller
         try {
             $sender = env('MS_SENDER_EMAIL');
 
-            $select      = 'id,subject,from,ccRecipients,receivedDateTime,body,internetMessageId,conversationId,hasAttachments';
+            // internetMessageHeaders dibutuhkan untuk mengekstrak In-Reply-To + References
+            // agar reply customer dari Gmail/ext. client bisa di-thread ke tiket yang ada
+            // (Exchange conversationId tidak reliable lintas email system)
+            $select      = 'id,subject,from,ccRecipients,receivedDateTime,body,internetMessageId,conversationId,hasAttachments,internetMessageHeaders';
             // Minta body dalam format HTML agar inline image (cid:) tetap terjaga
             $preferHtml  = ['Prefer' => 'outlook.body-content-type="html"'];
 
@@ -368,20 +371,64 @@ class EmailController extends Controller
                         ->all();
                     $ccJson = !empty($ccEmails) ? json_encode($ccEmails) : null;
 
-                    // Cari tiket terkait: pertama cek conversationId (thread), lalu internetMessageId
+                    // Ekstrak In-Reply-To dan References dari SMTP headers
+                    // Dibutuhkan untuk threading lintas email system (Gmail → M365)
+                    // karena Exchange conversationId tidak reliable untuk email eksternal.
+                    $inReplyToId    = null; // ID pesan yang dibalas (<...@...>)
+                    $referencesIds  = [];   // semua ID dalam rantai thread
+                    foreach ($msg['internetMessageHeaders'] ?? [] as $header) {
+                        $headerName = strtolower($header['name'] ?? '');
+                        $headerVal  = $header['value'] ?? '';
+                        if ($headerName === 'in-reply-to') {
+                            // Format: <id@domain> atau plain id@domain
+                            preg_match('/<([^>]+)>/', $headerVal, $m2);
+                            $inReplyToId = isset($m2[1]) ? '<' . $m2[1] . '>' : trim($headerVal);
+                        }
+                        if ($headerName === 'references') {
+                            // Format: <id1> <id2> <id3> ...
+                            preg_match_all('/<([^>]+)>/', $headerVal, $refMatches);
+                            $referencesIds = array_map(fn($id) => '<' . $id . '>', $refMatches[1] ?? []);
+                        }
+                    }
+
+                    // ── Cari tiket terkait — 5 strategi, prioritas dari paling tepat ─────────
                     $ticket = null;
+
+                    // 1) conversationId Exchange — paling cepat, andal untuk Outlook-ke-Outlook
                     if ($conversationId) {
                         $ticket = Ticket::where('email_thread_id', $conversationId)->first();
                     }
+
+                    // 2) In-Reply-To SMTP header — andal lintas email system (Gmail, Yahoo, dll.)
+                    //    Cek apakah ada ticket_message dengan email_message_id = In-Reply-To
+                    if (!$ticket && $inReplyToId) {
+                        $ticket = Ticket::whereHas('messages', function ($q) use ($inReplyToId) {
+                            $q->where('email_message_id', $inReplyToId);
+                        })->first();
+                    }
+
+                    // 3) References SMTP header — seluruh rantai thread, pakai ID terbaru dulu
+                    //    Berguna jika pelanggan membalas email yang jauh di rantai
+                    if (!$ticket && !empty($referencesIds)) {
+                        // Coba dari ID terbaru (akhir array) agar lebih spesifik
+                        foreach (array_reverse($referencesIds) as $refId) {
+                            $ticket = Ticket::whereHas('messages', function ($q) use ($refId) {
+                                $q->where('email_message_id', $refId);
+                            })->first();
+                            if ($ticket) break;
+                        }
+                    }
+
+                    // 4) internetMessageId email ini sendiri — dedup check saja
+                    //    (jika sudah ada, akan di-skip di bagian bawah)
                     if (!$ticket && $internetMsgId) {
                         $ticket = Ticket::whereHas('messages', function ($q) use ($internetMsgId) {
                             $q->where('email_message_id', $internetMsgId);
                         })->first();
                     }
-                    // Fallback: cek staging yang sudah approved dengan thread yang sama
-                    // Ini menangani kasus di mana customer membalas email pada tiket yang
-                    // sudah diapprove dari staging — ticket.email_thread_id mungkin sudah ter-set
-                    // tapi bisa juga tidak ter-index. Cek via staging sebagai jembatan.
+
+                    // 5) Fallback: cek staging yang sudah approved dengan conversationId yang sama
+                    //    Menangani kasus ticket.email_thread_id belum di-update saat approve
                     if (!$ticket && $conversationId) {
                         $approvedStaging = \App\Models\StagingTicket::where('email_thread_id', $conversationId)
                             ->where('status', 'approved')
@@ -391,6 +438,15 @@ class EmailController extends Controller
                             $ticket = Ticket::find($approvedStaging->ticket_id);
                         }
                     }
+
+                    Log::info('EmailController@processInbox: thread lookup result', [
+                        'from'           => $fromEmail,
+                        'subject'        => $subject,
+                        'conversation_id'=> $conversationId,
+                        'in_reply_to'    => $inReplyToId,
+                        'references'     => array_slice($referencesIds, -3), // 3 ID terbaru saja
+                        'ticket_found'   => $ticket?->ticket_id,
+                    ]);
 
                     // Cari customer: cek customer.email dulu, fallback ke auth_users.email
                     $customer = Customer::where('email', $fromEmail)->first();
@@ -413,6 +469,8 @@ class EmailController extends Controller
                         }
 
                         // Tambah pesan ke tiket yang sudah ada
+                        // cc_emails: kirim PHP array (bukan JSON string) karena TicketMessage
+                        // model punya 'array' cast — mengirim JSON string akan double-encode
                         $message = TicketMessage::create([
                             'ticket_id'           => $ticket->ticket_id,
                             'sender_type'         => $customer ? 'customer' : 'system',
@@ -425,7 +483,7 @@ class EmailController extends Controller
                             'channel'             => 'email',
                             'email_message_id'    => $internetMsgId,
                             'email_in_reply_to'   => null,
-                            'cc_emails'           => $ccJson,
+                            'cc_emails'           => !empty($ccEmails) ? $ccEmails : null,
                             'is_read_by_customer' => true,
                             'is_read_by_agent'    => false,
                         ]);

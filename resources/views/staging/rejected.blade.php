@@ -98,7 +98,7 @@
 
 {{-- ===== DETAIL MODAL ===== --}}
 <div id="detailModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" style="display:none">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 overflow-hidden">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
         {{-- Header --}}
         <div class="px-7 py-5 border-b border-gray-100 flex items-center justify-between">
             <div>
@@ -111,7 +111,7 @@
         </div>
 
         {{-- Content --}}
-        <div class="p-7 space-y-4" id="modalContent">
+        <div class="p-7 space-y-4 overflow-y-auto max-h-[80vh]" id="modalContent">
             <div class="text-center text-gray-400 py-8">
                 <i class="fas fa-spinner fa-spin text-2xl"></i>
             </div>
@@ -264,8 +264,27 @@ async function openModal(id) {
 function renderModalContent(s) {
     const prioColor = { Low: 'bg-green-100 text-green-700', Medium: 'bg-blue-100 text-blue-700', High: 'bg-red-100 text-red-700' };
     const prio      = s.ticket_priority ?? 'Medium';
+    const isEmail   = s.channel === 'email';
     const date      = s.created_at  ? new Date(s.created_at).toLocaleString('id-ID',  { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' WIB' : '—';
     const rejDate   = s.validated_at ? new Date(s.validated_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' WIB' : '—';
+
+    // Tentukan sumber body: email_body_html (email) atau body (web form)
+    const bodySource = s.email_body_html || s.body || null;
+    const bodyLabel  = isEmail ? 'Email Body' : 'Message Body';
+
+    const bodyBlock = bodySource
+        ? `<div class="border border-gray-200 rounded-xl overflow-hidden">
+            <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+                <i class="fas fa-envelope-open text-gray-400 text-xs"></i>
+                <span class="text-xs font-semibold text-gray-500">${bodyLabel}</span>
+            </div>
+            <iframe id="rejectedBodyIframe" sandbox="allow-same-origin"
+                    class="w-full" style="min-height:200px;border:none;display:block" title="${bodyLabel}"></iframe>
+        </div>`
+        : `<div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-2">Description</p>
+            <p class="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">${escHtml(s.description ?? '—')}</p>
+        </div>`;
 
     document.getElementById('modalContent').innerHTML = `
         <div class="grid grid-cols-2 gap-4">
@@ -280,7 +299,7 @@ function renderModalContent(s) {
             </div>
             <div class="bg-gray-50 rounded-xl p-4">
                 <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1">Channel</p>
-                <p class="text-sm font-bold text-gray-800">${s.channel === 'email' ? '📧 Email' : '🌐 Web'}</p>
+                <p class="text-sm font-bold text-gray-800">${isEmail ? '📧 Email' : '🌐 Web'}</p>
             </div>
             <div class="bg-gray-50 rounded-xl p-4">
                 <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1">Submitted</p>
@@ -292,6 +311,8 @@ function renderModalContent(s) {
             <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-2">Description</p>
             <p class="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">${escHtml(s.description ?? '—')}</p>
         </div>
+
+        ${bodyBlock}
 
         <div class="bg-red-50 border border-red-200 rounded-xl p-4">
             <div class="flex items-center gap-2 mb-2">
@@ -305,6 +326,42 @@ function renderModalContent(s) {
             </div>
         </div>
     `;
+
+    // Set iframe content setelah DOM diupdate
+    if (bodySource) {
+        const iframe = document.getElementById('rejectedBodyIframe');
+        if (iframe) {
+            const setContent = (html) => {
+                const wrapped = html.startsWith('<') ? html
+                    : `<div style="font-family:system-ui,sans-serif;font-size:14px;color:#374151;padding:4px;white-space:pre-wrap">${html}</div>`;
+                const doc = iframe.contentDocument || iframe.contentWindow?.document;
+                if (doc) { doc.open(); doc.write(wrapped); doc.close(); }
+                // Auto-resize iframe ke tinggi konten
+                iframe.onload = () => {
+                    const h = iframe.contentDocument?.body?.scrollHeight;
+                    if (h) iframe.style.height = (h + 24) + 'px';
+                };
+                const h = doc?.body?.scrollHeight;
+                if (h) iframe.style.height = (h + 24) + 'px';
+            };
+
+            // Untuk email dengan graph_message_id: resolve inline images via preview-body API
+            const needsResolve = isEmail && s.graph_message_id && (
+                (s.email_body_html || '').includes('cid:') || s.has_attachments
+            );
+            if (needsResolve) {
+                setContent(s.email_body_html);
+                fetch(`/api/staging-tickets/${s.id}/preview-body`, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                }).then(r => r.json()).then(data => {
+                    if (data.success && data.html) setContent(data.html);
+                }).catch(() => {});
+            } else {
+                setContent(bodySource);
+            }
+        }
+    }
 }
 
 function closeModal() {
