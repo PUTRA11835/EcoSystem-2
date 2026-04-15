@@ -66,7 +66,16 @@
       "Bash(grep -rn \"'Re' \\\\. \\\\$\" app/Http/Controllers/)",
       "Bash(grep \"\\\\. \\\\$\\\\|\\\\. '\")",
       "Bash(grep -n \"AttachmentController\" /c/EcoSystem-2/app/Http/Controllers/*.php)",
-      "Bash(grep -n 'protected $casts\\\\|created_at\\\\|validated_at' /c/EcoSystem-2/app/Models/StagingTicket.php)"
+      "Bash(grep -n 'protected $casts\\\\|created_at\\\\|validated_at' /c/EcoSystem-2/app/Models/StagingTicket.php)",
+      "Bash(node --check c:/EcoSystem-2/public/js/calendar-timesheets.js)",
+      "Bash(node -e \"require\\('fs'\\).readFileSync\\('c:/EcoSystem-2/public/js/calendar-timesheets.js','utf8'\\)\")",
+      "Bash(grep -n '<\\\\\\\\' c:/EcoSystem-2/public/js/calendar-timesheets.js)",
+      "Bash(grep -n '[<][\\\\\\\\][/]' c:/EcoSystem-2/public/js/calendar-timesheets.js)",
+      "Bash(grep -Pn '<\\\\\\\\/' c:/EcoSystem-2/public/js/calendar-timesheets.js)",
+      "Bash(python3 -c ' *)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"var fs=require\\('fs'\\);var c=fs.readFileSync\\('c:/EcoSystem-2/public/js/calendar-timesheets.js','utf8'\\);var lines=c.split\\('\\\\n'\\);lines.forEach\\(function\\(l,i\\){if\\(l.indexOf\\('<' + String.fromCharCode\\(92\\) + '/'\\)!==-1\\){console.log\\('L'+\\(i+1\\)+': '+l.trim\\(\\)\\);}}\\);\")",
+      "Bash(node -e \"var fs=require\\('fs'\\);var c=fs.readFileSync\\('c:/EcoSystem-2/public/js/calendar-timesheets.js','utf8'\\);var lines=c.split\\('\\\\n'\\);lines.forEach\\(function\\(l,i\\){if\\(l.indexOf\\('<\\\\\\\\\\\\\\\\/'\\)!==-1 || l.indexOf\\('<\\\\\\\\\\\\\\\\i>'\\)!==-1\\){console.log\\('L'+\\(i+1\\)+': '+l.trim\\(\\)\\);}}\\);\")"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",
