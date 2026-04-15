@@ -1069,10 +1069,10 @@ class StagingTicketController extends Controller
             'graph_message_id'    => $s->graph_message_id,
             'validated_by'        => $s->validated_by,
             'validator_name'      => $validatorName,
-            'validated_at'        => $s->validated_at?->toDateTimeString(),
+            'validated_at'        => $s->validated_at?->toIso8601String(),
             'ticket_id'           => $s->ticket_id,
             'ticket_number'       => $s->ticket?->ticket_number,
-            'created_at'          => $s->created_at?->toDateTimeString(),
+            'created_at'          => $s->created_at?->toIso8601String(),
             'attachments'         => $attachments,       // ← file attachments (web uploads)
             // Field tambahan
             'name'                => $s->name,

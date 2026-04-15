@@ -488,14 +488,19 @@ class EmailController extends Controller
                             'is_read_by_agent'    => false,
                         ]);
 
-                        // Gunakan waktu asli email (bukan waktu scheduler) untuk created_at
+                        // Gunakan waktu asli email (bukan waktu scheduler) untuk created_at.
+                        // PENTING: $receivedAt adalah Carbon UTC. Harus di-convert ke app timezone
+                        // (Asia/Jakarta) sebelum disimpan sebagai string via raw DB::table(),
+                        // karena Eloquent membaca string DB tanpa konversi UTC→WIB.
                         if ($receivedAt) {
+                            $appTz     = config('app.timezone', 'Asia/Jakarta');
+                            $localTime = $receivedAt->copy()->setTimezone($appTz)->toDateTimeString();
                             \DB::table('ticket_message')->where('id', $message->id)->update([
-                                'created_at' => $receivedAt->toDateTimeString(),
-                                'updated_at' => $receivedAt->toDateTimeString(),
+                                'created_at' => $localTime,
+                                'updated_at' => $localTime,
                             ]);
-                            $message->created_at = $receivedAt;
-                            $message->updated_at = $receivedAt;
+                            $message->created_at = $receivedAt->copy()->setTimezone($appTz);
+                            $message->updated_at = $receivedAt->copy()->setTimezone($appTz);
                         }
 
                         // Ambil metadata attachment & ganti referensi cid: di message_html.
@@ -536,6 +541,7 @@ class EmailController extends Controller
                             'graph_message_id'    => $graphMsgId,
                             'has_attachments'     => $hasAttachments,
                             'cc_emails'           => $ccJson,
+                            'received_at'         => $receivedAt, // Carbon UTC — used for created_at
                         ]);
 
                         Log::info('EmailController@processInbox: email baru masuk ke staging', [
