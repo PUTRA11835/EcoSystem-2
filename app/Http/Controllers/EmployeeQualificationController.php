@@ -70,7 +70,7 @@ class EmployeeQualificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving qualification records: ' . $e->getMessage()
+                'message' => 'Error retrieving qualification records'
             ], 500);
         }
     }
@@ -134,7 +134,7 @@ class EmployeeQualificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving qualification record: ' . $e->getMessage()
+                'message' => 'Error retrieving qualification record'
             ], 500);
         }
     }
@@ -254,7 +254,7 @@ class EmployeeQualificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error creating qualification record: ' . $e->getMessage()
+                'message' => 'Error creating qualification record'
             ], 500);
         }
     }
@@ -389,7 +389,7 @@ class EmployeeQualificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error updating qualification record: ' . $e->getMessage()
+                'message' => 'Error updating qualification record'
             ], 500);
         }
     }
@@ -453,7 +453,7 @@ class EmployeeQualificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error deleting qualification record: ' . $e->getMessage()
+                'message' => 'Error deleting qualification record'
             ], 500);
         }
     }
@@ -534,7 +534,7 @@ class EmployeeQualificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving qualification statistics: ' . $e->getMessage()
+                'message' => 'Error retrieving qualification statistics'
             ], 500);
         }
     }
@@ -589,7 +589,7 @@ class EmployeeQualificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving qualification records: ' . $e->getMessage()
+                'message' => 'Error retrieving qualification records'
             ], 500);
         }
     }
@@ -642,7 +642,7 @@ class EmployeeQualificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving expired qualifications: ' . $e->getMessage()
+                'message' => 'Error retrieving expired qualifications'
             ], 500);
         }
     }

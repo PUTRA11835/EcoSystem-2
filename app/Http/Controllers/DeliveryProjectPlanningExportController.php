@@ -42,7 +42,7 @@ class DeliveryProjectPlanningExportController extends Controller
                 'error' => $e->getMessage()
             ]);
 
-            return back()->with('error', 'Failed to export PDF: ' . $e->getMessage());
+            return back()->with('error', 'Failed to export PDF');
         }
     }
 
@@ -82,7 +82,7 @@ class DeliveryProjectPlanningExportController extends Controller
                 'error' => $e->getMessage()
             ]);
 
-            return back()->with('error', 'Failed to export Gantt PDF: ' . $e->getMessage());
+            return back()->with('error', 'Failed to export Gantt PDF');
         }
     }
 
@@ -126,7 +126,7 @@ class DeliveryProjectPlanningExportController extends Controller
                 'error' => $e->getMessage()
             ]);
 
-            return back()->with('error', 'Failed to export S-Curve PDF: ' . $e->getMessage());
+            return back()->with('error', 'Failed to export S-Curve PDF');
         }
     }
 
@@ -148,7 +148,7 @@ class DeliveryProjectPlanningExportController extends Controller
                 'error' => $e->getMessage()
             ]);
 
-            return back()->with('error', 'Failed to export Table Excel: ' . $e->getMessage());
+            return back()->with('error', 'Failed to export Table Excel');
         }
     }
 
@@ -170,7 +170,7 @@ class DeliveryProjectPlanningExportController extends Controller
                 'error' => $e->getMessage()
             ]);
 
-            return back()->with('error', 'Failed to export Gantt Excel: ' . $e->getMessage());
+            return back()->with('error', 'Failed to export Gantt Excel');
         }
     }
 
@@ -192,7 +192,7 @@ class DeliveryProjectPlanningExportController extends Controller
                 'error' => $e->getMessage()
             ]);
 
-            return back()->with('error', 'Failed to export S-Curve Excel: ' . $e->getMessage());
+            return back()->with('error', 'Failed to export S-Curve Excel');
         }
     }
 }

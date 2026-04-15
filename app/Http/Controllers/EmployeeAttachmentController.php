@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class EmployeeAttachmentController extends Controller
 {
@@ -34,7 +35,7 @@ class EmployeeAttachmentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch attachments: ' . $e->getMessage()
+                'message' => 'Failed to fetch attachments'
             ], 500);
         }
     }
@@ -71,20 +72,21 @@ class EmployeeAttachmentController extends Controller
                 return response()->json(['success' => false, 'message' => 'Employee not found'], 404);
             }
 
-            $file     = $request->file('file');
-            $fileName = time() . '_' . $file->getClientOriginalName();
-            $filePath = $file->storeAs('employee_attachments/' . $employeeId, $fileName, 'public');
+            $file      = $request->file('file');
+            $extension = $file->getClientOriginalExtension();
+            $fileName  = Str::uuid() . ($extension ? '.' . $extension : '');
+            $filePath  = $file->storeAs('employee_attachments/' . $employeeId, $fileName, 'public');
 
             $attachmentId = DB::table('employee_attachment')->insertGetId([
                 'employee_id'    => $employeeId,
                 'document_type'  => $request->document_type,
                 'document_title' => $request->document_title,
                 'description'    => $request->description,
-                'file_name'      => $fileName,
+                'file_name'      => $file->getClientOriginalName(),
                 'file_path'      => $filePath,
                 'file_size'      => $file->getSize(),
                 'mime_type'      => $file->getMimeType(),
-                'uploaded_by'    => auth()->user()->username ?? 'system',
+                'uploaded_by'    => session('user.eci') ?? session('user.name') ?? 'system',
                 'created_at'     => now(),
                 'updated_at'     => now(),
             ]);
@@ -105,7 +107,7 @@ class EmployeeAttachmentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to upload file: ' . $e->getMessage()
+                'message' => 'Failed to upload file'
             ], 500);
         }
     }
@@ -150,7 +152,7 @@ class EmployeeAttachmentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete attachment: ' . $e->getMessage()
+                'message' => 'Failed to delete attachment'
             ], 500);
         }
     }

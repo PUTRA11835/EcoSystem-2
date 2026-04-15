@@ -13,6 +13,10 @@
 
 {{-- Override sidebar with ticket inbox --}}
 @section('sidebar-nav')
+{{-- Resize handle – draggable right edge --}}
+<div id="sidebarResizeHandle"
+     style="position:absolute;top:0;right:0;width:5px;height:100%;cursor:col-resize;z-index:200;background:transparent;"
+     onmousedown="sidebarResizeStart(event)"></div>
 <div class="flex flex-col h-full">
     {{-- Back to Tickets --}}
     <div class="px-4 pt-4 pb-2">
@@ -116,7 +120,7 @@
                 <div id="ticketHeadbarMeta" class="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
                     <span>{{ $ticket->customer?->basicData?->name_1 ?? 'Unknown Customer' }}</span>
                     <span class="text-gray-300">|</span>
-                    <span>{{ $ticket->created_at->format('M d, Y h:i A') }}</span>
+                    <span>{{ $ticket->created_at->format('d M Y H:i') }} WIB</span>
                     @if($ticket->employee)
                         <span class="text-gray-300">|</span>
                         <span>PIC: {{ $ticket->employee->basicData ? trim($ticket->employee->basicData->first_name . ' ' . ($ticket->employee->basicData->last_name ?? '')) : 'Assigned' }}</span>
@@ -169,7 +173,7 @@
                 {{-- Mention dropdown (positioned relative to editor wrapper) --}}
                 <div class="relative">
                     <div class="bg-white border border-gray-300 rounded-lg overflow-hidden">
-                        <div id="quillEditor" style="min-height: 100px; max-height: 200px; overflow-y: auto;"></div>
+                        <div id="quillEditor" style="min-height: 100px;"></div>
                     </div>
                     {{-- @mention autocomplete dropdown --}}
                     <div id="mentionDropdown" class="hidden absolute z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-72 max-h-48 overflow-y-auto" style="bottom: calc(100% + 4px); left: 0;">
@@ -236,14 +240,19 @@
             default => 'Update Internal Mandays',
         };
         $ticketAssigned    = $ticket->employee_id !== null;
-        $canTakeTicket     = !in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) && !$ticketAssigned;
+        $canTakeTicket     = $user->role->role_id === \App\Enums\RoleId::EMPLOYEE->value
+                             && !$ticketAssigned;
+        $canAssignPic      = !$ticketAssigned && in_array($user->role->role_id, array_merge(
+                                 [\App\Enums\RoleId::ADMIN->value, \App\Enums\RoleId::HEAD_OF_SUPPORT->value],
+                                 \App\Enums\RoleId::HELPDESK_GROUP
+                             ), true);
         // Mandays buttons only visible when ticket has a PIC
         $isPicMandays      = $isPic && $ticketAssigned;
         $isHelpdeskMandays = $isHelpdesk && $ticketAssigned;
         $isHeadMandays          = $isHead && $ticketAssigned && in_array($internalStatus, ['pending_head', 'approved', 'rejected', 'draft']);
         $isHeadCustomerMandays  = $isHead && $ticketAssigned && in_array($mandaysStatus, ['pic_draft', 'pending_helpdesk', 'sent_to_chat', 'approved', 'canceled']);
         $hasMandaysSection = $isPicMandays || $isHelpdeskMandays || $isHeadMandays || $isHeadCustomerMandays
-                           || $canTakeTicket || in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true);
+                           || $canTakeTicket || $canAssignPic || in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true);
     @endphp
 
     <div class="hidden xl:flex xl:flex-col w-72 gap-3 flex-shrink-0 overflow-y-auto">
@@ -254,7 +263,7 @@
             <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
                  onclick="toggleSidebarPanel('mandaysPanel', 'mandaysChevron')">
                 <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Mandays</h4>
-                <i id="mandaysChevron" class="fas fa-chevron-up text-gray-400 text-xs transition-transform duration-200"></i>
+                <i id="mandaysChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
             </div>
             <div id="mandaysPanel" class="px-4 pb-4 pt-3 space-y-4 border-t border-gray-100">
                 {{-- PIC: Customer Mandays & Internal Mandays --}}
@@ -264,7 +273,7 @@
                         <label class="text-xs font-semibold text-gray-500">Customer Mandays</label>
                         <span id="mandaysBadge" class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $mBadgeClass }}">{{ $mBadgeLabel }}</span>
                     </div>
-                    <button onclick="openPicMandaysModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    <button onclick="openMandaysVersionList('pic')" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         {{ $picMandaysLabel }}
                     </button>
                 </div>
@@ -286,7 +295,7 @@
                         <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $mBadgeClass }}">{{ $mBadgeLabel }}</span>
                     </div>
                     @if(in_array($mandaysStatus, ['pic_draft', 'pending_helpdesk', 'sent_to_chat', 'approved', 'canceled']))
-                    <button onclick="openHdMandaysModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    <button onclick="openMandaysVersionList('hd')" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Review Mandays Proposal
                     </button>
                     @else
@@ -303,7 +312,7 @@
                         <label class="text-xs font-semibold text-gray-500">Customer Mandays</label>
                         <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $mBadgeClass }}">{{ $mBadgeLabel }}</span>
                     </div>
-                    <button onclick="openHeadCustomerMandaysModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    <button onclick="openMandaysVersionList('head')" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         View Mandays Proposal
                     </button>
                 </div>
@@ -320,11 +329,19 @@
                     </button>
                 </div>
                 @endif
-                {{-- Take Ticket (non-admin/helpdesk, unassigned only) --}}
+                {{-- Take Ticket (consultant self-assign, unassigned only) --}}
                 @if($canTakeTicket)
                 <div>
                     <button onclick="takeTicket()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Take This Ticket
+                    </button>
+                </div>
+                @endif
+                {{-- Assign PIC (Admin / Helpdesk / Head of Support) --}}
+                @if($canAssignPic)
+                <div>
+                    <button onclick="openAssignPicModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                        Assign PIC
                     </button>
                 </div>
                 @endif
@@ -352,67 +369,82 @@
                         Save All
                     </button>
                     @endif
-                    <i id="propertiesChevron" class="fas fa-chevron-up text-gray-400 text-xs transition-transform duration-200"></i>
+                    <i id="propertiesChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
                 </div>
             </div>
             <div id="propertiesPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
                 {{-- Status --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Status</label>
-                    <select id="detailStatus" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
-                        <option value="open" {{ $ticket->status == 'open' ? 'selected' : '' }}>Open</option>
-                        <option value="in_progress" {{ $ticket->status == 'in_progress' ? 'selected' : '' }}>In Progress</option>
-                        <option value="hold" {{ $ticket->status == 'hold' ? 'selected' : '' }}>Hold</option>
-                        <option value="wait_to_close" {{ $ticket->status == 'wait_to_close' ? 'selected' : '' }}>Wait to Close</option>
-                        <option value="cancel" {{ $ticket->status == 'cancel' ? 'selected' : '' }}>Cancel</option>
-                        <option value="closed" {{ $ticket->status == 'closed' ? 'selected' : '' }}>Closed</option>
-                        <option value="reply" {{ $ticket->status == 'reply' ? 'selected' : '' }}>Reply</option>
-                    </select>
+                    <div class="relative">
+                        <select id="detailStatus" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
+                            <option value="open" {{ $ticket->status == 'open' ? 'selected' : '' }}>Open</option>
+                            <option value="in_progress" {{ $ticket->status == 'in_progress' ? 'selected' : '' }}>In Progress</option>
+                            <option value="hold" {{ $ticket->status == 'hold' ? 'selected' : '' }}>Hold</option>
+                            <option value="wait_to_close" {{ $ticket->status == 'wait_to_close' ? 'selected' : '' }}>Wait to Close</option>
+                            <option value="cancel" {{ $ticket->status == 'cancel' ? 'selected' : '' }}>Cancel</option>
+                            <option value="closed" {{ $ticket->status == 'closed' ? 'selected' : '' }}>Closed</option>
+                            <option value="reply" {{ $ticket->status == 'reply' ? 'selected' : '' }}>Reply</option>
+                        </select>
+                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    </div>
                 </div>
                 {{-- Jarvies Status --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Jarvies Status</label>
-                    <select id="detailJarviesStatus" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
-                        <option value="in process" {{ $ticket->jarvies_status == 'in process' ? 'selected' : '' }}>In Process</option>
-                        <option value="author action" {{ $ticket->jarvies_status == 'author action' ? 'selected' : '' }}>Author Action</option>
-                        <option value="proposed solution" {{ $ticket->jarvies_status == 'proposed solution' ? 'selected' : '' }}>Proposed Solution</option>
-                        <option value="sent in to SAP" {{ $ticket->jarvies_status == 'sent in to SAP' ? 'selected' : '' }}>Sent in to SAP</option>
-                        <option value="sent it to support" {{ $ticket->jarvies_status == 'sent it to support' ? 'selected' : '' }}>Sent it to Support</option>
-                        <option value="closed" {{ $ticket->jarvies_status == 'closed' ? 'selected' : '' }}>Closed</option>
-                    </select>
+                    <div class="relative">
+                        <select id="detailJarviesStatus" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
+                            <option value="in process" {{ $ticket->jarvies_status == 'in process' ? 'selected' : '' }}>In Process</option>
+                            <option value="author action" {{ $ticket->jarvies_status == 'author action' ? 'selected' : '' }}>Author Action</option>
+                            <option value="proposed solution" {{ $ticket->jarvies_status == 'proposed solution' ? 'selected' : '' }}>Proposed Solution</option>
+                            <option value="sent in to SAP" {{ $ticket->jarvies_status == 'sent in to SAP' ? 'selected' : '' }}>Sent in to SAP</option>
+                            <option value="sent it to support" {{ $ticket->jarvies_status == 'sent it to support' ? 'selected' : '' }}>Sent it to Support</option>
+                            <option value="closed" {{ $ticket->jarvies_status == 'closed' ? 'selected' : '' }}>Closed</option>
+                        </select>
+                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    </div>
                 </div>
                 {{-- Priority --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Priority</label>
-                    <select id="detailPriority" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
-                        <option value="Very High" {{ $ticket->ticket_priority == 'Very High' ? 'selected' : '' }}>Very High</option>
-                        <option value="High" {{ $ticket->ticket_priority == 'High' ? 'selected' : '' }}>High</option>
-                        <option value="Medium" {{ $ticket->ticket_priority == 'Medium' ? 'selected' : '' }}>Medium</option>
-                        <option value="Low" {{ $ticket->ticket_priority == 'Low' ? 'selected' : '' }}>Low</option>
-                    </select>
+                    <div class="relative">
+                        <select id="detailPriority" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
+                            <option value="Very High" {{ $ticket->ticket_priority == 'Very High' ? 'selected' : '' }}>Very High</option>
+                            <option value="High" {{ $ticket->ticket_priority == 'High' ? 'selected' : '' }}>High</option>
+                            <option value="Medium" {{ $ticket->ticket_priority == 'Medium' ? 'selected' : '' }}>Medium</option>
+                            <option value="Low" {{ $ticket->ticket_priority == 'Low' ? 'selected' : '' }}>Low</option>
+                        </select>
+                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    </div>
                 </div>
                 {{-- Ticket Type --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Ticket Type</label>
-                    <select id="detailType" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
-                        <option value="" {{ !$ticket->ticket_type ? 'selected' : '' }}>-- Select Type --</option>
-                        <option value="Incident" {{ $ticket->ticket_type == 'Incident' ? 'selected' : '' }}>Incident</option>
-                        <option value="Service Request" {{ $ticket->ticket_type == 'Service Request' ? 'selected' : '' }}>Service Request</option>
-                        <option value="Change Request" {{ $ticket->ticket_type == 'Change Request' ? 'selected' : '' }}>Change Request</option>
-                        <option value="Consult" {{ $ticket->ticket_type == 'Consult' ? 'selected' : '' }}>Consult</option>
-                    </select>
+                    <div class="relative">
+                        <select id="detailType" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
+                            <option value="" {{ !$ticket->ticket_type ? 'selected' : '' }}>-- Select Type --</option>
+                            <option value="Incident" {{ $ticket->ticket_type == 'Incident' ? 'selected' : '' }}>Incident</option>
+                            <option value="Service Request" {{ $ticket->ticket_type == 'Service Request' ? 'selected' : '' }}>Service Request</option>
+                            <option value="Change Request" {{ $ticket->ticket_type == 'Change Request' ? 'selected' : '' }}>Change Request</option>
+                            <option value="Consult" {{ $ticket->ticket_type == 'Consult' ? 'selected' : '' }}>Consult</option>
+                        </select>
+                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    </div>
                 </div>
                 {{-- Agent (PIC) --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Agent (PIC)</label>
-                    <select id="detailPIC" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
-                        <option value="" {{ !$ticket->employee_id ? 'selected' : '' }}>-- Unassigned --</option>
-                        @foreach($consultants as $consultant)
-                            <option value="{{ $consultant['employee_id'] }}" {{ $ticket->employee_id == $consultant['employee_id'] ? 'selected' : '' }}>
-                                {{ $consultant['name'] }}
-                            </option>
-                        @endforeach
-                    </select>
+                    <div class="relative">
+                        <select id="detailPIC" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
+                            <option value="" {{ !$ticket->employee_id ? 'selected' : '' }}>-- Unassigned --</option>
+                            @foreach($consultants as $consultant)
+                                <option value="{{ $consultant['employee_id'] }}" {{ $ticket->employee_id == $consultant['employee_id'] ? 'selected' : '' }}>
+                                    {{ $consultant['name'] }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    </div>
                 </div>
                 {{-- Team Members --}}
                 @php
@@ -440,15 +472,18 @@
                     </div>
                     @if($canManageMembers)
                     <div class="flex gap-1.5">
-                        <select id="addMemberSelect"
-                                class="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">-- Add member --</option>
-                            @foreach($employees as $emp)
-                                @if(!in_array($emp['employee_id'], $currentMemberIds) && $emp['employee_id'] != $ticket->employee_id)
-                                    <option value="{{ $emp['employee_id'] }}">{{ $emp['name'] }}</option>
-                                @endif
-                            @endforeach
-                        </select>
+                        <div class="relative flex-1 min-w-0">
+                            <select id="addMemberSelect"
+                                    class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
+                                <option value="">-- Add member --</option>
+                                @foreach($employees as $emp)
+                                    @if(!in_array($emp['employee_id'], $currentMemberIds) && $emp['employee_id'] != $ticket->employee_id)
+                                        <option value="{{ $emp['employee_id'] }}">{{ $emp['name'] }}</option>
+                                    @endif
+                                @endforeach
+                            </select>
+                            <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                        </div>
                         <button type="button" onclick="addMemberBtn()"
                                 class="px-2.5 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all flex-shrink-0"
                                 title="Add member">
@@ -494,12 +529,12 @@
                     </div>
                 </div>
                 @endif
-                {{-- Man Days --}}
+                {{-- Man Days (from approved customer mandays proposal) --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Man Days</label>
-                    <input type="number" id="detailManDays" value="{{ $ticket->man_days ?? '' }}" step="0.5" min="0" max="9999.99"
-                        {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }}
-                        class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white" placeholder="0.0">
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                        {{ $approvedMandays !== null ? number_format((float)$approvedMandays, 1) : '—' }}
+                    </p>
                 </div>
                 {{-- Start Date --}}
                 <div>
@@ -535,7 +570,7 @@
                 {{-- Created --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Created</label>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('M d, Y h:i A') }}</p>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('d M Y H:i') }} WIB</p>
                 </div>
                 {{-- Admin only: Delete Ticket --}}
                 @if($user->role->role_id === \App\Enums\RoleId::ADMIN->value)
@@ -554,9 +589,10 @@
 <style>
 /* Message Bubbles */
 .message-bubble { max-width: 85%; }
-.message-bubble.customer { background: #f3f4f6; border-radius: 12px 12px 12px 4px; }
-.message-bubble.employee { background: #eff6ff; border-radius: 12px 12px 4px 12px; }
-.message-bubble.internal-note { background: #fef9c3; border: 1px dashed #f59e0b; border-radius: 8px; }
+.message-bubble.customer  { background: #f3f4f6; border-radius: 12px 12px 12px 4px; }
+.message-bubble.employee  { background: #eff6ff; border-radius: 12px 12px 4px 12px; }
+.message-bubble.internal-note       { background: #fef9c3; border: 1px dashed #f59e0b; border-radius: 4px 12px 12px 12px; }
+.message-bubble.internal-note.mine  { background: #fef3c7; border: 1px dashed #d97706; border-radius: 12px 4px 12px 12px; }
 
 /* Email HTML body rendering — scoped agar tidak bocor ke luar bubble */
 .email-html-body { word-break: break-word; }
@@ -571,8 +607,30 @@
 /* Quill Editor Overrides */
 .ql-toolbar.ql-snow { border: none !important; border-bottom: 1px solid #e5e7eb !important; padding: 4px 8px !important; background: #f9fafb; }
 .ql-container.ql-snow { border: none !important; font-size: 13px; }
-.ql-editor { min-height: 80px; max-height: 180px; overflow-y: auto; padding: 8px 12px; }
+.ql-editor { min-height: 80px; max-height: 220px; overflow-y: auto; overflow-x: hidden; padding: 8px 12px; }
 .ql-editor.ql-blank::before { font-style: normal; color: #9ca3af; font-size: 13px; }
+
+/* Images inside editor — fit width, cap height */
+.ql-editor img {
+    max-width: 100%;
+    max-height: 160px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: inline-block;
+    vertical-align: bottom;
+    border-radius: 4px;
+    margin: 2px 0;
+    cursor: default;
+}
+/* Images inside message bubbles */
+.message-bubble img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+    display: block;
+    margin: 4px 0;
+}
 
 /* Quill Toolbar Tooltips */
 .ql-toolbar button, .ql-toolbar .ql-picker { position: relative; }
@@ -610,7 +668,14 @@
 .message-content ul, .message-content ol { padding-left: 1.5rem; margin-bottom: 0.5rem; }
 .message-content blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; }
 
-/* Sidebar ticket items */
+/* ─── Sidebar resize handle hover glow ─── */
+#sidebarResizeHandle:hover,
+#sidebarResizeHandle.resizing {
+    background: rgba(255,255,255,0.35) !important;
+    transition: background 0.15s;
+}
+
+/* ─── Sidebar ticket items ─── */
 .sidebar-ticket-item {
     display: block;
     padding: 8px 10px 8px 12px;
@@ -621,6 +686,7 @@
     border: 1px solid rgba(255,255,255,0.5);
     border-left: 3px solid transparent;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    overflow: hidden;
 }
 .sidebar-ticket-item:hover {
     background: rgba(255,255,255,1);
@@ -634,6 +700,31 @@
     border-left-color: #ffffff;
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
+
+/* ─── Ticket card badge pills (bottom row) ─── */
+.sb-badge {
+    display: inline-flex; align-items: center;
+    font-size: 9px; font-weight: 700; line-height: 1;
+    padding: 2px 5px; border-radius: 4px;
+    white-space: nowrap; flex-shrink: 0;
+}
+/* Priority */
+.sb-prio-very-high { background:#ede9fe; color:#6d28d9; }
+.sb-prio-high      { background:#fee2e2; color:#b91c1c; }
+.sb-prio-medium    { background:#dbeafe; color:#1d4ed8; }
+.sb-prio-low       { background:#dcfce7; color:#15803d; }
+.sb-prio-default   { background:#f3f4f6; color:#4b5563; }
+/* Jarvies status */
+.sb-jarvies        { background:#fef9c3; color:#a16207; }
+/* Ticket status */
+.sb-status-open         { background:#dbeafe; color:#1d4ed8; }
+.sb-status-in_progress  { background:#ede9fe; color:#6d28d9; }
+.sb-status-closed       { background:#dcfce7; color:#15803d; }
+.sb-status-wait_to_close{ background:#ffedd5; color:#c2410c; }
+.sb-status-hold         { background:#f3f4f6; color:#4b5563; }
+.sb-status-reply        { background:#fef9c3; color:#a16207; }
+.sb-status-cancel       { background:#fee2e2; color:#b91c1c; }
+.sb-status-default      { background:#f3f4f6; color:#6b7280; }
 </style>
 
 {{-- Assign to Delivery Support Modal --}}
@@ -754,6 +845,19 @@
         <div class="flex-1 overflow-y-auto p-6">
             {{-- Rejection / cancellation info --}}
             <div id="picRejectionInfo" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
+            {{-- Description & Notes fields --}}
+            <div id="picDescNotesWrap" class="mb-4 grid grid-cols-1 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Description <span class="text-gray-400 font-normal">(judul propose)</span></label>
+                    <input id="picMandaysDescription" type="text" maxlength="255" placeholder="e.g. Propose Mandays 1 / Additional MD for New FM"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-400">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Notes <span class="text-gray-400 font-normal">(alasan / konteks)</span></label>
+                    <textarea id="picMandaysNotes" rows="2" maxlength="2000" placeholder="e.g. Approve by WA / Ada tambahan MD setelah meeting tanggal ..."
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"></textarea>
+                </div>
+            </div>
             {{-- Activity rows management --}}
             <div id="picMandaysTableWrap" class="overflow-x-auto">
                 <div id="picMandaysLoading" class="py-8 text-center text-gray-400 text-sm">Loading...</div>
@@ -763,12 +867,10 @@
                     <tfoot id="picMandaysFoot"></tfoot>
                 </table>
             </div>
-            {{-- Add activity row + add module column --}}
-            <div id="picAddRowWrap" class="hidden mt-3 flex flex-wrap gap-2">
-                <div class="flex gap-2 flex-1 min-w-[200px]">
-                    <input id="picNewActivity" type="text" placeholder="Activity (e.g. Analisa)" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <button onclick="picAddActivityRow()" class="px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 whitespace-nowrap">+ Row</button>
-                </div>
+            {{-- Add activity row --}}
+            <div id="picAddRowWrap" class="hidden mt-3 flex gap-2">
+                <input id="picNewActivity" type="text" placeholder="Activity name (e.g. Analisa, Development, UAT)" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <button onclick="picAddActivityRow()" class="px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 whitespace-nowrap">Add Row</button>
             </div>
         </div>
         <div id="picMandaysFooter" class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
@@ -790,7 +892,6 @@
         <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 flex-shrink-0">
             <div>
                 <h3 class="text-lg font-bold text-gray-900">Internal Mandays Proposal</h3>
-                <p class="text-xs text-gray-500 mt-0.5">Status: <span id="internalPicStatusLabel">—</span></p>
             </div>
             <button onclick="closePicInternalModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
@@ -806,13 +907,14 @@
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">MD</th>
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">Add</th>
                         <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">Appr Add</th>
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">Total MD</th>
                     </tr>
                 </thead>
                 <tbody id="internalBody"></tbody>
                 <tfoot>
                     <tr class="bg-gray-50 font-bold">
-                        <td colspan="4" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                        <td colspan="5" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
                         <td class="px-3 py-2 border border-gray-200 text-center" id="internalFooterTotal">0</td>
                     </tr>
                 </tfoot>
@@ -825,9 +927,41 @@
         <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
             <div class="text-xs text-gray-500">Total: <strong id="internalTotalDisplay">0</strong> mandays</div>
             <div class="flex gap-2">
-                <button id="internalBtnSave" onclick="internalPicSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save Draft</button>
+                <button id="internalBtnSave" onclick="internalPicSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save</button>
                 <button id="internalBtnSubmit" onclick="internalPicSubmit()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Submit to Head</button>
             </div>
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- Assign PIC Modal (Admin / Helpdesk / Head of Support) --}}
+@if($canAssignPic)
+<div id="assignPicModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-sm shadow-2xl flex flex-col">
+        <div class="flex justify-between items-center px-5 py-4 border-b border-gray-200">
+            <h3 class="text-base font-bold text-gray-900">Assign PIC</h3>
+            <button onclick="closeAssignPicModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="p-5 space-y-4">
+            <p class="text-xs text-gray-500">Select a consultant to assign as PIC for this ticket.</p>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Consultant</label>
+                <div class="relative">
+                    <input id="assignPicSearch" type="text" placeholder="Search name..."
+                        autocomplete="off"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-400"
+                        oninput="filterAssignPicList()">
+                    <div id="assignPicDropdown" class="hidden absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto text-xs"></div>
+                </div>
+                <input type="hidden" id="assignPicSelectedId">
+                <div id="assignPicSelectedName" class="mt-1.5 text-xs text-teal-700 font-semibold hidden"></div>
+            </div>
+        </div>
+        <div class="px-5 py-4 border-t border-gray-200 flex justify-end gap-2">
+            <button id="assignPicBtn" onclick="submitAssignPic()" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">Assign</button>
         </div>
     </div>
 </div>
@@ -891,6 +1025,113 @@
 </div>
 @endif
 
+{{-- ============================================================ --}}
+{{-- Mandays: Version List Modal (shared: PIC / Helpdesk / Head)  --}}
+{{-- ============================================================ --}}
+<div id="mandaysVersionListModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-5xl shadow-2xl flex flex-col" style="max-height:85vh;">
+        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 flex-shrink-0">
+            <div>
+                <h3 class="text-base font-bold text-gray-900">Mandays Proposal</h3>
+                <p class="text-xs text-gray-400 mt-0.5">Riwayat semua versi propose mandays ke customer</p>
+            </div>
+            <button onclick="closeMandaysVersionList()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-6 py-4">
+            <div id="mandaysVersionListLoading" class="py-10 text-center text-gray-400 text-sm">Loading...</div>
+            <div id="mandaysVersionListEmpty" class="hidden py-10 text-center text-gray-400 text-sm italic">Belum ada propose mandays untuk tiket ini.</div>
+            <div id="mandaysVersionListWrap" class="hidden overflow-x-auto">
+                <table class="w-full text-xs border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50">
+                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-16">Version</th>
+                            <th class="px-3 py-2.5 text-left font-semibold text-gray-500 border border-gray-200 whitespace-nowrap" style="min-width:180px;">Description</th>
+                            <th class="px-3 py-2.5 text-left font-semibold text-gray-500 border border-gray-200 whitespace-nowrap" style="min-width:160px;">Note</th>
+                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-32">Status</th>
+                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-20">Total MD</th>
+                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-36">Last Update</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mandaysVersionListBody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end items-center flex-shrink-0 gap-3">
+            @if($isPicMandays)
+            <button id="mandaysVersionBtnNewPropose" onclick="mandaysVersionNewPropose()" class="hidden inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                New Propose
+            </button>
+            @endif
+        </div>
+    </div>
+</div>
+
+{{-- ============================================================ --}}
+{{-- Mandays: Version Detail Modal (read-only view per version)   --}}
+{{-- ============================================================ --}}
+<div id="mandaysVersionDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 flex-shrink-0">
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">Mandays Proposal — <span id="mvdVersionLabel">Version —</span></h3>
+                <p class="text-xs text-gray-500 mt-0.5">
+                    Status: <span id="mvdStatusLabel" class="font-semibold">—</span>
+                    &nbsp;|&nbsp; Proposed by: <span id="mvdProposedBy">—</span>
+                </p>
+            </div>
+            <button onclick="closeMandaysVersionDetail()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6">
+            <div id="mvdLoading" class="py-10 text-center text-gray-400 text-sm">Loading...</div>
+            <div id="mvdContent" class="hidden">
+                {{-- Description & Notes --}}
+                <div class="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="bg-gray-50 rounded-lg px-4 py-3">
+                        <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</p>
+                        <p id="mvdDescription" class="text-xs text-gray-800">—</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg px-4 py-3">
+                        <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Notes</p>
+                        <p id="mvdNotes" class="text-xs text-gray-800 whitespace-pre-line">—</p>
+                    </div>
+                </div>
+                {{-- Cancel/rejection info if any --}}
+                <div id="mvdInfoBanner" class="hidden mb-4 p-3 rounded-lg text-xs"></div>
+                {{-- Matrix table (read-only) --}}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs border-collapse">
+                        <thead id="mvdTableHead"></thead>
+                        <tbody id="mvdTableBody"></tbody>
+                        <tfoot id="mvdTableFoot"></tfoot>
+                    </table>
+                </div>
+                <div class="mt-3 text-xs text-gray-500 text-right">Total: <strong id="mvdTotal">0</strong> mandays</div>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
+            <button onclick="closeMandaysVersionDetail()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                ← Back to List
+            </button>
+            {{-- Only PIC: button to open edit modal if this version is still a draft --}}
+            @if($isPicMandays)
+            <button id="mvdBtnEditDraft" onclick="mvdOpenEditDraft()" class="hidden inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Edit Draft
+            </button>
+            @endif
+            {{-- Only Helpdesk: button to open review modal if this is the pending version --}}
+            @if($isHelpdeskMandays)
+            <button id="mvdBtnHdReview" onclick="mvdOpenHdReview()" class="hidden inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Review This Version
+            </button>
+            @endif
+        </div>
+    </div>
+</div>
+
 {{-- Head of Support: Internal Mandays Modal --}}
 @if(isset($isHead) && $isHead)
 <div id="headInternalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -932,7 +1173,6 @@
             </div>
         </div>
         <div id="headInternalFooter" class="px-6 py-4 border-t border-gray-200 flex gap-2 justify-end flex-shrink-0">
-            <button onclick="closeHeadInternalModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Close</button>
             <button id="headBtnApprove" onclick="headInternalApprove()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Save</button>
         </div>
     </div>
@@ -978,7 +1218,6 @@
             </div>
         </div>
         <div class="px-6 py-4 border-t border-gray-200 flex justify-end flex-shrink-0">
-            <button onclick="closeHeadCustomerMandaysModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Close</button>
         </div>
     </div>
 </div>
@@ -986,9 +1225,10 @@
 {{-- ===== END MANDAYS MODALS ===== --}}
 
 <script>
-    const ticketId      = {{ $ticket->ticket_id }};
-    const userRole      = {{ $user->role->role_id ?? 0 }};
+    const ticketId         = {{ $ticket->ticket_id }};
+    const userRole         = {{ $user->role->role_id ?? 0 }};
     const ticketCustomerId = {{ $ticket->customer_id ?? 'null' }};
+    const currentUserId    = {{ $user->id ?? 'null' }};
     const ticketChannel = @json($ticket->channel ?? 'web');
     const assignedDsId   = {{ isset($deliverySupport) && $deliverySupport ? $deliverySupport->id : 'null' }};
     const assignedDsName = @json(isset($deliverySupport) && $deliverySupport ? $deliverySupport->name : null);
@@ -1020,14 +1260,58 @@
             theme: 'snow',
             placeholder: 'Type your reply here...',
             modules: {
-                toolbar: [
-                    ['bold', 'italic', 'underline', 'strike'],
-                    ['blockquote'],
-                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                    [{ 'header': [1, 2, 3, false] }],
-                    ['link'],
-                    ['clean']
-                ]
+                toolbar: {
+                    container: [
+                        ['bold', 'italic', 'underline', 'strike'],
+                        ['blockquote'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        [{ 'header': [1, 2, 3, false] }],
+                        ['link', 'image'],
+                        ['clean']
+                    ],
+                    handlers: {
+                        image: function () {
+                            const input = document.createElement('input');
+                            input.setAttribute('type', 'file');
+                            input.setAttribute('accept', 'image/*');
+                            input.click();
+                            input.onchange = () => {
+                                const file = input.files[0];
+                                if (!file) return;
+                                if (file.size > 10 * 1024 * 1024) {
+                                    showNotification('Image too large (max 10 MB)', 'error');
+                                    return;
+                                }
+                                const reader = new FileReader();
+                                reader.onload = (e) => {
+                                    const range = quillEditor.getSelection(true);
+                                    quillEditor.insertEmbed(range.index, 'image', e.target.result, 'user');
+                                    quillEditor.setSelection(range.index + 1, 0);
+                                };
+                                reader.readAsDataURL(file);
+                            };
+                        }
+                    }
+                }
+            }
+        });
+
+        // Handle image paste (Ctrl+V) — resize oversized pastes
+        quillEditor.root.addEventListener('paste', function (e) {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (const item of items) {
+                if (item.type.indexOf('image') === 0) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    if (!file) continue;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const range = quillEditor.getSelection(true);
+                        quillEditor.insertEmbed(range ? range.index : 0, 'image', ev.target.result, 'user');
+                        if (range) quillEditor.setSelection(range.index + 1, 0);
+                    };
+                    reader.readAsDataURL(file);
+                }
             }
         });
 
@@ -1420,22 +1704,45 @@
         const attachmentsHtml = renderAttachments(msg.attachments, isEmailWithHtml);
 
         if (isInternalNote) {
-            return `
-                <div class="flex gap-3">
-                    <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-200 text-amber-800 text-xs font-bold">${initials}</div>
-                    <div class="flex-1">
-                        <div class="flex items-center gap-2 mb-1">
+            const isMine = msg.sender_id && currentUserId && String(msg.sender_id) === String(currentUserId);
+            const avatarBgNote = isMine ? 'bg-amber-400' : 'bg-amber-200';
+            const avatarTextNote = isMine ? 'text-white' : 'text-amber-800';
+            const bubbleExtra = isMine ? 'mine' : '';
+            const noteBadge = `<span class="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-semibold leading-none">📝 Internal Note</span>`;
+
+            if (isMine) {
+                return `
+                <div class="flex gap-3 flex-row-reverse">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${avatarBgNote} ${avatarTextNote} text-xs font-bold">${initials}</div>
+                    <div class="text-right">
+                        <div class="flex items-center gap-2 justify-end mb-1">
+                            ${noteBadge}
                             <span class="text-sm font-semibold text-gray-900">${senderName}</span>
-                            <span class="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-semibold">Internal Note</span>
-                            ${channelBadge}
                             <span class="text-xs text-gray-400">${date}</span>
                         </div>
-                        <div class="message-bubble internal-note p-3">
+                        <div class="message-bubble internal-note ${bubbleExtra} p-3 inline-block text-left">
                             ${messageContent(msg)}
                             ${attachmentsHtml}
                         </div>
                     </div>
                 </div>`;
+            } else {
+                return `
+                <div class="flex gap-3">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${avatarBgNote} ${avatarTextNote} text-xs font-bold">${initials}</div>
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-sm font-semibold text-gray-900">${senderName}</span>
+                            ${noteBadge}
+                            <span class="text-xs text-gray-400">${date}</span>
+                        </div>
+                        <div class="message-bubble internal-note ${bubbleExtra} p-3 inline-block text-left">
+                            ${messageContent(msg)}
+                            ${attachmentsHtml}
+                        </div>
+                    </div>
+                </div>`;
+            }
         }
 
         const avatarBg   = isEmployee ? 'bg-blue-500' : 'bg-gray-400';
@@ -1464,7 +1771,7 @@
     function createFallbackMessage() {
         const customerName = @json($ticket->customer?->basicData?->name_1 ?? 'Customer');
         const description = @json($ticket->description ?? 'No description');
-        const date = @json($ticket->created_at->format('M d, Y h:i A'));
+        const date = @json($ticket->created_at->format('d M Y H:i') . ' WIB');
         return `
             <div class="flex gap-3">
                 <div class="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">${customerName.substring(0, 1)}</div>
@@ -1701,28 +2008,62 @@
 
     function renderSidebarTickets(tickets) {
         const list = document.getElementById('sidebarTicketList');
-        list.innerHTML = tickets.map(t => {
-            const isActive = t.ticket_id === ticketId;
-            const customerName = t.customer?.customer_name || 'Unknown';
-            const desc = t.description || 'No description';
-            const shortDesc = desc.length > 40 ? desc.substring(0, 40) + '...' : desc;
-            const lastActivity = new Date(t.last_message_at || t.created_at);
-            const timeAgo = formatTimeAgo(lastActivity);
-            const timeTitle = lastActivity.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-            const prioColors = { 'Very High': 'bg-purple-500', 'High': 'bg-red-400', 'Medium': 'bg-blue-400', 'Low': 'bg-green-400' };
-            const prioDot = prioColors[t.ticket_priority] || 'bg-gray-400';
+        // Priority badge class mapping
+        const prioBadge = {
+            'Very High': 'sb-prio-very-high',
+            'High':      'sb-prio-high',
+            'Medium':    'sb-prio-medium',
+            'Low':       'sb-prio-low',
+        };
+        // Status label + badge class mapping
+        const statusMap = {
+            'open':          ['Open',           'sb-status-open'],
+            'in_progress':   ['In Progress',    'sb-status-in_progress'],
+            'closed':        ['Closed',         'sb-status-closed'],
+            'wait_to_close': ['Wait Close',     'sb-status-wait_to_close'],
+            'hold':          ['Hold',           'sb-status-hold'],
+            'reply':         ['Reply',          'sb-status-reply'],
+            'cancel':        ['Canceled',       'sb-status-cancel'],
+        };
+
+        list.innerHTML = tickets.map(t => {
+            const isActive   = t.ticket_id === ticketId;
+            const custName   = t.customer?.customer_name || 'Unknown';
+            const tickNum    = t.ticket_number || '';
+            const desc       = t.description || 'No description';
+            const lastActivity = new Date(t.last_message_at || t.created_at);
+            const timeAgo    = formatTimeAgo(lastActivity);
+            const timeTitle  = lastActivity.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+
+            // Line 1 heading: "26040024 - AptaWorks"
+            const heading = tickNum ? `${tickNum} - ${custName}` : custName;
+
+            // Priority badge
+            const prioKey   = t.ticket_priority || 'Medium';
+            const prioCls   = prioBadge[prioKey] || 'sb-prio-default';
+
+            // Jarvies status badge (only if available)
+            const jStatus   = t.jarvies_status;
+            const jBadge    = jStatus
+                ? `<span class="sb-badge sb-jarvies">JS: ${jStatus}</span>`
+                : '';
+
+            // Ticket status badge
+            const sRaw    = (t.status || 'open').toLowerCase();
+            const [sLabel, sCls] = statusMap[sRaw] || ['Unknown', 'sb-status-default'];
 
             return `
-                <a href="/ticket/${t.ticket_id}" class="sidebar-ticket-item ${isActive ? 'active' : ''}">
-                    <div class="flex items-center justify-between mb-0.5">
-                        <span class="text-xs font-semibold text-gray-800 truncate max-w-[140px]">${customerName}</span>
-                        <span class="text-[10px] text-gray-400" title="${timeTitle}">${timeAgo}</span>
+                <a href="/ticket/${t.ticket_id}" class="sidebar-ticket-item ${isActive ? 'active' : ''}" title="${heading}">
+                    <div class="flex items-start justify-between gap-1 mb-0.5">
+                        <span class="text-[11px] font-bold text-gray-800 truncate leading-tight">${heading}</span>
+                        <span class="text-[9px] text-gray-400 flex-shrink-0 mt-0.5" title="${timeTitle}">${timeAgo}</span>
                     </div>
-                    <p class="text-[11px] text-gray-500 truncate mb-1">${t.ticket_number || 'No Number'} — ${shortDesc}</p>
-                    <div class="flex items-center gap-1.5">
-                        <div class="w-1.5 h-1.5 rounded-full ${prioDot}"></div>
-                        <span class="text-[10px] text-gray-400">${t.ticket_priority || 'Medium'}</span>
+                    <p class="text-[10px] text-gray-500 truncate mb-1.5 leading-snug">${desc}</p>
+                    <div class="flex items-center gap-1 flex-wrap">
+                        <span class="sb-badge ${prioCls}">${prioKey}</span>
+                        ${jBadge}
+                        <span class="sb-badge ${sCls}">S: ${sLabel}</span>
                     </div>
                 </a>`;
         }).join('');
@@ -1741,6 +2082,76 @@
         );
         renderSidebarTickets(filtered);
     }
+
+    // ==================== SIDEBAR RESIZE ====================
+    (function () {
+        const STORAGE_KEY = 'sidebar_width';
+        const MIN_W = 210;
+        const MAX_W = 520;
+        const DEFAULT_W = 256; // w-64 = 16rem = 256px
+
+        const sidebar     = document.getElementById('sidebar');
+        const mainContent = document.getElementById('mainContent');
+
+        // Restore saved width on page load
+        const savedW = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+        if (savedW && savedW >= MIN_W && savedW <= MAX_W) {
+            applySidebarWidth(savedW);
+        }
+
+        function applySidebarWidth(w) {
+            sidebar.style.width     = w + 'px';
+            mainContent.style.marginLeft = w + 'px';
+        }
+
+        window.sidebarResizeStart = function (e) {
+            e.preventDefault();
+            const handle = document.getElementById('sidebarResizeHandle');
+            handle.classList.add('resizing');
+            // Prevent text selection while dragging
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor     = 'col-resize';
+
+            const startX    = e.clientX;
+            const startW    = sidebar.offsetWidth;
+
+            function onMove(ev) {
+                const delta = ev.clientX - startX;
+                const newW  = Math.min(MAX_W, Math.max(MIN_W, startW + delta));
+                applySidebarWidth(newW);
+            }
+
+            function onUp() {
+                handle.classList.remove('resizing');
+                document.body.style.userSelect = '';
+                document.body.style.cursor     = '';
+                // Save final width
+                localStorage.setItem(STORAGE_KEY, sidebar.offsetWidth);
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup',  onUp);
+            }
+
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup',  onUp);
+        };
+
+        // Patch toggleSidebar so it respects saved width on expand
+        const _origToggle = window.toggleSidebar;
+        window.toggleSidebar = function () {
+            _origToggle && _origToggle();
+            // After toggle, re-apply inline style so resize override stays consistent
+            // isCollapsed is defined in dashboard.blade.php
+            if (typeof isCollapsed !== 'undefined') {
+                if (isCollapsed) {
+                    sidebar.style.width          = '80px';
+                    mainContent.style.marginLeft = '80px';
+                } else {
+                    const w = parseInt(localStorage.getItem(STORAGE_KEY), 10) || DEFAULT_W;
+                    applySidebarWidth(Math.min(MAX_W, Math.max(MIN_W, w)));
+                }
+            }
+        };
+    })();
 
     // ==================== TEAM MEMBERS ====================
     const allEmployees  = @json($employees);
@@ -1843,8 +2254,6 @@
         const priority = document.getElementById('detailPriority').value;
         const type = document.getElementById('detailType').value;
         const pic = document.getElementById('detailPIC').value;
-        const manDays = document.getElementById('detailManDays').value;
-
         try {
             // Update status via dedicated endpoint
             await fetch(`/api/tickets/${ticketId}/update-status`, {
@@ -1860,7 +2269,6 @@
                 ticket_priority: priority,
                 ticket_type: type || null,
                 employee_id: pic || null,
-                man_days: manDays ? parseFloat(manDays) : null,
             };
 
             const response = await fetch(`/api/tickets/${ticketId}`, {
@@ -1891,7 +2299,7 @@
                 method: 'PUT',
                 headers: getHeaders(),
                 credentials: 'same-origin',
-                body: JSON.stringify({ employee_id: {{ $user->id }} }),
+                body: JSON.stringify({ employee_id: {{ $user->id ?? 'null' }} }),
             });
             const result = await response.json();
             if (result.success) {
@@ -1906,6 +2314,104 @@
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-hand-paper text-xs"></i> Take This Ticket'; }
         }
     }
+
+    // ==================== ASSIGN PIC MODAL ====================
+    let assignPicList = [];
+
+    async function openAssignPicModal() {
+        document.getElementById('assignPicModal').classList.remove('hidden');
+        document.getElementById('assignPicModal').classList.add('flex');
+        document.getElementById('assignPicSearch').value = '';
+        document.getElementById('assignPicSelectedId').value = '';
+        document.getElementById('assignPicSelectedName').classList.add('hidden');
+        document.getElementById('assignPicDropdown').classList.add('hidden');
+
+        if (assignPicList.length === 0) {
+            try {
+                const res  = await fetch('/api/tickets/available-pics', { headers: getHeaders(), credentials: 'same-origin' });
+                const data = await res.json();
+                assignPicList = data.data || [];
+            } catch (e) {
+                showNotification('Failed to load consultant list', 'error');
+            }
+        }
+        renderAssignPicDropdown(assignPicList);
+    }
+
+    function closeAssignPicModal() {
+        document.getElementById('assignPicModal').classList.add('hidden');
+        document.getElementById('assignPicModal').classList.remove('flex');
+    }
+
+    function filterAssignPicList() {
+        const q = document.getElementById('assignPicSearch').value.trim().toLowerCase();
+        const filtered = q ? assignPicList.filter(p => p.name.toLowerCase().includes(q)) : assignPicList;
+        renderAssignPicDropdown(filtered);
+        document.getElementById('assignPicDropdown').classList.remove('hidden');
+        document.getElementById('assignPicSelectedId').value = '';
+        document.getElementById('assignPicSelectedName').classList.add('hidden');
+    }
+
+    function renderAssignPicDropdown(list) {
+        const dd = document.getElementById('assignPicDropdown');
+        if (!list.length) {
+            dd.innerHTML = '<div class="px-3 py-2 text-gray-400 italic">No consultant found</div>';
+        } else {
+            dd.innerHTML = list.map(p =>
+                `<div class="px-3 py-2 hover:bg-red-50 cursor-pointer text-gray-700" onclick="selectAssignPic(${p.employee_id}, '${p.name.replace(/'/g, "\\'")}')">${p.name}</div>`
+            ).join('');
+        }
+        dd.classList.remove('hidden');
+    }
+
+    function selectAssignPic(id, name) {
+        document.getElementById('assignPicSelectedId').value = id;
+        document.getElementById('assignPicSearch').value = name;
+        document.getElementById('assignPicDropdown').classList.add('hidden');
+        const label = document.getElementById('assignPicSelectedName');
+        label.textContent = '✓ ' + name + ' selected';
+        label.classList.remove('hidden');
+    }
+
+    async function submitAssignPic() {
+        const empId = document.getElementById('assignPicSelectedId').value;
+        if (!empId) { showNotification('Please select a consultant', 'warning'); return; }
+
+        const btn = document.getElementById('assignPicBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Assigning...';
+
+        try {
+            const res    = await fetch(`/api/tickets/${ticketId}/assign-pic`, {
+                method: 'POST',
+                headers: getHeaders(),
+                credentials: 'same-origin',
+                body: JSON.stringify({ employee_id: empId }),
+            });
+            const result = await res.json();
+            if (result.success) {
+                showNotification('PIC assigned successfully!', 'success');
+                closeAssignPicModal();
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showNotification(result.message || 'Failed to assign PIC', 'error');
+                btn.disabled = false;
+                btn.innerHTML = 'Assign';
+            }
+        } catch (e) {
+            showNotification('Error: ' + e.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = 'Assign';
+        }
+    }
+
+    // Close dropdown on outside click
+    document.addEventListener('click', function(e) {
+        const dd = document.getElementById('assignPicDropdown');
+        if (dd && !dd.contains(e.target) && e.target.id !== 'assignPicSearch') {
+            dd.classList.add('hidden');
+        }
+    });
 
     async function deleteTicket() {
         if (!confirm('Are you sure you want to delete this ticket?')) return;
@@ -2178,7 +2684,266 @@
     let internalPicPeople  = [];
     let internalPicReadOnly= false;
 
+    // Version list state
+    let mandaysHistoryData      = [];
+    let mandaysVersionListRole  = 'pic'; // 'pic' | 'hd' | 'head'
+    let mandaysCurrentVersionId = null;  // for detail modal
+
     const MANDAYS_API = (path) => `/api/tickets/${ticketId}/mandays/${path}`;
+
+    // ==================== MANDAYS VERSION LIST MODAL ====================
+
+    async function openMandaysVersionList(role) {
+        mandaysVersionListRole = role || 'pic';
+        document.getElementById('mandaysVersionListModal').classList.remove('hidden');
+        document.getElementById('mandaysVersionListModal').classList.add('flex');
+        await loadMandaysVersionList();
+    }
+
+    function closeMandaysVersionList() {
+        document.getElementById('mandaysVersionListModal').classList.add('hidden');
+        document.getElementById('mandaysVersionListModal').classList.remove('flex');
+    }
+
+    async function loadMandaysVersionList() {
+        document.getElementById('mandaysVersionListLoading').classList.remove('hidden');
+        document.getElementById('mandaysVersionListEmpty').classList.add('hidden');
+        document.getElementById('mandaysVersionListWrap').classList.add('hidden');
+
+        try {
+            const res  = await fetch(MANDAYS_API('history'), { headers: getHeaders(), credentials: 'same-origin' });
+            const data = await res.json();
+            mandaysHistoryData = data.data || [];
+            const ticketStatus = data.ticket_mandays_status || 'none';
+
+            // Show "New Propose" button only for PIC when latest version is approved, canceled, or no version yet
+            const btnNew = document.getElementById('mandaysVersionBtnNewPropose');
+            if (btnNew) {
+                const latestStatus = mandaysHistoryData.length > 0
+                    ? mandaysHistoryData[mandaysHistoryData.length - 1].status
+                    : null;
+                const canNew = !latestStatus
+                    || latestStatus === 'approved'
+                    || latestStatus === 'canceled';
+                btnNew.classList.toggle('hidden', !canNew);
+            }
+
+            if (mandaysHistoryData.length === 0) {
+                document.getElementById('mandaysVersionListEmpty').classList.remove('hidden');
+            } else {
+                renderMandaysVersionList(mandaysHistoryData);
+                document.getElementById('mandaysVersionListWrap').classList.remove('hidden');
+            }
+        } catch (e) {
+            console.error(e);
+            showNotification('Failed to load mandays history', 'error');
+        } finally {
+            document.getElementById('mandaysVersionListLoading').classList.add('hidden');
+        }
+    }
+
+    const MANDAYS_STATUS_LABELS = {
+        draft:            'Draft',
+        pending_helpdesk: 'Pending Review',
+        sent_to_chat:     'Waiting Customer',
+        approved:         'Approved',
+        canceled:         'Canceled',
+    };
+    const MANDAYS_STATUS_BADGE = {
+        draft:            'bg-yellow-100 text-yellow-700',
+        pending_helpdesk: 'bg-blue-100 text-blue-700',
+        sent_to_chat:     'bg-purple-100 text-purple-700',
+        approved:         'bg-green-100 text-green-700',
+        canceled:         'bg-red-100 text-red-700',
+    };
+
+    function renderMandaysVersionList(versions) {
+        const tbody = document.getElementById('mandaysVersionListBody');
+        let html = '';
+        versions.forEach(v => {
+            const badgeClass  = MANDAYS_STATUS_BADGE[v.status]  || 'bg-gray-100 text-gray-600';
+            const statusLabel = MANDAYS_STATUS_LABELS[v.status] || v.status;
+            const desc = v.description
+                ? escHtml(v.description)
+                : '<span class="text-gray-300">—</span>';
+            const note = v.proposal_notes
+                ? `<span class="text-gray-500" title="${escHtml(v.proposal_notes)}">${escHtml(v.proposal_notes.substring(0, 40))}${v.proposal_notes.length > 40 ? '…' : ''}</span>`
+                : '<span class="text-gray-300">—</span>';
+            const lastUpdate = v.last_update
+                ? new Date(v.last_update).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12: false })
+                : '—';
+            html += `<tr class="hover:bg-blue-50 cursor-pointer transition-colors" onclick="openMandaysVersionDetail(${v.id})">
+                <td class="px-3 py-2.5 border border-gray-100 text-center font-bold text-gray-700 whitespace-nowrap">v${v.version}</td>
+                <td class="px-3 py-2.5 border border-gray-100 text-gray-800 whitespace-nowrap">${desc}</td>
+                <td class="px-3 py-2.5 border border-gray-100 whitespace-nowrap">${note}</td>
+                <td class="px-3 py-2.5 border border-gray-100 text-center whitespace-nowrap">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${badgeClass}">${statusLabel}</span>
+                </td>
+                <td class="px-3 py-2.5 border border-gray-100 text-center font-semibold text-gray-700 whitespace-nowrap">${v.total_mandays}</td>
+                <td class="px-3 py-2.5 border border-gray-100 text-center text-gray-500 whitespace-nowrap">${lastUpdate}</td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+    }
+
+    async function mandaysVersionNewPropose() {
+        closeMandaysVersionList();
+
+        // Reset state untuk versi baru
+        picDraftData = null;
+        picReadOnly  = false;
+        picDirty     = false;
+
+        // Buka modal & tampilkan loading
+        const modal = document.getElementById('picMandaysModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.getElementById('picMandaysLoading').classList.remove('hidden');
+        document.getElementById('picMandaysTable').classList.add('hidden');
+        document.getElementById('picAddRowWrap').classList.add('hidden');
+
+        // Reset header & fields
+        document.getElementById('picMandaysVersion').textContent      = 'New';
+        document.getElementById('picMandaysStatusLabel').textContent  = 'Draft';
+        document.getElementById('picMandaysDescription').value        = '';
+        document.getElementById('picMandaysNotes').value              = '';
+        document.getElementById('picRejectionInfo').classList.add('hidden');
+        document.getElementById('picBtnNewVersion').classList.add('hidden');
+        document.getElementById('picBtnSaveDraft').classList.remove('hidden');
+        document.getElementById('picBtnSubmit').classList.remove('hidden');
+        const descWrap = document.getElementById('picDescNotesWrap');
+        if (descWrap) descWrap.querySelectorAll('input,textarea').forEach(el => {
+            el.removeAttribute('readonly');
+            el.classList.remove('bg-gray-50', 'cursor-not-allowed');
+        });
+
+        try {
+            // Load modules dari kualifikasi employee
+            const modRes  = await fetch(MANDAYS_API('modules'), { headers: getHeaders(), credentials: 'same-origin' });
+            const modData = await modRes.json();
+            picMandaysModules = modData.data || [];
+            picRenderMatrix({});
+        } catch (e) {
+            console.error(e);
+            showNotification('Failed to load modules', 'error');
+        } finally {
+            document.getElementById('picMandaysLoading').classList.add('hidden');
+        }
+    }
+
+    function escHtml(str) {
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ==================== MANDAYS VERSION DETAIL MODAL ====================
+
+    async function openMandaysVersionDetail(mandaysId) {
+        mandaysCurrentVersionId = mandaysId;
+        document.getElementById('mandaysVersionDetailModal').classList.remove('hidden');
+        document.getElementById('mandaysVersionDetailModal').classList.add('flex');
+        document.getElementById('mvdLoading').classList.remove('hidden');
+        document.getElementById('mvdContent').classList.add('hidden');
+
+        try {
+            const res  = await fetch(MANDAYS_API(`version/${mandaysId}`), { headers: getHeaders(), credentials: 'same-origin' });
+            const data = await res.json();
+            if (!data.success) { showNotification('Failed to load version detail', 'error'); return; }
+            renderMandaysVersionDetail(data.data);
+        } catch (e) {
+            console.error(e);
+            showNotification('Error loading version detail', 'error');
+        } finally {
+            document.getElementById('mvdLoading').classList.add('hidden');
+        }
+    }
+
+    function closeMandaysVersionDetail() {
+        document.getElementById('mandaysVersionDetailModal').classList.add('hidden');
+        document.getElementById('mandaysVersionDetailModal').classList.remove('flex');
+        mandaysCurrentVersionId = null;
+    }
+
+    function renderMandaysVersionDetail(p) {
+        document.getElementById('mvdVersionLabel').textContent = 'Version ' + p.version;
+        document.getElementById('mvdStatusLabel').textContent  = MANDAYS_STATUS_LABELS[p.status] || p.status;
+        document.getElementById('mvdProposedBy').textContent   = p.proposed_by_name || '—';
+        document.getElementById('mvdDescription').textContent  = p.description || '—';
+        document.getElementById('mvdNotes').textContent        = p.proposal_notes || '—';
+
+        // Info banner (cancel/rejection)
+        const banner = document.getElementById('mvdInfoBanner');
+        if (p.status === 'canceled' && p.cancel_notes) {
+            banner.className = 'mb-4 p-3 rounded-lg text-xs bg-gray-100 border border-gray-300 text-gray-700';
+            banner.innerHTML = '<strong>Canceled by Helpdesk:</strong> ' + escHtml(p.cancel_notes) + (p.canceled_by_name ? ' — ' + escHtml(p.canceled_by_name) : '');
+            banner.classList.remove('hidden');
+        } else if (p.rejection_reason) {
+            banner.className = 'mb-4 p-3 rounded-lg text-xs bg-red-50 border border-red-200 text-red-700';
+            banner.innerHTML = '<strong>Customer Rejection:</strong> ' + escHtml(p.rejection_reason);
+            banner.classList.remove('hidden');
+        } else {
+            banner.classList.add('hidden');
+        }
+
+        // Build matrix
+        const detailMap = {};
+        const modules   = [];
+        (p.details || []).forEach(d => {
+            const act = d.activity || 'General';
+            if (!detailMap[act]) detailMap[act] = {};
+            detailMap[act][d.module] = d.mandays;
+            if (!modules.includes(d.module)) modules.push(d.module);
+        });
+
+        let headHtml = '<tr class="bg-gray-50"><th class="px-2 py-2 text-left text-xs font-semibold text-gray-600 border border-gray-200">Activity</th>';
+        modules.forEach(m => { headHtml += `<th class="px-2 py-2 text-center text-xs font-semibold text-gray-600 border border-gray-200 whitespace-nowrap">${escHtml(m)}</th>`; });
+        headHtml += '</tr>';
+        document.getElementById('mvdTableHead').innerHTML = headHtml;
+
+        let bodyHtml = '';
+        Object.entries(detailMap).forEach(([act, modMap]) => {
+            bodyHtml += `<tr><td class="px-2 py-1.5 border border-gray-200 text-xs font-medium text-gray-700 whitespace-nowrap">${escHtml(act)}</td>`;
+            modules.forEach(m => {
+                const val = modMap[m] ?? '';
+                bodyHtml += `<td class="px-2 py-1.5 border border-gray-200 text-xs text-center bg-gray-50">${val !== '' ? val : '—'}</td>`;
+            });
+            bodyHtml += '</tr>';
+        });
+        document.getElementById('mvdTableBody').innerHTML = bodyHtml;
+
+        // Footer
+        let footHtml = '<tr class="bg-gray-50 font-bold"><td class="px-2 py-1.5 border border-gray-200 text-xs">Total</td>';
+        modules.forEach(m => {
+            const colTotal = Object.values(detailMap).reduce((s, row) => s + (parseFloat(row[m]) || 0), 0);
+            footHtml += `<td class="px-2 py-1.5 border border-gray-200 text-xs text-center">${colTotal > 0 ? colTotal.toFixed(1) : '—'}</td>`;
+        });
+        footHtml += '</tr>';
+        document.getElementById('mvdTableFoot').innerHTML = footHtml;
+        document.getElementById('mvdTotal').textContent  = p.total_mandays;
+
+        // Action buttons
+        const btnEdit = document.getElementById('mvdBtnEditDraft');
+        if (btnEdit) btnEdit.classList.toggle('hidden', p.status !== 'draft');
+
+        const btnHd = document.getElementById('mvdBtnHdReview');
+        if (btnHd) btnHd.classList.toggle('hidden', !['pending_helpdesk', 'sent_to_chat'].includes(p.status));
+
+        document.getElementById('mvdContent').classList.remove('hidden');
+    }
+
+    function mvdOpenEditDraft() {
+        // Close detail, open PIC modal (loads current draft)
+        closeMandaysVersionDetail();
+        closeMandaysVersionList();
+        document.getElementById('picMandaysModal').classList.remove('hidden');
+        document.getElementById('picMandaysModal').classList.add('flex');
+        picLoadDraft();
+    }
+
+    function mvdOpenHdReview() {
+        closeMandaysVersionDetail();
+        closeMandaysVersionList();
+        openHdMandaysModal();
+    }
 
     // ==================== PIC: CUSTOMER MANDAYS ====================
     async function openPicMandaysModal() {
@@ -2246,6 +3011,17 @@
                 picInfoEl.classList.add('hidden');
             }
 
+            // Populate description & notes fields
+            const descInput  = document.getElementById('picMandaysDescription');
+            const notesInput = document.getElementById('picMandaysNotes');
+            if (descInput)  { descInput.value  = picDraftData?.description    || ''; descInput.readOnly  = picReadOnly; }
+            if (notesInput) { notesInput.value = picDraftData?.proposal_notes || ''; notesInput.readOnly = picReadOnly; }
+            const descWrap = document.getElementById('picDescNotesWrap');
+            if (descWrap) descWrap.querySelectorAll('input,textarea').forEach(el => {
+                el.classList.toggle('bg-gray-50', picReadOnly);
+                el.classList.toggle('cursor-not-allowed', picReadOnly);
+            });
+
             // Build valueMap from existing details
             const valueMap = {};
             (picDraftData?.details || []).forEach(d => {
@@ -2287,6 +3063,12 @@
 
         // Body
         let bodyHtml = '';
+        if (activities.length === 0 && !picReadOnly) {
+            const colspan = modules.length + 1;
+            bodyHtml = `<tr><td colspan="${colspan}" class="px-3 py-4 text-center text-xs text-gray-400 italic border border-gray-200">
+                Belum ada activity. Ketik nama activity lalu klik <strong>Add Row</strong> di bawah.
+            </td></tr>`;
+        }
         activities.forEach(act => {
             const actEsc = act.replace(/"/g, '&quot;');
             const removeRowBtn = !picReadOnly
@@ -2395,7 +3177,11 @@
                 details.push({ activity: inp.dataset.activity, module: inp.dataset.module, mandays: v });
             }
         });
-        return { details };
+        return {
+            details,
+            description:    (document.getElementById('picMandaysDescription')?.value || '').trim() || null,
+            proposal_notes: (document.getElementById('picMandaysNotes')?.value || '').trim() || null,
+        };
     }
 
     async function picSaveDraft() {
@@ -2412,7 +3198,8 @@
                 picDirty = false;
                 picMandaysUpdateSidebarBadge(data.ticket_mandays_status);
                 picDraftData = data.data;
-                document.getElementById('picMandaysVersion').textContent = picDraftData?.version ?? '—';
+                document.getElementById('picMandaysVersion').textContent     = picDraftData?.version ?? '—';
+                document.getElementById('picMandaysStatusLabel').textContent = 'Draft';
             } else {
                 showNotification(data.message || 'Failed to save', 'error');
             }
@@ -2435,6 +3222,11 @@
         picReadOnly = false;
         picDirty = false;
         document.getElementById('picMandaysVersion').textContent = 'New';
+        document.getElementById('picMandaysStatusLabel').textContent = 'Draft';
+        const descInput  = document.getElementById('picMandaysDescription');
+        const notesInput = document.getElementById('picMandaysNotes');
+        if (descInput)  { descInput.value = '';  descInput.removeAttribute('readonly');  descInput.classList.remove('bg-gray-50','cursor-not-allowed'); }
+        if (notesInput) { notesInput.value = ''; notesInput.removeAttribute('readonly'); notesInput.classList.remove('bg-gray-50','cursor-not-allowed'); }
         document.getElementById('picRejectionInfo').classList.add('hidden');
         document.getElementById('picBtnNewVersion').classList.add('hidden');
         picRenderMatrix(valueMap);
@@ -2501,20 +3293,11 @@
             internalPicPeople  = data.people || [];
             const status       = data.internal_mandays_status || 'none';
 
-            internalPicReadOnly = ['pending_head'].includes(status);
-
-            const statusLabels = {
-                'none':         'None',
-                'draft':        'Draft',
-                'pending_head': 'Pending Head of Support',
-                'approved':     'Approved',
-                'rejected':     'Needs Revision',
-            };
-            document.getElementById('internalPicStatusLabel').textContent = statusLabels[status] || status;
+            internalPicReadOnly = false; // consultant can always edit
 
             document.getElementById('internalNotes').value = internalPicData?.notes || '';
-            document.getElementById('internalNotes').readOnly = internalPicReadOnly;
-            document.getElementById('internalNotes').classList.toggle('bg-gray-50', internalPicReadOnly);
+            document.getElementById('internalNotes').readOnly = false;
+            document.getElementById('internalNotes').classList.remove('bg-gray-50');
 
             // Show info banner based on status
             const infoEl = document.getElementById('internalRejectionInfo');
@@ -2525,8 +3308,8 @@
                     + '<p class="mt-1 text-green-600">You can still update the mandays and re-submit to Head of Support.</p>';
                 infoEl.classList.remove('hidden');
             } else if (status === 'pending_head') {
-                infoEl.className = 'mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700';
-                infoEl.innerHTML = '<p class="font-semibold">Submitted — awaiting Head of Support review.</p>';
+                infoEl.className = 'mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-600';
+                infoEl.innerHTML = '<p class="font-semibold">Submitted — awaiting Head of Support review. You can still update and re-submit.</p>';
                 infoEl.classList.remove('hidden');
             } else if (status === 'rejected' && internalPicData?.rejection_reason) {
                 infoEl.className = 'mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700';
@@ -2565,33 +3348,33 @@
             const totalMd = md + appAdd;
             const mdVal  = md  > 0 ? md  : '';
             const addVal = add > 0 ? add : '';
+            const apprAddDisplay = appAdd > 0 ? appAdd.toFixed(1) : '—';
             html += `<tr>
                 <td class="px-3 py-2 border border-gray-200 font-medium text-gray-700">${person.name}</td>
                 <td class="border border-gray-200 p-0">
                     <input type="number" min="0" step="0.5"
-                        class="internal-md-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-teal-50 ${internalPicReadOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}"
+                        class="internal-md-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-teal-50 bg-white"
                         data-employee="${person.employee_id}" value="${mdVal}"
-                        ${internalPicReadOnly ? 'readonly' : ''} oninput="internalUpdateRowTotal(this)">
+                        oninput="internalUpdateRowTotal(this)">
                 </td>
                 <td class="border border-gray-200 p-0">
                     <input type="number" min="0" step="0.5"
-                        class="internal-add-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-teal-50 ${internalPicReadOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}"
+                        class="internal-add-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-teal-50 bg-white"
                         data-employee="${person.employee_id}" value="${addVal}"
-                        ${internalPicReadOnly ? 'readonly' : ''} oninput="internalUpdateRowTotal(this)">
+                        oninput="internalUpdateRowTotal(this)">
                 </td>
                 <td class="border border-gray-200 p-0">
                     <input type="text"
-                        class="internal-note-cell w-full px-2 py-1.5 text-xs focus:outline-none focus:bg-teal-50 ${internalPicReadOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}"
+                        class="internal-note-cell w-full px-2 py-1.5 text-xs focus:outline-none focus:bg-teal-50 bg-white"
                         data-employee="${person.employee_id}" value="${existing.notes || ''}"
-                        ${internalPicReadOnly ? 'readonly' : ''} placeholder="notes...">
+                        placeholder="notes...">
                 </td>
+                <td class="px-2 py-1.5 border border-gray-200 text-xs text-center bg-gray-50 text-gray-500" data-emp-appr="${person.employee_id}">${apprAddDisplay}</td>
                 <td class="px-2 py-1.5 border border-gray-200 text-xs text-center font-semibold bg-gray-50" data-emp-total="${person.employee_id}">${totalMd > 0 ? totalMd.toFixed(1) : '—'}</td>
             </tr>`;
         });
         document.getElementById('internalBody').innerHTML = html;
         document.getElementById('internalTable').classList.remove('hidden');
-        document.getElementById('internalBtnSave').classList.toggle('hidden', internalPicReadOnly);
-        document.getElementById('internalBtnSubmit').classList.toggle('hidden', internalPicReadOnly);
         internalUpdateTotal();
     }
 
@@ -2702,7 +3485,7 @@
     // ==================== HELPDESK: CUSTOMER MANDAYS REVIEW ====================
     async function openHdMandaysModal() {
         const modal = document.getElementById('hdMandaysModal');
-        if (!modal) return;
+        if (!modal) { console.warn('[hdMandays] modal element not found'); return; }
         modal.classList.remove('hidden'); modal.classList.add('flex');
         document.getElementById('hdMandaysLoading').classList.remove('hidden');
         document.getElementById('hdMandaysContent').classList.add('hidden');
@@ -2710,12 +3493,18 @@
         document.getElementById('hdCancelConfirmWrap')?.classList.add('hidden');
 
         try {
+            console.log('[hdMandays] fetching modules + hd-draft for ticket', ticketId);
             const [modRes, draftRes] = await Promise.all([
                 fetch(MANDAYS_API('modules'), { headers: getHeaders(), credentials: 'same-origin' }),
                 fetch(MANDAYS_API('hd-draft'), { headers: getHeaders(), credentials: 'same-origin' }),
             ]);
+            console.log('[hdMandays] responses:', modRes.status, draftRes.status);
+            if (!modRes.ok || !draftRes.ok) {
+                throw new Error(`API error: modules=${modRes.status} hd-draft=${draftRes.status}`);
+            }
             const modData   = await modRes.json();
             const draftData = await draftRes.json();
+            console.log('[hdMandays] data loaded, status=', draftData.ticket_mandays_status);
             const modules   = modData.data || [];
             const proposal  = draftData.data;
             const status    = draftData.ticket_mandays_status || 'none';
@@ -2730,7 +3519,7 @@
             if (!proposal) {
                 document.getElementById('hdMandaysContent').innerHTML = '<p class="text-sm text-gray-400 text-center py-4">No proposal found.</p>';
                 document.getElementById('hdMandaysContent').classList.remove('hidden');
-                return;
+                return; // finally will still run
             }
 
             // ---- State-specific banner & UI ----
@@ -2761,7 +3550,7 @@
                 banner.classList.add('flex', 'bg-gray-100', 'border', 'border-gray-300', 'text-gray-700');
             } else if (isApproved) {
                 const ts = proposal.customer_response_at
-                    ? new Date(proposal.customer_response_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) + ' WIB'
+                    ? new Date(proposal.customer_response_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12: false }) + ' WIB'
                     : '';
                 banner.innerHTML = `<span class="text-green-700 text-base mt-0.5">✓</span>
                     <div><p class="font-semibold text-green-800">Approved by Customer</p>
@@ -2770,7 +3559,7 @@
                 banner.classList.add('flex', 'bg-green-50', 'border', 'border-green-200', 'text-green-800');
             } else if (isCustomerRejected) {
                 const ts = proposal.customer_response_at
-                    ? new Date(proposal.customer_response_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) + ' WIB'
+                    ? new Date(proposal.customer_response_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12: false }) + ' WIB'
                     : '';
                 banner.innerHTML = `<span class="text-red-700 text-base mt-0.5">✕</span>
                     <div><p class="font-semibold text-red-800">Rejected by Customer</p>
@@ -2841,10 +3630,12 @@
             document.getElementById('hdMandaysContent').classList.remove('hidden');
             hdUpdateTotal();
         } catch(e) {
-            console.error(e);
-            showNotification('Failed to load proposal', 'error');
+            console.error('[hdMandays] error:', e);
+            showNotification('Failed to load proposal: ' + e.message, 'error');
         } finally {
-            document.getElementById('hdMandaysLoading').classList.add('hidden');
+            console.log('[hdMandays] finally: hiding loading');
+            const loadingEl = document.getElementById('hdMandaysLoading');
+            if (loadingEl) loadingEl.classList.add('hidden');
         }
     }
 
@@ -3229,7 +4020,7 @@
                         '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">$1</a>');
                 area.innerHTML = `<div class="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed">${escaped}</div>`;
                 if (data.credential.updated_by) {
-                    const d = data.credential.updated_at ? new Date(data.credential.updated_at).toLocaleString('en-GB') : '';
+                    const d = data.credential.updated_at ? new Date(data.credential.updated_at).toLocaleString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
                     area.innerHTML += `<p class="mt-4 text-xs text-gray-400">Last saved by ${data.credential.updated_by}${d ? ' — ' + d : ''}</p>`;
                 }
             } else {

@@ -35,4 +35,21 @@ return [
         ],
     ],
 
+    'microsoft_graph' => [
+        'tenant_id'     => env('MS_TENANT_ID'),
+        'client_id'     => env('MS_CLIENT_ID'),
+        'client_secret' => env('MS_CLIENT_SECRET'),
+        'sender_email'  => env('MS_SENDER_EMAIL'),
+        'base_url'      => env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'),
+    ],
+
+    'jarvies' => [
+        'url'     => env('JARVIES_URL', 'http://127.0.0.1:8001'),
+        'api_key' => env('JARVIES_API_KEY'),
+    ],
+
+    'external_ticket' => [
+        'api_key' => env('EXTERNAL_TICKET_API_KEY'),
+    ],
+
 ];

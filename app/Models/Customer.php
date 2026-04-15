@@ -579,8 +579,8 @@ class Customer extends Authenticatable
             'action' => $action,
             'description' => $description,
             'section' => $section,
-            'user_id' => auth()->id(),
-            'user_name' => auth()->user()->email ?? $this->email,
+            'user_id' => session('user.id'),
+            'user_name' => session('user.email') ?? session('user.name') ?? $this->email,
             'ip_address' => request()->ip(),
             'user_agent' => request()->userAgent()
         ]);
@@ -676,7 +676,7 @@ class Customer extends Authenticatable
             if ($this->basicData) {
                 $this->basicData->update([
                     'deletion_flag' => true,
-                    'last_changed_by' => auth()->user()->email ?? 'system',
+                    'last_changed_by' => session('user.email') ?? session('user.name') ?? 'system',
                     'last_changed_on' => now()
                 ]);
             }
@@ -703,7 +703,7 @@ class Customer extends Authenticatable
             if ($this->basicData) {
                 $this->basicData->update([
                     'deletion_flag' => false,
-                    'last_changed_by' => auth()->user()->email ?? 'system',
+                    'last_changed_by' => session('user.email') ?? session('user.name') ?? 'system',
                     'last_changed_on' => now()
                 ]);
             }

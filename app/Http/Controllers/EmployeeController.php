@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Auth;
 use App\Models\Employee;
 use App\Models\EmployeeBasicData;
 
@@ -18,18 +17,7 @@ class EmployeeController extends Controller
      */
     private function getCurrentUserECI()
     {
-        // Cek dari Auth user (jika ada relasi)
-        if (Auth::check() && Auth::user()->eci) {
-            return Auth::user()->eci;
-        }
-        
-        // Cek dari session
-        if (session()->has('user') && isset(session('user')['eci'])) {
-            return session('user')['eci'];
-        }
-        
-        // Fallback ke System jika tidak ada
-        return 'System';
+        return session('user.eci') ?? 'System';
     }
 
     /**
@@ -258,14 +246,23 @@ class EmployeeController extends Controller
 
             $employees = $query->orderBy('e.employee_id', 'desc')->get();
 
-            // Fetch roles for all employees via pivot table
-            $employeeIds = $employees->pluck('id')->all();
-            $roleAssignments = DB::table('employee_role_assignment as era')
-                ->join('employee_role as er', 'era.role_id', '=', 'er.id')
-                ->whereIn('era.employee_id', $employeeIds)
-                ->select('era.employee_id', 'er.id as role_id', 'er.name as role_name')
-                ->get()
-                ->groupBy('employee_id');
+            // Fetch roles for all employees via pivot table (isolated so missing table won't break employee list)
+            $roleAssignments = collect();
+            try {
+                $employeeIds = $employees->pluck('id')->all();
+                if (!empty($employeeIds)) {
+                    $roleAssignments = DB::table('employee_role_assignment as era')
+                        ->join('employee_role as er', 'era.role_id', '=', 'er.id')
+                        ->whereIn('era.employee_id', $employeeIds)
+                        ->select('era.employee_id', 'er.id as role_id', 'er.name as role_name')
+                        ->get()
+                        ->groupBy('employee_id');
+                }
+            } catch (\Exception $roleEx) {
+                Log::warning('getData: gagal fetch role assignments, lanjut tanpa roles', [
+                    'error' => $roleEx->getMessage(),
+                ]);
+            }
 
             // Transform status & attach roles
             $employees = $employees->map(function($emp) use ($roleAssignments) {
@@ -304,7 +301,7 @@ class EmployeeController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch employees: ' . $e->getMessage()
+                'message' => 'Failed to fetch employees'
             ], 500);
         }
     }
@@ -396,7 +393,7 @@ class EmployeeController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch employee: ' . $e->getMessage()
+                'message' => 'Failed to fetch employee'
             ], 500);
         }
     }
@@ -576,7 +573,7 @@ class EmployeeController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create employee: ' . $e->getMessage()
+                'message' => 'Failed to create employee'
             ], 500);
         }
     }
@@ -729,7 +726,7 @@ class EmployeeController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update employee: ' . $e->getMessage()
+                'message' => 'Failed to update employee'
             ], 500);
         }
     }
@@ -879,7 +876,7 @@ public function getRoles()
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to change password: ' . $e->getMessage(),
+                'message' => 'Failed to change password',
             ], 500);
         }
     }
@@ -965,7 +962,7 @@ public function getRoles()
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update roles: ' . $e->getMessage(),
+                'message' => 'Failed to update roles',
             ], 500);
         }
     }
@@ -1058,7 +1055,7 @@ public function getRoles()
 
             return response()->json([
                 'success' => false,
-                'message' => 'Database error while deleting employee: ' . $e->getMessage()
+                'message' => 'Database error while deleting employee'
             ], 500);
 
         } catch (\Exception $e) {
@@ -1072,7 +1069,7 @@ public function getRoles()
 
             return response()->json([
                 'success' => false,
-                'message' => 'An unexpected error occurred while deleting employee: ' . $e->getMessage()
+                'message' => 'An unexpected error occurred while deleting employee'
             ], 500);
         }
     }

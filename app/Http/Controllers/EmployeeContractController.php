@@ -70,7 +70,7 @@ class EmployeeContractController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving contract records: ' . $e->getMessage()
+                'message' => 'Error retrieving contract records'
             ], 500);
         }
     }
@@ -134,7 +134,7 @@ class EmployeeContractController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving contract record: ' . $e->getMessage()
+                'message' => 'Error retrieving contract record'
             ], 500);
         }
     }
@@ -269,7 +269,7 @@ class EmployeeContractController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error creating contract record: ' . $e->getMessage()
+                'message' => 'Error creating contract record'
             ], 500);
         }
     }
@@ -420,7 +420,7 @@ class EmployeeContractController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error updating contract record: ' . $e->getMessage()
+                'message' => 'Error updating contract record'
             ], 500);
         }
     }
@@ -484,7 +484,7 @@ class EmployeeContractController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error deleting contract record: ' . $e->getMessage()
+                'message' => 'Error deleting contract record'
             ], 500);
         }
     }
@@ -562,7 +562,7 @@ class EmployeeContractController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving contract statistics: ' . $e->getMessage()
+                'message' => 'Error retrieving contract statistics'
             ], 500);
         }
     }
@@ -617,7 +617,7 @@ class EmployeeContractController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving contract records: ' . $e->getMessage()
+                'message' => 'Error retrieving contract records'
             ], 500);
         }
     }
@@ -670,7 +670,7 @@ class EmployeeContractController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving expired contracts: ' . $e->getMessage()
+                'message' => 'Error retrieving expired contracts'
             ], 500);
         }
     }
@@ -732,7 +732,7 @@ class EmployeeContractController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving active contract: ' . $e->getMessage()
+                'message' => 'Error retrieving active contract'
             ], 500);
         }
     }
@@ -784,7 +784,7 @@ class EmployeeContractController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error retrieving contracts expiring soon: ' . $e->getMessage()
+                'message' => 'Error retrieving contracts expiring soon'
             ], 500);
         }
     }

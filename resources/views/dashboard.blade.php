@@ -280,6 +280,7 @@
             -webkit-backdrop-filter: blur(4px);
         }
     </style>
+    @stack('styles')
 </head>
 <body class="text-gray-900 min-h-screen" style="background-color: var(--bg-color);">
     <div id="toast-container"></div>
@@ -336,15 +337,34 @@
                     </div>
                 </div>
                 
-                @if($showAllMenus)
-                <!-- REPORTING - Only for role_id 1 -->
+                @if($userRoleId != 3)
+                <!-- REPORTING Dropdown - All internal roles except Customer (role 3) -->
                 <div class="mb-2">
-                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('reporting') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <button onclick="toggleReportingDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('reporting*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-chart-line"></i>
                         </span>
-                        <span class="nav-text font-medium">Reporting</span>
-                    </a>
+                        <span class="nav-text flex-1 font-medium">Reporting</span>
+                        <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="reportingChevron"></i>
+                    </button>
+                    <div id="reportingDropdown" class="nav-text {{ Request::is('reporting*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                        {{-- MD Validation: all internal roles --}}
+                        <a href="{{ route('reporting') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting') && !Request::is('reporting/md-recap*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-check-circle text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">MD Validation</span>
+                        </a>
+                        {{-- MD Recap: admin + HoS only --}}
+                        @if(in_array($userRoleId, [1, 5]))
+                        <a href="{{ route('reporting.md-recap') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/md-recap*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-table text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">MD Recap</span>
+                        </a>
+                        @endif
+                    </div>
                 </div>
                 
                 <!-- MASTER Dropdown - Only for role_id 1 -->
@@ -603,17 +623,8 @@
             if (isCollapsed) return;
 
             var dropdown = document.getElementById('calendarDropdown');
-            var chevron = document.getElementById('calendarChevron');
-
             isCalendarDropdownOpen = !isCalendarDropdownOpen;
-
-            if (isCalendarDropdownOpen) {
-                dropdown.classList.remove('hidden');
-                chevron.style.transform = 'rotate(180deg)';
-            } else {
-                dropdown.classList.add('hidden');
-                chevron.style.transform = 'rotate(0deg)';
-            }
+            dropdown.classList.toggle('hidden', !isCalendarDropdownOpen);
         }
     </script>
 
@@ -621,6 +632,7 @@
         var isCollapsed = false;
         var isMasterDropdownOpen = {{ Request::is('master*') ? 'true' : 'false' }};
         var isDeliveryDropdownOpen = {{ Request::is('project*') || Request::is('support*') ? 'true' : 'false' }};
+        var isReportingDropdownOpen = {{ Request::is('reporting*') ? 'true' : 'false' }};
         
         function toggleSidebar() {
             var sidebar = document.getElementById('sidebar');
@@ -660,36 +672,20 @@
 
         function toggleMasterDropdown() {
             if (isCollapsed) return;
-            
-            var dropdown = document.getElementById('masterDropdown');
-            var chevron = document.getElementById('masterChevron');
-            
             isMasterDropdownOpen = !isMasterDropdownOpen;
-            
-            if (isMasterDropdownOpen) {
-                dropdown.classList.remove('hidden');
-                chevron.style.transform = 'rotate(180deg)';
-            } else {
-                dropdown.classList.add('hidden');
-                chevron.style.transform = 'rotate(0deg)';
-            }
+            document.getElementById('masterDropdown').classList.toggle('hidden', !isMasterDropdownOpen);
+        }
+
+        function toggleReportingDropdown() {
+            if (isCollapsed) return;
+            isReportingDropdownOpen = !isReportingDropdownOpen;
+            document.getElementById('reportingDropdown').classList.toggle('hidden', !isReportingDropdownOpen);
         }
 
         function toggleDeliveryDropdown() {
             if (isCollapsed) return;
-            
-            var dropdown = document.getElementById('deliveryDropdown');
-            var chevron = document.getElementById('deliveryChevron');
-            
             isDeliveryDropdownOpen = !isDeliveryDropdownOpen;
-            
-            if (isDeliveryDropdownOpen) {
-                dropdown.classList.remove('hidden');
-                chevron.style.transform = 'rotate(180deg)';
-            } else {
-                dropdown.classList.add('hidden');
-                chevron.style.transform = 'rotate(0deg)';
-            }
+            document.getElementById('deliveryDropdown').classList.toggle('hidden', !isDeliveryDropdownOpen);
         }
 
         function toggleUserDropdown() {
@@ -842,14 +838,27 @@
                     }
                     list.innerHTML = data.data.map(n => {
                         const isUnread = !n.is_read;
-                        const ticketUrl = n.ticket_id ? '/ticket/' + n.ticket_id : '/notifications';
-                        return `<a href="${ticketUrl}" onclick="markNotifRead(${n.id}, event)"
-                            class="flex gap-3 px-4 py-3 hover:bg-gray-50 transition-colors ${isUnread ? 'bg-red-50' : ''}">
-                            <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
+                        const isTimesheetSubmit = n.type === 'timesheet_submitted';
+                        const notifUrl = n.ticket_id ? '/calendar/timesheets' : '/notifications';
+
+                        let iconHtml, titleHtml;
+                        if (isTimesheetSubmit) {
+                            iconHtml = `<div class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center shrink-0 mt-0.5">
+                                <i class="fas fa-file-alt text-purple-700 text-xs"></i>
+                            </div>`;
+                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">${escapeHtml(n.from_name || 'Consultant')} submitted a timesheet</p>`;
+                        } else {
+                            iconHtml = `<div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
                                 <i class="fas fa-at text-red-700 text-xs"></i>
-                            </div>
+                            </div>`;
+                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">${escapeHtml(n.from_name || 'Someone')} mentioned you</p>`;
+                        }
+
+                        return `<a href="${notifUrl}" onclick="markNotifRead(${n.id}, event)"
+                            class="flex gap-3 px-4 py-3 hover:bg-gray-50 transition-colors ${isUnread ? 'bg-red-50' : ''}">
+                            ${iconHtml}
                             <div class="flex-1 min-w-0">
-                                <p class="text-xs font-semibold text-gray-800 truncate">${escapeHtml(n.from_name || 'Someone')} mentioned you</p>
+                                ${titleHtml}
                                 <p class="text-xs text-gray-500 line-clamp-2 mt-0.5">${escapeHtml(n.preview || '')}</p>
                                 <p class="text-[10px] text-gray-400 mt-1">${escapeHtml(n.created_at || '')}</p>
                             </div>

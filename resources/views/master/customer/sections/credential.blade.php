@@ -40,7 +40,7 @@
                 if (data.credential.updated_by) parts.push('Last saved by ' + data.credential.updated_by);
                 if (data.credential.updated_at) {
                     const d = new Date(data.credential.updated_at);
-                    parts.push(d.toLocaleString('en-GB'));
+                    parts.push(d.toLocaleString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }));
                 }
                 if (parts.length) {
                     meta.textContent = parts.join(' — ');
@@ -83,7 +83,7 @@
                     if (data.credential.updated_by) parts.push('Last saved by ' + data.credential.updated_by);
                     if (data.credential.updated_at) {
                         const d = new Date(data.credential.updated_at);
-                        parts.push(d.toLocaleString('en-GB'));
+                        parts.push(d.toLocaleString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }));
                     }
                     if (parts.length) {
                         meta.textContent = parts.join(' — ');

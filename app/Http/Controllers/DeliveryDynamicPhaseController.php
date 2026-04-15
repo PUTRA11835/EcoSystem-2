@@ -118,7 +118,7 @@ class DeliveryDynamicPhaseController extends Controller
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create phase: ' . $e->getMessage()
+                'message' => 'Failed to create phase'
             ], 500);
         }
     }
@@ -175,10 +175,10 @@ class DeliveryDynamicPhaseController extends Controller
                 'phase' => $projectPhase
             ]);
         } catch (\Exception $e) {
-            Log::error('Error adding phase: ' . $e->getMessage());
+            Log::error('Error adding phase');
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to add phase: ' . $e->getMessage()
+                'message' => 'Failed to add phase'
             ], 500);
         }
     }
@@ -232,10 +232,10 @@ class DeliveryDynamicPhaseController extends Controller
                 'phase' => $phase
             ]);
         } catch (\Exception $e) {
-            Log::error('Error updating phase: ' . $e->getMessage());
+            Log::error('Error updating phase');
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update phase: ' . $e->getMessage()
+                'message' => 'Failed to update phase'
             ], 500);
         }
     }
@@ -267,10 +267,10 @@ class DeliveryDynamicPhaseController extends Controller
                 'message' => 'Phase deleted successfully',
             ]);
         } catch (\Exception $e) {
-            Log::error('Error removing phase: ' . $e->getMessage());
+            Log::error('Error removing phase');
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => 'An error occurred'
             ], 400);
         }
     }
@@ -302,10 +302,10 @@ class DeliveryDynamicPhaseController extends Controller
                 'message' => 'Phase order updated successfully',
             ]);
         } catch (\Exception $e) {
-            Log::error('Error reordering phases: ' . $e->getMessage());
+            Log::error('Error reordering phases');
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update phase order: ' . $e->getMessage()
+                'message' => 'Failed to update phase order'
             ], 500);
         }
     }
@@ -335,10 +335,10 @@ class DeliveryDynamicPhaseController extends Controller
                 'message' => 'Phase visibility updated successfully',
             ]);
         } catch (\Exception $e) {
-            Log::error('Error toggling phase visibility: ' . $e->getMessage());
+            Log::error('Error toggling phase visibility');
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update phase visibility: ' . $e->getMessage()
+                'message' => 'Failed to update phase visibility'
             ], 500);
         }
     }
@@ -402,7 +402,7 @@ class DeliveryDynamicPhaseController extends Controller
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to save view preference: ' . $e->getMessage()
+                'message' => 'Failed to save view preference'
             ], 500);
         }
     }

@@ -86,6 +86,8 @@ class MandaysController extends Controller
             'details.*.activity'=> 'nullable|string|max:150',
             'details.*.module'  => 'required|string|max:100',
             'details.*.mandays' => 'required|numeric|min:0',
+            'description'       => 'nullable|string|max:255',
+            'proposal_notes'    => 'nullable|string|max:2000',
         ]);
 
         $existing = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
@@ -108,6 +110,8 @@ class MandaysController extends Controller
                 $proposal = CustomerMandays::create([
                     'ticket_id'           => $ticketId,
                     'version'             => $latestVersion + 1,
+                    'description'         => $request->description ?: null,
+                    'proposal_notes'      => $request->proposal_notes ?: null,
                     'proposed_by_agent_id'=> $employeeId,
                     'proposed_at'         => now(),
                     'status'              => 'draft',
@@ -117,8 +121,10 @@ class MandaysController extends Controller
                 // Update existing draft
                 $proposal = $existing;
                 $proposal->update([
-                    'total_mandays' => $total,
-                    'proposed_at'   => now(),
+                    'description'    => $request->description ?: $proposal->description,
+                    'proposal_notes' => $request->has('proposal_notes') ? ($request->proposal_notes ?: null) : $proposal->proposal_notes,
+                    'total_mandays'  => $total,
+                    'proposed_at'    => now(),
                 ]);
                 $proposal->details()->delete();
             }
@@ -191,7 +197,7 @@ class MandaysController extends Controller
 
         $proposal = CustomerMandays::where('ticket_id', $ticketId)
             ->latestVersion()
-            ->with('details')
+            ->with(['details', 'canceledBy.basicData', 'proposedByAgent.basicData'])
             ->first();
 
         return response()->json([
@@ -325,7 +331,7 @@ class MandaysController extends Controller
                 );
 
                 // Simpan sebagai TicketMessage
-                $plainText = 'Mandays proposal telah dikirim. Total: ' . number_format((float) $proposal->total_mandays, 1) . ' mandays.';
+                $plainText = 'Mandays proposal telah dikirim. Total' . number_format((float) $proposal->total_mandays, 1) . ' mandays.';
                 TicketMessage::create([
                     'ticket_id'           => $ticketId,
                     'sender_type'         => 'employee',
@@ -359,7 +365,7 @@ class MandaysController extends Controller
             }
         } catch (\Throwable $e) {
             // Email gagal, tapi status sudah berhasil diupdate → tetap return success dengan warning
-            $emailWarning = 'Status updated but email could not be sent: ' . $e->getMessage();
+            $emailWarning = 'Status updated but email could not be sent';
             Log::error('MandaysController@submitToChat: email failed', [
                 'ticket_id' => $ticketId,
                 'error'     => $e->getMessage(),
@@ -540,7 +546,7 @@ class MandaysController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('saveInternalProposal error', ['e' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            return response()->json(['success' => false, 'message' => 'Server error: ' . $e->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => 'Server error'], 500);
         }
 
         return response()->json([
@@ -626,7 +632,7 @@ class MandaysController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('approveInternalProposal error', ['e' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => 'Server error: ' . $e->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => 'Server error'], 500);
         }
 
         return response()->json([
@@ -790,6 +796,71 @@ class MandaysController extends Controller
     // PRIVATE HELPERS
     // =========================================================================
 
+    /**
+     * GET /api/tickets/{ticketId}/mandays/history
+     * Seluruh versi propose customer mandays untuk satu tiket (ringkasan, tanpa details).
+     */
+    public function getCustomerMandaysHistory($ticketId)
+    {
+        $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
+
+        $versions = CustomerMandays::where('ticket_id', $ticketId)
+            ->orderBy('version', 'asc')
+            ->get()
+            ->map(fn($p) => [
+                'id'             => $p->id,
+                'version'        => $p->version,
+                'description'    => $p->description,
+                'proposal_notes' => $p->proposal_notes,
+                'status'         => $p->status,
+                'total_mandays'  => (float) $p->total_mandays,
+                'last_update'    => ($p->updated_at ?? $p->proposed_at)?->toISOString(),
+            ]);
+
+        return response()->json([
+            'success'               => true,
+            'data'                  => $versions,
+            'ticket_mandays_status' => $ticket->mandays_proposal_status ?? 'none',
+        ]);
+    }
+
+    /**
+     * GET /api/tickets/{ticketId}/mandays/approved
+     * Returns the latest approved customer mandays total for a ticket.
+     */
+    public function getApprovedMandays($ticketId)
+    {
+        $approved = CustomerMandays::where('ticket_id', $ticketId)
+            ->where('status', 'approved')
+            ->orderBy('version', 'desc')
+            ->first();
+
+        return response()->json([
+            'success'       => true,
+            'data'          => $approved ? [
+                'total_mandays' => (float) $approved->total_mandays,
+                'version'       => $approved->version,
+            ] : null,
+        ]);
+    }
+
+    /**
+     * GET /api/tickets/{ticketId}/mandays/version/{mandaysId}
+     * Detail lengkap satu versi propose customer mandays (read-only, untuk semua role).
+     */
+    public function getCustomerMandaysVersionDetail($ticketId, $mandaysId)
+    {
+        $proposal = CustomerMandays::where('ticket_id', $ticketId)
+            ->where('id', $mandaysId)
+            ->with(['details', 'canceledBy.basicData', 'proposedByAgent.basicData'])
+            ->firstOrFail();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $this->formatCustomerProposal($proposal),
+        ]);
+    }
+
     private function formatCustomerProposal(CustomerMandays $p): array
     {
         $canceledBy = $p->canceledBy?->basicData;
@@ -797,18 +868,27 @@ class MandaysController extends Controller
             ? trim(($canceledBy->first_name ?? '') . ' ' . ($canceledBy->last_name ?? ''))
             : null;
 
+        $proposedBy = $p->proposedByAgent?->basicData;
+        $proposedByName = $proposedBy
+            ? trim(($proposedBy->first_name ?? '') . ' ' . ($proposedBy->last_name ?? ''))
+            : null;
+
         return [
             'id'                   => $p->id,
             'version'              => $p->version,
+            'description'          => $p->description,
+            'proposal_notes'       => $p->proposal_notes,
             'status'               => $p->status,
             'total_mandays'        => (float) $p->total_mandays,
             'cancel_notes'         => $p->notes,
             'canceled_by_name'     => $canceledByName,
+            'proposed_by_name'     => $proposedByName,
             'rejection_reason'     => $p->rejection_reason,
             'customer_notes'       => $p->customer_notes,
             'proposed_at'          => $p->proposed_at?->toISOString(),
             'sent_to_chat_at'      => $p->sent_to_chat_at?->toISOString(),
             'customer_response_at' => $p->customer_response_at?->toISOString(),
+            'last_update'          => ($p->updated_at ?? $p->proposed_at)?->toISOString(),
             'details'              => $p->details->map(fn($d) => [
                 'id'       => $d->id,
                 'activity' => $d->activity,

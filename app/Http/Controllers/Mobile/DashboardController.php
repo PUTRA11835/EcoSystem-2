@@ -162,7 +162,7 @@ class DashboardController extends Controller
     /**
      * Statistik Delivery Project.
      *
-     * Status adalah string bebas (default: 'planning').
+     * Status adalah string bebas (default'planning').
      * Dari DashboardController lama: completed/closed/cancel = selesai.
      */
     private function deliveryProjectSummary(): array

@@ -34,12 +34,15 @@ use App\Http\Controllers\NotificationController;
 
 Route::middleware(['web'])->group(function () {
 
-    // ==================== AUTH ROUTES ====================
+    // ==================== AUTH ROUTES (PUBLIC — no session required) ====================
     Route::prefix('auth')->group(function () {
-        Route::post('/login', [AuthController::class, 'login']);
+        Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me', [AuthController::class, 'me']);
     });
+
+    // ==================== PROTECTED ROUTES (requires valid session) ====================
+    Route::middleware(['auth.session'])->group(function () {
 
     // ==================== EMPLOYEE ROUTES ====================
 
@@ -247,6 +250,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/statistics', [TicketController::class, 'statistics']);
         Route::get('/pending-confirmations', [TicketController::class, 'pendingConfirmations']);
         Route::get('/pending-member-changes', [TicketController::class, 'pendingMemberChanges']);
+        Route::get('/available-pics', [TicketController::class, 'getAvailablePics']);
         Route::post('/', [TicketController::class, 'store']);
 
         // Routes with specific names
@@ -259,6 +263,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/{id}/mandays-history', [TicketController::class, 'getMandaysHistory']);
         Route::get('/{id}/negotiation-history', [TicketController::class, 'getNegotiationHistory']);
         Route::post('/{id}/take', [TicketController::class, 'takeTicket']);
+        Route::post('/{id}/assign-pic', [TicketController::class, 'assignPic']);
         Route::put('/{id}', [TicketController::class, 'update']);
         Route::put('/{id}/update-status', [TicketController::class, 'updateTicketStatus']);
         Route::put('/{id}/update-mandays', [TicketController::class, 'updateManDays']);
@@ -270,7 +275,6 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/{id}/members/{employeeId}', [TicketController::class, 'removeMember']);
         Route::post('/{id}/update-members', [TicketController::class, 'updateMembers']);
         Route::post('/{id}/request-member-change', [TicketController::class, 'requestMemberChange']);
-        Route::delete('/{id}/remove-member/{employeeId}', [TicketController::class, 'removeMember']);
         Route::delete('/{id}/request-member-removal/{employeeId}', [TicketController::class, 'requestMemberRemoval']);
 
         // Ticket Messages
@@ -286,7 +290,10 @@ Route::middleware(['web'])->group(function () {
 
         // ==================== MANDAYS ROUTES ====================
         // Shared utility
-        Route::get('/{ticketId}/mandays/modules', [MandaysController::class, 'getModules']);
+        Route::get('/{ticketId}/mandays/modules',  [MandaysController::class, 'getModules']);
+        Route::get('/{ticketId}/mandays/history',  [MandaysController::class, 'getCustomerMandaysHistory']);
+        Route::get('/{ticketId}/mandays/approved',  [MandaysController::class, 'getApprovedMandays']);
+        Route::get('/{ticketId}/mandays/version/{mandaysId}', [MandaysController::class, 'getCustomerMandaysVersionDetail']);
 
         // Customer Mandays — PIC
         Route::get('/{ticketId}/mandays/pic-draft', [MandaysController::class, 'getCustomerDraft']);
@@ -339,6 +346,14 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/reject', [TimesheetController::class, 'reject']);
     });
 
+    // ==================== REPORTING ROUTES ====================
+    Route::prefix('reporting')->group(function () {
+        Route::get('/timesheet-support', [\App\Http\Controllers\ReportingController::class, 'timesheetSupport']);
+        Route::get('/current-period',    [\App\Http\Controllers\ReportingController::class, 'currentPeriod']);
+        Route::post('/close-period',     [\App\Http\Controllers\ReportingController::class, 'closePeriod']);
+        Route::get('/md-recap',          [\App\Http\Controllers\ReportingController::class, 'mdRecap']);
+    });
+
     // ==================== NOTIFICATION ROUTES ====================
     Route::prefix('notifications')->group(function () {
         Route::get('/',              [NotificationController::class, 'apiIndex']);
@@ -357,6 +372,8 @@ Route::middleware(['web'])->group(function () {
         Route::post('/reply', [EmailController::class, 'reply']);
         Route::post('/messages/{messageId}/reprocess-attachments', [EmailController::class, 'reprocessAttachments']);
     });
+
+    }); // end auth.session protected group
 });
 
 // ==================== MOBILE AUTH — CUSTOMER ====================
@@ -453,9 +470,12 @@ Route::middleware(['jarvies.api_key'])->prefix('jarvies')->group(function () {
 });
 
 // ==================== EXTERNAL TICKET API ====================
-Route::get('/external/tickets', [TicketController::class, 'externalIndex']);
-Route::get('/external/tickets/create', [TicketController::class, 'storeExternalQuery']);
-Route::get('/external/tickets/{data}', [TicketController::class, 'storeExternal']);
+// Requires X-Api-Key header matching EXTERNAL_TICKET_API_KEY
+Route::middleware(['external.api_key'])->prefix('external')->group(function () {
+    Route::get('/tickets', [TicketController::class, 'externalIndex']);
+    Route::get('/tickets/create', [TicketController::class, 'storeExternalQuery']);
+    Route::get('/tickets/{data}', [TicketController::class, 'storeExternal']);
+});
 
 // ==================== TEST ROUTE ====================
 Route::get('/test', function () {

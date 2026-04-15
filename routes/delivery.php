@@ -6,6 +6,7 @@ use App\Http\Controllers\Delivery\DeliveryGroupController;
 use App\Http\Controllers\Delivery\DeliveryStageController;
 use App\Http\Controllers\Delivery\DeliveryActivityController;
 use App\Http\Controllers\Delivery\DeliveryDataController;
+use App\Http\Middleware\CheckAuthToken;
 
 /**
  * ============================================================================
@@ -23,7 +24,7 @@ use App\Http\Controllers\Delivery\DeliveryDataController;
  * Prefix: /delivery
  */
 
-Route::prefix('delivery')->middleware(['auth'])->group(function () {
+Route::prefix('delivery')->middleware(CheckAuthToken::class)->group(function () {
 
     // =========================================================================
     // PROJECT-SPECIFIC ROUTES

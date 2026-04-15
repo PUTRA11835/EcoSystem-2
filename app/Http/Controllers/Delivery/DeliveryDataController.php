@@ -142,7 +142,7 @@ class DeliveryDataController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to load gantt data: ' . $e->getMessage()
+                'message' => 'Failed to load gantt data'
             ], 500);
         }
     }
@@ -215,7 +215,7 @@ class DeliveryDataController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to load S-curve data: ' . $e->getMessage()
+                'message' => 'Failed to load S-curve data'
             ], 500);
         }
     }

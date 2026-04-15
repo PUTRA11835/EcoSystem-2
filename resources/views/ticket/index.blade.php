@@ -70,19 +70,25 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div class="flex flex-col">
             <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter By</label>
-            <select id="filterTypeSelect" onchange="updateFilterOptions()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white">
-                <option value="">Select Type</option>
-                <option value="jarvies_status">Jarvies Status</option>
-                <option value="status">Status</option>
-                <option value="ticket_type">Ticket Type</option>
-                <option value="priority">Priority</option>
-            </select>
+            <div class="relative">
+                <select id="filterTypeSelect" onchange="updateFilterOptions()" class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white appearance-none">
+                    <option value="">Select Type</option>
+                    <option value="jarvies_status">Jarvies Status</option>
+                    <option value="status">Status</option>
+                    <option value="ticket_type">Ticket Type</option>
+                    <option value="priority">Priority</option>
+                </select>
+                <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+            </div>
         </div>
         <div class="flex flex-col">
             <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter Value</label>
-            <select id="filterValueSelect" disabled class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white disabled:bg-gray-50 disabled:text-gray-400">
-                <option value="">Select Type First</option>
-            </select>
+            <div class="relative">
+                <select id="filterValueSelect" disabled class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white disabled:bg-gray-50 disabled:text-gray-400 appearance-none">
+                    <option value="">Select Type First</option>
+                </select>
+                <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+            </div>
         </div>
         <div class="flex flex-col md:col-span-2">
             <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Search Tickets</label>
@@ -261,6 +267,36 @@
 /* Table rows */
 #ticketsListBody tr { cursor: pointer; transition: background 0.15s; }
 #ticketsListBody tr:hover { background: #fafafa; }
+
+/* ── Unread ticket row ── */
+#ticketsListBody tr.ticket-unread {
+    background: #f0f7ff;
+}
+#ticketsListBody tr.ticket-unread:hover {
+    background: #e6f0fd;
+}
+#ticketsListBody tr.ticket-unread td:first-child {
+    border-left: 3px solid #93c5fd;
+    padding-left: 10px;
+}
+#ticketsListBody tr.ticket-unread td:first-child,
+#ticketsListBody tr.ticket-unread td:nth-child(2) {
+    background: #f0f7ff;
+}
+#ticketsListBody tr.ticket-unread:hover td:first-child,
+#ticketsListBody tr.ticket-unread:hover td:nth-child(2) {
+    background: #e6f0fd;
+}
+.unread-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #3b82f6;
+    vertical-align: middle;
+    margin-right: 5px;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 2px #dbeafe;
+}
 
 /* Sticky columns */
 #ticketsListBody tr td:first-child,
@@ -503,16 +539,24 @@
 
         const mandays = ticket.man_days != null ? ticket.man_days : '—';
 
+        // ── Unread detection ──
+        // A ticket is "unread" when the customer has replied more recently than the agent
+        const lastCust  = ticket.last_customer_reply_at ? new Date(ticket.last_customer_reply_at) : null;
+        const lastAgent = ticket.last_agent_reply_at    ? new Date(ticket.last_agent_reply_at)    : null;
+        const isUnread  = lastCust && (!lastAgent || lastCust > lastAgent);
+        const unreadCls = isUnread ? 'ticket-unread' : '';
+        const dot       = isUnread ? '<span class="unread-dot" title="Unread — customer replied"></span>' : '';
+
         const badge = (label, cls) => `<span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${cls}">${label}</span>`;
         const cell  = (content, extraCls = '') => `<td class="px-3 py-2.5 text-sm text-gray-700 whitespace-nowrap ${extraCls}">${content}</td>`;
         const dash  = () => `<td class="px-3 py-2.5 text-sm text-gray-300 whitespace-nowrap">—</td>`;
 
-        return `<tr onclick="window.location='/ticket/${ticket.ticket_id}'">
+        return `<tr class="${unreadCls}" onclick="window.location='/ticket/${ticket.ticket_id}'">
             <td class="px-3 py-2.5 whitespace-nowrap sticky left-0 bg-white" title="${lastUpdateTitle}">
-                <span class="text-xs text-gray-500">${lastUpdateStr}</span>
+                ${dot}<span class="text-xs ${isUnread ? 'text-blue-600 font-semibold' : 'text-gray-500'}">${lastUpdateStr}</span>
             </td>
             <td class="px-3 py-2.5 whitespace-nowrap sticky bg-white border-r border-gray-100" style="left:110px;">
-                <span class="font-mono text-xs font-semibold text-gray-800">${ticket.ticket_number || '—'}</span>
+                <span class="font-mono text-xs font-semibold ${isUnread ? 'text-blue-700' : 'text-gray-800'}">${ticket.ticket_number || '—'}</span>
             </td>
             <td class="px-3 py-2.5 text-sm text-gray-700" style="min-width:260px;max-width:320px;">
                 <span class="block truncate" title="${(ticket.description||'').replace(/"/g,'&quot;')}">${ticket.description || '—'}</span>
@@ -617,7 +661,11 @@
                 (ticket.employee?.employee_name && ticket.employee.employee_name.toLowerCase().includes(searchTerm));
 
             let matchesFilter = true;
-            if (filterType && filterValue) matchesFilter = ticket[filterType] === filterValue;
+            if (filterType && filterValue) {
+                // 'priority' in the UI maps to ticket_priority field
+                const fieldKey = filterType === 'priority' ? 'ticket_priority' : filterType;
+                matchesFilter = ticket[fieldKey] === filterValue;
+            }
 
             let matchesStatusFilter = true;
             if (currentFilter !== 'all') matchesStatusFilter = ticket.jarvies_status === currentFilter;

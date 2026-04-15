@@ -6,8 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Auth;
-
 class CustomerBasicDataController extends Controller
 {
     /**
@@ -15,31 +13,7 @@ class CustomerBasicDataController extends Controller
      */
     private function getCurrentUserIdentifier()
     {
-        // Try to get from Auth
-        if (Auth::check()) {
-            $user = Auth::user();
-            if (isset($user->eci) && !empty($user->eci)) {
-                return $user->eci;
-            } elseif (isset($user->email) && !empty($user->email)) {
-                return $user->email;
-            } elseif (isset($user->name) && !empty($user->name)) {
-                return $user->name;
-            }
-        }
-        
-        // Try to get from session
-        if (session()->has('user')) {
-            $user = session('user');
-            if (isset($user['eci']) && !empty($user['eci'])) {
-                return $user['eci'];
-            } elseif (isset($user['email']) && !empty($user['email'])) {
-                return $user['email'];
-            } elseif (isset($user['name']) && !empty($user['name'])) {
-                return $user['name'];
-            }
-        }
-        
-        return 'System';
+        return session('user.eci') ?? session('user.email') ?? session('user.name') ?? 'System';
     }
 
     /**
@@ -80,7 +54,7 @@ class CustomerBasicDataController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch basic data: ' . $e->getMessage()
+                'message' => 'Failed to fetch basic data'
             ], 500);
         }
     }
@@ -249,7 +223,7 @@ class CustomerBasicDataController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to store basic data: ' . $e->getMessage()
+                'message' => 'Failed to store basic data'
             ], 500);
         }
     }
@@ -308,7 +282,7 @@ class CustomerBasicDataController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete basic data: ' . $e->getMessage()
+                'message' => 'Failed to delete basic data'
             ], 500);
         }
     }

@@ -306,7 +306,7 @@ class TicketMessageController extends Controller
             // skip_relay: true → Jarvies sudah kirim email sendiri via OAuth customer
             //             false (default) → EcoSystem kirim relay dari helpdesk M365
             'skip_relay'       => 'nullable|boolean',
-            // channel: 'email' jika dikirim via OAuth email customer, 'web' jika dari form biasa
+            // channel'email' jika dikirim via OAuth email customer, 'web' jika dari form biasa
             'channel'          => 'nullable|in:web,email',
             // email_message_id: RFC 2822 Message-ID dari email yang dikirim Jarvies via Gmail/Outlook OAuth
             // Diperlukan agar processInbox bisa dedup dan tidak menyimpan duplikat
@@ -396,7 +396,7 @@ class TicketMessageController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to save message: ' . $e->getMessage(),
+                'message' => 'Failed to save message',
             ], 500);
         }
     }

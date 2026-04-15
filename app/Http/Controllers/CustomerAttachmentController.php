@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class CustomerAttachmentController extends Controller
 {
@@ -42,7 +43,7 @@ class CustomerAttachmentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch attachments: ' . $e->getMessage()
+                'message' => 'Failed to fetch attachments'
             ], 500);
         }
     }
@@ -85,7 +86,7 @@ class CustomerAttachmentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch attachment: ' . $e->getMessage()
+                'message' => 'Failed to fetch attachment'
             ], 500);
         }
     }
@@ -126,20 +127,21 @@ class CustomerAttachmentController extends Controller
             }
 
             // Handle file upload
-            $file = $request->file('file');
-            $fileName = time() . '_' . $file->getClientOriginalName();
-            $filePath = $file->storeAs('customer_attachments/' . $customerId, $fileName, 'public');
+            $file      = $request->file('file');
+            $extension = $file->getClientOriginalExtension();
+            $fileName  = Str::uuid() . ($extension ? '.' . $extension : '');
+            $filePath  = $file->storeAs('customer_attachments/' . $customerId, $fileName, 'public');
             
             $attachmentId = DB::table('customer_attachment')->insertGetId([
                 'customer_id' => $customerId,
                 'document_type' => $request->document_type,
                 'document_title' => $request->document_title,
                 'description' => $request->description,
-                'file_name' => $fileName,
+                'file_name' => $file->getClientOriginalName(),
                 'file_path' => $filePath,
                 'file_size' => $file->getSize(),
                 'mime_type' => $file->getMimeType(),
-                'uploaded_by' => auth()->user()->username ?? 'system',
+                'uploaded_by' => session('user.eci') ?? session('user.name') ?? 'system',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -162,7 +164,7 @@ class CustomerAttachmentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to upload attachment: ' . $e->getMessage()
+                'message' => 'Failed to upload attachment'
             ], 500);
         }
     }
@@ -225,7 +227,7 @@ class CustomerAttachmentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update attachment: ' . $e->getMessage()
+                'message' => 'Failed to update attachment'
             ], 500);
         }
     }
@@ -280,7 +282,7 @@ class CustomerAttachmentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete attachment: ' . $e->getMessage()
+                'message' => 'Failed to delete attachment'
             ], 500);
         }
     }
@@ -325,7 +327,7 @@ class CustomerAttachmentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to download attachment: ' . $e->getMessage()
+                'message' => 'Failed to download attachment'
             ], 500);
         }
     }

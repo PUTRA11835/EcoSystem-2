@@ -4,9 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
 use App\Models\Timesheet;
+use App\Models\CustomerMandays;
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectActivity;
 use App\Models\Employee;
+use App\Models\Notification;
+use App\Models\ReportingPeriod;
+use App\Models\Ticket;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -32,7 +36,7 @@ class TimesheetController extends Controller
                 ], 403);
             }
 
-            $query = Timesheet::with(['employee.basicData', 'activity.delivery_project', 'delivery_project', 'approver.basicData'])
+            $query = Timesheet::with(['employee.basicData', 'activity.delivery_project', 'delivery_project', 'approver.basicData', 'ticket.customer.basicData', 'ticket'])
                 ->whereIn('status', ['submitted', 'approved', 'rejected']);
 
             // Filter by date range if provided
@@ -45,14 +49,29 @@ class TimesheetController extends Controller
                 $query->byStatus($request->status);
             }
 
-            $timesheets = $query->orderBy('date', 'desc')
-                                ->orderBy('created_at', 'desc')
-                                ->get()
-                                ->map(function ($timesheet) {
+            $rows = $query->orderBy('date', 'desc')
+                          ->orderBy('created_at', 'desc')
+                          ->get();
+
+            // Batch-fetch approved jatah MD for all ticket_ids (avoid N+1)
+            $ticketIds = $rows->pluck('ticket_id')->filter()->unique()->values();
+            $jatahMap  = [];
+            if ($ticketIds->isNotEmpty()) {
+                CustomerMandays::whereIn('ticket_id', $ticketIds)
+                    ->where('status', 'approved')
+                    ->orderBy('version', 'desc')
+                    ->get()
+                    ->groupBy('ticket_id')
+                    ->each(function ($versions, $ticketId) use (&$jatahMap) {
+                        $jatahMap[$ticketId] = (float) $versions->first()->total_mandays;
+                    });
+            }
+
+            $timesheets = $rows->map(function ($timesheet) use ($jatahMap) {
                                     return [
                                         'id' => $timesheet->id,
                                         'employee_id' => $timesheet->employee_id,
-                                        'employee_name' => $timesheet->employee?->basicData?->first_name . ' ' . $timesheet->employee?->basicData?->last_name,
+                                        'employee_name' => trim($timesheet->employee?->basicData?->first_name . ' ' . $timesheet->employee?->basicData?->last_name),
                                         'date' => $timesheet->date?->format('Y-m-d'),
                                         'start_time' => $timesheet->start_time,
                                         'end_time' => $timesheet->end_time,
@@ -60,13 +79,23 @@ class TimesheetController extends Controller
                                         'duration_hours' => round($timesheet->duration_minutes / 60, 2),
                                         'description' => $timesheet->description,
                                         'activity_type' => $timesheet->activity_type,
+                                        'ticket_id' => $timesheet->ticket_id,
+                                        'ticket_number' => $timesheet->ticket?->ticket_number,
+                                        'ticket_description' => $timesheet->ticket?->description,
+                                        'customer_name' => $timesheet->ticket?->customer?->basicData?->name_1,
+                                        'jatah_md' => $timesheet->ticket_id ? ($jatahMap[$timesheet->ticket_id] ?? null) : null,
+                                        'md_consumed' => $timesheet->md_consumed,
+                                        'presence' => $timesheet->presence,
+                                        'location' => $timesheet->location,
+                                        'delivery_projects_id' => $timesheet->delivery_projects_id,
+                                        'activity_id' => $timesheet->activity_id,
                                         'activity_name' => $timesheet->activity?->name,
                                         'project_name' => $timesheet->activity?->delivery_project?->name ?? $timesheet->delivery_project?->name,
                                         'status' => $timesheet->status,
                                         'is_billable' => $timesheet->is_billable,
                                         'rejection_reason' => $timesheet->rejection_reason,
                                         'approved_by' => $timesheet->approved_by,
-                                        'approver_name' => $timesheet->approver?->basicData?->first_name . ' ' . $timesheet->approver?->basicData?->last_name,
+                                        'approver_name' => trim($timesheet->approver?->basicData?->first_name . ' ' . $timesheet->approver?->basicData?->last_name),
                                         'approved_at' => $timesheet->approved_at?->format('Y-m-d H:i:s'),
                                         'created_at' => $timesheet->created_at?->format('Y-m-d H:i:s'),
                                     ];
@@ -78,11 +107,11 @@ class TimesheetController extends Controller
                 'message' => 'Submitted timesheets retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving submitted timesheets: ' . $e->getMessage());
+            Log::error('Error retrieving submitted timesheets');
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve submitted timesheets: ' . $e->getMessage()
+                'message' => 'Failed to retrieve submitted timesheets'
             ], 500);
         }
     }
@@ -93,10 +122,36 @@ class TimesheetController extends Controller
     public function index(Request $request)
     {
         try {
-            // Load employee and activity relationships
-            $query = Timesheet::with(['employee', 'activity']);
+            $sessionUser = session('user');
+            $currentEmployeeId = $sessionUser['id'] ?? null;
+            $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
 
-            // Filter by employee if provided
+            // Load employee, activity, and ticket (with customer) relationships
+            $query = Timesheet::with(['employee.basicData', 'activity', 'ticket.customer.basicData']);
+
+            // ── Visibility filter ─────────────────────────────────────────────
+            // Admin sees everything. Others see own timesheets + type-specific ones:
+            //   Head of Support  → also sees all support timesheets (ticket_id IS NOT NULL)
+            //   Head of Project  → also sees all project timesheets (delivery_projects_id IS NOT NULL)
+            //   RPMO             → also sees all office timesheets (both NULL)
+            if ($currentRoleId !== RoleId::ADMIN->value) {
+                $query->where(function ($q) use ($currentEmployeeId, $currentRoleId) {
+                    // Always own timesheets
+                    $q->where('employee_id', $currentEmployeeId);
+
+                    if ($currentRoleId === RoleId::HEAD_OF_SUPPORT->value) {
+                        $q->orWhereNotNull('ticket_id');
+                    } elseif ($currentRoleId === RoleId::HEAD_OF_PROJECT->value) {
+                        $q->orWhereNotNull('delivery_projects_id');
+                    } elseif ($currentRoleId === RoleId::RPMO->value) {
+                        $q->orWhere(function ($inner) {
+                            $inner->whereNull('ticket_id')->whereNull('delivery_projects_id');
+                        });
+                    }
+                });
+            }
+
+            // Filter by employee if provided (override, for admin use)
             if ($request->has('employee_id')) {
                 $query->forEmployee($request->employee_id);
             }
@@ -116,9 +171,54 @@ class TimesheetController extends Controller
                 $query->forProject($request->delivery_projects_id);
             }
 
-            $timesheets = $query->orderBy('date', 'desc')
-                                ->orderBy('start_time', 'desc')
-                                ->get();
+            $rows = $query->orderBy('date', 'desc')
+                          ->orderBy('start_time', 'desc')
+                          ->get();
+
+            // Fetch approved mandays for all ticket_ids in one query (avoid N+1)
+            $ticketIds = $rows->whereNotNull('ticket_id')->pluck('ticket_id')->unique()->values();
+            $approvedMandaysMap = [];
+            if ($ticketIds->isNotEmpty()) {
+                CustomerMandays::whereIn('ticket_id', $ticketIds)
+                    ->where('status', 'approved')
+                    ->orderBy('version', 'desc')
+                    ->get()
+                    ->groupBy('ticket_id')
+                    ->each(function ($versions, $ticketId) use (&$approvedMandaysMap) {
+                        $approvedMandaysMap[$ticketId] = (float) $versions->first()->total_mandays;
+                    });
+            }
+
+            $timesheets = $rows->map(function ($t) use ($approvedMandaysMap) {
+                return [
+                    'id'                   => $t->id,
+                    'employee_id'          => $t->employee_id,
+                    'employee_name'        => trim(($t->employee?->basicData?->first_name ?? '') . ' ' . ($t->employee?->basicData?->last_name ?? '')),
+                    'delivery_projects_id' => $t->delivery_projects_id,
+                    'ticket_id'            => $t->ticket_id,
+                    'ticket_number'        => $t->ticket?->ticket_number,
+                    'ticket_description'   => $t->ticket?->description,
+                    'customer_name'        => $t->ticket?->customer?->basicData?->name_1,
+                    'jatah_md'             => $approvedMandaysMap[$t->ticket_id] ?? null,
+                    'activity_id'          => $t->activity_id,
+                    'activity'             => $t->activity ? ['id' => $t->activity->id, 'name' => $t->activity->name] : null,
+                    'date'                 => $t->date?->format('Y-m-d'),
+                    'start_time'           => $t->start_time,
+                    'end_time'             => $t->end_time,
+                    'duration_minutes'     => $t->duration_minutes,
+                    'description'          => $t->description,
+                    'activity_type'        => $t->activity_type,
+                    'status'               => $t->status,
+                    'rejection_reason'     => $t->rejection_reason,
+                    'is_billable'          => $t->is_billable,
+                    'presence'             => $t->presence,
+                    'location'             => $t->location,
+                    'md_consumed'          => $t->md_consumed,
+                    'approved_by'          => $t->approved_by,
+                    'approved_at'          => $t->approved_at?->format('Y-m-d H:i:s'),
+                    'created_at'           => $t->created_at?->format('Y-m-d H:i:s'),
+                ];
+            });
 
             return response()->json([
                 'success' => true,
@@ -126,11 +226,11 @@ class TimesheetController extends Controller
                 'message' => 'Timesheets retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving timesheets: ' . $e->getMessage());
+            Log::error('Error retrieving timesheets');
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve timesheets: ' . $e->getMessage()
+                'message' => 'Failed to retrieve timesheets'
             ], 500);
         }
     }
@@ -150,7 +250,7 @@ class TimesheetController extends Controller
                 'message' => 'Timesheet retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving timesheet: ' . $e->getMessage());
+            Log::error('Error retrieving timesheet');
             
             return response()->json([
                 'success' => false,
@@ -178,6 +278,7 @@ class TimesheetController extends Controller
                 'is_billable' => 'sometimes|boolean',
                 'presence' => 'nullable|string',
                 'location' => 'nullable|string',
+                'md_consumed' => 'nullable|numeric|min:0',
             ];
 
             // Conditional validation based on what's provided
@@ -199,9 +300,10 @@ class TimesheetController extends Controller
                 $validated['is_billable'] = true;
             }
 
-            // Add presence and location from request
+            // Add presence, location, md_consumed from request
             $validated['presence'] = $request->input('presence');
             $validated['location'] = $request->input('location');
+            $validated['md_consumed'] = $request->input('md_consumed');
 
             // Ensure only one of project_id or ticket_id is set
             if (!empty($validated['delivery_projects_id'])) {
@@ -216,6 +318,9 @@ class TimesheetController extends Controller
                 $validated['ticket_id'] = null;
                 $validated['activity_id'] = null;
             }
+
+            // Auto-assign period: if the natural period is closed, move to next open period
+            $this->assignPeriod($validated);
 
             $timesheet = Timesheet::create($validated);
 
@@ -237,12 +342,12 @@ class TimesheetController extends Controller
             ], 422);
             
         } catch (\Exception $e) {
-            Log::error('Error creating timesheet: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
+            Log::error('Error creating timesheet');
+            Log::error('Stack trace' . $e->getTraceAsString());
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create timesheet: ' . $e->getMessage()
+                'message' => 'Failed to create timesheet'
             ], 500);
         }
     }
@@ -271,6 +376,7 @@ class TimesheetController extends Controller
                 'is_billable' => 'sometimes|boolean',
                 'presence' => 'nullable|string',
                 'location' => 'nullable|string',
+                'md_consumed' => 'nullable|numeric|min:0',
             ];
 
             if ($request->filled('delivery_projects_id')) {
@@ -284,9 +390,10 @@ class TimesheetController extends Controller
 
             $validated = $request->validate($rules);
 
-            // Add presence and location from request
+            // Add presence, location, md_consumed from request
             $validated['presence'] = $request->input('presence');
             $validated['location'] = $request->input('location');
+            $validated['md_consumed'] = $request->input('md_consumed');
 
             if (!empty($validated['delivery_projects_id'])) {
                 $validated['ticket_id'] = null;
@@ -299,6 +406,9 @@ class TimesheetController extends Controller
                 $validated['ticket_id'] = null;
                 $validated['activity_id'] = null;
             }
+
+            // Auto-assign period if date changed or period not yet set
+            $this->assignPeriod($validated);
 
             $timesheet->update($validated);
 
@@ -318,11 +428,11 @@ class TimesheetController extends Controller
             ], 422);
             
         } catch (\Exception $e) {
-            Log::error('Error updating timesheet: ' . $e->getMessage());
+            Log::error('Error updating timesheet');
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update timesheet: ' . $e->getMessage()
+                'message' => 'Failed to update timesheet'
             ], 500);
         }
     }
@@ -349,11 +459,11 @@ class TimesheetController extends Controller
                 'message' => 'Timesheet deleted successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error deleting timesheet: ' . $e->getMessage());
+            Log::error('Error deleting timesheet');
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete timesheet: ' . $e->getMessage()
+                'message' => 'Failed to delete timesheet'
             ], 500);
         }
     }
@@ -375,18 +485,79 @@ class TimesheetController extends Controller
 
             $timesheet->update(['status' => 'submitted']);
 
+            $this->notifyHeadsOnSubmit($timesheet);
+
             return response()->json([
                 'success' => true,
                 'data' => $timesheet,
                 'message' => 'Timesheet submitted for approval'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error submitting timesheet: ' . $e->getMessage());
+            Log::error('Error submitting timesheet');
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to submit timesheet: ' . $e->getMessage()
+                'message' => 'Failed to submit timesheet'
             ], 500);
+        }
+    }
+
+    /**
+     * Send bell notifications to relevant Head when a timesheet is submitted.
+     * - Support timesheet  → notify all Head of Support (role 5)
+     * - Project timesheet  → notify all Head of Project (role 4)
+     * - Office timesheet   → notify all RPMO (role 7)
+     */
+    private function notifyHeadsOnSubmit(Timesheet $timesheet): void
+    {
+        try {
+            $isSupport = !$timesheet->delivery_projects_id && $timesheet->ticket_id;
+            $isProject = (bool) $timesheet->delivery_projects_id;
+
+            if ($isSupport) {
+                $targetRole = RoleId::HEAD_OF_SUPPORT->value;
+            } elseif ($isProject) {
+                $targetRole = RoleId::HEAD_OF_PROJECT->value;
+            } else {
+                $targetRole = RoleId::RPMO->value;
+            }
+
+            // Submitter name — use session if available, else query
+            $submitter = Employee::where('employee_id', $timesheet->employee_id)->first();
+            $fromName  = $submitter?->name ?? $submitter?->eci ?? "Employee #{$timesheet->employee_id}";
+
+            // Ticket number for support
+            $ticketNumber = null;
+            if ($isSupport && $timesheet->ticket_id) {
+                $ticket = Ticket::find($timesheet->ticket_id);
+                $ticketNumber = $ticket?->ticket_number ?? $timesheet->ticket_id;
+            }
+
+            // Build notification message
+            if ($isSupport) {
+                $preview = "Ticket #{$ticketNumber} — {$fromName} submitted a timesheet for validation";
+            } elseif ($isProject) {
+                $preview = "{$fromName} submitted a project timesheet for approval";
+            } else {
+                $preview = "{$fromName} submitted an office timesheet for approval";
+            }
+
+            // Create notification for every active Head with the target role
+            $heads = Employee::where('role_id', $targetRole)->where('is_active', true)->get();
+
+            foreach ($heads as $head) {
+                Notification::create([
+                    'employee_id'      => $head->employee_id,
+                    'type'             => 'timesheet_submitted',
+                    'ticket_id'        => $timesheet->ticket_id,
+                    'from_employee_id' => $timesheet->employee_id,
+                    'from_name'        => $fromName,
+                    'preview'          => $preview,
+                    'is_read'          => false,
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('notifyHeadsOnSubmit failed');
         }
     }
 
@@ -429,11 +600,11 @@ class TimesheetController extends Controller
                 'message' => 'Timesheet approved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error approving timesheet: ' . $e->getMessage());
+            Log::error('Error approving timesheet');
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to approve timesheet: ' . $e->getMessage()
+                'message' => 'Failed to approve timesheet'
             ], 500);
         }
     }
@@ -480,11 +651,11 @@ class TimesheetController extends Controller
                 'message' => 'Timesheet rejected'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error rejecting timesheet: ' . $e->getMessage());
+            Log::error('Error rejecting timesheet');
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to reject timesheet: ' . $e->getMessage()
+                'message' => 'Failed to reject timesheet'
             ], 500);
         }
     }
@@ -559,12 +730,12 @@ class TimesheetController extends Controller
                 'message' => 'Statistics retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving statistics: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
+            Log::error('Error retrieving statistics');
+            Log::error('Stack trace' . $e->getTraceAsString());
             
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve statistics: ' . $e->getMessage()
+                'message' => 'Failed to retrieve statistics'
             ], 500);
         }
     }
@@ -600,11 +771,11 @@ class TimesheetController extends Controller
                 'message' => 'Projects retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving my projects: ' . $e->getMessage());
+            Log::error('Error retrieving my projects');
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve projects: ' . $e->getMessage()
+                'message' => 'Failed to retrieve projects'
             ], 500);
         }
     }
@@ -645,11 +816,11 @@ class TimesheetController extends Controller
                 'message' => 'Activities retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving my activities: ' . $e->getMessage());
+            Log::error('Error retrieving my activities');
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve activities: ' . $e->getMessage()
+                'message' => 'Failed to retrieve activities'
             ], 500);
         }
     }
@@ -712,12 +883,35 @@ class TimesheetController extends Controller
                 'message' => 'All assigned activities retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving all my activities: ' . $e->getMessage());
+            Log::error('Error retrieving all my activities');
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve activities: ' . $e->getMessage()
+                'message' => 'Failed to retrieve activities'
             ], 500);
         }
+    }
+
+    // ── Period helper ─────────────────────────────────────────────────────
+
+    /**
+     * Compute the period for the timesheet date.
+     * If that period is already closed, advance to the next period.
+     * Sets period_year and period_month on $data.
+     */
+    private function assignPeriod(array &$data): void
+    {
+        if (empty($data['date'])) return;
+
+        $p = ReportingPeriod::periodFor(Carbon::parse($data['date']));
+
+        // Walk forward until we find an open period
+        $maxIterations = 24; // safety guard
+        while ($maxIterations-- > 0 && ReportingPeriod::isClosed($p['year'], $p['month'])) {
+            $p = ReportingPeriod::nextPeriod($p['year'], $p['month']);
+        }
+
+        $data['period_year']  = $p['year'];
+        $data['period_month'] = $p['month'];
     }
 }

@@ -77,7 +77,7 @@ class CustomerContactController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch contacts: ' . $e->getMessage()
+                'message' => 'Failed to fetch contacts'
             ], 500);
         }
     }
@@ -120,7 +120,7 @@ class CustomerContactController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch contact: ' . $e->getMessage()
+                'message' => 'Failed to fetch contact'
             ], 500);
         }
     }
@@ -226,7 +226,7 @@ class CustomerContactController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create contact: ' . $e->getMessage()
+                'message' => 'Failed to create contact'
             ], 500);
         }
     }
@@ -327,7 +327,7 @@ class CustomerContactController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update contact: ' . $e->getMessage()
+                'message' => 'Failed to update contact'
             ], 500);
         }
     }
@@ -370,7 +370,7 @@ class CustomerContactController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete contact: ' . $e->getMessage()
+                'message' => 'Failed to delete contact'
             ], 500);
         }
     }
@@ -463,7 +463,7 @@ class CustomerContactController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create login: ' . $e->getMessage()
+                'message' => 'Failed to create login'
             ], 500);
         }
     }

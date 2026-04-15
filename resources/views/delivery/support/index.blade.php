@@ -70,20 +70,26 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div class="flex flex-col">
             <label class="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Filter By</label>
-            <select id="filterTypeSelect" onchange="updateFilterOptions()" class="px-4 py-3 border border-gray-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white transition-all hover:border-gray-400">
-                <option value="">Select Type</option>
-                <option value="jarvies_status">Jarvies Status</option>
-                <option value="status">Status</option>
-                <option value="type">Type</option>
-                <option value="priority">Priority</option>
-            </select>
+            <div class="relative">
+                <select id="filterTypeSelect" onchange="updateFilterOptions()" class="w-full px-4 py-3 pr-9 border border-gray-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white transition-all hover:border-gray-400 appearance-none">
+                    <option value="">Select Type</option>
+                    <option value="jarvies_status">Jarvies Status</option>
+                    <option value="status">Status</option>
+                    <option value="type">Type</option>
+                    <option value="priority">Priority</option>
+                </select>
+                <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+            </div>
         </div>
-        
+
         <div class="flex flex-col">
             <label class="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Filter Value</label>
-            <select id="filterValueSelect" disabled class="px-4 py-3 border border-gray-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white transition-all hover:border-gray-400 disabled:bg-gray-50 disabled:text-gray-400">
-                <option value="">Select Type First</option>
-            </select>
+            <div class="relative">
+                <select id="filterValueSelect" disabled class="w-full px-4 py-3 pr-9 border border-gray-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white transition-all hover:border-gray-400 disabled:bg-gray-50 disabled:text-gray-400 appearance-none">
+                    <option value="">Select Type First</option>
+                </select>
+                <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+            </div>
         </div>
         
         <div class="flex flex-col md:col-span-2">
@@ -825,7 +831,7 @@
         if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
         if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
         
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        return date.toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short', year: 'numeric' });
     }
 
     function formatDueDate(date) {
@@ -889,13 +895,15 @@
         // Create initial message
         const customerName = ticket.customer?.customer_name || 'Customer';
         const employeeName = ticket.employee?.employee_name || 'Unassigned';
-        const createdDate = new Date(ticket.created_at).toLocaleDateString('en-US', { 
-            weekday: 'short', 
-            day: 'numeric', 
-            month: 'short', 
+        const createdDate = new Date(ticket.created_at).toLocaleString('en-GB', {
+            timeZone: 'Asia/Jakarta',
+            weekday: 'short',
+            day: '2-digit',
+            month: 'short',
             year: 'numeric',
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
+            hour12: false
         });
         
         const messagesContainer = document.getElementById('ticketMessagesContainer');
@@ -953,16 +961,19 @@
         document.getElementById('detailCustomer').value = ticket.customer?.customer_name || 'N/A';
         document.getElementById('detailType').value = ticket.type || 'N/A';
         document.getElementById('detailManDays').value = ticket.man_days ? parseFloat(ticket.man_days).toFixed(1) + ' days' : 'N/A';
-        document.getElementById('detailCreated').value = new Date(ticket.created_at).toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric', 
+        document.getElementById('detailCreated').value = new Date(ticket.created_at).toLocaleString('en-GB', {
+            timeZone: 'Asia/Jakarta',
+            day: '2-digit',
+            month: 'short',
             year: 'numeric',
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
+            hour12: false
         });
-        document.getElementById('detailDueDate').value = ticket.end_date ? new Date(ticket.end_date).toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric', 
+        document.getElementById('detailDueDate').value = ticket.end_date ? new Date(ticket.end_date).toLocaleDateString('en-GB', {
+            timeZone: 'Asia/Jakarta',
+            day: 'numeric',
+            month: 'short',
             year: 'numeric'
         }) : 'No due date';
         

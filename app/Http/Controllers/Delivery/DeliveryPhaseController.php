@@ -116,7 +116,7 @@ class DeliveryPhaseController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create phase: ' . $e->getMessage()
+                'message' => 'Failed to create phase'
             ], 500);
         }
     }
@@ -211,7 +211,7 @@ class DeliveryPhaseController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update phase: ' . $e->getMessage()
+                'message' => 'Failed to update phase'
             ], 500);
         }
     }
@@ -244,7 +244,7 @@ class DeliveryPhaseController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete phase: ' . $e->getMessage()
+                'message' => 'Failed to delete phase'
             ], 500);
         }
     }

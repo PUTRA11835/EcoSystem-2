@@ -124,7 +124,7 @@ class StagingTicketController extends Controller
                 'error'   => $e->getMessage(),
                 'user_id' => $sessionUser['id'] ?? null,
             ]);
-            return response()->json(['success' => false, 'message' => 'Query failed: ' . $e->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => 'Query failed'], 500);
         }
 
         Log::info('StagingTicketController@index: success', [
@@ -203,7 +203,7 @@ class StagingTicketController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to submit ticket: ' . $e->getMessage(),
+                'message' => 'Failed to submit ticket',
             ], 500);
         }
     }
@@ -299,7 +299,7 @@ class StagingTicketController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to submit ticket: ' . $e->getMessage(),
+                'message' => 'Failed to submit ticket',
             ], 500);
         }
     }
@@ -370,7 +370,7 @@ class StagingTicketController extends Controller
                 ],
             ]);
         } catch (\LogicException $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            return response()->json(['success' => false, 'message' => 'An error occurred'], 422);
         } catch (\Exception $e) {
             Log::error('StagingTicketController@approve: gagal approve', [
                 'staging_id' => $id,
@@ -378,7 +378,7 @@ class StagingTicketController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to validate ticket: ' . $e->getMessage(),
+                'message' => 'Failed to validate ticket',
             ], 500);
         }
     }
@@ -416,7 +416,7 @@ class StagingTicketController extends Controller
                 'data'    => ['staging_id' => $staging->id, 'status' => 'rejected'],
             ]);
         } catch (\LogicException $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            return response()->json(['success' => false, 'message' => 'An error occurred'], 422);
         } catch (\Exception $e) {
             Log::error('StagingTicketController@reject: gagal reject', [
                 'staging_id' => $id,
@@ -424,7 +424,7 @@ class StagingTicketController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to reject ticket: ' . $e->getMessage(),
+                'message' => 'Failed to reject ticket',
             ], 500);
         }
     }
@@ -498,8 +498,8 @@ class StagingTicketController extends Controller
         try {
             $emailCtrl = app(EmailController::class);
             $token     = $emailCtrl->getAccessTokenPublic();
-            $sender    = env('MS_SENDER_EMAIL');
-            $baseUrl   = rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/');
+            $sender    = config('services.microsoft_graph.sender_email');
+            $baseUrl   = rtrim(config('services.microsoft_graph.base_url', 'https://graph.microsoft.com/v1.0'), '/');
 
             $response = Http::withToken($token)->get(
                 "{$baseUrl}/users/{$sender}/messages/{$staging->graph_message_id}/attachments/{$attId}"
@@ -545,7 +545,7 @@ class StagingTicketController extends Controller
         // fetch body langsung dari Graph (untuk staging lama atau web tickets yang baru dapat graph_message_id)
         if (!$html && $staging->graph_message_id) {
             try {
-                $sender   = env('MS_SENDER_EMAIL');
+                $sender   = config('services.microsoft_graph.sender_email');
                 $emailCtrl = app(EmailController::class);
                 $msg = $emailCtrl->graphGetPublic(
                     "/users/{$sender}/messages/{$staging->graph_message_id}",
@@ -640,9 +640,9 @@ class StagingTicketController extends Controller
             // Bangun detail tiket (metadata: phone, module, client, description)
             // agar email approval berisi isi tiket yang sama seperti tampilan Jarvies
             $detailRows = '';
-            if (!empty($staging->no_hp))  $detailRows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Phone</td><td>: ' . e($staging->no_hp)  . '</td></tr>';
-            if (!empty($staging->module)) $detailRows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Module</td><td>: ' . e($staging->module) . '</td></tr>';
-            if (!empty($staging->client)) $detailRows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Client</td><td>: ' . e($staging->client) . '</td></tr>';
+            if (!empty($staging->no_hp))  $detailRows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Phone</td><td>' . e($staging->no_hp)  . '</td></tr>';
+            if (!empty($staging->module)) $detailRows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Module</td><td>' . e($staging->module) . '</td></tr>';
+            if (!empty($staging->client)) $detailRows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Client</td><td>' . e($staging->client) . '</td></tr>';
 
             $metaTable = $detailRows
                 ? '<table style="border-collapse:collapse;margin-bottom:16px">' . $detailRows . '</table>'
@@ -896,7 +896,7 @@ class StagingTicketController extends Controller
     private function linkStagingToEmail(StagingTicket $staging, string $internetMessageId): void
     {
         try {
-            $sender    = env('MS_SENDER_EMAIL');
+            $sender    = config('services.microsoft_graph.sender_email');
             $emailCtrl = app(EmailController::class);
             $filterVal = str_replace("'", "''", $internetMessageId);
 

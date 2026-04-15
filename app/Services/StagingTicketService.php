@@ -215,7 +215,7 @@ class StagingTicketService
                 'ticket_priority' => $finalPriority,
                 'ticket_type'     => $ticketType,
                 'status'          => 'open',
-                'jarvies_status'  => 'in process',
+                'jarvies_status'  => 'sent it to support',
                 'channel'         => $staging->channel,
                 'email_thread_id' => $staging->email_thread_id,
                 'cc_emails'       => $ccEmails,              // checklist G

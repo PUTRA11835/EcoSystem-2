@@ -28,13 +28,16 @@
             <span id="fetchEmailStatus" class="text-xs text-gray-400"></span>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
-            <select id="filterStatus" onchange="loadStagingTickets()"
-                    class="pl-3 pr-8 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
-                <option value="">All Status</option>
-                <option value="unvalidated" selected>Pending Validation</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-            </select>
+            <div class="relative">
+                <select id="filterStatus" onchange="loadStagingTickets()"
+                        class="pl-3 pr-8 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent appearance-none">
+                    <option value="">All Status</option>
+                    <option value="unvalidated" selected>Pending Validation</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+                <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+            </div>
             <button onclick="handleRefresh()" id="btnRefresh"
                 class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Refresh
