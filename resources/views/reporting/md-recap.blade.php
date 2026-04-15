@@ -23,7 +23,8 @@
         <div class="flex flex-wrap items-end justify-end gap-3">
             <div class="flex flex-col">
                 <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Month</label>
-                <select id="recapMonth" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                <div class="relative">
+                <select id="recapMonth" class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white appearance-none">
                     <option value="1">January</option>
                     <option value="2">February</option>
                     <option value="3">March</option>
@@ -37,6 +38,8 @@
                     <option value="11">November</option>
                     <option value="12">December</option>
                 </select>
+                <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                </div>
             </div>
             <div class="flex flex-col">
                 <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Year</label>

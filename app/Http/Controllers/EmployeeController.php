@@ -246,14 +246,23 @@ class EmployeeController extends Controller
 
             $employees = $query->orderBy('e.employee_id', 'desc')->get();
 
-            // Fetch roles for all employees via pivot table
-            $employeeIds = $employees->pluck('id')->all();
-            $roleAssignments = DB::table('employee_role_assignment as era')
-                ->join('employee_role as er', 'era.role_id', '=', 'er.id')
-                ->whereIn('era.employee_id', $employeeIds)
-                ->select('era.employee_id', 'er.id as role_id', 'er.name as role_name')
-                ->get()
-                ->groupBy('employee_id');
+            // Fetch roles for all employees via pivot table (isolated so missing table won't break employee list)
+            $roleAssignments = collect();
+            try {
+                $employeeIds = $employees->pluck('id')->all();
+                if (!empty($employeeIds)) {
+                    $roleAssignments = DB::table('employee_role_assignment as era')
+                        ->join('employee_role as er', 'era.role_id', '=', 'er.id')
+                        ->whereIn('era.employee_id', $employeeIds)
+                        ->select('era.employee_id', 'er.id as role_id', 'er.name as role_name')
+                        ->get()
+                        ->groupBy('employee_id');
+                }
+            } catch (\Exception $roleEx) {
+                Log::warning('getData: gagal fetch role assignments, lanjut tanpa roles', [
+                    'error' => $roleEx->getMessage(),
+                ]);
+            }
 
             // Transform status & attach roles
             $employees = $employees->map(function($emp) use ($roleAssignments) {

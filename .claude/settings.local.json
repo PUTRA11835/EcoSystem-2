@@ -64,7 +64,9 @@
       "Bash(php -l app/Http/Controllers/StagingTicketController.php)",
       "Bash(php -d display_errors=1 -r \"require 'app/Http/Controllers/StagingTicketController.php';\")",
       "Bash(grep -rn \"'Re' \\\\. \\\\$\" app/Http/Controllers/)",
-      "Bash(grep \"\\\\. \\\\$\\\\|\\\\. '\")"
+      "Bash(grep \"\\\\. \\\\$\\\\|\\\\. '\")",
+      "Bash(grep -n \"AttachmentController\" /c/EcoSystem-2/app/Http/Controllers/*.php)",
+      "Bash(grep -n 'protected $casts\\\\|created_at\\\\|validated_at' /c/EcoSystem-2/app/Models/StagingTicket.php)"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",

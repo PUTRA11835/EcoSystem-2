@@ -120,7 +120,7 @@
                 <div id="ticketHeadbarMeta" class="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
                     <span>{{ $ticket->customer?->basicData?->name_1 ?? 'Unknown Customer' }}</span>
                     <span class="text-gray-300">|</span>
-                    <span>{{ $ticket->created_at->format('M d, Y h:i A') }}</span>
+                    <span>{{ $ticket->created_at->format('d M Y H:i') }} WIB</span>
                     @if($ticket->employee)
                         <span class="text-gray-300">|</span>
                         <span>PIC: {{ $ticket->employee->basicData ? trim($ticket->employee->basicData->first_name . ' ' . ($ticket->employee->basicData->last_name ?? '')) : 'Assigned' }}</span>
@@ -263,7 +263,7 @@
             <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
                  onclick="toggleSidebarPanel('mandaysPanel', 'mandaysChevron')">
                 <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Mandays</h4>
-                <i id="mandaysChevron" class="fas fa-chevron-up text-gray-400 text-xs transition-transform duration-200"></i>
+                <i id="mandaysChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
             </div>
             <div id="mandaysPanel" class="px-4 pb-4 pt-3 space-y-4 border-t border-gray-100">
                 {{-- PIC: Customer Mandays & Internal Mandays --}}
@@ -369,67 +369,82 @@
                         Save All
                     </button>
                     @endif
-                    <i id="propertiesChevron" class="fas fa-chevron-up text-gray-400 text-xs transition-transform duration-200"></i>
+                    <i id="propertiesChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
                 </div>
             </div>
             <div id="propertiesPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
                 {{-- Status --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Status</label>
-                    <select id="detailStatus" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
-                        <option value="open" {{ $ticket->status == 'open' ? 'selected' : '' }}>Open</option>
-                        <option value="in_progress" {{ $ticket->status == 'in_progress' ? 'selected' : '' }}>In Progress</option>
-                        <option value="hold" {{ $ticket->status == 'hold' ? 'selected' : '' }}>Hold</option>
-                        <option value="wait_to_close" {{ $ticket->status == 'wait_to_close' ? 'selected' : '' }}>Wait to Close</option>
-                        <option value="cancel" {{ $ticket->status == 'cancel' ? 'selected' : '' }}>Cancel</option>
-                        <option value="closed" {{ $ticket->status == 'closed' ? 'selected' : '' }}>Closed</option>
-                        <option value="reply" {{ $ticket->status == 'reply' ? 'selected' : '' }}>Reply</option>
-                    </select>
+                    <div class="relative">
+                        <select id="detailStatus" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
+                            <option value="open" {{ $ticket->status == 'open' ? 'selected' : '' }}>Open</option>
+                            <option value="in_progress" {{ $ticket->status == 'in_progress' ? 'selected' : '' }}>In Progress</option>
+                            <option value="hold" {{ $ticket->status == 'hold' ? 'selected' : '' }}>Hold</option>
+                            <option value="wait_to_close" {{ $ticket->status == 'wait_to_close' ? 'selected' : '' }}>Wait to Close</option>
+                            <option value="cancel" {{ $ticket->status == 'cancel' ? 'selected' : '' }}>Cancel</option>
+                            <option value="closed" {{ $ticket->status == 'closed' ? 'selected' : '' }}>Closed</option>
+                            <option value="reply" {{ $ticket->status == 'reply' ? 'selected' : '' }}>Reply</option>
+                        </select>
+                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    </div>
                 </div>
                 {{-- Jarvies Status --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Jarvies Status</label>
-                    <select id="detailJarviesStatus" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
-                        <option value="in process" {{ $ticket->jarvies_status == 'in process' ? 'selected' : '' }}>In Process</option>
-                        <option value="author action" {{ $ticket->jarvies_status == 'author action' ? 'selected' : '' }}>Author Action</option>
-                        <option value="proposed solution" {{ $ticket->jarvies_status == 'proposed solution' ? 'selected' : '' }}>Proposed Solution</option>
-                        <option value="sent in to SAP" {{ $ticket->jarvies_status == 'sent in to SAP' ? 'selected' : '' }}>Sent in to SAP</option>
-                        <option value="sent it to support" {{ $ticket->jarvies_status == 'sent it to support' ? 'selected' : '' }}>Sent it to Support</option>
-                        <option value="closed" {{ $ticket->jarvies_status == 'closed' ? 'selected' : '' }}>Closed</option>
-                    </select>
+                    <div class="relative">
+                        <select id="detailJarviesStatus" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
+                            <option value="in process" {{ $ticket->jarvies_status == 'in process' ? 'selected' : '' }}>In Process</option>
+                            <option value="author action" {{ $ticket->jarvies_status == 'author action' ? 'selected' : '' }}>Author Action</option>
+                            <option value="proposed solution" {{ $ticket->jarvies_status == 'proposed solution' ? 'selected' : '' }}>Proposed Solution</option>
+                            <option value="sent in to SAP" {{ $ticket->jarvies_status == 'sent in to SAP' ? 'selected' : '' }}>Sent in to SAP</option>
+                            <option value="sent it to support" {{ $ticket->jarvies_status == 'sent it to support' ? 'selected' : '' }}>Sent it to Support</option>
+                            <option value="closed" {{ $ticket->jarvies_status == 'closed' ? 'selected' : '' }}>Closed</option>
+                        </select>
+                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    </div>
                 </div>
                 {{-- Priority --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Priority</label>
-                    <select id="detailPriority" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
-                        <option value="Very High" {{ $ticket->ticket_priority == 'Very High' ? 'selected' : '' }}>Very High</option>
-                        <option value="High" {{ $ticket->ticket_priority == 'High' ? 'selected' : '' }}>High</option>
-                        <option value="Medium" {{ $ticket->ticket_priority == 'Medium' ? 'selected' : '' }}>Medium</option>
-                        <option value="Low" {{ $ticket->ticket_priority == 'Low' ? 'selected' : '' }}>Low</option>
-                    </select>
+                    <div class="relative">
+                        <select id="detailPriority" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
+                            <option value="Very High" {{ $ticket->ticket_priority == 'Very High' ? 'selected' : '' }}>Very High</option>
+                            <option value="High" {{ $ticket->ticket_priority == 'High' ? 'selected' : '' }}>High</option>
+                            <option value="Medium" {{ $ticket->ticket_priority == 'Medium' ? 'selected' : '' }}>Medium</option>
+                            <option value="Low" {{ $ticket->ticket_priority == 'Low' ? 'selected' : '' }}>Low</option>
+                        </select>
+                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    </div>
                 </div>
                 {{-- Ticket Type --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Ticket Type</label>
-                    <select id="detailType" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
-                        <option value="" {{ !$ticket->ticket_type ? 'selected' : '' }}>-- Select Type --</option>
-                        <option value="Incident" {{ $ticket->ticket_type == 'Incident' ? 'selected' : '' }}>Incident</option>
-                        <option value="Service Request" {{ $ticket->ticket_type == 'Service Request' ? 'selected' : '' }}>Service Request</option>
-                        <option value="Change Request" {{ $ticket->ticket_type == 'Change Request' ? 'selected' : '' }}>Change Request</option>
-                        <option value="Consult" {{ $ticket->ticket_type == 'Consult' ? 'selected' : '' }}>Consult</option>
-                    </select>
+                    <div class="relative">
+                        <select id="detailType" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
+                            <option value="" {{ !$ticket->ticket_type ? 'selected' : '' }}>-- Select Type --</option>
+                            <option value="Incident" {{ $ticket->ticket_type == 'Incident' ? 'selected' : '' }}>Incident</option>
+                            <option value="Service Request" {{ $ticket->ticket_type == 'Service Request' ? 'selected' : '' }}>Service Request</option>
+                            <option value="Change Request" {{ $ticket->ticket_type == 'Change Request' ? 'selected' : '' }}>Change Request</option>
+                            <option value="Consult" {{ $ticket->ticket_type == 'Consult' ? 'selected' : '' }}>Consult</option>
+                        </select>
+                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    </div>
                 </div>
                 {{-- Agent (PIC) --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Agent (PIC)</label>
-                    <select id="detailPIC" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
-                        <option value="" {{ !$ticket->employee_id ? 'selected' : '' }}>-- Unassigned --</option>
-                        @foreach($consultants as $consultant)
-                            <option value="{{ $consultant['employee_id'] }}" {{ $ticket->employee_id == $consultant['employee_id'] ? 'selected' : '' }}>
-                                {{ $consultant['name'] }}
-                            </option>
-                        @endforeach
-                    </select>
+                    <div class="relative">
+                        <select id="detailPIC" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
+                            <option value="" {{ !$ticket->employee_id ? 'selected' : '' }}>-- Unassigned --</option>
+                            @foreach($consultants as $consultant)
+                                <option value="{{ $consultant['employee_id'] }}" {{ $ticket->employee_id == $consultant['employee_id'] ? 'selected' : '' }}>
+                                    {{ $consultant['name'] }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    </div>
                 </div>
                 {{-- Team Members --}}
                 @php
@@ -457,15 +472,18 @@
                     </div>
                     @if($canManageMembers)
                     <div class="flex gap-1.5">
-                        <select id="addMemberSelect"
-                                class="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">-- Add member --</option>
-                            @foreach($employees as $emp)
-                                @if(!in_array($emp['employee_id'], $currentMemberIds) && $emp['employee_id'] != $ticket->employee_id)
-                                    <option value="{{ $emp['employee_id'] }}">{{ $emp['name'] }}</option>
-                                @endif
-                            @endforeach
-                        </select>
+                        <div class="relative flex-1 min-w-0">
+                            <select id="addMemberSelect"
+                                    class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
+                                <option value="">-- Add member --</option>
+                                @foreach($employees as $emp)
+                                    @if(!in_array($emp['employee_id'], $currentMemberIds) && $emp['employee_id'] != $ticket->employee_id)
+                                        <option value="{{ $emp['employee_id'] }}">{{ $emp['name'] }}</option>
+                                    @endif
+                                @endforeach
+                            </select>
+                            <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                        </div>
                         <button type="button" onclick="addMemberBtn()"
                                 class="px-2.5 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all flex-shrink-0"
                                 title="Add member">
@@ -552,7 +570,7 @@
                 {{-- Created --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Created</label>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('M d, Y h:i A') }}</p>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('d M Y H:i') }} WIB</p>
                 </div>
                 {{-- Admin only: Delete Ticket --}}
                 @if($user->role->role_id === \App\Enums\RoleId::ADMIN->value)
@@ -1753,7 +1771,7 @@
     function createFallbackMessage() {
         const customerName = @json($ticket->customer?->basicData?->name_1 ?? 'Customer');
         const description = @json($ticket->description ?? 'No description');
-        const date = @json($ticket->created_at->format('M d, Y h:i A'));
+        const date = @json($ticket->created_at->format('d M Y H:i') . ' WIB');
         return `
             <div class="flex gap-3">
                 <div class="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">${customerName.substring(0, 1)}</div>
@@ -2016,7 +2034,7 @@
             const desc       = t.description || 'No description';
             const lastActivity = new Date(t.last_message_at || t.created_at);
             const timeAgo    = formatTimeAgo(lastActivity);
-            const timeTitle  = lastActivity.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const timeTitle  = lastActivity.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 
             // Line 1 heading: "26040024 - AptaWorks"
             const heading = tickNum ? `${tickNum} - ${custName}` : custName;
@@ -2752,7 +2770,7 @@
                 ? `<span class="text-gray-500" title="${escHtml(v.proposal_notes)}">${escHtml(v.proposal_notes.substring(0, 40))}${v.proposal_notes.length > 40 ? '…' : ''}</span>`
                 : '<span class="text-gray-300">—</span>';
             const lastUpdate = v.last_update
-                ? new Date(v.last_update).toLocaleString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+                ? new Date(v.last_update).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12: false })
                 : '—';
             html += `<tr class="hover:bg-blue-50 cursor-pointer transition-colors" onclick="openMandaysVersionDetail(${v.id})">
                 <td class="px-3 py-2.5 border border-gray-100 text-center font-bold text-gray-700 whitespace-nowrap">v${v.version}</td>
@@ -3532,7 +3550,7 @@
                 banner.classList.add('flex', 'bg-gray-100', 'border', 'border-gray-300', 'text-gray-700');
             } else if (isApproved) {
                 const ts = proposal.customer_response_at
-                    ? new Date(proposal.customer_response_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) + ' WIB'
+                    ? new Date(proposal.customer_response_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12: false }) + ' WIB'
                     : '';
                 banner.innerHTML = `<span class="text-green-700 text-base mt-0.5">✓</span>
                     <div><p class="font-semibold text-green-800">Approved by Customer</p>
@@ -3541,7 +3559,7 @@
                 banner.classList.add('flex', 'bg-green-50', 'border', 'border-green-200', 'text-green-800');
             } else if (isCustomerRejected) {
                 const ts = proposal.customer_response_at
-                    ? new Date(proposal.customer_response_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) + ' WIB'
+                    ? new Date(proposal.customer_response_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12: false }) + ' WIB'
                     : '';
                 banner.innerHTML = `<span class="text-red-700 text-base mt-0.5">✕</span>
                     <div><p class="font-semibold text-red-800">Rejected by Customer</p>
@@ -4002,7 +4020,7 @@
                         '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">$1</a>');
                 area.innerHTML = `<div class="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed">${escaped}</div>`;
                 if (data.credential.updated_by) {
-                    const d = data.credential.updated_at ? new Date(data.credential.updated_at).toLocaleString('en-GB') : '';
+                    const d = data.credential.updated_at ? new Date(data.credential.updated_at).toLocaleString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
                     area.innerHTML += `<p class="mt-4 text-xs text-gray-400">Last saved by ${data.credential.updated_by}${d ? ' — ' + d : ''}</p>`;
                 }
             } else {

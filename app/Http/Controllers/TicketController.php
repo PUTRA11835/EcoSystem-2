@@ -807,7 +807,7 @@ class TicketController extends Controller
 
             $ticket->update([
                 'employee_id'    => $request->employee_id,
-                'jarvies_status' => 'sent it to support',
+                'jarvies_status' => 'in process',
                 'start_date'     => now(),
             ]);
 
@@ -1093,6 +1093,10 @@ class TicketController extends Controller
             }
             if ($request->has('employee_id')) {
                 $updateData['employee_id'] = $request->employee_id;
+                // Jika sebelumnya unassigned dan sekarang di-assign PIC → otomatis in process
+                if ($ticket->employee_id === null && !empty($request->employee_id)) {
+                    $updateData['jarvies_status'] = 'in process';
+                }
             }
             if ($request->has('man_days') && $isAdmin) {
                 $updateData['man_days'] = $request->man_days;

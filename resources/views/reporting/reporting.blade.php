@@ -54,13 +54,16 @@
             </div>
             <div class="flex flex-col">
                 <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Status</label>
-                <select id="rptFilterStatus"
-                    class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
-                    <option value="">All</option>
-                    <option value="Match">Match</option>
-                    <option value="Less">Less</option>
-                    <option value="Over">Over</option>
-                </select>
+                <div class="relative">
+                    <select id="rptFilterStatus"
+                        class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white appearance-none">
+                        <option value="">All</option>
+                        <option value="Match">Match</option>
+                        <option value="Less">Less</option>
+                        <option value="Over">Over</option>
+                    </select>
+                    <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                </div>
             </div>
         </div>
         <div class="flex gap-2 justify-end mt-3 pt-3 border-t border-gray-100">

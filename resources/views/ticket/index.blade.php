@@ -70,19 +70,25 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div class="flex flex-col">
             <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter By</label>
-            <select id="filterTypeSelect" onchange="updateFilterOptions()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white">
-                <option value="">Select Type</option>
-                <option value="jarvies_status">Jarvies Status</option>
-                <option value="status">Status</option>
-                <option value="ticket_type">Ticket Type</option>
-                <option value="priority">Priority</option>
-            </select>
+            <div class="relative">
+                <select id="filterTypeSelect" onchange="updateFilterOptions()" class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white appearance-none">
+                    <option value="">Select Type</option>
+                    <option value="jarvies_status">Jarvies Status</option>
+                    <option value="status">Status</option>
+                    <option value="ticket_type">Ticket Type</option>
+                    <option value="priority">Priority</option>
+                </select>
+                <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+            </div>
         </div>
         <div class="flex flex-col">
             <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter Value</label>
-            <select id="filterValueSelect" disabled class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white disabled:bg-gray-50 disabled:text-gray-400">
-                <option value="">Select Type First</option>
-            </select>
+            <div class="relative">
+                <select id="filterValueSelect" disabled class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white disabled:bg-gray-50 disabled:text-gray-400 appearance-none">
+                    <option value="">Select Type First</option>
+                </select>
+                <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+            </div>
         </div>
         <div class="flex flex-col md:col-span-2">
             <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Search Tickets</label>

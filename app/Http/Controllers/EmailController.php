@@ -890,7 +890,7 @@ class EmailController extends Controller
                     if ($contentId) {
                         // Gunakan storage URL jika ada file_path, fallback ke proxy
                         $cidMap[$contentId] = $existing->file_path
-                            ? Storage::disk('public')->url($existing->file_path)
+                            ? '/storage/' . $existing->file_path
                             : '/attachments/' . $existing->id;
                     }
                     continue;
@@ -925,7 +925,7 @@ class EmailController extends Controller
                             $safeName   = Str::uuid() . '.' . $ext;
                             $filePath   = "ticket-inline-images/{$ticketId}/{$safeName}";
                             Storage::disk('public')->put($filePath, base64_decode($contentBytes));
-                            $storageUrl = Storage::disk('public')->url($filePath);
+                            $storageUrl = '/storage/' . $filePath;
 
                             Log::info('EmailController@storeEmailAttachments: inline image disimpan ke storage', [
                                 'ticket_id' => $ticketId,
