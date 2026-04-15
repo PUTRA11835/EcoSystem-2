@@ -14,6 +14,8 @@ class CustomerMandays extends Model
     protected $fillable = [
         'ticket_id',
         'version',
+        'description',
+        'proposal_notes',
         'proposed_by_agent_id',
         'proposed_at',
         'submitted_to_customer_at',

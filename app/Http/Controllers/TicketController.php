@@ -687,7 +687,7 @@ class TicketController extends Controller
                 $ticket->update([
                     'employee_id' => $confirmation->employee_id,
                     'man_days' => $confirmation->man_days,
-                    'jarvies_status' => 'in process',
+                    'jarvies_status' => 'sent it to support',
                     'start_date' => now()
                 ]);
 
@@ -740,6 +740,84 @@ class TicketController extends Controller
             ], 500);
         }
     }   
+
+    /**
+     * Get available PICs (employees with DSM qualification) — for admin/helpdesk/head assign
+     */
+    public function getAvailablePics()
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $roleId = $sessionUser['role']['id'] ?? 0;
+        $allowed = array_merge(
+            [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value],
+            RoleId::HELPDESK_GROUP
+        );
+        if (!in_array($roleId, $allowed, true)) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $pics = DB::table('employee')
+            ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
+            ->where('employee.role_id', RoleId::EMPLOYEE->value)
+            ->select(
+                'employee.employee_id',
+                DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as name")
+            )
+            ->orderBy('employee_basic_data.first_name')
+            ->get();
+
+        return response()->json(['success' => true, 'data' => $pics]);
+    }
+
+    /**
+     * Assign PIC directly (Admin / Helpdesk / Head of Support only) — no confirmation needed
+     */
+    public function assignPic(Request $request, $id)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $roleId = $sessionUser['role']['id'] ?? 0;
+        $allowed = array_merge(
+            [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value],
+            RoleId::HELPDESK_GROUP
+        );
+        if (!in_array($roleId, $allowed, true)) {
+            return response()->json(['success' => false, 'message' => 'Only Admin, Helpdesk, or Head of Support can assign a PIC'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'employee_id' => 'required|exists:employee,employee_id',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $ticket = Ticket::findOrFail($id);
+
+            if ($ticket->employee_id !== null) {
+                return response()->json(['success' => false, 'message' => 'Ticket already has a PIC assigned'], 400);
+            }
+
+            $ticket->update([
+                'employee_id'    => $request->employee_id,
+                'jarvies_status' => 'sent it to support',
+                'start_date'     => now(),
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'PIC assigned successfully']);
+        } catch (\Exception $e) {
+            Log::error('Error assigning PIC:', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to assign PIC'], 500);
+        }
+    }
 
     /**
      * Update man days (Customer & Admin only)

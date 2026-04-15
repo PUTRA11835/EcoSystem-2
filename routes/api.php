@@ -247,6 +247,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/statistics', [TicketController::class, 'statistics']);
         Route::get('/pending-confirmations', [TicketController::class, 'pendingConfirmations']);
         Route::get('/pending-member-changes', [TicketController::class, 'pendingMemberChanges']);
+        Route::get('/available-pics', [TicketController::class, 'getAvailablePics']);
         Route::post('/', [TicketController::class, 'store']);
 
         // Routes with specific names
@@ -259,6 +260,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/{id}/mandays-history', [TicketController::class, 'getMandaysHistory']);
         Route::get('/{id}/negotiation-history', [TicketController::class, 'getNegotiationHistory']);
         Route::post('/{id}/take', [TicketController::class, 'takeTicket']);
+        Route::post('/{id}/assign-pic', [TicketController::class, 'assignPic']);
         Route::put('/{id}', [TicketController::class, 'update']);
         Route::put('/{id}/update-status', [TicketController::class, 'updateTicketStatus']);
         Route::put('/{id}/update-mandays', [TicketController::class, 'updateManDays']);
@@ -286,7 +288,10 @@ Route::middleware(['web'])->group(function () {
 
         // ==================== MANDAYS ROUTES ====================
         // Shared utility
-        Route::get('/{ticketId}/mandays/modules', [MandaysController::class, 'getModules']);
+        Route::get('/{ticketId}/mandays/modules',  [MandaysController::class, 'getModules']);
+        Route::get('/{ticketId}/mandays/history',  [MandaysController::class, 'getCustomerMandaysHistory']);
+        Route::get('/{ticketId}/mandays/approved',  [MandaysController::class, 'getApprovedMandays']);
+        Route::get('/{ticketId}/mandays/version/{mandaysId}', [MandaysController::class, 'getCustomerMandaysVersionDetail']);
 
         // Customer Mandays — PIC
         Route::get('/{ticketId}/mandays/pic-draft', [MandaysController::class, 'getCustomerDraft']);
@@ -337,6 +342,14 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/submit', [TimesheetController::class, 'submit']);
         Route::post('/{id}/approve', [TimesheetController::class, 'approve']);
         Route::post('/{id}/reject', [TimesheetController::class, 'reject']);
+    });
+
+    // ==================== REPORTING ROUTES ====================
+    Route::prefix('reporting')->group(function () {
+        Route::get('/timesheet-support', [\App\Http\Controllers\ReportingController::class, 'timesheetSupport']);
+        Route::get('/current-period',    [\App\Http\Controllers\ReportingController::class, 'currentPeriod']);
+        Route::post('/close-period',     [\App\Http\Controllers\ReportingController::class, 'closePeriod']);
+        Route::get('/md-recap',          [\App\Http\Controllers\ReportingController::class, 'mdRecap']);
     });
 
     // ==================== NOTIFICATION ROUTES ====================

@@ -84,9 +84,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     });
 
     // ==================== REPORTING ====================
-    Route::get('/reporting', function () {
-        return view('reporting.reporting', ['user' => session('user')]);
-    })->name('reporting');
+    Route::get('/reporting',                  [\App\Http\Controllers\ReportingController::class, 'index'])->name('reporting');
+    Route::get('/reporting/export-excel',     [\App\Http\Controllers\ReportingController::class, 'exportExcel'])->name('reporting.export');
+    Route::get('/reporting/md-recap',         [\App\Http\Controllers\ReportingController::class, 'mdRecapIndex'])->name('reporting.md-recap');
+    Route::get('/reporting/md-recap/export',  [\App\Http\Controllers\ReportingController::class, 'exportMdRecap'])->name('reporting.md-recap.export');
 
     // ==================== MASTER ====================
     Route::prefix('master')->name('master.')->group(function () {

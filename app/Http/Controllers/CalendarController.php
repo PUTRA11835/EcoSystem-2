@@ -34,14 +34,22 @@ class CalendarController extends Controller
         // Role is stored as nested array: $user['role']['id']
         $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
 
-        $isHead  = in_array($roleId, RoleId::HEAD_GROUP, true);
+        $isHead  = in_array($roleId, RoleId::HEAD_GROUP, true) || $roleId === RoleId::RPMO->value;
         $isAdmin = $roleId === RoleId::ADMIN->value;
 
+        $lockedType = match($roleId) {
+            RoleId::HEAD_OF_SUPPORT->value => 'support',
+            RoleId::HEAD_OF_PROJECT->value => 'project',
+            RoleId::RPMO->value            => 'office',
+            default                        => null,   // admin sees all
+        };
+
         return view('calendar.timesheets', [
-            'user' => $user,
-            'isHead' => $isHead,
-            'isAdmin' => $isAdmin,
-            'roleId' => $roleId,
+            'user'       => $user,
+            'isHead'     => $isHead,
+            'isAdmin'    => $isAdmin,
+            'roleId'     => $roleId,
+            'lockedType' => $lockedType,
         ]);
     }
 

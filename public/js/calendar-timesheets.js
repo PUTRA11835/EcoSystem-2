@@ -3,11 +3,35 @@ let timesheets = [];
 let filteredTimesheets = [];
 let selectedTimesheetId = null;
 let deleteTimesheetId = null;
+let myTicketsCache = []; // cache for support ticket auto-fill
+
+const TH = 'px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200';
+
+// Default employee thead HTML (saved once DOM is ready)
+let defaultTheadHTML = '';
+
+// Support-specific thead
+const SUPPORT_THEAD_HTML = `<tr>
+    <th class="${TH}" style="min-width:36px;"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300"></th>
+    <th class="${TH}" style="min-width:100px;">Date</th>
+    <th class="${TH}" style="min-width:55px;">Month</th>
+    <th class="${TH}" style="min-width:55px;">Year</th>
+    <th class="${TH}" style="min-width:130px;">Name</th>
+    <th class="${TH}" style="min-width:130px;">Ticket</th>
+    <th class="${TH}" style="min-width:180px;">Description</th>
+    <th class="${TH}" style="min-width:120px;">Customer</th>
+    <th class="${TH}" style="min-width:80px;">Quota MD</th>
+    <th class="${TH}" style="min-width:180px;">Activity</th>
+    <th class="${TH}" style="min-width:90px;">MD Consumed</th>
+    <th class="${TH}" style="min-width:70px;">On Site</th>
+    <th class="${TH}" style="min-width:100px;">Status</th>
+</tr>`;
 let currentFilters = {
     start_date: null,
     end_date: null,
     status: '',
-    activity_type: ''
+    activity_type: '',
+    type_filter: ''   // '' | 'project' | 'support' | 'office'
 };
 let itemsPerPage = 20;
 let currentPage = 1;
@@ -32,10 +56,39 @@ const statusColors = {
 document.addEventListener('DOMContentLoaded', function() {
     initializeDateFilters();
 
+    // Save default thead so we can restore it after switching tabs (both modes)
+    const thead = document.getElementById('timesheetTableHead');
+    if (thead) {
+        defaultTheadHTML = thead.innerHTML;
+    }
+
+    // Helper: attach selectAll listener (shared by both modes)
+    function attachSelectAll() {
+        const selectAllCheckbox = document.getElementById('selectAll');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', function() {
+                const checkboxes = document.querySelectorAll('.timesheet-checkbox');
+                checkboxes.forEach(cb => cb.checked = this.checked);
+                updateBulkActionButtons();
+            });
+        }
+    }
+
+    // Auto-select locked type tab if role is restricted
+    if (window.lockedType) {
+        // Set filter directly — thead already rendered correctly by server for locked types
+        currentFilters.type_filter = window.lockedType;
+        if (window.lockedType === 'support') {
+            const table = document.getElementById('timesheetTable');
+            if (table) table.style.minWidth = '1200px';
+        }
+    }
+
     // Check if we are in approval mode
     if (window.isApprovalMode) {
         loadSubmittedTimesheets();
         loadApprovalStatistics();
+        attachSelectAll();
     } else {
         initializeTimePickers();
         loadTimesheets();
@@ -46,14 +99,7 @@ document.addEventListener('DOMContentLoaded', function() {
             form.addEventListener('submit', handleFormSubmit);
         }
 
-        const selectAllCheckbox = document.getElementById('selectAll');
-        if (selectAllCheckbox) {
-            selectAllCheckbox.addEventListener('change', function() {
-                const checkboxes = document.querySelectorAll('.timesheet-checkbox');
-                checkboxes.forEach(cb => cb.checked = this.checked);
-                updateBulkActionButtons();
-            });
-        }
+        attachSelectAll();
     }
 });
 
@@ -386,38 +432,51 @@ function handleTimesheetTypeChange() {
         }
 
     } else if (selectedType === 'support') {
-        // ✅ Support type: Ticket dropdown + Presence + Location (NO Activity)
+        // Support type: Ticket dropdown + auto-fill Customer/Jatah MD + MD Consumed + On Site
         fieldsHTML = `
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">
                     Ticket <span class="text-red-600">*</span>
                 </label>
-                <select id="timesheetTicket" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <select id="timesheetTicket" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent" onchange="onSupportTicketSelected(this.value)">
                     <option value="">Select a Ticket</option>
                 </select>
             </div>
-            
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Customer</label>
+                    <input type="text" id="supportCustomer" readonly
+                        class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600"
+                        placeholder="Auto-fill from ticket">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Jatah MD</label>
+                    <input type="text" id="supportJatahMd" readonly
+                        class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600"
+                        placeholder="—">
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Presence <span class="text-red-600">*</span>
+                        MD Consumed <span class="text-red-600">*</span>
                     </label>
-                    <select id="timesheetPresence" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                        <option value="">Select a Presence type</option>
-                        <option value="onsite">On-site</option>
-                        <option value="remote">Remote</option>
-                        <option value="hybrid">Hybrid</option>
-                    </select>
+                    <input type="number" id="supportMdConsumed" required step="0.1" min="0"
+                        class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                        placeholder="e.g. 0.5">
                 </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Lokasi <span class="text-red-600">*</span>
+                <div class="flex items-end pb-2.5">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" id="supportOnSite"
+                            class="w-4 h-4 text-red-800 border-gray-300 rounded focus:ring-red-800">
+                        <span class="text-sm font-semibold text-gray-700">On Site</span>
                     </label>
-                    <textarea id="timesheetLocation" required rows="1" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent resize-none" placeholder="Write location here"></textarea>
                 </div>
             </div>
         `;
-        
+
         if (billableSection) {
             billableSection.classList.add('hidden');
         }
@@ -453,6 +512,20 @@ function handleTimesheetTypeChange() {
 
     // Set the HTML first
     dynamicFieldsContainer.innerHTML = fieldsHTML;
+
+    // Update "Activity Description" label to "Activity" for support type
+    const descLabel = document.querySelector('label[for="timesheetDescription"]');
+    if (descLabel) {
+        descLabel.innerHTML = selectedType === 'support'
+            ? 'Activity <span class="text-red-600">*</span>'
+            : 'Activity Description <span class="text-red-600">*</span>';
+    }
+    const timesheetDescEl = document.getElementById('timesheetDescription');
+    if (timesheetDescEl) {
+        timesheetDescEl.placeholder = selectedType === 'support'
+            ? 'Describe what you did in this session'
+            : 'Write description activity here';
+    }
 
     // Now load data based on type (after DOM is updated)
     if (selectedType === 'project') {
@@ -694,7 +767,6 @@ function onActivitySelected() {
 // Load only USER'S tickets (like support.blade.php)
 async function loadTicketsForDropdown() {
     try {
-        // ✅ Use /api/tickets/my to get only user's tickets
         const response = await fetch('/api/tickets/my', {
             method: 'GET',
             headers: {
@@ -705,40 +777,37 @@ async function loadTicketsForDropdown() {
             },
             credentials: 'same-origin'
         });
-        
+
         if (response.ok) {
             const data = await response.json();
             const select = document.getElementById('timesheetTicket');
-            
+
             if (select && data.success && data.data) {
-                select.innerHTML = '<option value="">Select a Ticket</option>';
-                
-                // ✅ Filter active tickets only (not closed or cancelled)
-                const activeTickets = data.data.filter(t => 
-                    t.status !== 'closed' && 
+                // Cache tickets for auto-fill use
+                const activeTickets = data.data.filter(t =>
+                    t.status !== 'closed' &&
                     t.status !== 'cancel' &&
                     t.jarvies_status !== 'closed'
                 );
-                
+                myTicketsCache = activeTickets;
+
+                select.innerHTML = '<option value="">Select a Ticket</option>';
+
                 if (activeTickets.length === 0) {
                     select.innerHTML = '<option value="">No active tickets assigned to you</option>';
                     select.disabled = true;
                     return;
                 }
-                
-                // ✅ Sort by ticket_id descending (newest first)
+
+                // Sort by ticket_id descending (newest first)
                 activeTickets.sort((a, b) => b.ticket_id - a.ticket_id);
-                
+
                 activeTickets.forEach(ticket => {
                     const option = document.createElement('option');
                     option.value = ticket.ticket_id;
-                    
                     const customerName = ticket.customer?.customer_name || 'Unknown';
-                    const description = ticket.description ? ticket.description.substring(0, 50) : 'No description';
-                    
-                    // ✅ Format: #ID - Customer - Description - [Status]
-                    option.textContent = `#${ticket.ticket_id} - ${customerName} - ${description}`;
-                    
+                    const ticketLabel = ticket.ticket_number || `#${ticket.ticket_id}`;
+                    option.textContent = `${ticketLabel} - ${customerName}`;
                     select.appendChild(option);
                 });
             }
@@ -750,6 +819,41 @@ async function loadTicketsForDropdown() {
             select.innerHTML = '<option value="">Failed to load tickets</option>';
             select.disabled = true;
         }
+    }
+}
+
+// Auto-fill Customer and Jatah MD when a support ticket is selected
+async function onSupportTicketSelected(ticketId) {
+    const customerEl = document.getElementById('supportCustomer');
+    const jatahMdEl  = document.getElementById('supportJatahMd');
+
+    // Clear previous values
+    if (customerEl) customerEl.value = '';
+    if (jatahMdEl) jatahMdEl.value = '—';
+
+    if (!ticketId) return;
+
+    // Auto-fill customer from cache
+    const ticket = myTicketsCache.find(t => String(t.ticket_id) === String(ticketId));
+    if (ticket && customerEl) {
+        customerEl.value = ticket.customer?.customer_name || '';
+    }
+
+    // Fetch latest approved mandays
+    try {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+        const res = await fetch(`/api/tickets/${ticketId}/mandays/approved`, {
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+            credentials: 'same-origin'
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (jatahMdEl) {
+                jatahMdEl.value = data.data ? Number(data.data.total_mandays).toFixed(1) : '—';
+            }
+        }
+    } catch (e) {
+        console.error('Failed to fetch approved mandays', e);
     }
 }
 
@@ -801,14 +905,75 @@ function updateStatCards(all) {
 
 // Apply status-based client-side filter and re-render
 function applyStatusFilter() {
-    if (currentFilters.status) {
-        filteredTimesheets = timesheets.filter(t => t.status === currentFilters.status);
-    } else if (currentFilters.activity_type) {
-        filteredTimesheets = timesheets.filter(t => t.activity_type === currentFilters.activity_type);
-    } else {
-        filteredTimesheets = timesheets;
+    let result = timesheets;
+
+    // 1. Filter by type tab (project / support / office) — also respect window.lockedType
+    const activeType = currentFilters.type_filter || window.lockedType || '';
+    if (activeType === 'project') {
+        result = result.filter(t => !!t.delivery_projects_id);
+    } else if (activeType === 'support') {
+        result = result.filter(t => !t.delivery_projects_id && !!t.ticket_id);
+    } else if (activeType === 'office') {
+        result = result.filter(t => !t.delivery_projects_id && !t.ticket_id);
     }
+
+    // 2. Filter by status or activity_type (from filter bar)
+    if (currentFilters.status) {
+        result = result.filter(t => t.status === currentFilters.status);
+    } else if (currentFilters.activity_type) {
+        result = result.filter(t => t.activity_type === currentFilters.activity_type);
+    }
+
+    filteredTimesheets = result;
     renderTimesheetRows();
+}
+
+// Type tab click handler
+function filterByType(type) {
+    currentFilters.type_filter = type;
+    currentPage = 1;
+
+    // Update tab visuals
+    const tabs = {
+        '':        { id: 'typeTabAll',     active: 'border-red-600 bg-red-600 text-white',       inactive: 'border-gray-200 bg-white text-gray-600 hover:border-red-400 hover:text-red-600' },
+        'project': { id: 'typeTabProject', active: 'border-blue-600 bg-blue-600 text-white',     inactive: 'border-gray-200 bg-white text-gray-600 hover:border-blue-400 hover:text-blue-600' },
+        'support': { id: 'typeTabSupport', active: 'border-purple-600 bg-purple-600 text-white', inactive: 'border-gray-200 bg-white text-gray-600 hover:border-purple-400 hover:text-purple-600' },
+        'office':  { id: 'typeTabOffice',  active: 'border-gray-600 bg-gray-600 text-white',     inactive: 'border-gray-200 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-700' },
+    };
+
+    Object.entries(tabs).forEach(([key, cfg]) => {
+        const btn = document.getElementById(cfg.id);
+        if (!btn) return;
+        if (key === type) {
+            btn.className = `type-tab-btn inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-all duration-150 ${cfg.active}`;
+        } else {
+            btn.className = `type-tab-btn inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-all duration-150 ${cfg.inactive}`;
+        }
+    });
+
+    // Swap thead and table min-width for support (both employee and approval modes)
+    const thead = document.getElementById('timesheetTableHead');
+    const table = document.getElementById('timesheetTable');
+    if (thead) {
+        if (type === 'support') {
+            thead.innerHTML = SUPPORT_THEAD_HTML;
+            if (table) table.style.minWidth = '1200px';
+        } else {
+            thead.innerHTML = defaultTheadHTML;
+            if (table) table.style.minWidth = '900px';
+        }
+        // Re-attach selectAll listener after thead swap
+        const selectAllCb = document.getElementById('selectAll');
+        if (selectAllCb) {
+            selectAllCb.addEventListener('change', function () {
+                const checkboxes = document.querySelectorAll('.timesheet-checkbox');
+                checkboxes.forEach(cb => { cb.checked = this.checked; });
+                updateBulkActionButtons();
+            });
+        }
+    }
+
+    applyStatusFilter();
 }
 
 // Stat card click handler
@@ -850,8 +1015,15 @@ function resetFilters() {
 
     currentFilters.status = '';
     currentFilters.activity_type = '';
+    currentFilters.type_filter = '';
     currentPage = 1;
 
+    if (window.lockedType) {
+        currentFilters.type_filter = window.lockedType;
+        applyStatusFilter();
+    } else {
+        filterByType('');   // reset type tab to All
+    }
     filterByStatus(''); // reset active card to Total
 
     if (window.isApprovalMode) {
@@ -887,18 +1059,121 @@ function renderTimesheetRows() {
     const pageItems = filteredTimesheets.slice(start, end);
     updatePagination(total, start + 1, end);
 
+    // ── Approval mode: support tab — spreadsheet layout with Employee col ──
+    if (window.isApprovalMode && (currentFilters.type_filter === 'support' || window.lockedType === 'support')) {
+        tbody.innerHTML = pageItems.map(timesheet => {
+            const statusColor = statusColors[timesheet.status] || statusColors.draft;
+            const canSelect = timesheet.status === 'submitted';
+
+            const dateObj   = timesheet.date ? new Date(timesheet.date + 'T00:00:00') : null;
+            const dateFmt   = dateObj ? dateObj.toLocaleDateString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\//g, '/') : '-';
+            const period    = dateObj ? getPeriodInfo(dateObj) : null;
+            const bulan     = period ? period.month : '-';
+            const tahun     = period ? period.year  : '-';
+            const nama      = escapeHtml(timesheet.employee_name || '-');
+            const tiket     = timesheet.ticket_number ? `#${escapeHtml(timesheet.ticket_number)}` : (timesheet.ticket_id ? `#${timesheet.ticket_id}` : '-');
+            const ticketDesc = escapeHtml(timesheet.ticket_description || '-');
+            const customer  = escapeHtml(timesheet.customer_name || '-');
+            const jatahMd   = timesheet.jatah_md != null ? Number(timesheet.jatah_md).toFixed(1) : '-';
+            const aktivitas = escapeHtml(timesheet.description || '-');
+            const mdConsumed = timesheet.md_consumed != null ? Number(timesheet.md_consumed).toFixed(1) : '-';
+            const onSite    = timesheet.presence === 'onsite' ? 'X' : '';
+
+            return `
+                <tr class="hover:bg-purple-50/30 transition-colors ${canSelect ? 'cursor-pointer' : ''}" ${canSelect ? `onclick="toggleRowSelection(event, ${timesheet.id})"` : ''}>
+                    <td class="px-3 py-2 border-b border-gray-100">
+                        ${canSelect ? `<input type="checkbox" class="timesheet-checkbox w-4 h-4 rounded border-gray-300" data-id="${timesheet.id}" data-status="${timesheet.status}" onchange="updateBulkActionButtons()" onclick="event.stopPropagation()">` : `<span class="text-gray-300"><i class="fas fa-lock text-xs" title="${timesheet.status}"></i></span>`}
+                    </td>
+                    <td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs text-gray-700">${dateFmt}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">${bulan}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">${tahun}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-800 font-medium">${nama}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs font-semibold text-purple-700">
+                        <i class="fas fa-ticket-alt mr-1 opacity-60"></i>${tiket}
+                    </td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-600 max-w-[180px]" title="${escapeHtml(timesheet.ticket_description || '')}">${ticketDesc}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700">${customer}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">${jatahMd}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700 max-w-[180px]" title="${escapeHtml(timesheet.description || '')}">${aktivitas}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">${mdConsumed}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-bold text-green-700">${onSite}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap">
+                        <span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full ${statusColor.bg} ${statusColor.text}">
+                            ${timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
+                        </span>
+                        ${timesheet.status === 'rejected' && timesheet.rejection_reason ? `<i class="fas fa-info-circle text-yellow-500 ml-1 cursor-pointer text-xs" title="${escapeHtml(timesheet.rejection_reason)}" onclick="event.stopPropagation(); showRejectionReason(${timesheet.id})"></i>` : ''}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        return;
+    }
+
+    // ── Approval mode: All / Project / Office tabs ────────────────────────
     if (window.isApprovalMode) {
         tbody.innerHTML = pageItems.map(timesheet => {
             const statusColor = statusColors[timesheet.status] || statusColors.draft;
-            const duration = timesheet.duration_hours ? timesheet.duration_hours.toFixed(2) : '0.00';
-            const canApprove = timesheet.status === 'submitted';
+            const duration = (timesheet.duration_minutes / 60).toFixed(2);
+            const canSelect = timesheet.status === 'submitted';
+
+            const isProject = !!timesheet.delivery_projects_id;
+            const isSupport = !isProject && !!timesheet.ticket_id;
+
+            let typeInfo;
+            if (isProject)      typeInfo = '<span class="text-blue-600 text-xs font-medium">Project</span>';
+            else if (isSupport) typeInfo = '<span class="text-purple-600 text-xs font-medium">Support</span>';
+            else                typeInfo = '<span class="text-gray-500 text-xs font-medium">Office</span>';
+
+            let projectTicketCell;
+            if (isProject) {
+                const actName = timesheet.activity?.name || '';
+                projectTicketCell = `
+                    <div class="text-sm text-gray-900"><i class="fas fa-project-diagram mr-1 text-blue-500"></i>Project #${timesheet.delivery_projects_id}</div>
+                    ${actName ? `<div class="text-xs text-gray-500 mt-0.5"><i class="fas fa-tasks mr-1"></i>${escapeHtml(actName)}</div>` : ''}`;
+            } else if (isSupport) {
+                const ticketLabel = timesheet.ticket_number ? `#${timesheet.ticket_number}` : `#${timesheet.ticket_id}`;
+                const customerName = timesheet.customer_name || '';
+                projectTicketCell = `
+                    <div class="text-sm font-medium text-gray-900"><i class="fas fa-ticket-alt mr-1 text-purple-500"></i>${escapeHtml(ticketLabel)}</div>
+                    ${customerName ? `<div class="text-xs text-gray-500 mt-0.5">${escapeHtml(customerName)}</div>` : ''}`;
+            } else {
+                const presenceLabel = timesheet.presence ? timesheet.presence.charAt(0).toUpperCase() + timesheet.presence.slice(1) : '';
+                const locationText  = timesheet.location  ? ` · ${timesheet.location}` : '';
+                projectTicketCell = `
+                    <div class="text-sm text-gray-600"><i class="fas fa-building mr-1 text-gray-400"></i>Office</div>
+                    ${presenceLabel ? `<div class="text-xs text-gray-400 mt-0.5">${escapeHtml(presenceLabel + locationText)}</div>` : ''}`;
+            }
+
+            let activityCell;
+            if (isProject) {
+                const actType = timesheet.activity_type || '';
+                activityCell = `
+                    <div class="flex items-center gap-1.5">
+                        <i class="fas ${activityTypeIcons[actType] || 'fa-circle'} text-blue-400 text-xs"></i>
+                        <span class="text-sm text-gray-700">${actType ? actType.charAt(0).toUpperCase() + actType.slice(1) : '-'}</span>
+                    </div>`;
+            } else if (isSupport) {
+                const mdVal = timesheet.md_consumed != null ? Number(timesheet.md_consumed).toFixed(1) : '—';
+                const onSiteBadge = timesheet.presence === 'onsite'
+                    ? '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-semibold"><i class="fas fa-map-marker-alt"></i>On Site</span>'
+                    : '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-semibold"><i class="fas fa-wifi"></i>Remote</span>';
+                activityCell = `<div class="flex items-center gap-1.5 mb-0.5">${onSiteBadge}</div><div class="text-xs text-gray-600">MD: <span class="font-semibold">${mdVal}</span></div>`;
+            } else {
+                const presenceLabel = timesheet.presence ? timesheet.presence.charAt(0).toUpperCase() + timesheet.presence.slice(1) : '-';
+                activityCell = `<span class="text-sm text-gray-600">${escapeHtml(presenceLabel)}</span>`;
+            }
+
             return `
-                <tr class="hover:bg-gray-50 transition-colors">
-                    <td class="px-3 py-2.5 whitespace-nowrap">
-                        <div class="text-sm font-medium text-gray-900">${timesheet.employee_name || 'Unknown'}</div>
+                <tr class="hover:bg-gray-50 transition-colors ${canSelect ? 'cursor-pointer' : ''}" ${canSelect ? `onclick="toggleRowSelection(event, ${timesheet.id})"` : ''}>
+                    <td class="px-3 py-2.5">
+                        ${canSelect ? `<input type="checkbox" class="timesheet-checkbox w-4 h-4 rounded border-gray-300" data-id="${timesheet.id}" data-status="${timesheet.status}" onchange="updateBulkActionButtons()" onclick="event.stopPropagation()">` : `<span class="text-gray-300"><i class="fas fa-lock text-xs" title="${timesheet.status}"></i></span>`}
                     </td>
                     <td class="px-3 py-2.5 whitespace-nowrap">
-                        <div class="text-sm text-gray-900">${formatDisplayDate(timesheet.date)}</div>
+                        <div class="text-sm font-medium text-gray-900">${escapeHtml(timesheet.employee_name || 'Unknown')}</div>
+                    </td>
+                    <td class="px-3 py-2.5 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900">${formatDisplayDate(timesheet.date)}</div>
+                        <div class="text-xs mt-0.5">${typeInfo}</div>
                     </td>
                     <td class="px-3 py-2.5 whitespace-nowrap">
                         <div class="text-sm text-gray-600">${timesheet.start_time} – ${timesheet.end_time}</div>
@@ -906,12 +1181,8 @@ function renderTimesheetRows() {
                     <td class="px-3 py-2.5 whitespace-nowrap">
                         <div class="text-sm font-semibold text-gray-900">${duration}h</div>
                     </td>
-                    <td class="px-3 py-2.5">
-                        <div class="text-sm text-gray-900">${timesheet.project_name || (timesheet.ticket_id ? `Ticket #${timesheet.ticket_id}` : '-')}</div>
-                    </td>
-                    <td class="px-3 py-2.5">
-                        <div class="text-sm text-gray-600">${timesheet.activity_name || timesheet.activity_type || '-'}</div>
-                    </td>
+                    <td class="px-3 py-2.5">${projectTicketCell}</td>
+                    <td class="px-3 py-2.5">${activityCell}</td>
                     <td class="px-3 py-2.5">
                         <div class="text-sm text-gray-900 truncate max-w-xs" title="${escapeHtml(timesheet.description || '')}">
                             ${timesheet.description || '-'}
@@ -921,21 +1192,8 @@ function renderTimesheetRows() {
                         <span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full ${statusColor.bg} ${statusColor.text}">
                             ${timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
                         </span>
-                        ${timesheet.is_billable ? '<span class="text-green-600 font-bold text-xs ml-1" title="Billable">Rp</span>' : ''}
-                        ${timesheet.status === 'approved' && timesheet.approver_name ? `<div class="text-xs text-gray-500 mt-0.5">by ${timesheet.approver_name}</div>` : ''}
-                        ${timesheet.status === 'rejected' && timesheet.rejection_reason ? `<div class="text-xs text-red-500 mt-0.5" title="${escapeHtml(timesheet.rejection_reason)}"><i class="fas fa-info-circle"></i> ${timesheet.rejection_reason.substring(0, 25)}…</div>` : ''}
-                    </td>
-                    <td class="px-3 py-2.5 whitespace-nowrap">
-                        <div class="flex items-center gap-1.5">
-                            ${canApprove ? `
-                                <button onclick="openApproveModal(${timesheet.id})" class="inline-flex items-center px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-all">
-                                    <i class="fas fa-check mr-1"></i>Approve
-                                </button>
-                                <button onclick="openRejectModal(${timesheet.id})" class="inline-flex items-center px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-all">
-                                    <i class="fas fa-times mr-1"></i>Reject
-                                </button>
-                            ` : `<span class="text-xs text-gray-400">${timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}</span>`}
-                        </div>
+                        ${timesheet.status === 'approved' && timesheet.approver_name ? `<div class="text-xs text-gray-500 mt-0.5">by ${escapeHtml(timesheet.approver_name)}</div>` : ''}
+                        ${timesheet.status === 'rejected' && timesheet.rejection_reason ? `<i class="fas fa-info-circle text-yellow-500 ml-1 cursor-pointer text-xs" title="${escapeHtml(timesheet.rejection_reason)}" onclick="event.stopPropagation(); showRejectionReason(${timesheet.id})"></i>` : ''}
                     </td>
                 </tr>
             `;
@@ -943,19 +1201,122 @@ function renderTimesheetRows() {
         return;
     }
 
-    // Employee mode
+    // ── Support tab: dedicated spreadsheet-style layout ────────────
+    if (currentFilters.type_filter === 'support') {
+        tbody.innerHTML = pageItems.map(timesheet => {
+            const statusColor = statusColors[timesheet.status] || statusColors.draft;
+            const canEdit = ['draft', 'rejected'].includes(timesheet.status);
+
+            const dateObj   = timesheet.date ? new Date(timesheet.date + 'T00:00:00') : null;
+            const dateFmt   = dateObj ? dateObj.toLocaleDateString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\//g, '/') : '-';
+            const period    = dateObj ? getPeriodInfo(dateObj) : null;
+            const bulan     = period ? period.month : '-';
+            const tahun     = period ? period.year  : '-';
+            const nama      = escapeHtml(timesheet.employee_name || '-');
+            const tiket     = timesheet.ticket_number ? `#${escapeHtml(timesheet.ticket_number)}` : (timesheet.ticket_id ? `#${timesheet.ticket_id}` : '-');
+            const ticketDesc = escapeHtml(timesheet.ticket_description || '-');
+            const customer  = escapeHtml(timesheet.customer_name || '-');
+            const jatahMd   = timesheet.jatah_md != null ? Number(timesheet.jatah_md).toFixed(1) : '-';
+            const aktivitas = escapeHtml(timesheet.description || '-');
+            const mdConsumed = timesheet.md_consumed != null ? Number(timesheet.md_consumed).toFixed(1) : '-';
+            const onSite    = timesheet.presence === 'onsite' ? 'X' : '';
+
+            return `
+                <tr class="hover:bg-purple-50/30 transition-colors ${canEdit ? 'cursor-pointer' : ''}" ${canEdit ? `onclick="toggleRowSelection(event, ${timesheet.id})"` : ''}>
+                    <td class="px-3 py-2 border-b border-gray-100">
+                        ${canEdit ? `<input type="checkbox" class="timesheet-checkbox w-4 h-4 rounded border-gray-300" data-id="${timesheet.id}" data-status="${timesheet.status}" onchange="updateBulkActionButtons()" onclick="event.stopPropagation()">` : `<span class="text-gray-300"><i class="fas fa-lock text-xs" title="Cannot edit (${timesheet.status})"></i></span>`}
+                    </td>
+                    <td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs text-gray-700">${dateFmt}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">${bulan}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">${tahun}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-800 font-medium">${nama}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs font-semibold text-purple-700">
+                        <i class="fas fa-ticket-alt mr-1 opacity-60"></i>${tiket}
+                    </td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-600 max-w-[180px]" title="${escapeHtml(timesheet.ticket_description || '')}">${ticketDesc}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700">${customer}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">${jatahMd}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700 max-w-[180px]" title="${escapeHtml(timesheet.description || '')}">${aktivitas}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">${mdConsumed}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-bold text-green-700">${onSite}</td>
+                    <td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap">
+                        <span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full ${statusColor.bg} ${statusColor.text}">
+                            ${timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
+                        </span>
+                        ${timesheet.status === 'rejected' && timesheet.rejection_reason ? `<i class="fas fa-info-circle text-yellow-500 ml-1 cursor-pointer text-xs" title="${escapeHtml(timesheet.rejection_reason)}" onclick="event.stopPropagation(); showRejectionReason(${timesheet.id})"></i>` : ''}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        return;
+    }
+
+    // Employee mode (All / Project / Office)
     tbody.innerHTML = pageItems.map(timesheet => {
         const statusColor = statusColors[timesheet.status] || statusColors.draft;
         const duration = (timesheet.duration_minutes / 60).toFixed(2);
         const canEdit = ['draft', 'rejected'].includes(timesheet.status);
 
-        let typeInfo = '';
-        if (timesheet.delivery_projects_id) {
-            typeInfo = '<span class="text-blue-600 text-xs font-medium">Project</span>';
-        } else if (timesheet.ticket_id) {
-            typeInfo = '<span class="text-purple-600 text-xs font-medium">Support</span>';
+        // ── Determine type ──────────────────────────────────────────
+        const isProject = !!timesheet.delivery_projects_id;
+        const isSupport = !isProject && !!timesheet.ticket_id;
+        const isOffice  = !isProject && !isSupport;
+
+        // ── Date cell type badge ─────────────────────────────────────
+        let typeInfo;
+        if (isProject)      typeInfo = '<span class="text-blue-600 text-xs font-medium">Project</span>';
+        else if (isSupport) typeInfo = '<span class="text-purple-600 text-xs font-medium">Support</span>';
+        else                typeInfo = '<span class="text-gray-500 text-xs font-medium">Office</span>';
+
+        // ── Project/Ticket cell ──────────────────────────────────────
+        let projectTicketCell;
+        if (isProject) {
+            const actName = timesheet.activity?.name || '';
+            projectTicketCell = `
+                <div class="text-sm text-gray-900">
+                    <i class="fas fa-project-diagram mr-1 text-blue-500"></i>Project #${timesheet.delivery_projects_id}
+                </div>
+                ${actName ? `<div class="text-xs text-gray-500 mt-0.5"><i class="fas fa-tasks mr-1"></i>${escapeHtml(actName)}</div>` : ''}`;
+        } else if (isSupport) {
+            const ticketLabel = timesheet.ticket_number ? `#${timesheet.ticket_number}` : `#${timesheet.ticket_id}`;
+            const customerName = timesheet.customer_name || '';
+            projectTicketCell = `
+                <div class="text-sm font-medium text-gray-900">
+                    <i class="fas fa-ticket-alt mr-1 text-purple-500"></i>${escapeHtml(ticketLabel)}
+                </div>
+                ${customerName ? `<div class="text-xs text-gray-500 mt-0.5">${escapeHtml(customerName)}</div>` : ''}`;
         } else {
-            typeInfo = '<span class="text-gray-600 text-xs font-medium">Office</span>';
+            const presenceLabel = timesheet.presence ? timesheet.presence.charAt(0).toUpperCase() + timesheet.presence.slice(1) : '';
+            const locationText  = timesheet.location  ? ` · ${timesheet.location}` : '';
+            projectTicketCell = `
+                <div class="text-sm text-gray-600">
+                    <i class="fas fa-building mr-1 text-gray-400"></i>Office
+                </div>
+                ${presenceLabel ? `<div class="text-xs text-gray-400 mt-0.5">${escapeHtml(presenceLabel + locationText)}</div>` : ''}`;
+        }
+
+        // ── Activity cell ────────────────────────────────────────────
+        let activityCell;
+        if (isProject) {
+            const actType = timesheet.activity_type || '';
+            activityCell = `
+                <div class="flex items-center gap-1.5">
+                    <i class="fas ${activityTypeIcons[actType] || 'fa-circle'} text-blue-400 text-xs"></i>
+                    <span class="text-sm text-gray-700">${actType ? actType.charAt(0).toUpperCase() + actType.slice(1) : '-'}</span>
+                </div>
+                ${timesheet.is_billable ? '<div class="text-xs text-green-600 font-semibold mt-0.5"><i class="fas fa-tag mr-1"></i>Billable</div>' : ''}`;
+        } else if (isSupport) {
+            const mdVal      = timesheet.md_consumed != null ? Number(timesheet.md_consumed).toFixed(1) : '—';
+            const onSite     = timesheet.presence === 'onsite';
+            const presenceBadge = onSite
+                ? '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-semibold"><i class="fas fa-map-marker-alt"></i>On Site</span>'
+                : '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-semibold"><i class="fas fa-wifi"></i>Remote</span>';
+            activityCell = `
+                <div class="flex items-center gap-1.5 mb-0.5">${presenceBadge}</div>
+                <div class="text-xs text-gray-600">MD: <span class="font-semibold">${mdVal}</span></div>`;
+        } else {
+            const presenceLabel = timesheet.presence ? timesheet.presence.charAt(0).toUpperCase() + timesheet.presence.slice(1) : '-';
+            activityCell = `<span class="text-sm text-gray-600">${escapeHtml(presenceLabel)}</span>`;
         }
 
         return `
@@ -965,7 +1326,7 @@ function renderTimesheetRows() {
                 </td>
                 <td class="px-3 py-2.5 whitespace-nowrap">
                     <div class="text-sm font-medium text-gray-900">${formatDisplayDate(timesheet.date)}</div>
-                    <div class="text-xs text-gray-500 mt-0.5">${typeInfo}</div>
+                    <div class="text-xs mt-0.5">${typeInfo}</div>
                 </td>
                 <td class="px-3 py-2.5 whitespace-nowrap">
                     <div class="text-sm text-gray-600">${timesheet.start_time} – ${timesheet.end_time}</div>
@@ -973,20 +1334,8 @@ function renderTimesheetRows() {
                 <td class="px-3 py-2.5 whitespace-nowrap">
                     <div class="text-sm font-semibold text-gray-900">${duration}h</div>
                 </td>
-                <td class="px-3 py-2.5">
-                    <div class="text-sm text-gray-900">
-                        ${timesheet.delivery_projects_id ? `<i class="fas fa-project-diagram mr-1 text-blue-500"></i>Project #${timesheet.delivery_projects_id}` : ''}
-                        ${timesheet.ticket_id ? `<i class="fas fa-ticket-alt mr-1 text-purple-500"></i>Ticket #${timesheet.ticket_id}` : ''}
-                        ${!timesheet.delivery_projects_id && !timesheet.ticket_id ? '<i class="fas fa-building mr-1 text-gray-400"></i>Office/Idle' : ''}
-                    </div>
-                    ${timesheet.activity ? `<div class="text-xs text-gray-500 mt-0.5"><i class="fas fa-tasks mr-1"></i>${timesheet.activity.name}</div>` : ''}
-                </td>
-                <td class="px-3 py-2.5">
-                    <div class="flex items-center gap-1.5">
-                        <i class="fas ${activityTypeIcons[timesheet.activity_type] || 'fa-circle'} text-gray-400 text-xs"></i>
-                        <span class="text-sm text-gray-700">${timesheet.activity ? timesheet.activity.name : (timesheet.activity_type ? timesheet.activity_type.charAt(0).toUpperCase() + timesheet.activity_type.slice(1) : '-')}</span>
-                    </div>
-                </td>
+                <td class="px-3 py-2.5">${projectTicketCell}</td>
+                <td class="px-3 py-2.5">${activityCell}</td>
                 <td class="px-3 py-2.5">
                     <div class="text-sm text-gray-900 truncate max-w-xs" title="${escapeHtml(timesheet.description || '')}">
                         ${timesheet.description || '-'}
@@ -996,7 +1345,6 @@ function renderTimesheetRows() {
                     <span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full ${statusColor.bg} ${statusColor.text}">
                         ${timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
                     </span>
-                    ${timesheet.is_billable ? '<span class="text-green-600 font-bold text-xs ml-1" title="Billable">Rp</span>' : ''}
                     ${timesheet.status === 'rejected' && timesheet.rejection_reason ? `<i class="fas fa-info-circle text-yellow-500 ml-1 cursor-pointer text-xs" title="${escapeHtml(timesheet.rejection_reason)}" onclick="event.stopPropagation(); showRejectionReason(${timesheet.id})"></i>` : ''}
                 </td>
             </tr>
@@ -1006,6 +1354,22 @@ function renderTimesheetRows() {
 
 function escapeHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/**
+ * Compute the reporting period month/year from a date object.
+ * Rule: day 21 of month M → day 20 of month M+1 = Period M.
+ * Dates 1–20 belong to the previous month's period.
+ */
+function getPeriodInfo(d) {
+    if (d.getDate() >= 21) {
+        return { month: d.getMonth() + 1, year: d.getFullYear() };
+    }
+    // Dates 1–20 → previous month's period
+    if (d.getMonth() === 0) {
+        return { month: 12, year: d.getFullYear() - 1 };
+    }
+    return { month: d.getMonth(), year: d.getFullYear() };
 }
 
 function updatePagination(total, start, end) {
@@ -1181,21 +1545,31 @@ function editTimesheet(id) {
         const location = document.getElementById('timesheetLocation');
         const billable = document.getElementById('timesheetBillable');
 
-        if (ticketSelect) ticketSelect.value = timesheet.ticket_id || '';
         if (presence) presence.value = timesheet.presence || '';
         if (location) location.value = timesheet.location || '';
         if (billable) billable.checked = timesheet.is_billable || false;
 
+        if (timesheetType === 'support') {
+            // Set ticket and trigger auto-fill
+            if (ticketSelect && timesheet.ticket_id) {
+                ticketSelect.value = timesheet.ticket_id;
+                await onSupportTicketSelected(timesheet.ticket_id);
+            }
+            // On Site checkbox: checked if presence === 'onsite'
+            const onSiteEl = document.getElementById('supportOnSite');
+            if (onSiteEl) onSiteEl.checked = timesheet.presence === 'onsite';
+            // MD Consumed
+            const mdEl = document.getElementById('supportMdConsumed');
+            if (mdEl) mdEl.value = timesheet.md_consumed != null ? timesheet.md_consumed : '';
+        }
+
         // For project type: wait for activities to load, then set the selected activity
         if (timesheet.delivery_projects_id && activitySelect) {
-            // Wait for activities to be loaded
             setTimeout(() => {
                 if (activitySelect && timesheet.activity_id) {
                     activitySelect.value = timesheet.activity_id;
-                    // Trigger change to set the hidden project ID
                     onActivitySelected();
                 }
-                // Also set hidden project ID directly as backup
                 if (projectIdInput) {
                     projectIdInput.value = timesheet.delivery_projects_id;
                 }
@@ -1335,52 +1709,40 @@ function updateBulkActionButtons() {
     const checkboxes = document.querySelectorAll('.timesheet-checkbox:checked');
     const bulkActions = document.getElementById('bulkActions');
     const selectedCount = document.getElementById('selectedCount');
-    const btnEdit = document.getElementById('btnBulkEdit');
-    const btnSubmit = document.getElementById('btnBulkSubmit');
-    const btnDelete = document.getElementById('btnBulkDelete');
 
     if (!bulkActions) return;
 
     if (checkboxes.length > 0) {
         bulkActions.classList.remove('hidden');
         bulkActions.classList.add('flex');
-        if (selectedCount) {
-            selectedCount.textContent = checkboxes.length;
-        }
+        if (selectedCount) selectedCount.textContent = checkboxes.length;
 
-        // Check statuses of selected items
-        let hasDraft = false;
-        checkboxes.forEach(cb => {
-            const status = cb.getAttribute('data-status');
-            if (status === 'draft') hasDraft = true;
-        });
+        if (window.isApprovalMode) {
+            // Approval mode: Approve / Reject buttons (always show when items selected)
+            const btnApprove = document.getElementById('btnBulkApprove');
+            const btnReject  = document.getElementById('btnBulkReject');
+            if (btnApprove) btnApprove.classList.remove('hidden');
+            if (btnReject)  btnReject.classList.remove('hidden');
+        } else {
+            // Employee mode: Edit / Submit / Delete buttons
+            const btnEdit   = document.getElementById('btnBulkEdit');
+            const btnSubmit = document.getElementById('btnBulkSubmit');
+            const btnDelete = document.getElementById('btnBulkDelete');
 
-        // Edit button: Show only when exactly 1 item is selected
-        if (btnEdit) {
-            if (checkboxes.length === 1) {
-                btnEdit.classList.remove('hidden');
-            } else {
-                btnEdit.classList.add('hidden');
-            }
-        }
+            let hasDraft = false;
+            checkboxes.forEach(cb => {
+                if (cb.getAttribute('data-status') === 'draft') hasDraft = true;
+            });
 
-        // Submit button: Show only when there are draft items selected
-        if (btnSubmit) {
-            if (hasDraft) {
-                btnSubmit.classList.remove('hidden');
-            } else {
-                btnSubmit.classList.add('hidden');
-            }
-        }
-
-        // Delete button: Always show when items are selected
-        if (btnDelete) {
-            btnDelete.classList.remove('hidden');
+            if (btnEdit)   btnEdit.classList.toggle('hidden', checkboxes.length !== 1);
+            if (btnSubmit) btnSubmit.classList.toggle('hidden', !hasDraft);
+            if (btnDelete) btnDelete.classList.remove('hidden');
         }
     } else {
         bulkActions.classList.add('hidden');
         bulkActions.classList.remove('flex');
     }
+
     const noBulkActions = document.getElementById('noBulkActions');
     if (noBulkActions) {
         noBulkActions.classList.toggle('hidden', checkboxes.length > 0);
@@ -1594,7 +1956,7 @@ function showRejectionReason(id) {
         return;
     }
     
-    alert(`Rejection Reason:\n\n${timesheet.rejection_reason}`);
+    showNotification(`Rejected: ${timesheet.rejection_reason}`, 'error');
 }
 
 async function handleFormSubmit(e) {
@@ -1647,11 +2009,14 @@ async function handleFormSubmit(e) {
         timesheetData.is_billable = document.getElementById('timesheetBillable')?.checked || false;
 
     } else if (selectedType === 'support') {
+        const onSite = document.getElementById('supportOnSite')?.checked;
+        const mdConsumedVal = document.getElementById('supportMdConsumed')?.value;
         timesheetData.delivery_projects_id = null;
         timesheetData.ticket_id = document.getElementById('timesheetTicket')?.value || null;
-        timesheetData.activity_type = 'support'; // Default for support
-        timesheetData.presence = document.getElementById('timesheetPresence')?.value || null;
-        timesheetData.location = document.getElementById('timesheetLocation')?.value || null;
+        timesheetData.activity_type = 'support';
+        timesheetData.presence = onSite ? 'onsite' : 'remote';
+        timesheetData.location = null;
+        timesheetData.md_consumed = mdConsumedVal ? parseFloat(mdConsumedVal) : null;
         timesheetData.is_billable = false;
 
     } else if (selectedType === 'office') {
@@ -1694,18 +2059,108 @@ async function handleFormSubmit(e) {
     }
 }
 
-function showNotification(message, type = 'info') {
-    const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
-    const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.style.opacity = '0';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
+// ==================== BULK APPROVE / REJECT ====================
+
+function openBulkApproveModal() {
+    const checkboxes = document.querySelectorAll('.timesheet-checkbox:checked');
+    if (checkboxes.length === 0) {
+        showNotification('Please select timesheets to approve', 'error');
+        return;
+    }
+    const countEl = document.getElementById('bulkApproveCount');
+    if (countEl) countEl.textContent = checkboxes.length;
+    const modal = document.getElementById('bulkApproveModal');
+    if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
 }
+
+function closeBulkApproveModal() {
+    const modal = document.getElementById('bulkApproveModal');
+    if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+}
+
+async function confirmBulkApprove() {
+    const checkboxes = document.querySelectorAll('.timesheet-checkbox:checked');
+    let successCount = 0, failCount = 0;
+
+    for (const cb of checkboxes) {
+        const id = cb.getAttribute('data-id');
+        try {
+            const res = await fetch(`/api/timesheets/${id}/approve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
+            });
+            const data = await res.json();
+            if (data.success) successCount++;
+            else failCount++;
+        } catch (e) { failCount++; }
+    }
+
+    closeBulkApproveModal();
+    await loadSubmittedTimesheets();
+    await loadApprovalStatistics();
+
+    if (successCount > 0) {
+        showNotification(`Approved ${successCount} timesheet(s) successfully${failCount > 0 ? `, ${failCount} failed` : ''}!`, 'success');
+    } else {
+        showNotification('Failed to approve timesheets', 'error');
+    }
+}
+
+function openBulkRejectModal() {
+    const checkboxes = document.querySelectorAll('.timesheet-checkbox:checked');
+    if (checkboxes.length === 0) {
+        showNotification('Please select timesheets to reject', 'error');
+        return;
+    }
+    const countEl = document.getElementById('bulkRejectCount');
+    if (countEl) countEl.textContent = checkboxes.length;
+    const reasonEl = document.getElementById('bulkRejectionReason');
+    if (reasonEl) reasonEl.value = '';
+    const modal = document.getElementById('bulkRejectModal');
+    if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
+}
+
+function closeBulkRejectModal() {
+    const modal = document.getElementById('bulkRejectModal');
+    if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+}
+
+async function confirmBulkReject() {
+    const reason = document.getElementById('bulkRejectionReason')?.value?.trim();
+    if (!reason) {
+        showNotification('Please provide a rejection reason', 'error');
+        return;
+    }
+
+    const checkboxes = document.querySelectorAll('.timesheet-checkbox:checked');
+    let successCount = 0, failCount = 0;
+
+    for (const cb of checkboxes) {
+        const id = cb.getAttribute('data-id');
+        try {
+            const res = await fetch(`/api/timesheets/${id}/reject`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+                body: JSON.stringify({ rejection_reason: reason })
+            });
+            const data = await res.json();
+            if (data.success) successCount++;
+            else failCount++;
+        } catch (e) { failCount++; }
+    }
+
+    closeBulkRejectModal();
+    await loadSubmittedTimesheets();
+    await loadApprovalStatistics();
+
+    if (successCount > 0) {
+        showNotification(`Rejected ${successCount} timesheet(s) successfully${failCount > 0 ? `, ${failCount} failed` : ''}!`, 'success');
+    } else {
+        showNotification('Failed to reject timesheets', 'error');
+    }
+}
+
+// showNotification is provided globally by dashboard.blade.php → showToast()
 
 const timesheetModal = document.getElementById('timesheetModal');
 if (timesheetModal) {
@@ -1759,9 +2214,21 @@ if (confirmBulkDeleteModal) {
 const approveModal = document.getElementById('approveModal');
 if (approveModal) {
     approveModal.addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeApproveModal();
-        }
+        if (e.target === this) closeApproveModal();
+    });
+}
+
+const bulkApproveModal = document.getElementById('bulkApproveModal');
+if (bulkApproveModal) {
+    bulkApproveModal.addEventListener('click', function(e) {
+        if (e.target === this) closeBulkApproveModal();
+    });
+}
+
+const bulkRejectModal = document.getElementById('bulkRejectModal');
+if (bulkRejectModal) {
+    bulkRejectModal.addEventListener('click', function(e) {
+        if (e.target === this) closeBulkRejectModal();
     });
 }
 
