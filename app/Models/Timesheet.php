@@ -29,6 +29,9 @@ class Timesheet extends Model
         'is_billable',
         'presence',
         'location',
+        'md_consumed',
+        'period_year',
+        'period_month',
     ];
 
     protected $casts = [
@@ -76,7 +79,7 @@ class Timesheet extends Model
 
     public function ticket()
     {
-        return $this->belongsTo(Ticket::class);
+        return $this->belongsTo(Ticket::class, 'ticket_id', 'ticket_id');
     }
 
     /**

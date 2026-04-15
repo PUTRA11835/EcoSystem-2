@@ -82,6 +82,33 @@
     </div>
     @endif
 
+    <!-- Type Tabs (All / Project / Support / Office) — hidden when role is locked to one type -->
+    @php $lockedType = $lockedType ?? null; @endphp
+    @if(!$lockedType)
+    <div class="flex items-center gap-2 mb-4">
+        <button id="typeTabAll"
+            onclick="filterByType('')"
+            class="type-tab-btn inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border-2 border-red-600 bg-red-600 text-white transition-all duration-150">
+            <i class="fas fa-list text-xs"></i> All
+        </button>
+        <button id="typeTabProject"
+            onclick="filterByType('project')"
+            class="type-tab-btn inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border-2 border-gray-200 bg-white text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-all duration-150">
+            <i class="fas fa-project-diagram text-xs"></i> Project
+        </button>
+        <button id="typeTabSupport"
+            onclick="filterByType('support')"
+            class="type-tab-btn inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border-2 border-gray-200 bg-white text-gray-600 hover:border-purple-400 hover:text-purple-600 transition-all duration-150">
+            <i class="fas fa-headset text-xs"></i> Support
+        </button>
+        <button id="typeTabOffice"
+            onclick="filterByType('office')"
+            class="type-tab-btn inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border-2 border-gray-200 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-700 transition-all duration-150">
+            <i class="fas fa-building text-xs"></i> Office
+        </button>
+    </div>
+    @endif
+
     <!-- Filters & Search -->
     <div class="bg-white rounded-xl border border-gray-200 p-4 mb-6 shadow-sm">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -95,26 +122,32 @@
             </div>
             <div class="flex flex-col">
                 <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Status</label>
-                <select id="filterStatus" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white">
-                    <option value="">All Status</option>
-                    <option value="draft">Draft</option>
-                    <option value="submitted">Submitted</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                </select>
+                <div class="sel-wrap">
+                    <select id="filterStatus" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white">
+                        <option value="">All Status</option>
+                        <option value="draft">Draft</option>
+                        <option value="submitted">Submitted</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                    </select>
+                    <i class="fas fa-bars sel-icon"></i>
+                </div>
             </div>
             <div class="flex flex-col">
                 <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Activity Type</label>
-                <select id="filterActivityType" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white">
-                    <option value="">All Types</option>
-                    <option value="development">Development</option>
-                    <option value="meeting">Meeting</option>
-                    <option value="documentation">Documentation</option>
-                    <option value="testing">Testing</option>
-                    <option value="support">Support</option>
-                    <option value="training">Training</option>
-                    <option value="other">Other</option>
-                </select>
+                <div class="sel-wrap">
+                    <select id="filterActivityType" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white">
+                        <option value="">All Types</option>
+                        <option value="development">Development</option>
+                        <option value="meeting">Meeting</option>
+                        <option value="documentation">Documentation</option>
+                        <option value="testing">Testing</option>
+                        <option value="support">Support</option>
+                        <option value="training">Training</option>
+                        <option value="other">Other</option>
+                    </select>
+                    <i class="fas fa-bars sel-icon"></i>
+                </div>
             </div>
         </div>
         <div class="flex gap-2 justify-end mt-3 pt-3 border-t border-gray-100">
@@ -129,12 +162,19 @@
 
     <!-- Pagination -->
     <div class="flex items-center justify-between mb-4">
-        @if(!$isApprovalMode)
-        <!-- Bulk Actions Bar (Hidden by default) - Only for employee mode -->
+        <!-- Bulk Actions Bar (Hidden by default) -->
         <div id="bulkActions" class="hidden items-center gap-2">
             <span class="text-sm font-medium text-gray-700">
                 <span id="selectedCount">0</span> selected
             </span>
+            @if($isApprovalMode)
+            <button id="btnBulkApprove" onclick="openBulkApproveModal()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-check text-xs"></i> Approve
+            </button>
+            <button id="btnBulkReject" onclick="openBulkRejectModal()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-times text-xs"></i> Reject
+            </button>
+            @else
             <button id="btnBulkEdit" onclick="editSelectedTimesheet()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Edit
             </button>
@@ -144,15 +184,11 @@
             <button id="btnBulkDelete" onclick="openBulkDeleteModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Delete
             </button>
+            @endif
         </div>
         <span id="noBulkActions" class="text-sm text-gray-500">
             <span id="currentRangeStart">1</span>–<span id="currentRangeEnd">20</span> of <span id="totalItems">0</span> timesheets
         </span>
-        @else
-        <span class="text-sm text-gray-500">
-            <span id="currentRangeStart">1</span>–<span id="currentRangeEnd">20</span> of <span id="totalItems">0</span> timesheets
-        </span>
-        @endif
         <div class="flex items-center gap-1">
             <button onclick="previousPage()" id="btnPrevPage" disabled class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-600">
@@ -170,10 +206,13 @@
     <!-- Timesheets Table -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="overflow-auto" style="max-height: calc(100vh - 380px); min-height: 200px;">
-            <table class="w-full text-sm border-collapse" style="min-width: 900px;">
-                <thead class="sticky top-0 z-10 bg-gray-50">
-                    @if($isApprovalMode)
+            <table id="timesheetTable" class="w-full text-sm border-collapse" style="min-width: {{ $lockedType === 'support' ? '1200px' : '900px' }};">
+                <thead id="timesheetTableHead" class="sticky top-0 z-10 bg-gray-50">
+                    @if($isApprovalMode && $lockedType !== 'support')
                     <tr>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:36px;">
+                            <input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300">
+                        </th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Employee</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Date</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Time</th>
@@ -182,7 +221,22 @@
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Activity</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:200px;">Description</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Status</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:140px;">Actions</th>
+                    </tr>
+                    @elseif($lockedType === 'support')
+                    <tr>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:36px;"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300"></th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Date</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:55px;">Month</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:55px;">Year</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Name</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Ticket</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:180px;">Description</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Customer</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Quota MD</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:180px;">Activity</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:90px;">MD Consumed</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:70px;">On Site</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Status</th>
                     </tr>
                     @else
                     <tr>
@@ -210,11 +264,11 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
             </svg>
             @if($isApprovalMode)
-            <p class="text-gray-600 font-semibold mb-1">No timesheets pending approval</p>
+            <p class="text-gray-600 font-semibold mb-1">No Timesheets Pending Approval</p>
             <p class="text-gray-400 text-xs">All employee timesheets have been reviewed</p>
             @else
-            <p class="text-gray-600 font-semibold mb-1">No timesheets found</p>
-            <p class="text-gray-400 text-xs mb-4">Start logging your hours by clicking "Log Hours" button</p>
+            <p class="text-gray-600 font-semibold mb-1">No Timesheets Found</p>
+            <p class="text-gray-400 text-xs mb-4">Click "Create Timesheet" button</p>
             @endif
         </div>
     </div>
@@ -240,7 +294,7 @@
     </div>
 </div>
 
-<!-- Approval Confirmation Modal -->
+<!-- Approval Confirmation Modal (single) -->
 <div id="approveModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="p-6">
@@ -253,6 +307,41 @@
             <div class="flex gap-3">
                 <button onclick="closeApproveModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
                 <button onclick="confirmApprove()" class="flex-1 px-4 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all">Approve</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Approve Modal -->
+<div id="bulkApproveModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-green-100 rounded-full">
+                <i class="fas fa-check text-green-600 text-xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 text-center mb-2">Approve Selected Timesheets</h3>
+            <p class="text-sm text-gray-600 text-center mb-6">Approve <span id="bulkApproveCount" class="font-bold text-green-600">0</span> selected timesheet(s)?</p>
+            <div class="flex gap-3">
+                <button onclick="closeBulkApproveModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+                <button onclick="confirmBulkApprove()" class="flex-1 px-4 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all">Approve All</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Reject Modal -->
+<div id="bulkRejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
+                <i class="fas fa-times text-red-600 text-xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 text-center mb-2">Reject Selected Timesheets</h3>
+            <p class="text-sm text-gray-600 text-center mb-4">Reject <span id="bulkRejectCount" class="font-bold text-red-600">0</span> selected timesheet(s).</p>
+            <textarea id="bulkRejectionReason" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent resize-none mb-4" placeholder="Enter rejection reason for all selected..."></textarea>
+            <div class="flex gap-3">
+                <button onclick="closeBulkRejectModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+                <button onclick="confirmBulkReject()" class="flex-1 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-all">Reject All</button>
             </div>
         </div>
     </div>
@@ -362,19 +451,25 @@
                             Start Time <span class="text-red-600">*</span>
                         </label>
                         <div class="flex gap-2 items-center">
-                            <select id="timesheetStartHour" required
-                                class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                                @for($h = 0; $h < 24; $h++)
-                                    <option value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</option>
-                                @endfor
-                            </select>
+                            <div class="sel-wrap flex-1">
+                                <select id="timesheetStartHour" required
+                                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                                    @for($h = 0; $h < 24; $h++)
+                                        <option value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</option>
+                                    @endfor
+                                </select>
+                                <i class="fas fa-bars sel-icon"></i>
+                            </div>
                             <span class="text-lg font-bold text-gray-400">:</span>
-                            <select id="timesheetStartMinute" required
-                                class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                                @for($m = 0; $m < 60; $m += 5)
-                                    <option value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</option>
-                                @endfor
-                            </select>
+                            <div class="sel-wrap flex-1">
+                                <select id="timesheetStartMinute" required
+                                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                                    @for($m = 0; $m < 60; $m += 5)
+                                        <option value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</option>
+                                    @endfor
+                                </select>
+                                <i class="fas fa-bars sel-icon"></i>
+                            </div>
                         </div>
                         <input type="hidden" id="timesheetStartTime">
                     </div>
@@ -385,19 +480,25 @@
                             End Time <span class="text-red-600">*</span>
                         </label>
                         <div class="flex gap-2 items-center">
-                            <select id="timesheetEndHour" required
-                                class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                                @for($h = 0; $h < 24; $h++)
-                                    <option value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</option>
-                                @endfor
-                            </select>
+                            <div class="sel-wrap flex-1">
+                                <select id="timesheetEndHour" required
+                                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                                    @for($h = 0; $h < 24; $h++)
+                                        <option value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</option>
+                                    @endfor
+                                </select>
+                                <i class="fas fa-bars sel-icon"></i>
+                            </div>
                             <span class="text-lg font-bold text-gray-400">:</span>
-                            <select id="timesheetEndMinute" required
-                                class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                                @for($m = 0; $m < 60; $m += 5)
-                                    <option value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</option>
-                                @endfor
-                            </select>
+                            <div class="sel-wrap flex-1">
+                                <select id="timesheetEndMinute" required
+                                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                                    @for($m = 0; $m < 60; $m += 5)
+                                        <option value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</option>
+                                    @endfor
+                                </select>
+                                <i class="fas fa-bars sel-icon"></i>
+                            </div>
                         </div>
                         <input type="hidden" id="timesheetEndTime">
                     </div>
@@ -407,7 +508,7 @@
 
                     {{-- Activity Description --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                        <label for="timesheetDescription" class="block text-sm font-medium text-gray-700 mb-1.5">
                             Activity Description <span class="text-red-600">*</span>
                         </label>
                         <textarea id="timesheetDescription" required rows="3"
@@ -519,12 +620,37 @@
     </div>
 </div>
 
+@push('styles')
+<style>
+.sel-wrap {
+    position: relative;
+    display: block;
+}
+.sel-wrap select {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    padding-right: 2.25rem;
+}
+.sel-wrap .sel-icon {
+    position: absolute;
+    right: 0.65rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.65rem;
+    color: #9ca3af;
+    pointer-events: none;
+}
+</style>
+@endpush
+
 @push('scripts')
 <script>
     // Pass PHP variables to JavaScript
     window.isApprovalMode = {{ $isApprovalMode ? 'true' : 'false' }};
     window.isAdminMode = {{ $isAdminMode ? 'true' : 'false' }};
     window.userRoleId = {{ $roleId ?? 'null' }};
+    window.lockedType = {{ $lockedType ? "'{$lockedType}'" : 'null' }};
 </script>
 <script src="/js/calendar-timesheets.js"></script>
 @endpush

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\RoleId;
 use App\Models\Ticket;
 use App\Models\Customer;
+use App\Models\CustomerMandays;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -146,13 +147,20 @@ class TicketViewController extends Controller
             })
             ->toArray();
 
+        // Approved customer mandays total (for Properties panel)
+        $approvedMandays = CustomerMandays::where('ticket_id', $ticket->ticket_id)
+            ->where('status', 'approved')
+            ->orderBy('version', 'desc')
+            ->value('total_mandays');
+
         return view('ticket.show', [
-            'user'           => $user,
-            'ticket'         => $ticket,
-            'consultants'    => $consultants,
-            'employees'      => $employees,
-            'ticketId'       => $id,
-            'deliverySupport' => $deliverySupport,
+            'user'             => $user,
+            'ticket'           => $ticket,
+            'consultants'      => $consultants,
+            'employees'        => $employees,
+            'ticketId'         => $id,
+            'deliverySupport'  => $deliverySupport,
+            'approvedMandays'  => $approvedMandays,
         ]);
     }
 }
