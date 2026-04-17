@@ -106,23 +106,23 @@
         
         /* Smooth scrollbar */
         ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
         }
-        
+
         ::-webkit-scrollbar-track {
             background: #f1f1f1;
             border-radius: 10px;
         }
-        
+
         ::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, rgb(var(--primary-dark-rgb)), rgb(var(--primary-rgb)));
+            background: #c62828;
             border-radius: 10px;
             border: 2px solid #f1f1f1;
         }
-        
+
         ::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(135deg, rgb(var(--primary-rgb)), rgb(var(--primary-dark-rgb)));
+            background: #991b1b;
         }
         
         /* Navbar animation */
@@ -610,7 +610,7 @@
             </header>
 
             <!-- Content Area -->
-            <div class="p-8">
+            <div class="@yield('content-class', 'p-6')">
                 @yield('content')
             </div>
         </main>
@@ -645,9 +645,9 @@
             
             if (isCollapsed) {
                 sidebar.classList.remove('w-64');
-                sidebar.classList.add('w-20');
+                sidebar.classList.add('w-16');
                 mainContent.classList.remove('ml-64');
-                mainContent.classList.add('ml-20');
+                mainContent.classList.add('ml-16');
                 navTexts.forEach(function(text) { text.classList.add('hidden'); });
                 logoExpanded.classList.add('hidden');
                 logoCollapsed.classList.remove('hidden');
@@ -656,9 +656,9 @@
                     link.classList.remove('gap-3');
                 });
             } else {
-                sidebar.classList.remove('w-20');
+                sidebar.classList.remove('w-16');
                 sidebar.classList.add('w-64');
-                mainContent.classList.remove('ml-20');
+                mainContent.classList.remove('ml-16');
                 mainContent.classList.add('ml-64');
                 navTexts.forEach(function(text) { text.classList.remove('hidden'); });
                 logoExpanded.classList.remove('hidden');

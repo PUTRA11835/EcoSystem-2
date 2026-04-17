@@ -461,7 +461,7 @@ class StagingTicketController extends Controller
                 'size'          => $att['size'],
                 'content_type'  => $att['contentType'] ?? $att['content_type'] ?? null,
                 'is_inline'     => $att['isInline'] ?? false,
-                'url'           => "/staging-email-attachments/{$id}/{$att['id']}",
+                'url'           => "/staging-email-attachments/{$id}?attId=" . urlencode($att['id']),
             ], $attachments);
 
             return response()->json(['success' => true, 'data' => $data]);
@@ -478,15 +478,20 @@ class StagingTicketController extends Controller
     // ─── Web: Proxy download email attachment dari Graph ─────────────────────
 
     /**
-     * GET /staging-email-attachments/{stagingId}/{attId}
+     * GET /staging-email-attachments/{stagingId}?attId={graphAttachmentId}
      * Stream attachment langsung dari Graph API ke browser.
-     * Tidak disimpan di disk — selalu fresh dari Graph.
+     * attId dikirim sebagai query parameter (bukan path) agar karakter khusus (=, +) tidak rusak di URL.
      */
-    public function proxyEmailAttachment($stagingId, $attId)
+    public function proxyEmailAttachment(\Illuminate\Http\Request $request, $stagingId)
     {
         $sessionUser = session('user');
         if (!$sessionUser) {
             abort(401);
+        }
+
+        $attId = $request->query('attId');
+        if (!$attId) {
+            abort(400, 'Missing attId parameter.');
         }
 
         $staging = StagingTicket::findOrFail($stagingId);
@@ -696,6 +701,83 @@ class StagingTicketController extends Controller
             </table>
             HTML;
 
+            // ── Fetch forwarded attachments dari email asal (Graph) ────────────
+            // Diunduh SEBELUM membangun bodyHtml agar nama file bisa ditampilkan
+            // di section "Original Ticket Content" sekaligus dilampirkan ke email.
+            $rawAttachments = [];
+            if ($staging->graph_message_id) {
+                try {
+                    $emailCtrl = app(EmailController::class);
+                    $sender    = config('services.microsoft_graph.sender_email');
+                    $token     = $emailCtrl->getAccessTokenPublic();
+                    $baseUrl   = rtrim(config('services.microsoft_graph.base_url', 'https://graph.microsoft.com/v1.0'), '/');
+
+                    $attList = $emailCtrl->listNonInlineAttachments($staging->graph_message_id);
+                    foreach ($attList as $att) {
+                        $attRes = \Illuminate\Support\Facades\Http::withToken($token)->get(
+                            "{$baseUrl}/users/{$sender}/messages/{$staging->graph_message_id}/attachments/{$att['id']}"
+                        );
+                        if ($attRes->successful()) {
+                            $data = $attRes->json();
+                            if (!empty($data['contentBytes'])) {
+                                $rawAttachments[] = [
+                                    'name'  => $data['name'] ?? ($att['name'] ?? 'attachment'),
+                                    'mime'  => $data['contentType'] ?? ($att['contentType'] ?? 'application/octet-stream'),
+                                    'bytes' => base64_decode($data['contentBytes']),
+                                ];
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('StagingTicketController@sendApprovalNotification: gagal fetch original attachments', [
+                        'staging_id'       => $staging->id,
+                        'graph_message_id' => $staging->graph_message_id,
+                        'error'            => $e->getMessage(),
+                    ]);
+                    // Non-fatal: lanjut kirim email tanpa attachment asal
+                }
+            }
+
+            // ── Sertakan konten asli tiket sebagai quoted section ─────────────
+            // Menggunakan staging->body (HTML dari Jarvies form / email yang sudah di-proses).
+            // Ini agar customer tahu tiket mana yang sudah divalidasi beserta isinya.
+            $originalBody = $staging->body ?? null;
+            if ($originalBody && trim(strip_tags($originalBody)) !== '') {
+                // Jadikan relative src/href URLs menjadi absolute agar gambar tampil di email client.
+                // Email client tidak bisa resolve relative URL — harus menggunakan full domain.
+                $appUrl = rtrim(config('app.url'), '/');
+                $originalBody = preg_replace_callback(
+                    '~((?:src|href)=")(/(?!/))([^"]*)~i',
+                    fn($m) => $m[1] . $appUrl . '/' . $m[3],
+                    $originalBody
+                );
+
+                // Bangun daftar nama file attachment untuk ditampilkan di body email
+                $attNamesHtml = '';
+                if (!empty($rawAttachments)) {
+                    $items = '';
+                    foreach ($rawAttachments as $att) {
+                        $items .= '<li style="margin:2px 0;">'
+                            . htmlspecialchars($att['name'] ?? 'attachment', ENT_QUOTES, 'UTF-8')
+                            . '</li>';
+                    }
+                    $attNamesHtml = '<div style="margin-top:12px;font-size:13px;color:#374151;">'
+                        . '<p style="margin:0 0 4px;font-weight:600;color:#6b7280;font-size:12px;">Attachments:</p>'
+                        . '<ul style="margin:0;padding-left:20px;">' . $items . '</ul>'
+                        . '</div>';
+                }
+
+                $bodyHtml .= <<<HTML
+
+                <div style="margin-top:24px;padding-top:16px;border-top:2px solid #e5e7eb;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6b7280;max-width:600px;">
+                    <p style="margin:0 0 8px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;">Original Ticket Content</p>
+                    <div style="border-left:3px solid #e5e7eb;padding:0 0 0 16px;color:#374151;font-size:14px;line-height:1.7;">
+                        {$originalBody}
+                        {$attNamesHtml}
+                    </div>
+                </div>
+                HTML;
+            }
 
             // ── Simpan TicketMessage (tampil di semua channel — termasuk Jarvies web) ──
             $message = TicketMessage::create([
@@ -737,8 +819,11 @@ class StagingTicketController extends Controller
                 $inReplyTo = $staging->email_message_id; // null untuk web-only → buat thread baru
                 $threadId  = $staging->email_thread_id;   // conversationId fallback
 
-                // Ambil CC dari staging — model sudah cast ke array, tidak perlu json_decode ulang
+                // Ambil CC dari staging — handle keduanya: PHP array (normal) dan JSON string (legacy/double-encode)
                 $rawCc  = $staging->cc_emails;
+                if (is_string($rawCc)) {
+                    $rawCc = json_decode($rawCc, true) ?? [];
+                }
                 $ccList = is_array($rawCc) ? $rawCc : [];
 
                 Log::info('StagingTicketController@sendApprovalNotification: sending email', [
@@ -754,12 +839,12 @@ class StagingTicketController extends Controller
                     $subject,
                     $bodyHtml,
                     $inReplyTo,
-                    [],       // files
-                    $ccList,  // ccList dari staging
-                    true,     // noRePrefix = true → subject tidak ditambah "Re:"
-                    $threadId,// conversationId fallback
-                    false     // forceNewDraft = false → pakai createReply agar Exchange auto-set
-                              // In-Reply-To + References yang benar (Graph menolak header ini di draft baru)
+                    [],               // files
+                    $ccList,          // ccList dari staging
+                    true,             // noRePrefix = true → subject tidak ditambah "Re:"
+                    $threadId,        // conversationId fallback
+                    false,            // forceNewDraft = false → pakai createReply agar Exchange auto-set
+                    $rawAttachments   // forward attachment dari email [Menunggu Validasi] asal
                 );
 
                 // Simpan conversationId ke ticket agar reply berikutnya bisa threaded
@@ -832,7 +917,7 @@ class StagingTicketController extends Controller
         }
 
         try {
-            $subject  = '[PENDING] ' . $staging->description;
+            $subject  = '[No Reply] [Menunggu Validasi] ' . $staging->description;
             $bodyHtml = $this->buildStagingEmailBody($staging);
 
             // Decode cc_emails dari staging (sudah di-decode di awal jarviesStore)
