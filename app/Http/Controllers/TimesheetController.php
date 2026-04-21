@@ -4,13 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
 use App\Models\Timesheet;
-use App\Models\CustomerMandays;
+use App\Models\ConsultantMandays;
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectActivity;
 use App\Models\Employee;
 use App\Models\Notification;
 use App\Models\ReportingPeriod;
 use App\Models\Ticket;
+use App\Services\PeriodService;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -28,8 +29,9 @@ class TimesheetController extends Controller
             // Role is stored as nested array: $user['role']['id']
             $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
 
-            // Only Admin (1), Head of Project (4), and Head of Support (5) can access this
-            if (!in_array($roleId, array_merge([RoleId::ADMIN->value], RoleId::HEAD_GROUP), true)) {
+            // Admin, Head of Project, Head of Support, and RPMO can access this
+            $approvalRoles = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
+            if (!in_array($roleId, $approvalRoles, true)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized access'
@@ -49,17 +51,29 @@ class TimesheetController extends Controller
                 $query->byStatus($request->status);
             }
 
+            // Filter by timesheet type if provided
+            if ($request->has('type_filter')) {
+                $type = $request->type_filter;
+                if ($type === 'support') {
+                    $query->whereNotNull('ticket_id');
+                } elseif ($type === 'project') {
+                    $query->whereNotNull('delivery_projects_id');
+                } elseif ($type === 'office') {
+                    $query->whereNull('ticket_id')->whereNull('delivery_projects_id');
+                }
+            }
+
             $rows = $query->orderBy('date', 'desc')
                           ->orderBy('created_at', 'desc')
                           ->get();
 
-            // Batch-fetch approved jatah MD for all ticket_ids (avoid N+1)
+            // Batch-fetch approved consultant jatah MD for all ticket_ids (avoid N+1)
             $ticketIds = $rows->pluck('ticket_id')->filter()->unique()->values();
             $jatahMap  = [];
             if ($ticketIds->isNotEmpty()) {
-                CustomerMandays::whereIn('ticket_id', $ticketIds)
+                ConsultantMandays::whereIn('ticket_id', $ticketIds)
                     ->where('status', 'approved')
-                    ->orderBy('version', 'desc')
+                    ->orderBy('approved_at', 'desc')
                     ->get()
                     ->groupBy('ticket_id')
                     ->each(function ($versions, $ticketId) use (&$jatahMap) {
@@ -98,6 +112,8 @@ class TimesheetController extends Controller
                                         'approver_name' => trim($timesheet->approver?->basicData?->first_name . ' ' . $timesheet->approver?->basicData?->last_name),
                                         'approved_at' => $timesheet->approved_at?->format('Y-m-d H:i:s'),
                                         'created_at' => $timesheet->created_at?->format('Y-m-d H:i:s'),
+                                        'period_year'  => $timesheet->period_year,
+                                        'period_month' => $timesheet->period_month,
                                     ];
                                 });
 
@@ -107,13 +123,86 @@ class TimesheetController extends Controller
                 'message' => 'Submitted timesheets retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving submitted timesheets');
+            Log::error('Error retrieving submitted timesheets: ' . $e->getMessage());
 
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve submitted timesheets'
             ], 500);
         }
+    }
+
+    /**
+     * Get remaining MD quota for a ticket for the current user.
+     * GET /api/timesheets/remaining-md?ticket_id=X
+     */
+    public function remainingMd(Request $request)
+    {
+        $data       = $request->validate(['ticket_id' => 'required|integer']);
+        $ticketId   = (int) $data['ticket_id'];
+        $sessionUser = session('user');
+        $employeeId  = $sessionUser['id'] ?? null;
+
+        if (!$employeeId) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        // Latest approved consultant quota for the ticket
+        $quotaRecord = ConsultantMandays::where('ticket_id', $ticketId)
+            ->where('status', 'approved')
+            ->orderBy('approved_at', 'desc')
+            ->first();
+        $quota = $quotaRecord ? (float) $quotaRecord->total_mandays : null;
+
+        // Total MD consumed by this employee for this ticket.
+        // Rejected timesheets return their MD to the quota — exclude them.
+        $consumed = (float) Timesheet::where('ticket_id', $ticketId)
+            ->where('employee_id', $employeeId)
+            ->whereIn('status', ['draft', 'submitted', 'approved'])
+            ->sum('md_consumed');
+
+        $remaining = $quota !== null ? round($quota - $consumed, 2) : null;
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'ticket_id' => $ticketId,
+                'quota'     => $quota,
+                'consumed'  => round($consumed, 2),
+                'remaining' => $remaining,
+            ],
+        ]);
+    }
+
+    /**
+     * Get active late submission exceptions for the current user.
+     * GET /api/timesheets/my-late-exceptions
+     */
+    public function myLateExceptions()
+    {
+        $sessionUser = session('user');
+        $employeeId  = $sessionUser['id'] ?? null;
+
+        if (!$employeeId) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $exceptions = \App\Models\PeriodLateException::where('employee_id', $employeeId)
+            ->where(fn($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+            ->with('period')
+            ->get()
+            ->map(fn($ex) => [
+                'id'           => $ex->id,
+                'domain'       => $ex->domain,
+                'period_id'    => $ex->period_id,
+                'period_year'  => $ex->period?->year,
+                'period_month' => $ex->period?->month,
+                'period_label' => $ex->period?->getLabel(),
+                'period_start' => $ex->period?->start_date?->format('Y-m-d'),
+                'period_end'   => $ex->period?->end_date?->format('Y-m-d'),
+            ]);
+
+        return response()->json(['success' => true, 'data' => $exceptions]);
     }
 
     /**
@@ -175,13 +264,13 @@ class TimesheetController extends Controller
                           ->orderBy('start_time', 'desc')
                           ->get();
 
-            // Fetch approved mandays for all ticket_ids in one query (avoid N+1)
+            // Fetch approved consultant mandays for all ticket_ids in one query (avoid N+1)
             $ticketIds = $rows->whereNotNull('ticket_id')->pluck('ticket_id')->unique()->values();
             $approvedMandaysMap = [];
             if ($ticketIds->isNotEmpty()) {
-                CustomerMandays::whereIn('ticket_id', $ticketIds)
+                ConsultantMandays::whereIn('ticket_id', $ticketIds)
                     ->where('status', 'approved')
-                    ->orderBy('version', 'desc')
+                    ->orderBy('approved_at', 'desc')
                     ->get()
                     ->groupBy('ticket_id')
                     ->each(function ($versions, $ticketId) use (&$approvedMandaysMap) {
@@ -217,6 +306,8 @@ class TimesheetController extends Controller
                     'approved_by'          => $t->approved_by,
                     'approved_at'          => $t->approved_at?->format('Y-m-d H:i:s'),
                     'created_at'           => $t->created_at?->format('Y-m-d H:i:s'),
+                    'period_year'          => $t->period_year,
+                    'period_month'         => $t->period_month,
                 ];
             });
 
@@ -226,7 +317,7 @@ class TimesheetController extends Controller
                 'message' => 'Timesheets retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving timesheets');
+            Log::error('Error retrieving timesheets: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
@@ -250,7 +341,7 @@ class TimesheetController extends Controller
                 'message' => 'Timesheet retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving timesheet');
+            Log::error('Error retrieving timesheet: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
@@ -319,7 +410,28 @@ class TimesheetController extends Controller
                 $validated['activity_id'] = null;
             }
 
-            // Auto-assign period: if the natural period is closed, move to next open period
+            // ── Period access gate ────────────────────────────────────────────
+            // Bypass for Admin and RPMO (they can always submit)
+            $sessionRoleId = (int) (session('user')['role']['id'] ?? 0);
+            $bypass = in_array($sessionRoleId, [RoleId::ADMIN->value, RoleId::RPMO->value]);
+
+            if (!$bypass) {
+                /** @var PeriodService $periodSvc */
+                $periodSvc = app(PeriodService::class);
+                $check = $periodSvc->canSubmitTimesheet(
+                    (int) $validated['employee_id'],
+                    Carbon::parse($validated['date'])
+                );
+                if (!$check['allowed']) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $check['reason'],
+                    ], 422);
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────
+
+            // Assign period year/month
             $this->assignPeriod($validated);
 
             $timesheet = Timesheet::create($validated);
@@ -342,7 +454,7 @@ class TimesheetController extends Controller
             ], 422);
             
         } catch (\Exception $e) {
-            Log::error('Error creating timesheet');
+            Log::error('Error creating timesheet: ' . $e->getMessage());
             Log::error('Stack trace' . $e->getTraceAsString());
             
             return response()->json([
@@ -359,6 +471,19 @@ class TimesheetController extends Controller
     {
         try {
             $timesheet = Timesheet::findOrFail($id);
+
+            // Ownership check: only the owner can update (heads/admin can approve/reject via dedicated endpoints)
+            $sessionUser       = session('user');
+            $currentEmployeeId = $sessionUser['id'] ?? null;
+            $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
+            $privilegedRoles   = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
+
+            if (!in_array($currentRoleId, $privilegedRoles, true) && $timesheet->employee_id !== $currentEmployeeId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Forbidden: you can only edit your own timesheets'
+                ], 403);
+            }
 
             if ($timesheet->status === 'approved') {
                 return response()->json([
@@ -428,7 +553,7 @@ class TimesheetController extends Controller
             ], 422);
             
         } catch (\Exception $e) {
-            Log::error('Error updating timesheet');
+            Log::error('Error updating timesheet: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
@@ -445,6 +570,19 @@ class TimesheetController extends Controller
         try {
             $timesheet = Timesheet::findOrFail($id);
 
+            // Ownership check: only the owner can delete
+            $sessionUser       = session('user');
+            $currentEmployeeId = $sessionUser['id'] ?? null;
+            $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
+            $privilegedRoles   = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
+
+            if (!in_array($currentRoleId, $privilegedRoles, true) && $timesheet->employee_id !== $currentEmployeeId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Forbidden: you can only delete your own timesheets'
+                ], 403);
+            }
+
             if ($timesheet->status === 'approved') {
                 return response()->json([
                     'success' => false,
@@ -459,7 +597,7 @@ class TimesheetController extends Controller
                 'message' => 'Timesheet deleted successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error deleting timesheet');
+            Log::error('Error deleting timesheet: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
@@ -475,6 +613,19 @@ class TimesheetController extends Controller
     {
         try {
             $timesheet = Timesheet::findOrFail($id);
+
+            // Ownership check: only the owner can submit their own timesheet
+            $sessionUser       = session('user');
+            $currentEmployeeId = $sessionUser['id'] ?? null;
+            $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
+            $privilegedRoles   = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
+
+            if (!in_array($currentRoleId, $privilegedRoles, true) && $timesheet->employee_id !== $currentEmployeeId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Forbidden: you can only submit your own timesheets'
+                ], 403);
+            }
 
             if ($timesheet->status !== 'draft') {
                 return response()->json([
@@ -493,7 +644,7 @@ class TimesheetController extends Controller
                 'message' => 'Timesheet submitted for approval'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error submitting timesheet');
+            Log::error('Error submitting timesheet: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
@@ -557,7 +708,7 @@ class TimesheetController extends Controller
                 ]);
             }
         } catch (\Exception $e) {
-            Log::error('notifyHeadsOnSubmit failed');
+            Log::error('notifyHeadsOnSubmit failed: ' . $e->getMessage());
         }
     }
 
@@ -571,8 +722,9 @@ class TimesheetController extends Controller
             // Role is stored as nested array: $user['role']['id']
             $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
 
-            // Only Admin (1), Head of Project (4), and Head of Support (5) can approve
-            if (!in_array($roleId, array_merge([RoleId::ADMIN->value], RoleId::HEAD_GROUP), true)) {
+            // Admin, Head of Project, Head of Support, and RPMO can approve
+            $approvalRoles = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
+            if (!in_array($roleId, $approvalRoles, true)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized: Only managers can approve timesheets'
@@ -600,7 +752,7 @@ class TimesheetController extends Controller
                 'message' => 'Timesheet approved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error approving timesheet');
+            Log::error('Error approving timesheet: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
@@ -619,8 +771,9 @@ class TimesheetController extends Controller
             // Role is stored as nested array: $user['role']['id']
             $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
 
-            // Only Admin (1), Head of Project (4), and Head of Support (5) can reject
-            if (!in_array($roleId, array_merge([RoleId::ADMIN->value], RoleId::HEAD_GROUP), true)) {
+            // Admin, Head of Project, Head of Support, and RPMO can reject
+            $approvalRoles = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
+            if (!in_array($roleId, $approvalRoles, true)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized: Only managers can reject timesheets'
@@ -651,7 +804,7 @@ class TimesheetController extends Controller
                 'message' => 'Timesheet rejected'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error rejecting timesheet');
+            Log::error('Error rejecting timesheet: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
@@ -730,7 +883,7 @@ class TimesheetController extends Controller
                 'message' => 'Statistics retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving statistics');
+            Log::error('Error retrieving statistics: ' . $e->getMessage());
             Log::error('Stack trace' . $e->getTraceAsString());
             
             return response()->json([
@@ -771,7 +924,7 @@ class TimesheetController extends Controller
                 'message' => 'Projects retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving my projects');
+            Log::error('Error retrieving my projects: ' . $e->getMessage());
 
             return response()->json([
                 'success' => false,
@@ -816,7 +969,7 @@ class TimesheetController extends Controller
                 'message' => 'Activities retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving my activities');
+            Log::error('Error retrieving my activities: ' . $e->getMessage());
 
             return response()->json([
                 'success' => false,
@@ -883,7 +1036,7 @@ class TimesheetController extends Controller
                 'message' => 'All assigned activities retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving all my activities');
+            Log::error('Error retrieving all my activities: ' . $e->getMessage());
 
             return response()->json([
                 'success' => false,
@@ -903,13 +1056,9 @@ class TimesheetController extends Controller
     {
         if (empty($data['date'])) return;
 
+        // Use the natural period for the date (21-20 rule).
+        // Period access is already validated by canSubmitTimesheet() before this is called.
         $p = ReportingPeriod::periodFor(Carbon::parse($data['date']));
-
-        // Walk forward until we find an open period
-        $maxIterations = 24; // safety guard
-        while ($maxIterations-- > 0 && ReportingPeriod::isClosed($p['year'], $p['month'])) {
-            $p = ReportingPeriod::nextPeriod($p['year'], $p['month']);
-        }
 
         $data['period_year']  = $p['year'];
         $data['period_month'] = $p['month'];

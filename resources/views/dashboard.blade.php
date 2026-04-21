@@ -49,7 +49,8 @@
         $userRoleId = $user['role']['id'] ?? 1;
         
         // Define menu visibility based on role
-        $showAllMenus = $userRoleId == 1;
+        $showAllMenus   = $userRoleId == 1;
+        $showRpmoMenu   = in_array($userRoleId, [1, 4, 5, 7]);
         $showLimitedMenus = in_array($userRoleId, [2, 3]);
     @endphp
     
@@ -392,6 +393,7 @@
                     </div>
                 </div>
                 
+                @if($showAllMenus)
                 <!-- FINANCIAL - Only for role_id 1 -->
                 <div class="mb-2">
                     <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('financial') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -401,7 +403,7 @@
                         <span class="nav-text font-medium">Financial</span>
                     </a>
                 </div>
-                
+
                 <!-- HR & GENERAL - Only for role_id 1 -->
                 <div class="mb-2">
                     <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -411,7 +413,7 @@
                         <span class="nav-text font-medium">HR & General</span>
                     </a>
                 </div>
-                
+
                 <!-- BUSINESS DEV - Only for role_id 1 -->
                 <div class="mb-2">
                     <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('business') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -421,6 +423,7 @@
                         <span class="nav-text font-medium">Business Dev</span>
                     </a>
                 </div>
+                @endif
                 @endif
 
                 <!-- TICKET - Visible to all roles -->
@@ -433,8 +436,8 @@
                     </a>
                 </div>
 
-                @if(in_array($userRoleId, [1, 2, 6, 7]))
-                <!-- STAGING TICKET - Only for admin & helpdesk -->
+                @if(in_array($userRoleId, [1, 6, 7]))
+                <!-- STAGING TICKET - Only for admin & helpdesk (not Delivery Support User) -->
                 <div class="mb-2">
                     <a href="{{ route('staging.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('staging-tickets*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -452,7 +455,8 @@
                 </div>
                 @endif
 
-                <!-- DELIVERY Dropdown - Visible to all roles -->
+                @if($userRoleId != 2)
+                <!-- DELIVERY Dropdown - Hidden for Delivery Support User -->
                 <div class="mb-2">
                     <button onclick="toggleDeliveryDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('project*') || Request::is('planning*') || Request::is('issues*') || Request::is('delivery/support*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -476,19 +480,58 @@
                         </a>
                     </div>
                 </div>
-                
+                @endif
+
                 @if($showAllMenus)
-                <!-- RPMO - Only for role_id 1 -->
+                <!-- ACTIVITY LOG - Only for admin -->
                 <div class="mb-2">
-                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('rpmo') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="{{ route('admin.activity-log') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('admin/activity-log*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-shield-alt"></i>
+                        </span>
+                        <span class="nav-text font-medium">Activity Log</span>
+                    </a>
+                </div>
+                @endif
+
+                @if($showRpmoMenu)
+                <!-- RPMO - For admin, RPMO, Project Head, Support Head -->
+                @php
+                    $rpmoDropdownOpen = Request::is('rpmo*');
+                    $showRpmoMain     = in_array($userRoleId, [1, 7]); // only admin & RPMO see the main RPMO link
+                @endphp
+                <div class="mb-2">
+                    <button onclick="toggleRpmoDropdown()" class="nav-link w-full flex items-center gap-3 px-4 py-3 rounded-xl {{ $rpmoDropdownOpen ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all" style="background:none;border:none;cursor:pointer;text-align:left;">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-cogs"></i>
                         </span>
-                        <span class="nav-text font-medium">RPMO</span>
-                    </a>
+                        <span class="nav-text font-medium flex-1">RPMO</span>
+                        <span id="rpmoChevron" class="nav-text transition-transform duration-200 {{ $rpmoDropdownOpen ? 'rotate-180' : '' }}">
+                            <i class="fas fa-chevron-down text-xs"></i>
+                        </span>
+                    </button>
+
+                    <div id="rpmoSubmenu" class="{{ $rpmoDropdownOpen ? '' : 'hidden' }} pl-4 mt-1 space-y-1">
+                        @if($showRpmoMain)
+                        <a href="{{ route('rpmo') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-xl {{ Request::is('rpmo') && !Request::is('rpmo/*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all text-sm">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-tachometer-alt"></i>
+                            </span>
+                            <span class="nav-text">Overview</span>
+                        </a>
+                        @endif
+                        <a href="{{ route('rpmo.periods.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-xl {{ Request::is('rpmo/periods*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all text-sm">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-calendar-alt"></i>
+                            </span>
+                            <span class="nav-text">Period Management</span>
+                        </a>
+                    </div>
                 </div>
-                
-                <!-- LEGAL - Only for role_id 1 -->
+                @endif
+
+                @if($showAllMenus)
+                <!-- LEGAL - Only for admin -->
                 <div class="mb-2">
                     <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('legal') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -686,6 +729,16 @@
             if (isCollapsed) return;
             isDeliveryDropdownOpen = !isDeliveryDropdownOpen;
             document.getElementById('deliveryDropdown').classList.toggle('hidden', !isDeliveryDropdownOpen);
+        }
+
+        let isRpmoDropdownOpen = {{ Request::is('rpmo*') ? 'true' : 'false' }};
+        function toggleRpmoDropdown() {
+            if (isCollapsed) return;
+            isRpmoDropdownOpen = !isRpmoDropdownOpen;
+            const submenu = document.getElementById('rpmoSubmenu');
+            const chevron = document.getElementById('rpmoChevron');
+            if (submenu) submenu.classList.toggle('hidden', !isRpmoDropdownOpen);
+            if (chevron) chevron.classList.toggle('rotate-180', isRpmoDropdownOpen);
         }
 
         function toggleUserDropdown() {

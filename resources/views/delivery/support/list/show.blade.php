@@ -3,17 +3,23 @@
 @section('page-title', 'Support Details')
 @section('page-subtitle', $support->name ?? 'Support #' . $support->id)
 
+@push('styles')
+<style>
+    .primary-link { color: var(--primary-color); }
+    .primary-link:hover { opacity: 0.75; }
+    .edit-btn:hover { color: var(--primary-color) !important; background-color: rgba(var(--primary-rgb), 0.08) !important; }
+    .primary-focus:focus { border-color: var(--primary-color) !important; box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15) !important; outline: none !important; }
+</style>
+@endpush
+
 @section('content')
 <div class="min-h-screen bg-gray-50">
-    {{-- Toast Notification Container --}}
-    <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
-
     {{-- Breadcrumb --}}
     <div class="mb-6">
         <nav class="flex" aria-label="Breadcrumb">
             <ol class="inline-flex items-center space-x-1 md:space-x-3">
                 <li class="inline-flex items-center">
-                    <a href="{{ route('delivery.support.index') }}" class="text-gray-600 hover:text-blue-600 text-sm font-medium">
+                    <a href="{{ route('delivery.support.index') }}" class="text-gray-600 hover:primary-link text-sm font-medium transition-colors">
                         <i class="fas fa-headset mr-2"></i>Support
                     </a>
                 </li>
@@ -54,7 +60,7 @@
                 <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
                     <h3 class="text-lg font-semibold text-gray-900">Support Information</h3>
                     <button type="button" onclick="openEditModal('support-info')"
-                            class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                            class="p-2 text-gray-400 edit-btn rounded-lg transition"
                             title="Edit Support Information">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
@@ -110,7 +116,7 @@
                 <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
                     <h3 class="text-lg font-semibold text-gray-900">Approval Information</h3>
                     <button type="button" onclick="openEditModal('approval-info')"
-                            class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                            class="p-2 text-gray-400 edit-btn rounded-lg transition"
                             title="Edit Approval Information">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
@@ -135,7 +141,7 @@
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
                     <h3 class="text-lg font-semibold text-gray-900">Activities</h3>
-                    <a href="{{ route('delivery.support.planning.index', $support->id) }}" class="text-sm text-blue-600 hover:text-blue-800">
+                    <a href="{{ route('delivery.support.planning.index', $support->id) }}" class="text-sm primary-link">
                         View all <i class="fas fa-arrow-right ml-1"></i>
                     </a>
                 </div>
@@ -165,7 +171,7 @@
                     @else
                         <div class="text-center py-6">
                             <p class="text-gray-500">No activities yet</p>
-                            <a href="{{ route('delivery.support.planning.index', $support->id) }}" class="inline-flex items-center mt-2 text-sm text-blue-600 hover:text-blue-800">
+                            <a href="{{ route('delivery.support.planning.index', $support->id) }}" class="inline-flex items-center mt-2 text-sm primary-link">
                                 <i class="fas fa-plus mr-1"></i>
                                 Add activities
                             </a>
@@ -219,7 +225,7 @@
                 <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
                     <h3 class="text-lg font-semibold text-gray-900">Team</h3>
                     <button type="button" onclick="openEditModal('team-info')"
-                            class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                            class="p-2 text-gray-400 edit-btn rounded-lg transition"
                             title="Edit Team">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
@@ -287,7 +293,7 @@
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeEditModal('support-info')"></div>
         <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle w-full sm:max-w-2xl">
             <form id="form-support-info" onsubmit="saveSection(event, 'support-info')">
-                <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 sm:px-6 py-3 sm:py-4">
+                <div class="primary-gradient px-4 sm:px-6 py-3 sm:py-4">
                     <div class="flex items-center justify-between">
                         <h3 class="text-lg font-semibold text-white">Edit Support Information</h3>
                         <button type="button" onclick="closeEditModal('support-info')" class="text-white hover:text-gray-200">
@@ -302,13 +308,13 @@
                         <label class="block text-sm font-medium text-gray-700 mb-1">Support Name <span class="text-red-500">*</span></label>
                         <input type="text" name="name" id="edit-name" required
                                value="{{ $support->name }}"
-                               class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                               class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Client <span class="text-red-500">*</span></label>
                             <select name="client_id" id="edit-client_id" required
-                                    class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                    class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                                 <option value="">Select Client</option>
                                 @foreach($clients ?? [] as $client)
                                     <option value="{{ $client->customer_id }}" {{ $support->client_id == $client->customer_id ? 'selected' : '' }}>
@@ -320,7 +326,7 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Support Method</label>
                             <select name="support_method" id="edit-support_method"
-                                    class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                    class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                                 <option value="">Select method</option>
                                 <option value="Remote" {{ $support->support_method == 'Remote' ? 'selected' : '' }}>Remote</option>
                                 <option value="On-Site" {{ $support->support_method == 'On-Site' ? 'selected' : '' }}>On-Site</option>
@@ -333,7 +339,7 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
                         <select name="type" id="edit-type"
-                                class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                             <option value="">No type set</option>
                             <option value="AMS" {{ $support->type == 'AMS' ? 'selected' : '' }}>AMS</option>
                             <option value="MO" {{ $support->type == 'MO' ? 'selected' : '' }}>MO</option>
@@ -348,26 +354,26 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
                             <input type="date" name="start_date" id="edit-start_date"
                                    value="{{ $support->start_date?->format('Y-m-d') }}"
-                                   class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                   class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
                             <input type="date" name="end_date" id="edit-end_date"
                                    value="{{ $support->end_date?->format('Y-m-d') }}"
-                                   class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                   class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Resolution Estimated</label>
                             <input type="date" name="resolution_estimated" id="edit-resolution_estimated"
                                    value="{{ $support->resolution_estimated?->format('Y-m-d') }}"
-                                   class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                   class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                         </div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Total Mandays</label>
                         <input type="number" name="total_mandays" id="edit-total_mandays" min="0"
                                value="{{ $support->total_mandays }}"
-                               class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                               class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                     </div>
                 </div>
                 <div class="bg-gray-50 px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
@@ -391,7 +397,7 @@
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeEditModal('approval-info')"></div>
         <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle w-full sm:max-w-lg">
             <form id="form-approval-info" onsubmit="saveSection(event, 'approval-info')">
-                <div class="bg-gradient-to-r from-green-600 to-teal-600 px-4 sm:px-6 py-3 sm:py-4">
+                <div class="primary-gradient px-4 sm:px-6 py-3 sm:py-4">
                     <div class="flex items-center justify-between">
                         <h3 class="text-lg font-semibold text-white">Edit Approval Information</h3>
                         <button type="button" onclick="closeEditModal('approval-info')" class="text-white hover:text-gray-200">
@@ -406,13 +412,13 @@
                         <label class="block text-sm font-medium text-gray-700 mb-1">Approval Date</label>
                         <input type="date" name="approval_date" id="edit-approval_date"
                                value="{{ $support->approval_date?->format('Y-m-d') }}"
-                               class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 text-sm">
+                               class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Approved By</label>
                         <input type="text" name="approval_name" id="edit-approval_name"
                                value="{{ $support->approval_name }}"
-                               class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 text-sm"
+                               class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm"
                                placeholder="Enter approver name">
                     </div>
                 </div>
@@ -437,7 +443,7 @@
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeEditModal('team-info')"></div>
         <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle w-full sm:max-w-lg">
             <form id="form-team-info" onsubmit="saveSection(event, 'team-info')">
-                <div class="bg-gradient-to-r from-purple-600 to-indigo-600 px-4 sm:px-6 py-3 sm:py-4">
+                <div class="primary-gradient px-4 sm:px-6 py-3 sm:py-4">
                     <div class="flex items-center justify-between">
                         <h3 class="text-lg font-semibold text-white">Edit Team Assignment</h3>
                         <button type="button" onclick="closeEditModal('team-info')" class="text-white hover:text-gray-200">
@@ -451,7 +457,7 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Delivery Owner</label>
                         <select name="delivery_owner_id" id="edit-delivery_owner_id"
-                                class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 text-sm">
+                                class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                             <option value="">Not assigned</option>
                             @foreach($employees ?? [] as $employee)
                                 <option value="{{ $employee->employee_id }}" {{ $support->delivery_owner_id == $employee->employee_id ? 'selected' : '' }}>
@@ -463,7 +469,7 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Support Manager</label>
                         <select name="support_manager_id" id="edit-support_manager_id"
-                                class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 text-sm">
+                                class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                             <option value="">Not assigned</option>
                             @foreach($employees ?? [] as $employee)
                                 <option value="{{ $employee->employee_id }}" {{ $support->support_manager_id == $employee->employee_id ? 'selected' : '' }}>
@@ -495,8 +501,6 @@ const csrfToken = '{{ csrf_token() }}';
 // Employee data for updating display
 const employeesData = @json($employees ?? []);
 const clientsData = @json($clients ?? []);
-
-// showToast is provided globally by dashboard.blade.php
 
 // ============================================================================
 // MODAL FUNCTIONS
@@ -541,7 +545,7 @@ function saveSection(event, section) {
         if (!response.ok) {
             throw json;
         }
-        showToast(json.message || 'Changes saved successfully', 'success');
+        showNotification(json.message || 'Changes saved successfully', 'success');
         closeEditModal(section);
         updateDisplayValues(section, data);
         submitBtn.innerHTML = originalText;
@@ -549,7 +553,7 @@ function saveSection(event, section) {
     })
     .catch(error => {
         console.error('Error saving:', error);
-        showToast(error.message || 'Failed to save changes', 'error');
+        showNotification(error.message || 'Failed to save changes', 'error');
         submitBtn.innerHTML = originalText;
         submitBtn.disabled = false;
     });
@@ -632,11 +636,11 @@ function updateDisplayValues(section, data) {
 // OTHER MODALS (TO BE IMPLEMENTED)
 // ============================================================================
 function openDocumentsModal() {
-    showToast('Documents modal will be implemented', 'info');
+    showNotification('Documents modal will be implemented', 'info');
 }
 
 function openUpdatesModal() {
-    showToast('Updates modal will be implemented', 'info');
+    showNotification('Updates modal will be implemented', 'info');
 }
 
 // ============================================================================
@@ -645,11 +649,11 @@ function openUpdatesModal() {
 document.addEventListener('DOMContentLoaded', function() {
     // Show flash messages as toasts
     @if(session('success'))
-        showToast('{{ session('success') }}', 'success');
+        showNotification('{{ session('success') }}', 'success');
     @endif
 
     @if(session('error'))
-        showToast('{{ session('error') }}', 'error');
+        showNotification('{{ session('error') }}', 'error');
     @endif
 
     // Close modals on escape key

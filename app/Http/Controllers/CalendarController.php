@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\RoleId;
 use App\Models\Event;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class CalendarController extends Controller
@@ -30,26 +31,71 @@ class CalendarController extends Controller
      */
     public function timesheets()
     {
-        $user = session('user');
-        // Role is stored as nested array: $user['role']['id']
-        $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
+        $user       = session('user');
+        $roleId     = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
+        $employeeId = $user['id'] ?? null;
 
-        $isHead  = in_array($roleId, RoleId::HEAD_GROUP, true) || $roleId === RoleId::RPMO->value;
+        $isHead  = in_array($roleId, RoleId::HEAD_GROUP, true)
+                || $roleId === RoleId::RPMO->value
+                || $roleId === RoleId::ADMIN->value;
         $isAdmin = $roleId === RoleId::ADMIN->value;
 
-        $lockedType = match($roleId) {
+        // ── Collect ALL role IDs (primary + pivot assignments) ────────────────
+        $allRoleIds = collect([$roleId])->filter();
+        if ($employeeId) {
+            $pivotRoles = DB::table('employee_role_assignment')
+                ->where('employee_id', $employeeId)
+                ->pluck('role_id');
+            $allRoleIds = $allRoleIds->merge($pivotRoles)->unique()->map(fn($id) => (int) $id);
+        }
+
+        // ── Map each role to the timesheet type(s) it allows ─────────────────
+        // Heads and RPMO are locked to their approval domain regardless of extra roles.
+        $headLock = match($roleId) {
             RoleId::HEAD_OF_SUPPORT->value => 'support',
             RoleId::HEAD_OF_PROJECT->value => 'project',
             RoleId::RPMO->value            => 'office',
-            default                        => null,   // admin sees all
+            default                        => null,
         };
 
+        if ($headLock !== null) {
+            // Approval roles: single-type lock, no multi-role expansion
+            $lockedType   = $headLock;
+            $allowedTypes = [$headLock];
+        } else {
+            // Regular users: compute allowed types from ALL assigned roles
+            $typeMap = [
+                RoleId::EMPLOYEE->value         => 'support',
+                RoleId::INTERNSHIP->value       => 'office',
+                RoleId::EMPLOYEE_PROJECT->value => 'project',
+                // Admin and Helpdesk get all types
+                RoleId::ADMIN->value            => '*',
+                RoleId::HELPDESK->value         => '*',
+            ];
+
+            $computed    = [];
+            $grantedAll  = false;
+            foreach ($allRoleIds as $rid) {
+                $mapped = $typeMap[$rid] ?? null;
+                if ($mapped === '*') { $grantedAll = true; break; }
+                if ($mapped)          $computed[] = $mapped;
+            }
+
+            $allowedTypes = $grantedAll
+                ? ['project', 'support', 'office']
+                : (count(array_unique($computed)) > 0 ? array_values(array_unique($computed)) : ['project', 'support', 'office']);
+
+            // Lock only when exactly one type is allowed
+            $lockedType = count($allowedTypes) === 1 ? $allowedTypes[0] : null;
+        }
+
         return view('calendar.timesheets', [
-            'user'       => $user,
-            'isHead'     => $isHead,
-            'isAdmin'    => $isAdmin,
-            'roleId'     => $roleId,
-            'lockedType' => $lockedType,
+            'user'         => $user,
+            'isHead'       => $isHead,
+            'isAdmin'      => $isAdmin,
+            'roleId'       => $roleId,
+            'lockedType'   => $lockedType,
+            'allowedTypes' => $allowedTypes,
         ]);
     }
 

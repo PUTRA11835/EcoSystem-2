@@ -29,7 +29,7 @@
                             <textarea name="highlight_issue" 
                                     id="highlight_issue" 
                                     rows="3" 
-                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base" 
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm sm:text-base" 
                                     required
                                     placeholder="Deskripsikan isu yang terjadi...">{{ old('highlight_issue', $update->highlight_issue) }}</textarea>
                             @error('highlight_issue')
@@ -45,7 +45,7 @@
                             <textarea name="action" 
                                     id="action" 
                                     rows="3" 
-                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base" 
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm sm:text-base" 
                                     required
                                     placeholder="Tindakan yang akan diambil...">{{ old('action', $update->action) }}</textarea>
                             @error('action')
@@ -65,7 +65,7 @@
                                    name="due_date" 
                                    id="due_date" 
                                    value="{{ old('due_date', \Carbon\Carbon::parse($update->due_date)->format('Y-m-d')) }}" 
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base" 
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm sm:text-base" 
                                    required>
                             @error('due_date')
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
@@ -79,7 +79,7 @@
                             </label>
                             <select name="status" 
                                     id="status" 
-                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base" 
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm sm:text-base" 
                                     required>
                                 <option value="">Pilih Status</option>
                                 @foreach(['Open', 'In Progress', 'Done', 'Closed', 'To Be Discussed', 'To Be Confirmed'] as $status)
@@ -169,10 +169,10 @@
         }
 
         /* Focus styles enhancement */
-        input:focus, select:focus, textarea:focus {
+        .primary-focus:focus {
             outline: none;
-            border-color: #6366f1;
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+            border-color: var(--primary-color) !important;
+            box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15) !important;
         }
 
         /* Mobile specific styles */

@@ -3,6 +3,14 @@
 @section('page-title', 'Create New Support')
 @section('page-subtitle', 'Add a new support delivery item')
 
+@push('styles')
+<style>
+    .primary-link { color: var(--primary-color); }
+    .primary-link:hover { opacity: 0.75; }
+    .primary-focus:focus { border-color: var(--primary-color) !important; box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15) !important; outline: none !important; }
+</style>
+@endpush
+
 @section('content')
 <div class="min-h-screen bg-gray-50">
     {{-- Flash Notifications --}}
@@ -21,7 +29,7 @@
         <nav class="flex" aria-label="Breadcrumb">
             <ol class="inline-flex items-center space-x-1 md:space-x-3">
                 <li class="inline-flex items-center">
-                    <a href="{{ route('delivery.support.index') }}" class="text-gray-600 hover:text-blue-600 text-sm font-medium">
+                    <a href="{{ route('delivery.support.index') }}" class="text-gray-600 primary-link text-sm font-medium transition-colors">
                         <i class="fas fa-headset mr-2"></i>Support
                     </a>
                 </li>
@@ -54,7 +62,7 @@
                                 Support Name <span class="text-red-500">*</span>
                             </label>
                             <input type="text" name="name" id="name" required
-                                   class="block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm px-4 py-2.5"
+                                   class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
                                    placeholder="Enter support name">
                             @error('name')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -66,7 +74,7 @@
                                 Client <span class="text-red-500">*</span>
                             </label>
                             <select name="client_id" id="client_id" required
-                                    class="block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm px-4 py-2.5">
+                                    class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                                 <option value="">Select Client</option>
                                 @foreach($clients ?? [] as $client)
                                     <option value="{{ $client->customer_id }}">{{ $client->basicData->name_1 ?? 'N/A' }}</option>
@@ -83,7 +91,7 @@
                                 Type <span class="text-red-500">*</span>
                             </label>
                             <select name="type" id="type" required
-                                    class="block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm px-4 py-2.5">
+                                    class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                                 <option value="">Select Type</option>
                                 <option value="AMS">AMS</option>
                                 <option value="MO">MO</option>
@@ -102,7 +110,7 @@
                                 Support Method
                             </label>
                             <select name="support_method" id="support_method"
-                                    class="block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm px-4 py-2.5">
+                                    class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                                 <option value="">Select method</option>
                                 <option value="Remote">Remote</option>
                                 <option value="On-Site">On-Site</option>
@@ -124,7 +132,7 @@
                                     Start Date
                                 </label>
                                 <input type="date" name="start_date" id="start_date"
-                                       class="block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm px-4 py-2.5">
+                                       class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                             </div>
 
                             <div>
@@ -132,7 +140,7 @@
                                     End Date
                                 </label>
                                 <input type="date" name="end_date" id="end_date"
-                                       class="block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm px-4 py-2.5">
+                                       class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                             </div>
 
                             <div>
@@ -140,7 +148,7 @@
                                     Resolution Estimated
                                 </label>
                                 <input type="date" name="resolution_estimated" id="resolution_estimated"
-                                       class="block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm px-4 py-2.5">
+                                       class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                             </div>
                         </div>
                     </div>
@@ -158,7 +166,7 @@
                                     Delivery Owner
                                 </label>
                                 <select name="delivery_owner_id" id="delivery_owner_id"
-                                        class="block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm px-4 py-2.5">
+                                        class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                                     <option value="">Select delivery owner</option>
                                     @foreach($employees ?? [] as $employee)
                                         <option value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? 'N/A' }}</option>
@@ -171,7 +179,7 @@
                                     Support Manager
                                 </label>
                                 <select name="support_manager_id" id="support_manager_id"
-                                        class="block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm px-4 py-2.5">
+                                        class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                                     <option value="">Select support manager</option>
                                     @foreach($employees ?? [] as $employee)
                                         <option value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? 'N/A' }}</option>
@@ -196,7 +204,7 @@
                                 Total Mandays
                             </label>
                             <input type="number" name="total_mandays" id="total_mandays" min="0"
-                                   class="block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm px-4 py-2.5"
+                                   class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
                                    placeholder="0">
                         </div>
                     </div>
@@ -213,14 +221,14 @@
                                 Approval Date
                             </label>
                             <input type="date" name="approval_date" id="approval_date"
-                                   class="block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm px-4 py-2.5">
+                                   class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                         </div>
                         <div>
                             <label for="approval_name" class="block text-sm font-medium text-gray-700 mb-1">
                                 Approved By
                             </label>
                             <input type="text" name="approval_name" id="approval_name"
-                                   class="block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm px-4 py-2.5"
+                                   class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
                                    placeholder="Approver name">
                         </div>
                     </div>

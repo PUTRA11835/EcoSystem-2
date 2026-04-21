@@ -25,6 +25,7 @@ use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\TicketViewController;
 use App\Http\Controllers\PasswordSetupController;
+use App\Http\Controllers\ActivityLogController;
 use App\Http\Middleware\CheckAuthToken;
 
 // ==================== PUBLIC ROUTES ====================
@@ -128,10 +129,19 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         return view('rpmo.rpmo', ['user' => session('user')]);
     })->name('rpmo');
 
+    // Period Management (RPMO + Heads + Admin)
+    Route::get('/rpmo/periods', [\App\Http\Controllers\PeriodManagementController::class, 'index'])
+         ->name('rpmo.periods.index');
+
     // ==================== LEGAL ====================
     Route::get('/legal', function () {
         return view('legal.legal', ['user' => session('user')]);
     })->name('legal');
+
+    // ==================== ADMIN ====================
+    Route::prefix('admin')->name('admin.')->group(function () {
+        Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('activity-log');
+    });
 
     // ==================== SETTINGS ====================
     Route::prefix('settings')->name('settings.')->group(function () {

@@ -105,6 +105,14 @@
                         </div>
 
                         <div class="flex flex-col">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Customer Code <span class="text-red-600">*</span></label>
+                            <input type="text" id="customerCode" required maxlength="4" placeholder="e.g. ACME"
+                                oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')"
+                                class="px-3 py-2 border border-gray-300 rounded text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-red-800 uppercase">
+                            <span class="text-xs text-gray-400 mt-1">Max 4 characters, letters and numbers only.</span>
+                        </div>
+
+                        <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Company Email</label>
                             <input type="email" id="email" placeholder="info@company.com (optional)" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
                         </div>
@@ -429,6 +437,7 @@
         }
 
         const customerData = {
+            customer_code: document.getElementById('customerCode').value.toUpperCase(),
             email: document.getElementById('email').value || null,
             title: document.getElementById('title').value,
             name_1: document.getElementById('companyName').value,

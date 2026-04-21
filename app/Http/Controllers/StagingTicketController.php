@@ -94,7 +94,7 @@ class StagingTicketController extends Controller
             'ip'          => $request->ip(),
         ]);
 
-        if (in_array($roleId, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value, RoleId::CUSTOMER->value], RoleId::HELPDESK_GROUP), true)) {
+        if (in_array($roleId, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value, RoleId::INTERNSHIP->value], RoleId::HELPDESK_GROUP), true)) {
             $query = StagingTicket::query();
         } else {
             Log::warning('StagingTicketController@index: forbidden — role not allowed', [

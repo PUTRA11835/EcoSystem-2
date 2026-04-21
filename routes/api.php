@@ -31,6 +31,7 @@ use App\Http\Controllers\EmailController;
 use App\Http\Controllers\StagingTicketController;
 use App\Http\Controllers\MandaysController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ActivityLogController;
 
 Route::middleware(['web'])->group(function () {
 
@@ -292,7 +293,8 @@ Route::middleware(['web'])->group(function () {
         // Shared utility
         Route::get('/{ticketId}/mandays/modules',  [MandaysController::class, 'getModules']);
         Route::get('/{ticketId}/mandays/history',  [MandaysController::class, 'getCustomerMandaysHistory']);
-        Route::get('/{ticketId}/mandays/approved',  [MandaysController::class, 'getApprovedMandays']);
+        Route::get('/{ticketId}/mandays/approved',             [MandaysController::class, 'getApprovedMandays']);
+        Route::get('/{ticketId}/consultant-mandays/approved', [MandaysController::class, 'getApprovedConsultantMandays']);
         Route::get('/{ticketId}/mandays/version/{mandaysId}', [MandaysController::class, 'getCustomerMandaysVersionDetail']);
 
         // Customer Mandays — PIC
@@ -337,6 +339,8 @@ Route::middleware(['web'])->group(function () {
         Route::get('/my-projects', [TimesheetController::class, 'myProjects']);
         Route::get('/my-activities/all', [TimesheetController::class, 'allMyActivities']); // Get ALL assigned activities
         Route::get('/my-activities/{projectId}', [TimesheetController::class, 'myActivities']); // Get activities for specific project
+        Route::get('/remaining-md', [TimesheetController::class, 'remainingMd']); // Remaining MD quota for a ticket
+        Route::get('/my-late-exceptions', [TimesheetController::class, 'myLateExceptions']); // Active late exceptions for current user
         Route::get('/{id}', [TimesheetController::class, 'show']);
         Route::post('/', [TimesheetController::class, 'store']);
         Route::put('/{id}', [TimesheetController::class, 'update']);
@@ -371,6 +375,33 @@ Route::middleware(['web'])->group(function () {
         Route::post('/send', [EmailController::class, 'send']);
         Route::post('/reply', [EmailController::class, 'reply']);
         Route::post('/messages/{messageId}/reprocess-attachments', [EmailController::class, 'reprocessAttachments']);
+    });
+
+    // ==================== PERIOD MANAGEMENT ROUTES ====================
+    Route::prefix('periods')->group(function () {
+        Route::get('/active', [\App\Http\Controllers\PeriodManagementController::class, 'activePeriod']);
+        Route::post('/',      [\App\Http\Controllers\PeriodManagementController::class, 'store']);
+
+        Route::prefix('/{period}')->group(function () {
+            // RPMO: global lifecycle
+            Route::post('/open-global',  [\App\Http\Controllers\PeriodManagementController::class, 'openGlobal']);
+            Route::post('/close-global', [\App\Http\Controllers\PeriodManagementController::class, 'closeGlobal']);
+            Route::post('/force-close',  [\App\Http\Controllers\PeriodManagementController::class, 'forceCloseDomain']);
+            // Heads: domain lifecycle
+            Route::post('/open-domain',  [\App\Http\Controllers\PeriodManagementController::class, 'openDomain']);
+            Route::post('/close-domain', [\App\Http\Controllers\PeriodManagementController::class, 'closeDomain']);
+            // Audit logs (Admin + Heads + RPMO)
+            Route::get('/audit-logs',    [\App\Http\Controllers\PeriodManagementController::class, 'auditLogs']);
+            // Late exceptions (Heads only)
+            Route::get('/exceptions',    [\App\Http\Controllers\PeriodManagementController::class, 'listExceptions']);
+            Route::post('/exceptions',   [\App\Http\Controllers\PeriodManagementController::class, 'grantException']);
+            Route::delete('/exceptions/{exception}', [\App\Http\Controllers\PeriodManagementController::class, 'revokeException']);
+        });
+    });
+
+    // ==================== ADMIN ROUTES ====================
+    Route::prefix('admin')->group(function () {
+        Route::get('/activity-logs', [ActivityLogController::class, 'getData']);
     });
 
     }); // end auth.session protected group

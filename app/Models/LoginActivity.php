@@ -13,8 +13,17 @@ class LoginActivity extends Model
     protected $fillable = [
         'user_id',
         'role_id',
+        'user_name',
+        'user_type',
         'ip_address',
         'user_agent',
+        'device_type',
+        'device_brand',
+        'device_model',
+        'browser',
+        'os',
+        'location_city',
+        'location_country',
         'login_at',
         'logout_at',
         'status',
@@ -22,8 +31,8 @@ class LoginActivity extends Model
     ];
 
     protected $casts = [
-        'login_at' => 'datetime',
-        'logout_at' => 'datetime',
+        'login_at'   => 'datetime',
+        'logout_at'  => 'datetime',
         'created_at' => 'datetime',
     ];
 }

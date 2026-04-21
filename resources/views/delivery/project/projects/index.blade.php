@@ -2,25 +2,31 @@
 @section('title', 'Project Delivery')
 @section('page-title', 'Project Delivery')
 @section('page-subtitle', 'Manage all delivery projects')
+@push('styles')
+<style>
+    .primary-focus:focus { border-color: var(--primary-color) !important; box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15) !important; outline: none !important; }
+</style>
+@endpush
+
 @section('content')
     {{-- Sub Navigation Tabs --}}
     <div class="mb-6 bg-white rounded-lg shadow-sm border border-gray-200">
         <nav class="flex space-x-1 p-1" aria-label="Tabs">
             <a href="{{ route('projects.index') }}"
                class="flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium text-center rounded-lg transition-all
-                      {{ Request::routeIs('projects.index') ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100' }}">
+                      {{ Request::routeIs('projects.index') ? 'primary-gradient text-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100' }}">
                 <i class="fas fa-project-diagram mr-2"></i>
                 <span>Project</span>
             </a>
             <a href="{{ route('issues.index') }}"
                class="flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium text-center rounded-lg transition-all
-                      {{ Request::routeIs('issues.*') ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100' }}">
+                      {{ Request::routeIs('issues.*') ? 'primary-gradient text-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100' }}">
                 <i class="fas fa-exclamation-triangle mr-2"></i>
                 <span>Issues</span>
             </a>
             <a href="{{ route('planning.index') }}"
                class="flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium text-center rounded-lg transition-all
-                      {{ Request::routeIs('planning.*') ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100' }}">
+                      {{ Request::routeIs('planning.*') ? 'primary-gradient text-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100' }}">
                 <i class="fas fa-tasks mr-2"></i>
                 <span>Planning</span>
             </a>
@@ -42,7 +48,7 @@
                     All Delivery Projects
                 </h3>
                 <a href="{{ route('projects.create') }}"
-                   class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">
+                   class="primary-gradient text-white font-bold py-2 px-4 rounded-lg hover:opacity-90 transition duration-300 text-sm sm:text-base">
                     <span class="hidden sm:inline">Add New</span>
                     <span class="sm:hidden">+ Add</span>
                 </a>
@@ -52,7 +58,7 @@
         <div class="p-4">
             <input type="search" id="project-search"
                 placeholder="Search by customer, type, description, PIC, or status..."
-                class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition text-sm sm:text-base">
+                class="block w-full border-gray-300 rounded-md shadow-sm primary-focus transition text-sm sm:text-base">
         </div>
         {{-- MOBILE VIEW: Card Layout --}}
         <div class="block lg:hidden px-4 pb-4">

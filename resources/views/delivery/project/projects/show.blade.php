@@ -105,9 +105,11 @@
         transition: width 0.1s ease;
     }
 
-    #toast-container {
-        z-index: 10000; /* ✅ Paling atas untuk notifikasi */
-    }
+    .primary-tab-active { color: var(--primary-color) !important; border-color: var(--primary-color) !important; }
+    .primary-text { color: var(--primary-color) !important; }
+    .primary-link { color: var(--primary-color); }
+    .primary-link:hover { opacity: 0.75; }
+    .primary-focus:focus { border-color: var(--primary-color) !important; box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15) !important; outline: none !important; }
 
     /* Selection Toolbar */
     .selection-toolbar {
@@ -230,13 +232,10 @@
 @section('content')
 {{-- ✅ SCROLL PROGRESS INDICATOR --}}
 <div class="scroll-indicator" id="scrollIndicator"></div>
-{{-- Toast Notifications Container --}}
-<div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
-
 {{-- ✅ Sticky Navigation Tabs - PALING ATAS --}}
 <div class="bg-white" id="sectionNav">
     <nav class="flex overflow-x-auto scrollbar-hide border-b border-gray-200">
-        <button onclick="scrollToSection('general')" data-section="general" class="section-tab active px-5 py-3 text-sm font-medium text-blue-600 border-b-2 border-blue-600 whitespace-nowrap">
+        <button onclick="scrollToSection('general')" data-section="general" class="section-tab active px-5 py-3 text-sm font-medium primary-tab-active border-b-2 whitespace-nowrap">
             General
         </button>
         <button onclick="scrollToSection('delivery')" data-section="delivery" class="section-tab px-5 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent hover:border-gray-300 whitespace-nowrap">
@@ -269,7 +268,7 @@
 {{-- Back Button --}}
 <div class="mb-4">
     <a href="{{ route('projects.index') }}"
-        class="inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 hover:bg-indigo-200 rounded-md transition-colors">
+        class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
         </svg>
@@ -315,7 +314,7 @@
                                 <form action="{{ route('projects.updateField', $project->id) }}" method="POST">
                                     @csrf @method('PATCH')
                                     <input type="hidden" name="field" value="pic">
-                                    <select name="value" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500" onchange="this.form.submit()">
+                                    <select name="value" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus" onchange="this.form.submit()">
                                         <option value="">-- Select Project Manager --</option>
                                         @foreach($projectManagers as $pm)
                                             <option value="{{ $pm->basicData->full_name ?? '-' }}" {{ $project->pic == ($pm->basicData->full_name ?? '-') ? 'selected' : '' }}>
@@ -349,7 +348,7 @@
                                 <form action="{{ route('projects.updateField', $project->id) }}" method="POST">
                                     @csrf @method('PATCH')
                                     <input type="hidden" name="field" value="status">
-                                    <select name="value" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500" onchange="this.form.submit()">
+                                    <select name="value" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus" onchange="this.form.submit()">
                                         @foreach(['On Track', 'Monitoring', 'At Risk'] as $status)
                                             <option value="{{ $status }}" {{ $project->status == $status ? 'selected' : '' }}>{{ $status }}</option>
                                         @endforeach
@@ -373,7 +372,7 @@
                                     @csrf @method('PATCH')
                                     <input type="hidden" name="field" value="description">
                                     <textarea name="value" rows="3"
-                                        class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                        class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
                                         placeholder="Enter project description"
                                         onchange="this.form.submit()">{{ $project->description ?? '' }}</textarea>
                                     <p class="mt-1 text-xs text-gray-500">Press Tab or click outside to save changes</p>
@@ -419,7 +418,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Account Executive Type</label>
-                    <select name="ae_type" id="ae_type" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <select name="ae_type" id="ae_type" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                         <option value="">-- Select --</option>
                         <option value="Internal" {{ $project->ae_type == 'Internal' ? 'selected' : '' }}>Internal</option>
                         <option value="External" {{ $project->ae_type == 'External' ? 'selected' : '' }}>External</option>
@@ -428,11 +427,11 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Account Executive</label>
                     <input type="text" name="ae_name" value="{{ $project->ae_name }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Delivery Owner</label>
-                    <select name="delivery_owner_id" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <select name="delivery_owner_id" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                         <option value="">-- Select --</option>
                         @foreach($employees as $employee)
                             <option value="{{ $employee->employee_id }}" {{ $project->delivery_owner_id == $employee->employee_id ? 'selected' : '' }}>
@@ -443,7 +442,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Delivery Manager</label>
-                    <select name="delivery_manager_id" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <select name="delivery_manager_id" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                         <option value="">-- Select --</option>
                         @foreach($employees as $employee)
                             <option value="{{ $employee->employee_id }}" {{ $project->delivery_manager_id == $employee->employee_id ? 'selected' : '' }}>
@@ -454,7 +453,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Delivery Method</label>
-                    <select name="delivery_method" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <select name="delivery_method" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                         <option value="">-- Select --</option>
                         <option value="Onsite" {{ $project->delivery_method == 'Onsite' ? 'selected' : '' }}>Onsite</option>
                         <option value="Hybrid" {{ $project->delivery_method == 'Hybrid' ? 'selected' : '' }}>Hybrid</option>
@@ -464,7 +463,7 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Total Mandays</label>
                     <input type="number" name="total_mandays" value="{{ $project->total_mandays }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                 </div>
             </div>
             <div class="mt-6 text-right">
@@ -572,7 +571,7 @@
                                     </td>
                                     <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $document->document_name }}</td>
                                     <td class="px-6 py-4 text-sm text-gray-500">
-                                        <a href="{{ $document->link_document }}" target="_blank" class="text-indigo-600 hover:text-indigo-900">
+                                        <a href="{{ $document->link_document }}" target="_blank" class="primary-link">
                                             {{ Str::limit($document->link_document, 30) }}
                                         </a>
                                     </td>
@@ -656,10 +655,10 @@
 
 {{-- Selection Toolbar (Floating Action Bar) --}}
 <div id="selectionToolbar" class="selection-toolbar">
-    <div class="bg-indigo-600 text-white rounded-lg shadow-2xl px-6 py-4 flex items-center space-x-4">
+    <div class="primary-gradient text-white rounded-lg shadow-2xl px-6 py-4 flex items-center space-x-4">
         <span id="selectionCount" class="font-semibold">0 selected</span>
-        <div class="h-6 w-px bg-indigo-400"></div>
-        <button onclick="handleBulkEdit()" class="flex items-center space-x-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-400 rounded-md transition">
+        <div class="h-6 w-px bg-white opacity-40"></div>
+        <button onclick="handleBulkEdit()" class="flex items-center space-x-2 px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-md transition">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
@@ -692,11 +691,11 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Location Name</label>
                     <input type="text" name="location_name" value="{{ $project->location_name }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Type of Address</label>
-                    <select name="location_type" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <select name="location_type" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                         <option value="">-- Select --</option>
                         <option value="Head Office" {{ $project->location_type == 'Head Office' ? 'selected' : '' }}>Head Office</option>
                         <option value="Plant" {{ $project->location_type == 'Plant' ? 'selected' : '' }}>Plant</option>
@@ -710,17 +709,17 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Geographical</label>
                     <input type="text" name="location_geographical" value="{{ $project->location_geographical }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Region / Province</label>
                     <input type="text" name="location_region" value="{{ $project->location_region }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">City</label>
                     <input type="text" name="location_city" value="{{ $project->location_city }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Valid From</label>
@@ -735,7 +734,7 @@
                 <div class="md:col-span-2 lg:col-span-3">
                     <label class="block text-sm font-medium text-gray-900 mb-1">Street Address</label>
                     <textarea name="location_street" rows="2"
-                              class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">{{ $project->location_street }}</textarea>
+                              class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">{{ $project->location_street }}</textarea>
                 </div>
             </div>
             <div class="mt-6 text-right">
@@ -754,7 +753,7 @@
             <div class="flex justify-between items-center flex-wrap gap-4">
                 <div>
                     <h2 class="text-lg font-semibold text-gray-700 flex items-center">
-                        <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-5 h-5 mr-2 primary-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
                         </svg>
                         Project Planning
@@ -767,7 +766,7 @@
                         <button type="button" 
                                 data-view="table"
                                 onclick="switchPlanningView('table')"
-                                class="planning-view-toggle px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-gray-200 rounded-l-lg hover:bg-blue-700 transition">
+                                class="planning-view-toggle px-4 py-2 text-sm font-medium text-white primary-gradient border border-gray-200 rounded-l-lg hover:opacity-90 transition">
                             <svg class="inline-block w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                                 <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
                             </svg>
@@ -815,7 +814,7 @@
                                 Collapse All
                             </button>
                         </div>
-                        <button onclick="refreshPlanningData()" class="px-3 py-1 bg-white text-indigo-600 rounded hover:shadow transition">
+                        <button onclick="refreshPlanningData()" class="px-3 py-1 bg-white primary-text rounded hover:shadow transition">
                             <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                             </svg>
@@ -845,7 +844,7 @@
                             <tr>
                                 <td colspan="9" class="text-center p-8">
                                     <div class="text-gray-500">
-                                        <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+                                        <svg class="animate-spin h-8 w-8 primary-text mx-auto mb-2" fill="none" viewBox="0 0 24 24">
                                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                         </svg>
@@ -878,7 +877,7 @@
                                 </svg>
                                 Collapse All
                             </button>
-                            <button onclick="refreshGanttPlanning()" class="px-3 py-1 bg-white text-indigo-600 rounded hover:shadow transition text-sm">
+                            <button onclick="refreshGanttPlanning()" class="px-3 py-1 bg-white primary-text rounded hover:shadow transition text-sm">
                                 <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                                 </svg>
@@ -923,7 +922,7 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Consultant</label>
                             <select name="employee_id" id="employee_id" required
-                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500">
+                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                                 <option value="">-- Select Employee --</option>
                                 @foreach($consultants as $employee)
                                     <option value="{{ $employee->employee_id }}"
@@ -938,13 +937,13 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Module</label>
                             <input type="text" name="module" id="modul"
-                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500"
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
                                    placeholder="e.g. FI, CO, MM">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Assignment</label>
                             <select name="assignment" required
-                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500">
+                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                                 <option value="">-- Select Role --</option>
                                 <option value="Project Manager">Project Manager</option>
                                 <option value="Co Project Manager">Co Project Manager</option>
@@ -964,12 +963,12 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Start Date</label>
                             <input type="date" name="start_date"
-                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500">
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">End Date</label>
                             <input type="date" name="end_date"
-                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500">
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                         </div>
                     </div>
                 </div>
@@ -1010,13 +1009,13 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Module</label>
                             <input type="text" name="module" id="edit_module"
-                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500"
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
                                    placeholder="e.g. FI, CO, MM">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Assignment</label>
                             <select name="assignment" id="edit_assignment" required
-                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500">
+                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                                 <option value="">-- Select Role --</option>
                                 <option value="Project Manager">Project Manager</option>
                                 <option value="Co Project Manager">Co Project Manager</option>
@@ -1036,12 +1035,12 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Start Date</label>
                             <input type="date" name="start_date" id="edit_start_date"
-                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500">
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">End Date</label>
                             <input type="date" name="end_date" id="edit_end_date"
-                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500">
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                         </div>
                     </div>
                 </div>
@@ -1369,9 +1368,9 @@ function updateActiveTab(sectionId) {
         const tabSection = tab.getAttribute('data-section');
         if (tabSection === sectionId) {
             tab.classList.remove('text-gray-600', 'border-transparent');
-            tab.classList.add('text-blue-600', 'border-blue-600', 'active');
+            tab.classList.add('primary-tab-active', 'active');
         } else {
-            tab.classList.remove('text-blue-600', 'border-blue-600', 'active');
+            tab.classList.remove('primary-tab-active', 'active');
             tab.classList.add('text-gray-600', 'border-transparent');
         }
     });
@@ -1437,9 +1436,9 @@ function switchPlanningView(view) {
     document.querySelectorAll('.planning-view-toggle').forEach(btn => {
         if (btn.dataset.view === view) {
             btn.classList.remove('bg-white', 'text-gray-900');
-            btn.classList.add('bg-blue-600', 'text-white');
+            btn.classList.add('primary-gradient', 'text-white');
         } else {
-            btn.classList.remove('bg-blue-600', 'text-white');
+            btn.classList.remove('primary-gradient', 'text-white');
             btn.classList.add('bg-white', 'text-gray-900');
         }
     });
@@ -1565,7 +1564,7 @@ function renderPlanningTable(phasesData) {
             const groupRow = document.createElement('tr');
             groupRow.innerHTML = `
                 <td colspan="9" class="px-3 py-2 pl-16 text-sm text-gray-600 bg-gray-50">
-                    📁 ${groups.length} Group(s) • <a href="{{ route('planning.phases.index', $project) }}" class="text-indigo-600 hover:text-indigo-900">View full details →</a>
+                    📁 ${groups.length} Group(s) • <a href="{{ route('planning.phases.index', $project) }}" class="primary-link">View full details →</a>
                 </td>
             `;
             tbody.appendChild(groupRow);
@@ -1590,7 +1589,7 @@ function loadPlanningGanttData() {
             // Render simplified gantt or show link to full view
             content.innerHTML = `
                 <div class="text-center py-12">
-                    <svg class="mx-auto h-16 w-16 text-indigo-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="mx-auto h-16 w-16 primary-text mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                     </svg>
                     <h3 class="text-lg font-medium text-gray-900 mb-2">Full Gantt Chart Available</h3>
@@ -1598,7 +1597,7 @@ function loadPlanningGanttData() {
                         The complete interactive Gantt chart with all features is available on the dedicated planning page.
                     </p>
                     <a href="{{ route('planning.phases.index', $project) }}" 
-                       class="inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition shadow-lg hover:shadow-xl">
+                       class="inline-flex items-center px-6 py-3 primary-gradient text-white font-medium rounded-lg hover:opacity-90 transition shadow-lg hover:shadow-xl">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                         </svg>
@@ -1633,19 +1632,19 @@ function refreshGanttPlanning() {
 
 // Expand/Collapse Functions (placeholders)
 function expandAllPlanning() {
-    showToast('Expand all: Visit full planning page for complete functionality', 'info');
+    showNotification('Expand all: Visit full planning page for complete functionality', 'info');
 }
 
 function collapseAllPlanning() {
-    showToast('Collapse all: Visit full planning page for complete functionality', 'info');
+    showNotification('Collapse all: Visit full planning page for complete functionality', 'info');
 }
 
 function expandAllGanttPlanning() {
-    showToast('Expand all: Visit full planning page for complete Gantt functionality', 'info');
+    showNotification('Expand all: Visit full planning page for complete Gantt functionality', 'info');
 }
 
 function collapseAllGanttPlanning() {
-    showToast('Collapse all: Visit full planning page for complete Gantt functionality', 'info');
+    showNotification('Collapse all: Visit full planning page for complete Gantt functionality', 'info');
 }
 
 // ✅ Auto-load planning on scroll to section
@@ -1755,12 +1754,12 @@ function clearAllSelections() {
 // ============================================
 function handleBulkEdit() {
     if (!currentType || selectedItems[currentType].size === 0) {
-        showToast('Please select at least one item', 'error');
+        showNotification('Please select at least one item', 'error');
         return;
     }
     
     if (selectedItems[currentType].size > 1) {
-        showToast('Please select only one item to edit', 'error');
+        showNotification('Please select only one item to edit', 'error');
         return;
     }
     
@@ -1778,7 +1777,7 @@ function handleBulkEdit() {
 
 function handleBulkDelete() {
     if (!currentType || selectedItems[currentType].size === 0) {
-        showToast('Please select at least one item', 'error');
+        showNotification('Please select at least one item', 'error');
         return;
     }
     
@@ -1828,7 +1827,7 @@ async function executeBulkDelete() {
         }
     }
     
-    showToast(`Successfully deleted ${selectedIds.length} item(s)`, 'success');
+    showNotification(`Successfully deleted ${selectedIds.length} item(s)`, 'success');
     clearAllSelections();
     closeModal('deleteModal');
 }
@@ -1904,16 +1903,16 @@ document.getElementById('editTeamMemberForm')?.addEventListener('submit', async 
         const data = await response.json();
 
         if (data.success) {
-            showToast(data.message, 'success');
+            showNotification(data.message, 'success');
             closeModal('editTeamModal');
             clearAllSelections();
             setTimeout(() => location.reload(), 1000);
         } else {
-            showToast(data.message || 'Failed to update team member', 'error');
+            showNotification(data.message || 'Failed to update team member', 'error');
         }
     } catch (error) {
         console.error('Error:', error);
-        showToast('An error occurred while updating team member', 'error');
+        showNotification('An error occurred while updating team member', 'error');
     }
 });
 
@@ -1940,7 +1939,7 @@ document.getElementById('editDocumentForm')?.addEventListener('submit', async fu
         });
         
         if (response.ok) {
-            showToast('Document updated successfully!', 'success');
+            showNotification('Document updated successfully!', 'success');
             closeModal('editDocumentModal');
             clearAllSelections();
             setTimeout(() => location.reload(), 1000);
@@ -1948,7 +1947,7 @@ document.getElementById('editDocumentForm')?.addEventListener('submit', async fu
             throw new Error('Update failed');
         }
     } catch (error) {
-        showToast('Failed to update document', 'error');
+        showNotification('Failed to update document', 'error');
     }
 });
 
@@ -1977,7 +1976,7 @@ document.getElementById('editIssueForm')?.addEventListener('submit', async funct
         });
         
         if (response.ok) {
-            showToast('Issue updated successfully!', 'success');
+            showNotification('Issue updated successfully!', 'success');
             closeModal('editIssueModal');
             clearAllSelections();
             setTimeout(() => location.reload(), 1000);
@@ -1985,7 +1984,7 @@ document.getElementById('editIssueForm')?.addEventListener('submit', async funct
             throw new Error('Update failed');
         }
     } catch (error) {
-        showToast('Failed to update issue', 'error');
+        showNotification('Failed to update issue', 'error');
     }
 });
 
@@ -2052,7 +2051,7 @@ async function executeProjectDelete(projectId) {
         });
         
         if (response.ok) {
-            showToast('Project deleted successfully!', 'success');
+            showNotification('Project deleted successfully!', 'success');
             closeModal('deleteModal');
             
             // Redirect to projects index after 1 second
@@ -2065,7 +2064,7 @@ async function executeProjectDelete(projectId) {
         }
     } catch (error) {
         console.error('Delete error:', error);
-        showToast('Failed to delete project: ' + error.message, 'error');
+        showNotification('Failed to delete project: ' + error.message, 'error');
         
         // Restore button
         btn.innerHTML = originalText;
@@ -2081,15 +2080,13 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// showToast is provided globally by dashboard.blade.php
-
 // Show success message if present
 @if(session('success'))
-    showToast('{{ session('success') }}', 'success');
+    showNotification('{{ session('success') }}', 'success');
 @endif
 
 @if(session('error'))
-    showToast('{{ session('error') }}', 'error');
+    showNotification('{{ session('error') }}', 'error');
 @endif
 
 // ============================================

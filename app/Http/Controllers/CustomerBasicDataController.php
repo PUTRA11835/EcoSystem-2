@@ -74,21 +74,26 @@ class CustomerBasicDataController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
-            'name_1' => 'required|string|max:255',
-            'name_2' => 'nullable|string|max:255',
-            'title' => 'nullable|string|max:50',
-            'search_term_1' => 'nullable|string|max:255',
-            'search_term_2' => 'nullable|string|max:255',
-            'external_number' => 'nullable|string|max:50',
-            'customer_group' => 'nullable|string|max:100',
-            'customer_category' => 'nullable|string|max:100',
-            'credit_limit_type' => 'nullable|string|max:100',
-            'industry_sector' => 'nullable|string|max:100',
+            'customer_code'        => ['sometimes', 'required', 'string', 'max:4', 'regex:/^[A-Za-z0-9]{1,4}$/', 'unique:customer,customer_code,' . $customerId . ',customer_id'],
+            'name_1'               => 'required|string|max:255',
+            'name_2'               => 'nullable|string|max:255',
+            'title'                => 'nullable|string|max:50',
+            'search_term_1'        => 'nullable|string|max:255',
+            'search_term_2'        => 'nullable|string|max:255',
+            'external_number'      => 'nullable|string|max:50',
+            'customer_group'       => 'nullable|string|max:100',
+            'customer_category'    => 'nullable|string|max:100',
+            'credit_limit_type'    => 'nullable|string|max:100',
+            'industry_sector'      => 'nullable|string|max:100',
             'ec_account_executive' => 'nullable|string|max:100',
-            'sap_account_executive' => 'nullable|string|max:100',
-            'authorization_group' => 'nullable|string|max:100',
-            'block' => 'nullable|boolean',
-            'deletion_flag' => 'nullable|boolean',
+            'sap_account_executive'=> 'nullable|string|max:100',
+            'authorization_group'  => 'nullable|string|max:100',
+            'block'                => 'nullable|boolean',
+            'deletion_flag'        => 'nullable|boolean',
+        ], [
+            'customer_code.max'   => 'Customer code must be at most 4 characters.',
+            'customer_code.regex' => 'Customer code may only contain letters and numbers.',
+            'customer_code.unique'=> 'This customer code is already in use.',
         ]);
 
         if ($validator->fails()) {
@@ -110,6 +115,13 @@ class CustomerBasicDataController extends Controller
                     'success' => false,
                     'message' => 'Customer not found'
                 ], 404);
+            }
+
+            // Update customer_code on the customer table if provided
+            if ($request->filled('customer_code')) {
+                DB::table('customer')
+                    ->where('customer_id', $customerId)
+                    ->update(['customer_code' => strtoupper($request->customer_code)]);
             }
 
             // Check if basic data already exists
