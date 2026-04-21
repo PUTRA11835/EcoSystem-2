@@ -139,7 +139,7 @@ return <<<HTML
 <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;...">
     {$body}
     <p style="border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;">
-        Sent by <strong>{$agent}</strong> — PT Eclectic Consulting Yogyakarta<br>
+        Sent by <strong>{$agent}</strong> — PT Eclectic Consulting<br>
         Ticket: <strong>#{$ticketNum}</strong>
     </p>
 </div>

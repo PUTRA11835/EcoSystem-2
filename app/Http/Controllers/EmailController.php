@@ -540,7 +540,7 @@ class EmailController extends Controller
                             'internet_message_id' => $internetMsgId,
                             'graph_message_id'    => $graphMsgId,
                             'has_attachments'     => $hasAttachments,
-                            'cc_emails'           => $ccJson,
+                            'cc_emails'           => !empty($ccEmails) ? $ccEmails : null, // PHP array, bukan JSON string
                             'received_at'         => $receivedAt, // Carbon UTC — used for created_at
                         ]);
 
@@ -890,7 +890,7 @@ class EmailController extends Controller
                 $fileSize     = $att['size'] ?? 0;
                 $contentId    = $att['contentId'] ?? null;
 
-                // Lewati jika sudah pernah disimpan
+                // Lewati jika sudah pernah disimpan berdasarkan graph_attachment_id
                 $existing = TicketAttachment::where('graph_attachment_id', $graphAttId)->first();
                 if ($existing) {
                     if ($contentId) {
@@ -900,6 +900,25 @@ class EmailController extends Controller
                             : '/attachments/' . $existing->id;
                     }
                     continue;
+                }
+
+                // Dedup tambahan untuk file non-inline yang sudah di-copy dari staging_attachments.
+                // staging_attachments → ticket_attachment tidak punya graph_attachment_id,
+                // sehingga dedup di atas tidak menangkapnya → file yang sama akan double.
+                // Solusi: cocokkan by link_title (original filename) + ticket_id.
+                if (!$isInline) {
+                    $existingByName = TicketAttachment::where('ticket_id', $ticketId)
+                        ->where('link_title', $originalName)
+                        ->whereNull('graph_attachment_id')
+                        ->first();
+                    if ($existingByName) {
+                        // Enrich record yang sudah ada dengan Graph IDs agar proxy access bisa digunakan
+                        $existingByName->update([
+                            'graph_attachment_id' => $graphAttId,
+                            'graph_message_id'    => $graphMsgId,
+                        ]);
+                        continue;
+                    }
                 }
 
                 $filePath   = null;
@@ -1104,8 +1123,9 @@ class EmailController extends Controller
         array $ccList = [],       // [{name, address}, ...] atau [address, ...]
         bool $noRePrefix = false,
         ?string $threadId = null, // M365 conversationId — fallback jika inReplyTo tidak ditemukan
-        bool $forceNewDraft = false // true = skip createReply, buat draft baru dengan In-Reply-To eksplisit
-                                    // Gunakan saat subject sengaja diubah agar Gmail tetap thread dengan benar
+        bool $forceNewDraft = false, // true = skip createReply, buat draft baru dengan In-Reply-To eksplisit
+                                     // Gunakan saat subject sengaja diubah agar Gmail tetap thread dengan benar
+        array $rawAttachments = []   // [{name, mime, bytes}] untuk forward attachment dari email asal
     ): array {
         $sender         = config('services.microsoft_graph.sender_email');
         $replySubject   = (!$noRePrefix && stripos($subject, 're:') !== 0) ? 'Re: ' . $subject : $subject;
@@ -1126,8 +1146,13 @@ class EmailController extends Controller
         }
 
         // ── Ekstrak inline images (base64) dari body HTML ──────────────────────
-        // Email clients block data URI images; replace with cid: references
+        // Email clients block data URI images; replace with cid: references.
+        // Naikkan PCRE backtrack limit sementara agar regex bisa menangani base64 gambar besar
+        // (default 1M karakter bisa tidak cukup untuk foto berukuran > 750 KB).
+        $prevPcreLimit = ini_get('pcre.backtrack_limit');
+        ini_set('pcre.backtrack_limit', 10000000);
         $extracted    = $this->extractBase64Images($body);
+        ini_set('pcre.backtrack_limit', $prevPcreLimit);
         $cleanBody    = $extracted['html'];
         $inlineImages = $extracted['inlineImages'];
 
@@ -1347,6 +1372,23 @@ class EmailController extends Controller
                     'error' => $e->getMessage(),
                 ]);
                 // Lanjutkan — satu file gagal tidak membatalkan keseluruhan pengiriman
+            }
+        }
+
+        // ── Lampirkan raw attachments (forwarded dari email asal) ─────────────
+        foreach ($rawAttachments as $rawAtt) {
+            try {
+                $this->graphPost("/users/{$sender}/messages/{$draftId}/attachments", [
+                    '@odata.type' => '#microsoft.graph.fileAttachment',
+                    'name'        => $rawAtt['name'],
+                    'contentType' => $rawAtt['mime'] ?? 'application/octet-stream',
+                    'contentBytes'=> base64_encode($rawAtt['bytes']),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('EmailController@sendTicketReply: gagal lampirkan raw attachment', [
+                    'name'  => $rawAtt['name'] ?? '?',
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
 

@@ -1,4 +1,5 @@
 @extends('dashboard')
+@section('content-class', 'p-4')
 @section('title', 'Ticket ' . $ticket->ticket_number)
 @section('page-title', 'Support Ticket')
 @section('page-subtitle')
@@ -75,7 +76,7 @@
 <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 
-<div class="flex gap-6" style="height: calc(100vh - 140px); min-height: 500px;">
+<div class="flex gap-4" style="height: calc(100vh - 106px); min-height: 500px;">
     {{-- Main Content: Conversation Thread --}}
     <div class="flex-1 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {{-- Ticket Header --}}
@@ -169,11 +170,37 @@
             </div>
             @endif
 
+            {{-- To / CC Row: hanya tampil untuk email tickets --}}
+            @if(($ticket->channel === 'email' || $ticket->email_thread_id) && !empty($customerEmail))
+            <div class="px-4 pt-1.5">
+                <div class="flex items-center gap-2 text-xs text-gray-500 px-2 py-1">
+                    <span class="font-semibold text-gray-500 flex-shrink-0">To</span>
+                    <span class="text-gray-700">{{ $customerEmail }}</span>
+                </div>
+            </div>
+            @endif
+
+            {{-- CC Row: hanya tampil untuk email tickets --}}
+            @if($ticket->channel === 'email' || $ticket->email_thread_id)
+            <div class="px-4 pt-1.5" id="ccRow">
+                <div class="flex flex-wrap items-center gap-1 min-h-[30px] border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text" onclick="document.getElementById('ccInput').focus()">
+                    <span class="text-[11px] text-gray-500 font-semibold mr-0.5 flex-shrink-0">CC</span>
+                    <div id="ccTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
+                    <input type="text" id="ccInput"
+                           placeholder="Add email and press Enter..."
+                           class="text-xs border-none bg-transparent outline-none flex-1 min-w-[150px] placeholder-gray-300 py-0.5"
+                           onkeydown="handleCcKeydown(event)"
+                           onblur="commitCcInput()"
+                           onpaste="handleCcPaste(event)">
+                </div>
+            </div>
+            @endif
+
             <div class="px-4 pt-2 pb-2">
                 {{-- Mention dropdown (positioned relative to editor wrapper) --}}
                 <div class="relative">
                     <div class="bg-white border border-gray-300 rounded-lg overflow-hidden">
-                        <div id="quillEditor" style="min-height: 100px;"></div>
+                        <div id="quillEditor" style="min-height: 80px;"></div>
                     </div>
                     {{-- @mention autocomplete dropdown --}}
                     <div id="mentionDropdown" class="hidden absolute z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-72 max-h-48 overflow-y-auto" style="bottom: calc(100% + 4px); left: 0;">
@@ -190,15 +217,15 @@
                 <div class="flex items-center justify-end mt-2 mb-1 gap-2">
                     <span id="attachCount" class="hidden text-xs text-blue-600 font-medium mr-auto"></span>
                     {{-- Send buttons --}}
-                    <button onclick="sendReply('internal_note')" class="inline-flex items-center px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg hover:bg-amber-100 transition-all">
+                    <button onclick="sendReply('internal_note')" class="inline-flex items-center px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg hover:bg-amber-100 transition-all duration-200">
                         Internal Note
                     </button>
                     @if($ticket->channel === 'email')
-                    <button onclick="sendReply('reply')" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    <button onclick="sendReply('reply')" class="inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
                         Send via Email
                     </button>
                     @else
-                    <button onclick="sendReply('reply')" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    <button onclick="sendReply('reply')" class="inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
                         Send Reply
                     </button>
                     @endif
@@ -589,8 +616,8 @@
 <style>
 /* Message Bubbles */
 .message-bubble { max-width: 85%; }
-.message-bubble.customer  { background: #f3f4f6; border-radius: 12px 12px 12px 4px; }
-.message-bubble.employee  { background: #eff6ff; border-radius: 12px 12px 4px 12px; }
+.message-bubble.customer  { background: #eff6ff; border-radius: 12px 12px 4px 12px; }
+.message-bubble.employee  { background: #f9fafb; border-radius: 12px 12px 12px 4px; }
 .message-bubble.internal-note       { background: #fef9c3; border: 1px dashed #f59e0b; border-radius: 4px 12px 12px 12px; }
 .message-bubble.internal-note.mine  { background: #fef3c7; border: 1px dashed #d97706; border-radius: 12px 4px 12px 12px; }
 
@@ -604,10 +631,17 @@
 .email-html-body table { border-collapse: collapse; font-size: 12px; max-width: 100%; }
 .email-html-body td, .email-html-body th { border: 1px solid #e5e7eb; padding: 4px 8px; }
 
+/* Links di semua bubble (plain text, Quill HTML, internal note) */
+.message-content a { color: #2563eb !important; text-decoration: underline !important; word-break: break-all; cursor: pointer; }
+.message-content a:hover { color: #1d4ed8 !important; }
+.email-html-body a  { color: #2563eb !important; text-decoration: underline !important; }
+/* Links di Quill editor saat mengetik */
+.ql-editor a { color: #2563eb !important; text-decoration: underline !important; cursor: pointer; }
+
 /* Quill Editor Overrides */
 .ql-toolbar.ql-snow { border: none !important; border-bottom: 1px solid #e5e7eb !important; padding: 4px 8px !important; background: #f9fafb; }
 .ql-container.ql-snow { border: none !important; font-size: 13px; }
-.ql-editor { min-height: 80px; max-height: 220px; overflow-y: auto; overflow-x: hidden; padding: 8px 12px; }
+.ql-editor { min-height: 80px; max-height: 180px; overflow-y: auto; overflow-x: hidden; padding: 8px 12px; }
 .ql-editor.ql-blank::before { font-style: normal; color: #9ca3af; font-size: 13px; }
 
 /* Images inside editor — fit width, cap height */
@@ -1235,6 +1269,66 @@
     const assignedDsType = @json(isset($deliverySupport) && $deliverySupport ? $deliverySupport->type : null);
     let quillEditor     = null;
 
+    // ── CC state ─────────────────────────────────────────────────────────────
+    let ccEmails = @json(
+        collect($ticket->cc_emails ?? [])
+            ->map(fn($c) => is_array($c) ? ($c['address'] ?? '') : (string)$c)
+            ->filter()
+            ->values()
+    );
+
+    function renderCcTags() {
+        const container = document.getElementById('ccTagsContainer');
+        if (!container) return;
+        container.innerHTML = ccEmails.map((email, i) =>
+            `<span class="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-700 text-[11px] rounded-full px-2 py-0.5 max-w-[200px]">
+                <span class="truncate">${escHtmlCC(email)}</span>
+                <button type="button" onclick="removeCcTag(${i})" class="text-blue-300 hover:text-red-500 transition-colors flex-shrink-0 leading-none ml-0.5">&times;</button>
+            </span>`
+        ).join('');
+    }
+
+    function removeCcTag(index) {
+        ccEmails.splice(index, 1);
+        renderCcTags();
+    }
+
+    function handleCcKeydown(e) {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            commitCcInput();
+        } else if (e.key === 'Backspace' && e.target.value === '' && ccEmails.length > 0) {
+            ccEmails.pop();
+            renderCcTags();
+        }
+    }
+
+    function commitCcInput() {
+        const input = document.getElementById('ccInput');
+        if (!input) return;
+        const parts = input.value.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+        let added = false;
+        for (const email of parts) {
+            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !ccEmails.includes(email)) {
+                ccEmails.push(email);
+                added = true;
+            }
+        }
+        if (added) renderCcTags();
+        input.value = '';
+    }
+
+    function handleCcPaste(e) {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text');
+        const input = document.getElementById('ccInput');
+        if (input) { input.value = text; commitCcInput(); }
+    }
+
+    function escHtmlCC(str) {
+        return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
     // ── @mention state ───────────────────────────────────────────────────────
     let pendingMentions   = [];   // [{ type:'employee'|'role', id, display }]
     let mentionQuery      = null; // null = not in mention mode
@@ -1372,6 +1466,47 @@
             mentionFetchTimer = setTimeout(() => fetchMentionables(query), 200);
         });
 
+        // ── Auto-link: detect URL saat user ketik spasi/enter setelah URL ──────
+        // Ketika user mengetik spasi atau Enter setelah URL, format teks sebagai hyperlink biru.
+        // Gunakan posisi dari delta.ops (bukan getSelection) agar lebih reliable.
+        // setTimeout untuk menghindari masalah re-entrancy Quill.
+        quillEditor.on('text-change', function(delta, _old, source) {
+            // Hanya proses input dari user (bukan format API call)
+            if (source !== 'user' || !delta || !delta.ops) return;
+
+            // Cek apakah karakter terakhir yang diinsert adalah spasi atau enter
+            const lastOp = delta.ops[delta.ops.length - 1];
+            if (!lastOp || typeof lastOp.insert !== 'string') return;
+            const inserted = lastOp.insert;
+            if (inserted !== ' ' && inserted !== '\n') return;
+
+            // Hitung posisi insert dari delta.ops (lebih reliable dari getSelection di text-change)
+            let insertPos = 0;
+            for (const op of delta.ops) {
+                if (typeof op.retain === 'number') { insertPos = op.retain; break; }
+            }
+
+            // Teks sebelum karakter yang baru diinsert
+            const textBefore = quillEditor.getText(0, insertPos);
+            // Cari awal kata terakhir (pemisah: spasi atau newline)
+            const lastBreak = Math.max(textBefore.lastIndexOf(' '), textBefore.lastIndexOf('\n'));
+            const lastWord  = textBefore.slice(lastBreak + 1);
+
+            if (!lastWord || !/^https?:\/\/\S{4,}$/.test(lastWord)) return;
+
+            const urlStart = lastBreak + 1;
+
+            // Defer agar tidak konflik dengan cycle update Quill saat ini
+            setTimeout(function() {
+                const fmt = quillEditor.getFormat(urlStart, lastWord.length);
+                if (fmt.link) return; // sudah ada link — skip
+                quillEditor.formatText(urlStart, lastWord.length, { link: lastWord }, 'api');
+                // Lepas format link dari spasi/enter yang menjadi pemisah
+                quillEditor.formatText(urlStart + lastWord.length, inserted.length, { link: false }, 'api');
+            }, 0);
+        });
+
+        renderCcTags();
         loadMessages();
         loadSidebarTickets();
         markMessagesRead();
@@ -1634,6 +1769,36 @@
         return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    // ── Linkify: buat URL plain text jadi <a> yang bisa diklik ─────────────────
+    // Inline style dipakai langsung agar tidak kalah oleh CSS cascade (Tailwind, dsb).
+    const _linkStyle = 'color:#2563eb;text-decoration:underline;word-break:break-all;';
+
+    // linkifyHtml: aman untuk HTML yang sudah ada — tidak menyentuh <a> yang sudah ada.
+    function linkifyHtml(html) {
+        if (!html) return html;
+        // Pecah di existing <a>...</a> lalu linkify hanya bagian di luar <a>
+        const parts = html.split(/(<a[\s\S]*?<\/a>)/gi);
+        return parts.map((part, i) => {
+            if (i % 2 === 1) return part; // sudah <a> tag — skip
+            return part.replace(
+                /(https?:\/\/[^\s<>"'()[\]{}]+)/gi,
+                `<a href="$1" target="_blank" rel="noopener noreferrer" style="${_linkStyle}">$1</a>`
+            );
+        }).join('');
+    }
+
+    // linkifyText: untuk plain text — escape HTML dulu (XSS safe) lalu linkify.
+    function linkifyText(text) {
+        if (!text) return '';
+        const esc = text
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        return esc.replace(
+            /(https?:\/\/[^\s<>"]+)/gi,
+            `<a href="$1" target="_blank" rel="noopener noreferrer" style="${_linkStyle}">$1</a>`
+        );
+    }
+
     // Ganti sisa referensi cid: yang tidak ter-replace backend dengan placeholder
     function sanitizeEmailHtml(html) {
         if (!html) return html;
@@ -1645,32 +1810,32 @@
 
     // ── Pilih konten pesan: HTML dari email atau plain text dari web ────────────
     function messageContent(msg) {
-        // Email dengan HTML body → render HTML (cid: refs yang tersisa diganti placeholder)
+        // Email dengan HTML body → render HTML + linkify URL plain text yang tidak terbungkus <a>
         if (msg.channel === 'email' && msg.message_html) {
-            return `<div class="message-content text-sm text-gray-700 email-html-body">${sanitizeEmailHtml(msg.message_html)}</div>`;
+            return `<div class="message-content text-sm text-gray-700 email-html-body">${linkifyHtml(sanitizeEmailHtml(msg.message_html))}</div>`;
         }
 
         // Internal note: render Quill HTML (contains @mention chips with color formatting)
         // Fall back to plain text with mention highlighting if no html
         if (msg.message_type === 'internal_note') {
             if (msg.message_html) {
-                return `<div class="message-content text-sm text-gray-700">${msg.message_html}</div>`;
+                return `<div class="message-content text-sm text-gray-700">${linkifyHtml(msg.message_html)}</div>`;
             }
             if (!msg.message_body) return '';
             const highlighted = msg.message_body.replace(/@([\w.]+(?:\s[\w.]+)*)/g, (match) =>
                 `<span class="inline-flex items-center px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-semibold">${escHtml(match)}</span>`
             );
-            return `<div class="message-content text-sm text-gray-700">${highlighted}</div>`;
+            return `<div class="message-content text-sm text-gray-700">${linkifyText(highlighted)}</div>`;
         }
 
-        // Employee reply dengan message_html → render HTML (trusted content)
+        // Employee reply dengan message_html → render HTML + linkify URL plain text
         if (msg.sender_type === 'employee' && msg.message_html) {
-            return `<div class="message-content text-sm text-gray-700 email-html-body">${sanitizeEmailHtml(msg.message_html)}</div>`;
+            return `<div class="message-content text-sm text-gray-700 email-html-body">${linkifyHtml(sanitizeEmailHtml(msg.message_html))}</div>`;
         }
 
-        // Web reply atau customer message → plain text (aman dari XSS customer input)
+        // Web reply atau customer message → escape + linkify (XSS safe)
         if (!msg.message_body) return '';
-        return `<div class="message-content text-sm text-gray-700">${msg.message_body}</div>`;
+        return `<div class="message-content text-sm text-gray-700">${linkifyText(msg.message_body)}</div>`;
     }
 
     function createMessageBubble(msg) {
@@ -1912,6 +2077,7 @@
                 const formData = new FormData();
                 formData.append('message_body', htmlContent);
                 formData.append('message_type', messageType);
+                formData.append('cc_emails', JSON.stringify(ccEmails));
                 selectedFiles.forEach(file => formData.append('attachments[]', file));
                 mentionedEmployeeIds.forEach(id => formData.append('mentioned_employee_ids[]', id));
                 mentionedRoleIds.forEach(id => formData.append('mentioned_role_ids[]', id));
@@ -1921,6 +2087,7 @@
                 requestBody = JSON.stringify({
                     message_body: htmlContent,
                     message_type: messageType,
+                    cc_emails: ccEmails,
                     mentioned_employee_ids: mentionedEmployeeIds,
                     mentioned_role_ids: mentionedRoleIds,
                 });

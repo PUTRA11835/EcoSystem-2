@@ -153,6 +153,25 @@ class TicketViewController extends Controller
             ->orderBy('version', 'desc')
             ->value('total_mandays');
 
+        // Resolve email tujuan reply (digunakan untuk tampilan "To:" di compose area)
+        $customerEmail = DB::table('staging_tickets')
+            ->where('ticket_id', $ticket->ticket_id)
+            ->whereNotNull('submitted_by_email')
+            ->value('submitted_by_email');
+
+        if (!$customerEmail) {
+            $customerEmail = DB::table('ticket_messages')
+                ->where('ticket_id', $ticket->ticket_id)
+                ->where('sender_type', 'customer')
+                ->whereNotNull('sender_email')
+                ->orderBy('created_at', 'asc')
+                ->value('sender_email');
+        }
+
+        if (!$customerEmail && $ticket->customer_id) {
+            $customerEmail = Customer::find($ticket->customer_id)?->email;
+        }
+
         return view('ticket.show', [
             'user'             => $user,
             'ticket'           => $ticket,
@@ -161,6 +180,7 @@ class TicketViewController extends Controller
             'ticketId'         => $id,
             'deliverySupport'  => $deliverySupport,
             'approvedMandays'  => $approvedMandays,
+            'customerEmail'    => $customerEmail,
         ]);
     }
 }

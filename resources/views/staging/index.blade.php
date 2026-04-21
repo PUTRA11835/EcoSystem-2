@@ -717,16 +717,28 @@ async function submitApprove(id) {
     const btn = document.getElementById('btnApprove');
     if (btn) { btn.disabled = true; btn.textContent = 'Processing…'; }
 
+    const t0 = performance.now();
+    console.group(`%c[Approve] Staging #${id}`, 'color:#c62828;font-weight:bold');
+    console.log('▶ Submit approve', { staging_id: id, ticket_type: ticketType, priority });
+
     try {
+        console.log('⏳ Sending POST /api/staging-tickets/' + id + '/approve …');
         const res = await apiFetch(`/api/staging-tickets/${id}/approve`, 'POST', {
             ticket_type:     ticketType,
             ticket_priority: priority,
         });
+        const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+        console.log(`✅ Approve SUCCESS (${elapsed}s)`, res);
+        console.log('📧 Ticket number:', res.data?.ticket_number ?? '(none)');
+        console.groupEnd();
         closeModal();
         loadStagingTickets(currentPage);
         loadStats();
         setTimeout(() => showNotif('Ticket created! Number: ' + (res.data?.ticket_number ?? ''), 'success'), 80);
     } catch (e) {
+        const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+        console.error(`❌ Approve FAILED (${elapsed}s)`, e.message, e);
+        console.groupEnd();
         showNotif(e.message || 'Failed to approve ticket.', 'error');
         if (btn) { btn.disabled = false; btn.textContent = 'Approve'; }
     }
@@ -770,8 +782,23 @@ async function apiFetch(url, method = 'GET', body = null) {
         credentials: 'same-origin',
     };
     if (body) opts.body = JSON.stringify(body);
-    const res  = await fetch(url, opts);
-    const data = await res.json();
+
+    const t0 = performance.now();
+    console.log(`%c[apiFetch] ${method} ${url}`, 'color:#1d4ed8;font-weight:bold', body ?? '');
+
+    let res, data;
+    try {
+        res  = await fetch(url, opts);
+        data = await res.json();
+    } catch (netErr) {
+        console.error(`[apiFetch] Network error on ${method} ${url}:`, netErr);
+        throw netErr;
+    }
+
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+    const logStyle = res.ok ? 'color:#15803d' : 'color:#b91c1c';
+    console.log(`%c[apiFetch] HTTP ${res.status} (${elapsed}s) ← ${url}`, logStyle, data);
+
     if (!data.success) throw new Error(data.message || 'Request failed');
     return data;
 }

@@ -182,9 +182,8 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // Profile routes
     Route::get('/staging-tickets', [StagingTicketController::class, 'view'])->name('staging.index');
     Route::get('/staging-tickets/rejected', [StagingTicketController::class, 'viewRejected'])->name('staging.rejected');
-    Route::get('/staging-email-attachments/{stagingId}/{attId}', [StagingTicketController::class, 'proxyEmailAttachment'])
+    Route::get('/staging-email-attachments/{stagingId}', [StagingTicketController::class, 'proxyEmailAttachment'])
         ->name('staging.email-attachment.proxy');
-
     Route::get('/my-profile', [ProfileController::class, 'myProfile'])->name('profile.my');
     Route::post('/my-profile/change-password', [ProfileController::class, 'changePassword'])->name('profile.change-password');
 
