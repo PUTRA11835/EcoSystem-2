@@ -332,7 +332,7 @@
                     @endif
                 </div>
                 @endif
-                {{-- Head of Support: Customer Mandays (view only) --}}
+                {{-- Delivery Support Head: Customer Mandays (view only) --}}
                 @if($isHeadCustomerMandays)
                 <div>
                     <div class="flex items-center justify-between mb-1.5">
@@ -344,7 +344,7 @@
                     </button>
                 </div>
                 @endif
-                {{-- Head of Support: Internal Mandays --}}
+                {{-- Delivery Support Head: Internal Mandays --}}
                 @if($isHeadMandays)
                 <div {{ $isHeadCustomerMandays ? 'class="pt-1 border-t border-gray-100"' : '' }}>
                     <div class="flex items-center justify-between mb-1.5">
@@ -364,7 +364,7 @@
                     </button>
                 </div>
                 @endif
-                {{-- Assign PIC (Admin / Helpdesk / Head of Support) --}}
+                {{-- Assign PIC (Admin / Helpdesk / Delivery Support Head) --}}
                 @if($canAssignPic)
                 <div>
                     <button onclick="openAssignPicModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
@@ -501,7 +501,7 @@
                     <div class="flex gap-1.5">
                         <div class="relative flex-1 min-w-0">
                             <select id="addMemberSelect"
-                                    class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
+                                    class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white primary-focus appearance-none">
                                 <option value="">-- Add member --</option>
                                 @foreach($employees as $emp)
                                     @if(!in_array($emp['employee_id'], $currentMemberIds) && $emp['employee_id'] != $ticket->employee_id)
@@ -759,6 +759,14 @@
 .sb-status-reply        { background:#fef9c3; color:#a16207; }
 .sb-status-cancel       { background:#fee2e2; color:#b91c1c; }
 .sb-status-default      { background:#f3f4f6; color:#6b7280; }
+
+/* ─── Primary theme helpers (mandays modals) ─── */
+.primary-focus:focus {
+    outline: none;
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15) !important;
+}
+.primary-text { color: var(--primary-color) !important; }
 </style>
 
 {{-- Assign to Delivery Support Modal --}}
@@ -774,56 +782,12 @@
             </div>
         </div>
         <div class="p-6 space-y-4">
-            {{-- Option: New or Existing --}}
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Assign to:</label>
-                <div class="flex gap-4">
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="assignType" value="existing" checked onchange="toggleAssignType()" class="w-4 h-4 text-blue-600">
-                        <span class="text-sm text-gray-700">Existing Delivery Support</span>
-                    </label>
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="assignType" value="new" onchange="toggleAssignType()" class="w-4 h-4 text-blue-600">
-                        <span class="text-sm text-gray-700">Create New</span>
-                    </label>
-                </div>
-            </div>
-
-            {{-- Existing Delivery Support Selection --}}
-            <div id="existingDeliverySupport">
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Select Delivery Support</label>
-<select id="deliverySupportSelect" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <select id="deliverySupportSelect" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm primary-focus">
                     <option value="">Loading...</option>
                 </select>
                 <p class="mt-1 text-xs text-gray-500">Ticket will be added as an activity under this delivery support</p>
-            </div>
-
-            {{-- New Delivery Support Form (hidden by default) --}}
-            <div id="newDeliverySupport" class="hidden space-y-3">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Support Name <span class="text-red-500">*</span></label>
-                    <input type="text" id="newSupportName" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., Support - Customer Name">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Support Type <span class="text-red-500">*</span></label>
-                    <select id="newSupportType" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        <option value="">Select Type</option>
-                        <option value="AMS">AMS</option>
-                        <option value="MO">MO</option>
-                        <option value="ATS">ATS</option>
-                        <option value="Project">Project</option>
-                        <option value="Internal">Internal</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Support Method</label>
-                    <select id="newSupportMethod" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        <option value="">Select Method</option>
-                        <option value="remote">Remote</option>
-                        <option value="onsite">On-site</option>
-                        <option value="hybrid">Hybrid</option>
-                    </select>
-                </div>
             </div>
         </div>
         <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
@@ -867,50 +831,71 @@
 @if(isset($isPic) && $isPic)
 <div id="picMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
-        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 flex-shrink-0">
+        <div class="flex justify-between items-center px-6 py-4 primary-gradient rounded-t-xl flex-shrink-0">
             <div>
-                <h3 class="text-lg font-bold text-gray-900">Customer Mandays Proposal</h3>
-                <p class="text-xs text-gray-500 mt-0.5">Version: <span id="picMandaysVersion">—</span> &nbsp;|&nbsp; Status: <span id="picMandaysStatusLabel">—</span></p>
+                <h3 class="text-lg font-bold text-white">Customer Mandays Proposal</h3>
+                <p class="text-xs text-white text-opacity-75 mt-0.5">Version: <span id="picMandaysVersion">—</span> &nbsp;|&nbsp; Status: <span id="picMandaysStatusLabel">—</span></p>
             </div>
-            <button onclick="closePicMandaysModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+            <button onclick="closePicMandaysModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
         <div class="flex-1 overflow-y-auto p-6">
-            {{-- Rejection / cancellation info --}}
+            {{-- Status / cancellation / rejection info banner --}}
             <div id="picRejectionInfo" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
+
             {{-- Description & Notes fields --}}
-            <div id="picDescNotesWrap" class="mb-4 grid grid-cols-1 gap-3">
+            <div id="picDescNotesWrap" class="mb-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Description <span class="text-gray-400 font-normal">(judul propose)</span></label>
-                    <input id="picMandaysDescription" type="text" maxlength="255" placeholder="e.g. Propose Mandays 1 / Additional MD for New FM"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-400">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">
+                        Proposal Title <span class="text-red-400">*</span>
+                    </label>
+                    <input id="picMandaysDescription" type="text" maxlength="255"
+                        placeholder="e.g. Propose Mandays 1 / Additional MD for New FM"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs primary-focus">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Notes <span class="text-gray-400 font-normal">(alasan / konteks)</span></label>
-                    <textarea id="picMandaysNotes" rows="2" maxlength="2000" placeholder="e.g. Approve by WA / Ada tambahan MD setelah meeting tanggal ..."
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"></textarea>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">
+                        Notes <span class="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <textarea id="picMandaysNotes" rows="2" maxlength="2000"
+                        placeholder="e.g. Approve by WA / Ada tambahan MD setelah meeting..."
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs primary-focus resize-none"></textarea>
                 </div>
             </div>
-            {{-- Activity rows management --}}
-            <div id="picMandaysTableWrap" class="overflow-x-auto">
-                <div id="picMandaysLoading" class="py-8 text-center text-gray-400 text-sm">Loading...</div>
-                <table id="picMandaysTable" class="hidden w-full text-xs border-collapse">
-                    <thead id="picMandaysHead"></thead>
-                    <tbody id="picMandaysBody"></tbody>
-                    <tfoot id="picMandaysFoot"></tfoot>
-                </table>
-            </div>
-            {{-- Add activity row --}}
-            <div id="picAddRowWrap" class="hidden mt-3 flex gap-2">
-                <input id="picNewActivity" type="text" placeholder="Activity name (e.g. Analisa, Development, UAT)" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <button onclick="picAddActivityRow()" class="px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 whitespace-nowrap">Add Row</button>
+
+            {{-- Matrix table --}}
+            <div class="border border-gray-200 rounded-lg overflow-hidden">
+                <div class="px-3 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                    <span class="text-xs font-semibold text-gray-600">Activity × Module Matrix</span>
+                    <span class="text-[10px] text-gray-400">Enter mandays per cell</span>
+                </div>
+                <div id="picMandaysTableWrap" class="overflow-x-auto">
+                    <div id="picMandaysLoading" class="py-10 text-center">
+                        <i class="fas fa-spinner fa-spin text-xl primary-text opacity-60 mb-2 block"></i>
+                        <p class="text-xs text-gray-400">Loading proposal data...</p>
+                    </div>
+                    <table id="picMandaysTable" class="hidden w-full text-xs border-collapse">
+                        <thead id="picMandaysHead"></thead>
+                        <tbody id="picMandaysBody"></tbody>
+                        <tfoot id="picMandaysFoot"></tfoot>
+                    </table>
+                </div>
+                {{-- Add activity row --}}
+                <div id="picAddRowWrap" class="hidden px-3 py-2.5 bg-gray-50 border-t border-gray-200 flex gap-2 items-center">
+                    <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                    <input id="picNewActivity" type="text" placeholder="New activity name (e.g. Analysis, Development, UAT)" class="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs primary-focus">
+                    <button onclick="picAddActivityRow()" class="px-3 py-1.5 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 whitespace-nowrap">+ Add Row</button>
+                </div>
             </div>
         </div>
         <div id="picMandaysFooter" class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
             <div class="flex items-center gap-3">
-                <div class="text-xs text-gray-500">Total: <strong id="picTotalDisplay">0</strong> mandays</div>
-                <button id="picBtnNewVersion" onclick="picStartNewVersion()" class="hidden px-4 py-2 bg-orange-500 text-white text-xs font-semibold rounded-lg hover:bg-orange-600 transition-all">New Version</button>
+                <div class="text-xs text-gray-500">Total: <strong id="picTotalDisplay" class="primary-text">0</strong> MD</div>
+                <button id="picBtnNewVersion" onclick="picStartNewVersion()" class="hidden px-4 py-2 bg-orange-500 text-white text-xs font-semibold rounded-lg hover:bg-orange-600 transition-all">
+                    <svg class="w-3 h-3 inline mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                    New Version
+                </button>
             </div>
             <div class="flex gap-2">
                 <button id="picBtnSaveDraft" onclick="picSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save Draft</button>
@@ -923,26 +908,29 @@
 {{-- PIC: Internal Mandays Modal --}}
 <div id="picInternalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
-        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 flex-shrink-0">
+        <div class="flex justify-between items-center px-6 py-4 primary-gradient rounded-t-xl flex-shrink-0">
             <div>
-                <h3 class="text-lg font-bold text-gray-900">Internal Mandays Proposal</h3>
+                <h3 class="text-lg font-bold text-white">Internal Mandays Proposal</h3>
             </div>
-            <button onclick="closePicInternalModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+            <button onclick="closePicInternalModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
         <div class="flex-1 overflow-y-auto p-6">
             <div id="internalRejectionInfo" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
-            <div id="internalLoading" class="py-8 text-center text-gray-400 text-sm">Loading...</div>
+            <div id="internalLoading" class="py-10 text-center">
+                <i class="fas fa-spinner fa-spin text-xl primary-text opacity-60 mb-2 block"></i>
+                <p class="text-xs text-gray-400">Loading internal data...</p>
+            </div>
             <table id="internalTable" class="hidden w-full text-xs border-collapse">
                 <thead>
                     <tr class="bg-gray-50">
                         <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Name</th>
-                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">MD</th>
-                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">Add</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Mandays — working days">MD</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Additional Mandays proposed by PIC">Add.</th>
                         <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
-                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">Appr Add</th>
-                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">Total MD</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Approved Additional — extra days approved by Head">Appr. Add.</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total MD = MD + Approved Additional">Total MD</th>
                     </tr>
                 </thead>
                 <tbody id="internalBody"></tbody>
@@ -954,8 +942,8 @@
                 </tfoot>
             </table>
             <div class="mt-4">
-                <label class="text-xs font-semibold text-gray-600">Notes for Head of Support</label>
-                <textarea id="internalNotes" rows="2" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Optional notes..."></textarea>
+                <label class="text-xs font-semibold text-gray-600">Notes for Delivery Support Head</label>
+                <textarea id="internalNotes" rows="2" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-xs primary-focus" placeholder="Optional notes..."></textarea>
             </div>
         </div>
         <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
@@ -969,7 +957,7 @@
 </div>
 @endif
 
-{{-- Assign PIC Modal (Admin / Helpdesk / Head of Support) --}}
+{{-- Assign PIC Modal (Admin / Helpdesk / Delivery Support Head) --}}
 @if($canAssignPic)
 <div id="assignPicModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-sm shadow-2xl flex flex-col">
@@ -986,12 +974,12 @@
                 <div class="relative">
                     <input id="assignPicSearch" type="text" placeholder="Search name..."
                         autocomplete="off"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-400"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs primary-focus"
                         oninput="filterAssignPicList()">
                     <div id="assignPicDropdown" class="hidden absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto text-xs"></div>
                 </div>
                 <input type="hidden" id="assignPicSelectedId">
-                <div id="assignPicSelectedName" class="mt-1.5 text-xs text-teal-700 font-semibold hidden"></div>
+                <div id="assignPicSelectedName" class="mt-1.5 text-xs primary-text font-semibold hidden"></div>
             </div>
         </div>
         <div class="px-5 py-4 border-t border-gray-200 flex justify-end gap-2">
@@ -1005,17 +993,20 @@
 @if(isset($isHelpdesk) && $isHelpdesk)
 <div id="hdMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
-        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 flex-shrink-0">
+        <div class="flex justify-between items-center px-6 py-4 primary-gradient rounded-t-xl flex-shrink-0">
             <div>
-                <h3 class="text-lg font-bold text-gray-900">Review Mandays Proposal</h3>
-                <p class="text-xs text-gray-500 mt-0.5">Status: <span id="hdMandaysStatusLabel">—</span></p>
+                <h3 class="text-lg font-bold text-white">Review Mandays Proposal</h3>
+                <p class="text-xs text-white text-opacity-75 mt-0.5">Status: <span id="hdMandaysStatusLabel">—</span></p>
             </div>
-            <button onclick="closeHdMandaysModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+            <button onclick="closeHdMandaysModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
         <div class="flex-1 overflow-y-auto p-6">
-            <div id="hdMandaysLoading" class="py-8 text-center text-gray-400 text-sm">Loading...</div>
+            <div id="hdMandaysLoading" class="py-10 text-center">
+                <i class="fas fa-spinner fa-spin text-xl primary-text opacity-60 mb-2 block"></i>
+                <p class="text-xs text-gray-400">Loading proposal...</p>
+            </div>
             {{-- Banner area: shown for approved / customer-rejected states --}}
             <div id="hdMandaysBanner" class="hidden mb-4 rounded-lg px-4 py-3 text-sm font-medium items-start gap-3"></div>
             <div id="hdMandaysContent" class="hidden">
@@ -1064,38 +1055,52 @@
 {{-- ============================================================ --}}
 <div id="mandaysVersionListModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-5xl shadow-2xl flex flex-col" style="max-height:85vh;">
-        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 flex-shrink-0">
+        <div class="flex justify-between items-center px-6 py-4 primary-gradient rounded-t-xl flex-shrink-0">
             <div>
-                <h3 class="text-base font-bold text-gray-900">Mandays Proposal</h3>
-                <p class="text-xs text-gray-400 mt-0.5">Riwayat semua versi propose mandays ke customer</p>
+                <h3 class="text-base font-bold text-white">Mandays Proposal</h3>
+                <p class="text-xs text-white text-opacity-75 mt-0.5">All proposal versions submitted to customer</p>
             </div>
-            <button onclick="closeMandaysVersionList()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+            <button onclick="closeMandaysVersionList()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
         <div class="flex-1 overflow-y-auto px-6 py-4">
-            <div id="mandaysVersionListLoading" class="py-10 text-center text-gray-400 text-sm">Loading...</div>
-            <div id="mandaysVersionListEmpty" class="hidden py-10 text-center text-gray-400 text-sm italic">Belum ada propose mandays untuk tiket ini.</div>
+            <div id="mandaysVersionListLoading" class="py-10 text-center">
+                <i class="fas fa-spinner fa-spin text-xl primary-text opacity-60 mb-2 block"></i>
+                <p class="text-xs text-gray-400">Loading proposal history...</p>
+            </div>
+            <div id="mandaysVersionListEmpty" class="hidden py-12 text-center">
+                <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 mb-3">
+                    <svg class="w-6 h-6 text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+                </div>
+                <p class="text-sm font-semibold text-gray-600">No proposals yet</p>
+                <p class="text-xs text-gray-400 mt-0.5">PIC has not submitted any mandays for this ticket.</p>
+            </div>
             <div id="mandaysVersionListWrap" class="hidden overflow-x-auto">
                 <table class="w-full text-xs border-collapse">
                     <thead>
                         <tr class="bg-gray-50">
-                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-16">Version</th>
+                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-16">Ver.</th>
                             <th class="px-3 py-2.5 text-left font-semibold text-gray-500 border border-gray-200 whitespace-nowrap" style="min-width:180px;">Description</th>
-                            <th class="px-3 py-2.5 text-left font-semibold text-gray-500 border border-gray-200 whitespace-nowrap" style="min-width:160px;">Note</th>
+                            <th class="px-3 py-2.5 text-left font-semibold text-gray-500 border border-gray-200 whitespace-nowrap" style="min-width:140px;">Notes</th>
                             <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-32">Status</th>
                             <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-20">Total MD</th>
-                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-36">Last Update</th>
+                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-36">Last Updated</th>
                         </tr>
                     </thead>
                     <tbody id="mandaysVersionListBody"></tbody>
                 </table>
             </div>
         </div>
-        <div class="px-6 py-4 border-t border-gray-200 flex justify-end items-center flex-shrink-0 gap-3">
+        <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between flex-shrink-0 gap-3">
+            <p class="text-[10px] text-gray-400 flex items-center gap-1">
+                <svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9"/></svg>
+                Click a row to view version detail
+            </p>
             @if($isPicMandays)
-            <button id="mandaysVersionBtnNewPropose" onclick="mandaysVersionNewPropose()" class="hidden inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                New Propose
+            <button id="mandaysVersionBtnNewPropose" onclick="mandaysVersionNewPropose()" class="hidden inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                New Proposal
             </button>
             @endif
         </div>
@@ -1107,20 +1112,23 @@
 {{-- ============================================================ --}}
 <div id="mandaysVersionDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
-        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 flex-shrink-0">
+        <div class="flex justify-between items-center px-6 py-4 primary-gradient rounded-t-xl flex-shrink-0">
             <div>
-                <h3 class="text-lg font-bold text-gray-900">Mandays Proposal — <span id="mvdVersionLabel">Version —</span></h3>
-                <p class="text-xs text-gray-500 mt-0.5">
+                <h3 class="text-lg font-bold text-white">Mandays Proposal — <span id="mvdVersionLabel">Version —</span></h3>
+                <p class="text-xs text-white text-opacity-75 mt-0.5">
                     Status: <span id="mvdStatusLabel" class="font-semibold">—</span>
                     &nbsp;|&nbsp; Proposed by: <span id="mvdProposedBy">—</span>
                 </p>
             </div>
-            <button onclick="closeMandaysVersionDetail()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+            <button onclick="closeMandaysVersionDetail()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
         <div class="flex-1 overflow-y-auto p-6">
-            <div id="mvdLoading" class="py-10 text-center text-gray-400 text-sm">Loading...</div>
+            <div id="mvdLoading" class="py-10 text-center">
+                <i class="fas fa-spinner fa-spin text-xl primary-text opacity-60 mb-2 block"></i>
+                <p class="text-xs text-gray-400">Loading version detail...</p>
+            </div>
             <div id="mvdContent" class="hidden">
                 {{-- Description & Notes --}}
                 <div class="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1166,32 +1174,35 @@
     </div>
 </div>
 
-{{-- Head of Support: Internal Mandays Modal --}}
+{{-- Delivery Support Head: Internal Mandays Modal --}}
 @if(isset($isHead) && $isHead)
 <div id="headInternalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
-        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 flex-shrink-0">
+        <div class="flex justify-between items-center px-6 py-4 primary-gradient rounded-t-xl flex-shrink-0">
             <div>
-                <h3 class="text-lg font-bold text-gray-900">Review Internal Mandays</h3>
-                <p class="text-xs text-gray-500 mt-0.5">Status: <span id="headInternalStatusLabel">—</span></p>
+                <h3 class="text-lg font-bold text-white">Review Internal Mandays</h3>
+                <p class="text-xs text-white text-opacity-75 mt-0.5">Status: <span id="headInternalStatusLabel">—</span></p>
             </div>
-            <button onclick="closeHeadInternalModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+            <button onclick="closeHeadInternalModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
         <div class="flex-1 overflow-y-auto p-6">
-            <div id="headInternalLoading" class="py-8 text-center text-gray-400 text-sm">Loading...</div>
+            <div id="headInternalLoading" class="py-10 text-center">
+                <i class="fas fa-spinner fa-spin text-xl primary-text opacity-60 mb-2 block"></i>
+                <p class="text-xs text-gray-400">Loading internal proposal...</p>
+            </div>
             <div id="headInternalStatusBanner" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
             <div id="headInternalContent" class="hidden">
                 <table class="w-full text-xs border-collapse mb-4">
                     <thead>
                         <tr class="bg-gray-50">
                             <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Name</th>
-                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-14">MD</th>
-                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-14">Add</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-14" title="Mandays — working days">MD</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Additional Mandays proposed by PIC">Add.</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
-                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">Appr Add</th>
-                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16">Total MD</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Enter approved additional for each employee">Approve Add.</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total MD = MD + Approved Additional">Total MD</th>
                         </tr>
                     </thead>
                     <tbody id="headInternalBody"></tbody>
@@ -1206,28 +1217,35 @@
                 <div id="headInternalNoteWrap" class="hidden p-3 bg-gray-50 rounded-lg text-xs text-gray-600 mb-3"></div>
             </div>
         </div>
-        <div id="headInternalFooter" class="px-6 py-4 border-t border-gray-200 flex gap-2 justify-end flex-shrink-0">
-            <button id="headBtnApprove" onclick="headInternalApprove()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Save</button>
+        <div id="headInternalFooter" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between flex-shrink-0">
+            <p class="text-xs text-gray-400">Edit the "Approve Add." column then save to approve additional mandays.</p>
+            <button id="headBtnApprove" onclick="headInternalApprove()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                Save Approval
+            </button>
         </div>
     </div>
 </div>
 @endif
 
-{{-- Head of Support: Customer Mandays View-Only Modal --}}
+{{-- Delivery Support Head: Customer Mandays View-Only Modal --}}
 @if(isset($isHead) && $isHead)
 <div id="headCustomerMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
-        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 flex-shrink-0">
+        <div class="flex justify-between items-center px-6 py-4 primary-gradient rounded-t-xl flex-shrink-0">
             <div>
-                <h3 class="text-lg font-bold text-gray-900">Customer Mandays Proposal</h3>
-                <p class="text-xs text-gray-500 mt-0.5">View Only — Status: <span id="headCustMandaysStatus">—</span></p>
+                <h3 class="text-lg font-bold text-white">Customer Mandays Proposal</h3>
+                <p class="text-xs text-white text-opacity-75 mt-0.5">View Only — Status: <span id="headCustMandaysStatus">—</span></p>
             </div>
-            <button onclick="closeHeadCustomerMandaysModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+            <button onclick="closeHeadCustomerMandaysModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
         <div class="flex-1 overflow-y-auto p-6">
-            <div id="headCustMandaysLoading" class="py-8 text-center text-gray-400 text-sm">Loading...</div>
+            <div id="headCustMandaysLoading" class="py-10 text-center">
+                <i class="fas fa-spinner fa-spin text-xl primary-text opacity-60 mb-2 block"></i>
+                <p class="text-xs text-gray-400">Loading customer proposal...</p>
+            </div>
             <div id="headCustMandaysContent" class="hidden space-y-4">
                 <div id="headCustMandaysEmpty" class="hidden text-center text-sm text-gray-400 py-4">No proposal submitted yet.</div>
                 <div id="headCustMandaysTable" class="hidden overflow-x-auto">
@@ -2645,20 +2663,6 @@
         }
     }
 
-    function toggleAssignType() {
-        const assignType = document.querySelector('input[name="assignType"]:checked')?.value;
-        const existingDiv = document.getElementById('existingDeliverySupport');
-        const newDiv = document.getElementById('newDeliverySupport');
-
-        if (assignType === 'new') {
-            existingDiv.classList.add('hidden');
-            newDiv.classList.remove('hidden');
-        } else {
-            existingDiv.classList.remove('hidden');
-            newDiv.classList.add('hidden');
-        }
-    }
-
     async function loadDeliverySupports() {
         const select = document.getElementById('deliverySupportSelect');
         if (!select) return;
@@ -2706,13 +2710,7 @@
     }
 
     async function confirmAssignSupport() {
-        const assignType = document.querySelector('input[name="assignType"]:checked')?.value;
-
-        if (assignType === 'existing') {
-            await assignToExistingSupport();
-        } else {
-            await createNewSupportAndAssign();
-        }
+        await assignToExistingSupport();
     }
 
     async function assignToExistingSupport() {
@@ -2746,50 +2744,6 @@
             showNotification('Error: ' + error.message, 'error');
         }
     }
-
-    async function createNewSupportAndAssign() {
-        const supportName   = document.getElementById('newSupportName').value.trim();
-        const supportType   = document.getElementById('newSupportType').value;
-        const supportMethod = document.getElementById('newSupportMethod').value;
-
-        if (!supportName) {
-            showNotification('Please enter a support name', 'error');
-            return;
-        }
-        if (!supportType) {
-            showNotification('Please select a support type', 'error');
-            return;
-        }
-
-        try {
-            const response = await fetch('/api/tickets/' + ticketId + '/create-delivery-support', {
-                method: 'POST',
-                headers: getHeaders(),
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    name: supportName,
-                    type: supportType,
-                    support_method: supportMethod
-                })
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                showNotification('Delivery support created and ticket assigned!', 'success');
-                closeAssignSupportModal();
-                if (data.data?.support_name) updateDsBadges(data.data.support_id, data.data.support_name, data.data.support_type ?? null);
-                if (data.data?.support_id) {
-                    showAssignSuccessModal(`/delivery/support/${data.data.support_id}`);
-                }
-            } else {
-                showApiErrors(data, 'Failed to create delivery support');
-            }
-        } catch (error) {
-            showNotification('Error: ' + error.message, 'error');
-        }
-    }
-
 
     // ==================== ASSIGN SUCCESS MODAL ====================
 
@@ -2939,7 +2893,7 @@
             const lastUpdate = v.last_update
                 ? new Date(v.last_update).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12: false })
                 : '—';
-            html += `<tr class="hover:bg-blue-50 cursor-pointer transition-colors" onclick="openMandaysVersionDetail(${v.id})">
+            html += `<tr class="hover:bg-gray-50 cursor-pointer transition-colors" onclick="openMandaysVersionDetail(${v.id})">
                 <td class="px-3 py-2.5 border border-gray-100 text-center font-bold text-gray-700 whitespace-nowrap">v${v.version}</td>
                 <td class="px-3 py-2.5 border border-gray-100 text-gray-800 whitespace-nowrap">${desc}</td>
                 <td class="px-3 py-2.5 border border-gray-100 whitespace-nowrap">${note}</td>
@@ -3233,7 +3187,7 @@
         if (activities.length === 0 && !picReadOnly) {
             const colspan = modules.length + 1;
             bodyHtml = `<tr><td colspan="${colspan}" class="px-3 py-4 text-center text-xs text-gray-400 italic border border-gray-200">
-                Belum ada activity. Ketik nama activity lalu klik <strong>Add Row</strong> di bawah.
+                No activities yet. Type an activity name then click <strong>Add Row</strong> below.
             </td></tr>`;
         }
         activities.forEach(act => {
@@ -3247,7 +3201,7 @@
                 const val = valueMap[act]?.[m] || '';
                 bodyHtml += `<td class="border border-gray-200 p-0">
                     <input type="number" min="0" step="0.5"
-                        class="pic-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-indigo-50 ${picReadOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}"
+                        class="pic-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-gray-100 ${picReadOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}"
                         data-activity="${act}" data-module="${m}" value="${val}"
                         ${picReadOnly ? 'readonly' : ''} oninput="picDirty=true; picUpdateTotal()">
                     </td>`;
@@ -3470,17 +3424,17 @@
             const infoEl = document.getElementById('internalRejectionInfo');
             if (status === 'approved') {
                 infoEl.className = 'mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700';
-                infoEl.innerHTML = '<p class="font-semibold mb-1">Proposal Approved by Head of Support</p>'
+                infoEl.innerHTML = '<p class="font-semibold mb-1">Proposal Approved by Delivery Support Head</p>'
                     + (internalPicData?.approved_by_head ? '<p>Approved by: ' + internalPicData.approved_by_head + '</p>' : '')
-                    + '<p class="mt-1 text-green-600">You can still update the mandays and re-submit to Head of Support.</p>';
+                    + '<p class="mt-1 text-green-600">You can still update the mandays and re-submit to Delivery Support Head.</p>';
                 infoEl.classList.remove('hidden');
             } else if (status === 'pending_head') {
                 infoEl.className = 'mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-600';
-                infoEl.innerHTML = '<p class="font-semibold">Submitted — awaiting Head of Support review. You can still update and re-submit.</p>';
+                infoEl.innerHTML = '<p class="font-semibold">Submitted — awaiting Delivery Support Head review. You can still update and re-submit.</p>';
                 infoEl.classList.remove('hidden');
             } else if (status === 'rejected' && internalPicData?.rejection_reason) {
                 infoEl.className = 'mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700';
-                infoEl.innerHTML = '<p class="font-semibold mb-1">Revision Required by Head of Support</p>'
+                infoEl.innerHTML = '<p class="font-semibold mb-1">Revision Required by Delivery Support Head</p>'
                     + '<p>' + internalPicData.rejection_reason + '</p>';
                 infoEl.classList.remove('hidden');
             }
@@ -3520,19 +3474,19 @@
                 <td class="px-3 py-2 border border-gray-200 font-medium text-gray-700">${person.name}</td>
                 <td class="border border-gray-200 p-0">
                     <input type="number" min="0" step="0.5"
-                        class="internal-md-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-teal-50 bg-white"
+                        class="internal-md-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-gray-100 bg-white"
                         data-employee="${person.employee_id}" value="${mdVal}"
                         oninput="internalUpdateRowTotal(this)">
                 </td>
                 <td class="border border-gray-200 p-0">
                     <input type="number" min="0" step="0.5"
-                        class="internal-add-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-teal-50 bg-white"
+                        class="internal-add-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-gray-100 bg-white"
                         data-employee="${person.employee_id}" value="${addVal}"
                         oninput="internalUpdateRowTotal(this)">
                 </td>
                 <td class="border border-gray-200 p-0">
                     <input type="text"
-                        class="internal-note-cell w-full px-2 py-1.5 text-xs focus:outline-none focus:bg-teal-50 bg-white"
+                        class="internal-note-cell w-full px-2 py-1.5 text-xs focus:outline-none focus:bg-gray-100 bg-white"
                         data-employee="${person.employee_id}" value="${existing.notes || ''}"
                         placeholder="notes...">
                 </td>
@@ -3623,7 +3577,7 @@
             });
             const subData = await subRes.json();
             if (subData.success) {
-                showNotification('Submitted to Head of Support!', 'success');
+                showNotification('Submitted to Delivery Support Head!', 'success');
                 internalUpdateSidebarBadge(subData.internal_mandays_status);
                 closePicInternalModal();
             } else {
@@ -3761,7 +3715,7 @@
                 mods.forEach(m => {
                     const val = valueMap[act]?.[m] || '';
                     bodyHtml += `<td class="border border-gray-200 p-0">
-                        <input type="number" min="0" step="0.5" class="hd-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none ${isEditable?'focus:bg-indigo-50 bg-white':'bg-gray-50 cursor-not-allowed'}"
+                        <input type="number" min="0" step="0.5" class="hd-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none ${isEditable?'focus:bg-gray-100 bg-white':'bg-gray-50 cursor-not-allowed'}"
                         data-activity="${act}" data-module="${m}" value="${val}" ${isEditable?'':'readonly'} oninput="hdUpdateTotal()">
                     </td>`;
                 });
@@ -3780,8 +3734,13 @@
             });
             if (isPicSubmitted) {
                 document.getElementById('hdBtnSendToChat')?.classList.remove('hidden');
-                document.getElementById('hdBtnApprove')?.classList.remove('hidden');
                 document.getElementById('hdBtnCancel')?.classList.remove('hidden');
+                // Show info banner: must send to chat before approving
+                banner.innerHTML = `<span class="text-blue-600 text-base mt-0.5">ℹ</span>
+                    <div><p class="font-semibold text-blue-800">Send to Customer First</p>
+                    <p class="text-xs font-normal text-blue-700 mt-0.5">You must send this proposal to the customer chat before it can be approved.</p></div>`;
+                banner.classList.remove('hidden');
+                banner.classList.add('flex', 'bg-blue-50', 'border', 'border-blue-200', 'text-blue-800');
             } else if (isCustomerRejected) {
                 document.getElementById('hdBtnReviseResend')?.classList.remove('hidden');
                 document.getElementById('hdBtnCancel')?.classList.remove('hidden');
@@ -4002,7 +3961,7 @@
                     <td class="px-3 py-2 border border-gray-200 text-xs text-gray-500">${emp.notes || ''}</td>
                     <td class="border border-gray-200 p-0">
                         <input type="number" min="0" step="0.5"
-                            class="head-approve-add w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-teal-50 bg-white"
+                            class="head-approve-add w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-gray-100 bg-white"
                             data-employee="${eid}" data-mandays="${emp.mandays}"
                             value="${currentApprAdd > 0 ? currentApprAdd : ''}"
                             oninput="headUpdateRowTotal(this)">

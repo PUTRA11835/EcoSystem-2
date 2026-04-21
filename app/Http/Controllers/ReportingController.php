@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Enums\RoleId;
 use App\Exports\MdRecapExport;
 use App\Exports\TimesheetReportExport;
+use App\Models\ConsultantMandays;
 use App\Models\CustomerMandays;
 use App\Models\ReportingPeriod;
+use App\Services\PeriodService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -59,36 +61,40 @@ class ReportingController extends Controller
         }
     }
 
-    // ── API: Close period ─────────────────────────────────────────────────
+    // ── API: Close period (legacy endpoint — delegates to PeriodService) ─────
 
     public function closePeriod(Request $request)
     {
         try {
             $sessionUser   = session('user');
             $currentRoleId = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
-            $employeeId    = $sessionUser['id'] ?? null;
+            $employeeId    = (int) ($sessionUser['id'] ?? 0);
 
-            if (!in_array($currentRoleId, [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value])) {
-                return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+            // Only RPMO can close globally via the new system
+            if ($currentRoleId !== RoleId::RPMO->value) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Period closing is now managed from the Period Management page (RPMO only).',
+                ], 403);
             }
 
-            $current = ReportingPeriod::current();
-
-            if ($current['is_closed']) {
-                return response()->json(['success' => false, 'message' => 'This period is already closed.'], 422);
+            $period = ReportingPeriod::getActive();
+            if (!$period) {
+                return response()->json(['success' => false, 'message' => 'No active period found.'], 422);
             }
 
-            ReportingPeriod::updateOrCreate(
-                ['year' => $current['year'], 'month' => $current['month']],
-                ['closed_at' => now(), 'closed_by' => $employeeId]
-            );
+            /** @var PeriodService $svc */
+            $svc = app(PeriodService::class);
+            $svc->closeGlobal($period, $employeeId, $currentRoleId);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Period ' . $this->monthName($current['month']) . ' ' . $current['year'] . ' has been closed.',
+                'message' => 'Period ' . $period->getLabel() . ' has been closed.',
             ]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
-            Log::error('closePeriod error');
+            Log::error('closePeriod error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'An error occurred'], 500);
         }
     }
@@ -102,6 +108,7 @@ class ReportingController extends Controller
             $currentEmployeeId = $sessionUser['id'] ?? null;
             $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
 
+            // One row per individual timesheet entry (no GROUP BY)
             $query = DB::table('timesheets')
                 ->join('ticket',              'timesheets.ticket_id',   '=', 'ticket.ticket_id')
                 ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
@@ -112,20 +119,14 @@ class ReportingController extends Controller
                 ->whereNotNull('timesheets.ticket_id')
                 ->whereNull('timesheets.deleted_at')
                 ->select(
+                    'timesheets.id',
                     'timesheets.employee_id',
                     DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
                     'timesheets.ticket_id',
                     'ticket.ticket_number',
                     DB::raw("COALESCE(customer_basic_data.name_1, '') as customer_name"),
-                    DB::raw('SUM(COALESCE(timesheets.md_consumed, 0)) as total_md_consumed')
-                )
-                ->groupBy(
-                    'timesheets.employee_id',
-                    'employee_basic_data.first_name',
-                    'employee_basic_data.last_name',
-                    'timesheets.ticket_id',
-                    'ticket.ticket_number',
-                    'customer_basic_data.name_1'
+                    'timesheets.date',
+                    DB::raw('COALESCE(timesheets.md_consumed, 0) as md_consumed')
                 );
 
             if ($currentRoleId !== RoleId::ADMIN->value && $currentRoleId !== RoleId::HEAD_OF_SUPPORT->value) {
@@ -136,14 +137,15 @@ class ReportingController extends Controller
                 $query->whereBetween('timesheets.date', [$request->start_date, $request->end_date]);
             }
 
-            $rows = $query->orderByRaw('employee_name')->orderBy('ticket.ticket_number')->get();
+            $rows = $query->orderByRaw('employee_name')->orderBy('timesheets.date')->orderBy('ticket.ticket_number')->get();
 
+            // Quota per ticket
             $ticketIds = $rows->pluck('ticket_id')->unique()->values();
             $jatahMap  = [];
             if ($ticketIds->isNotEmpty()) {
-                CustomerMandays::whereIn('ticket_id', $ticketIds)
+                ConsultantMandays::whereIn('ticket_id', $ticketIds)
                     ->where('status', 'approved')
-                    ->orderBy('version', 'desc')
+                    ->orderBy('approved_at', 'desc')
                     ->get()
                     ->groupBy('ticket_id')
                     ->each(function ($versions, $ticketId) use (&$jatahMap) {
@@ -151,24 +153,36 @@ class ReportingController extends Controller
                     });
             }
 
-            $data = $rows->map(function ($row) use ($jatahMap) {
-                $jatahMd    = $jatahMap[$row->ticket_id] ?? null;
-                $mdConsumed = (float) $row->total_md_consumed;
-                $remain     = $jatahMd !== null ? round($jatahMd - $mdConsumed, 2) : null;
+            // Compute total consumed per (employee, ticket) from fetched rows
+            // so remain/status reflect the full ticket picture within the current filter
+            $ticketTotals = [];
+            foreach ($rows as $row) {
+                $key = $row->employee_id . '_' . $row->ticket_id;
+                $ticketTotals[$key] = ($ticketTotals[$key] ?? 0) + (float) $row->md_consumed;
+            }
 
-                if ($jatahMd === null)            $status = null;
-                elseif ($mdConsumed == $jatahMd)  $status = 'Match';
-                elseif ($mdConsumed > $jatahMd)   $status = 'Over';
-                else                              $status = 'Less';
+            $data = $rows->map(function ($row) use ($jatahMap, $ticketTotals) {
+                $jatahMd     = $jatahMap[$row->ticket_id] ?? null;
+                $mdConsumed  = (float) $row->md_consumed;
+                $key         = $row->employee_id . '_' . $row->ticket_id;
+                $ticketTotal = $ticketTotals[$key] ?? $mdConsumed;
+                $remain      = $jatahMd !== null ? round($jatahMd - $ticketTotal, 2) : null;
+
+                if ($jatahMd === null)               $status = null;
+                elseif ($ticketTotal == $jatahMd)    $status = 'Match';
+                elseif ($ticketTotal > $jatahMd)     $status = 'Over';
+                else                                 $status = 'Less';
 
                 return [
+                    'id'            => $row->id,
                     'employee_id'   => $row->employee_id,
                     'employee_name' => trim($row->employee_name),
                     'ticket_id'     => $row->ticket_id,
                     'ticket_number' => $row->ticket_number,
                     'customer_name' => $row->customer_name,
-                    'jatah_md'      => $jatahMd,
+                    'date'          => $row->date,
                     'md_consumed'   => $mdConsumed,
+                    'jatah_md'      => $jatahMd,
                     'remain'        => $remain,
                     'status'        => $status,
                 ];
@@ -242,9 +256,9 @@ class ReportingController extends Controller
             $ticketIds = $rows->pluck('ticket_id')->unique()->values();
             $jatahMap  = [];
             if ($ticketIds->isNotEmpty()) {
-                CustomerMandays::whereIn('ticket_id', $ticketIds)
+                ConsultantMandays::whereIn('ticket_id', $ticketIds)
                     ->where('status', 'approved')
-                    ->orderBy('version', 'desc')
+                    ->orderBy('approved_at', 'desc')
                     ->get()
                     ->groupBy('ticket_id')
                     ->each(function ($versions, $ticketId) use (&$jatahMap) {

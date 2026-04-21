@@ -2,6 +2,12 @@
 @section('title', 'Add New Delivery Project')
 @section('page-title', 'Add New Delivery Project')
 @section('page-subtitle', 'Create a new delivery project')
+@push('styles')
+<style>
+    .primary-focus:focus { border-color: var(--primary-color) !important; box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15) !important; outline: none !important; }
+</style>
+@endpush
+
 @section('content')
 <form action="{{ route('projects.store') }}" method="POST">
     @csrf
@@ -133,7 +139,7 @@
                             Account Executive Type
                         </label>
                         <select name="ae_type" id="ae_type" 
-                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus"
                                 onchange="toggleAEFields()">
                             <option value="">-- Select Type --</option>
                             <option value="Internal" {{ old('ae_type') == 'Internal' ? 'selected' : '' }}>Internal</option>
@@ -146,7 +152,7 @@
                             Account Executive Name
                         </label>
                         <select name="ae_employee_id" id="ae_employee_select"
-                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus"
                                 style="display: none;" onchange="fillAEInfo()">
                             <option value="">-- Select Employee --</option>
                             @foreach($employees as $employee)
@@ -159,7 +165,7 @@
                         </select>
                         <input type="text" name="ae_name" id="ae_name_input" 
                                value="{{ old('ae_name') }}"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus">
                     </div>
                     
                     <div>
@@ -168,7 +174,7 @@
                         </label>
                         <input type="text" name="ae_phone" id="ae_phone" 
                                value="{{ old('ae_phone') }}"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus">
                     </div>
                     
                     <div>
@@ -177,7 +183,7 @@
                         </label>
                         <input type="email" name="ae_email" id="ae_email" 
                                value="{{ old('ae_email') }}"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus">
                     </div>
                 </div>
             </div>
@@ -191,7 +197,7 @@
                             Delivery Owner
                         </label>
                         <select name="delivery_owner_id" id="delivery_owner_id"
-                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus">
                             <option value="">-- Select Employee --</option>
                             @foreach($employees as $employee)
                                 <option value="{{ $employee->employee_id }}" {{ old('delivery_owner_id') == $employee->employee_id ? 'selected' : '' }}>
@@ -206,7 +212,7 @@
                             Delivery Manager
                         </label>
                         <select name="delivery_manager_id" id="delivery_manager_id"
-                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus">
                             <option value="">-- Select Employee --</option>
                             @foreach($employees as $employee)
                                 <option value="{{ $employee->employee_id }}" {{ old('delivery_manager_id') == $employee->employee_id ? 'selected' : '' }}>
@@ -221,7 +227,7 @@
                             Delivery Method
                         </label>
                         <select name="delivery_method" id="delivery_method" 
-                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus">
                             <option value="">-- Select Method --</option>
                             <option value="Onsite" {{ old('delivery_method') == 'Onsite' ? 'selected' : '' }}>Onsite</option>
                             <option value="Hybrid" {{ old('delivery_method') == 'Hybrid' ? 'selected' : '' }}>Hybrid</option>
@@ -236,7 +242,7 @@
                         <input type="number" name="warranty_period" id="warranty_period" 
                                value="{{ old('warranty_period') }}"
                                min="0"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus">
                     </div>
                     
                     <div>
@@ -246,7 +252,7 @@
                         <input type="number" name="total_mandays" id="total_mandays" 
                                value="{{ old('total_mandays') }}"
                                min="0"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus">
                     </div>
                 </div>
             </div>
@@ -267,7 +273,7 @@
                     </label>
                     <input type="text" name="location_name" id="location_name" 
                            value="{{ old('location_name') }}"
-                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus">
                 </div>
                 
                 <div>
@@ -275,7 +281,7 @@
                         Type of Address
                     </label>
                     <select name="location_type" id="location_type" 
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus">
                         <option value="">-- Select Type --</option>
                         <option value="Head Office" {{ old('location_type') == 'Head Office' ? 'selected' : '' }}>Head Office</option>
                         <option value="Plant" {{ old('location_type') == 'Plant' ? 'selected' : '' }}>Plant</option>
@@ -297,7 +303,7 @@
                         Geographical
                     </label>
                     <select name="location_geographical" id="location_geographical" 
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus"
                             onchange="updateRegions()">
                         <option value="">-- Select Geographical --</option>
                         <option value="Jawa" {{ old('location_geographical') == 'Jawa' ? 'selected' : '' }}>Jawa</option>
@@ -315,7 +321,7 @@
                         Region / Province
                     </label>
                     <select name="location_region" id="location_region" 
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus"
                             onchange="updateCities()">
                         <option value="">-- Select Region --</option>
                     </select>
@@ -326,7 +332,7 @@
                         City
                     </label>
                     <select name="location_city" id="location_city" 
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus">
                         <option value="">-- Select City --</option>
                     </select>
                 </div>
@@ -336,7 +342,7 @@
                         Street Address
                     </label>
                     <textarea name="location_street" id="location_street" rows="3"
-                              class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">{{ old('location_street') }}</textarea>
+                              class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus">{{ old('location_street') }}</textarea>
                 </div>
             </div>
         </div>
@@ -346,14 +352,14 @@
     <div class="bg-white overflow-hidden shadow-md sm:rounded-lg">
         <div class="p-6 bg-gray-50 text-right">
             <a href="{{ route('projects.index') }}" 
-               class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 mr-3">
+               class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 mr-3">
                 <svg class="-ml-1 mr-2 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
                 Cancel
             </a>
             <button type="submit"
-                    class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 <svg class="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                 </svg>

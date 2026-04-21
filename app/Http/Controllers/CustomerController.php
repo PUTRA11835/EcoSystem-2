@@ -203,9 +203,15 @@ class CustomerController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
+            'customer_code' => ['required', 'string', 'max:4', 'regex:/^[A-Za-z0-9]{1,4}$/', 'unique:customer,customer_code'],
             'email'         => 'nullable|email|unique:customer,email|max:255',
             'name_1'        => 'required|string|max:255',
             'contact_phone' => 'nullable|string|max:50',
+        ], [
+            'customer_code.required' => 'Customer code is required.',
+            'customer_code.max'      => 'Customer code must be at most 4 characters.',
+            'customer_code.regex'    => 'Customer code may only contain letters and numbers.',
+            'customer_code.unique'   => 'This customer code is already in use.',
         ]);
 
         if ($validator->fails()) {
@@ -221,8 +227,9 @@ class CustomerController extends Controller
         try {
             // Prepare customer data (company record only — no login here)
             $customerData = [
-                'email' => $request->email ?: null,
-                'is_active' => 1,
+                'customer_code' => strtoupper($request->customer_code),
+                'email'         => $request->email ?: null,
+                'is_active'     => 1,
             ];
 
             // Prepare basic data
@@ -320,8 +327,13 @@ class CustomerController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
-            'email' => 'nullable|email|max:255|unique:customer,email,' . $id . ',customer_id',
-            'name_1' => 'required|string|max:255',
+            'customer_code' => ['sometimes', 'required', 'string', 'max:4', 'regex:/^[A-Za-z0-9]{1,4}$/', 'unique:customer,customer_code,' . $id . ',customer_id'],
+            'email'         => 'nullable|email|max:255|unique:customer,email,' . $id . ',customer_id',
+            'name_1'        => 'required|string|max:255',
+        ], [
+            'customer_code.max'   => 'Customer code must be at most 4 characters.',
+            'customer_code.regex' => 'Customer code may only contain letters and numbers.',
+            'customer_code.unique'=> 'This customer code is already in use.',
         ]);
 
         if ($validator->fails()) {
@@ -345,9 +357,11 @@ class CustomerController extends Controller
             }
 
             // Update customer (email is optional company contact email)
-            $customer->update([
-                'email' => $request->email ?: null,
-            ]);
+            $updateData = ['email' => $request->email ?: null];
+            if ($request->filled('customer_code')) {
+                $updateData['customer_code'] = strtoupper($request->customer_code);
+            }
+            $customer->update($updateData);
 
             // Update or create basic data
             $customer->basicData()->updateOrCreate(

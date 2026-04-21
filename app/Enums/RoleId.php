@@ -14,23 +14,50 @@ namespace App\Enums;
  */
 enum RoleId: int
 {
+    // ── System roles (ID 1-7, fixed) ───────────────────────────────────────────
+    // DB name: EC Administrator
     case ADMIN           = 1;
-    case EMPLOYEE        = 2;  // PIC / Consultant
-    case CUSTOMER        = 3;
+    // DB name: Delivery Support User
+    case EMPLOYEE        = 2;
+    // DB name: EC User (sebelumnya Internship)
+    case INTERNSHIP      = 3;
+    // DB name: Delivery Project Head
     case HEAD_OF_PROJECT = 4;
+    // DB name: Delivery Support Head
     case HEAD_OF_SUPPORT = 5;
+    // DB name: Delivery Support Service Helpdesk
     case HELPDESK        = 6;
+    // DB name: Delivery RPMO Head
     case RPMO            = 7;
+
+    // ── Extended roles (added via migration 2026_04_16) ─────────────────────
+    // DB name: Delivery Project User (employee_role.id = 15)
+    case EMPLOYEE_PROJECT = 15;
 
     // ── Grup yang sering dipakai bersama ────────────────────────────────────
 
-    /** Admin + semua operator internal (kecuali customer) */
+    /** Admin + semua operator internal */
     public const INTERNAL_GROUP = [
         self::ADMIN->value,
         self::EMPLOYEE->value,
         self::HEAD_OF_PROJECT->value,
         self::HEAD_OF_SUPPORT->value,
         self::HELPDESK->value,
+        self::RPMO->value,
+        self::EMPLOYEE_PROJECT->value,
+    ];
+
+    /** Delivery domain users (subject to period restrictions) */
+    public const DELIVERY_USER_GROUP = [
+        self::EMPLOYEE->value,         // Support domain
+        self::EMPLOYEE_PROJECT->value, // Project domain
+    ];
+
+    /** Period management actors (can view Period Management page) */
+    public const PERIOD_MANAGEMENT_GROUP = [
+        self::ADMIN->value,
+        self::HEAD_OF_PROJECT->value,
+        self::HEAD_OF_SUPPORT->value,
         self::RPMO->value,
     ];
 

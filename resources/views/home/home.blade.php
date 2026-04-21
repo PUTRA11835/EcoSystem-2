@@ -5,7 +5,7 @@
 
 @section('content')
 @if(($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) == 2)
-{{-- ===================== ROLE 2 EMPLOYEE DASHBOARD ===================== --}}
+{{-- ===================== ROLE 2 — DELIVERY SUPPORT USER DASHBOARD ===================== --}}
 <div class="space-y-6">
 
     {{-- Ticket Status Stats --}}

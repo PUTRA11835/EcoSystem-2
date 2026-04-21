@@ -644,8 +644,10 @@ class Customer extends Authenticatable
     public static function createWithBasicData(array $customerData, array $basicData): Customer
     {
         return DB::transaction(function () use ($customerData, $basicData) {
-            // Generate customer code dari inisial nama perusahaan
-            $customerCode = self::generateCustomerCode($basicData['name_1'] ?? '');
+            // Use provided customer_code or auto-generate from company name
+            $customerCode = isset($customerData['customer_code']) && $customerData['customer_code'] !== ''
+                ? strtoupper($customerData['customer_code'])
+                : self::generateCustomerCode($basicData['name_1'] ?? '');
 
             // Create customer
             $customer = self::create([

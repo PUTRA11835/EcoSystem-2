@@ -38,7 +38,7 @@ class TimesheetReportExport implements
                 'nama'           => $row['employee_name'] ?? '-',
                 'bulan'          => $row['period_month'],
                 'tahun'          => $row['period_year'],
-                'jatah_mandays'  => $row['jatah_md'],
+                'quota_mandays'  => $row['quota_md'],
                 'realisasi_md'   => $row['md_consumed'],
                 'status'         => $row['status'] ?? '-',
             ];
@@ -47,7 +47,7 @@ class TimesheetReportExport implements
 
     public function headings(): array
     {
-        return ['Tiket', 'Nama', 'Bulan', 'Tahun', 'Jatah Mandays', 'Realisasi MD', 'Status'];
+        return ['Tiket', 'Nama', 'Bulan', 'Tahun', 'Quota Mandays', 'Realisasi MD', 'Status'];
     }
 
     public function styles(Worksheet $sheet): array

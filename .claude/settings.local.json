@@ -75,12 +75,26 @@
       "Bash(python3 -c ' *)",
       "Bash(node -e ' *)",
       "Bash(node -e \"var fs=require\\('fs'\\);var c=fs.readFileSync\\('c:/EcoSystem-2/public/js/calendar-timesheets.js','utf8'\\);var lines=c.split\\('\\\\n'\\);lines.forEach\\(function\\(l,i\\){if\\(l.indexOf\\('<' + String.fromCharCode\\(92\\) + '/'\\)!==-1\\){console.log\\('L'+\\(i+1\\)+': '+l.trim\\(\\)\\);}}\\);\")",
-      "Bash(node -e \"var fs=require\\('fs'\\);var c=fs.readFileSync\\('c:/EcoSystem-2/public/js/calendar-timesheets.js','utf8'\\);var lines=c.split\\('\\\\n'\\);lines.forEach\\(function\\(l,i\\){if\\(l.indexOf\\('<\\\\\\\\\\\\\\\\/'\\)!==-1 || l.indexOf\\('<\\\\\\\\\\\\\\\\i>'\\)!==-1\\){console.log\\('L'+\\(i+1\\)+': '+l.trim\\(\\)\\);}}\\);\")"
+      "Bash(node -e \"var fs=require\\('fs'\\);var c=fs.readFileSync\\('c:/EcoSystem-2/public/js/calendar-timesheets.js','utf8'\\);var lines=c.split\\('\\\\n'\\);lines.forEach\\(function\\(l,i\\){if\\(l.indexOf\\('<\\\\\\\\\\\\\\\\/'\\)!==-1 || l.indexOf\\('<\\\\\\\\\\\\\\\\i>'\\)!==-1\\){console.log\\('L'+\\(i+1\\)+': '+l.trim\\(\\)\\);}}\\);\")",
+      "Bash(php -l app/Http/Controllers/ActivityLogController.php)",
+      "Bash(php -l \"c:/EcoSystem-2/app/Enums/RoleId.php\")",
+      "Bash(php -l \"c:/EcoSystem-2/app/Http/Controllers/AuthController.php\")",
+      "Bash(grep -l \"manday\\\\|approve\" /c/EcoSystem-2/resources/views/ticket/*.blade.php)",
+      "Bash(grep -v \"//.*comment\\\\|#.*comment\\\\|\\\\.git\")",
+      "Bash(grep -v \"&&\\\\|&amp;\\\\|&lt;\\\\|&gt;\\\\|&quot;\\\\|&\\\\#\\\\|/@\\\\|//\")",
+      "Bash(awk '/^[[:space:]]*<script/{in_script=1} in_script && /{{/{print NR\": \"$0} /^[[:space:]]*<\\\\/script>/{in_script=0}' c:/EcoSystem-2/resources/views/dashboard.blade.php)",
+      "Bash(awk '/^[[:space:]]*<script[^>]*>/{in_s=1; next} /^[[:space:]]*<\\\\/script>/{in_s=0; next} in_s && /&amp;/{print NR\": \"$0}' c:/EcoSystem-2/resources/views/dashboard.blade.php)",
+      "Bash(awk '/^[[:space:]]*<script[^>]*>/{in_s=1; next} /^[[:space:]]*<\\\\/script>/{in_s=0; next} in_s && /&amp;/{print NR\": \"$0}' c:/EcoSystem-2/resources/views/calendar/timesheets.blade.php)",
+      "Bash(php -r \"echo filemtime\\('c:/EcoSystem-2/public/js/calendar-timesheets.js'\\);\")",
+      "Bash(php -r ' *)",
+      "Bash(grep -v \"{{--\\\\|//\")",
+      "Bash(grep -l \"consultant_mandays\\\\|customer_mandays\" /c/EcoSystem-2/database/migrations/*.php)"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",
       "c:\\JARVIES-new-main\\resources\\views",
-      "c:\\JARVIES-new-main\\routes"
+      "c:\\JARVIES-new-main\\routes",
+      "C:\\EcoSystem-2\\s\\Log::error('Error retrieving timesheets');"
     ]
   }
 }

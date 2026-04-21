@@ -4,13 +4,20 @@ let filteredTimesheets = [];
 let selectedTimesheetId = null;
 let deleteTimesheetId = null;
 let myTicketsCache = []; // cache for support ticket auto-fill
+let _pendingTicketPreselect   = null; // ticket_id to preselect when edit opens support modal
+let _pendingActivityPreselect = null; // activity_id to preselect when edit opens project modal
 
 const TH = 'px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200';
 
 // Default employee thead HTML (saved once DOM is ready)
 let defaultTheadHTML = '';
 
-// Support-specific thead
+// Definitive flag: true when support spreadsheet layout is active in the thead.
+// Set synchronously wherever the thead is swapped — prevents renderTimesheetRows()
+// from falling through to Branch 3 when condition flags mismatch.
+let supportLayoutActive = false;
+
+// Support-specific thead (13 columns — no separate Action column)
 const SUPPORT_THEAD_HTML = `<tr>
     <th class="${TH}" style="min-width:36px;"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300"></th>
     <th class="${TH}" style="min-width:100px;">Date</th>
@@ -76,18 +83,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Auto-select locked type tab if role is restricted
     if (window.lockedType) {
-        // Set filter directly — thead already rendered correctly by server for locked types
         currentFilters.type_filter = window.lockedType;
-        if (window.lockedType === 'support') {
-            const table = document.getElementById('timesheetTable');
-            if (table) table.style.minWidth = '1200px';
+    }
+
+    // Force support spreadsheet layout for support-locked roles (HoS role_id=5 AND Delivery Support User role_id=2)
+    if (window.isHoSMode || window.lockedType === 'support') {
+        currentFilters.type_filter = 'support';
+        supportLayoutActive = true;                                    // ← definitive flag
+        const table = document.getElementById('timesheetTable');
+        if (table) table.style.minWidth = '1200px';
+        const thead = document.getElementById('timesheetTableHead');
+        if (thead) {
+            thead.innerHTML = SUPPORT_THEAD_HTML;
+            const selectAllCb = document.getElementById('selectAll');
+            if (selectAllCb) {
+                selectAllCb.addEventListener('change', function () {
+                    document.querySelectorAll('.timesheet-checkbox').forEach(cb => { cb.checked = this.checked; });
+                    updateBulkActionButtons();
+                });
+            }
         }
     }
 
-    // Check if we are in approval mode
-    if (window.isApprovalMode) {
+    // Check if we are in approval mode (isHoSMode is also an approval mode)
+    if (window.isApprovalMode || window.isHoSMode) {
         loadSubmittedTimesheets();
-        loadApprovalStatistics();
         attachSelectAll();
     } else {
         initializeTimePickers();
@@ -112,6 +132,7 @@ async function loadSubmittedTimesheets() {
         if (currentFilters.start_date) params.append('start_date', currentFilters.start_date);
         if (currentFilters.end_date) params.append('end_date', currentFilters.end_date);
         if (currentFilters.status) params.append('status', currentFilters.status);
+        if (currentFilters.type_filter) params.append('type_filter', currentFilters.type_filter);
 
         const response = await fetch(`/api/timesheets/submitted-for-approval?${params}`);
         const data = await response.json();
@@ -130,17 +151,6 @@ async function loadSubmittedTimesheets() {
         showEmptyState();
         showNotification('An error occurred while loading timesheets', 'error');
     }
-}
-
-// Load statistics for approval mode
-async function loadApprovalStatistics() {
-    // Stats are computed from the already-loaded timesheets array
-    updateStatCards(timesheets);
-}
-
-// Render timesheets for approval mode (uses shared renderTimesheetRows)
-function renderApprovalTimesheets() {
-    renderTimesheetRows();
 }
 
 // Open approve confirmation modal
@@ -165,6 +175,13 @@ function closeApproveModal() {
     }
 }
 
+// Switch from approve modal to reject modal (same timesheet ID)
+function switchToRejectModal() {
+    const id = document.getElementById('approveTimesheetId')?.value;
+    closeApproveModal();
+    if (id) openRejectModal(id);
+}
+
 // Confirm approve
 async function confirmApprove() {
     const approveTimesheetId = document.getElementById('approveTimesheetId');
@@ -187,7 +204,6 @@ async function confirmApprove() {
             showNotification('Timesheet approved successfully!', 'success');
             closeApproveModal();
             await loadSubmittedTimesheets();
-            await loadApprovalStatistics();
         } else {
             showNotification('Failed to approve timesheet: ' + data.message, 'error');
         }
@@ -251,7 +267,6 @@ async function confirmReject() {
             showNotification('Timesheet rejected successfully!', 'success');
             closeRejectModal();
             await loadSubmittedTimesheets();
-            await loadApprovalStatistics();
         } else {
             showNotification('Failed to reject timesheet: ' + data.message, 'error');
         }
@@ -260,9 +275,6 @@ async function confirmReject() {
         showNotification('An error occurred while rejecting timesheet', 'error');
     }
 }
-
-// Override applyFilters for approval mode
-const originalApplyFilters = typeof applyFilters === 'function' ? applyFilters : null;
 
 // ==================== END APPROVAL MODE FUNCTIONS ====================
 
@@ -310,7 +322,12 @@ function initializeTimePickers() {
 
         const durationField = document.getElementById('timesheetDuration');
         if (durationField) {
-            durationField.value = `${hours}h ${mins}m`;
+            // Support both <input> (legacy) and <span> (new design)
+            if (durationField.tagName === 'INPUT') {
+                durationField.value = `${hours}h ${mins}m`;
+            } else {
+                durationField.textContent = `${hours}h ${mins}m`;
+            }
         }
     }
 
@@ -393,36 +410,50 @@ function handleTimesheetTypeChange() {
     let fieldsHTML = '';
 
     if (selectedType === 'project') {
-        // Project type: Activity dropdown (grouped by project) + Presence + Location
+        // Project type: Activity dropdown + Activity Type + Presence + Location
         fieldsHTML = `
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    Activity <span class="text-red-600">*</span>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">
+                    Activity <span class="text-red-500">*</span>
                 </label>
-                <select id="timesheetActivity" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent" onchange="onActivitySelected()">
+                <select id="timesheetActivity" required class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50" onchange="onActivitySelected()">
                     <option value="">Select an Activity</option>
                 </select>
-                <p class="mt-1 text-xs text-gray-500">Only activities assigned to you</p>
+                <p class="mt-1 text-xs text-gray-400">Only activities assigned to you</p>
                 <input type="hidden" id="timesheetProjectId" value="">
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">
+                    Activity Type <span class="text-red-500">*</span>
+                </label>
+                <select id="timesheetActivityType" required class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50">
+                    <option value="development">Development</option>
+                    <option value="meeting">Meeting</option>
+                    <option value="documentation">Documentation</option>
+                    <option value="testing">Testing</option>
+                    <option value="training">Training</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Presence <span class="text-red-600">*</span>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">
+                        Presence <span class="text-red-500">*</span>
                     </label>
-                    <select id="timesheetPresence" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                        <option value="">Select a Presence type</option>
+                    <select id="timesheetPresence" required class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50">
+                        <option value="">Select...</option>
                         <option value="onsite">On-site</option>
                         <option value="remote">Remote</option>
                         <option value="hybrid">Hybrid</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Lokasi <span class="text-red-600">*</span>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">
+                        Location <span class="text-red-500">*</span>
                     </label>
-                    <textarea id="timesheetLocation" required rows="1" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent resize-none" placeholder="Write location here"></textarea>
+                    <input type="text" id="timesheetLocation" required class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50" placeholder="e.g. Client office">
                 </div>
             </div>
         `;
@@ -432,46 +463,46 @@ function handleTimesheetTypeChange() {
         }
 
     } else if (selectedType === 'support') {
-        // Support type: Ticket dropdown + auto-fill Customer/Jatah MD + MD Consumed + On Site
+        // Support type: Ticket dropdown + auto-fill Customer/Jatah MD/Remaining MD + MD Consumed + On Site
         fieldsHTML = `
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    Ticket <span class="text-red-600">*</span>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">
+                    Ticket <span class="text-red-500">*</span>
                 </label>
-                <select id="timesheetTicket" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent" onchange="onSupportTicketSelected(this.value)">
+                <select id="timesheetTicket" required class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50" onchange="onSupportTicketSelected(this.value)">
                     <option value="">Select a Ticket</option>
                 </select>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Customer</label>
-                    <input type="text" id="supportCustomer" readonly
-                        class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600"
-                        placeholder="Auto-fill from ticket">
+            <div class="grid grid-cols-3 gap-2">
+                <div class="bg-gray-50 rounded-md border border-gray-200 p-2.5">
+                    <p class="text-xs font-semibold text-gray-400 mb-0.5">Customer</p>
+                    <p class="text-xs font-semibold text-gray-700 truncate" id="supportCustomer">—</p>
                 </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Jatah MD</label>
-                    <input type="text" id="supportJatahMd" readonly
-                        class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600"
-                        placeholder="—">
+                <div class="bg-gray-50 rounded-md border border-gray-200 p-2.5">
+                    <p class="text-xs font-semibold text-gray-400 mb-0.5">Quota MD</p>
+                    <p class="text-xs font-semibold text-gray-700" id="supportJatahMd">—</p>
+                </div>
+                <div class="bg-gray-50 rounded-md border border-gray-200 p-2.5">
+                    <p class="text-xs font-semibold text-gray-400 mb-0.5">Remaining</p>
+                    <p class="text-xs font-bold text-gray-700" id="supportRemainingMd">—</p>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        MD Consumed <span class="text-red-600">*</span>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">
+                        MD Consumed <span class="text-red-500">*</span>
                     </label>
-                    <input type="number" id="supportMdConsumed" required step="0.1" min="0"
-                        class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                    <input type="number" id="supportMdConsumed" required step="0.01" min="0"
+                        class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50"
                         placeholder="e.g. 0.5">
                 </div>
-                <div class="flex items-end pb-2.5">
-                    <label class="flex items-center gap-3 cursor-pointer">
+                <div class="flex items-end pb-0.5">
+                    <label class="flex items-center gap-2.5 p-2.5 bg-gray-50 border border-gray-200 rounded-md cursor-pointer hover:bg-gray-100 transition-colors w-full">
                         <input type="checkbox" id="supportOnSite"
-                            class="w-4 h-4 text-red-800 border-gray-300 rounded focus:ring-red-800">
-                        <span class="text-sm font-semibold text-gray-700">On Site</span>
+                            class="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-600">
+                        <span class="text-xs font-semibold text-gray-700">On Site</span>
                     </label>
                 </div>
             </div>
@@ -482,25 +513,25 @@ function handleTimesheetTypeChange() {
         }
 
     } else if (selectedType === 'office') {
-        // ✅ Office type: Only Presence + Location
+        // Office type: Presence + Location
         fieldsHTML = `
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Presence <span class="text-red-600">*</span>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">
+                        Presence <span class="text-red-500">*</span>
                     </label>
-                    <select id="timesheetPresence" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                        <option value="">Select a Presence type</option>
+                    <select id="timesheetPresence" required class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50">
+                        <option value="">Select...</option>
                         <option value="onsite">On-site</option>
                         <option value="remote">Remote</option>
                         <option value="hybrid">Hybrid</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Lokasi <span class="text-red-600">*</span>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">
+                        Location <span class="text-red-500">*</span>
                     </label>
-                    <textarea id="timesheetLocation" required rows="1" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent resize-none" placeholder="Write location here"></textarea>
+                    <input type="text" id="timesheetLocation" required class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50" placeholder="e.g. Office / Remote">
                 </div>
             </div>
         `;
@@ -510,21 +541,26 @@ function handleTimesheetTypeChange() {
         }
     }
 
+    // Show/hide the entire time block (support type doesn't use start/end time)
+    const timeBlock = document.getElementById('timesheetTimeBlock');
+    const isSupport = selectedType === 'support';
+    if (timeBlock) timeBlock.style.display = isSupport ? 'none' : '';
+
     // Set the HTML first
     dynamicFieldsContainer.innerHTML = fieldsHTML;
 
-    // Update "Activity Description" label to "Activity" for support type
+    // Update description label and placeholder based on type
     const descLabel = document.querySelector('label[for="timesheetDescription"]');
     if (descLabel) {
         descLabel.innerHTML = selectedType === 'support'
-            ? 'Activity <span class="text-red-600">*</span>'
-            : 'Activity Description <span class="text-red-600">*</span>';
+            ? 'Activity <span class="text-red-500">*</span>'
+            : 'Description <span class="text-red-500">*</span>';
     }
     const timesheetDescEl = document.getElementById('timesheetDescription');
     if (timesheetDescEl) {
         timesheetDescEl.placeholder = selectedType === 'support'
             ? 'Describe what you did in this session'
-            : 'Write description activity here';
+            : 'What did you work on?';
     }
 
     // Now load data based on type (after DOM is updated)
@@ -532,136 +568,6 @@ function handleTimesheetTypeChange() {
         loadAllMyActivities();
     } else if (selectedType === 'support') {
         loadTicketsForDropdown();
-    }
-}
-
-async function loadProjectsForDropdown() {
-    try {
-        const response = await fetch('/api/projects', {
-            headers: {
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            }
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-            const select = document.getElementById('timesheetProject');
-
-            if (select && data.success && data.data) {
-                select.innerHTML = '<option value="">Select a Project Title</option>';
-                data.data.forEach(project => {
-                    const option = document.createElement('option');
-                    option.value = project.project_id;
-                    option.textContent = project.project_name || `Project #${project.project_id}`;
-                    select.appendChild(option);
-                });
-            }
-        }
-    } catch (error) {
-        console.log('Projects API not available yet');
-        const select = document.getElementById('timesheetProject');
-        if (select) {
-            select.innerHTML = '<option value="">Projects module coming soon</option>';
-            select.disabled = true;
-        }
-    }
-}
-
-// ✅ NEW: Load only projects where the logged-in employee is a team member
-async function loadMyProjectsForDropdown() {
-    try {
-        const response = await fetch('/api/timesheets/my-projects', {
-            headers: {
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            }
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-            const select = document.getElementById('timesheetProject');
-
-            if (select && data.success && data.data) {
-                select.innerHTML = '<option value="">Select a Project Title</option>';
-
-                if (data.data.length === 0) {
-                    select.innerHTML = '<option value="">No projects assigned to you</option>';
-                    select.disabled = true;
-                    return;
-                }
-
-                data.data.forEach(project => {
-                    const option = document.createElement('option');
-                    option.value = project.id;
-                    option.textContent = project.name || `Project #${project.id}`;
-                    select.appendChild(option);
-                });
-            }
-        }
-    } catch (error) {
-        console.log('My Projects API not available yet, falling back to all projects');
-        // Fallback to all projects
-        loadProjectsForDropdown();
-    }
-}
-
-// ✅ NEW: Load activities assigned to the logged-in employee for the selected project
-async function loadAssignedActivities() {
-    const projectSelect = document.getElementById('timesheetProject');
-    const activityContainer = document.getElementById('activityFieldContainer');
-    const activitySelect = document.getElementById('timesheetActivity');
-
-    if (!projectSelect || !activityContainer || !activitySelect) return;
-
-    const projectId = projectSelect.value;
-
-    if (!projectId) {
-        activityContainer.classList.add('hidden');
-        activitySelect.innerHTML = '<option value="">Select an Activity</option>';
-        activitySelect.required = false;
-        return;
-    }
-
-    try {
-        const response = await fetch(`/api/timesheets/my-activities/${projectId}`, {
-            headers: {
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            }
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-
-            activitySelect.innerHTML = '<option value="">Select an Activity</option>';
-
-            if (data.success && data.data && data.data.length > 0) {
-                activityContainer.classList.remove('hidden');
-                activitySelect.required = true;
-
-                data.data.forEach(activity => {
-                    const option = document.createElement('option');
-                    option.value = activity.id;
-
-                    // Show activity name with phase and status
-                    const phaseName = activity.phase?.name || '';
-                    const status = activity.status ? ` [${activity.status}]` : '';
-                    option.textContent = `${activity.name}${phaseName ? ' - ' + phaseName : ''}${status}`;
-
-                    activitySelect.appendChild(option);
-                });
-            } else {
-                // No activities assigned - show warning but don't require
-                activityContainer.classList.remove('hidden');
-                activitySelect.innerHTML = '<option value="">No activities assigned to you for this project</option>';
-                activitySelect.required = false;
-            }
-        }
-    } catch (error) {
-        console.error('Error loading assigned activities:', error);
-        activityContainer.classList.add('hidden');
-        activitySelect.required = false;
     }
 }
 
@@ -677,8 +583,6 @@ async function loadAllMyActivities() {
         return;
     }
 
-    console.log('Loading all my activities...');
-
     try {
         const response = await fetch('/api/timesheets/my-activities/all', {
             headers: {
@@ -687,12 +591,10 @@ async function loadAllMyActivities() {
             }
         });
 
-        console.log('Response status:', response.status);
         const data = await response.json();
-        console.log('Response data:', data);
 
         if (!response.ok) {
-            console.error('API error:', data.message);
+            console.error('Failed to load activities:', data.message);
             activitySelect.innerHTML = `<option value="">Error: ${data.message || 'Failed to load'}</option>`;
             return;
         }
@@ -701,7 +603,6 @@ async function loadAllMyActivities() {
 
         if (data.success && data.data && data.data.length > 0) {
             allActivitiesData = data.data;
-            console.log('Found activities:', data.data.length);
 
             // Group activities by project
             const groupedByProject = {};
@@ -738,8 +639,17 @@ async function loadAllMyActivities() {
 
                 activitySelect.appendChild(optgroup);
             });
+
+            // H-4 fix: pre-select activity if coming from editTimesheet() (reliable, no race condition)
+            if (_pendingActivityPreselect) {
+                const preselectId = _pendingActivityPreselect;
+                _pendingActivityPreselect = null;
+                activitySelect.value = preselectId;
+                if (activitySelect.value) {
+                    onActivitySelected();
+                }
+            }
         } else {
-            console.log('No activities found or data.success is false');
             activitySelect.innerHTML = '<option value="">No activities assigned to you</option>';
         }
     } catch (error) {
@@ -805,11 +715,25 @@ async function loadTicketsForDropdown() {
                 activeTickets.forEach(ticket => {
                     const option = document.createElement('option');
                     option.value = ticket.ticket_id;
-                    const customerName = ticket.customer?.customer_name || 'Unknown';
-                    const ticketLabel = ticket.ticket_number || `#${ticket.ticket_id}`;
-                    option.textContent = `${ticketLabel} - ${customerName}`;
+                    const ticketLabel  = ticket.ticket_number || `#${ticket.ticket_id}`;
+                    const customerCode = ticket.customer?.customer_code || ticket.customer?.customer_name || '';
+                    const description  = ticket.description || '';
+                    option.textContent = `${ticketLabel} - ${customerCode} - ${description}`;
                     select.appendChild(option);
                 });
+
+                // Pre-select ticket if coming from editTimesheet()
+                if (_pendingTicketPreselect) {
+                    const preselectId = _pendingTicketPreselect;
+                    _pendingTicketPreselect = null;
+                    select.value = preselectId;
+                    if (select.value) {
+                        onSupportTicketSelected(preselectId).then(() => {
+                            // Restore md_consumed and onSite after auto-fill overwrites them
+                            // (handled by editTimesheet via its own timeout)
+                        });
+                    }
+                }
             }
         }
     } catch (error) {
@@ -822,38 +746,171 @@ async function loadTicketsForDropdown() {
     }
 }
 
-// Auto-fill Customer and Jatah MD when a support ticket is selected
+// Auto-fill Customer, Jatah MD, and Remaining MD when a support ticket is selected.
+// Customer/Quota/Remaining are now <p> display elements, not <input>s.
 async function onSupportTicketSelected(ticketId) {
-    const customerEl = document.getElementById('supportCustomer');
-    const jatahMdEl  = document.getElementById('supportJatahMd');
+    const customerEl  = document.getElementById('supportCustomer');
+    const jatahMdEl   = document.getElementById('supportJatahMd');
+    const remainingEl = document.getElementById('supportRemainingMd');
 
-    // Clear previous values
-    if (customerEl) customerEl.value = '';
-    if (jatahMdEl) jatahMdEl.value = '—';
+    const setText = (el, val) => { if (el) el.textContent = val; };
+
+    // Reset
+    setText(customerEl,  '—');
+    setText(jatahMdEl,   '—');
+    setText(remainingEl, '—');
+    if (remainingEl) remainingEl.className = 'text-xs font-bold text-gray-700';
 
     if (!ticketId) return;
 
-    // Auto-fill customer from cache
+    // Customer from cache
     const ticket = myTicketsCache.find(t => String(t.ticket_id) === String(ticketId));
     if (ticket && customerEl) {
-        customerEl.value = ticket.customer?.customer_name || '';
+        customerEl.textContent = ticket.customer?.customer_name || '—';
     }
 
-    // Fetch latest approved mandays
-    try {
-        const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-        const res = await fetch(`/api/tickets/${ticketId}/mandays/approved`, {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+
+    await Promise.allSettled([
+        // Quota MD
+        fetch(`/api/tickets/${ticketId}/consultant-mandays/approved`, {
             headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
             credentials: 'same-origin'
-        });
-        if (res.ok) {
-            const data = await res.json();
-            if (jatahMdEl) {
-                jatahMdEl.value = data.data ? Number(data.data.total_mandays).toFixed(1) : '—';
+        }).then(r => r.ok ? r.json() : null).then(data => {
+            setText(jatahMdEl, data?.data ? Number(data.data.total_mandays).toFixed(2) : '—');
+        }),
+
+        // Remaining MD (quota − consumed, excluding rejected timesheets)
+        fetch(`/api/timesheets/remaining-md?ticket_id=${ticketId}`, {
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+            credentials: 'same-origin'
+        }).then(r => r.ok ? r.json() : null).then(data => {
+            if (!remainingEl || !data?.success) return;
+            const rem = data.data.remaining;
+            if (rem === null) { remainingEl.textContent = '—'; return; }
+            remainingEl.textContent = Number(rem).toFixed(2);
+            remainingEl.className   = rem < 0
+                ? 'text-xs font-bold text-red-600'
+                : 'text-xs font-bold text-green-600';
+        }),
+    ]);
+}
+
+// ── Period selector for late-exception users ──────────────────────────────────
+
+let _cachedLateExceptions = null; // null = not yet fetched
+
+/**
+ * Fetch late exceptions for the current user (once per page load) and populate
+ * the #periodFieldRow container in the timesheet modal.
+ *
+ * - If the user has active late exceptions: show a <select> listing each
+ *   exception period + the active period (if any). Picking a period pre-fills
+ *   the date to the last day of that period so the submission is valid.
+ * - Otherwise: show the active period label as read-only info.
+ */
+async function loadPeriodSelector() {
+    const container = document.getElementById('periodFieldRow');
+    if (!container) return;
+
+    // Show loading state
+    container.innerHTML = '';
+    container.classList.add('hidden');
+
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+
+    try {
+        // Fetch exceptions (cache after first load)
+        if (_cachedLateExceptions === null) {
+            const res  = await fetch('/api/timesheets/my-late-exceptions', {
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+                credentials: 'same-origin'
+            });
+            const json = await res.json();
+            _cachedLateExceptions = (res.ok && json.success) ? json.data : [];
+        }
+
+        const exceptions = _cachedLateExceptions;
+
+        if (exceptions.length > 0) {
+            // Build dropdown: active period + exception periods
+            const activePeriod = await fetch('/api/periods/active', {
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+                credentials: 'same-origin'
+            }).then(r => r.ok ? r.json() : null).then(d => d?.data ?? null).catch(() => null);
+
+            let options = '';
+            if (activePeriod) {
+                const label = new Date(activePeriod.year, activePeriod.month - 1, 1)
+                    .toLocaleString('en', { month: 'long', year: 'numeric' });
+                options += `<option value="" data-start="${activePeriod.start_date ?? ''}" data-end="${activePeriod.end_date ?? ''}">
+                    ${label} (Active Period)
+                </option>`;
+            }
+            exceptions.forEach(ex => {
+                options += `<option value="${ex.period_id}" data-start="${ex.period_start ?? ''}" data-end="${ex.period_end ?? ''}">
+                    ${ex.period_label} (Late Access)
+                </option>`;
+            });
+
+            container.innerHTML = `
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                    Reporting Period
+                    <span class="ml-1.5 text-xs font-normal text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">Late access granted</span>
+                </label>
+                <select id="timesheetPeriodSelect"
+                    class="w-full px-3 py-2.5 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-amber-50"
+                    onchange="onPeriodSelected(this)">
+                    ${options}
+                </select>
+                <p class="mt-1 text-xs text-gray-500">Select the period you want to log hours into. The date will be adjusted automatically.</p>
+            `;
+            container.classList.remove('hidden');
+
+        } else {
+            // No exceptions — show active period as info
+            const activePeriod = await fetch('/api/periods/active', {
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+                credentials: 'same-origin'
+            }).then(r => r.ok ? r.json() : null).then(d => d?.data ?? null).catch(() => null);
+
+            if (activePeriod) {
+                const label = new Date(activePeriod.year, activePeriod.month - 1, 1)
+                    .toLocaleString('en', { month: 'long', year: 'numeric' });
+                container.innerHTML = `
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Reporting Period</label>
+                    <div class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
+                        <i class="fas fa-calendar-alt mr-1.5 text-gray-400"></i>${label}
+                    </div>
+                `;
+                container.classList.remove('hidden');
             }
         }
     } catch (e) {
-        console.error('Failed to fetch approved mandays', e);
+        console.error('Failed to load period selector', e);
+    }
+}
+
+/**
+ * When a period is selected from the dropdown, pre-fill the date to
+ * the end of that period (since the user is submitting late).
+ */
+function onPeriodSelected(select) {
+    const opt       = select.options[select.selectedIndex];
+    const endDate   = opt?.dataset?.end;
+    const startDate = opt?.dataset?.start;
+    const dateField = document.getElementById('timesheetDate');
+    if (!dateField || !endDate) return;
+
+    const today    = new Date().toISOString().split('T')[0];
+    const isActive = !select.value; // empty value = active period
+
+    if (isActive) {
+        // Active period — keep today's date if it falls in the range, else use today
+        dateField.value = today;
+    } else {
+        // Late exception period — set to end date of that period
+        dateField.value = endDate;
     }
 }
 
@@ -956,9 +1013,11 @@ function filterByType(type) {
     const table = document.getElementById('timesheetTable');
     if (thead) {
         if (type === 'support') {
+            supportLayoutActive = true;                                // ← definitive flag ON
             thead.innerHTML = SUPPORT_THEAD_HTML;
             if (table) table.style.minWidth = '1200px';
         } else {
+            supportLayoutActive = false;                               // ← definitive flag OFF
             thead.innerHTML = defaultTheadHTML;
             if (table) table.style.minWidth = '900px';
         }
@@ -1004,37 +1063,74 @@ function filterByStatus(status) {
 }
 
 function resetFilters() {
-    const filterStartDate = document.getElementById('filterStartDate');
-    const filterEndDate = document.getElementById('filterEndDate');
-    const filterStatus = document.getElementById('filterStatus');
+    const filterStatus       = document.getElementById('filterStatus');
     const filterActivityType = document.getElementById('filterActivityType');
 
+    // 1. Reset filter state (no render yet)
     initializeDateFilters();
-    if (filterStatus) filterStatus.value = '';
+    if (filterStatus)       filterStatus.value       = '';
     if (filterActivityType) filterActivityType.value = '';
 
-    currentFilters.status = '';
+    currentFilters.status        = '';
     currentFilters.activity_type = '';
-    currentFilters.type_filter = '';
+    currentFilters.type_filter   = window.lockedType || '';
     currentPage = 1;
 
-    if (window.lockedType) {
-        currentFilters.type_filter = window.lockedType;
-        applyStatusFilter();
-    } else {
-        filterByType('');   // reset type tab to All
-    }
-    filterByStatus(''); // reset active card to Total
+    // 2. Reset thead / supportLayoutActive flag without triggering a render
+    if (!window.lockedType) {
+        // Restore default thead and clear support flag
+        const thead = document.getElementById('timesheetTableHead');
+        const table = document.getElementById('timesheetTable');
+        if (thead) thead.innerHTML = defaultTheadHTML;
+        if (table) table.style.minWidth = '900px';
+        supportLayoutActive = false;
 
-    if (window.isApprovalMode) {
+        // Re-attach selectAll listener after thead swap
+        const selectAllCb = document.getElementById('selectAll');
+        if (selectAllCb) {
+            selectAllCb.addEventListener('change', function () {
+                document.querySelectorAll('.timesheet-checkbox').forEach(cb => { cb.checked = this.checked; });
+                updateBulkActionButtons();
+            });
+        }
+
+        // Reset type tab visual to "All"
+        const tabs = {
+            '':        { id: 'typeTabAll',     active: 'border-red-600 bg-red-600 text-white',       inactive: 'border-gray-200 bg-white text-gray-600 hover:border-red-400 hover:text-red-600' },
+            'project': { id: 'typeTabProject', active: 'border-blue-600 bg-blue-600 text-white',     inactive: 'border-gray-200 bg-white text-gray-600 hover:border-blue-400 hover:text-blue-600' },
+            'support': { id: 'typeTabSupport', active: 'border-purple-600 bg-purple-600 text-white', inactive: 'border-gray-200 bg-white text-gray-600 hover:border-purple-400 hover:text-purple-600' },
+            'office':  { id: 'typeTabOffice',  active: 'border-gray-600 bg-gray-600 text-white',     inactive: 'border-gray-200 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-700' },
+        };
+        Object.entries(tabs).forEach(([key, cfg]) => {
+            const btn = document.getElementById(cfg.id);
+            if (!btn) return;
+            btn.className = `type-tab-btn inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-all duration-150 ${key === '' ? cfg.active : cfg.inactive}`;
+        });
+    } else if (window.lockedType !== 'support') {
+        supportLayoutActive = false;
+    }
+
+    // 3. Reset stat card visual to "Total"
+    const cardIds  = ['cardAll', 'cardDraft', 'cardSubmitted', 'cardApproved', 'cardRejected'];
+    const statusMap = { '': 'cardAll', draft: 'cardDraft', submitted: 'cardSubmitted', approved: 'cardApproved', rejected: 'cardRejected' };
+    cardIds.forEach(id => {
+        const card = document.getElementById(id);
+        if (!card) return;
+        card.classList.remove('border-2', 'border-red-600');
+        card.classList.add('border', 'border-gray-200');
+    });
+    const activeCard = document.getElementById('cardAll');
+    if (activeCard) {
+        activeCard.classList.remove('border', 'border-gray-200');
+        activeCard.classList.add('border-2', 'border-red-600');
+    }
+
+    // 4. Single fetch — triggers exactly one render via applyStatusFilter()
+    if (window.isApprovalMode || window.isHoSMode) {
         loadSubmittedTimesheets();
     } else {
         loadTimesheets();
     }
-}
-
-function renderTimesheets() {
-    applyStatusFilter();
 }
 
 function renderTimesheetRows() {
@@ -1059,58 +1155,105 @@ function renderTimesheetRows() {
     const pageItems = filteredTimesheets.slice(start, end);
     updatePagination(total, start + 1, end);
 
-    // ── Approval mode: support tab — spreadsheet layout with Employee col ──
-    if (window.isApprovalMode && (currentFilters.type_filter === 'support' || window.lockedType === 'support')) {
-        tbody.innerHTML = pageItems.map(timesheet => {
-            const statusColor = statusColors[timesheet.status] || statusColors.draft;
-            const canSelect = timesheet.status === 'submitted';
+    // Resolve active type — same logic as applyStatusFilter() so they always agree
+    const activeType = currentFilters.type_filter || window.lockedType || '';
 
-            const dateObj   = timesheet.date ? new Date(timesheet.date + 'T00:00:00') : null;
-            const dateFmt   = dateObj ? dateObj.toLocaleDateString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\//g, '/') : '-';
-            const period    = dateObj ? getPeriodInfo(dateObj) : null;
-            const bulan     = period ? period.month : '-';
-            const tahun     = period ? period.year  : '-';
-            const nama      = escapeHtml(timesheet.employee_name || '-');
-            const tiket     = timesheet.ticket_number ? `#${escapeHtml(timesheet.ticket_number)}` : (timesheet.ticket_id ? `#${timesheet.ticket_id}` : '-');
-            const ticketDesc = escapeHtml(timesheet.ticket_description || '-');
-            const customer  = escapeHtml(timesheet.customer_name || '-');
-            const jatahMd   = timesheet.jatah_md != null ? Number(timesheet.jatah_md).toFixed(1) : '-';
-            const aktivitas = escapeHtml(timesheet.description || '-');
-            const mdConsumed = timesheet.md_consumed != null ? Number(timesheet.md_consumed).toFixed(1) : '-';
-            const onSite    = timesheet.presence === 'onsite' ? 'X' : '';
+    // ── Support spreadsheet layout ──
+    // supportLayoutActive is the definitive flag set whenever the support thead is active.
+    // The other checks are fallbacks. If ANY is true → use support spreadsheet rendering.
+    if (supportLayoutActive || window.isHoSMode || activeType === 'support' || window.lockedType === 'support') {
+        var approvalMode = !!(window.isHoSMode || window.isApprovalMode);
 
-            return `
-                <tr class="hover:bg-purple-50/30 transition-colors ${canSelect ? 'cursor-pointer' : ''}" ${canSelect ? `onclick="toggleRowSelection(event, ${timesheet.id})"` : ''}>
-                    <td class="px-3 py-2 border-b border-gray-100">
-                        ${canSelect ? `<input type="checkbox" class="timesheet-checkbox w-4 h-4 rounded border-gray-300" data-id="${timesheet.id}" data-status="${timesheet.status}" onchange="updateBulkActionButtons()" onclick="event.stopPropagation()">` : `<span class="text-gray-300"><i class="fas fa-lock text-xs" title="${timesheet.status}"></i></span>`}
-                    </td>
-                    <td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs text-gray-700">${dateFmt}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">${bulan}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">${tahun}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-800 font-medium">${nama}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs font-semibold text-purple-700">
-                        <i class="fas fa-ticket-alt mr-1 opacity-60"></i>${tiket}
-                    </td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-600 max-w-[180px]" title="${escapeHtml(timesheet.ticket_description || '')}">${ticketDesc}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700">${customer}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">${jatahMd}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700 max-w-[180px]" title="${escapeHtml(timesheet.description || '')}">${aktivitas}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">${mdConsumed}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-bold text-green-700">${onSite}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap">
-                        <span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full ${statusColor.bg} ${statusColor.text}">
-                            ${timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
-                        </span>
-                        ${timesheet.status === 'rejected' && timesheet.rejection_reason ? `<i class="fas fa-info-circle text-yellow-500 ml-1 cursor-pointer text-xs" title="${escapeHtml(timesheet.rejection_reason)}" onclick="event.stopPropagation(); showRejectionReason(${timesheet.id})"></i>` : ''}
-                    </td>
-                </tr>
-            `;
-        }).join('');
+        var rows = '';
+        for (var si = 0; si < pageItems.length; si++) {
+            var ts = pageItems[si];
+            var sc = statusColors[ts.status] || statusColors.draft;
+            var isSubmitted = ts.status === 'submitted';
+            var canAct    = approvalMode ? isSubmitted : (['draft','rejected'].indexOf(ts.status) !== -1);
+            var canDelete = !approvalMode && (['draft','rejected','submitted'].indexOf(ts.status) !== -1);
+
+            var dObj  = ts.date ? new Date(ts.date + 'T00:00:00') : null;
+            var dFmt  = dObj ? dObj.toLocaleDateString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\//g, '/') : '-';
+            // Use server-assigned period if available (handles overridden closed periods), else compute client-side
+            var bln, thn;
+            if (ts.period_month != null && ts.period_year != null) {
+                bln = ts.period_month;
+                thn = ts.period_year;
+            } else {
+                var per = dObj ? getPeriodInfo(dObj) : null;
+                bln = per ? per.month : '-';
+                thn = per ? per.year  : '-';
+            }
+            var nam   = escapeHtml(ts.employee_name || '-');
+            var tkt   = ts.ticket_number ? ('#' + escapeHtml(ts.ticket_number)) : (ts.ticket_id ? ('#' + ts.ticket_id) : '-');
+            var tdesc = escapeHtml(ts.ticket_description || '-');
+            var cust  = escapeHtml(ts.customer_name || '-');
+            var jmd   = ts.jatah_md   != null ? Number(ts.jatah_md).toFixed(1)   : '-';
+            var akt   = escapeHtml(ts.description || '-');
+            var mdc   = ts.md_consumed != null ? Number(ts.md_consumed).toFixed(1) : '-';
+            var ons   = ts.presence === 'onsite' ? 'X' : '';
+
+            // Row click and first cell
+            var trClick = '';
+            var firstTd = '';
+            if (approvalMode) {
+                // In approval mode: submitted rows show checkbox (for bulk approve/reject)
+                // and row click → single approve modal. Non-submitted rows show lock icon.
+                if (isSubmitted) {
+                    trClick = 'onclick="openApproveModal(' + ts.id + ')"';
+                    firstTd = '<input type="checkbox" class="timesheet-checkbox w-4 h-4 rounded border-gray-300" data-id="' + ts.id + '" data-status="submitted" onchange="updateBulkActionButtons()" onclick="event.stopPropagation()">';
+                } else {
+                    firstTd = '<span class="text-gray-300"><i class="fas fa-lock text-xs" title="' + ts.status + '"></i></span>';
+                }
+            } else {
+                // Employee mode: draft/rejected rows are editable; submitted rows can only be deleted
+                if (canAct) {
+                    trClick = 'onclick="editTimesheet(' + ts.id + ')"';
+                    firstTd = '<input type="checkbox" class="timesheet-checkbox w-4 h-4 rounded border-gray-300" data-id="' + ts.id + '" data-status="' + ts.status + '" onchange="updateBulkActionButtons()" onclick="event.stopPropagation()">';
+                } else if (canDelete) {
+                    firstTd = '<input type="checkbox" class="timesheet-checkbox w-4 h-4 rounded border-gray-300" data-id="' + ts.id + '" data-status="' + ts.status + '" onchange="updateBulkActionButtons()" onclick="event.stopPropagation()">';
+                } else {
+                    firstTd = '<span class="text-gray-300"><i class="fas fa-lock text-xs" title="Cannot edit (' + ts.status + ')"></i></span>';
+                }
+            }
+
+            // Status cell
+            var statusCell = '';
+            var rejIcon = '';
+            if (ts.status === 'rejected' && ts.rejection_reason) {
+                rejIcon = ' <i class="fas fa-info-circle text-yellow-500 cursor-pointer text-xs" title="' + escapeHtml(ts.rejection_reason) + '" onclick="event.stopPropagation();showRejectionReason(' + ts.id + ')"></i>';
+            }
+            var approverNote = '';
+            if (ts.status === 'approved' && ts.approver_name) {
+                approverNote = '<div class="text-[10px] text-gray-400 mt-0.5">by ' + escapeHtml(ts.approver_name) + '</div>';
+            }
+            statusCell = '<span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full ' + sc.bg + ' ' + sc.text + '">'
+                + (ts.status.charAt(0).toUpperCase() + ts.status.slice(1))
+                + '</span>' + rejIcon + approverNote;
+
+            var rowClass = 'hover:bg-purple-50/30 transition-colors' + ((approvalMode && isSubmitted) ? ' cursor-pointer' : ((!approvalMode && canAct) ? ' cursor-pointer' : ''));
+            rows += '<tr class="' + rowClass + '" ' + trClick + '>'
+                + '<td class="px-3 py-2 border-b border-gray-100">' + firstTd + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs text-gray-700">' + dFmt + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">' + bln + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">' + thn + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-800 font-medium">' + nam + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs font-semibold text-purple-700"><i class="fas fa-ticket-alt mr-1 opacity-60"></i>' + tkt + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-600 max-w-[180px]" title="' + escapeHtml(ts.ticket_description || '') + '">' + tdesc + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700">' + cust + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">' + jmd + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700 max-w-[180px]" title="' + escapeHtml(ts.description || '') + '">' + akt + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">' + mdc + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-bold text-green-700">' + ons + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap">' + statusCell + '</td>'
+                + '</tr>';
+        }
+        tbody.innerHTML = rows;
         return;
     }
 
     // ── Approval mode: All / Project / Office tabs ────────────────────────
-    if (window.isApprovalMode) {
+    if (window.isApprovalMode && activeType !== 'support') {
         tbody.innerHTML = pageItems.map(timesheet => {
             const statusColor = statusColors[timesheet.status] || statusColors.draft;
             const duration = (timesheet.duration_minutes / 60).toFixed(2);
@@ -1185,7 +1328,7 @@ function renderTimesheetRows() {
                     <td class="px-3 py-2.5">${activityCell}</td>
                     <td class="px-3 py-2.5">
                         <div class="text-sm text-gray-900 truncate max-w-xs" title="${escapeHtml(timesheet.description || '')}">
-                            ${timesheet.description || '-'}
+                            ${escapeHtml(timesheet.description || '-')}
                         </div>
                     </td>
                     <td class="px-3 py-2.5 whitespace-nowrap">
@@ -1201,61 +1344,12 @@ function renderTimesheetRows() {
         return;
     }
 
-    // ── Support tab: dedicated spreadsheet-style layout ────────────
-    if (currentFilters.type_filter === 'support') {
-        tbody.innerHTML = pageItems.map(timesheet => {
-            const statusColor = statusColors[timesheet.status] || statusColors.draft;
-            const canEdit = ['draft', 'rejected'].includes(timesheet.status);
-
-            const dateObj   = timesheet.date ? new Date(timesheet.date + 'T00:00:00') : null;
-            const dateFmt   = dateObj ? dateObj.toLocaleDateString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\//g, '/') : '-';
-            const period    = dateObj ? getPeriodInfo(dateObj) : null;
-            const bulan     = period ? period.month : '-';
-            const tahun     = period ? period.year  : '-';
-            const nama      = escapeHtml(timesheet.employee_name || '-');
-            const tiket     = timesheet.ticket_number ? `#${escapeHtml(timesheet.ticket_number)}` : (timesheet.ticket_id ? `#${timesheet.ticket_id}` : '-');
-            const ticketDesc = escapeHtml(timesheet.ticket_description || '-');
-            const customer  = escapeHtml(timesheet.customer_name || '-');
-            const jatahMd   = timesheet.jatah_md != null ? Number(timesheet.jatah_md).toFixed(1) : '-';
-            const aktivitas = escapeHtml(timesheet.description || '-');
-            const mdConsumed = timesheet.md_consumed != null ? Number(timesheet.md_consumed).toFixed(1) : '-';
-            const onSite    = timesheet.presence === 'onsite' ? 'X' : '';
-
-            return `
-                <tr class="hover:bg-purple-50/30 transition-colors ${canEdit ? 'cursor-pointer' : ''}" ${canEdit ? `onclick="toggleRowSelection(event, ${timesheet.id})"` : ''}>
-                    <td class="px-3 py-2 border-b border-gray-100">
-                        ${canEdit ? `<input type="checkbox" class="timesheet-checkbox w-4 h-4 rounded border-gray-300" data-id="${timesheet.id}" data-status="${timesheet.status}" onchange="updateBulkActionButtons()" onclick="event.stopPropagation()">` : `<span class="text-gray-300"><i class="fas fa-lock text-xs" title="Cannot edit (${timesheet.status})"></i></span>`}
-                    </td>
-                    <td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs text-gray-700">${dateFmt}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">${bulan}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">${tahun}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-800 font-medium">${nama}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs font-semibold text-purple-700">
-                        <i class="fas fa-ticket-alt mr-1 opacity-60"></i>${tiket}
-                    </td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-600 max-w-[180px]" title="${escapeHtml(timesheet.ticket_description || '')}">${ticketDesc}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700">${customer}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">${jatahMd}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700 max-w-[180px]" title="${escapeHtml(timesheet.description || '')}">${aktivitas}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">${mdConsumed}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-bold text-green-700">${onSite}</td>
-                    <td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap">
-                        <span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full ${statusColor.bg} ${statusColor.text}">
-                            ${timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
-                        </span>
-                        ${timesheet.status === 'rejected' && timesheet.rejection_reason ? `<i class="fas fa-info-circle text-yellow-500 ml-1 cursor-pointer text-xs" title="${escapeHtml(timesheet.rejection_reason)}" onclick="event.stopPropagation(); showRejectionReason(${timesheet.id})"></i>` : ''}
-                    </td>
-                </tr>
-            `;
-        }).join('');
-        return;
-    }
-
     // Employee mode (All / Project / Office)
     tbody.innerHTML = pageItems.map(timesheet => {
         const statusColor = statusColors[timesheet.status] || statusColors.draft;
         const duration = (timesheet.duration_minutes / 60).toFixed(2);
-        const canEdit = ['draft', 'rejected'].includes(timesheet.status);
+        const canEdit   = ['draft', 'rejected'].includes(timesheet.status);
+        const canDelete = ['draft', 'rejected', 'submitted'].includes(timesheet.status);
 
         // ── Determine type ──────────────────────────────────────────
         const isProject = !!timesheet.delivery_projects_id;
@@ -1322,7 +1416,7 @@ function renderTimesheetRows() {
         return `
             <tr class="hover:bg-gray-50 transition-colors ${canEdit ? 'cursor-pointer' : ''}" ${canEdit ? `onclick="toggleRowSelection(event, ${timesheet.id})"` : ''}>
                 <td class="px-3 py-2.5">
-                    ${canEdit ? `<input type="checkbox" class="timesheet-checkbox w-4 h-4 rounded border-gray-300" data-id="${timesheet.id}" data-status="${timesheet.status}" onchange="updateBulkActionButtons()" onclick="event.stopPropagation()">` : `<span class="text-gray-300"><i class="fas fa-lock text-xs" title="Cannot edit (${timesheet.status})"></i></span>`}
+                    ${canDelete ? `<input type="checkbox" class="timesheet-checkbox w-4 h-4 rounded border-gray-300" data-id="${timesheet.id}" data-status="${timesheet.status}" onchange="updateBulkActionButtons()" onclick="event.stopPropagation()">` : `<span class="text-gray-300"><i class="fas fa-lock text-xs" title="Cannot edit (${timesheet.status})"></i></span>`}
                 </td>
                 <td class="px-3 py-2.5 whitespace-nowrap">
                     <div class="text-sm font-medium text-gray-900">${formatDisplayDate(timesheet.date)}</div>
@@ -1338,7 +1432,7 @@ function renderTimesheetRows() {
                 <td class="px-3 py-2.5">${activityCell}</td>
                 <td class="px-3 py-2.5">
                     <div class="text-sm text-gray-900 truncate max-w-xs" title="${escapeHtml(timesheet.description || '')}">
-                        ${timesheet.description || '-'}
+                        ${escapeHtml(timesheet.description || '-')}
                     </div>
                 </td>
                 <td class="px-3 py-2.5 whitespace-nowrap">
@@ -1416,9 +1510,11 @@ function toggleRowSelection(event, id) {
 }
 
 function formatDisplayDate(dateStr) {
-    const date = new Date(dateStr);
-    const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
-    return date.toLocaleDateString('en-US', options);
+    if (!dateStr) return '-';
+    // Append T00:00:00 to force local-time parsing (avoids UTC midnight → previous day shift)
+    const date = new Date(dateStr.length === 10 ? dateStr + 'T00:00:00' : dateStr);
+    const options = { timeZone: 'Asia/Jakarta', weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+    return date.toLocaleDateString('en-GB', options);
 }
 
 function showEmptyState() {
@@ -1447,7 +1543,7 @@ function applyFilters() {
     if (filterStatus) filterByStatus(filterStatus.value);
 
     // Date range change requires re-fetch
-    if (window.isApprovalMode) {
+    if (window.isApprovalMode || window.isHoSMode) {
         loadSubmittedTimesheets();
     } else {
         loadTimesheets();
@@ -1466,7 +1562,7 @@ function openTimesheetModal() {
         return;
     }
 
-    if (title) title.innerHTML = '<i class="fas fa-clock"></i> Log Working Hours';
+    if (title) title.textContent = 'Log Working Hours';
     if (form) form.reset();
     if (idField) idField.value = '';
 
@@ -1477,10 +1573,11 @@ function openTimesheetModal() {
     setTimePicker('Start', '08:00');
     setTimePicker('End', '17:00');
 
-    const supportRadio = document.querySelector('input[name="timesheetType"][value="support"]');
-    if (supportRadio) {
-        supportRadio.checked = true;
-    }
+    // Select the correct default type: locked type, first allowed type, or 'support'
+    const allowed     = window.allowedTypes || ['project', 'support', 'office'];
+    const defaultType = window.lockedType || allowed[0] || 'support';
+    const defaultRadio = document.querySelector(`input[name="timesheetType"][value="${defaultType}"]`);
+    if (defaultRadio) defaultRadio.checked = true;
 
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -1488,6 +1585,9 @@ function openTimesheetModal() {
     setTimeout(() => {
         handleTimesheetTypeChange();
     }, 50);
+
+    // Load period selector (async — shows after modal is visible)
+    loadPeriodSelector();
 }
 
 function closeTimesheetModal() {
@@ -1511,7 +1611,7 @@ function editTimesheet(id) {
         return;
     }
 
-    if (title) title.innerHTML = '<i class="fas fa-edit"></i> Edit Timesheet';
+    if (title) title.textContent = 'Edit Timesheet';
 
     const timesheetId = document.getElementById('timesheetId');
     const timesheetDate = document.getElementById('timesheetDate');
@@ -1531,49 +1631,50 @@ function editTimesheet(id) {
     if (typeRadio) {
         typeRadio.checked = true;
     }
-    
+
+    // Set preselect flags BEFORE handleTimesheetTypeChange so async loaders pick them up
+    if (timesheetType === 'support' && timesheet.ticket_id) {
+        _pendingTicketPreselect = timesheet.ticket_id;
+    }
+    if (timesheetType === 'project' && timesheet.activity_id) {
+        _pendingActivityPreselect = timesheet.activity_id;
+    }
+
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
-    
+
     handleTimesheetTypeChange();
-    
-    setTimeout(async () => {
-        const activitySelect = document.getElementById('timesheetActivity');
-        const projectIdInput = document.getElementById('timesheetProjectId');
-        const ticketSelect = document.getElementById('timesheetTicket');
+    loadPeriodSelector();
+
+    setTimeout(() => {
         const presence = document.getElementById('timesheetPresence');
         const location = document.getElementById('timesheetLocation');
-        const billable = document.getElementById('timesheetBillable');
+        const billable  = document.getElementById('timesheetBillable');
 
         if (presence) presence.value = timesheet.presence || '';
-        if (location) location.value = timesheet.location || '';
+        if (location) location.value  = timesheet.location || '';
         if (billable) billable.checked = timesheet.is_billable || false;
 
-        if (timesheetType === 'support') {
-            // Set ticket and trigger auto-fill
-            if (ticketSelect && timesheet.ticket_id) {
-                ticketSelect.value = timesheet.ticket_id;
-                await onSupportTicketSelected(timesheet.ticket_id);
+        if (timesheetType === 'project') {
+            // activity_type select pre-fill (rendered synchronously by handleTimesheetTypeChange)
+            const actTypeEl = document.getElementById('timesheetActivityType');
+            if (actTypeEl && timesheet.activity_type) actTypeEl.value = timesheet.activity_type;
+            // project_id hidden input — set as fallback in case _pendingActivityPreselect is consumed
+            const projectIdInput = document.getElementById('timesheetProjectId');
+            if (projectIdInput && timesheet.delivery_projects_id) {
+                projectIdInput.value = timesheet.delivery_projects_id;
             }
-            // On Site checkbox: checked if presence === 'onsite'
-            const onSiteEl = document.getElementById('supportOnSite');
-            if (onSiteEl) onSiteEl.checked = timesheet.presence === 'onsite';
-            // MD Consumed
-            const mdEl = document.getElementById('supportMdConsumed');
-            if (mdEl) mdEl.value = timesheet.md_consumed != null ? timesheet.md_consumed : '';
         }
 
-        // For project type: wait for activities to load, then set the selected activity
-        if (timesheet.delivery_projects_id && activitySelect) {
+        if (timesheetType === 'support') {
+            // Ticket selection is handled by _pendingTicketPreselect in loadTicketsForDropdown.
+            // Restore On Site and MD Consumed after onSupportTicketSelected completes.
             setTimeout(() => {
-                if (activitySelect && timesheet.activity_id) {
-                    activitySelect.value = timesheet.activity_id;
-                    onActivitySelected();
-                }
-                if (projectIdInput) {
-                    projectIdInput.value = timesheet.delivery_projects_id;
-                }
-            }, 300);
+                const onSiteEl = document.getElementById('supportOnSite');
+                if (onSiteEl) onSiteEl.checked = timesheet.presence === 'onsite';
+                const mdEl = document.getElementById('supportMdConsumed');
+                if (mdEl) mdEl.value = timesheet.md_consumed != null ? timesheet.md_consumed : '';
+            }, 400);
         }
     }, 150);
 }
@@ -1681,29 +1782,6 @@ function submitTimesheet(id) {
     openSubmitModal(id);
 }
 
-async function submitTimesheetDirect(id) {
-    try {
-        const response = await fetch(`/api/timesheets/${id}/submit`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            }
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            showNotification('Timesheet submitted for approval!', 'success');
-            await loadTimesheets();
-            await loadStatistics();
-        } else {
-            showNotification('Failed to submit timesheet: ' + data.message, 'error');
-        }
-    } catch (error) {
-        showNotification('An error occurred while submitting timesheet', 'error');
-    }
-}
 
 function updateBulkActionButtons() {
     const checkboxes = document.querySelectorAll('.timesheet-checkbox:checked');
@@ -1717,8 +1795,8 @@ function updateBulkActionButtons() {
         bulkActions.classList.add('flex');
         if (selectedCount) selectedCount.textContent = checkboxes.length;
 
-        if (window.isApprovalMode) {
-            // Approval mode: Approve / Reject buttons (always show when items selected)
+        if (window.isApprovalMode || window.isHoSMode) {
+            // Approval mode (or HoS): Approve / Reject buttons
             const btnApprove = document.getElementById('btnBulkApprove');
             const btnReject  = document.getElementById('btnBulkReject');
             if (btnApprove) btnApprove.classList.remove('hidden');
@@ -1730,11 +1808,14 @@ function updateBulkActionButtons() {
             const btnDelete = document.getElementById('btnBulkDelete');
 
             let hasDraft = false;
+            let hasEditable = false;
             checkboxes.forEach(cb => {
-                if (cb.getAttribute('data-status') === 'draft') hasDraft = true;
+                const st = cb.getAttribute('data-status');
+                if (st === 'draft') hasDraft = true;
+                if (st === 'draft' || st === 'rejected') hasEditable = true;
             });
 
-            if (btnEdit)   btnEdit.classList.toggle('hidden', checkboxes.length !== 1);
+            if (btnEdit)   btnEdit.classList.toggle('hidden', checkboxes.length !== 1 || !hasEditable);
             if (btnSubmit) btnSubmit.classList.toggle('hidden', !hasDraft);
             if (btnDelete) btnDelete.classList.remove('hidden');
         }
@@ -1900,55 +1981,6 @@ function editSelectedTimesheet() {
     editTimesheet(parseInt(id));
 }
 
-async function submitAllTimesheets() {
-    const checkboxes = document.querySelectorAll('.timesheet-checkbox:checked');
-    
-    if (checkboxes.length === 0) {
-        showNotification('Please select timesheets to submit', 'error');
-        return;
-    }
-    
-    if (!confirm(`Submit ${checkboxes.length} timesheet(s) for approval?`)) {
-        return;
-    }
-    
-    let successCount = 0;
-    let failCount = 0;
-    
-    for (const checkbox of checkboxes) {
-        const id = checkbox.getAttribute('data-id');
-        
-        try {
-            const response = await fetch(`/api/timesheets/${id}/submit`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                }
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                successCount++;
-            } else {
-                failCount++;
-            }
-        } catch (error) {
-            failCount++;
-        }
-    }
-    
-    await loadTimesheets();
-    await loadStatistics();
-    
-    if (successCount > 0) {
-        showNotification(`Submitted ${successCount} timesheet(s) successfully${failCount > 0 ? `, ${failCount} failed` : ''}!`, 'success');
-    } else {
-        showNotification('Failed to submit timesheets', 'error');
-    }
-}
-
 function showRejectionReason(id) {
     const timesheet = timesheets.find(t => t.id === id);
     if (!timesheet || !timesheet.rejection_reason) {
@@ -1977,23 +2009,32 @@ async function handleFormSubmit(e) {
     }
     
     if (!employeeId) {
-        employeeId = 1;
+        showNotification('Session error: gagal mendapatkan data user. Silakan refresh halaman.', 'error');
+        return;
     }
     
     const selectedRadio = document.querySelector('input[name="timesheetType"]:checked');
     const selectedType = selectedRadio ? selectedRadio.value : 'support';
     
-    // Construct time from dropdowns
-    const startHour = document.getElementById('timesheetStartHour')?.value || '08';
-    const startMinute = document.getElementById('timesheetStartMinute')?.value || '00';
-    const endHour = document.getElementById('timesheetEndHour')?.value || '17';
-    const endMinute = document.getElementById('timesheetEndMinute')?.value || '00';
+    // Construct time from dropdowns (support type uses fixed values — time is not relevant)
+    let startTime, endTime;
+    if (selectedType === 'support') {
+        startTime = '00:00';
+        endTime   = '23:59';
+    } else {
+        const startHour   = document.getElementById('timesheetStartHour')?.value   || '08';
+        const startMinute = document.getElementById('timesheetStartMinute')?.value || '00';
+        const endHour     = document.getElementById('timesheetEndHour')?.value     || '17';
+        const endMinute   = document.getElementById('timesheetEndMinute')?.value   || '00';
+        startTime = `${startHour}:${startMinute}`;
+        endTime   = `${endHour}:${endMinute}`;
+    }
 
     const timesheetData = {
         employee_id: employeeId,
         date: document.getElementById('timesheetDate')?.value,
-        start_time: `${startHour}:${startMinute}`,
-        end_time: `${endHour}:${endMinute}`,
+        start_time: startTime,
+        end_time: endTime,
         description: document.getElementById('timesheetDescription')?.value,
     };
     
@@ -2003,7 +2044,7 @@ async function handleFormSubmit(e) {
         timesheetData.delivery_projects_id = document.getElementById('timesheetProjectId')?.value || null;
         timesheetData.activity_id = document.getElementById('timesheetActivity')?.value || null;
         timesheetData.ticket_id = null;
-        timesheetData.activity_type = 'development'; // Default for project
+        timesheetData.activity_type = document.getElementById('timesheetActivityType')?.value || 'development';
         timesheetData.presence = document.getElementById('timesheetPresence')?.value || null;
         timesheetData.location = document.getElementById('timesheetLocation')?.value || null;
         timesheetData.is_billable = document.getElementById('timesheetBillable')?.checked || false;
@@ -2243,34 +2284,20 @@ if (rejectModal) {
 
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        const timesheetModal = document.getElementById('timesheetModal');
-        const confirmDeleteModal = document.getElementById('confirmDeleteModal');
-        const confirmSubmitModal = document.getElementById('confirmSubmitModal');
-        const confirmBulkSubmitModal = document.getElementById('confirmBulkSubmitModal');
-        const confirmBulkDeleteModal = document.getElementById('confirmBulkDeleteModal');
-        const approveModal = document.getElementById('approveModal');
-        const rejectModal = document.getElementById('rejectModal');
-
-        if (timesheetModal && !timesheetModal.classList.contains('hidden')) {
-            closeTimesheetModal();
-        }
-        if (confirmDeleteModal && !confirmDeleteModal.classList.contains('hidden')) {
-            closeConfirmDelete();
-        }
-        if (confirmSubmitModal && !confirmSubmitModal.classList.contains('hidden')) {
-            closeSubmitModal();
-        }
-        if (confirmBulkSubmitModal && !confirmBulkSubmitModal.classList.contains('hidden')) {
-            closeBulkSubmitModal();
-        }
-        if (confirmBulkDeleteModal && !confirmBulkDeleteModal.classList.contains('hidden')) {
-            closeBulkDeleteModal();
-        }
-        if (approveModal && !approveModal.classList.contains('hidden')) {
-            closeApproveModal();
-        }
-        if (rejectModal && !rejectModal.classList.contains('hidden')) {
-            closeRejectModal();
-        }
+        const modals = [
+            { id: 'timesheetModal',          close: closeTimesheetModal },
+            { id: 'confirmDeleteModal',      close: closeConfirmDelete },
+            { id: 'confirmSubmitModal',      close: closeSubmitModal },
+            { id: 'confirmBulkSubmitModal',  close: closeBulkSubmitModal },
+            { id: 'confirmBulkDeleteModal',  close: closeBulkDeleteModal },
+            { id: 'approveModal',            close: closeApproveModal },
+            { id: 'rejectModal',             close: closeRejectModal },
+            { id: 'bulkApproveModal',        close: closeBulkApproveModal },
+            { id: 'bulkRejectModal',         close: closeBulkRejectModal },
+        ];
+        modals.forEach(({ id, close }) => {
+            const el = document.getElementById(id);
+            if (el && !el.classList.contains('hidden')) close();
+        });
     }
 });
