@@ -3,6 +3,12 @@
 @section('page-title', 'Delivery Support')
 @section('page-subtitle', 'Manage all support delivery items')
 
+@push('styles')
+<style>
+    .primary-focus:focus { border-color: var(--primary-color) !important; box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15) !important; outline: none !important; }
+</style>
+@endpush
+
 @section('content')
 <div class="min-h-screen bg-gray-50">
     @if(session('success'))
@@ -21,13 +27,13 @@
         <nav class="flex space-x-1 p-1" aria-label="Tabs">
             <a href="{{ route('delivery.support.index') }}"
                class="flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium text-center rounded-lg transition-all
-                      {{ Request::routeIs('delivery.support.index') ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100' }}">
+                      {{ Request::routeIs('delivery.support.index') ? 'primary-gradient text-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100' }}">
                 <i class="fas fa-headset mr-2"></i>
                 <span>Support</span>
             </a>
             <a href="{{ route('delivery.support.planning-list') }}"
                class="flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium text-center rounded-lg transition-all
-                      {{ Request::routeIs('delivery.support.planning-list') ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100' }}">
+                      {{ Request::routeIs('delivery.support.planning-list') ? 'primary-gradient text-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100' }}">
                 <i class="fas fa-tasks mr-2"></i>
                 <span>Planning</span>
             </a>
@@ -42,7 +48,7 @@
         </div>
         <div class="bg-white rounded-lg border border-gray-200 p-4">
             <p class="text-xs font-medium text-gray-500 mb-1">In Progress</p>
-            <p class="text-2xl font-bold text-blue-600" id="inProgressCount">{{ $supports->where('calculated_progress', '<', 100)->where('calculated_progress', '>', 0)->count() ?? 0 }}</p>
+            <p class="text-2xl font-bold primary-text" id="inProgressCount">{{ $supports->where('calculated_progress', '<', 100)->where('calculated_progress', '>', 0)->count() ?? 0 }}</p>
         </div>
         <div class="bg-white rounded-lg border border-gray-200 p-4">
             <p class="text-xs font-medium text-gray-500 mb-1">Completed</p>
@@ -60,7 +66,7 @@
             <div class="flex justify-between items-center flex-wrap gap-4">
                 <h3 class="text-lg font-medium text-gray-900">All Support Items</h3>
                 <a href="{{ route('delivery.support.create') }}"
-                   class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm">
+                   class="primary-gradient text-white font-bold py-2 px-4 rounded-lg hover:opacity-90 transition duration-300 text-sm">
                     <i class="fas fa-plus mr-2"></i>
                     Add Delivery Support
                 </a>
@@ -71,7 +77,7 @@
         <div class="p-4">
             <input type="search" id="support-search"
                 placeholder="Search by client, ticket ID, or description..."
-                class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition text-sm">
+                class="block w-full border-gray-300 rounded-md shadow-sm primary-focus transition text-sm">
         </div>
 
         {{-- MOBILE VIEW: Card Layout --}}
@@ -221,18 +227,6 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Auto-dismiss alerts after 5 seconds
-    setTimeout(function() {
-        const alerts = document.querySelectorAll('[id$="-alert"]');
-        alerts.forEach(function(alert) {
-            alert.style.transition = 'opacity 0.5s';
-            alert.style.opacity = '0';
-            setTimeout(function() {
-                alert.remove();
-            }, 500);
-        });
-    }, 5000);
-
     const searchInput = document.getElementById('support-search');
 
     searchInput.addEventListener('input', function() {

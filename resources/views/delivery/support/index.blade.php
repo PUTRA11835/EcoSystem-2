@@ -10,14 +10,24 @@
             <p class="text-gray-500 text-base">Manage and track all support requests</p>
         </div>
         
-        <!-- View Toggle for Employee (Role 2) -->
-        @if(session('user')['role']['id'] == 2)
+        <!-- View Toggle -->
+        @php $viewRoleId = session('user')['role']['id'] ?? 0; @endphp
+        @if($viewRoleId == 2)
+        <div class="inline-flex bg-gray-100 rounded-xl p-1.5 shadow-sm">
+            <button onclick="toggleView('my')" id="btnViewMy" class="px-6 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200">
+                My Tickets
+            </button>
+            <button onclick="toggleView('unassign')" id="btnViewUnassign" class="px-6 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200">
+                Unassign
+            </button>
+        </div>
+        @elseif($viewRoleId == 1 || $viewRoleId == 5)
         <div class="inline-flex bg-gray-100 rounded-xl p-1.5 shadow-sm">
             <button onclick="toggleView('all')" id="btnViewAll" class="px-6 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200">
                 All Tickets
             </button>
-            <button onclick="toggleView('my')" id="btnViewMy" class="px-6 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200">
-                My Tickets
+            <button onclick="toggleView('unassign')" id="btnViewUnassign" class="px-6 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200">
+                Unassign
             </button>
         </div>
         @endif
@@ -441,12 +451,12 @@
 }
 
 /* View Toggle Buttons */
-#btnViewAll, #btnViewMy {
+#btnViewAll, #btnViewMy, #btnViewUnassign {
     background: transparent;
     color: #6b7280;
 }
 
-#btnViewAll.active, #btnViewMy.active {
+#btnViewAll.active, #btnViewMy.active, #btnViewUnassign.active {
     background: white;
     color: #111827;
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
@@ -483,15 +493,15 @@
     let currentPage = 1;
     let totalItems = 0;
     let totalPages = 0;
-    let currentView = 'all'; // for employee toggle
     let userRole = {{ session('user')['role']['id'] ?? 0 }};
     let userId = {{ session('user')['id'] ?? 0 }};
+    // Role 2 defaults to 'my'; role 1/5 defaults to 'all'
+    let currentView = (userRole === 2) ? 'my' : 'all';
 
     document.addEventListener('DOMContentLoaded', function() {
         loadTickets();
-        
-        // Initialize view toggle for employee
-        if (userRole === 2) {
+
+        if (userRole === 2 || userRole === 1 || userRole === 5) {
             updateViewToggle();
         }
     });
@@ -503,17 +513,16 @@
     }
 
     function updateViewToggle() {
-        if (userRole !== 2) return;
-        
-        const btnAll = document.getElementById('btnViewAll');
-        const btnMy = document.getElementById('btnViewMy');
-        
-        if (currentView === 'all') {
-            btnAll.classList.add('active');
-            btnMy.classList.remove('active');
-        } else {
-            btnMy.classList.add('active');
-            btnAll.classList.remove('active');
+        const btnAll      = document.getElementById('btnViewAll');
+        const btnMy       = document.getElementById('btnViewMy');
+        const btnUnassign = document.getElementById('btnViewUnassign');
+
+        if (userRole === 2) {
+            if (btnMy)       btnMy.classList.toggle('active',       currentView === 'my');
+            if (btnUnassign) btnUnassign.classList.toggle('active', currentView === 'unassign');
+        } else if (userRole === 1 || userRole === 5) {
+            if (btnAll)      btnAll.classList.toggle('active',      currentView === 'all');
+            if (btnUnassign) btnUnassign.classList.toggle('active', currentView === 'unassign');
         }
     }
 
@@ -523,17 +532,20 @@
             document.getElementById('ticketsContainer').classList.add('hidden');
             document.getElementById('emptyState').classList.add('hidden');
             
-            // Determine endpoint based on role and view
+            // Determine endpoint based on role and current view
             let endpoint = '/api/tickets';
-            
+
             if (userRole === 3) {
-                // Customer - only their tickets
+                // EC User — only their own tickets
                 endpoint = '/api/tickets/my';
-            } else if (userRole === 2 && currentView === 'my') {
-                // Employee viewing their tickets
-                endpoint = '/api/tickets/my';
+            } else if (userRole === 2) {
+                // Delivery Support User: "My Tickets" or "Unassign" (unassigned = /api/tickets, backend already filters)
+                endpoint = (currentView === 'my') ? '/api/tickets/my' : '/api/tickets';
+            } else if ((userRole === 1 || userRole === 5) && currentView === 'unassign') {
+                // Admin / Head of Support viewing only unassigned tickets
+                endpoint = '/api/tickets?unassigned=1';
             }
-            // Admin and Employee (all view) use default endpoint
+            // Other views / roles use /api/tickets (all tickets)
             
             const response = await fetch(endpoint, {
                 method: 'GET',

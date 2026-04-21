@@ -312,6 +312,7 @@
     // Save customer basic data
     async function saveCustomerBasicData(customerId) {
         const basicData = {
+            customer_code: getValue('customerCode').toUpperCase(),
             title: getValue('title'),
             name_1: getValue('name1'),
             name_2: getValue('name2'),

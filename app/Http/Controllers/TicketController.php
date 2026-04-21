@@ -23,7 +23,7 @@ class TicketController extends Controller
         $roleName = match($sessionUser['role']['id']) {
             RoleId::ADMIN->value    => 'Admin',
             RoleId::EMPLOYEE->value => 'Employee',
-            RoleId::CUSTOMER->value => 'Customer',
+            RoleId::INTERNSHIP->value => 'Customer',
             default                 => 'Unknown'
         };
         
@@ -51,7 +51,7 @@ class TicketController extends Controller
     /**
      * Display a listing of tickets
      */
-    public function index()
+    public function index(Request $request)
     {
         try {
             $sessionUser = session('user');
@@ -70,15 +70,20 @@ class TicketController extends Controller
                 'role_id' => $sessionUser['role']['id']
             ]);
 
-            // Admin: bisa lihat semua ticket tanpa pembatasan
+            $filterUnassigned = $request->boolean('unassigned');
+
+            // Admin: bisa lihat semua ticket, atau filter unassigned jika ?unassigned=1
             if ($sessionUser['role']['id'] === RoleId::ADMIN->value) {
-                Log::info('Admin viewing all tickets');
+                Log::info('Admin viewing tickets', ['unassigned' => $filterUnassigned]);
 
-                $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
-                    ->get();
+                $query = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+                if ($filterUnassigned) {
+                    $query->whereNull('employee_id');
+                }
+                $tickets = $query->get();
 
-            // Employee: tampilkan ticket unassigned (belum ada PIC)
+            // Employee: tampilkan ticket unassigned (belum ada PIC) — frontend /api/tickets maps to "Unassign" tab
             } elseif ($sessionUser['role']['id'] === RoleId::EMPLOYEE->value) {
                 Log::info('Employee viewing unassigned tickets');
 
@@ -87,13 +92,16 @@ class TicketController extends Controller
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
 
-            // Helpdesk, RPMO, Head of Project, Head of Support: lihat semua ticket
+            // Helpdesk, RPMO, Head of Project, Head of Support: lihat semua ticket, atau filter unassigned jika ?unassigned=1
             } elseif (in_array($sessionUser['role']['id'], array_merge(RoleId::HEAD_GROUP, RoleId::HELPDESK_GROUP), true)) {
-                Log::info('Staff viewing all tickets', ['role_id' => $sessionUser['role']['id']]);
+                Log::info('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
 
-                $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
-                    ->get();
+                $query = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+                if ($filterUnassigned) {
+                    $query->whereNull('employee_id');
+                }
+                $tickets = $query->get();
 
             } else {
                 return response()->json([
@@ -142,6 +150,7 @@ class TicketController extends Controller
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
+                        'customer_code' => $ticket->customer->customer_code,
                     ] : null,
                     'employee' => $ticket->employee ? [
                         'employee_id' => $ticket->employee->employee_id,
@@ -431,6 +440,7 @@ class TicketController extends Controller
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
+                        'customer_code' => $ticket->customer->customer_code,
                     ] : null,
                     'employee' => $ticket->employee ? [
                         'employee_id' => $ticket->employee->employee_id,
@@ -956,7 +966,7 @@ class TicketController extends Controller
                 ->findOrFail($id);
 
             // Customer can only see their own tickets
-            if ($sessionUser['role']['id'] === RoleId::CUSTOMER->value) {
+            if ($sessionUser['role']['id'] === RoleId::INTERNSHIP->value) {
                 if ((int) $ticket->customer_id !== (int) $sessionUser['id']) {
                     return response()->json([
                         'success' => false,
@@ -1037,7 +1047,7 @@ class TicketController extends Controller
         $roleId     = $sessionUser['role']['id'] ?? 0;
         $isAdmin    = $roleId === RoleId::ADMIN->value;
         $isHelpdesk = in_array($roleId, RoleId::HELPDESK_GROUP, true);
-        $isEmployee = $roleId !== RoleId::CUSTOMER->value && $roleId > 0;
+        $isEmployee = $roleId !== RoleId::INTERNSHIP->value && $roleId > 0;
 
         if (!$sessionUser) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);

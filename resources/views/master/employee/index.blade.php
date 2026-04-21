@@ -344,7 +344,8 @@
 
 <!-- Modal Change Role (multi-select via checkboxes) -->
 <div id="changeRoleModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
-    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+    <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
+        <!-- Header -->
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
             <div>
                 <h3 class="text-lg font-bold text-gray-900">Assign Roles</h3>
@@ -356,14 +357,36 @@
                 </svg>
             </button>
         </div>
-        <div class="p-6">
+
+        <div class="px-6 pt-4 pb-2">
             <input type="hidden" id="crEmployeeId">
-            <p class="text-xs font-semibold text-gray-600 mb-3">Select Roles <span class="text-red-600">*</span> <span class="font-normal text-gray-400">(pilih satu atau lebih)</span></p>
-            <div id="crRoleCheckboxes" class="space-y-2 max-h-60 overflow-y-auto pr-1">
-                <p class="text-sm text-gray-400">Loading roles...</p>
+
+            <!-- Search + count -->
+            <div class="flex items-center gap-3 mb-3">
+                <div class="relative flex-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                    </svg>
+                    <input id="crRoleSearch" type="text" placeholder="Cari role…"
+                        oninput="filterCrRoles()"
+                        class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                </div>
+                <span id="crRoleCount" class="text-xs text-gray-400 whitespace-nowrap"></span>
             </div>
+
+            <p class="text-xs font-semibold text-gray-600 mb-3">Select Roles <span class="text-red-600">*</span> <span class="font-normal text-gray-400">(pilih satu atau lebih)</span></p>
         </div>
-        <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+
+        <!-- Role grid — 2 kolom -->
+        <div class="px-6 pb-2 max-h-72 overflow-y-auto">
+            <div id="crRoleCheckboxes" class="grid grid-cols-2 gap-2">
+                <p class="col-span-2 text-sm text-gray-400">Loading roles...</p>
+            </div>
+            <p id="crRoleEmpty" class="hidden text-sm text-center text-gray-400 py-6">Tidak ada role yang cocok</p>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
             <button onclick="closeChangeRoleModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Cancel</button>
             <button onclick="submitChangeRole()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Save Roles
@@ -900,28 +923,71 @@
         }
     }
 
+    // Render satu item checkbox role
+    function crRoleItemHtml(r, checked) {
+        return `
+            <label class="cr-role-item flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-all
+                ${checked ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:bg-purple-50 hover:border-purple-300'}"
+                data-name="${r.name.toLowerCase()}">
+                <input type="checkbox" value="${r.id}"
+                    class="cr-role-checkbox mt-0.5 w-4 h-4 shrink-0 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                    ${checked ? 'checked' : ''}
+                    onchange="onCrRoleChange(this)">
+                <span class="text-xs font-semibold text-gray-800 leading-tight">${r.name}</span>
+            </label>`;
+    }
+
+    function onCrRoleChange(cb) {
+        const label = cb.closest('label');
+        if (cb.checked) {
+            label.classList.add('border-red-300', 'bg-red-50');
+            label.classList.remove('border-gray-200', 'hover:bg-purple-50', 'hover:border-purple-300');
+        } else {
+            label.classList.remove('border-red-300', 'bg-red-50');
+            label.classList.add('border-gray-200', 'hover:bg-purple-50', 'hover:border-purple-300');
+        }
+        updateCrCount();
+    }
+
+    function updateCrCount() {
+        const total   = document.querySelectorAll('.cr-role-checkbox').length;
+        const checked = document.querySelectorAll('.cr-role-checkbox:checked').length;
+        const el = document.getElementById('crRoleCount');
+        if (el) el.textContent = checked ? `${checked} dipilih dari ${total}` : `${total} roles`;
+    }
+
+    function filterCrRoles() {
+        const q = (document.getElementById('crRoleSearch')?.value || '').toLowerCase().trim();
+        const items = document.querySelectorAll('.cr-role-item');
+        let visible = 0;
+        items.forEach(item => {
+            const match = !q || item.dataset.name.includes(q);
+            item.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        const empty = document.getElementById('crRoleEmpty');
+        if (empty) empty.classList.toggle('hidden', visible > 0);
+    }
+
     async function openChangeRoleModal(employeeId, employeeName, currentRoleIds) {
         await loadRoles();
 
         document.getElementById('crEmployeeId').value = employeeId;
         document.getElementById('crEmployeeName').textContent = employeeName;
 
+        // Reset search
+        const searchEl = document.getElementById('crRoleSearch');
+        if (searchEl) searchEl.value = '';
+
         const container = document.getElementById('crRoleCheckboxes');
+        const empty     = document.getElementById('crRoleEmpty');
+        if (empty) empty.classList.add('hidden');
 
         if (!allRoles.length) {
-            container.innerHTML = '<p class="text-sm text-gray-400">No roles available</p>';
+            container.innerHTML = '<p class="col-span-2 text-sm text-gray-400">No roles available</p>';
         } else {
-            container.innerHTML = allRoles.map(r => `
-                <label class="flex items-start gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-purple-50 hover:border-purple-300 transition-all">
-                    <input type="checkbox" value="${r.id}"
-                        class="cr-role-checkbox mt-0.5 w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 cursor-pointer"
-                        ${currentRoleIds.includes(r.id) ? 'checked' : ''}>
-                    <div>
-                        <p class="text-sm font-semibold text-gray-800">${r.name}</p>
-                        ${r.description ? `<p class="text-xs text-gray-500 mt-0.5">${r.description}</p>` : ''}
-                    </div>
-                </label>
-            `).join('');
+            container.innerHTML = allRoles.map(r => crRoleItemHtml(r, currentRoleIds.includes(r.id))).join('');
+            updateCrCount();
         }
 
         document.getElementById('changeRoleModal').classList.remove('hidden');

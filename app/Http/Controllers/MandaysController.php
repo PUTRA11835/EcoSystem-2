@@ -393,8 +393,8 @@ class MandaysController extends Controller
         $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
         $proposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
 
-        if (!$proposal || !in_array($proposal->status, ['pending_helpdesk', 'sent_to_chat'])) {
-            return response()->json(['success' => false, 'message' => 'No pending proposal to approve.'], 422);
+        if (!$proposal || $proposal->status !== 'sent_to_chat') {
+            return response()->json(['success' => false, 'message' => 'Proposal must be sent to customer chat before it can be approved.'], 422);
         }
 
         $proposal->update(['status' => 'approved']);
@@ -496,7 +496,7 @@ class MandaysController extends Controller
         if ($existing && $existing->status === 'pending_approval') {
             return response()->json([
                 'success' => false,
-                'message' => 'Cannot edit while pending Head of Support approval.',
+                'message' => 'Cannot edit while pending Delivery Support Head approval.',
             ], 422);
         }
 
@@ -575,7 +575,7 @@ class MandaysController extends Controller
 
         return response()->json([
             'success'                 => true,
-            'message'                 => 'Internal proposal submitted to Head of Support.',
+            'message'                 => 'Internal proposal submitted to Delivery Support Head.',
             'internal_mandays_status' => 'pending_head',
         ]);
     }
@@ -821,6 +821,27 @@ class MandaysController extends Controller
             'success'               => true,
             'data'                  => $versions,
             'ticket_mandays_status' => $ticket->mandays_proposal_status ?? 'none',
+        ]);
+    }
+
+    /**
+     * GET /api/tickets/{ticketId}/consultant-mandays/approved
+     * Returns the latest approved consultant (internal) mandays total for a ticket.
+     * Used by the timesheet modal to auto-fill Jatah MD.
+     */
+    public function getApprovedConsultantMandays($ticketId)
+    {
+        $approved = ConsultantMandays::where('ticket_id', $ticketId)
+            ->where('status', 'approved')
+            ->orderBy('approved_at', 'desc')
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $approved ? [
+                'total_mandays' => (float) $approved->total_mandays,
+                'approved_at'   => $approved->approved_at?->toISOString(),
+            ] : null,
         ]);
     }
 
