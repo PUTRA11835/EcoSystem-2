@@ -22,11 +22,4 @@ class StagingAttachment extends Model
         return $this->belongsTo(StagingTicket::class, 'staging_id');
     }
 
-    /**
-     * URL publik untuk download file.
-     */
-    public function getPublicUrlAttribute(): string
-    {
-        return '/storage/' . $this->file_path;
-    }
 }

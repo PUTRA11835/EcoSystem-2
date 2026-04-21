@@ -101,6 +101,7 @@ class TicketMessageController extends Controller
         $validator = Validator::make($request->all(), [
             'message_body'            => 'nullable|string',
             'message_type'            => 'required|in:reply,internal_note',
+            'cc_emails'               => 'nullable',
             'attachments'             => 'nullable|array',
             'attachments.*'           => 'file|max:10240', // maks 10 MB per file
             'mentioned_employee_ids'  => 'nullable|array',
@@ -174,10 +175,28 @@ class TicketMessageController extends Controller
             //   1. graph_message_id = Sent Items ID (valid untuk proxy attachment)
             //   2. email_message_id selalu terisi (untuk reply-chain selanjutnya)
             //   3. channel = 'email' sejak awal (tidak perlu update setelah kirim)
+            // Parse CC dari request — jika dikirim, override ticket.cc_emails
+            $requestCcRaw = $request->input('cc_emails');
+            $requestCc    = null;
+            if ($requestCcRaw !== null) {
+                if (is_array($requestCcRaw)) {
+                    $requestCc = $requestCcRaw;
+                } else {
+                    $decoded   = json_decode($requestCcRaw, true);
+                    $requestCc = is_array($decoded) ? $decoded : [];
+                }
+            }
+
             $uploadedFiles = $request->hasFile('attachments') ? $request->file('attachments') : [];
             $message       = null;
 
             if ($request->message_type === 'reply') {
+                // Simpan CC baru ke ticket agar reply berikutnya juga pakai CC yang sama
+                if ($requestCc !== null) {
+                    $ticket->update(['cc_emails' => $requestCc]);
+                    $ticket->refresh();
+                }
+
                 $customerEmail = $this->resolveCustomerEmail($ticket);
                 if ($customerEmail) {
                     // Email-first: kirim → dapat hasil → simpan ke DB
@@ -187,7 +206,7 @@ class TicketMessageController extends Controller
                         'sender_name'  => $senderName,
                         'message'      => trim(strip_tags($messageBody)),
                         'message_html' => $messageBody,
-                    ], $uploadedFiles, $ticketId, $senderId);
+                    ], $uploadedFiles, $ticketId, $senderId, $requestCc);
                 }
 
                 if (!$message) {
@@ -593,7 +612,8 @@ class TicketMessageController extends Controller
         array  $msgData,
         array  $files,
         int    $ticketId,
-        int    $senderId
+        int    $senderId,
+        ?array $ccOverride = null
     ): ?TicketMessage {
         try {
             $customerEmail = $this->resolveCustomerEmail($ticket);
@@ -609,19 +629,23 @@ class TicketMessageController extends Controller
                 ->first();
             $inReplyTo = $lastEmailMsg?->email_message_id;
 
-            // Ambil CC: utamakan ticket.cc_emails (sumber terpercaya), fallback ke pesan pertama
-            $ccList = [];
-            if (!empty($ticket->cc_emails)) {
-                $ccList = is_array($ticket->cc_emails) ? $ticket->cc_emails : (json_decode($ticket->cc_emails, true) ?? []);
-            }
-            if (empty($ccList)) {
-                $firstMsgWithCc = TicketMessage::where('ticket_id', $ticketId)
-                    ->whereNotNull('cc_emails')
-                    ->orderBy('created_at', 'asc')
-                    ->first();
-                $ccList = $firstMsgWithCc?->cc_emails
-                    ? (is_array($firstMsgWithCc->cc_emails) ? $firstMsgWithCc->cc_emails : (json_decode($firstMsgWithCc->cc_emails, true) ?? []))
-                    : [];
+            // CC: pakai override dari request jika ada, fallback ke ticket.cc_emails, lalu pesan pertama
+            if ($ccOverride !== null) {
+                $ccList = $ccOverride;
+            } else {
+                $ccList = [];
+                if (!empty($ticket->cc_emails)) {
+                    $ccList = is_array($ticket->cc_emails) ? $ticket->cc_emails : (json_decode($ticket->cc_emails, true) ?? []);
+                }
+                if (empty($ccList)) {
+                    $firstMsgWithCc = TicketMessage::where('ticket_id', $ticketId)
+                        ->whereNotNull('cc_emails')
+                        ->orderBy('created_at', 'asc')
+                        ->first();
+                    $ccList = $firstMsgWithCc?->cc_emails
+                        ? (is_array($firstMsgWithCc->cc_emails) ? $firstMsgWithCc->cc_emails : (json_decode($firstMsgWithCc->cc_emails, true) ?? []))
+                        : [];
+                }
             }
 
             // ── Kirim email ───────────────────────────────────────────────────
@@ -710,7 +734,7 @@ class TicketMessageController extends Controller
         <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#374151;line-height:1.7;max-width:600px;">
             {$body}
             <p style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;">
-                Sent by <strong style="color:#6b7280;">{$agent}</strong> &mdash; PT Eclectic Consulting Yogyakarta<br>
+                Sent by <strong style="color:#6b7280;">{$agent}</strong> &mdash; PT Eclectic Consulting<br>
                 Ticket: <strong style="color:#6b7280;">#{$ticketNum}</strong>
             </p>
         </div>

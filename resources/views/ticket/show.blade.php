@@ -170,6 +170,32 @@
             </div>
             @endif
 
+            {{-- To / CC Row: hanya tampil untuk email tickets --}}
+            @if(($ticket->channel === 'email' || $ticket->email_thread_id) && !empty($customerEmail))
+            <div class="px-4 pt-1.5">
+                <div class="flex items-center gap-2 text-xs text-gray-500 px-2 py-1">
+                    <span class="font-semibold text-gray-500 flex-shrink-0">To</span>
+                    <span class="text-gray-700">{{ $customerEmail }}</span>
+                </div>
+            </div>
+            @endif
+
+            {{-- CC Row: hanya tampil untuk email tickets --}}
+            @if($ticket->channel === 'email' || $ticket->email_thread_id)
+            <div class="px-4 pt-1.5" id="ccRow">
+                <div class="flex flex-wrap items-center gap-1 min-h-[30px] border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text" onclick="document.getElementById('ccInput').focus()">
+                    <span class="text-[11px] text-gray-500 font-semibold mr-0.5 flex-shrink-0">CC</span>
+                    <div id="ccTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
+                    <input type="text" id="ccInput"
+                           placeholder="Add email and press Enter..."
+                           class="text-xs border-none bg-transparent outline-none flex-1 min-w-[150px] placeholder-gray-300 py-0.5"
+                           onkeydown="handleCcKeydown(event)"
+                           onblur="commitCcInput()"
+                           onpaste="handleCcPaste(event)">
+                </div>
+            </div>
+            @endif
+
             <div class="px-4 pt-2 pb-2">
                 {{-- Mention dropdown (positioned relative to editor wrapper) --}}
                 <div class="relative">
@@ -1243,6 +1269,66 @@
     const assignedDsType = @json(isset($deliverySupport) && $deliverySupport ? $deliverySupport->type : null);
     let quillEditor     = null;
 
+    // ── CC state ─────────────────────────────────────────────────────────────
+    let ccEmails = @json(
+        collect($ticket->cc_emails ?? [])
+            ->map(fn($c) => is_array($c) ? ($c['address'] ?? '') : (string)$c)
+            ->filter()
+            ->values()
+    );
+
+    function renderCcTags() {
+        const container = document.getElementById('ccTagsContainer');
+        if (!container) return;
+        container.innerHTML = ccEmails.map((email, i) =>
+            `<span class="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-700 text-[11px] rounded-full px-2 py-0.5 max-w-[200px]">
+                <span class="truncate">${escHtmlCC(email)}</span>
+                <button type="button" onclick="removeCcTag(${i})" class="text-blue-300 hover:text-red-500 transition-colors flex-shrink-0 leading-none ml-0.5">&times;</button>
+            </span>`
+        ).join('');
+    }
+
+    function removeCcTag(index) {
+        ccEmails.splice(index, 1);
+        renderCcTags();
+    }
+
+    function handleCcKeydown(e) {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            commitCcInput();
+        } else if (e.key === 'Backspace' && e.target.value === '' && ccEmails.length > 0) {
+            ccEmails.pop();
+            renderCcTags();
+        }
+    }
+
+    function commitCcInput() {
+        const input = document.getElementById('ccInput');
+        if (!input) return;
+        const parts = input.value.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+        let added = false;
+        for (const email of parts) {
+            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !ccEmails.includes(email)) {
+                ccEmails.push(email);
+                added = true;
+            }
+        }
+        if (added) renderCcTags();
+        input.value = '';
+    }
+
+    function handleCcPaste(e) {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text');
+        const input = document.getElementById('ccInput');
+        if (input) { input.value = text; commitCcInput(); }
+    }
+
+    function escHtmlCC(str) {
+        return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
     // ── @mention state ───────────────────────────────────────────────────────
     let pendingMentions   = [];   // [{ type:'employee'|'role', id, display }]
     let mentionQuery      = null; // null = not in mention mode
@@ -1420,6 +1506,7 @@
             }, 0);
         });
 
+        renderCcTags();
         loadMessages();
         loadSidebarTickets();
         markMessagesRead();
@@ -1990,6 +2077,7 @@
                 const formData = new FormData();
                 formData.append('message_body', htmlContent);
                 formData.append('message_type', messageType);
+                formData.append('cc_emails', JSON.stringify(ccEmails));
                 selectedFiles.forEach(file => formData.append('attachments[]', file));
                 mentionedEmployeeIds.forEach(id => formData.append('mentioned_employee_ids[]', id));
                 mentionedRoleIds.forEach(id => formData.append('mentioned_role_ids[]', id));
@@ -1999,6 +2087,7 @@
                 requestBody = JSON.stringify({
                     message_body: htmlContent,
                     message_type: messageType,
+                    cc_emails: ccEmails,
                     mentioned_employee_ids: mentionedEmployeeIds,
                     mentioned_role_ids: mentionedRoleIds,
                 });

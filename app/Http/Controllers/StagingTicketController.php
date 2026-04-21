@@ -234,9 +234,6 @@ class StagingTicketController extends Controller
             // Jika Jarvies sudah kirim email sendiri, kirim internet_message_id-nya
             // agar EcoSystem bisa link staging ke email tersebut (ambil graph_message_id + body)
             'internet_message_id'  => 'nullable|string|max:1000',
-            // Checklist J: attachment dari web form (opsional, multipart/form-data)
-            'attachments'          => 'nullable|array',
-            'attachments.*'        => 'file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,xlsx,xls,zip',
         ]);
 
         try {
@@ -250,32 +247,9 @@ class StagingTicketController extends Controller
 
             $staging = $this->service->createFromWeb($validated, (int) $validated['customer_id']);
 
-            // Kumpulkan file attachment untuk dikirim via email
-            $attachmentFiles = [];
-
-            // Simpan attachment jika ada (Checklist J)
-            if ($request->hasFile('attachments')) {
-                foreach ($request->file('attachments') as $file) {
-                    $fileName = time() . '_' . $file->getClientOriginalName();
-                    $filePath = $file->storeAs('staging_attachments/' . $staging->id, $fileName, 'public');
-
-                    StagingAttachment::create([
-                        'staging_id'    => $staging->id,
-                        'file_name'     => $fileName,
-                        'file_path'     => $filePath,
-                        'file_size'     => $file->getSize(),
-                        'mime_type'     => $file->getMimeType(),
-                        'original_name' => $file->getClientOriginalName(),
-                    ]);
-
-                    $attachmentFiles[] = $file;
-                }
-            }
-
             Log::info('StagingTicketController@jarviesStore: staging created from JARVIES', [
-                'staging_id'       => $staging->id,
-                'customer_id'      => $validated['customer_id'],
-                'attachment_count' => count($attachmentFiles),
+                'staging_id'  => $staging->id,
+                'customer_id' => $validated['customer_id'],
             ]);
 
             // ── Link ke email Jarvies (jika internet_message_id dikirim) ─────────
@@ -630,7 +604,19 @@ class StagingTicketController extends Controller
      */
     private function sendApprovalNotification(StagingTicket $staging, Ticket $ticket, array $sessionUser): void
     {
+        // Pastikan PHP tidak timeout — Graph API bisa memakan 20-60 detik di server production
+        // (token fetch + attachment download + createReply + send = banyak HTTP round trips)
+        set_time_limit(180);
+
         try {
+            Log::info('StagingTicketController@sendApprovalNotification: mulai', [
+                'staging_id'         => $staging->id,
+                'ticket_id'          => $ticket->ticket_id,
+                'channel'            => $staging->channel,
+                'has_graph_msg'      => !empty($staging->graph_message_id),
+                'submitted_by_email' => $staging->submitted_by_email,
+            ]);
+
             // ── Ambil nama pengirim (helpdesk yang approve) ──
             $nickName = $sessionUser['nick_name'] ?? null;
             if (!$nickName) {
@@ -693,7 +679,7 @@ class StagingTicketController extends Controller
                 <tr>
                     <td style="background-color:#f9fafb;padding:14px 24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 6px 6px;">
                         <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
-                            Sent by <strong style="color:#6b7280;">{$safeAgent}</strong> &mdash; PT Eclectic Consulting Yogyakarta<br>
+                            Sent by <strong style="color:#6b7280;">{$safeAgent}</strong> &mdash; PT Eclectic Consulting<br>
                             Ticket: <strong style="color:#6b7280;">#{$safeNum}</strong> &mdash; {$safeDesc}
                         </p>
                     </td>
@@ -705,6 +691,10 @@ class StagingTicketController extends Controller
             // Diunduh SEBELUM membangun bodyHtml agar nama file bisa ditampilkan
             // di section "Original Ticket Content" sekaligus dilampirkan ke email.
             $rawAttachments = [];
+            Log::info('StagingTicketController@sendApprovalNotification: step fetch-attachments', [
+                'staging_id'      => $staging->id,
+                'graph_message_id'=> $staging->graph_message_id,
+            ]);
             if ($staging->graph_message_id) {
                 try {
                     $emailCtrl = app(EmailController::class);
@@ -779,6 +769,11 @@ class StagingTicketController extends Controller
                 HTML;
             }
 
+            Log::info('StagingTicketController@sendApprovalNotification: step create-message', [
+                'staging_id'      => $staging->id,
+                'raw_att_count'   => count($rawAttachments),
+            ]);
+
             // ── Simpan TicketMessage (tampil di semua channel — termasuk Jarvies web) ──
             $message = TicketMessage::create([
                 'ticket_id'           => $ticket->ticket_id,
@@ -811,6 +806,11 @@ class StagingTicketController extends Controller
                 'customer_email'       => $customerEmail,
                 'email_message_id'     => $staging->email_message_id,
                 'email_thread_id'      => $staging->email_thread_id,
+            ]);
+
+            Log::info('StagingTicketController@sendApprovalNotification: step send-email', [
+                'staging_id'    => $staging->id,
+                'customer_email'=> $customerEmail,
             ]);
 
             if ($customerEmail) {
@@ -883,10 +883,16 @@ class StagingTicketController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::warning('StagingTicketController@sendApprovalNotification: gagal', [
+            Log::error('StagingTicketController@sendApprovalNotification: GAGAL', [
                 'staging_id' => $staging->id,
                 'ticket_id'  => $ticket->ticket_id,
                 'error'      => $e->getMessage(),
+                'class'      => get_class($e),
+                'file'       => $e->getFile() . ':' . $e->getLine(),
+                'trace'      => array_slice(
+                    array_map(fn($f) => ($f['file'] ?? '?') . ':' . ($f['line'] ?? '?') . ' ' . ($f['function'] ?? ''),
+                    $e->getTrace()), 0, 8
+                ),
             ]);
             // Tidak throw — gagal notifikasi tidak membatalkan approval yang sudah berhasil
         }
