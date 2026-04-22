@@ -115,12 +115,13 @@ class ReportingController extends Controller
                 ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
                 ->leftJoin('customer',            'ticket.customer_id',   '=', 'customer.customer_id')
                 ->leftJoin('customer_basic_data', 'customer.customer_id', '=', 'customer_basic_data.customer_id')
-                ->where('timesheets.status', 'approved')
+                ->whereIn('timesheets.status', ['submitted', 'approved'])
                 ->whereNotNull('timesheets.ticket_id')
                 ->whereNull('timesheets.deleted_at')
                 ->select(
                     'timesheets.id',
                     'timesheets.employee_id',
+                    'timesheets.status',
                     DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
                     'timesheets.ticket_id',
                     'ticket.ticket_number',
@@ -137,7 +138,8 @@ class ReportingController extends Controller
                 $query->whereBetween('timesheets.date', [$request->start_date, $request->end_date]);
             }
 
-            $rows = $query->orderByRaw('employee_name')->orderBy('timesheets.date')->orderBy('ticket.ticket_number')->get();
+            // Sort by date asc so running totals accumulate chronologically
+            $rows = $query->orderBy('timesheets.date')->orderBy('timesheets.id')->get();
 
             // Quota per ticket
             $ticketIds = $rows->pluck('ticket_id')->unique()->values();
@@ -153,25 +155,21 @@ class ReportingController extends Controller
                     });
             }
 
-            // Compute total consumed per (employee, ticket) from fetched rows
-            // so remain/status reflect the full ticket picture within the current filter
-            $ticketTotals = [];
-            foreach ($rows as $row) {
-                $key = $row->employee_id . '_' . $row->ticket_id;
-                $ticketTotals[$key] = ($ticketTotals[$key] ?? 0) + (float) $row->md_consumed;
-            }
+            // Running cumulative MD consumed per ticket (rows sorted asc for correct accumulation)
+            $runningTotals = [];
+            $data = $rows->map(function ($row) use ($jatahMap, &$runningTotals) {
+                $jatahMd    = $jatahMap[$row->ticket_id] ?? null;
+                $mdConsumed = (float) $row->md_consumed;
 
-            $data = $rows->map(function ($row) use ($jatahMap, $ticketTotals) {
-                $jatahMd     = $jatahMap[$row->ticket_id] ?? null;
-                $mdConsumed  = (float) $row->md_consumed;
-                $key         = $row->employee_id . '_' . $row->ticket_id;
-                $ticketTotal = $ticketTotals[$key] ?? $mdConsumed;
-                $remain      = $jatahMd !== null ? round($jatahMd - $ticketTotal, 2) : null;
+                $runningTotals[$row->ticket_id] = ($runningTotals[$row->ticket_id] ?? 0) + $mdConsumed;
+                $cumulative = $runningTotals[$row->ticket_id];
 
-                if ($jatahMd === null)               $status = null;
-                elseif ($ticketTotal == $jatahMd)    $status = 'Match';
-                elseif ($ticketTotal > $jatahMd)     $status = 'Over';
-                else                                 $status = 'Less';
+                $remain = $jatahMd !== null ? round($jatahMd - $cumulative, 2) : null;
+
+                if ($jatahMd === null)           $mdStatus = null;
+                elseif ($cumulative == $jatahMd) $mdStatus = 'Match';
+                elseif ($cumulative > $jatahMd)  $mdStatus = 'Over';
+                else                             $mdStatus = 'Less';
 
                 return [
                     'id'            => $row->id,
@@ -181,12 +179,13 @@ class ReportingController extends Controller
                     'ticket_number' => $row->ticket_number,
                     'customer_name' => $row->customer_name,
                     'date'          => $row->date,
+                    'timesheet_status' => $row->status,
                     'md_consumed'   => $mdConsumed,
                     'jatah_md'      => $jatahMd,
                     'remain'        => $remain,
-                    'status'        => $status,
+                    'status'        => $mdStatus,
                 ];
-            });
+            })->reverse()->values(); // newest first for display
 
             return response()->json(['success' => true, 'data' => $data]);
 
@@ -247,9 +246,8 @@ class ReportingController extends Controller
                     'timesheets.period_year',
                     'timesheets.period_month'
                 )
-                ->orderByRaw('employee_name')
-                ->orderBy('ticket.ticket_number')
                 ->orderBy('timesheets.date')
+                ->orderBy('timesheets.id')
                 ->get();
 
             // Batch-fetch jatah MD per ticket
@@ -266,22 +264,18 @@ class ReportingController extends Controller
                     });
             }
 
-            // Compute per-(employee, ticket) totals for status column
-            $totalMap = [];
-            foreach ($rows as $r) {
-                $key = $r->employee_id . '_' . $r->ticket_id;
-                $totalMap[$key] = ($totalMap[$key] ?? 0) + (float) ($r->md_consumed ?? 0);
-            }
-
-            $exportRows = $rows->map(function ($r) use ($jatahMap, $totalMap, $periodYear, $periodMonth) {
+            $runningTotals = [];
+            $exportRows = $rows->map(function ($r) use ($jatahMap, $periodYear, $periodMonth, &$runningTotals) {
                 $jatahMd    = $jatahMap[$r->ticket_id] ?? null;
                 $mdConsumed = (float) ($r->md_consumed ?? 0);
-                $totalConsumed = $totalMap[$r->employee_id . '_' . $r->ticket_id] ?? $mdConsumed;
 
-                if ($jatahMd === null)                 $status = null;
-                elseif ($totalConsumed == $jatahMd)    $status = 'Match';
-                elseif ($totalConsumed > $jatahMd)     $status = 'Over';
-                else                                   $status = 'Less';
+                $runningTotals[$r->ticket_id] = ($runningTotals[$r->ticket_id] ?? 0) + $mdConsumed;
+                $cumulative = $runningTotals[$r->ticket_id];
+
+                if ($jatahMd === null)           $status = null;
+                elseif ($cumulative == $jatahMd) $status = 'Match';
+                elseif ($cumulative > $jatahMd)  $status = 'Over';
+                else                             $status = 'Less';
 
                 // Period: use stored override if set, else compute from date
                 if ($r->period_year && $r->period_month) {
@@ -313,7 +307,7 @@ class ReportingController extends Controller
             );
 
         } catch (\Exception $e) {
-            Log::error('exportExcel error');
+            Log::error('exportExcel error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'An error occurred'], 500);
         }
     }
@@ -357,17 +351,20 @@ class ReportingController extends Controller
                 ->whereYear('timesheets.date', $year)
                 ->whereNotNull('timesheets.presence')
                 ->select(
+                    'timesheets.id',
+                    'timesheets.date',
                     DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
                     DB::raw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END as mode"),
-                    DB::raw('SUM(COALESCE(timesheets.md_consumed, timesheets.duration_minutes / 480.0, 0)) as mandays')
+                    DB::raw('COALESCE(timesheets.md_consumed, timesheets.duration_minutes / 480.0, 0) as mandays')
                 )
-                ->groupBy('employee_basic_data.first_name', 'employee_basic_data.last_name', 'mode')
                 ->orderByRaw('employee_name')
-                ->orderBy('mode')
+                ->orderBy('timesheets.date')
                 ->get();
 
             $data = $rows->map(fn($r) => [
+                'id'      => $r->id,
                 'name'    => trim($r->employee_name),
+                'date'    => $r->date,
                 'mode'    => $r->mode,
                 'mandays' => round((float) $r->mandays, 2),
             ]);
@@ -404,17 +401,18 @@ class ReportingController extends Controller
                 ->whereYear('timesheets.date', $year)
                 ->whereNotNull('timesheets.presence')
                 ->select(
+                    'timesheets.date',
                     DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
                     DB::raw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END as mode"),
-                    DB::raw('SUM(COALESCE(timesheets.md_consumed, timesheets.duration_minutes / 480.0, 0)) as mandays')
+                    DB::raw('COALESCE(timesheets.md_consumed, timesheets.duration_minutes / 480.0, 0) as mandays')
                 )
-                ->groupBy('employee_basic_data.first_name', 'employee_basic_data.last_name', 'mode')
                 ->orderByRaw('employee_name')
-                ->orderBy('mode')
+                ->orderBy('timesheets.date')
                 ->get();
 
             $exportRows = $rows->map(fn($r) => [
                 'name'    => trim($r->employee_name),
+                'date'    => $r->date,
                 'mode'    => $r->mode,
                 'mandays' => round((float) $r->mandays, 2),
             ]);

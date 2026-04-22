@@ -294,80 +294,20 @@
                         <td class="px-4 py-3 text-center">@include('rpmo.periods._status_badge', ['status' => $p->global_status])</td>
                         <td class="px-4 py-3 text-center">@include('rpmo.periods._status_badge', ['status' => $p->project_status])</td>
                         <td class="px-4 py-3 text-center">@include('rpmo.periods._status_badge', ['status' => $p->support_status])</td>
-                        <td class="px-4 py-3">
-                            <div class="flex items-center justify-center gap-1">
-
-                                {{-- RPMO: Open Globally --}}
-                                @if($isRpmo && $p->global_status === 'not_open')
-                                <button onclick="periodAction({{ $p->id }}, 'open-global')"
-                                    title="Open Period Globally"
-                                    class="p-1.5 text-green-500 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors">
-                                    <i class="fas fa-lock-open text-xs"></i>
-                                </button>
-                                @endif
-
-                                {{-- RPMO: Close Globally --}}
-                                @if($isRpmo && $p->global_status === 'open' && $p->canCloseGlobal())
-                                <button onclick="confirmCloseGlobal({{ $p->id }}, '{{ $pLabel }}')"
-                                    title="Close Period Globally"
-                                    class="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
-                                    <i class="fas fa-lock text-xs"></i>
-                                </button>
-                                @endif
-
-                                {{-- Head: Open Domain --}}
-                                @if($isHead && $p->global_status === 'open' && $p->domainStatus($headDomain) !== 'open')
-                                <button onclick="periodAction({{ $p->id }}, 'open-domain')"
-                                    title="Open {{ ucfirst($headDomain) }} Domain"
-                                    class="p-1.5 text-green-500 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors">
-                                    <i class="fas fa-lock-open text-xs"></i>
-                                </button>
-                                @endif
-
-                                {{-- Head: Close Domain --}}
-                                @if($isHead && $p->domainStatus($headDomain) === 'open')
-                                <button onclick="confirmCloseDomain({{ $p->id }}, '{{ $headDomain }}', '{{ $pLabel }}')"
-                                    title="Close {{ ucfirst($headDomain) }} Domain"
-                                    class="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
-                                    <i class="fas fa-lock text-xs"></i>
-                                </button>
-                                @endif
-
-                                {{-- RPMO Force Close --}}
-                                @if($isRpmo && $p->global_status === 'open')
-                                    @if($p->project_status !== 'closed')
-                                    <button onclick="confirmForceClose({{ $p->id }}, 'project', '{{ $pLabel }}')"
-                                        title="Force Close Project"
-                                        class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                                        <i class="fas fa-times-circle text-xs"></i>
-                                    </button>
-                                    @endif
-                                    @if($p->support_status !== 'closed')
-                                    <button onclick="confirmForceClose({{ $p->id }}, 'support', '{{ $pLabel }}')"
-                                        title="Force Close Support"
-                                        class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                                        <i class="fas fa-times-circle text-xs"></i>
-                                    </button>
-                                    @endif
-                                @endif
-
-                                {{-- Audit Log --}}
-                                <button onclick="openAuditLog({{ $p->id }}, '{{ $pLabel }}')"
-                                    title="View Audit Log"
-                                    class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-                                    <i class="fas fa-list-alt text-xs"></i>
-                                </button>
-
-                                {{-- Head: Late Exceptions --}}
-                                @if($isHead && $active && $active->id === $p->id)
-                                <button onclick="openExceptionsModal({{ $p->id }}, '{{ $pLabel }}')"
-                                    title="Manage Late Exceptions"
-                                    class="p-1.5 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors">
-                                    <i class="fas fa-user-clock text-xs"></i>
-                                </button>
-                                @endif
-
-                            </div>
+                        <td class="px-4 py-3 text-center">
+                            <button onclick="openPeriodMenu(event, {{ $p->id }}, '{{ $pLabel }}', {
+                                    isRpmo: {{ $isRpmo ? 'true' : 'false' }},
+                                    isHead: {{ $isHead ? 'true' : 'false' }},
+                                    headDomain: '{{ $headDomain ?? '' }}',
+                                    globalStatus: '{{ $p->global_status }}',
+                                    projectStatus: '{{ $p->project_status }}',
+                                    supportStatus: '{{ $p->support_status }}',
+                                    canCloseGlobal: {{ $p->canCloseGlobal() ? 'true' : 'false' }},
+                                    isActive: {{ ($active && $active->id === $p->id) ? 'true' : 'false' }}
+                                })"
+                                class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+                                <i class="fas fa-bars text-xs"></i>
+                            </button>
                         </td>
                     </tr>
                     @endforeach
@@ -830,6 +770,84 @@ async function revokeException(excId) {
     const el = document.getElementById(id);
     if (el) el.addEventListener('click', e => { if (e.target === el) el.classList.replace('flex','hidden'); });
 });
+
+// ── Period action floating menu ───────────────────────────────────────────────
+let _pmId = null, _pmLabel = null, _pmCfg = null;
+
+function openPeriodMenu(event, id, label, cfg) {
+    event.stopPropagation();
+    _pmId    = id;
+    _pmLabel = label;
+    _pmCfg   = cfg;
+
+    const menu = document.getElementById('floatingPeriodMenu');
+    const body = document.getElementById('floatingPeriodMenuBody');
+    const btn  = event.currentTarget;
+    const rect = btn.getBoundingClientRect();
+
+    // Build menu items
+    let html = '';
+
+    if (cfg.isRpmo && cfg.globalStatus === 'not_open') {
+        html += menuItem('fa-lock-open', 'text-green-500', 'Open Period Globally', `pmAction('open-global')`);
+    }
+    if (cfg.isRpmo && cfg.globalStatus === 'open' && cfg.canCloseGlobal) {
+        html += menuItem('fa-lock', 'text-gray-500', 'Close Period Globally', `pmConfirmCloseGlobal()`);
+    }
+    if (cfg.isHead && cfg.globalStatus === 'open' && cfg.headDomain) {
+        const domSt = cfg.headDomain === 'project' ? cfg.projectStatus : cfg.supportStatus;
+        if (domSt !== 'open') {
+            html += menuItem('fa-lock-open', 'text-green-500', `Open ${cap(cfg.headDomain)} Period`, `pmAction('open-domain')`);
+        } else {
+            html += menuItem('fa-lock', 'text-gray-500', `Close ${cap(cfg.headDomain)} Period`, `pmConfirmCloseDomain()`);
+        }
+    }
+    if (cfg.isRpmo && cfg.globalStatus === 'open') {
+        if (cfg.projectStatus !== 'closed') {
+            html += menuItem('fa-times-circle', 'text-red-400', 'Force Close Project', `pmForceClose('project')`);
+        }
+        if (cfg.supportStatus !== 'closed') {
+            html += menuItem('fa-times-circle', 'text-red-400', 'Force Close Support', `pmForceClose('support')`);
+        }
+    }
+    html += menuItem('fa-list-alt', 'text-gray-400', 'Audit Log', `pmAuditLog()`);
+    if (cfg.isHead && cfg.isActive) {
+        html += menuItem('fa-user-clock', 'text-yellow-500', 'Late Exceptions', `pmExceptions()`);
+    }
+
+    body.innerHTML = html || `<p class="px-3 py-2 text-xs text-gray-400">No actions available</p>`;
+    menu.classList.remove('hidden');
+    const mw = menu.offsetWidth;
+    menu.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    menu.style.left = Math.min(rect.right - mw, window.innerWidth - mw - 8) + 'px';
+}
+
+function menuItem(icon, iconColor, label, onclick) {
+    return `<button onclick="${onclick}" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-all text-left">
+        <i class="fas ${icon} w-3.5 text-center ${iconColor}"></i>${label}
+    </button>`;
+}
+
+function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+function closePeriodMenu() { document.getElementById('floatingPeriodMenu').classList.add('hidden'); }
+
+function pmAction(action)        { closePeriodMenu(); periodAction(_pmId, action); }
+function pmConfirmCloseGlobal()  { closePeriodMenu(); confirmCloseGlobal(_pmId, _pmLabel); }
+function pmConfirmCloseDomain()  { closePeriodMenu(); confirmCloseDomain(_pmId, _pmCfg.headDomain, _pmLabel); }
+function pmForceClose(domain)    { closePeriodMenu(); confirmForceClose(_pmId, domain, _pmLabel); }
+function pmAuditLog()            { closePeriodMenu(); openAuditLog(_pmId, _pmLabel); }
+function pmExceptions()          { closePeriodMenu(); openExceptionsModal(_pmId, _pmLabel); }
+
+document.addEventListener('click', closePeriodMenu);
 </script>
 @endpush
+
+{{-- Floating period action menu --}}
+<div id="floatingPeriodMenu"
+     class="hidden fixed z-[9999] w-52 bg-white border border-gray-200 rounded-lg shadow-xl py-1"
+     onclick="event.stopPropagation()">
+    <div id="floatingPeriodMenuBody"></div>
+</div>
+
 @endsection

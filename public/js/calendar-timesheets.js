@@ -475,15 +475,15 @@ function handleTimesheetTypeChange() {
             </div>
 
             <div class="grid grid-cols-3 gap-2">
-                <div class="bg-gray-50 rounded-md border border-gray-200 p-2.5">
+                <div class="bg-gray-50 rounded-lg border border-gray-200 p-2.5">
                     <p class="text-xs font-semibold text-gray-400 mb-0.5">Customer</p>
                     <p class="text-xs font-semibold text-gray-700 truncate" id="supportCustomer">—</p>
                 </div>
-                <div class="bg-gray-50 rounded-md border border-gray-200 p-2.5">
+                <div class="bg-gray-50 rounded-lg border border-gray-200 p-2.5">
                     <p class="text-xs font-semibold text-gray-400 mb-0.5">Quota MD</p>
                     <p class="text-xs font-semibold text-gray-700" id="supportJatahMd">—</p>
                 </div>
-                <div class="bg-gray-50 rounded-md border border-gray-200 p-2.5">
+                <div class="bg-gray-50 rounded-lg border border-gray-200 p-2.5">
                     <p class="text-xs font-semibold text-gray-400 mb-0.5">Remaining</p>
                     <p class="text-xs font-bold text-gray-700" id="supportRemainingMd">—</p>
                 </div>
@@ -499,7 +499,7 @@ function handleTimesheetTypeChange() {
                         placeholder="e.g. 0.5">
                 </div>
                 <div class="flex items-end pb-0.5">
-                    <label class="flex items-center gap-2.5 p-2.5 bg-gray-50 border border-gray-200 rounded-md cursor-pointer hover:bg-gray-100 transition-colors w-full">
+                    <label class="flex items-center gap-2.5 p-2.5 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors w-full">
                         <input type="checkbox" id="supportOnSite"
                             class="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-600">
                         <span class="text-xs font-semibold text-gray-700">On Site</span>

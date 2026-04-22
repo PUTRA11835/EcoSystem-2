@@ -368,7 +368,7 @@
 
 <!-- Create/Edit Timesheet Modal -->
 <div id="timesheetModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-    <div class="bg-white shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] overflow-hidden" onclick="event.stopPropagation()">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] overflow-hidden" onclick="event.stopPropagation()">
 
         {{-- Header --}}
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
@@ -382,7 +382,7 @@
                 </div>
             </div>
             <button type="button" onclick="closeTimesheetModal()"
-                class="w-8 h-8 flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-all">
+                class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
                 </svg>
@@ -419,8 +419,8 @@
                             @if($visProject)
                             <label class="relative cursor-pointer">
                                 <input type="radio" name="timesheetType" value="project" class="peer sr-only" {{ $defType === 'project' ? 'checked' : '' }} onchange="handleTimesheetTypeChange()">
-                                <div class="flex items-center gap-2.5 px-3 py-2.5 rounded border-2 border-gray-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:border-blue-300 transition-all">
-                                    <div class="w-7 h-7 rounded bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                <div class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border-2 border-gray-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:border-blue-300 transition-all">
+                                    <div class="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
                                         <i class="fas fa-project-diagram text-xs text-blue-600"></i>
                                     </div>
                                     <span class="text-xs font-semibold text-gray-700 peer-checked:text-blue-700">Project</span>
@@ -430,8 +430,8 @@
                             @if($visSupport)
                             <label class="relative cursor-pointer">
                                 <input type="radio" name="timesheetType" value="support" class="peer sr-only" {{ $defType === 'support' ? 'checked' : '' }} onchange="handleTimesheetTypeChange()">
-                                <div class="flex items-center gap-2.5 px-3 py-2.5 rounded border-2 border-gray-200 peer-checked:border-purple-500 peer-checked:bg-purple-50 hover:border-purple-300 transition-all">
-                                    <div class="w-7 h-7 rounded bg-purple-100 flex items-center justify-center flex-shrink-0">
+                                <div class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border-2 border-gray-200 peer-checked:border-purple-500 peer-checked:bg-purple-50 hover:border-purple-300 transition-all">
+                                    <div class="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
                                         <i class="fas fa-headset text-xs text-purple-600"></i>
                                     </div>
                                     <span class="text-xs font-semibold text-gray-700 peer-checked:text-purple-700">Support</span>
@@ -441,8 +441,8 @@
                             @if($visOffice)
                             <label class="relative cursor-pointer">
                                 <input type="radio" name="timesheetType" value="office" class="peer sr-only" {{ $defType === 'office' ? 'checked' : '' }} onchange="handleTimesheetTypeChange()">
-                                <div class="flex items-center gap-2.5 px-3 py-2.5 rounded border-2 border-gray-200 peer-checked:border-gray-500 peer-checked:bg-gray-50 hover:border-gray-400 transition-all">
-                                    <div class="w-7 h-7 rounded bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                <div class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border-2 border-gray-200 peer-checked:border-gray-500 peer-checked:bg-gray-50 hover:border-gray-400 transition-all">
+                                    <div class="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
                                         <i class="fas fa-building text-xs text-gray-600"></i>
                                     </div>
                                     <span class="text-xs font-semibold text-gray-700 peer-checked:text-gray-900">Office</span>
@@ -569,7 +569,7 @@
         <div class="flex items-center justify-between px-6 py-4 border-t border-gray-100 flex-shrink-0 bg-gray-50/40">
             <p class="text-xs text-gray-400"><span class="text-red-500">*</span> Required fields</p>
             <button type="submit" form="timesheetForm"
-                class="px-6 py-2 text-sm font-semibold text-white primary-gradient hover:opacity-90 transition-all shadow-sm">
+                class="px-6 py-2 text-sm font-semibold text-white primary-gradient hover:opacity-90 transition-all shadow-sm rounded-lg">
                 Save Timesheet
             </button>
         </div>

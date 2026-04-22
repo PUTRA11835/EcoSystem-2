@@ -47,7 +47,7 @@
                 <button onclick="exportRecap()"
                     class="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-all duration-200 shadow-sm">
                     <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
-                    Export
+                    Export Excel
                 </button>
                 <button onclick="resetRecap()"
                     class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-600 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
@@ -88,13 +88,14 @@
                 <thead class="sticky top-0 z-10">
                     <tr class="bg-gray-50 border-b border-gray-200">
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-36">Mode</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-28">Date</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-28">Mode</th>
                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-28">Mandays</th>
                     </tr>
                 </thead>
                 <tbody id="recapTableBody" class="bg-white">
                     <tr>
-                        <td colspan="3" class="px-4 py-14 text-center text-gray-400 text-sm">
+                        <td colspan="4" class="px-4 py-14 text-center text-gray-400 text-sm">
                             <i class="fas fa-spinner fa-spin text-2xl mb-3 block primary-text opacity-50"></i>
                             <span class="text-gray-400">Loading data...</span>
                         </td>
@@ -152,7 +153,7 @@ async function loadRecap() {
     const tbody    = document.getElementById('recapTableBody');
     const applyBtn = document.getElementById('recapApplyBtn');
 
-    tbody.innerHTML = `<tr><td colspan="3" class="px-4 py-14 text-center text-gray-400 text-sm">
+    tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-14 text-center text-gray-400 text-sm">
         <i class="fas fa-spinner fa-spin text-2xl mb-3 block primary-text opacity-50"></i>
         <span>Loading data...</span>
     </td></tr>`;
@@ -175,7 +176,7 @@ async function loadRecap() {
 
     } catch (e) {
         console.error(e);
-        tbody.innerHTML = `<tr><td colspan="3" class="px-4 py-10 text-center text-sm">
+        tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-10 text-center text-sm">
             <div class="inline-flex flex-col items-center gap-2 text-red-500">
                 <i class="fas fa-exclamation-circle text-xl"></i>
                 <span>${escHtml(e.message)}</span>
@@ -211,67 +212,65 @@ function renderRecap() {
     }
     empty.classList.add('hidden');
 
-    // Group by employee name
-    const grouped = {};
+    const fmtDate = (d) => {
+        if (!d) return '—';
+        const [y, m, day] = String(d).split('-');
+        return `${day}/${m}/${y}`;
+    };
+    const modeBadge = (mode) => (mode || '').toLowerCase() === 'onsite'
+        ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700">OnSite</span>`
+        : `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">Remote</span>`;
+
+    // Group entries by employee (preserve insertion order = sorted by name from backend)
+    const grouped = new Map();
     recapData.forEach(row => {
-        if (!grouped[row.name]) grouped[row.name] = { onsite: 0, remote: 0 };
-        if ((row.mode || '').toLowerCase() === 'onsite') grouped[row.name].onsite += Number(row.mandays || 0);
-        else grouped[row.name].remote += Number(row.mandays || 0);
+        if (!grouped.has(row.name)) grouped.set(row.name, []);
+        grouped.get(row.name).push(row);
     });
 
-    const names       = Object.keys(grouped).sort();
-    let   totalMd     = 0;
-    let   totalOnsite = 0;
-    let   totalRemote = 0;
+    let totalMd     = 0;
+    let totalOnsite = 0;
+    let totalRemote = 0;
+    const empCount  = grouped.size;
 
     let html = '';
-    names.forEach(name => {
-        const g        = grouped[name];
-        const subtotal = g.onsite + g.remote;
-        totalMd     += subtotal;
-        totalOnsite += g.onsite;
-        totalRemote += g.remote;
-        const hasBoth = g.onsite > 0 && g.remote > 0;
+    grouped.forEach((entries, name) => {
+        const subtotal = entries.reduce((s, r) => s + Number(r.mandays || 0), 0);
+        totalMd += subtotal;
+        entries.forEach(r => {
+            if ((r.mode || '').toLowerCase() === 'onsite') totalOnsite += Number(r.mandays || 0);
+            else totalRemote += Number(r.mandays || 0);
+        });
 
-        if (hasBoth) {
-            html += `<tr class="recap-emp-row border-t border-gray-200">
-                <td class="px-4 py-2.5 text-sm font-semibold text-gray-800">${escHtml(name)}</td>
-                <td class="px-4 py-2.5"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-gray-200 text-gray-600">TOTAL</span></td>
-                <td class="px-4 py-2.5 text-sm text-center font-bold text-gray-800">${subtotal.toFixed(2)}</td>
-            </tr>
-            <tr class="recap-sub-row">
-                <td class="pl-8 pr-4 py-2 text-xs text-gray-500"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>OnSite</span></td>
-                <td class="px-4 py-2"><span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700">OnSite</span></td>
-                <td class="px-4 py-2 text-xs text-center font-medium text-green-700">${g.onsite.toFixed(2)}</td>
-            </tr>
-            <tr class="recap-sub-row">
-                <td class="pl-8 pr-4 py-2 text-xs text-gray-500"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span>Remote</span></td>
-                <td class="px-4 py-2"><span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">Remote</span></td>
-                <td class="px-4 py-2 text-xs text-center font-medium text-blue-700">${g.remote.toFixed(2)}</td>
-            </tr>`;
-        } else {
-            const isOnsite   = g.onsite > 0;
-            const modeBadge  = isOnsite
-                ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700">OnSite</span>`
-                : `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">Remote</span>`;
+        // Employee header row (name + subtotal)
+        html += `<tr class="recap-emp-row border-t-2 border-gray-200">
+            <td class="px-4 py-2.5 text-sm font-semibold text-gray-800" colspan="2">${escHtml(name)}</td>
+            <td class="px-4 py-2.5"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-gray-200 text-gray-600">SUBTOTAL</span></td>
+            <td class="px-4 py-2.5 text-sm text-center font-bold text-gray-800">${subtotal.toFixed(2)}</td>
+        </tr>`;
+
+        // One row per timesheet entry
+        entries.forEach(r => {
+            const isOnsite   = (r.mode || '').toLowerCase() === 'onsite';
             const valueColor = isOnsite ? 'text-green-700' : 'text-blue-700';
             html += `<tr class="recap-sub-row border-t border-gray-100">
-                <td class="px-4 py-3 text-sm font-medium text-gray-800">${escHtml(name)}</td>
-                <td class="px-4 py-3">${modeBadge}</td>
-                <td class="px-4 py-3 text-sm text-center font-semibold ${valueColor}">${subtotal.toFixed(2)}</td>
+                <td class="pl-8 pr-4 py-2 text-xs text-gray-400"></td>
+                <td class="px-4 py-2 text-xs text-gray-600 whitespace-nowrap">${fmtDate(r.date)}</td>
+                <td class="px-4 py-2">${modeBadge(r.mode)}</td>
+                <td class="px-4 py-2 text-xs text-center font-semibold ${valueColor}">${Number(r.mandays).toFixed(2)}</td>
             </tr>`;
-        }
+        });
     });
 
     html += `<tr class="recap-total-row border-t-2 border-gray-300">
-        <td class="px-4 py-3 text-sm font-bold text-gray-800">Grand Total</td>
-        <td class="px-4 py-3 text-xs text-gray-500">${names.length} employee${names.length !== 1 ? 's' : ''}</td>
+        <td class="px-4 py-3 text-sm font-bold text-gray-800" colspan="2">Grand Total</td>
+        <td class="px-4 py-3 text-xs text-gray-500">${empCount} employee${empCount !== 1 ? 's' : ''}</td>
         <td class="px-4 py-3 text-sm text-center font-bold primary-text">${totalMd.toFixed(2)}</td>
     </tr>`;
 
     tbody.innerHTML = html;
     document.getElementById('statTotalMd').textContent   = totalMd.toFixed(2);
-    document.getElementById('statEmployees').textContent = names.length;
+    document.getElementById('statEmployees').textContent = empCount;
     document.getElementById('statOnsiteMd').textContent  = totalOnsite.toFixed(2);
     document.getElementById('statRemoteMd').textContent  = totalRemote.toFixed(2);
     stats.classList.remove('hidden');

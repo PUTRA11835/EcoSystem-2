@@ -27,15 +27,16 @@ class MdRecapExport implements FromCollection, WithHeadings, WithStyles, ShouldA
     public function collection(): Collection
     {
         return $this->rows->map(fn($r) => [
-            'name'     => $r['name'],
-            'mode'     => $r['mode'],
-            'mandays'  => $r['mandays'],
+            'name'    => $r['name'],
+            'date'    => $r['date'],
+            'mode'    => $r['mode'],
+            'mandays' => $r['mandays'],
         ]);
     }
 
     public function headings(): array
     {
-        return ['Name', 'Mode', 'Mandays'];
+        return ['Name', 'Date', 'Mode', 'Mandays'];
     }
 
     public function styles(Worksheet $sheet): array
@@ -52,10 +53,10 @@ class MdRecapExport implements FromCollection, WithHeadings, WithStyles, ShouldA
 
         for ($i = 2; $i <= $lastRow; $i++) {
             $argb = (($i % 2) === 0) ? 'FFE2EFDA' : 'FFFFFFFF';
-            $styles["A{$i}:C{$i}"] = [
+            $styles["A{$i}:D{$i}"] = [
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => $argb]],
             ];
-            $styles["C{$i}"] = ['alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]];
+            $styles["D{$i}"] = ['alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]];
         }
 
         return $styles;
