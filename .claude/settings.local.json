@@ -88,7 +88,8 @@
       "Bash(php -r \"echo filemtime\\('c:/EcoSystem-2/public/js/calendar-timesheets.js'\\);\")",
       "Bash(php -r ' *)",
       "Bash(grep -v \"{{--\\\\|//\")",
-      "Bash(grep -l \"consultant_mandays\\\\|customer_mandays\" /c/EcoSystem-2/database/migrations/*.php)"
+      "Bash(grep -l \"consultant_mandays\\\\|customer_mandays\" /c/EcoSystem-2/database/migrations/*.php)",
+      "Bash(php artisan *)"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",

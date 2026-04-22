@@ -38,7 +38,7 @@ class TimesheetReportExport implements
                 'nama'           => $row['employee_name'] ?? '-',
                 'bulan'          => $row['period_month'],
                 'tahun'          => $row['period_year'],
-                'quota_mandays'  => $row['quota_md'],
+                'quota_mandays'  => $row['jatah_md'],
                 'realisasi_md'   => $row['md_consumed'],
                 'status'         => $row['status'] ?? '-',
             ];
