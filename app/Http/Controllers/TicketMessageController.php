@@ -330,6 +330,9 @@ class TicketMessageController extends Controller
             // email_message_id: RFC 2822 Message-ID dari email yang dikirim Jarvies via Gmail/Outlook OAuth
             // Diperlukan agar processInbox bisa dedup dan tidak menyimpan duplikat
             'email_message_id' => 'nullable|string|max:500',
+            // cc_emails: dari Jarvies (array atau JSON string). Dedup + exclude helpdesk self
+            // lalu merge ke ticket.cc_emails agar helpdesk reply form auto-populate.
+            'cc_emails'        => 'nullable',
         ]);
 
         if ($validator->fails()) {
@@ -346,6 +349,26 @@ class TicketMessageController extends Controller
             $channel        = $request->input('channel', 'web');
             $emailMessageId = $request->input('email_message_id');
 
+            // Normalize cc_emails request — support array objects, array strings, or JSON string.
+            $rawCc = $request->input('cc_emails');
+            if (is_string($rawCc) && $rawCc !== '') {
+                $decoded = json_decode($rawCc, true);
+                $rawCc = is_array($decoded) ? $decoded : [];
+            }
+            $ccList = [];
+            if (is_array($rawCc)) {
+                $senderSelf = strtolower((string) config('services.microsoft_graph.sender_email', ''));
+                $customerAddr = strtolower((string) $senderEmail);
+                foreach ($rawCc as $c) {
+                    $addr = is_array($c) ? ($c['address'] ?? '') : (string) $c;
+                    $addr = strtolower(trim($addr));
+                    if (!$addr || !filter_var($addr, FILTER_VALIDATE_EMAIL)) continue;
+                    if ($addr === $senderSelf || $addr === $customerAddr) continue;
+                    $ccList[$addr] = is_array($c) ? ['address' => $addr, 'name' => $c['name'] ?? null] : ['address' => $addr, 'name' => null];
+                }
+                $ccList = array_values($ccList);
+            }
+
             // Simpan pesan ke DB
             $message = TicketMessage::create([
                 'ticket_id'           => $ticket->ticket_id,
@@ -358,14 +381,26 @@ class TicketMessageController extends Controller
                 'is_internal_note'    => false,
                 'channel'             => $channel,
                 'email_message_id'    => $emailMessageId, // RFC 2822 Message-ID dari Gmail/Outlook OAuth
+                'cc_emails'           => !empty($ccList) ? $ccList : null,
                 'is_read_by_customer' => true,
                 'is_read_by_agent'    => false,
             ]);
 
-            $ticket->update([
+            // Merge CC reply customer ke ticket.cc_emails (dedup by address)
+            $ticketUpdate = [
                 'last_customer_reply_at' => now(),
                 'last_message_at'        => now(),
-            ]);
+            ];
+            if (!empty($ccList)) {
+                $existing = collect($ticket->cc_emails ?? [])
+                    ->map(fn ($c) => is_array($c)
+                        ? ['address' => strtolower($c['address'] ?? ''), 'name' => $c['name'] ?? null]
+                        : ['address' => strtolower((string) $c), 'name' => null])
+                    ->filter(fn ($c) => !empty($c['address']));
+                $merged = $existing->concat($ccList)->unique('address')->values()->all();
+                $ticketUpdate['cc_emails'] = $merged;
+            }
+            $ticket->update($ticketUpdate);
 
             // Relay email ke thread M365:
             // - skip_relay = true  → Jarvies sudah kirim email via OAuth customer sendiri,
@@ -547,10 +582,12 @@ class TicketMessageController extends Controller
                 $message->update(['email_message_id' => $relayInternetMsgId]);
             }
 
-            // Jika ticket belum punya email_thread_id (approval email tidak terkirim sebelumnya),
-            // simpan conversationId dari relay pertama ini sebagai thread anchor
+            // Selalu sync email_thread_id ke convId hasil relay. Exchange bisa ubah
+            // convId (misal saat subject di-patch tanpa prefix "Re:"), dan reply
+            // berikutnya dari Jarvies/EcoSystem harus ref ke convId terbaru agar
+            // Gmail menjaga thread tetap satu (tidak terpecah ke thread baru).
             $relayConvId = $result['conversation_id'] ?? null;
-            if ($relayConvId && empty($ticket->email_thread_id)) {
+            if ($relayConvId && $relayConvId !== $ticket->email_thread_id) {
                 $ticket->update(['email_thread_id' => $relayConvId]);
             }
 
@@ -675,8 +712,12 @@ class TicketMessageController extends Controller
                 'is_read_by_agent'    => true,
             ]);
 
-            // Update email_thread_id pada ticket jika belum ada
-            if (!empty($result['conversation_id']) && empty($ticket->email_thread_id)) {
+            // Selalu sync email_thread_id ke convId reply helpdesk ini (bukan hanya
+            // saat kosong). Exchange bisa ubah convId saat subject di-patch, dan
+            // reply berikutnya dari Jarvies/EcoSystem harus ref ke convId terbaru
+            // supaya Gmail client menjaga thread tetap satu.
+            if (!empty($result['conversation_id'])
+                && $result['conversation_id'] !== $ticket->email_thread_id) {
                 $ticket->update(['email_thread_id' => $result['conversation_id']]);
             }
 

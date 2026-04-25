@@ -239,6 +239,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/{id}', [StagingTicketController::class, 'show']);
         Route::get('/{id}/preview-body', [StagingTicketController::class, 'previewBody']);
         Route::get('/{id}/email-attachments', [StagingTicketController::class, 'emailAttachments']);
+        Route::get('/{id}/attachment-download', [StagingTicketController::class, 'emailAttachmentDownload']);
         Route::post('/{id}/approve', [StagingTicketController::class, 'approve']);
         Route::post('/{id}/reject', [StagingTicketController::class, 'reject']);
     });
@@ -493,6 +494,9 @@ Route::middleware(['jarvies.api_key'])->prefix('jarvies')->group(function () {
     Route::post('/staging-tickets', [StagingTicketController::class, 'jarviesStore']);
     Route::get('/staging-tickets', [StagingTicketController::class, 'index']);
     Route::get('/staging-tickets/{id}', [StagingTicketController::class, 'show']);
+    Route::get('/staging-tickets/{id}/preview-body', [StagingTicketController::class, 'previewBody']);
+    Route::get('/staging-tickets/{id}/email-attachments', [StagingTicketController::class, 'emailAttachments']);
+    Route::get('/staging-tickets/{id}/attachment-download', [StagingTicketController::class, 'emailAttachmentDownload']);
 
     // --- Customer Mandays (Jarvies customer-side) ---
     Route::get('/tickets/{ticketId}/mandays', [MandaysController::class, 'customerMandaysForJarvies']);

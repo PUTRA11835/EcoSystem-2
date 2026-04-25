@@ -331,7 +331,7 @@ class StagingTicketController extends Controller
             }
 
             // Kirim notifikasi balasan otomatis ke customer
-            $this->sendApprovalNotification($staging, $ticket, $sessionUser);
+            $this->sendApprovalNotification($staging, $ticket, $sessionUser, $firstMessage);
 
             return response()->json([
                 'success' => true,
@@ -429,13 +429,14 @@ class StagingTicketController extends Controller
                 ->listNonInlineAttachments($staging->graph_message_id);
 
             // Map ke format yang dipakai modal — tambahkan proxy URL per item
+            // Gunakan API endpoint agar bisa diakses oleh Jarvies (bukan web route)
             $data = array_map(fn ($att) => [
                 'id'            => $att['id'],
                 'name'          => $att['name'],
                 'size'          => $att['size'],
                 'content_type'  => $att['contentType'] ?? $att['content_type'] ?? null,
                 'is_inline'     => $att['isInline'] ?? false,
-                'url'           => "/staging-email-attachments/{$id}?attId=" . urlencode($att['id']),
+                'url'           => "/api/staging-tickets/{$id}/attachment-download?attId=" . urlencode($att['id']),
             ], $attachments);
 
             return response()->json(['success' => true, 'data' => $data]);
@@ -446,6 +447,65 @@ class StagingTicketController extends Controller
                 'error'            => $e->getMessage(),
             ]);
             return response()->json(['success' => true, 'data' => []]);
+        }
+    }
+
+    // ─── API: Proxy download attachment dari Graph (untuk Jarvies & EcoSystem) ──
+
+    /**
+     * GET /api/staging-tickets/{id}/attachment-download?attId={graphAttachmentId}
+     * Stream attachment langsung dari Graph API ke browser.
+     * API endpoint — dapat diakses oleh Jarvies maupun EcoSystem.
+     */
+    public function emailAttachmentDownload(\Illuminate\Http\Request $request, $id)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $attId = $request->query('attId');
+        if (!$attId) {
+            return response()->json(['success' => false, 'message' => 'Missing attId parameter'], 400);
+        }
+
+        $staging = StagingTicket::findOrFail($id);
+
+        if (!$staging->graph_message_id) {
+            return response()->json(['success' => false, 'message' => 'No email associated with this staging ticket'], 404);
+        }
+
+        try {
+            $emailCtrl = app(EmailController::class);
+            $token     = $emailCtrl->getAccessTokenPublic();
+            $sender    = config('services.microsoft_graph.sender_email');
+            $baseUrl   = rtrim(config('services.microsoft_graph.base_url', 'https://graph.microsoft.com/v1.0'), '/');
+
+            $response = Http::withToken($token)->get(
+                "{$baseUrl}/users/{$sender}/messages/{$staging->graph_message_id}/attachments/{$attId}"
+            );
+
+            if (!$response->successful()) {
+                return response()->json(['success' => false, 'message' => 'Attachment not found'], 404);
+            }
+
+            $data         = $response->json();
+            $contentBytes = base64_decode($data['contentBytes'] ?? '');
+            $contentType  = $data['contentType'] ?? 'application/octet-stream';
+            $name         = $data['name'] ?? 'attachment';
+
+            return response($contentBytes, 200, [
+                'Content-Type'        => $contentType,
+                'Content-Disposition' => 'inline; filename="' . $name . '"',
+                'Content-Length'      => strlen($contentBytes),
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('StagingTicketController@emailAttachmentDownload: gagal', [
+                'staging_id' => $id,
+                'att_id'     => $attId,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json(['success' => false, 'message' => 'Failed to retrieve attachment'], 500);
         }
     }
 
@@ -602,7 +662,7 @@ class StagingTicketController extends Controller
      * Subject email: "{ticket_number}, {original_subject}"
      * Contoh: "2603-CUST-000001, issue maret"
      */
-    private function sendApprovalNotification(StagingTicket $staging, Ticket $ticket, array $sessionUser): void
+    private function sendApprovalNotification(StagingTicket $staging, Ticket $ticket, array $sessionUser, ?TicketMessage $firstMessage = null): void
     {
         // Pastikan PHP tidak timeout — Graph API bisa memakan 20-60 detik di server production
         // (token fetch + attachment download + createReply + send = banyak HTTP round trips)
@@ -729,9 +789,25 @@ class StagingTicketController extends Controller
             }
 
             // ── Sertakan konten asli tiket sebagai quoted section ─────────────
-            // Menggunakan staging->body (HTML dari Jarvies form / email yang sudah di-proses).
-            // Ini agar customer tahu tiket mana yang sudah divalidasi beserta isinya.
-            $originalBody = $staging->body ?? null;
+            // Prioritas: $firstMessage->message_html (sudah di-rewrite oleh
+            // processAttachmentsForMessage dengan URL /storage/... yang dapat diakses
+            // oleh browser EcoSystem dan email client).
+            // Fallback #1: $staging->email_body_html + resolve inline images sebagai data URI.
+            // Fallback #2: $staging->body (hindari jika mungkin — bisa berisi URL Jarvies
+            // proxy yang tidak bisa diakses di konteks EcoSystem).
+            $originalBody = null;
+            if ($firstMessage && trim(strip_tags($firstMessage->message_html ?? '')) !== '') {
+                $originalBody = $firstMessage->message_html;
+            } elseif (!empty($staging->email_body_html) && $staging->graph_message_id) {
+                try {
+                    $originalBody = app(EmailController::class)
+                        ->resolveInlineImagesAsDataUris($staging->graph_message_id, $staging->email_body_html);
+                } catch (\Exception $e) {
+                    $originalBody = $staging->email_body_html;
+                }
+            } else {
+                $originalBody = $staging->body ?? null;
+            }
             if ($originalBody && trim(strip_tags($originalBody)) !== '') {
                 // Jadikan relative src/href URLs menjadi absolute agar gambar tampil di email client.
                 // Email client tidak bisa resolve relative URL — harus menggunakan full domain.
@@ -847,9 +923,16 @@ class StagingTicketController extends Controller
                     $rawAttachments   // forward attachment dari email [Menunggu Validasi] asal
                 );
 
-                // Simpan conversationId ke ticket agar reply berikutnya bisa threaded
+                // Simpan conversationId ke ticket agar reply berikutnya threaded ke email
+                // approval ini. PENTING: selalu overwrite, bukan hanya saat kosong.
+                //
+                // Alasan: Exchange mengubah conversationId saat subject di-patch jadi
+                // "Ticket #XXXX: ..." (tanpa prefix "Re:"). Original convId dari email
+                // customer → BEDA dengan convId approval. Jika kita tidak update, subsequent
+                // reply (dari Jarvies/EcoSystem) akan createReply pada convId lama → Gmail
+                // lihat sebagai thread baru terpisah dari thread approval.
                 $newConvId = $emailResult['conversation_id'] ?? null;
-                if ($newConvId && empty($ticket->email_thread_id)) {
+                if ($newConvId) {
                     $ticket->update(['email_thread_id' => $newConvId]);
                 }
 
