@@ -515,11 +515,42 @@ class EmailController extends Controller
                             }
                         }
 
-                        // Status diubah manual oleh helpdesk — hanya update timestamps
-                        $ticket->update([
+                        // Merge CC dari reply customer ke ticket.cc_emails — agar helpdesk
+                        // reply form otomatis show CC terbaru. Normalize ke format {address,name},
+                        // dedup by address (case-insensitive), exclude helpdesk sendiri.
+                        $ticketCcUpdate = [
                             'last_customer_reply_at' => now(),
                             'last_message_at'        => now(),
-                        ]);
+                        ];
+
+                        // Sync email_thread_id ke convId email customer reply. Jika convId
+                        // berubah (misal Exchange split thread karena subject di-patch),
+                        // ticket selalu reference thread aktif terakhir. Jarvies/EcoSystem
+                        // reply berikutnya akan createReply pada pesan di thread yang sama.
+                        if ($conversationId && $conversationId !== $ticket->email_thread_id) {
+                            $ticketCcUpdate['email_thread_id'] = $conversationId;
+                        }
+                        if (!empty($ccEmails)) {
+                            $existing = collect($ticket->cc_emails ?? [])
+                                ->map(fn ($c) => is_array($c)
+                                    ? ['address' => strtolower($c['address'] ?? ''), 'name' => $c['name'] ?? null]
+                                    : ['address' => strtolower((string) $c), 'name' => null])
+                                ->filter(fn ($c) => !empty($c['address']));
+                            $incoming = collect($ccEmails)
+                                ->map(fn ($c) => [
+                                    'address' => strtolower($c['address'] ?? ''),
+                                    'name'    => $c['name'] ?? null,
+                                ])
+                                ->filter(fn ($c) => !empty($c['address']));
+                            $senderLower = strtolower((string) $sender);
+                            $merged = $existing->concat($incoming)
+                                ->reject(fn ($c) => $c['address'] === $senderLower)
+                                ->unique('address')
+                                ->values()
+                                ->all();
+                            $ticketCcUpdate['cc_emails'] = $merged;
+                        }
+                        $ticket->update($ticketCcUpdate);
 
                     } else {
                         // Dedup staging: skip jika sudah pernah masuk staging dengan internet_message_id ini

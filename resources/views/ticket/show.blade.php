@@ -1354,6 +1354,43 @@
         return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    // Ekstrak alamat email dari raw CC value — dukung string, {address,name}, atau JSON string.
+    function normalizeCcEntry(c) {
+        if (!c) return '';
+        if (typeof c === 'string') return c.trim().toLowerCase();
+        if (typeof c === 'object' && c.address) return String(c.address).trim().toLowerCase();
+        return '';
+    }
+
+    // Merge CC dari message baru customer ke state ccEmails (dedup, skip email customer
+    // itu sendiri & helpdesk sender). Panggil setelah polling deteksi message baru.
+    function mergeCustomerCcFromMessages(newMessages) {
+        if (!Array.isArray(newMessages) || newMessages.length === 0) return;
+        const customerEmail = @json(strtolower($ticket->customer?->email ?? ''));
+        const senderSelf    = @json(strtolower(config('services.microsoft_graph.sender_email') ?? ''));
+        const excludeSet    = new Set([customerEmail, senderSelf].filter(Boolean));
+        const existingSet   = new Set(ccEmails.map(e => String(e).toLowerCase()));
+        let changed = false;
+        for (const msg of newMessages) {
+            if (msg.sender_type !== 'customer') continue;
+            let raw = msg.cc_emails;
+            if (typeof raw === 'string' && raw) {
+                try { raw = JSON.parse(raw); } catch (_) { raw = []; }
+            }
+            if (!Array.isArray(raw)) continue;
+            for (const c of raw) {
+                const addr = normalizeCcEntry(c);
+                if (!addr) continue;
+                if (excludeSet.has(addr)) continue;
+                if (existingSet.has(addr)) continue;
+                ccEmails.push(addr);
+                existingSet.add(addr);
+                changed = true;
+            }
+        }
+        if (changed) renderCcTags();
+    }
+
     // ── @mention state ───────────────────────────────────────────────────────
     let pendingMentions   = [];   // [{ type:'employee'|'role', id, display }]
     let mentionQuery      = null; // null = not in mention mode
@@ -1720,6 +1757,10 @@
                 console.log('[loadMessages] Appended', newMessages.length, 'pesan baru');
             }
 
+            // Auto-populate CC input saat ada reply customer baru yang bawa CC —
+            // helpdesk tidak perlu mengetik ulang. Helpdesk tetap bisa hapus tag.
+            mergeCustomerCcFromMessages(newMessages);
+
             thread.scrollTop = thread.scrollHeight;
 
         } catch (error) {
@@ -1812,13 +1853,17 @@
     // Inline style dipakai langsung agar tidak kalah oleh CSS cascade (Tailwind, dsb).
     const _linkStyle = 'color:#2563eb;text-decoration:underline;word-break:break-all;';
 
-    // linkifyHtml: aman untuk HTML yang sudah ada — tidak menyentuh <a> yang sudah ada.
+    // linkifyHtml: aman untuk HTML yang sudah ada — tidak menyentuh attribute di
+    // dalam tag (mis. src="http://..."). Pecah di SEMUA tag (bukan hanya <a>) agar
+    // URL di dalam atribut tidak di-linkify (yang bikin HTML rusak, mis. <img src>
+    // berubah jadi <img src="<a href=...>URL</a>"> dan di-render sebagai text).
     function linkifyHtml(html) {
         if (!html) return html;
-        // Pecah di existing <a>...</a> lalu linkify hanya bagian di luar <a>
-        const parts = html.split(/(<a[\s\S]*?<\/a>)/gi);
+        // Split by complete HTML tag (opening/closing/self-closing). Text nodes berada
+        // di index genap, tag di index ganjil — hanya text node yang di-linkify.
+        const parts = html.split(/(<[^>]*>)/g);
         return parts.map((part, i) => {
-            if (i % 2 === 1) return part; // sudah <a> tag — skip
+            if (i % 2 === 1) return part; // tag — jangan diubah
             return part.replace(
                 /(https?:\/\/[^\s<>"'()[\]{}]+)/gi,
                 `<a href="$1" target="_blank" rel="noopener noreferrer" style="${_linkStyle}">$1</a>`
