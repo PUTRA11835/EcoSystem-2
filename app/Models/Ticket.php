@@ -22,6 +22,7 @@ class Ticket extends Model
         'end_date',
         'ticket_priority',
         'ticket_type',
+        'scale',
         'jarvies_status',
         'status',
         'wait_close',

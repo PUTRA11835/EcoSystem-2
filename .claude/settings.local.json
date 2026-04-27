@@ -89,7 +89,8 @@
       "Bash(php -r ' *)",
       "Bash(grep -v \"{{--\\\\|//\")",
       "Bash(grep -l \"consultant_mandays\\\\|customer_mandays\" /c/EcoSystem-2/database/migrations/*.php)",
-      "Bash(php artisan *)"
+      "Bash(php artisan *)",
+      "Bash(git status *)"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",

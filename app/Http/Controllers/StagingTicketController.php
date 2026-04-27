@@ -299,6 +299,10 @@ class StagingTicketController extends Controller
         $request->validate([
             'ticket_type'     => 'required|string|in:Incident,Service Request,Change Request,Consult',
             'ticket_priority' => 'required|string|in:Very High,High,Medium,Low',
+            // Scale opsional. Daftar value masih didiskusikan — `nullable|string|max:50`
+            // membatasi panjang tapi tidak mengikat ke whitelist tertentu agar
+            // mudah diubah saat opsi final disepakati.
+            'scale'           => 'nullable|string|max:50',
         ]);
 
         $staging = StagingTicket::findOrFail($id);
@@ -306,7 +310,8 @@ class StagingTicketController extends Controller
         try {
             $ticketType     = $request->input('ticket_type');
             $ticketPriority = $request->input('ticket_priority');
-            $result         = $this->service->approve($staging, $sessionUser['id'], $ticketType, $ticketPriority);
+            $scale          = $request->input('scale');
+            $result         = $this->service->approve($staging, $sessionUser['id'], $ticketType, $ticketPriority, $scale);
             $ticket       = $result['ticket'];
             $firstMessage = $result['first_message'];
 
@@ -1234,6 +1239,7 @@ class StagingTicketController extends Controller
             'body'                => $s->body,           // ← full message body dari Jarvies/web form
             'ticket_priority'     => $s->ticket?->ticket_priority ?? $s->ticket_priority,
             'ticket_type'         => $s->ticket?->ticket_type,
+            'scale'               => $s->ticket?->scale ?? $s->scale,
             'status'              => $s->status,
             'rejection_reason'    => $s->rejection_reason,
             'channel'             => $s->channel,

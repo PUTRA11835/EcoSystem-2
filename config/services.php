@@ -43,8 +43,10 @@ return [
         'base_url'      => env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'),
     ],
 
+    // Set JARVIES_URL in .env to the public JARVIES base URL in production
+    // (e.g. https://jarvies.example.com). Localhost fallback is dev-only.
     'jarvies' => [
-        'url'     => env('JARVIES_URL', 'http://127.0.0.1:8001'),
+        'url'     => env('JARVIES_URL', ''),
         'api_key' => env('JARVIES_API_KEY'),
     ],
 

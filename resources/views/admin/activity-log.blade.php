@@ -186,7 +186,13 @@
     </div>
 </div>
 
-<script src="/js/custom-dropdown.js?v=2"></script>
+{{-- Cache buster pakai filemtime supaya tiap deploy otomatis invalidate cache.
+     `@file_exists` guard mencegah error di edge case file belum ter-deploy. --}}
+@php
+    $customDdPath = public_path('js/custom-dropdown.js');
+    $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
+@endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}" onerror="window.__customDdLoadFailed=true;console.error('custom-dropdown.js gagal dimuat — dropdown filter akan jalan tanpa custom UI');"></script>
 <script>
 let currentPage  = 1;
 let currentPerPage = 25;
@@ -405,7 +411,14 @@ document.getElementById('filterSearch').addEventListener('keydown', function(e) 
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function () {
-    initCustomDropdowns();
+    // Guard: kalau custom-dropdown.js gagal di-load (404 di production / network error),
+    // jangan biarkan ReferenceError menghentikan loadStats & loadTable. Filter
+    // dropdown akan tampil sebagai elemen statis tapi data tabel tetap muncul.
+    if (typeof initCustomDropdowns === 'function') {
+        initCustomDropdowns();
+    } else {
+        console.warn('initCustomDropdowns belum tersedia — dropdown filter dinonaktifkan, tabel tetap dimuat.');
+    }
     loadStats();
     loadTable(1);
 });

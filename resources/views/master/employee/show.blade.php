@@ -407,10 +407,17 @@
 
     // Load data when page loads
     document.addEventListener('DOMContentLoaded', function() {
-        initCustomDropdowns();
+        // Guard untuk kasus custom-dropdown.js gagal di-load di production.
+        if (typeof initCustomDropdowns === 'function') {
+            initCustomDropdowns();
+        }
         console.log('Loading employee data for ID:', employeeId);
         loadEmployeeBasicData(employeeId);
     });
 </script>
-<script src="/js/custom-dropdown.js?v=2"></script>
+@php
+    $customDdPath = public_path('js/custom-dropdown.js');
+    $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
+@endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 @endsection
