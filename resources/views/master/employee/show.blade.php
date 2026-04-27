@@ -364,7 +364,14 @@
 
     function setValue(id, value) {
         const el = document.getElementById(id);
-        if (el) el.value = value || '';
+        if (!el) return;
+        if (el.type === 'hidden' && el.closest && el.closest('.custom-dd')) {
+            if (typeof setCustomDropdownValue === 'function') {
+                setCustomDropdownValue(id, value || '');
+                return;
+            }
+        }
+        el.value = value || '';
     }
 
     function getCheckbox(id) {
@@ -400,8 +407,10 @@
 
     // Load data when page loads
     document.addEventListener('DOMContentLoaded', function() {
+        initCustomDropdowns();
         console.log('Loading employee data for ID:', employeeId);
         loadEmployeeBasicData(employeeId);
     });
 </script>
+<script src="/js/custom-dropdown.js?v=2"></script>
 @endsection

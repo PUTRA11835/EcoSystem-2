@@ -340,7 +340,8 @@ Route::middleware(['web'])->group(function () {
         Route::get('/my-activities/all', [TimesheetController::class, 'allMyActivities']); // Get ALL assigned activities
         Route::get('/my-activities/{projectId}', [TimesheetController::class, 'myActivities']); // Get activities for specific project
         Route::get('/remaining-md', [TimesheetController::class, 'remainingMd']); // Remaining MD quota for a ticket
-        Route::get('/my-late-exceptions', [TimesheetController::class, 'myLateExceptions']); // Active late exceptions for current user
+        Route::get('/my-late-exceptions', [TimesheetController::class, 'myLateExceptions']); // Approved late exception requests (not expired)
+        Route::get('/valid-periods',      [TimesheetController::class, 'validPeriods']);      // Active window + late exceptions for the current user
         Route::get('/{id}', [TimesheetController::class, 'show']);
         Route::post('/', [TimesheetController::class, 'store']);
         Route::put('/{id}', [TimesheetController::class, 'update']);
@@ -379,23 +380,30 @@ Route::middleware(['web'])->group(function () {
 
     // ==================== PERIOD MANAGEMENT ROUTES ====================
     Route::prefix('periods')->group(function () {
-        Route::get('/active', [\App\Http\Controllers\PeriodManagementController::class, 'activePeriod']);
-        Route::post('/',      [\App\Http\Controllers\PeriodManagementController::class, 'store']);
+        Route::get('/active',  [\App\Http\Controllers\PeriodManagementController::class, 'activePeriod']);
+        Route::get('/closed',  [\App\Http\Controllers\PeriodManagementController::class, 'closedPeriods']);
+        Route::post('/',       [\App\Http\Controllers\PeriodManagementController::class, 'store']);
+
+        // Late exception request flow (2-level approval)
+        Route::get('/my-exception-requests',   [\App\Http\Controllers\PeriodManagementController::class, 'myExceptionRequests']);
+        Route::post('/exception-requests',     [\App\Http\Controllers\PeriodManagementController::class, 'createExceptionRequest']);
+        Route::get('/exception-requests',      [\App\Http\Controllers\PeriodManagementController::class, 'listExceptionRequests']);
+        Route::patch('/exception-requests/{exRequest}/head-decide', [\App\Http\Controllers\PeriodManagementController::class, 'headDecideRequest']);
+        Route::patch('/exception-requests/{exRequest}/rpmo-decide', [\App\Http\Controllers\PeriodManagementController::class, 'rpmoDecideRequest']);
 
         Route::prefix('/{period}')->group(function () {
             // RPMO: global lifecycle
             Route::post('/open-global',  [\App\Http\Controllers\PeriodManagementController::class, 'openGlobal']);
             Route::post('/close-global', [\App\Http\Controllers\PeriodManagementController::class, 'closeGlobal']);
             Route::post('/force-close',  [\App\Http\Controllers\PeriodManagementController::class, 'forceCloseDomain']);
+            // RPMO / Admin: edit dates & delete
+            Route::patch('/dates',       [\App\Http\Controllers\PeriodManagementController::class, 'updateDates']);
+            Route::delete('/',           [\App\Http\Controllers\PeriodManagementController::class, 'destroy']);
             // Heads: domain lifecycle
             Route::post('/open-domain',  [\App\Http\Controllers\PeriodManagementController::class, 'openDomain']);
             Route::post('/close-domain', [\App\Http\Controllers\PeriodManagementController::class, 'closeDomain']);
             // Audit logs (Admin + Heads + RPMO)
             Route::get('/audit-logs',    [\App\Http\Controllers\PeriodManagementController::class, 'auditLogs']);
-            // Late exceptions (Heads only)
-            Route::get('/exceptions',    [\App\Http\Controllers\PeriodManagementController::class, 'listExceptions']);
-            Route::post('/exceptions',   [\App\Http\Controllers\PeriodManagementController::class, 'grantException']);
-            Route::delete('/exceptions/{exception}', [\App\Http\Controllers\PeriodManagementController::class, 'revokeException']);
         });
     });
 

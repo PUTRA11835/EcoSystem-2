@@ -40,19 +40,19 @@
                 <!-- Payment Method -->
                 <div class="col-span-1">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Payment Method <span class="text-red-600">*</span></label>
-                    <div class="relative">
-                        <select id="paymentMethod" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white pr-10 appearance-none">
-                            <option value="">Select Method</option>
-                            <option value="Transfer">Transfer</option>
-                            <option value="Cash">Cash</option>
-                            <option value="E-Wallet">E-Wallet</option>
-                            <option value="Cheque">Cheque</option>
-                            <option value="Credit Card">Credit Card</option>
-                        </select>
-                        <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                            </svg>
+                    <div class="custom-dd relative">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select Method</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="paymentMethod" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Method</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Transfer">Transfer</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Cash">Cash</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="E-Wallet">E-Wallet</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Cheque">Cheque</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Credit Card">Credit Card</button>
                         </div>
                     </div>
                 </div>
@@ -66,19 +66,19 @@
                 <!-- Payment Status -->
                 <div class="col-span-1">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Status <span class="text-red-600">*</span></label>
-                    <div class="relative">
-                        <select id="paymentStatus" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white pr-10 appearance-none">
-                            <option value="">Select Status</option>
-                            <option value="Pending">Pending</option>
-                            <option value="Processing">Processing</option>
-                            <option value="Completed">Completed</option>
-                            <option value="Failed">Failed</option>
-                            <option value="Cancelled">Cancelled</option>
-                        </select>
-                        <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                            </svg>
+                    <div class="custom-dd relative">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select Status</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="paymentStatus" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Status</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Pending">Pending</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Processing">Processing</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Completed">Completed</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Failed">Failed</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Cancelled">Cancelled</button>
                         </div>
                     </div>
                 </div>
@@ -428,9 +428,9 @@
                 // Set form values
                 document.getElementById('paymentAmount').value = payment.amount || '';
                 document.getElementById('paymentPaidAt').value = payment.paid_at || '';
-                document.getElementById('paymentMethod').value = payment.payment_method || '';
+                setCustomDropdownValue('paymentMethod', payment.payment_method || '');
                 document.getElementById('paymentReferenceNumber').value = payment.reference_number || '';
-                document.getElementById('paymentStatus').value = payment.payment_status || '';
+                setCustomDropdownValue('paymentStatus', payment.payment_status || '');
                 document.getElementById('paymentValidTo').value = payment.valid_to || '';
                 document.getElementById('paymentDriveLink').value = payment.drive_link || '';
                 document.getElementById('paymentVerifyLink').value = payment.verify_link || '';
@@ -452,9 +452,9 @@
         document.getElementById('editPaymentId').value = '';
         document.getElementById('paymentAmount').value = '';
         document.getElementById('paymentPaidAt').value = new Date().toISOString().split('T')[0];
-        document.getElementById('paymentMethod').value = '';
+        setCustomDropdownValue('paymentMethod', '');
         document.getElementById('paymentReferenceNumber').value = '';
-        document.getElementById('paymentStatus').value = '';
+        setCustomDropdownValue('paymentStatus', '');
         document.getElementById('paymentValidTo').value = '';
         document.getElementById('paymentDriveLink').value = '';
         document.getElementById('paymentVerifyLink').value = '';

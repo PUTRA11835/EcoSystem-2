@@ -16,6 +16,7 @@ class Notification extends Model
         'from_employee_id',
         'from_name',
         'preview',
+        'link',
         'is_read',
         'read_at',
     ];

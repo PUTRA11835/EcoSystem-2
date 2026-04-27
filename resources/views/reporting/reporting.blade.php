@@ -25,12 +25,6 @@
         z-index: 5;
     }
 
-    /* Table totals row */
-    #rptTotalsRow td {
-        background: #f8fafc;
-        border-top: 2px solid #e2e8f0;
-    }
-
     /* Loading shimmer */
     @keyframes rptShimmer {
         0%   { opacity: 1; }
@@ -54,7 +48,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 pb-4 border-b-2 border-gray-100">
         <div>
             <h2 class="text-2xl font-bold text-gray-900">Timesheet Report</h2>
-            <p class="text-sm text-gray-500 mt-0.5">Approved support timesheets — MD quota vs consumed per ticket</p>
+            <p class="text-sm text-gray-500 mt-0.5">Approved support timesheets — MD quota vs consumed per employee</p>
         </div>
         @if($canManage)
         <div class="flex flex-wrap items-center gap-2">
@@ -161,18 +155,36 @@
             <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filters</span>
         </div>
         <div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {{-- Start Date --}}
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {{-- Period --}}
                 <div class="flex flex-col">
-                    <label class="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Start Date</label>
-                    <input type="date" id="rptStartDate"
-                        class="px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus bg-white transition-shadow">
-                </div>
-                {{-- End Date --}}
-                <div class="flex flex-col">
-                    <label class="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">End Date</label>
-                    <input type="date" id="rptEndDate"
-                        class="px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus bg-white transition-shadow">
+                    <label class="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Period</label>
+                    <div class="flex items-center gap-2">
+                        <div class="custom-dd relative flex-1" data-onchange="updateRptPeriodLabel">
+                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                <span class="custom-dd-label text-gray-700">—</span>
+                                <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <input type="hidden" id="rptMonth" value="">
+                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;min-width:140px;">
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="1">January</button>
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="2">February</button>
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="3">March</button>
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="4">April</button>
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="5">May</button>
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="6">June</button>
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="7">July</button>
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="8">August</button>
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="9">September</button>
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="10">October</button>
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="11">November</button>
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="12">December</button>
+                            </div>
+                        </div>
+                        <input type="number" id="rptYear" min="2000" step="1" onchange="updateRptPeriodLabel()"
+                            class="px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus bg-white transition-shadow" style="width:90px;">
+                    </div>
+                    <p id="rptPeriodRange" class="text-xs text-gray-400 mt-1.5"></p>
                 </div>
                 {{-- Employee Search --}}
                 <div class="flex flex-col">
@@ -188,33 +200,28 @@
                 {{-- Status --}}
                 <div class="flex flex-col">
                     <label class="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Status</label>
-                    <div class="relative">
-                        <select id="rptFilterStatus"
-                            class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm primary-focus bg-white appearance-none transition-shadow">
-                            <option value="">All Status</option>
-                            <option value="Match">Match</option>
-                            <option value="Less">Less</option>
-                            <option value="Over">Over</option>
-                        </select>
-                        <svg class="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
+                    <div class="custom-dd relative" data-onchange="applyRptFilter">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">All Status</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="rptFilterStatus" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Match">Match</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Less">Less</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Over">Over</button>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="flex gap-2 justify-end mt-3 pt-3 border-t border-gray-100">
                 <button onclick="resetReport()"
                     class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-600 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                    </svg>
                     Reset
                 </button>
                 <button id="btnApplyReport" onclick="loadReport()"
                     class="inline-flex items-center gap-1.5 px-5 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200 shadow-sm">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                    </svg>
                     Apply
                 </button>
             </div>
@@ -271,6 +278,7 @@
 
 
 @push('scripts')
+<script src="/js/custom-dropdown.js?v={{ filemtime(public_path('js/custom-dropdown.js')) }}"></script>
 <script>
 let rptAllData    = [];
 let rptFiltered   = [];
@@ -282,6 +290,7 @@ const MONTH_NAMES = ['January','February','March','April','May','June',
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', function () {
+    if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
     initPeriodDates();
     @if($canManage)
     loadCurrentPeriod();
@@ -290,31 +299,47 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Live employee name filter
     document.getElementById('rptFilterName').addEventListener('input', applyRptFilter);
-    document.getElementById('rptFilterStatus').addEventListener('change', applyRptFilter);
+    // rptFilterStatus is now a custom dropdown — change fires via data-onchange="applyRptFilter"
 });
 
-function initPeriodDates() {
-    // Default to the CURRENT active period.
-    // Period runs 21st of month N → 20th of month N+1.
-    // If today >= 21: current period started this month (21st of current month → 20th of next month).
-    // If today < 21:  current period started last month  (21st of prev month   → 20th of current month).
+const RPT_MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function currentActivePeriod() {
     const now = new Date();
-    const day = now.getDate();
-    let startYear, startMonth; // 0-indexed month
-    if (day >= 21) {
-        startYear  = now.getFullYear();
-        startMonth = now.getMonth(); // current month
+    return now.getDate() >= 21
+        ? { month: now.getMonth() + 1, year: now.getFullYear() }          // period of this month
+        : { month: now.getMonth() === 0 ? 12 : now.getMonth(),            // period of last month
+            year:  now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear() };
+}
+
+function initPeriodDates() {
+    const p = currentActivePeriod();
+    document.getElementById('rptYear').value = p.year;
+    if (typeof setCustomDropdownValue === 'function') {
+        setCustomDropdownValue('rptMonth', String(p.month));
     } else {
-        const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        startYear  = prev.getFullYear();
-        startMonth = prev.getMonth(); // previous month
+        document.getElementById('rptMonth').value = p.month;
     }
-    const endMonth = startMonth === 11 ? 0 : startMonth + 1;
-    const endYear  = startMonth === 11 ? startYear + 1 : startYear;
-    const startDate = `${startYear}-${String(startMonth + 1).padStart(2,'0')}-21`;
-    const endDate   = `${endYear}-${String(endMonth + 1).padStart(2,'0')}-20`;
-    document.getElementById('rptStartDate').value = startDate;
-    document.getElementById('rptEndDate').value   = endDate;
+    updateRptPeriodLabel();
+}
+
+function updateRptPeriodLabel() {
+    const month = parseInt(document.getElementById('rptMonth').value);
+    const year  = parseInt(document.getElementById('rptYear').value);
+    if (!month || !year) return;
+    const startMonth = month === 1 ? 12 : month - 1;
+    const startYear  = month === 1 ? year - 1 : year;
+    const label = `${21} ${RPT_MONTHS_SHORT[startMonth - 1]} ${startYear} – ${20} ${RPT_MONTHS_SHORT[month - 1]} ${year}`;
+    const el = document.getElementById('rptPeriodRange');
+    if (el) el.textContent = label;
+}
+
+function periodToDateRange(month, year) {
+    const startMonth = month === 1 ? 12 : month - 1;
+    const startYear  = month === 1 ? year - 1 : year;
+    const start = `${startYear}-${String(startMonth).padStart(2,'0')}-21`;
+    const end   = `${year}-${String(month).padStart(2,'0')}-20`;
+    return { start, end };
 }
 
 // ── Period info ───────────────────────────────────────────────────────────────
@@ -367,8 +392,6 @@ function exportExcel() {
 // ── Report data ───────────────────────────────────────────────────────────────
 
 async function loadReport() {
-    const start  = document.getElementById('rptStartDate').value;
-    const end    = document.getElementById('rptEndDate').value;
     const tbody  = document.getElementById('rptTableBody');
     const btn    = document.getElementById('btnApplyReport');
 
@@ -395,9 +418,12 @@ async function loadReport() {
     document.getElementById('rptEmpty')?.classList.add('hidden');
 
     try {
+        const month = parseInt(document.getElementById('rptMonth').value);
+        const year  = parseInt(document.getElementById('rptYear').value);
+        const { start, end } = periodToDateRange(month, year);
         const params = new URLSearchParams();
-        if (start) params.append('start_date', start);
-        if (end)   params.append('end_date',   end);
+        params.append('start_date', start);
+        params.append('end_date',   end);
 
         const res  = await fetch(`/api/reporting/timesheet-support?${params}`, {
             headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },
@@ -446,14 +472,26 @@ function applyRptFilter() {
 }
 
 function filterCardStatus(status) {
-    document.getElementById('rptFilterStatus').value = status;
+    if (typeof setCustomDropdownValue === 'function') {
+        setCustomDropdownValue('rptFilterStatus', status);
+    } else {
+        document.getElementById('rptFilterStatus').value = status;
+    }
     applyRptFilter();
 }
 
 function resetReport() {
-    initPeriodDates();
-    document.getElementById('rptFilterStatus').value = '';
-    document.getElementById('rptFilterName').value   = '';
+    const p = currentActivePeriod();
+    document.getElementById('rptYear').value = p.year;
+    if (typeof setCustomDropdownValue === 'function') {
+        setCustomDropdownValue('rptMonth', String(p.month));
+        setCustomDropdownValue('rptFilterStatus', '');
+    } else {
+        document.getElementById('rptMonth').value = p.month;
+        document.getElementById('rptFilterStatus').value = '';
+    }
+    updateRptPeriodLabel();
+    document.getElementById('rptFilterName').value = '';
     rptAllData  = [];
     rptFiltered = [];
     renderRptTable();
@@ -508,36 +546,42 @@ function renderRptTable() {
     };
 
     // ── Flat list: one row per timesheet entry ─────────────────────────────
-    let rows = rptFiltered.map(row => `<tr class="hover:bg-gray-50 transition-colors border-t border-gray-100">
-        <td class="px-4 py-3 text-sm font-medium text-gray-800">${escRpt(row.employee_name)}</td>
-        <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">${fmtDate(row.date)}</td>
-        <td class="px-4 py-3 text-sm text-purple-700 font-semibold whitespace-nowrap">
-            <span class="inline-flex items-center gap-1">
-                <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    let rows = rptFiltered.map(row => {
+        const initials = (row.employee_name || '?').trim().split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+        return `<tr class="hover:bg-gray-50/60 transition-colors">
+        <td class="px-4 py-3">
+            <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center shrink-0">${initials}</div>
+                <span class="text-sm font-medium text-gray-800 leading-tight">${escRpt(row.employee_name)}</span>
+            </div>
+        </td>
+        <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">${fmtDate(row.date)}</td>
+        <td class="px-4 py-3 whitespace-nowrap">
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-xs font-semibold border border-purple-100">
+                <svg class="w-3 h-3 opacity-60 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/>
                 </svg>
                 #${escRpt(row.ticket_number || row.ticket_id)}
             </span>
         </td>
-        <td class="px-4 py-3 text-sm text-gray-600">${escRpt(row.customer_name)}</td>
-        <td class="px-4 py-3 text-sm text-center font-semibold text-gray-800">${fmt(row.md_consumed)}</td>
-        <td class="px-4 py-3 text-sm text-center font-semibold text-gray-600">${fmt(row.jatah_md)}</td>
-        <td class="px-4 py-3 text-sm text-center ${remClass(row.remain)}">${fmt(row.remain)}</td>
+        <td class="px-4 py-3 text-xs text-gray-600 max-w-[140px] truncate" title="${escRpt(row.customer_name)}">${escRpt(row.customer_name) || '<span class="text-gray-300">—</span>'}</td>
+        <td class="px-4 py-3 text-center">
+            <span class="text-sm font-bold text-gray-900">${fmt(row.md_consumed)}</span>
+            <span class="text-[10px] text-gray-400 block leading-none">MD</span>
+        </td>
+        <td class="px-4 py-3 text-center">
+            <span class="text-sm font-semibold text-gray-500">${fmt(row.jatah_md)}</span>
+            <span class="text-[10px] text-gray-400 block leading-none">quota</span>
+        </td>
+        <td class="px-4 py-3 text-center">
+            <span class="text-sm ${remClass(row.remain)}">${fmt(row.remain)}</span>
+        </td>
         <td class="px-4 py-3 text-center">${statusBadge(row.status)}</td>
         <td class="px-4 py-3 text-center">${approvalBadge(row.timesheet_status)}</td>
-    </tr>`).join('');
-
-    // ── Totals row ─────────────────────────────────────────────────────────
-    const totalConsumed = rptFiltered.reduce((s, r) => s + (Number(r.md_consumed) || 0), 0);
-
-    rows += `<tr id="rptTotalsRow">
-        <td class="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide" colspan="4">
-            Totals (${rptFiltered.length} entries)
-        </td>
-        <td class="px-4 py-3 text-sm text-center font-bold text-gray-800">${totalConsumed.toFixed(1)}</td>
-        <td class="px-4 py-3" colspan="4"></td>
     </tr>`;
+    }).join('');
+
 
     tbody.innerHTML = rows;
 }

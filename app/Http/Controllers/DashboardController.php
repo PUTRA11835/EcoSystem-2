@@ -50,6 +50,70 @@ class DashboardController extends Controller
                 'recent_activities' => [],
             ];
 
+            // Extra data for Delivery Support Head dashboard
+            if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::HEAD_OF_SUPPORT->value) {
+                $base = DB::table('ticket')->whereNull('deleted_at');
+
+                $dashboardData['ticket_stats'] = [
+                    'total'             => (clone $base)->count(),
+                    'open'              => (clone $base)->where('status', 'open')->count(),
+                    'in_process'        => (clone $base)->where('jarvies_status', 'in process')->count(),
+                    'action_required'   => (clone $base)->where('jarvies_status', 'action required')->count(),
+                    'proposed_solution' => (clone $base)->where('jarvies_status', 'proposed solution')->count(),
+                    'closed'            => (clone $base)->where('status', 'closed')->count(),
+                    'pending_approval'  => (clone $base)->where('status', 'wait_to_close')->count(),
+                    'very_high'         => (clone $base)->where('ticket_priority', 'Very High')->whereNotIn('status', ['closed', 'cancel'])->count(),
+                ];
+
+                // Chart: all tickets created in last 30 days
+                $start30 = now()->subDays(29)->startOfDay();
+                $byDay = DB::table('ticket')
+                    ->whereNull('deleted_at')
+                    ->where('created_at', '>=', $start30)
+                    ->select(DB::raw('DATE(created_at) as day'), DB::raw('COUNT(*) as cnt'))
+                    ->groupBy('day')
+                    ->pluck('cnt', 'day')
+                    ->toArray();
+
+                $chartLabels = [];
+                $chartData   = [];
+                for ($i = 29; $i >= 0; $i--) {
+                    $d = now()->subDays($i)->format('Y-m-d');
+                    $chartLabels[] = now()->subDays($i)->format('d M');
+                    $chartData[]   = $byDay[$d] ?? 0;
+                }
+                $dashboardData['ticket_chart'] = ['labels' => $chartLabels, 'data' => $chartData];
+
+                // Recent 5 tickets (all)
+                $dashboardData['recent_tickets'] = DB::table('ticket as t')
+                    ->whereNull('t.deleted_at')
+                    ->leftJoin('customer as c', 't.customer_id', '=', 'c.customer_id')
+                    ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
+                    ->leftJoin('employee as e', 't.employee_id', '=', 'e.employee_id')
+                    ->leftJoin('employee_basic_data as ebd', 'e.employee_id', '=', 'ebd.employee_id')
+                    ->select(
+                        't.ticket_id', 't.ticket_number', 't.description',
+                        't.status', 't.jarvies_status', 't.created_at',
+                        'cbd.name_1 as customer_name',
+                        DB::raw("COALESCE(TRIM(CONCAT(COALESCE(ebd.first_name,''),' ',COALESCE(ebd.last_name,''))), 'Unassigned') as pic_name")
+                    )
+                    ->orderBy('t.created_at', 'desc')
+                    ->limit(5)
+                    ->get();
+
+                // Team load: top 5 employees by open ticket count
+                $dashboardData['team_load'] = DB::table('ticket as t')
+                    ->whereNull('t.deleted_at')
+                    ->whereNotIn('t.status', ['closed', 'cancel'])
+                    ->join('employee as e', 't.employee_id', '=', 'e.employee_id')
+                    ->leftJoin('employee_basic_data as ebd', 'e.employee_id', '=', 'ebd.employee_id')
+                    ->select('e.employee_id', DB::raw("TRIM(CONCAT(COALESCE(ebd.first_name,''),' ',COALESCE(ebd.last_name,''))) as name"), DB::raw('COUNT(*) as open_count'))
+                    ->groupBy('e.employee_id', 'ebd.first_name', 'ebd.last_name')
+                    ->orderBy('open_count', 'desc')
+                    ->limit(5)
+                    ->get();
+            }
+
             // Extra data for Employee dashboard
             if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::EMPLOYEE->value) {
                 $employeeId = $user['id'];
@@ -106,7 +170,7 @@ class DashboardController extends Controller
                         'cbd.name_1 as customer_name'
                     )
                     ->orderBy('t.created_at', 'desc')
-                    ->limit(8)
+                    ->limit(5)
                     ->get();
             }
 

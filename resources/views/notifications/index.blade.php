@@ -20,19 +20,59 @@
         </div>
     </div>
 
+    @php
+        $lateExceptionTypes = [
+            'late_exception_submitted'    => ['icon' => 'fa-user-clock',    'color' => 'yellow', 'title' => 'Late Access Request submitted'],
+            'late_exception_pending_rpmo' => ['icon' => 'fa-user-clock',    'color' => 'blue',   'title' => 'Late Access Request needs RPMO review'],
+            'late_exception_head_approved'=> ['icon' => 'fa-check-circle',  'color' => 'green',  'title' => 'Late Access Request approved by Head'],
+            'late_exception_head_rejected'=> ['icon' => 'fa-times-circle',  'color' => 'red',    'title' => 'Late Access Request rejected by Head'],
+            'late_exception_approved'     => ['icon' => 'fa-unlock',        'color' => 'green',  'title' => 'Late Access Request approved by RPMO'],
+            'late_exception_rejected'     => ['icon' => 'fa-ban',           'color' => 'red',    'title' => 'Late Access Request rejected by RPMO'],
+            'customer_mandays_proposed'   => ['icon' => 'fa-file-invoice',  'color' => 'blue',   'title' => 'Customer Mandays Proposal — needs review'],
+            'internal_mandays_proposed'   => ['icon' => 'fa-users',         'color' => 'indigo', 'title' => 'Internal Mandays Proposal — needs review'],
+            'customer_mandays_canceled'   => ['icon' => 'fa-times-circle',  'color' => 'orange', 'title' => 'Customer Mandays Proposal canceled'],
+        ];
+        $colorMap = [
+            'yellow' => ['bg' => 'bg-yellow-100', 'icon' => 'text-yellow-600'],
+            'blue'   => ['bg' => 'bg-blue-100',   'icon' => 'text-blue-600'],
+            'green'  => ['bg' => 'bg-green-100',  'icon' => 'text-green-600'],
+            'red'    => ['bg' => 'bg-red-100',     'icon' => 'text-red-600'],
+            'indigo'  => ['bg' => 'bg-indigo-100',  'icon' => 'text-indigo-600'],
+            'orange'  => ['bg' => 'bg-orange-100',  'icon' => 'text-orange-600'],
+        ];
+    @endphp
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100" id="notifContainer">
         @forelse($notifications as $notif)
+        @php
+            $isLateEx   = isset($lateExceptionTypes[$notif->type]);
+            $leInfo     = $isLateEx ? $lateExceptionTypes[$notif->type] : null;
+            $leColor    = $leInfo ? $colorMap[$leInfo['color']] : null;
+            $navLink    = $notif->link
+                ?? ($notif->ticket_id ? '/ticket/' . $notif->ticket_id : null);
+            $iconBg     = $notif->is_read ? 'bg-gray-100' : ($leColor ? $leColor['bg'] : 'bg-red-100');
+            $iconColor  = $notif->is_read ? 'text-gray-400' : ($leColor ? $leColor['icon'] : 'text-red-600');
+            $iconClass  = $leInfo ? $leInfo['icon'] : ($notif->type === 'timesheet_submitted' ? 'fa-file-alt' : 'fa-at');
+        @endphp
         <div class="flex gap-4 px-5 py-4 {{ !$notif->is_read ? 'bg-red-50' : '' }} hover:bg-gray-50 transition-colors group" id="notif-{{ $notif->id }}">
-            <div class="w-9 h-9 rounded-full {{ !$notif->is_read ? 'bg-red-100' : 'bg-gray-100' }} flex items-center justify-center shrink-0 mt-0.5">
-                <i class="fas fa-at {{ !$notif->is_read ? 'text-red-600' : 'text-gray-400' }} text-sm"></i>
+            <div class="w-9 h-9 rounded-full {{ $iconBg }} flex items-center justify-center shrink-0 mt-0.5">
+                <i class="fas {{ $iconClass }} {{ $iconColor }} text-sm"></i>
             </div>
             <div class="flex-1 min-w-0">
                 <div class="flex items-start justify-between gap-2">
                     <div>
                         <p class="text-sm font-semibold text-gray-800">
-                            {{ $notif->from_name ?? 'Someone' }} mentioned you
-                            @if($notif->ticket_id)
-                                in <a href="/ticket/{{ $notif->ticket_id }}" class="text-red-700 hover:underline">Ticket</a>
+                            @if($isLateEx)
+                                {{ $leInfo['title'] }}
+                                @if($notif->from_name)
+                                    <span class="font-normal text-gray-500">· {{ $notif->from_name }}</span>
+                                @endif
+                            @elseif($notif->type === 'timesheet_submitted')
+                                {{ $notif->from_name ?? 'Consultant' }} submitted a timesheet
+                            @else
+                                {{ $notif->from_name ?? 'Someone' }} mentioned you
+                                @if($notif->ticket_id)
+                                    in <a href="/ticket/{{ $notif->ticket_id }}" class="text-red-700 hover:underline">Ticket</a>
+                                @endif
                             @endif
                         </p>
                         @if($notif->preview)
@@ -47,10 +87,9 @@
                     </div>
                 </div>
                 <div class="flex gap-3 mt-2">
-                    @if($notif->ticket_id)
-                    <a href="/ticket/{{ $notif->ticket_id }}"
-                       class="text-xs text-red-700 hover:underline font-medium">
-                        View ticket →
+                    @if($navLink)
+                    <a href="{{ $navLink }}" class="text-xs text-red-700 hover:underline font-medium">
+                        View →
                     </a>
                     @endif
                     @if(!$notif->is_read)

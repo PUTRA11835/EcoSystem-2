@@ -6,6 +6,7 @@ use App\Enums\RoleId;
 use App\Exports\MdRecapExport;
 use App\Exports\TimesheetReportExport;
 use App\Models\ConsultantMandays;
+use App\Models\ConsultantMandaysDetail;
 use App\Models\CustomerMandays;
 use App\Models\ReportingPeriod;
 use App\Services\PeriodService;
@@ -138,31 +139,42 @@ class ReportingController extends Controller
                 $query->whereBetween('timesheets.date', [$request->start_date, $request->end_date]);
             }
 
-            // Sort by date asc so running totals accumulate chronologically
+            // Sort ASC for correct running total accumulation, then reverse for display (newest first)
             $rows = $query->orderBy('timesheets.date')->orderBy('timesheets.id')->get();
 
-            // Quota per ticket
+            // Per-employee quota from the latest approved consultant mandays detail
             $ticketIds = $rows->pluck('ticket_id')->unique()->values();
-            $jatahMap  = [];
+            $jatahMap  = []; // keyed as "ticketId_employeeId"
             if ($ticketIds->isNotEmpty()) {
-                ConsultantMandays::whereIn('ticket_id', $ticketIds)
+                $latestCMs = ConsultantMandays::whereIn('ticket_id', $ticketIds)
                     ->where('status', 'approved')
                     ->orderBy('approved_at', 'desc')
                     ->get()
                     ->groupBy('ticket_id')
-                    ->each(function ($versions, $ticketId) use (&$jatahMap) {
-                        $jatahMap[$ticketId] = (float) $versions->first()->total_mandays;
+                    ->map(fn($g) => $g->first());
+
+                $cmIdToTicketId = $latestCMs->mapWithKeys(fn($cm) => [$cm->id => $cm->ticket_id]);
+
+                ConsultantMandaysDetail::whereIn('consultant_mandays_id', $cmIdToTicketId->keys())
+                    ->get()
+                    ->each(function ($detail) use (&$jatahMap, $cmIdToTicketId) {
+                        $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
+                        if ($ticketId) {
+                            $jatahMap[$ticketId . '_' . $detail->employee_id] =
+                                round((float)$detail->mandays + (float)($detail->approved_additional ?? 0), 2);
+                        }
                     });
             }
 
-            // Running cumulative MD consumed per ticket (rows sorted asc for correct accumulation)
+            // Running cumulative MD consumed per employee per ticket (rows sorted asc for correct accumulation)
             $runningTotals = [];
             $data = $rows->map(function ($row) use ($jatahMap, &$runningTotals) {
-                $jatahMd    = $jatahMap[$row->ticket_id] ?? null;
+                $jatahMd    = $jatahMap[$row->ticket_id . '_' . $row->employee_id] ?? null;
                 $mdConsumed = (float) $row->md_consumed;
 
-                $runningTotals[$row->ticket_id] = ($runningTotals[$row->ticket_id] ?? 0) + $mdConsumed;
-                $cumulative = $runningTotals[$row->ticket_id];
+                $key = $row->ticket_id . '_' . $row->employee_id;
+                $runningTotals[$key] = ($runningTotals[$key] ?? 0) + $mdConsumed;
+                $cumulative = $runningTotals[$key];
 
                 $remain = $jatahMd !== null ? round($jatahMd - $cumulative, 2) : null;
 
@@ -250,27 +262,39 @@ class ReportingController extends Controller
                 ->orderBy('timesheets.id')
                 ->get();
 
-            // Batch-fetch jatah MD per ticket
+            // Batch-fetch per-employee quota from latest approved consultant mandays detail
             $ticketIds = $rows->pluck('ticket_id')->unique()->values();
-            $jatahMap  = [];
+            $jatahMap  = []; // keyed as "ticketId_employeeId"
             if ($ticketIds->isNotEmpty()) {
-                ConsultantMandays::whereIn('ticket_id', $ticketIds)
+                $latestCMs = ConsultantMandays::whereIn('ticket_id', $ticketIds)
                     ->where('status', 'approved')
                     ->orderBy('approved_at', 'desc')
                     ->get()
                     ->groupBy('ticket_id')
-                    ->each(function ($versions, $ticketId) use (&$jatahMap) {
-                        $jatahMap[$ticketId] = (float) $versions->first()->total_mandays;
+                    ->map(fn($g) => $g->first());
+
+                $cmIdToTicketId = $latestCMs->mapWithKeys(fn($cm) => [$cm->id => $cm->ticket_id]);
+
+                ConsultantMandaysDetail::whereIn('consultant_mandays_id', $cmIdToTicketId->keys())
+                    ->get()
+                    ->each(function ($detail) use (&$jatahMap, $cmIdToTicketId) {
+                        $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
+                        if ($ticketId) {
+                            $jatahMap[$ticketId . '_' . $detail->employee_id] =
+                                round((float)$detail->mandays + (float)($detail->approved_additional ?? 0), 2);
+                        }
                     });
             }
 
+            // Calculate running totals ASC (chronological), then reverse to newest-first
             $runningTotals = [];
             $exportRows = $rows->map(function ($r) use ($jatahMap, $periodYear, $periodMonth, &$runningTotals) {
-                $jatahMd    = $jatahMap[$r->ticket_id] ?? null;
+                $jatahMd    = $jatahMap[$r->ticket_id . '_' . $r->employee_id] ?? null;
                 $mdConsumed = (float) ($r->md_consumed ?? 0);
 
-                $runningTotals[$r->ticket_id] = ($runningTotals[$r->ticket_id] ?? 0) + $mdConsumed;
-                $cumulative = $runningTotals[$r->ticket_id];
+                $key = $r->ticket_id . '_' . $r->employee_id;
+                $runningTotals[$key] = ($runningTotals[$key] ?? 0) + $mdConsumed;
+                $cumulative = $runningTotals[$key];
 
                 if ($jatahMd === null)           $status = null;
                 elseif ($cumulative == $jatahMd) $status = 'Match';
@@ -296,7 +320,7 @@ class ReportingController extends Controller
                     'md_consumed'   => $mdConsumed,
                     'status'        => $status,
                 ];
-            });
+            })->reverse()->values(); // newest first, matching view order
 
             $monthName = $this->monthName($periodMonth);
             $filename  = "Timesheet_Report_{$monthName}_{$periodYear}.xlsx";
@@ -342,13 +366,17 @@ class ReportingController extends Controller
             $month = $request->filled('month') ? (int) $request->month : now()->month;
             $year  = $request->filled('year')  ? (int) $request->year  : now()->year;
 
+            $range = ReportingPeriod::dateRange($year, $month);
+
             $rows = DB::table('timesheets')
                 ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
                 ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
                 ->where('timesheets.status', 'approved')
                 ->whereNull('timesheets.deleted_at')
-                ->whereMonth('timesheets.date', $month)
-                ->whereYear('timesheets.date', $year)
+                ->whereBetween('timesheets.date', [
+                    $range['start']->format('Y-m-d'),
+                    $range['end']->format('Y-m-d'),
+                ])
                 ->whereNotNull('timesheets.presence')
                 ->select(
                     'timesheets.id',
@@ -392,13 +420,17 @@ class ReportingController extends Controller
             $month = $request->filled('month') ? (int) $request->month : now()->month;
             $year  = $request->filled('year')  ? (int) $request->year  : now()->year;
 
+            $range = ReportingPeriod::dateRange($year, $month);
+
             $rows = DB::table('timesheets')
                 ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
                 ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
                 ->where('timesheets.status', 'approved')
                 ->whereNull('timesheets.deleted_at')
-                ->whereMonth('timesheets.date', $month)
-                ->whereYear('timesheets.date', $year)
+                ->whereBetween('timesheets.date', [
+                    $range['start']->format('Y-m-d'),
+                    $range['end']->format('Y-m-d'),
+                ])
                 ->whereNotNull('timesheets.presence')
                 ->select(
                     'timesheets.date',

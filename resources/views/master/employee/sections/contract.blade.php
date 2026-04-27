@@ -40,20 +40,20 @@
                 <!-- Contract Type -->
                 <div class="col-span-1">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Type <span class="text-red-600">*</span></label>
-                    <div class="relative">
-                        <select id="contractType" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white pr-10 appearance-none">
-                            <option value="">Select Type</option>
-                            <option value="Permanent">Permanent</option>
-                            <option value="Contract">Contract</option>
-                            <option value="Probation">Probation</option>
-                            <option value="Internship">Internship</option>
-                            <option value="Freelance">Freelance</option>
-                            <option value="Part-Time">Part-Time</option>
-                        </select>
-                        <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                            </svg>
+                    <div class="custom-dd relative">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select Type</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="contractType" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Type</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Permanent">Permanent</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Contract">Contract</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Probation">Probation</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Internship">Internship</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Freelance">Freelance</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Part-Time">Part-Time</button>
                         </div>
                     </div>
                 </div>
@@ -435,7 +435,7 @@
                 // Set form values
                 document.getElementById('contractNumber').value = contract.contract_number || '';
                 document.getElementById('contractName').value = contract.contract_name || '';
-                document.getElementById('contractType').value = contract.contract_type || '';
+                setCustomDropdownValue('contractType', contract.contract_type || '');
                 document.getElementById('contractPosition').value = contract.position || '';
                 document.getElementById('contractDate').value = contract.contract_date ? contract.contract_date.split('T')[0] : '';
                 document.getElementById('contractStartDate').value = contract.start_date || '';
@@ -462,7 +462,7 @@
         document.getElementById('editContractId').value = '';
         document.getElementById('contractNumber').value = '';
         document.getElementById('contractName').value = '';
-        document.getElementById('contractType').value = '';
+        setCustomDropdownValue('contractType', '');
         document.getElementById('contractPosition').value = '';
         document.getElementById('contractDate').value = '';
         document.getElementById('contractStartDate').value = '';

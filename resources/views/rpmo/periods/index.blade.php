@@ -16,30 +16,38 @@
 
 @section('content')
 @php
-    $isRpmo        = $roleId === 7;
-    $isProjectHead = $roleId === 4;
-    $isSupportHead = $roleId === 5;
-    $isAdmin       = $roleId === 1;
-    $isHead        = $isProjectHead || $isSupportHead;
-    $headDomain    = $isProjectHead ? 'project' : ($isSupportHead ? 'support' : null);
-    $MONTHS        = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+    $isRpmo           = $roleId === 7;
+    $isProjectHead    = $roleId === 4;
+    $isSupportHead    = $roleId === 5;
+    $isAdmin          = $roleId === 1;
+    $isHead           = $isProjectHead || $isSupportHead;
+    $headDomain       = $isProjectHead ? 'project' : ($isSupportHead ? 'support' : null);
+    // Superadmin gates
+    $canManageGlobal  = $isRpmo || $isAdmin;   // create period, open/close global, force-close
+    $canManageDomains = $isHead || $isAdmin;   // open/close domain, late exceptions
+    $MONTHS           = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
 @endphp
 
-<div class="bg-white rounded-xl p-6 shadow-sm">
+{{-- Card: flex-col, tinggi maks viewport minus header navbar (~72px) + padding content (24px) --}}
+<div class="bg-white rounded-xl shadow-sm flex flex-col overflow-hidden" style="max-height:calc(100vh - 6.25rem);">
+
+    {{-- ══ LOCKED TOP: Header + Active Period ══ --}}
+    <div class="flex-shrink-0 px-6 pt-6 pb-4">
 
     {{-- ── Page Header ──────────────────────────────────────────────────────── --}}
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b-2 border-gray-100">
         <div>
             <h2 class="text-2xl font-bold text-gray-900">Period Management</h2>
             <p class="text-sm text-gray-500 mt-0.5">
-                @if($isRpmo) Full period lifecycle control (RPMO)
+                @if($isAdmin) Full period lifecycle control (EC Administrator)
+                @elseif($isRpmo) Full period lifecycle control (RPMO)
                 @elseif($isProjectHead) Project domain control & late exceptions
                 @elseif($isSupportHead) Support domain control & late exceptions
                 @else Read-only view with audit logs
                 @endif
             </p>
         </div>
-        @if($isRpmo)
+        @if($canManageGlobal)
         <button onclick="openCreateModal()"
             class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -84,18 +92,18 @@
                     <p class="text-[10px] text-gray-400 mt-1.5">Opened {{ \Carbon\Carbon::parse($active->opened_at)->format('d M Y') }}</p>
                     @endif
                 </div>
-                <div class="bg-white rounded-lg border {{ $isProjectHead ? 'border-blue-300' : 'border-gray-200' }} p-3">
+                <div class="bg-white rounded-lg border {{ ($isProjectHead || $isAdmin) ? 'border-blue-300' : 'border-gray-200' }} p-3">
                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                        Project Domain @if($isProjectHead)<span class="text-blue-500 normal-case font-normal"></span>@endif
+                        Project Domain @if($isProjectHead || $isAdmin)<span class="text-blue-500 normal-case font-normal"></span>@endif
                     </p>
                     @include('rpmo.periods._status_badge', ['status' => $pStatus])
                     @if($active->project_opened_at)
                     <p class="text-[10px] text-gray-400 mt-1.5">Opened {{ \Carbon\Carbon::parse($active->project_opened_at)->format('d M Y') }}</p>
                     @endif
                 </div>
-                <div class="bg-white rounded-lg border {{ $isSupportHead ? 'border-blue-300' : 'border-gray-200' }} p-3">
+                <div class="bg-white rounded-lg border {{ ($isSupportHead || $isAdmin) ? 'border-blue-300' : 'border-gray-200' }} p-3">
                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                        Support Domain @if($isSupportHead)<span class="text-blue-500 normal-case font-normal"></span>@endif
+                        Support Domain @if($isSupportHead || $isAdmin)<span class="text-blue-500 normal-case font-normal"></span>@endif
                     </p>
                     @include('rpmo.periods._status_badge', ['status' => $sStatus])
                     @if($active->support_opened_at)
@@ -107,8 +115,8 @@
             {{-- Action buttons --}}
             <div class="flex flex-wrap gap-2 pt-4 border-t border-gray-200">
 
-                {{-- RPMO actions --}}
-                @if($isRpmo)
+                {{-- Global period actions (RPMO / Admin) --}}
+                @if($canManageGlobal)
                     @if($gStatus === 'not_open')
                     <button onclick="periodAction({{ $active->id }}, 'open-global')"
                         class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
@@ -140,7 +148,7 @@
                     @endif
                 @endif
 
-                {{-- Head actions --}}
+                {{-- Domain actions: Head (own domain only) --}}
                 @if($isHead)
                     @php $myDomainStatus = $headDomain === 'project' ? $pStatus : $sStatus; @endphp
                     @if($myDomainStatus !== 'open')
@@ -149,11 +157,36 @@
                         Open {{ ucfirst($headDomain) }} Period
                     </button>
                     @endif
-
                     @if($myDomainStatus === 'open')
                     <button onclick="confirmCloseDomain({{ $active->id }}, '{{ $headDomain }}', '{{ $periodLabel }}')"
                         class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
                         Close {{ ucfirst($headDomain) }} Period
+                    </button>
+                    @endif
+
+                {{-- Domain actions: Admin (both domains) --}}
+                @elseif($isAdmin)
+                    @if($pStatus !== 'open')
+                    <button onclick="periodAction({{ $active->id }}, 'open-domain', {domain:'project'})"
+                        class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
+                        Open Project Period
+                    </button>
+                    @else
+                    <button onclick="confirmCloseDomain({{ $active->id }}, 'project', '{{ $periodLabel }}')"
+                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
+                        Close Project Period
+                    </button>
+                    @endif
+
+                    @if($sStatus !== 'open')
+                    <button onclick="periodAction({{ $active->id }}, 'open-domain', {domain:'support'})"
+                        class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
+                        Open Support Period
+                    </button>
+                    @else
+                    <button onclick="confirmCloseDomain({{ $active->id }}, 'support', '{{ $periodLabel }}')"
+                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
+                        Close Support Period
                     </button>
                     @endif
                 @endif
@@ -164,17 +197,17 @@
                     Audit Log
                 </button>
 
-                {{-- Late exceptions (Heads only) --}}
-                @if($isHead)
-                <button onclick="openExceptionsModal({{ $active->id }}, '{{ $periodLabel }}')"
+                {{-- Late exception requests button (visible to all with management access) --}}
+                @if($canManageDomains || $canManageGlobal)
+                <button onclick="openExRequestsModal()"
                     class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-600 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-                    Late Exceptions
+                    <i class="fas fa-user-clock text-yellow-500 text-xs"></i> Exception Requests
                 </button>
                 @endif
             </div>
 
             {{-- Closing hint --}}
-            @if($isRpmo && $gStatus === 'open' && !$active->canCloseGlobal())
+            @if($canManageGlobal && $gStatus === 'open' && !$active->canCloseGlobal())
             <p class="text-xs text-gray-400 mt-3 flex items-center gap-1">
                 <i class="fas fa-info-circle"></i>
                 To close globally, both Project and Support domains must be closed first.
@@ -217,7 +250,7 @@
             </div>
 
             <div class="flex flex-wrap gap-2 pt-4 border-t border-gray-200">
-                @if($isRpmo)
+                @if($canManageGlobal)
                 <button onclick="periodAction({{ $pending->id }}, 'open-global')"
                     class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
                     <i class="fas fa-lock-open text-xs"></i> Open Period Globally
@@ -241,11 +274,11 @@
         <i class="fas fa-calendar-times text-3xl text-gray-300 mb-3 block"></i>
         <p class="text-gray-600 font-semibold">No Active Period</p>
         <p class="text-gray-400 text-xs mt-1">
-            @if($isRpmo) Create and open a new period to get started.
+            @if($canManageGlobal) Create and open a new period to get started.
             @else Waiting for RPMO Head to create and open a period.
             @endif
         </p>
-        @if($isRpmo)
+        @if($canManageGlobal)
         <button onclick="openCreateModal()"
             class="mt-4 inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
             <i class="fas fa-plus text-xs"></i> Create Period
@@ -255,8 +288,13 @@
     @endif
     @endif
 
+    </div>{{-- /LOCKED TOP --}}
+
+    {{-- ══ SCROLLABLE BOTTOM: Period History ══ --}}
+    <div class="flex-1 min-h-0 overflow-y-auto border-t border-gray-100">
+
     {{-- ── Period History Table ─────────────────────────────────────────────── --}}
-    <div class="mt-6">
+    <div class="px-6 pb-6 pt-5">
         <div class="flex items-center justify-between mb-3">
             <h3 class="text-lg font-semibold text-gray-900">Period History</h3>
             <span class="text-xs text-gray-400">{{ $periods->count() }} period(s)</span>
@@ -298,12 +336,17 @@
                             <button onclick="openPeriodMenu(event, {{ $p->id }}, '{{ $pLabel }}', {
                                     isRpmo: {{ $isRpmo ? 'true' : 'false' }},
                                     isHead: {{ $isHead ? 'true' : 'false' }},
+                                    isAdmin: {{ $isAdmin ? 'true' : 'false' }},
+                                    canManageGlobal: {{ $canManageGlobal ? 'true' : 'false' }},
+                                    canManageDomains: {{ $canManageDomains ? 'true' : 'false' }},
                                     headDomain: '{{ $headDomain ?? '' }}',
                                     globalStatus: '{{ $p->global_status }}',
                                     projectStatus: '{{ $p->project_status }}',
                                     supportStatus: '{{ $p->support_status }}',
                                     canCloseGlobal: {{ $p->canCloseGlobal() ? 'true' : 'false' }},
-                                    isActive: {{ ($active && $active->id === $p->id) ? 'true' : 'false' }}
+                                    isActive: {{ ($active && $active->id === $p->id) ? 'true' : 'false' }},
+                                    startDate: '{{ \Carbon\Carbon::parse($p->start_date)->format('Y-m-d') }}',
+                                    endDate: '{{ \Carbon\Carbon::parse($p->end_date)->format('Y-m-d') }}'
                                 })"
                                 class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
                                 <i class="fas fa-bars text-xs"></i>
@@ -319,14 +362,16 @@
             No periods found.
         </div>
         @endif
-    </div>
+    </div>{{-- /period history inner --}}
 
-</div>{{-- /bg-white wrapper --}}
+    </div>{{-- /SCROLLABLE BOTTOM --}}
+
+</div>{{-- /card wrapper --}}
 
 {{-- ════════════════════════════════════════════════════════════════ --}}
 {{-- MODAL: Create Period                                            --}}
 {{-- ════════════════════════════════════════════════════════════════ --}}
-@if($isRpmo)
+@if($canManageGlobal)
 <div id="createPeriodModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
@@ -510,61 +555,7 @@
     </div>
 </div>
 
-{{-- ════════════════════════════════════════════════════════════════ --}}
-{{-- MODAL: Late Exceptions (Heads only)                            --}}
-{{-- ════════════════════════════════════════════════════════════════ --}}
-@if($isHead)
-<div id="exceptionsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
-            <div>
-                <h3 class="text-base font-bold text-gray-900">Late Submission Exceptions</h3>
-                <p class="text-xs text-gray-500 mt-0.5" id="excPeriodLabel">—</p>
-            </div>
-            <button onclick="document.getElementById('exceptionsModal').classList.replace('flex','hidden')" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
-        </div>
-        <div class="flex-1 overflow-y-auto p-5 space-y-4">
-            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Grant Late Access</p>
-                <div class="space-y-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Employee</label>
-                        <div class="relative">
-                            <select id="excEmployeeSelect"
-                                class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus-ring appearance-none bg-white">
-                                <option value="">Select employee…</option>
-                                @foreach($domainEmployees as $emp)
-                                <option value="{{ $emp->employee_id }}">
-                                    {{ $emp->basicData->full_name ?? "EMP#{$emp->employee_id}" }}
-                                </option>
-                                @endforeach
-                            </select>
-                            <svg class="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Notes <span class="text-gray-400 font-normal">(optional)</span></label>
-                        <input type="text" id="excNotes" maxlength="500" placeholder="e.g. Late due to sick leave"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus-ring">
-                    </div>
-                    <button id="btnGrantException" onclick="grantException()"
-                        class="w-full px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
-                        Grant Access
-                    </button>
-                </div>
-            </div>
-            <div>
-                <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Current Exceptions</p>
-                <div id="excListLoading" class="py-4 text-center text-xs text-gray-400">Loading…</div>
-                <div id="excListContent" class="hidden space-y-2"></div>
-                <div id="excListEmpty" class="hidden py-4 text-center text-xs text-gray-400">No exceptions granted yet.</div>
-            </div>
-        </div>
-    </div>
-</div>
-@endif
+{{-- Legacy "Grant Late Access" modal removed. All access is now request-based. --}}
 
 @push('scripts')
 <script>
@@ -572,6 +563,13 @@ let _activePeriodId  = null;
 let _pendingPeriodId = null;
 let _pendingDomain   = null;
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.content;
+const getHeaders = () => ({ 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF });
+
+// Teleport dropdown ke body agar tidak ter-clip oleh overflow-x-hidden pada <main>
+document.addEventListener('DOMContentLoaded', () => {
+    const menu = document.getElementById('floatingPeriodMenu');
+    if (menu) document.body.appendChild(menu);
+});
 
 async function api(url, method = 'GET', body = null) {
     const opts = {
@@ -601,11 +599,12 @@ function computeDefaultDates() {
     const year  = parseInt(document.getElementById('cpYear').value)  || 0;
     const month = parseInt(document.getElementById('cpMonth').value) || 0;
     if (!year || !month) return;
-    const pad   = n => String(n).padStart(2, '0');
-    const start = `${year}-${pad(month)}-21`;
-    const nextM = month === 12 ? 1 : month + 1;
-    const nextY = month === 12 ? year + 1 : year;
-    const end   = `${nextY}-${pad(nextM)}-20`;
+    const pad    = n => String(n).padStart(2, '0');
+    // Period M of year Y = 21st of (M-1) → 20th of M
+    const prevM  = month === 1 ? 12 : month - 1;
+    const prevY  = month === 1 ? year - 1 : year;
+    const start  = `${prevY}-${pad(prevM)}-21`;
+    const end    = `${year}-${pad(month)}-20`;
     document.getElementById('cpStartDate').value      = start;
     document.getElementById('cpEndDate').value        = end;
     document.getElementById('cpDefaultHint').textContent = `Default: ${start} – ${end} (21st–20th rule)`;
@@ -625,8 +624,8 @@ async function submitCreatePeriod() {
 }
 
 // ── Generic period action ─────────────────────────────────────────────────────
-async function periodAction(periodId, action) {
-    const json = await api(`/api/periods/${periodId}/${action}`, 'POST');
+async function periodAction(periodId, action, body = null) {
+    const json = await api(`/api/periods/${periodId}/${action}`, 'POST', body);
     if (json.success) { showNotification(json.message, 'success'); setTimeout(reloadPage, 800); }
     else showNotification(json.message || 'Action failed.', 'error');
 }
@@ -657,7 +656,7 @@ function confirmCloseDomain(periodId, domain, label) {
 async function executeCloseDomain() {
     const btn = document.getElementById('btnConfirmCloseDomain');
     btn.disabled = true; btn.textContent = 'Closing…';
-    const json = await api(`/api/periods/${_pendingPeriodId}/close-domain`, 'POST');
+    const json = await api(`/api/periods/${_pendingPeriodId}/close-domain`, 'POST', { domain: _pendingDomain });
     btn.disabled = false; btn.textContent = 'Yes, Close Domain';
     document.getElementById('closeDomainModal').classList.replace('flex', 'hidden');
     if (json.success) { showNotification(json.message, 'success'); setTimeout(reloadPage, 800); }
@@ -708,65 +707,9 @@ async function openAuditLog(periodId, label) {
     document.getElementById('auditLogContent').classList.remove('hidden');
 }
 
-// ── Late Exceptions ───────────────────────────────────────────────────────────
-let _excPeriodId = null;
-
-async function openExceptionsModal(periodId, label) {
-    _excPeriodId = periodId;
-    document.getElementById('excPeriodLabel').textContent = label;
-    document.getElementById('exceptionsModal').classList.replace('hidden', 'flex');
-    await refreshExceptions();
-}
-async function refreshExceptions() {
-    document.getElementById('excListLoading').classList.remove('hidden');
-    document.getElementById('excListContent').classList.add('hidden');
-    document.getElementById('excListEmpty').classList.add('hidden');
-    const json = await api(`/api/periods/${_excPeriodId}/exceptions`);
-    document.getElementById('excListLoading').classList.add('hidden');
-    if (!json.success || !json.data.length) {
-        document.getElementById('excListEmpty').classList.remove('hidden'); return;
-    }
-    const esc  = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
-    const list = document.getElementById('excListContent');
-    list.innerHTML = json.data.map(ex => `
-        <div class="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2.5">
-            <div>
-                <p class="text-sm font-medium text-gray-800">${esc(ex.employee_name)}</p>
-                <p class="text-[10px] text-gray-400">Granted ${esc(ex.granted_at)} by ${esc(ex.granted_by)}</p>
-                ${ex.notes ? `<p class="text-[10px] text-gray-500 mt-0.5">${esc(ex.notes)}</p>` : ''}
-            </div>
-            <button onclick="revokeException(${ex.id})"
-                class="ml-3 px-2.5 py-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors flex-shrink-0">
-                Revoke
-            </button>
-        </div>
-    `).join('');
-    list.classList.remove('hidden');
-}
-async function grantException() {
-    const empId = document.getElementById('excEmployeeSelect').value;
-    const notes = document.getElementById('excNotes').value;
-    if (!empId) { showNotification('Please select an employee.', 'error'); return; }
-    const btn = document.getElementById('btnGrantException');
-    btn.disabled = true; btn.textContent = 'Granting…';
-    const json = await api(`/api/periods/${_excPeriodId}/exceptions`, 'POST', { employee_id: empId, notes });
-    btn.disabled = false; btn.textContent = 'Grant Access';
-    if (json.success) {
-        showNotification(json.message, 'success');
-        document.getElementById('excEmployeeSelect').value = '';
-        document.getElementById('excNotes').value = '';
-        await refreshExceptions();
-    } else showNotification(json.message || 'Failed to grant access.', 'error');
-}
-async function revokeException(excId) {
-    const json = await api(`/api/periods/${_excPeriodId}/exceptions/${excId}`, 'DELETE');
-    if (json.success) { showNotification(json.message, 'success'); await refreshExceptions(); }
-    else showNotification(json.message || 'Failed to revoke.', 'error');
-}
-
 // ── Click outside to close modals ────────────────────────────────────────────
 ['closeGlobalModal','closeDomainModal','forceCloseModal','auditLogModal',
- 'exceptionsModal','createPeriodModal'].forEach(id => {
+ 'createPeriodModal','editDatesModal','deletePeriodModal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('click', e => { if (e.target === el) el.classList.replace('flex','hidden'); });
 });
@@ -788,12 +731,19 @@ function openPeriodMenu(event, id, label, cfg) {
     // Build menu items
     let html = '';
 
-    if (cfg.isRpmo && cfg.globalStatus === 'not_open') {
+    // Global actions (RPMO / Admin)
+    if (cfg.canManageGlobal && cfg.globalStatus === 'not_open') {
         html += menuItem('fa-lock-open', 'text-green-500', 'Open Period Globally', `pmAction('open-global')`);
     }
-    if (cfg.isRpmo && cfg.globalStatus === 'open' && cfg.canCloseGlobal) {
+    // RPMO can re-open a globally-closed period (override)
+    if (cfg.canManageGlobal && cfg.globalStatus === 'closed') {
+        html += menuItem('fa-undo', 'text-orange-500', 'Re-open Period Globally', `pmAction('open-global')`);
+    }
+    if (cfg.canManageGlobal && cfg.globalStatus === 'open' && cfg.canCloseGlobal) {
         html += menuItem('fa-lock', 'text-gray-500', 'Close Period Globally', `pmConfirmCloseGlobal()`);
     }
+
+    // Domain actions: Head (own domain)
     if (cfg.isHead && cfg.globalStatus === 'open' && cfg.headDomain) {
         const domSt = cfg.headDomain === 'project' ? cfg.projectStatus : cfg.supportStatus;
         if (domSt !== 'open') {
@@ -802,7 +752,23 @@ function openPeriodMenu(event, id, label, cfg) {
             html += menuItem('fa-lock', 'text-gray-500', `Close ${cap(cfg.headDomain)} Period`, `pmConfirmCloseDomain()`);
         }
     }
-    if (cfg.isRpmo && cfg.globalStatus === 'open') {
+
+    // Domain actions: Admin (both domains)
+    if (cfg.isAdmin && cfg.globalStatus === 'open') {
+        if (cfg.projectStatus !== 'open') {
+            html += menuItem('fa-lock-open', 'text-green-500', 'Open Project Period', `pmActionWithDomain('open-domain','project')`);
+        } else {
+            html += menuItem('fa-lock', 'text-gray-500', 'Close Project Period', `pmConfirmCloseDomainAdmin('project')`);
+        }
+        if (cfg.supportStatus !== 'open') {
+            html += menuItem('fa-lock-open', 'text-green-500', 'Open Support Period', `pmActionWithDomain('open-domain','support')`);
+        } else {
+            html += menuItem('fa-lock', 'text-gray-500', 'Close Support Period', `pmConfirmCloseDomainAdmin('support')`);
+        }
+    }
+
+    // Force close (RPMO / Admin)
+    if (cfg.canManageGlobal && cfg.globalStatus === 'open') {
         if (cfg.projectStatus !== 'closed') {
             html += menuItem('fa-times-circle', 'text-red-400', 'Force Close Project', `pmForceClose('project')`);
         }
@@ -810,16 +776,32 @@ function openPeriodMenu(event, id, label, cfg) {
             html += menuItem('fa-times-circle', 'text-red-400', 'Force Close Support', `pmForceClose('support')`);
         }
     }
+
     html += menuItem('fa-list-alt', 'text-gray-400', 'Audit Log', `pmAuditLog()`);
-    if (cfg.isHead && cfg.isActive) {
-        html += menuItem('fa-user-clock', 'text-yellow-500', 'Late Exceptions', `pmExceptions()`);
+    if (cfg.canManageDomains || {{ $isRpmo ? 'true' : 'false' }} || {{ $isAdmin ? 'true' : 'false' }}) {
+        html += menuItem('fa-user-clock', 'text-yellow-500', 'Exception Requests', `openExRequestsModal()`);
+    }
+
+    // Edit dates & delete (RPMO / Admin only)
+    if (cfg.canManageGlobal) {
+        html += `<div class="border-t border-gray-100 my-1"></div>`;
+        html += menuItem('fa-calendar-edit', 'text-indigo-500', 'Edit Dates', `pmEditDates()`);
+        html += menuItem('fa-trash', 'text-red-400', 'Delete Period', `pmDeletePeriod()`);
     }
 
     body.innerHTML = html || `<p class="px-3 py-2 text-xs text-gray-400">No actions available</p>`;
     menu.classList.remove('hidden');
+
+    // Smart positioning: flip ke atas jika ruang bawah tidak cukup
+    // Untuk position:fixed gunakan koordinat viewport langsung (tanpa scrollY)
     const mw = menu.offsetWidth;
-    menu.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
-    menu.style.left = Math.min(rect.right - mw, window.innerWidth - mw - 8) + 'px';
+    const mh = menu.scrollHeight;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow >= mh + 8
+        ? rect.bottom + 4       // buka ke bawah
+        : rect.top - mh - 4;   // flip ke atas
+    menu.style.top  = Math.max(4, top) + 'px';
+    menu.style.left = Math.max(8, Math.min(rect.right - mw, window.innerWidth - mw - 8)) + 'px';
 }
 
 function menuItem(icon, iconColor, label, onclick) {
@@ -832,14 +814,77 @@ function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 
 function closePeriodMenu() { document.getElementById('floatingPeriodMenu').classList.add('hidden'); }
 
-function pmAction(action)        { closePeriodMenu(); periodAction(_pmId, action); }
-function pmConfirmCloseGlobal()  { closePeriodMenu(); confirmCloseGlobal(_pmId, _pmLabel); }
-function pmConfirmCloseDomain()  { closePeriodMenu(); confirmCloseDomain(_pmId, _pmCfg.headDomain, _pmLabel); }
-function pmForceClose(domain)    { closePeriodMenu(); confirmForceClose(_pmId, domain, _pmLabel); }
-function pmAuditLog()            { closePeriodMenu(); openAuditLog(_pmId, _pmLabel); }
-function pmExceptions()          { closePeriodMenu(); openExceptionsModal(_pmId, _pmLabel); }
+function pmAction(action)                  { closePeriodMenu(); periodAction(_pmId, action); }
+function pmActionWithDomain(action, domain){ closePeriodMenu(); periodAction(_pmId, action, {domain}); }
+function pmConfirmCloseGlobal()            { closePeriodMenu(); confirmCloseGlobal(_pmId, _pmLabel); }
+function pmConfirmCloseDomain()            { closePeriodMenu(); confirmCloseDomain(_pmId, _pmCfg.headDomain, _pmLabel); }
+function pmConfirmCloseDomainAdmin(domain) { closePeriodMenu(); confirmCloseDomain(_pmId, domain, _pmLabel); }
+function pmForceClose(domain)              { closePeriodMenu(); confirmForceClose(_pmId, domain, _pmLabel); }
+function pmAuditLog()                      { closePeriodMenu(); openAuditLog(_pmId, _pmLabel); }
+function pmEditDates()                     { closePeriodMenu(); openEditDatesModal(_pmId, _pmLabel, _pmCfg); }
+function pmDeletePeriod()                  { closePeriodMenu(); openDeletePeriodModal(_pmId, _pmLabel, _pmCfg); }
 
 document.addEventListener('click', closePeriodMenu);
+
+// ── Edit Period Dates ─────────────────────────────────────────────────────────
+let _edPeriodId = null;
+
+function openEditDatesModal(id, label, cfg) {
+    _edPeriodId = id;
+    document.getElementById('edPeriodLabel').textContent = label;
+    // Fetch current dates from the period row already in the menu config
+    // We need to fetch them — do a quick API call
+    api(`/api/periods/${id}/audit-logs`).then(() => {}); // just warm up; dates come from the row
+    // Pre-fill by reading the rendered date range cell in the table
+    // Simpler: store start/end in cfg — we'll add them to openPeriodMenu call below
+    document.getElementById('edStartDate').value = cfg.startDate || '';
+    document.getElementById('edEndDate').value   = cfg.endDate   || '';
+    document.getElementById('editDatesModal').classList.replace('hidden', 'flex');
+}
+function closeEditDatesModal() {
+    document.getElementById('editDatesModal').classList.replace('flex', 'hidden');
+}
+async function submitEditDates() {
+    const start = document.getElementById('edStartDate').value;
+    const end   = document.getElementById('edEndDate').value;
+    if (!start || !end) { showNotification('Please fill in both dates.', 'error'); return; }
+    if (end <= start)   { showNotification('End date must be after start date.', 'error'); return; }
+    const btn = document.getElementById('btnSaveEditDates');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const json = await api(`/api/periods/${_edPeriodId}/dates`, 'PATCH', { start_date: start, end_date: end });
+    btn.disabled = false; btn.textContent = 'Save Dates';
+    if (json.success) {
+        showNotification(json.message, 'success');
+        closeEditDatesModal();
+        setTimeout(reloadPage, 800);
+    } else {
+        showNotification(json.message || 'Failed to update dates.', 'error');
+    }
+}
+
+// ── Delete Period ─────────────────────────────────────────────────────────────
+let _dpPeriodId = null;
+
+function openDeletePeriodModal(id, label, cfg) {
+    _dpPeriodId = id;
+    document.getElementById('dpPeriodLabel').textContent = label;
+    const wasOpened = cfg.globalStatus !== 'not_open';
+    document.getElementById('dpWarnOpened').classList.toggle('hidden', !wasOpened);
+    document.getElementById('dpWarnNotOpen').classList.toggle('hidden', wasOpened);
+    document.getElementById('deletePeriodModal').classList.replace('hidden', 'flex');
+}
+function closeDeletePeriodModal() {
+    document.getElementById('deletePeriodModal').classList.replace('flex', 'hidden');
+}
+async function executeDeletePeriod() {
+    const btn = document.getElementById('btnConfirmDeletePeriod');
+    btn.disabled = true; btn.textContent = 'Deleting…';
+    const json = await api(`/api/periods/${_dpPeriodId}`, 'DELETE');
+    btn.disabled = false; btn.textContent = 'Delete Period';
+    closeDeletePeriodModal();
+    if (json.success) { showNotification(json.message, 'success'); setTimeout(reloadPage, 800); }
+    else showNotification(json.message || 'Failed to delete period.', 'error');
+}
 </script>
 @endpush
 
@@ -850,4 +895,252 @@ document.addEventListener('click', closePeriodMenu);
     <div id="floatingPeriodMenuBody"></div>
 </div>
 
+{{-- ════════════════════════════════════════════════════════════════ --}}
+{{-- MODAL: Edit Period Dates (RPMO / Admin)                        --}}
+{{-- ════════════════════════════════════════════════════════════════ --}}
+@if($canManageGlobal)
+<div id="editDatesModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div>
+                <h3 class="text-base font-bold text-gray-900">Edit Period Dates</h3>
+                <p class="text-xs text-gray-500 mt-0.5" id="edPeriodLabel">—</p>
+            </div>
+            <button onclick="closeEditDatesModal()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="p-6 space-y-4">
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-700">
+                <i class="fas fa-info-circle mr-1"></i>
+                Changing dates will affect timesheet submission windows. All timesheets already submitted will remain unchanged.
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Start Date</label>
+                    <input type="date" id="edStartDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus-ring">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">End Date</label>
+                    <input type="date" id="edEndDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus-ring">
+                </div>
+            </div>
+        </div>
+        <div class="px-6 pb-6 flex gap-3">
+            <button onclick="closeEditDatesModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+            <button id="btnSaveEditDates" onclick="submitEditDates()"
+                class="flex-1 px-4 py-2.5 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
+                Save Dates
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- ════════════════════════════════════════════════════════════════ --}}
+{{-- MODAL: Delete Period (RPMO / Admin)                            --}}
+{{-- ════════════════════════════════════════════════════════════════ --}}
+<div id="deletePeriodModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-red-200 bg-red-50">
+            <div class="flex items-center gap-2">
+                <i class="fas fa-trash text-red-500"></i>
+                <h3 class="text-base font-bold text-red-700">Delete Period</h3>
+            </div>
+            <button onclick="closeDeletePeriodModal()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-100 transition-colors text-red-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="p-6">
+            <p class="text-sm text-gray-600 mb-2">You are about to permanently delete period:</p>
+            <p class="text-base font-bold text-gray-900 mb-4" id="dpPeriodLabel">—</p>
+            <div id="dpWarnOpened" class="hidden bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-sm text-red-700">
+                <i class="fas fa-exclamation-triangle mr-1"></i>
+                <strong>Warning:</strong> This period has already been opened. Deleting it will also remove all related audit logs, late exception records, and requests. This action cannot be undone.
+            </div>
+            <div id="dpWarnNotOpen" class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 text-sm text-yellow-700">
+                This will permanently remove this period and all associated records. This action cannot be undone.
+            </div>
+            <div class="flex gap-3">
+                <button onclick="closeDeletePeriodModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50">Cancel</button>
+                <button id="btnConfirmDeletePeriod" onclick="executeDeletePeriod()"
+                    class="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-all">
+                    Delete Period
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- ════════════════════════════════════════════════════════════════ --}}
+{{-- MODAL: Exception Requests Queue (Head / RPMO / Admin)          --}}
+{{-- ════════════════════════════════════════════════════════════════ --}}
+@if($canManageDomains || $isRpmo || $isAdmin)
+<div id="exRequestsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
+            <h3 class="text-base font-bold text-gray-900">
+                <i class="fas fa-user-clock text-yellow-500 mr-1.5"></i>
+                Late Access Requests
+            </h3>
+            <button onclick="closeExRequestsModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <i class="fas fa-times text-xs"></i>
+            </button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-6 py-4">
+            <div id="exRequestsList"><p class="text-xs text-gray-400 text-center py-8">Loading...</p></div>
+        </div>
+    </div>
+</div>
+@endif
+
+<script>
+// ── Exception Request Queue (Head / RPMO / Admin) ─────────────────────────────
+async function openExRequestsModal() {
+    document.getElementById('exRequestsModal').classList.remove('hidden');
+    document.getElementById('exRequestsList').innerHTML = '<p class="text-xs text-gray-400 text-center py-8">Loading...</p>';
+    try {
+        const res  = await fetch('/api/periods/exception-requests', { headers: getHeaders(), credentials: 'same-origin' });
+        const data = await res.json();
+        renderExRequests(data.data || []);
+    } catch (e) {
+        document.getElementById('exRequestsList').innerHTML = '<p class="text-xs text-red-400 text-center py-8">Failed to load data.</p>';
+    }
+}
+
+function closeExRequestsModal() {
+    document.getElementById('exRequestsModal').classList.add('hidden');
+}
+
+function renderExRequests(requests) {
+    const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    const el  = document.getElementById('exRequestsList');
+    if (!requests.length) {
+        el.innerHTML = '<p class="text-xs text-gray-400 text-center py-8">No pending requests.</p>';
+        return;
+    }
+
+    // Default deadline = 7 days from now in LOCAL time (datetime-local expects "YYYY-MM-DDTHH:mm" local)
+    const defaultDeadline = (() => {
+        const d   = new Date(Date.now() + 7 * 86400000);
+        const pad = n => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    })();
+
+    el.innerHTML = requests.map(r => {
+        const accessInfo = r.is_access_active
+            ? `<p class="text-xs text-green-600 mt-1 flex items-center gap-1"><i class="fas fa-check-circle"></i>Access active until ${esc(r.expires_at)}</p>`
+            : r.is_expired
+                ? `<p class="text-xs text-gray-400 mt-1"><i class="fas fa-clock mr-1"></i>Access expired ${esc(r.expires_at)}</p>`
+                : '';
+
+        const headActions = r.status === 'pending_head' ? `
+            <div class="mt-2 space-y-2">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Notes <span class="text-red-600">*</span></label>
+                    <input type="text" placeholder="Notes (required)" id="headNote_${r.id}"
+                        class="w-full px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="decideExRequest(${r.id}, 'head', 'approve')"
+                        class="px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded hover:bg-green-700 transition-all">Approve</button>
+                    <button onclick="decideExRequest(${r.id}, 'head', 'reject')"
+                        class="px-3 py-1.5 bg-red-600 text-white text-xs font-semibold rounded hover:bg-red-700 transition-all">Reject</button>
+                </div>
+            </div>` : '';
+
+        const rpmoActions = r.status === 'pending_rpmo' ? `
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-2 space-y-2">
+                <p class="text-[10px] font-semibold text-yellow-700 uppercase tracking-wide">
+                    <i class="fas fa-clock mr-1"></i>Head: ${esc(r.head_name ?? '-')} · ${esc(r.head_approved_at ?? '-')}
+                    ${r.head_notes ? `— ${esc(r.head_notes)}` : ''}
+                </p>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">
+                        Access Deadline <span class="text-red-600">*</span>
+                        <span class="font-normal text-gray-400">(required when approving)</span>
+                    </label>
+                    <input type="datetime-local" id="rpmoExpiry_${r.id}" value="${defaultDeadline}"
+                        class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">RPMO Notes <span class="text-red-600">*</span></label>
+                    <input type="text" placeholder="RPMO Notes (required)" id="rpmoNote_${r.id}"
+                        class="w-full px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="decideExRequest(${r.id}, 'rpmo', 'approve')"
+                        class="flex-1 px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded hover:bg-green-700 transition-all">
+                        <i class="fas fa-check mr-1"></i>Approve & Set Deadline
+                    </button>
+                    <button onclick="decideExRequest(${r.id}, 'rpmo', 'reject')"
+                        class="px-3 py-1.5 bg-red-600 text-white text-xs font-semibold rounded hover:bg-red-700 transition-all">Reject</button>
+                </div>
+            </div>` : '';
+
+        return `
+        <div class="border border-gray-200 rounded-lg p-4 mb-3 bg-white hover:shadow-sm transition-all
+            ${r.is_access_active ? 'border-green-200 bg-green-50/30' : ''}
+            ${r.is_expired ? 'opacity-60' : ''}">
+            <div class="flex items-start justify-between gap-3 mb-2">
+                <div>
+                    <p class="text-sm font-semibold text-gray-900">${esc(r.employee_name)}</p>
+                    <p class="text-xs text-gray-500">${esc(r.period_label)} &nbsp;·&nbsp; ${r.domain === 'project' ? 'Project' : 'Support'}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">${esc(r.period_start)} – ${esc(r.period_end)}</p>
+                </div>
+                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold shrink-0 ${r.status_color}">${esc(r.status_label)}</span>
+            </div>
+            ${r.notes ? `<p class="text-xs text-gray-600 bg-gray-50 rounded px-2 py-1.5 mb-2"><i class="fas fa-quote-left text-gray-300 mr-1"></i>${esc(r.notes)}</p>` : ''}
+            ${accessInfo}
+            ${headActions}${rpmoActions}
+            ${r.status === 'rejected' ? `<p class="text-xs text-red-500 mt-1"><i class="fas fa-times-circle mr-1"></i>Rejected by ${esc(r.rejected_by ?? '-')}: ${esc(r.rejection_notes ?? '-')}</p>` : ''}
+            <p class="text-xs text-gray-300 mt-2">Submitted: ${esc(r.created_at)}</p>
+        </div>`;
+    }).join('');
+}
+
+async function decideExRequest(reqId, level, decision) {
+    const noteEl   = document.getElementById(`${level}Note_${reqId}`);
+    const expiryEl = document.getElementById(`rpmoExpiry_${reqId}`);
+    const notes    = noteEl?.value?.trim() || '';
+    const url      = `/api/periods/exception-requests/${reqId}/${level}-decide`;
+
+    // Notes are required for all decisions
+    if (!notes) {
+        showNotification('Notes are required before submitting your decision.', 'error');
+        noteEl?.focus();
+        return;
+    }
+
+    const body = { decision, notes };
+
+    // RPMO approving: expires_at is required
+    if (level === 'rpmo' && decision === 'approve') {
+        if (!expiryEl?.value) {
+            showNotification('Access deadline is required when approving.', 'error');
+            return;
+        }
+        // Send the raw local-time string — backend parses with app timezone (Asia/Jakarta)
+        body.expires_at = expiryEl.value; // "YYYY-MM-DDTHH:mm" local
+    }
+
+    try {
+        const res  = await fetch(url, {
+            method: 'PATCH',
+            headers: getHeaders(),
+            credentials: 'same-origin',
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (data.success) {
+            showNotification(data.message, 'success');
+            openExRequestsModal(); // refresh list
+        } else {
+            showNotification(data.message || 'Failed to process request.', 'error');
+        }
+    } catch (e) {
+        showNotification('Network error.', 'error');
+    }
+}
+</script>
 @endsection

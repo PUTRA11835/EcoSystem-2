@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\RoleId;
 use App\Models\Timesheet;
 use App\Models\ConsultantMandays;
+use App\Models\ConsultantMandaysDetail;
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectActivity;
 use App\Models\Employee;
@@ -67,17 +68,27 @@ class TimesheetController extends Controller
                           ->orderBy('created_at', 'desc')
                           ->get();
 
-            // Batch-fetch approved consultant jatah MD for all ticket_ids (avoid N+1)
+            // Batch-fetch per-employee quota from the latest approved consultant mandays detail
             $ticketIds = $rows->pluck('ticket_id')->filter()->unique()->values();
-            $jatahMap  = [];
+            $jatahMap  = []; // keyed as "ticketId_employeeId"
             if ($ticketIds->isNotEmpty()) {
-                ConsultantMandays::whereIn('ticket_id', $ticketIds)
+                $latestCMs = ConsultantMandays::whereIn('ticket_id', $ticketIds)
                     ->where('status', 'approved')
                     ->orderBy('approved_at', 'desc')
                     ->get()
                     ->groupBy('ticket_id')
-                    ->each(function ($versions, $ticketId) use (&$jatahMap) {
-                        $jatahMap[$ticketId] = (float) $versions->first()->total_mandays;
+                    ->map(fn($g) => $g->first());
+
+                $cmIdToTicketId = $latestCMs->mapWithKeys(fn($cm) => [$cm->id => $cm->ticket_id]);
+
+                ConsultantMandaysDetail::whereIn('consultant_mandays_id', $cmIdToTicketId->keys())
+                    ->get()
+                    ->each(function ($detail) use (&$jatahMap, $cmIdToTicketId) {
+                        $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
+                        if ($ticketId) {
+                            $key = $ticketId . '_' . $detail->employee_id;
+                            $jatahMap[$key] = round((float)$detail->mandays + (float)($detail->approved_additional ?? 0), 2);
+                        }
                     });
             }
 
@@ -97,7 +108,7 @@ class TimesheetController extends Controller
                                         'ticket_number' => $timesheet->ticket?->ticket_number,
                                         'ticket_description' => $timesheet->ticket?->description,
                                         'customer_name' => $timesheet->ticket?->customer?->basicData?->name_1,
-                                        'jatah_md' => $timesheet->ticket_id ? ($jatahMap[$timesheet->ticket_id] ?? null) : null,
+                                        'jatah_md' => $timesheet->ticket_id ? ($jatahMap[$timesheet->ticket_id . '_' . $timesheet->employee_id] ?? null) : null,
                                         'md_consumed' => $timesheet->md_consumed,
                                         'presence' => $timesheet->presence,
                                         'location' => $timesheet->location,
@@ -147,12 +158,23 @@ class TimesheetController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
-        // Latest approved consultant quota for the ticket
-        $quotaRecord = ConsultantMandays::where('ticket_id', $ticketId)
+        // Step 1: find the latest approved ConsultantMandays for this ticket.
+        $latestApproved = ConsultantMandays::where('ticket_id', $ticketId)
             ->where('status', 'approved')
             ->orderBy('approved_at', 'desc')
             ->first();
-        $quota = $quotaRecord ? (float) $quotaRecord->total_mandays : null;
+
+        // Step 2: find this employee's detail row in that approved proposal.
+        $quotaDetail = $latestApproved
+            ? ConsultantMandaysDetail::where('consultant_mandays_id', $latestApproved->id)
+                ->where('employee_id', $employeeId)
+                ->first()
+            : null;
+
+        // Quota = employee's base mandays + any approved additional granted by Head.
+        $quota = $quotaDetail
+            ? round((float) $quotaDetail->mandays + (float) ($quotaDetail->approved_additional ?? 0), 2)
+            : null;
 
         // Total MD consumed by this employee for this ticket.
         // Rejected timesheets return their MD to the quota — exclude them.
@@ -166,16 +188,17 @@ class TimesheetController extends Controller
         return response()->json([
             'success' => true,
             'data'    => [
-                'ticket_id' => $ticketId,
-                'quota'     => $quota,
-                'consumed'  => round($consumed, 2),
-                'remaining' => $remaining,
+                'ticket_id'  => $ticketId,
+                'quota'      => $quota,
+                'consumed'   => round($consumed, 2),
+                'remaining'  => $remaining,
+                'employee_id' => $employeeId,
             ],
         ]);
     }
 
     /**
-     * Get active late submission exceptions for the current user.
+     * Get the current user's approved (not expired) late exception requests.
      * GET /api/timesheets/my-late-exceptions
      */
     public function myLateExceptions()
@@ -187,22 +210,109 @@ class TimesheetController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
-        $exceptions = \App\Models\PeriodLateException::where('employee_id', $employeeId)
-            ->where(fn($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+        $requests = \App\Models\PeriodLateExceptionRequest::where('employee_id', $employeeId)
+            ->where('status', 'approved')
+            ->where('expires_at', '>', now())
             ->with('period')
             ->get()
-            ->map(fn($ex) => [
-                'id'           => $ex->id,
-                'domain'       => $ex->domain,
-                'period_id'    => $ex->period_id,
-                'period_year'  => $ex->period?->year,
-                'period_month' => $ex->period?->month,
-                'period_label' => $ex->period?->getLabel(),
-                'period_start' => $ex->period?->start_date?->format('Y-m-d'),
-                'period_end'   => $ex->period?->end_date?->format('Y-m-d'),
+            ->map(fn($r) => [
+                'id'           => $r->id,
+                'domain'       => $r->domain,
+                'period_id'    => $r->period_id,
+                'period_year'  => $r->period?->year,
+                'period_month' => $r->period?->month,
+                'period_label' => $r->period?->getLabel(),
+                'period_start' => $r->period?->start_date?->format('Y-m-d'),
+                'period_end'   => $r->period?->end_date?->format('Y-m-d'),
+                'expires_at'   => $r->expires_at?->format('d M Y, H:i'),
             ]);
 
-        return response()->json(['success' => true, 'data' => $exceptions]);
+        return response()->json(['success' => true, 'data' => $requests]);
+    }
+
+    /**
+     * Return all periods valid for timesheet input for the current user:
+     *   - Current period (if open for the user's domain)
+     *   - Previous period (if open for the user's domain)
+     *   - Approved late exception periods (access not expired)
+     * GET /api/timesheets/valid-periods
+     */
+    public function validPeriods()
+    {
+        $sessionUser = session('user');
+        $employeeId  = $sessionUser['id'] ?? null;
+        $roleId      = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
+
+        if (!$employeeId) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        /** @var PeriodService $svc */
+        $svc    = app(PeriodService::class);
+        $domain = $svc->getDomainForRole($roleId ?? 0);
+
+        // Roles without a domain (Admin, RPMO, etc.) — return just the current active period
+        if ($domain === null) {
+            $active = ReportingPeriod::getActive();
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'active_window'      => $active ? [[
+                        'id'           => $active->id,
+                        'label'        => $active->getLabel(),
+                        'start_date'   => $active->start_date?->format('Y-m-d'),
+                        'end_date'     => $active->end_date?->format('Y-m-d'),
+                        'global_status'=> $active->global_status,
+                        'type'         => 'current',
+                    ]] : [],
+                    'late_exceptions'    => [],
+                ],
+            ]);
+        }
+
+        // Active window periods
+        $windowPeriods = $svc->getActiveWindowPeriods();
+        $now           = now();
+        $curCoords     = ReportingPeriod::periodFor($now);
+
+        $activeWindow = collect($windowPeriods)->map(function ($p) use ($curCoords, $domain) {
+            $isCurrent = $p->year == $curCoords['year'] && $p->month == $curCoords['month'];
+            return [
+                'id'            => $p->id,
+                'label'         => $p->getLabel(),
+                'start_date'    => $p->start_date?->format('Y-m-d'),
+                'end_date'      => $p->end_date?->format('Y-m-d'),
+                'global_status' => $p->global_status,
+                'domain_status' => $p->domainStatus($domain),
+                'type'          => $isCurrent ? 'current' : 'previous',
+            ];
+        })->values();
+
+        // Approved unexpired late exception requests
+        $lateExceptions = \App\Models\PeriodLateExceptionRequest::where('employee_id', $employeeId)
+            ->where('domain', $domain)
+            ->where('status', 'approved')
+            ->where('expires_at', '>', $now)
+            ->with('period')
+            ->get()
+            ->map(fn($r) => [
+                'id'           => $r->id,
+                'period_id'    => $r->period_id,
+                'label'        => $r->period?->getLabel(),
+                'start_date'   => $r->period?->start_date?->format('Y-m-d'),
+                'end_date'     => $r->period?->end_date?->format('Y-m-d'),
+                'expires_at'     => $r->expires_at?->setTimezone(config('app.timezone'))->format('d M Y, H:i'),
+                'expires_at_iso' => $r->expires_at?->setTimezone(config('app.timezone'))->toIso8601String(),
+                'type'         => 'late_exception',
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'active_window'   => $activeWindow,
+                'late_exceptions' => $lateExceptions,
+            ],
+        ]);
     }
 
     /**
@@ -261,20 +371,30 @@ class TimesheetController extends Controller
             }
 
             $rows = $query->orderBy('date', 'desc')
-                          ->orderBy('start_time', 'desc')
+                          ->orderBy('created_at', 'desc')
                           ->get();
 
-            // Fetch approved consultant mandays for all ticket_ids in one query (avoid N+1)
+            // Fetch per-employee quota from the latest approved consultant mandays detail
             $ticketIds = $rows->whereNotNull('ticket_id')->pluck('ticket_id')->unique()->values();
-            $approvedMandaysMap = [];
+            $approvedMandaysMap = []; // keyed as "ticketId_employeeId"
             if ($ticketIds->isNotEmpty()) {
-                ConsultantMandays::whereIn('ticket_id', $ticketIds)
+                $latestCMs = ConsultantMandays::whereIn('ticket_id', $ticketIds)
                     ->where('status', 'approved')
                     ->orderBy('approved_at', 'desc')
                     ->get()
                     ->groupBy('ticket_id')
-                    ->each(function ($versions, $ticketId) use (&$approvedMandaysMap) {
-                        $approvedMandaysMap[$ticketId] = (float) $versions->first()->total_mandays;
+                    ->map(fn($g) => $g->first());
+
+                $cmIdToTicketId = $latestCMs->mapWithKeys(fn($cm) => [$cm->id => $cm->ticket_id]);
+
+                ConsultantMandaysDetail::whereIn('consultant_mandays_id', $cmIdToTicketId->keys())
+                    ->get()
+                    ->each(function ($detail) use (&$approvedMandaysMap, $cmIdToTicketId) {
+                        $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
+                        if ($ticketId) {
+                            $key = $ticketId . '_' . $detail->employee_id;
+                            $approvedMandaysMap[$key] = round((float)$detail->mandays + (float)($detail->approved_additional ?? 0), 2);
+                        }
                     });
             }
 
@@ -288,7 +408,7 @@ class TimesheetController extends Controller
                     'ticket_number'        => $t->ticket?->ticket_number,
                     'ticket_description'   => $t->ticket?->description,
                     'customer_name'        => $t->ticket?->customer?->basicData?->name_1,
-                    'jatah_md'             => $approvedMandaysMap[$t->ticket_id] ?? null,
+                    'jatah_md'             => $t->ticket_id ? ($approvedMandaysMap[$t->ticket_id . '_' . $t->employee_id] ?? null) : null,
                     'activity_id'          => $t->activity_id,
                     'activity'             => $t->activity ? ['id' => $t->activity->id, 'name' => $t->activity->name] : null,
                     'date'                 => $t->date?->format('Y-m-d'),
