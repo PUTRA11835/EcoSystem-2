@@ -254,6 +254,10 @@ class TicketMessageController extends Controller
                     $this->saveLocalAttachments($uploadedFiles, $message, $ticketId, $senderId);
                 }
 
+                // Internal note advances last_message_at so others see the unread indicator,
+                // but does NOT update last_agent_reply_at — only a public reply clears unread.
+                $ticket->update(['last_message_at' => now()]);
+
                 // Fire mention notifications (non-fatal)
                 if (!empty($mentionedEmployeeIds) || !empty($mentionedRoleIds)) {
                     $this->createMentionNotifications(
@@ -434,8 +438,11 @@ class TicketMessageController extends Controller
         array $mentionedRoleIds
     ): void {
         try {
-            $preview  = mb_substr(strip_tags($message->message ?? ''), 0, 120);
-            $ticketId = $message->ticket_id;
+            $ticketId  = $message->ticket_id;
+            $ticketNum = $ticket->ticket_number ?? $ticketId;
+            $rawText   = mb_substr(strip_tags($message->message ?? ''), 0, 100);
+            $preview   = "[Ticket #{$ticketNum}] {$rawText}";
+            $link      = "/ticket/{$ticketId}";
 
             // Collect all recipient employee IDs (unique, exclude sender)
             $recipientIds = collect($mentionedEmployeeIds)->map(fn ($id) => (int) $id)->toArray();
@@ -468,6 +475,7 @@ class TicketMessageController extends Controller
                     'from_employee_id' => $senderId,
                     'from_name'        => $senderName,
                     'preview'          => $preview,
+                    'link'             => $link,
                     'is_read'          => false,
                 ]);
             }

@@ -28,19 +28,19 @@
                 <!-- Qualification Type -->
                 <div class="col-span-1">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Type <span class="text-red-600">*</span></label>
-                    <div class="relative">
-                        <select id="qualificationType" required onchange="toggleQualificationFields()" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white pr-10 appearance-none">
-                            <option value="">Select Type</option>
-                            <option value="Education">Education</option>
-                            <option value="Certification">Certification</option>
-                            <option value="Language">Language</option>
-                            <option value="Skill">Skill</option>
-                            <option value="Training">Training</option>
-                        </select>
-                        <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                            </svg>
+                    <div class="custom-dd relative" data-onchange="toggleQualificationFields">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select Type</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="qualificationType" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Type</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Education">Education</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Certification">Certification</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Language">Language</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Skill">Skill</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Training">Training</button>
                         </div>
                     </div>
                 </div>
@@ -54,24 +54,24 @@
                 <!-- Language (for Language type) -->
                 <div class="col-span-2 hidden" id="languageField">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Language</label>
-                    <div class="relative">
-                        <select id="qualificationLanguage" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white pr-10 appearance-none">
-                            <option value="">Select Language</option>
-                            <option value="English">English</option>
-                            <option value="Indonesian">Indonesian</option>
-                            <option value="Mandarin">Mandarin</option>
-                            <option value="Japanese">Japanese</option>
-                            <option value="Korean">Korean</option>
-                            <option value="Arabic">Arabic</option>
-                            <option value="French">French</option>
-                            <option value="German">German</option>
-                            <option value="Spanish">Spanish</option>
-                            <option value="Other">Other</option>
-                        </select>
-                        <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                            </svg>
+                    <div class="custom-dd relative">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select Language</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="qualificationLanguage" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Language</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="English">English</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Indonesian">Indonesian</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Mandarin">Mandarin</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Japanese">Japanese</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Korean">Korean</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Arabic">Arabic</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="French">French</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="German">German</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Spanish">Spanish</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Other">Other</button>
                         </div>
                     </div>
                 </div>
@@ -448,11 +448,11 @@
                 document.getElementById('editQualificationId').value = qual.qualification_id;
                 
                 // Set form values
-                document.getElementById('qualificationType').value = qual.qualification_type || '';
+                setCustomDropdownValue('qualificationType', qual.qualification_type || '');
                 toggleQualificationFields(); // Toggle fields based on type
-                
+
                 document.getElementById('qualificationModule').value = qual.module || '';
-                document.getElementById('qualificationLanguage').value = qual.language || '';
+                setCustomDropdownValue('qualificationLanguage', qual.language || '');
                 document.getElementById('qualificationLevel').value = qual.qualification_level || '';
                 document.getElementById('qualificationFirstYear').value = qual.first_year || '';
                 document.getElementById('qualificationCertified').checked = qual.certified || false;
@@ -478,9 +478,9 @@
      */
     function clearQualificationForm() {
         document.getElementById('editQualificationId').value = '';
-        document.getElementById('qualificationType').value = '';
+        setCustomDropdownValue('qualificationType', '');
         document.getElementById('qualificationModule').value = '';
-        document.getElementById('qualificationLanguage').value = '';
+        setCustomDropdownValue('qualificationLanguage', '');
         document.getElementById('qualificationLevel').value = '';
         document.getElementById('qualificationFirstYear').value = '';
         document.getElementById('qualificationCertified').checked = false;

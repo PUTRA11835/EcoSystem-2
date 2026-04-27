@@ -5,7 +5,7 @@ namespace App\Services;
 use App\Enums\RoleId;
 use App\Models\Employee;
 use App\Models\PeriodAuditLog;
-use App\Models\PeriodLateException;
+use App\Models\PeriodLateExceptionRequest;
 use App\Models\ReportingPeriod;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -21,7 +21,7 @@ class PeriodService
 
     /**
      * Get the timesheet domain ('project' | 'support' | null) for a given role ID.
-     * Returns null for roles not subject to period restrictions.
+     * Returns null for roles not subject to period restrictions (Admin, RPMO, etc.).
      */
     public function getDomainForRole(int $roleId): ?string
     {
@@ -36,13 +36,17 @@ class PeriodService
 
     /**
      * Check if an employee can submit a timesheet for a given date.
-     * Returns ['allowed' => bool, 'reason' => string].
      *
      * Rules:
-     *  - Roles without a domain (Admin, RPMO, Helpdesk, EC User, etc.) → always allowed.
-     *  - Period must exist and be globally open.
-     *  - Domain must be open.
-     *  - Exception: if a late_exception exists for this employee + domain + period, allow even if closed.
+     *  1. Roles without a domain (Admin, RPMO, etc.) → always allowed.
+     *  2. The date's period must be within the active window:
+     *       - Current period  (the one today falls in)
+     *       - Previous period (one month before current)
+     *  3. Outside the active window → only allowed with an approved, unexpired
+     *     PeriodLateExceptionRequest for that specific period + employee + domain.
+     *  4. Inside the active window → period must be globally open and domain must be open.
+     *
+     * Returns ['allowed' => bool, 'reason' => string].
      */
     public function canSubmitTimesheet(int $employeeId, Carbon $date): array
     {
@@ -54,14 +58,16 @@ class PeriodService
         $roleId = (int) $roleId;
         $domain = $this->getDomainForRole($roleId);
 
-        // Roles without a domain bypass period restrictions
+        // Roles without a domain bypass all period restrictions
         if ($domain === null) {
             return ['allowed' => true, 'reason' => ''];
         }
 
-        // Resolve period record for this date
-        $p      = ReportingPeriod::periodFor($date);
-        $period = ReportingPeriod::where('year', $p['year'])->where('month', $p['month'])->first();
+        // Resolve period for the submitted date
+        $dateCoords = ReportingPeriod::periodFor($date);
+        $period     = ReportingPeriod::where('year', $dateCoords['year'])
+            ->where('month', $dateCoords['month'])
+            ->first();
 
         if (!$period) {
             return [
@@ -70,51 +76,89 @@ class PeriodService
             ];
         }
 
-        // Helper: check late exception (bypasses all closures)
-        $hasException = fn() => PeriodLateException::where('period_id', $period->id)
-            ->where('employee_id', $employeeId)
-            ->where('domain', $domain)
-            ->where(fn($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
-            ->exists();
+        // ── Compute active window: current + previous period ──────────────────
+        $now          = now();
+        $curCoords    = ReportingPeriod::periodFor($now);
+        $prevMonth    = $curCoords['month'] === 1 ? 12 : $curCoords['month'] - 1;
+        $prevYear     = $curCoords['month'] === 1 ? $curCoords['year'] - 1 : $curCoords['year'];
 
-        // Global status check
+        $isCurrentPeriod  = $dateCoords['year']  == $curCoords['year']
+                         && $dateCoords['month'] == $curCoords['month'];
+        $isPreviousPeriod = $dateCoords['year']  == $prevYear
+                         && $dateCoords['month'] == $prevMonth;
+        $inActiveWindow   = $isCurrentPeriod || $isPreviousPeriod;
+
+        // ── Outside active window → require approved late exception request ────
+        if (!$inActiveWindow) {
+            $hasActiveException = PeriodLateExceptionRequest::where('period_id', $period->id)
+                ->where('employee_id', $employeeId)
+                ->where('domain', $domain)
+                ->where('status', 'approved')
+                ->where('expires_at', '>', $now)
+                ->exists();
+
+            if (!$hasActiveException) {
+                return [
+                    'allowed' => false,
+                    'reason'  => 'You can only submit timesheets for the current period or the previous period. '
+                               . 'For older periods, submit a Late Exception Request.',
+                ];
+            }
+
+            // Late exception is valid → bypass period/domain status checks
+            return ['allowed' => true, 'reason' => ''];
+        }
+
+        // ── Inside active window → standard period/domain status checks ───────
         if ($period->global_status === 'not_open') {
             return [
                 'allowed' => false,
-                'reason'  => 'Period not available. Waiting for RPMO to open.',
+                'reason'  => 'Period not yet opened. Waiting for RPMO to open this period.',
             ];
         }
 
         if ($period->global_status === 'closed') {
-            if ($hasException()) return ['allowed' => true, 'reason' => ''];
-            $head = $domain === self::DOMAIN_PROJECT ? 'Project Head' : 'Support Head';
             return [
                 'allowed' => false,
-                'reason'  => "Period is closed. Contact {$head} for late submission access.",
+                'reason'  => 'Period is closed.',
             ];
         }
 
-        // Domain status check
         $domainStatus = $period->domainStatus($domain);
         $domainLabel  = ucfirst($domain);
 
         if ($domainStatus === 'not_open') {
             return [
                 'allowed' => false,
-                'reason'  => "{$domainLabel} period has not been opened by {$domainLabel} Head.",
+                'reason'  => "{$domainLabel} domain has not been opened by {$domainLabel} Head.",
             ];
         }
 
         if ($domainStatus === 'closed') {
-            if ($hasException()) return ['allowed' => true, 'reason' => ''];
-            $head = $domain === self::DOMAIN_PROJECT ? 'Project Head' : 'Support Head';
             return [
                 'allowed' => false,
-                'reason'  => "{$domainLabel} period is closed. Contact {$head} for late submission access.",
+                'reason'  => "{$domainLabel} domain is closed.",
             ];
         }
 
         return ['allowed' => true, 'reason' => ''];
+    }
+
+    /**
+     * Return the 2 periods that are in the active window for a given date.
+     * Used by the frontend to inform users which periods they can normally submit to.
+     */
+    public function getActiveWindowPeriods(Carbon $reference = null): array
+    {
+        $now       = $reference ?? now();
+        $cur       = ReportingPeriod::periodFor($now);
+        $prevMonth = $cur['month'] === 1 ? 12 : $cur['month'] - 1;
+        $prevYear  = $cur['month'] === 1 ? $cur['year'] - 1 : $cur['year'];
+
+        $current  = ReportingPeriod::where('year', $cur['year'])->where('month', $cur['month'])->first();
+        $previous = ReportingPeriod::where('year', $prevYear)->where('month', $prevMonth)->first();
+
+        return array_filter([$current, $previous]);
     }
 
     // ── RPMO actions ──────────────────────────────────────────────────────────
@@ -135,7 +179,6 @@ class PeriodService
             throw new \InvalidArgumentException("Period {$year}-{$month} already exists.");
         }
 
-        // Check for date overlap
         $overlap = ReportingPeriod::where(function ($q) use ($startDate, $endDate) {
             $q->whereBetween('start_date', [$startDate, $endDate])
               ->orWhereBetween('end_date', [$startDate, $endDate])
@@ -166,15 +209,13 @@ class PeriodService
     }
 
     /**
-     * RPMO opens a period globally.
-     * Only one period can be globally open at a time.
+     * RPMO opens (or re-opens) a period globally.
+     * Allowed from: 'not_open' or 'closed' → 'open'.
      */
     public function openGlobal(ReportingPeriod $period, int $actorId, int $actorRoleId): void
     {
-        if ($period->global_status !== 'not_open') {
-            throw new \InvalidArgumentException(
-                'Period must be in "Not Open" state to be opened globally.'
-            );
+        if ($period->global_status === 'open') {
+            throw new \InvalidArgumentException('Period is already globally open.');
         }
 
         if (ReportingPeriod::where('global_status', 'open')->where('id', '!=', $period->id)->exists()) {
@@ -183,13 +224,15 @@ class PeriodService
             );
         }
 
-        DB::transaction(function () use ($period, $actorId, $actorRoleId) {
+        $isReopen = $period->global_status === 'closed';
+
+        DB::transaction(function () use ($period, $actorId, $actorRoleId, $isReopen) {
             $period->update([
                 'global_status' => 'open',
                 'opened_at'     => now(),
                 'opened_by'     => $actorId,
             ]);
-            $this->log($period, 'global_open', $actorId, $actorRoleId);
+            $this->log($period, $isReopen ? 'global_reopen' : 'global_open', $actorId, $actorRoleId);
         });
     }
 
@@ -226,8 +269,7 @@ class PeriodService
     }
 
     /**
-     * RPMO force-closes a specific domain (overrides normal closing flow).
-     * Logged as a force action with warning in audit trail.
+     * RPMO force-closes a specific domain.
      */
     public function forceCloseDomain(
         ReportingPeriod $period,
@@ -245,9 +287,7 @@ class PeriodService
 
         $statusCol = "{$domain}_status";
         if ($period->{$statusCol} === 'closed') {
-            throw new \InvalidArgumentException(
-                ucfirst($domain) . ' domain is already closed.'
-            );
+            throw new \InvalidArgumentException(ucfirst($domain) . ' domain is already closed.');
         }
 
         DB::transaction(function () use ($period, $domain, $actorId, $actorRoleId) {
@@ -262,10 +302,6 @@ class PeriodService
 
     // ── Head actions ──────────────────────────────────────────────────────────
 
-    /**
-     * Head opens their domain.
-     * Requires global_status = 'open'.
-     */
     public function openDomain(
         ReportingPeriod $period,
         string          $domain,
@@ -282,9 +318,7 @@ class PeriodService
 
         $statusCol = "{$domain}_status";
         if ($period->{$statusCol} === 'open') {
-            throw new \InvalidArgumentException(
-                ucfirst($domain) . ' domain is already open.'
-            );
+            throw new \InvalidArgumentException(ucfirst($domain) . ' domain is already open.');
         }
 
         DB::transaction(function () use ($period, $domain, $actorId, $actorRoleId) {
@@ -297,9 +331,6 @@ class PeriodService
         });
     }
 
-    /**
-     * Head closes their domain.
-     */
     public function closeDomain(
         ReportingPeriod $period,
         string          $domain,
@@ -310,9 +341,7 @@ class PeriodService
 
         $statusCol = "{$domain}_status";
         if ($period->{$statusCol} !== 'open') {
-            throw new \InvalidArgumentException(
-                ucfirst($domain) . ' domain is not open.'
-            );
+            throw new \InvalidArgumentException(ucfirst($domain) . ' domain is not open.');
         }
 
         DB::transaction(function () use ($period, $domain, $actorId, $actorRoleId) {
@@ -325,54 +354,160 @@ class PeriodService
         });
     }
 
-    // ── Late exception management ─────────────────────────────────────────────
+    // ── Late exception REQUEST flow (2-level approval, request-based only) ────
 
     /**
-     * Grant a late submission exception for a specific employee + domain.
-     * Head only. Upserts — calling again refreshes notes/granted_at.
+     * Employee submits a request for late timesheet access for a closed/old period.
+     * One active request per (period, employee). Re-submission allowed only if previously rejected.
+     *
+     * @throws \InvalidArgumentException if a pending/approved request already exists.
      */
-    public function grantLateException(
+    public function createLateExceptionRequest(
         int     $periodId,
         int     $employeeId,
         string  $domain,
-        int     $actorId,
-        int     $actorRoleId,
         ?string $notes = null
-    ): PeriodLateException {
+    ): PeriodLateExceptionRequest {
         $this->assertValidDomain($domain);
-        $period = ReportingPeriod::findOrFail($periodId);
+        ReportingPeriod::findOrFail($periodId); // ensure period exists
 
-        return DB::transaction(function () use ($period, $employeeId, $domain, $actorId, $actorRoleId, $notes) {
-            $exception = PeriodLateException::updateOrCreate(
-                ['period_id' => $period->id, 'employee_id' => $employeeId, 'domain' => $domain],
-                ['granted_by' => $actorId, 'granted_at' => now(), 'notes' => $notes]
-            );
+        $existing = PeriodLateExceptionRequest::where('period_id', $periodId)
+            ->where('employee_id', $employeeId)
+            ->first();
 
-            $this->log($period, "late_exception_granted_{$domain}", $actorId, $actorRoleId, metadata: [
-                'employee_id' => $employeeId,
-                'notes'       => $notes,
+        if ($existing) {
+            if ($existing->isPending()) {
+                throw new \InvalidArgumentException(
+                    'You already have a pending request for this period.'
+                );
+            }
+            if ($existing->isAccessActive()) {
+                throw new \InvalidArgumentException(
+                    'A request for this period has already been approved and access is still active.'
+                );
+            }
+            // Expired or rejected → allow re-submission
+            $existing->update([
+                'domain'           => $domain,
+                'notes'            => $notes,
+                'status'           => 'pending_head',
+                'head_id'          => null,
+                'head_approved_at' => null,
+                'head_notes'       => null,
+                'rpmo_id'          => null,
+                'rpmo_approved_at' => null,
+                'rpmo_notes'       => null,
+                'rejected_by'      => null,
+                'rejected_at'      => null,
+                'rejection_notes'  => null,
+                'expires_at'       => null,
             ]);
+            return $existing->fresh();
+        }
 
-            return $exception;
-        });
+        return PeriodLateExceptionRequest::create([
+            'period_id'   => $periodId,
+            'employee_id' => $employeeId,
+            'domain'      => $domain,
+            'notes'       => $notes,
+            'status'      => 'pending_head',
+        ]);
     }
 
     /**
-     * Revoke a late submission exception.
+     * Head approves the request (Level 1) → moves to pending_rpmo.
      */
-    public function revokeLateException(
-        PeriodLateException $exception,
-        int                 $actorId,
-        int                 $actorRoleId
+    public function headApproveLateRequest(
+        PeriodLateExceptionRequest $req,
+        int                        $headId,
+        int                        $headRoleId,
+        ?string                    $notes = null
     ): void {
-        $period = $exception->period;
+        if ($req->status !== 'pending_head') {
+            throw new \InvalidArgumentException('Request is not pending Head approval.');
+        }
 
-        DB::transaction(function () use ($exception, $period, $actorId, $actorRoleId) {
-            $this->log($period, "late_exception_revoked_{$exception->domain}", $actorId, $actorRoleId, metadata: [
-                'employee_id' => $exception->employee_id,
-            ]);
-            $exception->delete();
-        });
+        $req->update([
+            'status'           => 'pending_rpmo',
+            'head_id'          => $headId,
+            'head_approved_at' => now(),
+            'head_notes'       => $notes,
+        ]);
+    }
+
+    /**
+     * Head rejects the request — flow ends.
+     */
+    public function headRejectLateRequest(
+        PeriodLateExceptionRequest $req,
+        int                        $headId,
+        int                        $headRoleId,
+        ?string                    $reason = null
+    ): void {
+        if ($req->status !== 'pending_head') {
+            throw new \InvalidArgumentException('Request is not pending Head approval.');
+        }
+
+        $req->update([
+            'status'          => 'rejected',
+            'rejected_by'     => $headId,
+            'rejected_at'     => now(),
+            'rejection_notes' => $reason,
+        ]);
+    }
+
+    /**
+     * RPMO approves the request (Level 2).
+     * Must provide an expires_at deadline — this controls when access expires.
+     * No separate PeriodLateException is created; access is determined by this record.
+     *
+     * @throws \InvalidArgumentException if deadline is in the past or missing.
+     */
+    public function rpmoApproveLateRequest(
+        PeriodLateExceptionRequest $req,
+        int                        $rpmoId,
+        int                        $rpmoRoleId,
+        Carbon                     $expiresAt,
+        ?string                    $notes = null
+    ): PeriodLateExceptionRequest {
+        if ($req->status !== 'pending_rpmo') {
+            throw new \InvalidArgumentException('Request is not pending RPMO approval.');
+        }
+
+        if ($expiresAt->isPast()) {
+            throw new \InvalidArgumentException('Access deadline cannot be in the past.');
+        }
+
+        $req->update([
+            'status'           => 'approved',
+            'rpmo_id'          => $rpmoId,
+            'rpmo_approved_at' => now(),
+            'rpmo_notes'       => $notes,
+            'expires_at'       => $expiresAt,
+        ]);
+
+        return $req->fresh();
+    }
+
+    /**
+     * RPMO rejects the request — flow ends.
+     */
+    public function rpmoRejectLateRequest(
+        PeriodLateExceptionRequest $req,
+        int                        $rpmoId,
+        int                        $rpmoRoleId,
+        ?string                    $reason = null
+    ): void {
+        if ($req->status !== 'pending_rpmo') {
+            throw new \InvalidArgumentException('Request is not pending RPMO approval.');
+        }
+
+        $req->update([
+            'status'          => 'rejected',
+            'rejected_by'     => $rpmoId,
+            'rejected_at'     => now(),
+            'rejection_notes' => $reason,
+        ]);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

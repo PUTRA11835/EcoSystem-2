@@ -44,6 +44,11 @@ class ReportingPeriod extends Model
         return $this->hasMany(PeriodLateException::class, 'period_id');
     }
 
+    public function lateExceptionRequests()
+    {
+        return $this->hasMany(\App\Models\PeriodLateExceptionRequest::class, 'period_id');
+    }
+
     public function opener()
     {
         return $this->belongsTo(Employee::class, 'opened_by', 'employee_id');
@@ -97,46 +102,59 @@ class ReportingPeriod extends Model
 
     /**
      * Compute the period (year, month) for a given date.
-     * Rule: day 21 of month M → day 20 of month M+1 = "Period M".
+     *
+     * Convention (revised):
+     *   - Day 1–20  of month M  → Period M   (e.g. Jan 15  → Period January)
+     *   - Day 21–31 of month M  → Period M+1 (e.g. Dec 25  → Period January of next year)
+     *
+     * Examples:
+     *   Dec 21 – Jan 20 → Period January
+     *   Jan 21 – Feb 20 → Period February
      */
     public static function periodFor(Carbon $date): array
     {
         if ($date->day >= 21) {
-            return ['year' => $date->year, 'month' => $date->month];
+            // Dates on or after the 21st belong to next month's period
+            return $date->month === 12
+                ? ['year' => $date->year + 1, 'month' => 1]
+                : ['year' => $date->year,     'month' => $date->month + 1];
         }
-        $prev = $date->copy()->subMonthNoOverflow();
-        return ['year' => $prev->year, 'month' => $prev->month];
+        // Dates before the 21st stay in the current month's period
+        return ['year' => $date->year, 'month' => $date->month];
     }
 
     /**
-     * Default date range for a given period year/month (21-20 rule).
+     * Default date range for a given period year/month.
+     * Period M of year Y covers: 21st of (M-1) → 20th of M.
      */
     public static function dateRange(int $year, int $month): array
     {
-        $start = Carbon::create($year, $month, 21)->startOfDay();
-        $end   = $month === 12
-            ? Carbon::create($year + 1, 1, 20)->endOfDay()
-            : Carbon::create($year, $month + 1, 20)->endOfDay();
+        $startYear  = $month === 1 ? $year - 1 : $year;
+        $startMonth = $month === 1 ? 12        : $month - 1;
+        $start = Carbon::create($startYear, $startMonth, 21)->startOfDay();
+        $end   = Carbon::create($year, $month, 20)->endOfDay();
         return ['start' => $start, 'end' => $end];
     }
 
     /**
      * Default start_date string for a given period.
+     * Period M → starts on 21st of month (M-1).
      */
     public static function defaultStartDate(int $year, int $month): string
     {
-        return sprintf('%04d-%02d-21', $year, $month);
+        if ($month === 1) {
+            return sprintf('%04d-12-21', $year - 1);
+        }
+        return sprintf('%04d-%02d-21', $year, $month - 1);
     }
 
     /**
      * Default end_date string for a given period.
+     * Period M → ends on 20th of month M.
      */
     public static function defaultEndDate(int $year, int $month): string
     {
-        if ($month === 12) {
-            return sprintf('%04d-01-20', $year + 1);
-        }
-        return sprintf('%04d-%02d-20', $year, $month + 1);
+        return sprintf('%04d-%02d-20', $year, $month);
     }
 
     /**

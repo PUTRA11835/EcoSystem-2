@@ -891,19 +891,44 @@
                     }
                     list.innerHTML = data.data.map(n => {
                         const isUnread = !n.is_read;
-                        const isTimesheetSubmit = n.type === 'timesheet_submitted';
-                        const notifUrl = n.ticket_id ? '/calendar/timesheets' : '/notifications';
 
+                        // Resolve navigation URL: explicit link > ticket fallback > notifications page
+                        const notifUrl = n.link || (n.ticket_id ? '/calendar/timesheets' : '/notifications');
+
+                        // Icon + title per notification type
                         let iconHtml, titleHtml;
-                        if (isTimesheetSubmit) {
-                            iconHtml = `<div class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center shrink-0 mt-0.5">
-                                <i class="fas fa-file-alt text-purple-700 text-xs"></i>
-                            </div>`;
+                        if (n.type === 'timesheet_submitted') {
+                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-file-alt text-purple-700 text-xs"></i></div>`;
                             titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">${escapeHtml(n.from_name || 'Consultant')} submitted a timesheet</p>`;
+                        } else if (n.type === 'late_exception_submitted') {
+                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-user-clock text-yellow-600 text-xs"></i></div>`;
+                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Late Access Request from ${escapeHtml(n.from_name || 'Employee')}</p>`;
+                        } else if (n.type === 'late_exception_pending_rpmo') {
+                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-user-clock text-blue-600 text-xs"></i></div>`;
+                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Late Access Request needs your review</p>`;
+                        } else if (n.type === 'late_exception_head_approved') {
+                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-check-circle text-green-600 text-xs"></i></div>`;
+                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Late Access Request approved by Head</p>`;
+                        } else if (n.type === 'late_exception_head_rejected') {
+                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-times-circle text-red-600 text-xs"></i></div>`;
+                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Late Access Request rejected by Head</p>`;
+                        } else if (n.type === 'late_exception_approved') {
+                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-unlock text-green-600 text-xs"></i></div>`;
+                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Late Access Request approved by RPMO</p>`;
+                        } else if (n.type === 'late_exception_rejected') {
+                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-ban text-red-600 text-xs"></i></div>`;
+                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Late Access Request rejected by RPMO</p>`;
+                        } else if (n.type === 'customer_mandays_canceled') {
+                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-times-circle text-orange-600 text-xs"></i></div>`;
+                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Customer Mandays Proposal canceled</p>`;
+                        } else if (n.type === 'customer_mandays_proposed') {
+                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-file-invoice text-blue-600 text-xs"></i></div>`;
+                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Customer Mandays Proposal — needs review</p>`;
+                        } else if (n.type === 'internal_mandays_proposed') {
+                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-users text-indigo-600 text-xs"></i></div>`;
+                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Internal Mandays Proposal — needs review</p>`;
                         } else {
-                            iconHtml = `<div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
-                                <i class="fas fa-at text-red-700 text-xs"></i>
-                            </div>`;
+                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-at text-red-700 text-xs"></i></div>`;
                             titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">${escapeHtml(n.from_name || 'Someone')} mentioned you</p>`;
                         }
 

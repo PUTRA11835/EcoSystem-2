@@ -60,8 +60,32 @@ const statusColors = {
     rejected: { bg: 'bg-red-100', text: 'text-red-700', badge: 'bg-red-500' }
 };
 
+async function loadTsPeriodBadge() {
+    try {
+        const res  = await fetch('/api/reporting/current-period', {
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (!json.success) return;
+        const p      = json.data;
+        const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const badge  = document.getElementById('tsPeriodBadge');
+        const label  = document.getElementById('tsBadgeLabel');
+        const status = document.getElementById('tsBadgeStatus');
+        if (!badge) return;
+        label.textContent  = `${MONTHS[p.month - 1]} ${p.year}`;
+        status.textContent = p.is_closed ? '(Closed)' : '(Open)';
+        status.className   = p.is_closed ? 'font-semibold text-red-500' : 'font-semibold text-green-500';
+        badge.classList.remove('hidden');
+        badge.classList.add('flex');
+    } catch (e) {}
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
     initializeDateFilters();
+    loadTsPeriodBadge();
 
     // Save default thead so we can restore it after switching tabs (both modes)
     const thead = document.getElementById('timesheetTableHead');
@@ -370,21 +394,50 @@ function setTimePicker(type, timeString) {
     if (hiddenInput) hiddenInput.value = `${hour}:${minute}`;
 }
 
+const TS_MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function tsCurrentPeriod() {
+    const now = new Date();
+    return now.getDate() >= 21
+        ? { month: now.getMonth() + 1, year: now.getFullYear() }
+        : { month: now.getMonth() === 0 ? 12 : now.getMonth(),
+            year:  now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear() };
+}
+
+function tsPeriodToDateRange(month, year) {
+    const sm = month === 1 ? 12 : month - 1;
+    const sy = month === 1 ? year - 1 : year;
+    return {
+        start: `${sy}-${String(sm).padStart(2,'0')}-21`,
+        end:   `${year}-${String(month).padStart(2,'0')}-20`,
+    };
+}
+
+function updateTsPeriodLabel() {
+    const month = parseInt(document.getElementById('filterMonth')?.value);
+    const year  = parseInt(document.getElementById('filterYear')?.value);
+    if (!month || !year) return;
+    const sm = month === 1 ? 12 : month - 1;
+    const sy = month === 1 ? year - 1 : year;
+    const el = document.getElementById('tsPeriodRange');
+    if (el) el.textContent = `${21} ${TS_MONTHS_SHORT[sm - 1]} ${sy} – ${20} ${TS_MONTHS_SHORT[month - 1]} ${year}`;
+}
+
 function initializeDateFilters() {
-    const today = new Date();
-    const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - today.getDay());
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
-    
-    const filterStartDate = document.getElementById('filterStartDate');
-    const filterEndDate = document.getElementById('filterEndDate');
-    
-    if (filterStartDate) filterStartDate.value = formatDate(startOfWeek);
-    if (filterEndDate) filterEndDate.value = formatDate(endOfWeek);
-    
-    currentFilters.start_date = formatDate(startOfWeek);
-    currentFilters.end_date = formatDate(endOfWeek);
+    const p = tsCurrentPeriod();
+    const yearEl = document.getElementById('filterYear');
+    if (yearEl) yearEl.value = p.year;
+    if (typeof setCustomDropdownValue === 'function') {
+        setCustomDropdownValue('filterMonth', String(p.month));
+    } else {
+        const monthEl = document.getElementById('filterMonth');
+        if (monthEl) monthEl.value = p.month;
+    }
+    updateTsPeriodLabel();
+
+    const { start, end } = tsPeriodToDateRange(p.month, p.year);
+    currentFilters.start_date = start;
+    currentFilters.end_date   = end;
 }
 
 function formatDate(date) {
@@ -771,29 +824,26 @@ async function onSupportTicketSelected(ticketId) {
 
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
 
-    await Promise.allSettled([
-        // Quota MD
-        fetch(`/api/tickets/${ticketId}/consultant-mandays/approved`, {
-            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
-            credentials: 'same-origin'
-        }).then(r => r.ok ? r.json() : null).then(data => {
-            setText(jatahMdEl, data?.data ? Number(data.data.total_mandays).toFixed(2) : '—');
-        }),
+    // Single call: remaining-md returns per-user quota AND remaining in one shot
+    fetch(`/api/timesheets/remaining-md?ticket_id=${ticketId}`, {
+        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+        credentials: 'same-origin'
+    }).then(r => r.ok ? r.json() : null).then(data => {
+        if (!data?.success) return;
+        const d = data.data;
 
-        // Remaining MD (quota − consumed, excluding rejected timesheets)
-        fetch(`/api/timesheets/remaining-md?ticket_id=${ticketId}`, {
-            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
-            credentials: 'same-origin'
-        }).then(r => r.ok ? r.json() : null).then(data => {
-            if (!remainingEl || !data?.success) return;
-            const rem = data.data.remaining;
-            if (rem === null) { remainingEl.textContent = '—'; return; }
-            remainingEl.textContent = Number(rem).toFixed(2);
-            remainingEl.className   = rem < 0
-                ? 'text-xs font-bold text-red-600'
-                : 'text-xs font-bold text-green-600';
-        }),
-    ]);
+        // Quota MD — per-user allocation (mandays + approved_additional for this employee)
+        setText(jatahMdEl, d.quota !== null ? Number(d.quota).toFixed(2) : '—');
+
+        // Remaining MD
+        if (!remainingEl) return;
+        const rem = d.remaining;
+        if (rem === null) { remainingEl.textContent = '—'; return; }
+        remainingEl.textContent = Number(rem).toFixed(2);
+        remainingEl.className   = rem < 0
+            ? 'text-xs font-bold text-red-600'
+            : 'text-xs font-bold text-green-600';
+    });
 }
 
 // ── Period selector for late-exception users ──────────────────────────────────
@@ -1055,21 +1105,29 @@ function filterByStatus(status) {
         activeCard.classList.add('border-2', 'border-red-600');
     }
 
-    // Sync the filter select
-    const filterStatus = document.getElementById('filterStatus');
-    if (filterStatus) filterStatus.value = status;
+    // Sync the filter dropdown
+    if (typeof setCustomDropdownValue === 'function') {
+        setCustomDropdownValue('filterStatus', status);
+    } else {
+        const filterStatus = document.getElementById('filterStatus');
+        if (filterStatus) filterStatus.value = status;
+    }
 
     applyStatusFilter();
 }
 
 function resetFilters() {
-    const filterStatus       = document.getElementById('filterStatus');
-    const filterActivityType = document.getElementById('filterActivityType');
-
-    // 1. Reset filter state (no render yet)
+    // 1. Reset period to current active period
     initializeDateFilters();
-    if (filterStatus)       filterStatus.value       = '';
-    if (filterActivityType) filterActivityType.value = '';
+    if (typeof setCustomDropdownValue === 'function') {
+        setCustomDropdownValue('filterStatus', '');
+        setCustomDropdownValue('filterActivityType', '');
+    } else {
+        const filterStatus       = document.getElementById('filterStatus');
+        const filterActivityType = document.getElementById('filterActivityType');
+        if (filterStatus)       filterStatus.value       = '';
+        if (filterActivityType) filterActivityType.value = '';
+    }
 
     currentFilters.status        = '';
     currentFilters.activity_type = '';
@@ -1527,13 +1585,16 @@ function showEmptyState() {
 }
 
 function applyFilters() {
-    const filterStartDate = document.getElementById('filterStartDate');
-    const filterEndDate = document.getElementById('filterEndDate');
-    const filterStatus = document.getElementById('filterStatus');
+    const filterMonth        = document.getElementById('filterMonth');
+    const filterYear         = document.getElementById('filterYear');
+    const filterStatus       = document.getElementById('filterStatus');
     const filterActivityType = document.getElementById('filterActivityType');
 
-    if (filterStartDate) currentFilters.start_date = filterStartDate.value;
-    if (filterEndDate) currentFilters.end_date = filterEndDate.value;
+    if (filterMonth && filterYear) {
+        const { start, end } = tsPeriodToDateRange(parseInt(filterMonth.value), parseInt(filterYear.value));
+        currentFilters.start_date = start;
+        currentFilters.end_date   = end;
+    }
     if (filterStatus) currentFilters.status = filterStatus.value;
     if (filterActivityType) currentFilters.activity_type = filterActivityType.value;
 

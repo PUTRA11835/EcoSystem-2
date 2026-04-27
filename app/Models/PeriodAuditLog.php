@@ -43,6 +43,7 @@ class PeriodAuditLog extends Model
         return match($this->action) {
             'period_created'                    => 'Period Created',
             'global_open'                       => 'Global Period Opened',
+            'global_reopen'                     => 'Global Period Re-Opened by RPMO',
             'global_close'                      => 'Global Period Closed',
             'project_open'                      => 'Project Domain Opened',
             'project_close'                     => 'Project Domain Closed',
@@ -54,6 +55,7 @@ class PeriodAuditLog extends Model
             'late_exception_granted_support'    => 'Late Access Granted (Support)',
             'late_exception_revoked_project'    => 'Late Access Revoked (Project)',
             'late_exception_revoked_support'    => 'Late Access Revoked (Support)',
+            'date_updated'                      => 'Period Dates Updated',
             default                             => ucwords(str_replace('_', ' ', $this->action)),
         };
     }

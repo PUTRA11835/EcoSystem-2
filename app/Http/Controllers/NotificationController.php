@@ -55,6 +55,7 @@ class NotificationController extends Controller
                 'message_id' => $n->message_id,
                 'from_name'  => $n->from_name,
                 'preview'    => $n->preview,
+                'link'       => $n->link,
                 'is_read'    => $n->is_read,
                 'created_at' => $n->created_at?->diffForHumans(),
             ]);
