@@ -15,13 +15,17 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Status</label>
-                <div class="relative">
-                    <select id="filterStatus" onchange="applyFilters()" class="w-full px-3 py-2.5 pr-8 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white appearance-none">
-                        <option value="">All Status</option>
-                        <option value="active">Active</option>
-                        <option value="blocked">Inactive</option>
-                    </select>
-                    <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                <div class="custom-dd relative" data-onchange="applyFilters">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">All Status</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="filterStatus" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="active">Active</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="blocked">Inactive</button>
+                    </div>
                 </div>
             </div>
             <div class="flex flex-col">
@@ -132,14 +136,21 @@
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Title</label>
-                            <select id="title" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                                <option value="">Select Title</option>
-                                <option value="Mr.">Mr.</option>
-                                <option value="Mrs.">Mrs.</option>
-                                <option value="Ms.">Ms.</option>
-                                <option value="Dr.">Dr.</option>
-                                <option value="Prof.">Prof.</option>
-                            </select>
+                            <div class="custom-dd relative" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-500">Select Title</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="title" value="">
+                                <div class="custom-dd-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Title</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Mr.">Mr.</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Mrs.">Mrs.</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Ms.">Ms.</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Dr.">Dr.</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Prof.">Prof.</button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="flex flex-col">
@@ -159,11 +170,18 @@
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Gender</label>
-                            <select id="gender" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                                <option value="">Select Gender</option>
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                            </select>
+                            <div class="custom-dd relative" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-500">Select Gender</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="gender" value="">
+                                <div class="custom-dd-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Gender</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Male">Male</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Female">Female</button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="flex flex-col">
@@ -228,14 +246,21 @@
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Language</label>
-                            <select id="language" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                                <option value="">Select Language</option>
-                                <option value="English">English</option>
-                                <option value="Indonesian">Indonesian</option>
-                                <option value="Javanese">Javanese</option>
-                                <option value="Sundanese">Sundanese</option>
-                                <option value="Other">Other</option>
-                            </select>
+                            <div class="custom-dd relative" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-500">Select Language</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="language" value="">
+                                <div class="custom-dd-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Language</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="English">English</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Indonesian">Indonesian</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Javanese">Javanese</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Sundanese">Sundanese</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Other">Other</button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="flex flex-col">
@@ -435,6 +460,7 @@
     }
 </style>
 
+<script src="/js/custom-dropdown.js?v={{ filemtime(public_path('js/custom-dropdown.js')) }}"></script>
 <script>
     let employees = [];
     let currentEmployeeId = null;
@@ -508,9 +534,13 @@
         window.location.href = `/master/employee/${employeeId}`;
     }
 
+    // Map untuk menyimpan data employee — hindari embedding data di HTML onclick attribute
+    // yang rentan terhadap karakter spesial (", ', `, \) dalam nama karyawan
+    const _empRowData = new Map();
+
     function renderTable(data = employees) {
         const tbody = document.getElementById('employeeTableBody');
-        
+
         if (data.length === 0) {
             tbody.innerHTML = `
                 <tr>
@@ -523,13 +553,27 @@
                     </td>
                 </tr>
             `;
+            _empRowData.clear();
             return;
         }
 
+        // Simpan data di Map (bukan di HTML attribute) agar aman dari karakter spesial
+        // Gunakan Number() sebagai key agar konsisten — PDO di production kadang
+        // mengembalikan integer column sebagai string sehingga Map.get(123) tidak
+        // menemukan key "123". Normalisasi ke Number menghindari mismatch ini.
+        _empRowData.clear();
+        data.forEach(emp => {
+            const fullName = [emp.first_name, emp.last_name].filter(n => n).join(' ') || '-';
+            _empRowData.set(Number(emp.id), {
+                name    : fullName,
+                roleIds : emp.roles ? emp.roles.map(r => Number(r.id)) : [],
+            });
+        });
+
         tbody.innerHTML = data.map(emp => {
             const statusInfo = getStatusInfo(emp);
-            const fullName = [emp.first_name, emp.last_name].filter(n => n).join(' ') || '-';
-            
+            const fullName   = _empRowData.get(emp.id)?.name ?? '-';
+
             return `
             <tr class="employee-row" onclick="navigateToDetail(${emp.id}, event)">
                 <td class="px-4 py-3.5 text-sm"><strong class="font-semibold text-gray-900">${emp.eci || '-'}</strong></td>
@@ -545,7 +589,7 @@
                 </td>
                 <td class="px-4 py-3.5 text-sm">
                     <div class="action-buttons" onclick="event.stopPropagation()">
-                        <button onclick="openEmpMenu(event, ${emp.id}, '${fullName.replace(/'/g,"\\'")}', ${JSON.stringify(emp.roles ? emp.roles.map(r=>r.id) : [])})" class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 transition-all">
+                        <button onclick="openEmpMenu(event, ${emp.id})" class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 transition-all">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
                             </svg>
@@ -572,7 +616,14 @@
         document.getElementById('modalTitle').textContent = 'Create Employee';
         document.getElementById('employeeForm').reset();
         document.getElementById('employeeId').value = '';
-        
+
+        // Reset modal custom dropdowns
+        if (typeof setCustomDropdownValue === 'function') {
+            setCustomDropdownValue('title', '');
+            setCustomDropdownValue('gender', '');
+            setCustomDropdownValue('language', '');
+        }
+
         // Set default value for Country
         document.getElementById('country').value = 'Indonesia';
         
@@ -616,11 +667,16 @@
                 
                 // SECTION 1: GENERAL DATA
                 document.getElementById('eci').value = emp.eci || '';
-                document.getElementById('title').value = emp.title || '';
                 document.getElementById('firstName').value = emp.first_name || '';
                 document.getElementById('lastName').value = emp.last_name || '';
                 document.getElementById('nickName').value = emp.nick_name || '';
-                document.getElementById('gender').value = emp.gender || '';
+                if (typeof setCustomDropdownValue === 'function') {
+                    setCustomDropdownValue('title', emp.title || '');
+                    setCustomDropdownValue('gender', emp.gender || '');
+                } else {
+                    document.getElementById('title').value = emp.title || '';
+                    document.getElementById('gender').value = emp.gender || '';
+                }
                 document.getElementById('birthDate').value = emp.birth_date || '';
                 document.getElementById('birthPlace').value = emp.birth_place || '';
                 document.getElementById('sinceDate').value = emp.since_date || '';
@@ -649,7 +705,11 @@
                 document.getElementById('city').value = emp.city || '';
                 document.getElementById('district').value = emp.district || '';
                 document.getElementById('village').value = emp.rural_urban_village || '';
-                document.getElementById('language').value = emp.language || '';
+                if (typeof setCustomDropdownValue === 'function') {
+                    setCustomDropdownValue('language', emp.language || '');
+                } else {
+                    document.getElementById('language').value = emp.language || '';
+                }
                 document.getElementById('emailWork').value = emp.email_work || '';
                 document.getElementById('cellPhone').value = emp.cell_phone || '';
                 
@@ -828,7 +888,11 @@
     }
 
     function resetFilters() {
-        document.getElementById('filterStatus').value = '';
+        if (typeof setCustomDropdownValue === 'function') {
+            setCustomDropdownValue('filterStatus', '');
+        } else {
+            document.getElementById('filterStatus').value = '';
+        }
         document.getElementById('filterEmployee').value = '';
         document.getElementById('filterDepartment').value = '';
         fetchEmployees();
@@ -917,9 +981,13 @@
                 credentials: 'same-origin',
             });
             const data = await response.json();
-            if (data.success) allRoles = data.data;
+            if (data.success) {
+                allRoles = data.data;
+            } else {
+                showNotification(data.message || 'Failed to load roles', 'error');
+            }
         } catch (e) {
-            showNotification('Failed to load roles', 'error');
+            showNotification('Failed to load roles — please refresh the page', 'error');
         }
     }
 
@@ -986,7 +1054,9 @@
         if (!allRoles.length) {
             container.innerHTML = '<p class="col-span-2 text-sm text-gray-400">No roles available</p>';
         } else {
-            container.innerHTML = allRoles.map(r => crRoleItemHtml(r, currentRoleIds.includes(r.id))).join('');
+            // Normalize to Number to guard against PDO returning strings in some MySQL configs
+            const currentRoleNums = currentRoleIds.map(Number);
+            container.innerHTML = allRoles.map(r => crRoleItemHtml(r, currentRoleNums.includes(Number(r.id)))).join('');
             updateCrCount();
         }
 
@@ -1021,7 +1091,13 @@
                 body: JSON.stringify({ role_ids: checked }),
             });
 
-            const data = await response.json();
+            let data;
+            try {
+                data = await response.json();
+            } catch (_) {
+                showNotification(`Server error (HTTP ${response.status}) — please refresh and try again`, 'error');
+                return;
+            }
 
             if (data.success) {
                 const names = data.data.roles.map(r => r.name).join(', ');
@@ -1032,7 +1108,7 @@
                 showApiErrors(data, 'Failed to update role');
             }
         } catch (error) {
-            showNotification('An error occurred, please try again', 'error');
+            showNotification('Network error — please check your connection and try again', 'error');
         }
     }
 
@@ -1056,23 +1132,36 @@
 
     // Initialize on page load
     document.addEventListener('DOMContentLoaded', function() {
+        if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
         fetchEmployees();
+        // Teleport menu ke body agar tidak ter-clip oleh overflow-x-hidden pada <main>
+        const menu = document.getElementById('floatingEmpMenu');
+        if (menu) document.body.appendChild(menu);
     });
 
     let _empMenuId = null, _empMenuName = null, _empMenuRoles = null;
 
-    function openEmpMenu(event, id, name, roles) {
+    function openEmpMenu(event, id) {
         event.stopPropagation();
+        const data    = _empRowData.get(Number(id)) ?? { name: '-', roleIds: [] };
         _empMenuId    = id;
-        _empMenuName  = name;
-        _empMenuRoles = roles;
+        _empMenuName  = data.name;
+        _empMenuRoles = data.roleIds;
         const menu = document.getElementById('floatingEmpMenu');
         const btn  = event.currentTarget;
         const rect = btn.getBoundingClientRect();
         menu.classList.remove('hidden');
+
+        // Smart positioning: flip ke atas jika ruang bawah tidak cukup
+        // Untuk position:fixed gunakan koordinat viewport langsung (tanpa scrollY)
         const mw = menu.offsetWidth;
-        menu.style.top  = (rect.bottom + 4) + 'px';
-        menu.style.left = (rect.right - mw) + 'px';
+        const mh = menu.scrollHeight;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const top = spaceBelow >= mh + 8
+            ? rect.bottom + 4       // buka ke bawah
+            : rect.top - mh - 4;   // flip ke atas
+        menu.style.top  = Math.max(4, top) + 'px';
+        menu.style.left = Math.max(8, Math.min(rect.right - mw, window.innerWidth - mw - 8)) + 'px';
     }
 
     function closeEmpMenu() {

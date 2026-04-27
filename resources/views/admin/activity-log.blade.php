@@ -6,6 +6,18 @@
 
 @section('content')
 <meta name="csrf-token" content="{{ csrf_token() }}">
+<style>
+    input[type="date"]::-webkit-calendar-picker-indicator {
+        opacity: 0;
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        cursor: pointer;
+    }
+    input[type="date"] { position: relative; }
+</style>
 
 <div class="space-y-6">
 
@@ -39,35 +51,63 @@
                     class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
             <!-- Status -->
-            <div>
+            <div class="min-w-[140px]">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
-                <select id="filterStatus" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                    <option value="">All Status</option>
-                    <option value="success">Success</option>
-                    <option value="failed">Failed</option>
-                    <option value="logout">Logout</option>
-                </select>
+                <div class="custom-dd relative">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">All Status</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="filterStatus" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="success">Success</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="failed">Failed</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="logout">Logout</button>
+                    </div>
+                </div>
             </div>
             <!-- User Type -->
-            <div>
+            <div class="min-w-[140px]">
                 <label class="block text-xs font-medium text-gray-600 mb-1">User Type</label>
-                <select id="filterUserType" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                    <option value="">All Types</option>
-                    <option value="employee">Employee</option>
-                    <option value="customer">Customer</option>
-                </select>
+                <div class="custom-dd relative">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">All Types</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="filterUserType" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Types</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="employee">Employee</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="customer">Customer</button>
+                    </div>
+                </div>
             </div>
             <!-- Date From -->
             <div>
                 <label class="block text-xs font-medium text-gray-600 mb-1">Date From</label>
-                <input type="date" id="filterDateFrom"
-                    class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <div class="relative">
+                    <input type="date" id="filterDateFrom"
+                        class="pl-3 pr-9 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white hover:border-gray-400 transition-all cursor-pointer">
+                    <div class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                        </svg>
+                    </div>
+                </div>
             </div>
             <!-- Date To -->
             <div>
                 <label class="block text-xs font-medium text-gray-600 mb-1">Date To</label>
-                <input type="date" id="filterDateTo"
-                    class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <div class="relative">
+                    <input type="date" id="filterDateTo"
+                        class="pl-3 pr-9 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white hover:border-gray-400 transition-all cursor-pointer">
+                    <div class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                        </svg>
+                    </div>
+                </div>
             </div>
             <!-- Apply -->
             <div class="flex gap-2">
@@ -86,11 +126,18 @@
         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
             <h3 class="text-sm font-semibold text-gray-800">Activity Records</h3>
             <div class="flex items-center gap-3">
-                <select id="perPageSelect" onchange="changePerPage(this.value)" class="text-xs border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-800">
-                    <option value="25">25 / page</option>
-                    <option value="50">50 / page</option>
-                    <option value="100">100 / page</option>
-                </select>
+                <div class="custom-dd relative" style="min-width:100px" data-onchange="onPerPageChange">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-700">25 / page</span>
+                        <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="perPageSelect" value="25">
+                    <div class="custom-dd-panel hidden absolute top-full right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5" style="min-width:100px">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors" data-value="25">25 / page</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors" data-value="50">50 / page</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors" data-value="100">100 / page</button>
+                    </div>
+                </div>
                 <span class="text-xs text-gray-500" id="tableInfo">Loading…</span>
             </div>
         </div>
@@ -139,6 +186,7 @@
     </div>
 </div>
 
+<script src="/js/custom-dropdown.js?v=2"></script>
 <script>
 let currentPage  = 1;
 let currentPerPage = 25;
@@ -317,13 +365,18 @@ function applyFilters() {
 }
 
 function resetFilters() {
-    document.getElementById('filterSearch').value   = '';
-    document.getElementById('filterStatus').value   = '';
-    document.getElementById('filterUserType').value = '';
+    document.getElementById('filterSearch').value = '';
+    setCustomDropdownValue('filterStatus', '');
+    setCustomDropdownValue('filterUserType', '');
     document.getElementById('filterDateFrom').value = '';
     document.getElementById('filterDateTo').value   = '';
     currentFilters = {};
     loadTable(1);
+}
+
+function onPerPageChange() {
+    const val = document.getElementById('perPageSelect').value;
+    changePerPage(val);
 }
 
 function changePerPage(val) {
@@ -352,6 +405,7 @@ document.getElementById('filterSearch').addEventListener('keydown', function(e) 
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function () {
+    initCustomDropdowns();
     loadStats();
     loadTable(1);
 });

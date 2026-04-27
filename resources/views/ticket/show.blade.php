@@ -444,6 +444,13 @@
                         <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
                     </div>
                 </div>
+                {{-- Scale --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Scale</label>
+                    <div class="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs bg-gray-50 text-gray-500">
+                        {{ $ticket->scale ?? '—' }}
+                    </div>
+                </div>
                 {{-- Ticket Type --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Ticket Type</label>
@@ -831,12 +838,12 @@
 @if(isset($isPic) && $isPic)
 <div id="picMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
-        <div class="flex justify-between items-center px-6 py-4 primary-gradient rounded-t-xl flex-shrink-0">
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
-                <h3 class="text-lg font-bold text-white">Customer Mandays Proposal</h3>
-                <p class="text-xs text-white text-opacity-75 mt-0.5">Version: <span id="picMandaysVersion">—</span> &nbsp;|&nbsp; Status: <span id="picMandaysStatusLabel">—</span></p>
+                <h3 class="text-lg font-bold text-gray-900">Customer Mandays Proposal</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Version: <span id="picMandaysVersion">—</span> &nbsp;|&nbsp; Status: <span id="picMandaysStatusLabel">—</span></p>
             </div>
-            <button onclick="closePicMandaysModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all">
+            <button onclick="closePicMandaysModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
@@ -908,11 +915,11 @@
 {{-- PIC: Internal Mandays Modal --}}
 <div id="picInternalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
-        <div class="flex justify-between items-center px-6 py-4 primary-gradient rounded-t-xl flex-shrink-0">
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
-                <h3 class="text-lg font-bold text-white">Internal Mandays Proposal</h3>
+                <h3 class="text-lg font-bold text-gray-900">Internal Mandays Proposal</h3>
             </div>
-            <button onclick="closePicInternalModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all">
+            <button onclick="closePicInternalModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
@@ -993,12 +1000,12 @@
 @if(isset($isHelpdesk) && $isHelpdesk)
 <div id="hdMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
-        <div class="flex justify-between items-center px-6 py-4 primary-gradient rounded-t-xl flex-shrink-0">
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
-                <h3 class="text-lg font-bold text-white">Review Mandays Proposal</h3>
-                <p class="text-xs text-white text-opacity-75 mt-0.5">Status: <span id="hdMandaysStatusLabel">—</span></p>
+                <h3 class="text-lg font-bold text-gray-900">Review Mandays Proposal</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Status: <span id="hdMandaysStatusLabel">—</span></p>
             </div>
-            <button onclick="closeHdMandaysModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all">
+            <button onclick="closeHdMandaysModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
@@ -1055,12 +1062,12 @@
 {{-- ============================================================ --}}
 <div id="mandaysVersionListModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-5xl shadow-2xl flex flex-col" style="max-height:85vh;">
-        <div class="flex justify-between items-center px-6 py-4 primary-gradient rounded-t-xl flex-shrink-0">
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
-                <h3 class="text-base font-bold text-white">Mandays Proposal</h3>
-                <p class="text-xs text-white text-opacity-75 mt-0.5">All proposal versions submitted to customer</p>
+                <h3 class="text-base font-bold text-gray-900">Mandays Proposal</h3>
+                <p class="text-xs text-gray-500 mt-0.5">All proposal versions submitted to customer</p>
             </div>
-            <button onclick="closeMandaysVersionList()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all">
+            <button onclick="closeMandaysVersionList()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
@@ -1112,15 +1119,15 @@
 {{-- ============================================================ --}}
 <div id="mandaysVersionDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
-        <div class="flex justify-between items-center px-6 py-4 primary-gradient rounded-t-xl flex-shrink-0">
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
-                <h3 class="text-lg font-bold text-white">Mandays Proposal — <span id="mvdVersionLabel">Version —</span></h3>
-                <p class="text-xs text-white text-opacity-75 mt-0.5">
+                <h3 class="text-lg font-bold text-gray-900">Mandays Proposal — <span id="mvdVersionLabel">Version —</span></h3>
+                <p class="text-xs text-gray-500 mt-0.5">
                     Status: <span id="mvdStatusLabel" class="font-semibold">—</span>
                     &nbsp;|&nbsp; Proposed by: <span id="mvdProposedBy">—</span>
                 </p>
             </div>
-            <button onclick="closeMandaysVersionDetail()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all">
+            <button onclick="closeMandaysVersionDetail()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
@@ -1178,12 +1185,12 @@
 @if(isset($isHead) && $isHead)
 <div id="headInternalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
-        <div class="flex justify-between items-center px-6 py-4 primary-gradient rounded-t-xl flex-shrink-0">
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
-                <h3 class="text-lg font-bold text-white">Review Internal Mandays</h3>
-                <p class="text-xs text-white text-opacity-75 mt-0.5">Status: <span id="headInternalStatusLabel">—</span></p>
+                <h3 class="text-lg font-bold text-gray-900">Review Internal Mandays</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Status: <span id="headInternalStatusLabel">—</span></p>
             </div>
-            <button onclick="closeHeadInternalModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all">
+            <button onclick="closeHeadInternalModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
@@ -1232,12 +1239,12 @@
 @if(isset($isHead) && $isHead)
 <div id="headCustomerMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
-        <div class="flex justify-between items-center px-6 py-4 primary-gradient rounded-t-xl flex-shrink-0">
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
-                <h3 class="text-lg font-bold text-white">Customer Mandays Proposal</h3>
-                <p class="text-xs text-white text-opacity-75 mt-0.5">View Only — Status: <span id="headCustMandaysStatus">—</span></p>
+                <h3 class="text-lg font-bold text-gray-900">Customer Mandays Proposal</h3>
+                <p class="text-xs text-gray-500 mt-0.5">View Only — Status: <span id="headCustMandaysStatus">—</span></p>
             </div>
-            <button onclick="closeHeadCustomerMandaysModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all">
+            <button onclick="closeHeadCustomerMandaysModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
@@ -1497,7 +1504,10 @@
         }
 
         // ── @mention: detect @ in quill text-change ──────────────────────────
-        quillEditor.on('text-change', function () {
+        quillEditor.on('text-change', function (delta, oldDelta, source) {
+            // Only react to direct user input — ignore API-triggered changes (e.g. from insertMention)
+            if (source !== 'user') return;
+
             const selection = quillEditor.getSelection();
             if (!selection) return;
 
@@ -1618,23 +1628,34 @@
     }
 
     function insertMention(type, id, display) {
-        if (mentionStartIndex < 0) return;
+        // Capture to local vars before any API call can reset the globals via text-change
+        const startIdx   = mentionStartIndex;
+        const savedQuery = mentionQuery;
 
-        const cursorPos = quillEditor.getSelection()?.index ?? mentionStartIndex + 1 + (mentionQuery?.length ?? 0);
-        const replaceLen = 1 + (mentionQuery?.length ?? 0); // '@' + typed query
+        if (startIdx < 0) return;
+
+        const replaceLen = 1 + (savedQuery?.length ?? 0); // '@' + typed query
 
         // Delete the '@...' text
-        quillEditor.deleteText(mentionStartIndex, replaceLen);
+        quillEditor.deleteText(startIdx, replaceLen);
 
-        // Insert styled mention chip
-        const chip = `@${display}`;
-        quillEditor.insertText(mentionStartIndex, chip + ' ', {
+        // Insert a leading space if the character immediately before the '@' wasn't whitespace
+        const textBefore      = quillEditor.getText(0, startIdx);
+        const needsLeadSpace  = startIdx > 0 && !/\s$/.test(textBefore);
+        if (needsLeadSpace) {
+            quillEditor.insertText(startIdx, ' ', { color: false, bold: false });
+        }
+
+        const chipPos = needsLeadSpace ? startIdx + 1 : startIdx;
+        const chip    = `@${display}`;
+
+        // Insert chip with colour + bold, then trailing space with plain formatting
+        quillEditor.insertText(chipPos, chip, {
             color: type === 'role' ? '#7c3aed' : '#1d4ed8',
             bold: true,
         });
-        // Reset formatting after chip
-        quillEditor.formatText(mentionStartIndex, chip.length + 1, { color: false, bold: false });
-        quillEditor.setSelection(mentionStartIndex + chip.length + 1);
+        quillEditor.insertText(chipPos + chip.length, ' ', { color: false, bold: false });
+        quillEditor.setSelection(chipPos + chip.length + 1);
 
         // Track for payload
         const already = pendingMentions.find(m => m.type === type && m.id === id);
@@ -3375,24 +3396,26 @@
 
     function picStartNewVersion() {
         if (picDirty) { showNotification('Please save the draft before starting a new version', 'warning'); return; }
+        // Snapshot data from cancelled/approved version to pre-fill
+        const prevData = picDraftData;
         const valueMap = {};
-        if (picDraftData?.details?.length) {
-            picDraftData.details.forEach(d => {
-                const act = d.activity || '';
-                if (!act) return;
+        if (prevData?.details?.length) {
+            prevData.details.forEach(d => {
+                const act = d.activity || 'General';
                 if (!valueMap[act]) valueMap[act] = {};
                 valueMap[act][d.module] = d.mandays;
             });
         }
         picDraftData = null;
-        picReadOnly = false;
-        picDirty = false;
-        document.getElementById('picMandaysVersion').textContent = 'New';
+        picReadOnly  = false;
+        picDirty     = false;
+        document.getElementById('picMandaysVersion').textContent     = 'New';
         document.getElementById('picMandaysStatusLabel').textContent = 'Draft';
         const descInput  = document.getElementById('picMandaysDescription');
         const notesInput = document.getElementById('picMandaysNotes');
-        if (descInput)  { descInput.value = '';  descInput.removeAttribute('readonly');  descInput.classList.remove('bg-gray-50','cursor-not-allowed'); }
-        if (notesInput) { notesInput.value = ''; notesInput.removeAttribute('readonly'); notesInput.classList.remove('bg-gray-50','cursor-not-allowed'); }
+        // Pre-fill from previous version instead of clearing
+        if (descInput)  { descInput.value  = prevData?.description    || '';  descInput.removeAttribute('readonly');  descInput.classList.remove('bg-gray-50','cursor-not-allowed'); }
+        if (notesInput) { notesInput.value = prevData?.proposal_notes || ''; notesInput.removeAttribute('readonly'); notesInput.classList.remove('bg-gray-50','cursor-not-allowed'); }
         document.getElementById('picRejectionInfo').classList.add('hidden');
         document.getElementById('picBtnNewVersion').classList.add('hidden');
         picRenderMatrix(valueMap);
@@ -3533,7 +3556,8 @@
                     <input type="text"
                         class="internal-note-cell w-full px-2 py-1.5 text-xs focus:outline-none focus:bg-gray-100 bg-white"
                         data-employee="${person.employee_id}" value="${existing.notes || ''}"
-                        placeholder="notes...">
+                        placeholder="notes..."
+                        oninput="internalClearNoteHighlight(this)">
                 </td>
                 <td class="px-2 py-1.5 border border-gray-200 text-xs text-center bg-gray-50 text-gray-500" data-emp-appr="${person.employee_id}">${apprAddDisplay}</td>
                 <td class="px-2 py-1.5 border border-gray-200 text-xs text-center font-semibold bg-gray-50" data-emp-total="${person.employee_id}">${totalMd > 0 ? totalMd.toFixed(1) : '—'}</td>
@@ -3583,7 +3607,45 @@
         return { details, notes: document.getElementById('internalNotes').value };
     }
 
+    // Hapus highlight merah pada notes cell saat user mulai mengetik
+    function internalClearNoteHighlight(el) {
+        if (el.value.trim()) {
+            el.classList.remove('ring-2', 'ring-red-400', 'bg-red-50');
+        }
+    }
+
+    // Validasi: jika Additional MD diisi maka Notes wajib diisi
+    // Mengembalikan array nama employee yang melanggar aturan (kosong = valid)
+    function internalPicValidate() {
+        const errors = [];
+        document.querySelectorAll('.internal-add-cell').forEach(inp => {
+            const row    = inp.closest('tr');
+            const add    = parseFloat(inp.value) || 0;
+            const noteEl = row.querySelector('.internal-note-cell');
+            const notes  = noteEl?.value?.trim() || '';
+
+            if (add > 0 && !notes) {
+                const name = row.querySelector('td:first-child')?.textContent?.trim() || 'Employee';
+                errors.push(name);
+                // Tandai field notes dengan warna merah
+                noteEl?.classList.add('ring-2', 'ring-red-400', 'bg-red-50');
+                noteEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                noteEl?.classList.remove('ring-2', 'ring-red-400', 'bg-red-50');
+            }
+        });
+        return errors;
+    }
+
     async function internalPicSaveDraft() {
+        const validationErrors = internalPicValidate();
+        if (validationErrors.length) {
+            showNotification(
+                'Notes wajib diisi jika Additional MD diisi: ' + validationErrors.join(', '),
+                'error', 6000
+            );
+            return;
+        }
         const btn = document.getElementById('internalBtnSave');
         btn.disabled = true; btn.textContent = 'Saving...';
         try {
@@ -3604,6 +3666,15 @@
     }
 
     async function internalPicSubmit() {
+        // Validasi sebelum submit
+        const validationErrors = internalPicValidate();
+        if (validationErrors.length) {
+            showNotification(
+                'Notes wajib diisi jika Additional MD diisi: ' + validationErrors.join(', '),
+                'error', 6000
+            );
+            return;
+        }
         // Save first then submit
         const btn = document.getElementById('internalBtnSubmit');
         btn.disabled = true; btn.textContent = 'Submitting...';

@@ -27,25 +27,25 @@
                 <!-- Education Level -->
                 <div class="col-span-1">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Education Level <span class="text-red-600">*</span></label>
-                    <div class="relative">
-                        <select id="educationType" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white pr-10 appearance-none">
-                            <option value="">Select Level</option>
-                            <option value="SD">SD - Elementary</option>
-                            <option value="SMP">SMP - Junior High</option>
-                            <option value="SMA">SMA - Senior High</option>
-                            <option value="SMK">SMK - Vocational</option>
-                            <option value="D1">D1 - Diploma 1</option>
-                            <option value="D2">D2 - Diploma 2</option>
-                            <option value="D3">D3 - Diploma 3</option>
-                            <option value="D4">D4 - Diploma 4</option>
-                            <option value="S1">S1 - Bachelor</option>
-                            <option value="S2">S2 - Master</option>
-                            <option value="S3">S3 - Doctoral</option>
-                        </select>
-                        <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                            </svg>
+                    <div class="custom-dd relative">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select Level</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="educationType" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Level</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="SD">SD - Elementary</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="SMP">SMP - Junior High</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="SMA">SMA - Senior High</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="SMK">SMK - Vocational</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="D1">D1 - Diploma 1</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="D2">D2 - Diploma 2</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="D3">D3 - Diploma 3</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="D4">D4 - Diploma 4</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="S1">S1 - Bachelor</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="S2">S2 - Master</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="S3">S3 - Doctoral</button>
                         </div>
                     </div>
                 </div>
@@ -403,7 +403,7 @@
                 document.getElementById('editEducationId').value = education.education_id;
                 
                 // Set form values
-                document.getElementById('educationType').value = education.education_type || '';
+                setCustomDropdownValue('educationType', education.education_type || '');
                 document.getElementById('institutePlace').value = education.institute_place || '';
                 document.getElementById('educationCountry').value = education.country || '';
                 document.getElementById('degree').value = education.degree || '';
@@ -434,7 +434,7 @@
      */
     function clearEducationForm() {
         document.getElementById('editEducationId').value = '';
-        document.getElementById('educationType').value = '';
+        setCustomDropdownValue('educationType', '');
         document.getElementById('institutePlace').value = '';
         document.getElementById('educationCountry').value = 'Indonesia';
         document.getElementById('degree').value = '';

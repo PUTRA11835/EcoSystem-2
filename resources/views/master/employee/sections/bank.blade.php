@@ -28,33 +28,33 @@
                 <!-- Bank Name -->
                 <div class="col-span-2">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Bank Name <span class="text-red-600">*</span></label>
-                    <div class="relative">
-                        <select id="bankName" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white pr-10 appearance-none">
-                            <option value="">Select Bank</option>
-                            <option value="BCA">Bank Central Asia (BCA)</option>
-                            <option value="Mandiri">Bank Mandiri</option>
-                            <option value="BNI">Bank Negara Indonesia (BNI)</option>
-                            <option value="BRI">Bank Rakyat Indonesia (BRI)</option>
-                            <option value="CIMB Niaga">CIMB Niaga</option>
-                            <option value="Danamon">Bank Danamon</option>
-                            <option value="Permata">Bank Permata</option>
-                            <option value="BTN">Bank Tabungan Negara (BTN)</option>
-                            <option value="OCBC NISP">Bank OCBC NISP</option>
-                            <option value="Maybank">Maybank Indonesia</option>
-                            <option value="Panin">Bank Panin</option>
-                            <option value="BTPN">Bank BTPN</option>
-                            <option value="Jenius">Jenius (BTPN)</option>
-                            <option value="Bank Jago">Bank Jago</option>
-                            <option value="Seabank">Seabank</option>
-                            <option value="Blu BCA">Blu by BCA Digital</option>
-                            <option value="Allo Bank">Allo Bank</option>
-                            <option value="Neobank">Neobank</option>
-                            <option value="Other">Other</option>
-                        </select>
-                        <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                            </svg>
+                    <div class="custom-dd relative">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select Bank</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="bankName" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Bank</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BCA">Bank Central Asia (BCA)</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Mandiri">Bank Mandiri</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BNI">Bank Negara Indonesia (BNI)</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BRI">Bank Rakyat Indonesia (BRI)</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="CIMB Niaga">CIMB Niaga</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Danamon">Bank Danamon</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Permata">Bank Permata</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BTN">Bank Tabungan Negara (BTN)</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="OCBC NISP">Bank OCBC NISP</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Maybank">Maybank Indonesia</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Panin">Bank Panin</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BTPN">Bank BTPN</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Jenius">Jenius (BTPN)</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Bank Jago">Bank Jago</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Seabank">Seabank</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Blu BCA">Blu by BCA Digital</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Allo Bank">Allo Bank</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Neobank">Neobank</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Other">Other</button>
                         </div>
                     </div>
                 </div>
@@ -423,7 +423,7 @@
                 document.getElementById('editBankId').value = bank.bank_id;
                 
                 // Set form values
-                document.getElementById('bankName').value = bank.bank_name || '';
+                setCustomDropdownValue('bankName', bank.bank_name || '');
                 document.getElementById('bankKey').value = bank.bank_key || '';
                 document.getElementById('bankAccountNumber').value = bank.account_number || '';
                 document.getElementById('bankAccountHolder').value = bank.account_holder || '';
@@ -447,7 +447,7 @@
      */
     function clearBankForm() {
         document.getElementById('editBankId').value = '';
-        document.getElementById('bankName').value = '';
+        setCustomDropdownValue('bankName', '');
         document.getElementById('bankKey').value = '';
         document.getElementById('bankAccountNumber').value = '';
         document.getElementById('bankAccountHolder').value = '';

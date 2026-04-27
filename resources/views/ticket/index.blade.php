@@ -33,85 +33,109 @@
     </div>
 </div>
 
-<!-- Stats Cards -->
-<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
-    <div id="filterAll" class="bg-white rounded-lg border-2 border-red-600 p-3 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('all')">
-        <p class="text-xs font-medium text-gray-500 mb-1">Total</p>
-        <p class="text-2xl font-bold text-gray-900" id="totalCount">0</p>
-    </div>
-    <div id="filterSupport" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('sent it to support')">
-        <p class="text-xs font-medium text-gray-500 mb-1">Sent to Support</p>
-        <p class="text-2xl font-bold text-gray-900" id="supportCount">0</p>
-    </div>
-    <div id="filterInProcess" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('in process')">
-        <p class="text-xs font-medium text-gray-500 mb-1">In Process</p>
-        <p class="text-2xl font-bold text-gray-900" id="processCount">0</p>
-    </div>
-    <div id="filterAuthorAction" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('author action')">
-        <p class="text-xs font-medium text-gray-500 mb-1">Author Action</p>
-        <p class="text-2xl font-bold text-gray-900" id="authorCount">0</p>
-    </div>
-    <div id="filterProposed" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('proposed solution')">
-        <p class="text-xs font-medium text-gray-500 mb-1">Proposed</p>
-        <p class="text-2xl font-bold text-gray-900" id="proposedCount">0</p>
-    </div>
-    <div id="filterSAP" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('sent in to SAP')">
-        <p class="text-xs font-medium text-gray-500 mb-1">Sent to SAP</p>
-        <p class="text-2xl font-bold text-gray-900" id="sapCount">0</p>
-    </div>
-    <div id="filterClosed" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('closed')">
-        <p class="text-xs font-medium text-gray-500 mb-1">Closed</p>
-        <p class="text-2xl font-bold text-gray-900" id="closedCount">0</p>
+<!-- Stats Cards (collapsible) -->
+<div class="mb-4">
+    <button onclick="toggleSection('statsSection', 'statsChevron')"
+            class="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors duration-150 select-none mb-2 group">
+        <svg id="statsChevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
+             class="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-transform duration-200">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+        <span class="uppercase tracking-wide">Status Info</span>
+    </button>
+    <div id="statsSection" class="overflow-hidden transition-all duration-300" style="max-height: 200px;">
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 pb-2">
+            <div id="filterAll" class="bg-white rounded-lg border-2 border-red-600 p-3 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('all')">
+                <p class="text-xs font-medium text-gray-500 mb-1">Total</p>
+                <p class="text-2xl font-bold text-gray-900" id="totalCount">0</p>
+            </div>
+            <div id="filterSupport" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('sent it to support')">
+                <p class="text-xs font-medium text-gray-500 mb-1">Sent to Support</p>
+                <p class="text-2xl font-bold text-gray-900" id="supportCount">0</p>
+            </div>
+            <div id="filterInProcess" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('in process')">
+                <p class="text-xs font-medium text-gray-500 mb-1">In Process</p>
+                <p class="text-2xl font-bold text-gray-900" id="processCount">0</p>
+            </div>
+            <div id="filterAuthorAction" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('author action')">
+                <p class="text-xs font-medium text-gray-500 mb-1">Author Action</p>
+                <p class="text-2xl font-bold text-gray-900" id="authorCount">0</p>
+            </div>
+            <div id="filterProposed" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('proposed solution')">
+                <p class="text-xs font-medium text-gray-500 mb-1">Proposed</p>
+                <p class="text-2xl font-bold text-gray-900" id="proposedCount">0</p>
+            </div>
+            <div id="filterSAP" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('sent in to SAP')">
+                <p class="text-xs font-medium text-gray-500 mb-1">Sent to SAP</p>
+                <p class="text-2xl font-bold text-gray-900" id="sapCount">0</p>
+            </div>
+            <div id="filterClosed" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('closed')">
+                <p class="text-xs font-medium text-gray-500 mb-1">Closed</p>
+                <p class="text-2xl font-bold text-gray-900" id="closedCount">0</p>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- Filters & Search -->
-<div class="bg-white rounded-xl border border-gray-200 p-4 mb-6 shadow-sm">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div class="flex flex-col">
-            <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter By</label>
-            <div class="relative">
-                <select id="filterTypeSelect" onchange="updateFilterOptions()" class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white appearance-none">
-                    <option value="">Select Type</option>
-                    <option value="jarvies_status">Jarvies Status</option>
-                    <option value="status">Status</option>
-                    <option value="ticket_type">Ticket Type</option>
-                    <option value="priority">Priority</option>
-                </select>
-                <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
-            </div>
-        </div>
-        <div class="flex flex-col">
-            <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter Value</label>
-            <div class="relative">
-                <select id="filterValueSelect" disabled class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white disabled:bg-gray-50 disabled:text-gray-400 appearance-none">
-                    <option value="">Select Type First</option>
-                </select>
-                <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
-            </div>
-        </div>
-        <div class="flex flex-col md:col-span-2">
-            <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Search Tickets</label>
-            <div class="relative">
-                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-400">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-                    </svg>
+<!-- Filters & Search (collapsible) -->
+<div class="mb-6">
+    <button onclick="toggleSection('filtersSection', 'filtersChevron')"
+            class="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors duration-150 select-none mb-2 group">
+        <svg id="filtersChevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
+             class="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-transform duration-200">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+        <span class="uppercase tracking-wide">Filters &amp; Search</span>
+    </button>
+    <div id="filtersSection" class="overflow-hidden transition-all duration-300" style="max-height: 300px;">
+        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div class="flex flex-col">
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter By</label>
+                    <div class="relative">
+                        <select id="filterTypeSelect" onchange="updateFilterOptions()" class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white appearance-none">
+                            <option value="">Select Type</option>
+                            <option value="jarvies_status">Jarvies Status</option>
+                            <option value="status">Status</option>
+                            <option value="ticket_type">Ticket Type</option>
+                            <option value="priority">Priority</option>
+                        </select>
+                        <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    </div>
                 </div>
-                <input type="text" id="searchInput" placeholder="Search by ticket number, description, customer, PIC..."
-                    autocomplete="off"
-                    class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white"
-                    onkeyup="searchTickets()">
+                <div class="flex flex-col">
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter Value</label>
+                    <div class="relative">
+                        <select id="filterValueSelect" disabled class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white disabled:bg-gray-50 disabled:text-gray-400 appearance-none">
+                            <option value="">Select Type First</option>
+                        </select>
+                        <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    </div>
+                </div>
+                <div class="flex flex-col md:col-span-2">
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Search Tickets</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-400">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                            </svg>
+                        </div>
+                        <input type="text" id="searchInput" placeholder="Search by ticket number, description, customer, PIC..."
+                            autocomplete="off"
+                            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white"
+                            onkeyup="searchTickets()">
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-2 justify-end mt-3 pt-3 border-t border-gray-100">
+                <button onclick="applyAdvancedFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    Apply
+                </button>
+                <button onclick="resetFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                    Reset
+                </button>
             </div>
         </div>
-    </div>
-    <div class="flex gap-2 justify-end mt-3 pt-3 border-t border-gray-100">
-        <button onclick="applyAdvancedFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-            Apply
-        </button>
-        <button onclick="resetFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-            Reset
-        </button>
     </div>
 </div>
 
@@ -260,6 +284,17 @@
 @endif
 
 <style>
+/* Collapsible sections */
+#statsSection, #filtersSection {
+    transition: max-height 0.25s ease, opacity 0.2s ease;
+}
+#statsSection[style*="max-height: 0"], #filtersSection[style*="max-height: 0"] {
+    opacity: 0;
+}
+#statsChevron, #filtersChevron {
+    transition: transform 0.2s ease;
+}
+
 /* View Toggle */
 #btnViewAll, #btnViewMy { background: transparent; color: #6b7280; }
 #btnViewAll.active, #btnViewMy.active { background: white; color: #111827; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
@@ -540,12 +575,13 @@
         const mandays = ticket.man_days != null ? ticket.man_days : '—';
 
         // ── Unread detection ──
-        // A ticket is "unread" when the customer has replied more recently than the agent
-        const lastCust  = ticket.last_customer_reply_at ? new Date(ticket.last_customer_reply_at) : null;
-        const lastAgent = ticket.last_agent_reply_at    ? new Date(ticket.last_agent_reply_at)    : null;
-        const isUnread  = lastCust && (!lastAgent || lastCust > lastAgent);
+        // Unread = last_message_at (any message: customer reply OR internal note) is newer
+        // than last_agent_reply_at (only updated when agent sends a public reply).
+        const lastMsg   = ticket.last_message_at     ? new Date(ticket.last_message_at)     : null;
+        const lastAgent = ticket.last_agent_reply_at ? new Date(ticket.last_agent_reply_at) : null;
+        const isUnread  = lastMsg && (!lastAgent || lastMsg > lastAgent);
         const unreadCls = isUnread ? 'ticket-unread' : '';
-        const dot       = isUnread ? '<span class="unread-dot" title="Unread — customer replied"></span>' : '';
+        const dot       = isUnread ? '<span class="unread-dot" title="Unread — new activity"></span>' : '';
 
         const badge = (label, cls) => `<span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${cls}">${label}</span>`;
         const cell  = (content, extraCls = '') => `<td class="px-3 py-2.5 text-sm text-gray-700 whitespace-nowrap ${extraCls}">${content}</td>`;
@@ -744,6 +780,33 @@
                 loadTickets();
             } else { showNotification(result.message || 'Failed to create ticket', 'error'); }
         } catch (error) { showNotification('Failed to create ticket: ' + error.message, 'error'); }
+    }
+
+    // ==================== COLLAPSIBLE SECTIONS ====================
+    const _sectionOpen = { statsSection: true, filtersSection: true };
+
+    function toggleSection(sectionId, chevronId) {
+        const section = document.getElementById(sectionId);
+        const chevron = document.getElementById(chevronId);
+        if (!section) return;
+
+        _sectionOpen[sectionId] = !_sectionOpen[sectionId];
+        if (_sectionOpen[sectionId]) {
+            section.style.maxHeight = section.scrollHeight + 'px';
+            // Expand: restore natural max-height after transition so content isn't clipped
+            section.addEventListener('transitionend', function onEnd() {
+                section.style.maxHeight = 'none';
+                section.removeEventListener('transitionend', onEnd);
+            }, { once: true });
+            if (chevron) chevron.style.transform = 'rotate(0deg)';
+        } else {
+            // Collapse: pin to current scrollHeight first so transition has a from-value
+            section.style.maxHeight = section.scrollHeight + 'px';
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => { section.style.maxHeight = '0px'; });
+            });
+            if (chevron) chevron.style.transform = 'rotate(-90deg)';
+        }
     }
 
     // Event listeners

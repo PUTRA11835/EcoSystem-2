@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use App\Enums\RoleId;
+use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\Customer;
 use App\Models\CustomerMandays;
@@ -176,6 +179,19 @@ class MandaysController extends Controller
         ]);
         $ticket->update(['mandays_proposal_status' => 'pending_helpdesk']);
 
+        $sessionUser = session('user');
+        $fromName    = $sessionUser['name'] ?? 'PIC';
+        $fromId      = $sessionUser['id'] ?? null;
+        $ticketNum   = $ticket->ticket_number ?? $ticketId;
+        $this->notifyRoles(
+            [RoleId::HELPDESK->value],
+            'customer_mandays_proposed',
+            $fromName,
+            $fromId,
+            "Ticket #{$ticketNum} — Customer mandays proposal submitted for review",
+            "/ticket/{$ticketId}"
+        );
+
         return response()->json([
             'success'               => true,
             'message'               => 'Proposal submitted to Helpdesk.',
@@ -280,18 +296,39 @@ class MandaysController extends Controller
         ]);
         $ticket->update(['mandays_proposal_status' => 'sent_to_chat']);
 
-        // Kirim email ke customer dengan tabel mandays
-        $emailSent   = false;
+        // Selalu buat TicketMessage terlebih dahulu agar proposal tampil di chat
+        $htmlBody  = $this->buildMandaysEmailHtml($proposal, $ticket, $senderName);
+        $plainText = 'Mandays proposal sent to customer. Total: ' . number_format((float) $proposal->total_mandays, 1) . ' mandays.';
+
+        $ticketMsg = TicketMessage::create([
+            'ticket_id'           => $ticketId,
+            'sender_type'         => 'employee',
+            'sender_id'           => $senderId,
+            'sender_name'         => $senderName,
+            'message'             => $plainText,
+            'message_html'        => $htmlBody,
+            'is_internal_note'    => false,
+            'channel'             => 'web',
+            'is_read_by_customer' => false,
+            'is_read_by_agent'    => true,
+        ]);
+
+        $ticket->update([
+            'last_message_at'     => now(),
+            'last_agent_reply_at' => now(),
+        ]);
+
+        // Coba kirim email ke customer (non-fatal jika gagal — pesan sudah tersimpan di chat)
+        $emailSent    = false;
         $emailWarning = null;
 
         try {
             $customerEmail = $this->resolveCustomerEmailForTicket($ticket);
 
             if (!$customerEmail) {
-                $emailWarning = 'No customer email address found. Status updated but email was not sent.';
+                $emailWarning = 'No customer email address found. Proposal saved to chat only.';
                 Log::warning('MandaysController@submitToChat: no customer email', ['ticket_id' => $ticketId]);
             } else {
-                // Ambil inReplyTo dari pesan email terakhir di thread
                 $lastEmailMsg = TicketMessage::where('ticket_id', $ticketId)
                     ->where('channel', 'email')
                     ->whereNotNull('email_message_id')
@@ -299,8 +336,6 @@ class MandaysController extends Controller
                     ->first();
                 $inReplyTo = $lastEmailMsg?->email_message_id;
 
-                // Gunakan subject asli ticket.
-                // Prioritas: ticket.subject → description → ticket number
                 $originalSubject = $ticket->subject
                     ?? ($ticket->description ? mb_substr($ticket->description, 0, 100) : null)
                     ?? ('Ticket #' . ($ticket->ticket_number ?? ''));
@@ -308,7 +343,6 @@ class MandaysController extends Controller
                     ? $originalSubject
                     : 'Re: ' . $originalSubject;
 
-                // CC dari pesan pertama yang punya cc_emails
                 $firstMsgWithCc = TicketMessage::where('ticket_id', $ticketId)
                     ->whereNotNull('cc_emails')
                     ->orderBy('created_at', 'asc')
@@ -316,8 +350,6 @@ class MandaysController extends Controller
                 $ccList = $firstMsgWithCc?->cc_emails
                     ? json_decode($firstMsgWithCc->cc_emails, true)
                     : [];
-
-                $htmlBody = $this->buildMandaysEmailHtml($proposal, $ticket, $senderName);
 
                 $result = app(EmailController::class)->sendTicketReply(
                     $customerEmail,
@@ -327,35 +359,18 @@ class MandaysController extends Controller
                     [],
                     $ccList,
                     true,
-                    $ticket->email_thread_id ?? null  // fallback: cari pesan lain di thread yg sama
+                    $ticket->email_thread_id ?? null
                 );
 
-                // Simpan sebagai TicketMessage
-                $plainText = 'Mandays proposal telah dikirim. Total' . number_format((float) $proposal->total_mandays, 1) . ' mandays.';
-                TicketMessage::create([
-                    'ticket_id'           => $ticketId,
-                    'sender_type'         => 'employee',
-                    'sender_id'           => $senderId,
-                    'sender_name'         => $senderName,
-                    'message'             => $plainText,
-                    'message_html'        => $htmlBody,
-                    'is_internal_note'    => false,
-                    'channel'             => 'email',
-                    'email_message_id'    => $result['internet_message_id'] ?? null,
-                    'is_read_by_customer' => false,
-                    'is_read_by_agent'    => true,
+                // Update message channel dan email_message_id setelah email berhasil terkirim
+                $ticketMsg->update([
+                    'channel'          => 'email',
+                    'email_message_id' => $result['internet_message_id'] ?? null,
                 ]);
 
-                // Update email_thread_id jika belum ada
                 if (!empty($result['conversation_id']) && empty($ticket->email_thread_id)) {
                     $ticket->update(['email_thread_id' => $result['conversation_id']]);
                 }
-
-                // Update last_message_at
-                $ticket->update([
-                    'last_message_at'     => now(),
-                    'last_agent_reply_at' => now(),
-                ]);
 
                 $emailSent = true;
                 Log::info('MandaysController@submitToChat: email sent', [
@@ -364,8 +379,7 @@ class MandaysController extends Controller
                 ]);
             }
         } catch (\Throwable $e) {
-            // Email gagal, tapi status sudah berhasil diupdate → tetap return success dengan warning
-            $emailWarning = 'Status updated but email could not be sent';
+            $emailWarning = 'Proposal saved to chat but email could not be sent.';
             Log::error('MandaysController@submitToChat: email failed', [
                 'ticket_id' => $ticketId,
                 'error'     => $e->getMessage(),
@@ -434,6 +448,31 @@ class MandaysController extends Controller
         ]);
         $ticket->update(['mandays_proposal_status' => 'canceled']);
 
+        // Notify PIC and all members
+        $fromName  = $sessionUser['name'] ?? 'Helpdesk';
+        $ticketNum = $ticket->ticket_number ?? $ticketId;
+        $preview   = "Ticket #{$ticketNum} — Customer mandays proposal has been canceled"
+                   . ($cancelNotes ? ': ' . mb_substr($cancelNotes, 0, 80) : '');
+        $link      = "/ticket/{$ticketId}";
+
+        $recipients = collect();
+        if ($ticket->employee_id) {
+            $recipients->push($ticket->employee_id);
+        }
+        $ticket->members()->pluck('employee_id')->each(fn ($id) => $recipients->push($id));
+
+        $recipients->unique()->each(function ($empId) use ($canceledById, $fromName, $preview, $link) {
+            Notification::create([
+                'employee_id'      => $empId,
+                'type'             => 'customer_mandays_canceled',
+                'from_employee_id' => $canceledById,
+                'from_name'        => $fromName,
+                'preview'          => $preview,
+                'link'             => $link,
+                'is_read'          => false,
+            ]);
+        });
+
         return response()->json([
             'success'               => true,
             'message'               => 'Proposal canceled.',
@@ -481,7 +520,7 @@ class MandaysController extends Controller
         $sessionUser = session('user');
         $employeeId  = $sessionUser['id'] ?? null;
 
-        $request->validate([
+        $validator = Validator::make($request->all(), [
             'details'                      => 'required|array|min:1',
             'details.*.employee_id'        => 'required|integer',
             'details.*.module'             => 'nullable|string|max:100',
@@ -490,6 +529,27 @@ class MandaysController extends Controller
             'details.*.notes'              => 'nullable|string|max:500',
             'notes'                        => 'nullable|string|max:1000',
         ]);
+
+        // Jika additional_mandays diisi (> 0) maka notes wajib diisi
+        $validator->after(function ($v) use ($request) {
+            foreach ($request->input('details', []) as $i => $detail) {
+                $add = (float) ($detail['additional_mandays'] ?? 0);
+                if ($add > 0 && empty(trim($detail['notes'] ?? ''))) {
+                    $v->errors()->add(
+                        "details.{$i}.notes",
+                        'Notes wajib diisi jika Additional MD diisi.'
+                    );
+                }
+            }
+        });
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
 
         $existing = ConsultantMandays::where('ticket_id', $ticketId)->latestPerTicket()->first();
 
@@ -572,6 +632,19 @@ class MandaysController extends Controller
 
         $proposal->update(['status' => 'pending_approval', 'proposed_at' => now()]);
         $ticket->update(['internal_mandays_status' => 'pending_head']);
+
+        $sessionUser = session('user');
+        $fromName    = $sessionUser['name'] ?? 'PIC';
+        $fromId      = $sessionUser['id'] ?? null;
+        $ticketNum   = $ticket->ticket_number ?? $ticketId;
+        $this->notifyRoles(
+            [RoleId::HEAD_OF_SUPPORT->value, RoleId::HEAD_OF_PROJECT->value],
+            'internal_mandays_proposed',
+            $fromName,
+            $fromId,
+            "Ticket #{$ticketNum} — Internal mandays proposal submitted for your review",
+            "/ticket/{$ticketId}"
+        );
 
         return response()->json([
             'success'                 => true,
@@ -997,6 +1070,28 @@ class MandaysController extends Controller
         }
 
         return array_values($people);
+    }
+
+    private function notifyRoles(array $roleIds, string $type, string $fromName, ?int $fromId, string $preview, string $link): void
+    {
+        try {
+            Employee::whereIn('role_id', $roleIds)
+                ->where('is_active', true)
+                ->pluck('employee_id')
+                ->each(function ($empId) use ($type, $fromName, $fromId, $preview, $link) {
+                    Notification::create([
+                        'employee_id'      => $empId,
+                        'type'             => $type,
+                        'from_employee_id' => $fromId,
+                        'from_name'        => $fromName,
+                        'preview'          => $preview,
+                        'link'             => $link,
+                        'is_read'          => false,
+                    ]);
+                });
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('MandaysController::notifyRoles failed', ['error' => $e->getMessage()]);
+        }
     }
 
     /**
