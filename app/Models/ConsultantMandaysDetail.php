@@ -19,10 +19,17 @@ class ConsultantMandaysDetail extends Model
         'additional_mandays',
         'approved_additional',
         'notes',
+        'progress_percentage',
+        'progress_note',
+        'progress_updated_at',
     ];
 
     protected $casts = [
-        'mandays' => 'decimal:2',
+        'mandays'              => 'decimal:2',
+        'additional_mandays'   => 'decimal:2',
+        'approved_additional'  => 'decimal:2',
+        'progress_percentage'  => 'decimal:2',
+        'progress_updated_at'  => 'datetime',
     ];
 
     public function consultantMandays()
