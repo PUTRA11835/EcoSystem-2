@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'Consultant Workload')
 @section('page-title', 'Consultant Workload')
-@section('page-subtitle', 'Monitor beban kerja dan progress tiket tiap konsultan')
+@section('page-subtitle', 'Monitor workload and ticket progress for each consultant')
 
 @section('content')
 <div class="flex flex-col gap-4">
@@ -23,7 +23,7 @@
                     <option value="{{ $y }}" {{ $y == now()->year ? 'selected' : '' }}>{{ $y }}</option>
                 @endfor
             </select>
-            <input id="searchConsultant" type="text" placeholder="Cari nama / ECI / modul..."
+            <input id="searchConsultant" type="text" placeholder="Search name / ECI / module..."
                 oninput="filterTable()"
                 class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent w-52">
         </div>
@@ -37,14 +37,14 @@
 
     {{-- Legend --}}
     <div class="flex items-center gap-4 text-xs text-gray-500 bg-gray-50 rounded-lg px-4 py-2 border border-gray-100">
-        <span class="font-semibold text-gray-600">Keterangan:</span>
-        <span><span class="inline-block w-3 h-3 rounded-full bg-red-500 mr-1"></span>Sibuk &gt;70%</span>
-        <span><span class="inline-block w-3 h-3 rounded-full bg-yellow-400 mr-1"></span>Sedang 40–70%</span>
-        <span><span class="inline-block w-3 h-3 rounded-full bg-green-500 mr-1"></span>Ringan &lt;40%</span>
+        <span class="font-semibold text-gray-600">Legend:</span>
+        <span><span class="inline-block w-3 h-3 rounded-full bg-red-500 mr-1"></span>Busy &gt;70%</span>
+        <span><span class="inline-block w-3 h-3 rounded-full bg-yellow-400 mr-1"></span>Moderate 40–70%</span>
+        <span><span class="inline-block w-3 h-3 rounded-full bg-green-500 mr-1"></span>Light &lt;40%</span>
         <span class="text-gray-300">|</span>
-        <span><b>Beban Kerja</b> = total hari tiket / kapasitas</span>
+        <span><b>Workload</b> = Σ(mandays × (1 − progress%)) / Σ(mandays) × 100 &nbsp;·&nbsp; 0% = done, 100% = not started</span>
         <span class="text-gray-300">|</span>
-        <span><b>Avg Progress</b> = rata-rata progress tiket</span>
+        <span><b>Load Score</b> = Remain × (1 + 0.1 × n) &nbsp;·&nbsp; merah ≥10, kuning ≥5, hijau &lt;5</span>
     </div>
 
     {{-- Table --}}
@@ -54,53 +54,52 @@
                 <thead>
                     <tr class="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                         <th class="w-8 px-3 py-3"></th>
-                        <th class="px-4 py-3 text-left">Konsultan</th>
-                        <th class="px-4 py-3 text-left">Modul</th>
+                        <th class="px-4 py-3 text-left">Consultant</th>
+                        <th class="px-4 py-3 text-left">Module</th>
                         <th class="px-4 py-3 text-center cursor-pointer select-none hover:bg-gray-100 transition"
-                            onclick="sortBy('ticket_count')" title="Urutkan">
+                            onclick="sortBy('ticket_count')" title="Sort">
                             <div class="flex items-center justify-center gap-1">
-                                Tiket <span id="sort-icon-ticket_count" class="text-gray-300">⇅</span>
+                                Tickets <span id="sort-icon-ticket_count" class="text-gray-300">⇅</span>
                             </div>
                         </th>
                         <th class="px-4 py-3 text-right cursor-pointer select-none hover:bg-gray-100 transition"
-                            onclick="sortBy('total_days')" title="Urutkan">
+                            onclick="sortBy('total_days')" title="Sort">
                             <div class="flex items-center justify-end gap-1">
-                                Total Hari <span id="sort-icon-total_days" class="text-gray-300">⇅</span>
+                                Alloc MD <span id="sort-icon-total_days" class="text-gray-300">⇅</span>
                             </div>
                         </th>
-                        <th class="px-4 py-3 text-right">Kapasitas</th>
                         <th class="px-4 py-3 text-right cursor-pointer select-none hover:bg-gray-100 transition"
-                            onclick="sortBy('actual_md')" title="Urutkan">
+                            onclick="sortBy('workload_days')" title="Sort">
                             <div class="flex items-center justify-end gap-1">
-                                Actual&nbsp;md <span id="sort-icon-actual_md" class="text-gray-300">⇅</span>
+                                Remain <span id="sort-icon-workload_days" class="text-gray-300">⇅</span>
                             </div>
                         </th>
                         <th class="px-4 py-3 text-left cursor-pointer select-none hover:bg-gray-100 transition"
-                            onclick="sortBy('workload_pct')" style="min-width:180px" title="Urutkan">
+                            onclick="sortBy('workload_pct')" style="min-width:200px" title="Sort">
                             <div class="flex items-center gap-1">
-                                Beban Kerja
-                                <span class="normal-case font-normal text-gray-400">(md/kapasitas)</span>
+                                Workload
+                                <span class="normal-case font-normal text-gray-400">(remain / allocated)</span>
                                 <span id="sort-icon-workload_pct" class="text-gray-300">⇅</span>
                             </div>
                         </th>
                         <th class="px-4 py-3 text-left cursor-pointer select-none hover:bg-gray-100 transition"
-                            onclick="sortBy('avg_progress')" style="min-width:180px" title="Urutkan">
+                            onclick="sortBy('load_score')" style="min-width:180px" title="Sort">
                             <div class="flex items-center gap-1">
-                                Avg Progress
-                                <span class="normal-case font-normal text-gray-400">(rata-rata tiket)</span>
-                                <span id="sort-icon-avg_progress" class="text-gray-300">⇅</span>
+                                Load Score
+                                <span class="normal-case font-normal text-gray-400">(remain × (1 + 0.1n))</span>
+                                <span id="sort-icon-load_score" class="text-gray-300">⇅</span>
                             </div>
                         </th>
                     </tr>
                 </thead>
                 <tbody id="workloadBody">
                     <tr>
-                        <td colspan="9" class="text-center py-12 text-gray-400">
+                        <td colspan="8" class="text-center py-12 text-gray-400">
                             <svg class="animate-spin w-5 h-5 mx-auto mb-2 text-red-400" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
                             </svg>
-                            Memuat data...
+                            Loading data...
                         </td>
                     </tr>
                 </tbody>
@@ -112,7 +111,7 @@
 {{-- Progress Modal --}}
 <div id="progressModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
-        <h3 class="text-base font-bold text-gray-900 mb-1">Update Progress Tiket</h3>
+        <h3 class="text-base font-bold text-gray-900 mb-1">Update Ticket Progress</h3>
         <p class="text-sm text-gray-500 mb-4 truncate" id="progressModalSubject">—</p>
         <input type="hidden" id="progressTicketId">
         <div class="mb-4">
@@ -125,15 +124,15 @@
             </div>
         </div>
         <div class="mb-5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Catatan</label>
-            <textarea id="progressNote" rows="2" placeholder="Keterangan terkini..."
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</label>
+            <textarea id="progressNote" rows="2" placeholder="Latest update..."
                 class="mt-2 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 resize-none"></textarea>
         </div>
         <div class="flex gap-2">
             <button onclick="submitProgress()"
-                class="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2.5 rounded-lg transition">Simpan</button>
+                class="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2.5 rounded-lg transition">Save</button>
             <button onclick="closeProgressModal()"
-                class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">Batal</button>
+                class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">Cancel</button>
         </div>
     </div>
 </div>
@@ -141,7 +140,7 @@
 {{-- Consultant Progress Modal --}}
 <div id="consultantProgressModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
-        <h3 class="text-base font-bold text-gray-900 mb-0.5">Update Progress Konsultan</h3>
+        <h3 class="text-base font-bold text-gray-900 mb-0.5">Update Consultant Progress</h3>
         <p class="text-xs text-indigo-600 font-semibold mb-0.5" id="cpEmpName">—</p>
         <p class="text-sm text-gray-500 mb-4 truncate" id="cpSubject">—</p>
         <input type="hidden" id="cpDetailId">
@@ -156,15 +155,15 @@
             </div>
         </div>
         <div class="mb-5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Catatan</label>
-            <textarea id="cpNote" rows="2" placeholder="Update terkini..."
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</label>
+            <textarea id="cpNote" rows="2" placeholder="Latest update..."
                 class="mt-2 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 resize-none"></textarea>
         </div>
         <div class="flex gap-2">
             <button onclick="submitConsultantProgress()"
-                class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2.5 rounded-lg transition">Simpan</button>
+                class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2.5 rounded-lg transition">Save</button>
             <button onclick="closeConsultantProgressModal()"
-                class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">Batal</button>
+                class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">Cancel</button>
         </div>
     </div>
 </div>
@@ -187,14 +186,12 @@ const PRIORITY_CLS = {
     High:   'bg-red-100 text-red-700',
 };
 
-// Bar color based on percentage value
 function barColor(pct) {
     if (pct >= 70) return 'bg-red-500';
     if (pct >= 40) return 'bg-yellow-400';
     return 'bg-green-500';
 }
 
-// Progress bar color (green when high = good, red when low = not done)
 function progressBarColor(pct) {
     if (pct >= 75) return 'bg-green-500';
     if (pct >= 40) return 'bg-yellow-400';
@@ -213,11 +210,11 @@ async function loadWorkload() {
     const year  = document.getElementById('filterYear').value;
 
     document.getElementById('workloadBody').innerHTML = `
-        <tr><td colspan="9" class="text-center py-12 text-gray-400">
+        <tr><td colspan="8" class="text-center py-12 text-gray-400">
             <svg class="animate-spin w-5 h-5 mx-auto mb-2 text-red-400" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-            </svg>Memuat data...
+            </svg>Loading data...
         </td></tr>`;
 
     try {
@@ -228,12 +225,12 @@ async function loadWorkload() {
         catch {
             console.error('Non-JSON response:', text.substring(0, 500));
             document.getElementById('workloadBody').innerHTML =
-                `<tr><td colspan="9" class="text-center py-8 text-red-500 text-sm">Server error. Cek console.</td></tr>`;
+                `<tr><td colspan="8" class="text-center py-8 text-red-500 text-sm">Server error. Check console.</td></tr>`;
             return;
         }
         if (!json.success) {
             document.getElementById('workloadBody').innerHTML =
-                `<tr><td colspan="9" class="text-center py-8 text-red-500 text-sm">${json.message}</td></tr>`;
+                `<tr><td colspan="8" class="text-center py-8 text-red-500 text-sm">${json.message}</td></tr>`;
             return;
         }
         allConsultants = json.data ?? [];
@@ -242,7 +239,7 @@ async function loadWorkload() {
         updateSummary(allConsultants);
     } catch (e) {
         document.getElementById('workloadBody').innerHTML =
-            `<tr><td colspan="9" class="text-center py-8 text-red-500 text-sm">Gagal: ${e.message}</td></tr>`;
+            `<tr><td colspan="8" class="text-center py-8 text-red-500 text-sm">Failed: ${e.message}</td></tr>`;
     }
 }
 
@@ -258,7 +255,7 @@ function filterTable() {
 }
 
 // ── Sort ───────────────────────────────────────────────────────────
-const SORTABLE_KEYS = ['ticket_count', 'total_days', 'actual_md', 'workload_pct', 'avg_progress'];
+const SORTABLE_KEYS = ['ticket_count', 'total_days', 'workload_days', 'workload_pct', 'load_score'];
 
 function sortBy(key) {
     if (currentSort.key === key) {
@@ -297,7 +294,7 @@ function updateSortIcons() {
 function renderTable(consultants) {
     if (!consultants.length) {
         document.getElementById('workloadBody').innerHTML =
-            `<tr><td colspan="9" class="text-center py-8 text-gray-400">Tidak ada data.</td></tr>`;
+            `<tr><td colspan="8" class="text-center py-8 text-gray-400">No data available.</td></tr>`;
         return;
     }
 
@@ -317,10 +314,10 @@ function barHtml(pct, colorFn, width = 100) {
 }
 
 function consultantRows(c) {
-    const wPct = c.workload_pct;
-    const aPct = parseFloat(c.avg_progress) || 0;
+    const wPct      = parseFloat(c.workload_pct) || 0;
+    const wDays     = parseFloat(c.workload_days) || 0;
+    const loadScore = parseFloat(c.load_score) || 0;
 
-    // Consultant summary row
     let html = `
     <tr class="border-b border-gray-100 hover:bg-gray-50/70 cursor-pointer"
         onclick="toggleTickets(${c.employee_id})" data-emp="${c.employee_id}">
@@ -342,54 +339,75 @@ function consultantRows(c) {
                 ${c.ticket_count}
             </span>
         </td>
-        <td class="px-4 py-3 text-right font-semibold text-gray-800 tabular-nums">${c.total_days}</td>
-        <td class="px-4 py-3 text-right text-gray-500 tabular-nums">${c.monthly_capacity}</td>
-        <td class="px-4 py-3 text-right text-gray-500 tabular-nums">${c.actual_md}</td>
-        <td class="px-4 py-3">${barHtml(wPct, barColor, 120)}</td>
-        <td class="px-4 py-3">${barHtml(aPct, progressBarColor, 120)}</td>
+        <td class="px-4 py-3 text-right font-semibold text-gray-800 tabular-nums">${c.total_days} md</td>
+        <td class="px-4 py-3 text-right font-semibold text-orange-600 tabular-nums">${c.workload_days} d</td>
+        <td class="px-4 py-3">
+            <div class="flex items-center gap-2">
+                <div class="bg-gray-100 rounded-full h-2" style="width:100px">
+                    <div class="${barColor(wPct)} h-2 rounded-full transition-all" style="width:${Math.min(wPct,100)}%"></div>
+                </div>
+                <div class="shrink-0">
+                    <span class="text-xs font-bold ${workloadTextColor(wPct)}">${wPct}%</span>
+                    <span class="text-xs text-gray-400 ml-1">${wDays} d</span>
+                </div>
+            </div>
+        </td>
+        <td class="px-4 py-3">
+            <div class="flex flex-col gap-1">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-bold ${loadScore >= 10 ? 'text-red-600' : loadScore >= 5 ? 'text-yellow-600' : 'text-green-600'}">
+                        ${loadScore}
+                    </span>
+                    <span class="text-xs text-gray-400 font-normal">score</span>
+                </div>
+                <div class="text-xs text-gray-400">${wDays} d × (1 + 0.1×${c.ticket_count})</div>
+            </div>
+        </td>
     </tr>`;
 
-    // Ticket sub-rows
     if (c.tickets.length === 0) {
         html += `
     <tr id="tickets-${c.employee_id}" class="hidden bg-slate-50/60 border-b border-gray-100">
-        <td colspan="9" class="pl-12 pr-4 py-2.5 text-xs text-gray-400 italic">
-            Tidak ada tiket aktif bulan ini
+        <td colspan="8" class="pl-12 pr-4 py-2.5 text-xs text-gray-400 italic">
+            No active tickets this month
         </td>
     </tr>`;
     } else {
         html += `
     <tr id="tickets-${c.employee_id}" class="hidden">
-        <td colspan="9" class="p-0 border-b border-gray-200">
+        <td colspan="8" class="p-0 border-b border-gray-200">
             <table class="w-full">
                 <thead>
                     <tr class="bg-slate-50 text-xs font-semibold text-gray-500 uppercase tracking-wide border-y border-slate-200">
                         <th class="pl-12 pr-3 py-2 text-left w-8">#</th>
-                        <th class="px-3 py-2 text-left w-36">No Tiket</th>
-                        <th class="px-3 py-2 text-left">Subject</th>
+                        <th class="px-3 py-2 text-left w-36">Ticket No.</th>
                         <th class="px-3 py-2 text-left w-20">Role</th>
                         <th class="px-3 py-2 text-left w-28">Status</th>
                         <th class="px-3 py-2 text-left w-20">Priority</th>
-                        <th class="px-3 py-2 text-left w-20">Modul</th>
-                        <th class="px-3 py-2 text-right w-20">Man Days</th>
-                        <th class="px-3 py-2 text-left w-52">Progress Tiket</th>
-                        <th class="px-3 py-2 text-center w-20"></th>
+                        <th class="px-3 py-2 text-right w-24">Alloc MD</th>
+                        <th class="px-3 py-2 text-right w-24">Add. MD</th>
+                        <th class="px-3 py-2 text-right w-36">Remain</th>
+                        <th class="px-3 py-2 text-left w-48">Progress</th>
+                        <th class="px-3 py-2 text-left w-32">Notes</th>
+                        <th class="px-3 py-2 text-center w-20">Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${c.tickets.map((t, idx) => ticketRow(t, idx + 1)).join('')}
+                    ${c.tickets.map((t, idx) => ticketRow(t, idx + 1, c.employee_id, c.modules)).join('')}
                     <tr class="bg-slate-50 border-t border-slate-200">
-                        <td colspan="6" class="pl-12 pr-3 py-2 text-xs text-right text-gray-500 font-semibold">
-                            Total
-                        </td>
+                        <td colspan="6" class="pl-12 pr-3 py-2 text-xs text-right text-gray-500 font-semibold">Total</td>
                         <td class="px-3 py-2 text-right text-xs font-bold text-gray-700">
-                            ${c.tickets.reduce((s, t) => s + (parseFloat(t.man_days) || 0), 0).toFixed(1)} md
+                            ${c.tickets.reduce((s, t) => {
+                                const my = (t.consultant_details ?? []).find(d => d.employee_id == c.employee_id);
+                                return s + (my ? parseFloat(my.mandays) || 0 : 0);
+                            }, 0).toFixed(1)} md
                         </td>
-                        <td class="px-3 py-2 text-xs">
-                            ${barHtml(parseFloat(c.avg_progress) || 0, progressBarColor, 120)}
-                            <span class="text-xs text-gray-400 mt-0.5 block">rata-rata ${c.tickets.length} tiket</span>
+                        <td class="px-3 py-2 text-right text-xs font-bold text-orange-600">
+                            ${c.workload_days} d
                         </td>
-                        <td></td>
+                        <td class="px-3 py-2 text-xs font-semibold text-orange-600" colspan="3">
+                            ${wDays} d remain across ${c.tickets.length} ticket(s)
+                        </td>
                     </tr>
                 </tbody>
             </table>
@@ -400,90 +418,51 @@ function consultantRows(c) {
     return html;
 }
 
-function ticketRow(t, num) {
-    const consultantPct = parseFloat(t.consultant_progress) || 0;
-    const st     = STATUS_BADGE[t.status] ?? { text: t.status, cls: 'bg-gray-100 text-gray-600' };
-    const prCls  = PRIORITY_CLS[t.ticket_priority] ?? 'bg-gray-100 text-gray-600';
-    const isPic  = t.role_in_ticket === 'pic';
-    const roleCls = isPic
-        ? 'bg-amber-100 text-amber-700 border border-amber-200'
-        : 'bg-sky-100 text-sky-700 border border-sky-200';
+function ticketRow(t, num, empId, consultantModules) {
+    const st    = STATUS_BADGE[t.status] ?? { text: t.status, cls: 'bg-gray-100 text-gray-600' };
+    const prCls = PRIORITY_CLS[t.ticket_priority] ?? 'bg-gray-100 text-gray-600';
+    const isPic = t.role_in_ticket === 'pic';
+    const roleCls   = isPic ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                             : 'bg-sky-100 text-sky-700 border border-sky-200';
     const roleLabel = isPic ? 'PIC' : 'Member';
 
-    const details = t.consultant_details ?? [];
-    const hasDetails = details.length > 0;
+    // Find this consultant's own entry in the mandays detail
+    const myDetail = (t.consultant_details ?? []).find(d => d.employee_id == empId);
+    const myPct    = myDetail ? parseFloat(myDetail.progress_percentage) || 0 : null;
+    const myRemain = myDetail ? parseFloat(myDetail.remain_md) : null;
+    const myNote   = myDetail ? (myDetail.progress_note || '—') : '—';
+    const myMd     = myDetail ? parseFloat(myDetail.mandays) : null;
+    const myDetailId = myDetail ? myDetail.detail_id : null;
+    const updAt    = (myDetail && myDetail.progress_updated_at)
+        ? new Date(myDetail.progress_updated_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})
+        : '—';
 
-    // Sub-tabel per-konsultan progress (expandable)
-    const detailSubTable = hasDetails ? `
-    <tr id="cdetail-${t.ticket_id}" class="hidden bg-indigo-50/40">
-        <td colspan="10" class="px-0 py-0">
-            <div class="ml-16 mr-4 my-2 rounded-lg border border-indigo-100 overflow-hidden">
-                <table class="w-full text-xs">
-                    <thead>
-                        <tr class="bg-indigo-50 text-indigo-700 font-semibold uppercase tracking-wide">
-                            <th class="px-3 py-1.5 text-left">Konsultan</th>
-                            <th class="px-3 py-1.5 text-left">Modul</th>
-                            <th class="px-3 py-1.5 text-right">MD Alokasi</th>
-                            <th class="px-3 py-1.5 text-right">MD Tambahan</th>
-                            <th class="px-3 py-1.5 text-left w-48">Progress</th>
-                            <th class="px-3 py-1.5 text-left">Catatan</th>
-                            <th class="px-3 py-1.5 text-center">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${details.map(d => {
-                            const dpct = parseFloat(d.progress_percentage) || 0;
-                            const updAt = d.progress_updated_at
-                                ? new Date(d.progress_updated_at).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'})
-                                : '—';
-                            return `<tr class="border-t border-indigo-100 hover:bg-indigo-50/60">
-                                <td class="px-3 py-1.5 font-medium text-gray-800">
-                                    ${d.emp_name}<br><span class="text-gray-400 font-normal">${d.eci}</span>
-                                </td>
-                                <td class="px-3 py-1.5 text-gray-500">${d.module}</td>
-                                <td class="px-3 py-1.5 text-right font-semibold text-gray-700">${d.mandays}</td>
-                                <td class="px-3 py-1.5 text-right text-gray-500">${d.approved_additional > 0 ? '+'+d.approved_additional : '—'}</td>
-                                <td class="px-3 py-1.5">
-                                    <div class="flex items-center gap-1.5">
-                                        <div class="bg-gray-200 rounded-full h-1.5" style="width:80px">
-                                            <div class="${progressBarColor(dpct)} h-1.5 rounded-full" style="width:${dpct}%"></div>
-                                        </div>
-                                        <span class="font-bold ${dpct>=75?'text-green-700':dpct>=40?'text-yellow-700':'text-red-600'}">${dpct}%</span>
-                                    </div>
-                                    <div class="text-gray-400 mt-0.5">Diperbarui: ${updAt}</div>
-                                </td>
-                                <td class="px-3 py-1.5 text-gray-500 max-w-xs">
-                                    <span class="line-clamp-2">${d.progress_note || '—'}</span>
-                                </td>
-                                <td class="px-3 py-1.5 text-center">
-                                    <button onclick="event.stopPropagation(); openConsultantProgressModal(${d.detail_id}, '${(d.emp_name).replace(/'/g,"\\'")}', ${t.ticket_id}, '${(t.subject??'').replace(/'/g,"\\'")}', ${dpct}, '${(d.progress_note??'').replace(/'/g,"\\'")}')"
-                                        class="text-xs text-indigo-600 hover:text-indigo-700 font-semibold border border-indigo-200 px-2 py-0.5 rounded hover:bg-indigo-50 transition whitespace-nowrap">
-                                        Edit
-                                    </button>
-                                </td>
-                            </tr>`;
-                        }).join('')}
-                    </tbody>
-                </table>
+    const progressCell = myDetail ? `
+        <div class="flex items-center gap-2">
+            <div class="bg-gray-200 rounded-full h-2" style="width:90px">
+                <div class="${progressBarColor(myPct)} h-2 rounded-full" style="width:${myPct}%"></div>
             </div>
-        </td>
-    </tr>` : '';
+            <span class="text-xs font-bold ${myPct>=75?'text-green-700':myPct>=40?'text-yellow-600':'text-red-600'}">${myPct}%</span>
+        </div>
+        <div class="text-xs text-gray-400 mt-0.5">Updated: ${updAt}</div>`
+        : `<span class="text-xs text-gray-300">No mandays data</span>`;
 
-    const expandBtn = hasDetails
-        ? `<button onclick="event.stopPropagation(); toggleConsultantDetail(${t.ticket_id})"
-                class="ml-1 text-indigo-500 hover:text-indigo-700 text-xs font-semibold border border-indigo-200 px-1.5 py-0.5 rounded hover:bg-indigo-50 transition"
-                title="Lihat progress per konsultan">
-                <span id="cdetail-icon-${t.ticket_id}">▶</span> ${details.length}
+    const remainCell = myRemain !== null
+        ? `<span class="font-semibold ${myRemain > 0 ? 'text-orange-600' : 'text-green-600'}">${myRemain} d</span>
+           <span class="ml-1 text-xs font-bold bg-orange-100 text-orange-700 rounded px-1 py-0.5">↑${Math.ceil(myRemain)} d</span>`
+        : `<span class="text-gray-300">—</span>`;
+
+    const actionCell = myDetail
+        ? `<button onclick="event.stopPropagation(); openConsultantProgressModal(${myDetailId}, '${(myDetail.emp_name??'').replace(/'/g,"\\'")}', ${t.ticket_id}, '${(t.subject??'').replace(/'/g,"\\'")}', ${myPct}, '${myNote.replace(/'/g,"\\'")}')"
+               class="text-xs text-indigo-600 hover:text-indigo-700 font-semibold border border-indigo-200 px-2 py-0.5 rounded hover:bg-indigo-50 transition whitespace-nowrap">
+               Edit
            </button>`
-        : '';
+        : `<span class="text-gray-300 text-xs">—</span>`;
 
-    const ticketRowHtml = `
+    return `
     <tr class="border-t border-slate-100 hover:bg-blue-50/30">
         <td class="pl-12 pr-3 py-2.5 text-xs text-gray-400">${num}</td>
         <td class="px-3 py-2.5 font-mono text-xs text-gray-500 whitespace-nowrap">${t.ticket_number ?? '—'}</td>
-        <td class="px-3 py-2.5 text-sm text-gray-800">
-            <span class="line-clamp-1">${t.subject ?? '—'}</span>
-        </td>
         <td class="px-3 py-2.5">
             <span class="px-1.5 py-0.5 rounded text-xs font-semibold ${roleCls}">${roleLabel}</span>
         </td>
@@ -493,31 +472,17 @@ function ticketRow(t, num) {
         <td class="px-3 py-2.5">
             <span class="px-1.5 py-0.5 rounded text-xs font-medium ${prCls}">${t.ticket_priority ?? '—'}</span>
         </td>
-        <td class="px-3 py-2.5 text-xs text-gray-500">${t.module ?? '—'}</td>
-        <td class="px-3 py-2.5 text-right text-sm font-semibold text-gray-700">${t.man_days ?? '—'}</td>
-        <td class="px-3 py-2.5">
-            <div class="flex items-center gap-2">
-                <div class="bg-gray-200 rounded-full h-2" style="width:100px">
-                    <div class="${progressBarColor(consultantPct)} h-2 rounded-full" style="width:${consultantPct}%"></div>
-                </div>
-                <span class="text-xs font-bold text-gray-700 w-9 text-right">${consultantPct}%</span>
-                ${expandBtn}
-            </div>
-            ${!hasDetails ? '<div class="text-xs text-gray-300 mt-0.5">Belum ada data mandays</div>' : ''}
+        <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${myMd !== null ? myMd + ' md' : '—'}</td>
+        <td class="px-3 py-2.5 text-right text-xs text-gray-500">
+            ${myDetail && myDetail.approved_additional > 0
+                ? `<span class="text-indigo-600 font-semibold">${myDetail.approved_additional} md</span>`
+                : '<span class="text-gray-300">—</span>'}
         </td>
-        <td class="px-3 py-2.5 text-center text-gray-300 text-xs">—</td>
+        <td class="px-3 py-2.5 text-right">${remainCell}</td>
+        <td class="px-3 py-2.5">${progressCell}</td>
+        <td class="px-3 py-2.5 text-xs text-gray-500 max-w-xs"><span class="line-clamp-2">${myNote}</span></td>
+        <td class="px-3 py-2.5 text-center">${actionCell}</td>
     </tr>`;
-
-    return ticketRowHtml + detailSubTable;
-}
-
-function toggleConsultantDetail(ticketId) {
-    const row  = document.getElementById(`cdetail-${ticketId}`);
-    const icon = document.getElementById(`cdetail-icon-${ticketId}`);
-    if (!row) return;
-    const hidden = row.classList.contains('hidden');
-    row.classList.toggle('hidden', !hidden);
-    if (icon) icon.textContent = hidden ? '▼' : '▶';
 }
 
 // ── Expand / Collapse ──────────────────────────────────────────────
@@ -545,10 +510,10 @@ function updateSummary(data) {
     const mid  = data.filter(c => c.workload_pct >= 40 && c.workload_pct < 70).length;
     const low  = data.filter(c => c.workload_pct < 40).length;
     document.getElementById('summaryText').innerHTML =
-        `${data.length} konsultan &nbsp;·&nbsp;
-         <span class="text-red-600 font-semibold">${high} sibuk</span> &nbsp;·&nbsp;
-         <span class="text-yellow-600 font-semibold">${mid} sedang</span> &nbsp;·&nbsp;
-         <span class="text-green-600 font-semibold">${low} ringan</span>`;
+        `${data.length} consultant(s) &nbsp;·&nbsp;
+         <span class="text-red-600 font-semibold">${high} busy</span> &nbsp;·&nbsp;
+         <span class="text-yellow-600 font-semibold">${mid} moderate</span> &nbsp;·&nbsp;
+         <span class="text-green-600 font-semibold">${low} light</span>`;
 }
 
 // ── Progress Modal ─────────────────────────────────────────────────
@@ -579,7 +544,7 @@ async function submitProgress() {
         });
         const json = await res.json();
         if (json.success) { closeProgressModal(); loadWorkload(); }
-        else alert('Gagal: ' + (json.message ?? 'Error'));
+        else alert('Failed: ' + (json.message ?? 'Error'));
     } catch (e) { alert('Error: ' + e.message); }
 }
 
@@ -619,7 +584,7 @@ async function submitConsultantProgress() {
         if (json.success) {
             closeConsultantProgressModal();
             loadWorkload();
-        } else alert('Gagal: ' + (json.message ?? 'Error'));
+        } else alert('Failed: ' + (json.message ?? 'Error'));
     } catch (e) { alert('Error: ' + e.message); }
 }
 

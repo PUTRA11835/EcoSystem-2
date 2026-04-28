@@ -29,17 +29,22 @@ class ConsultantWorkloadController extends Controller
 
             $consultants = Employee::with(['basicData', 'roles'])
                 ->where('is_active', true)
+                ->where('role_id', 2) // Delivery Support User only
                 ->get();
 
             // Pre-load weighted progress per ticket dari consultant_mandays_detail
-            $allTicketIds    = DB::table('ticket')
+            $allTicketIds = DB::table('ticket')
                 ->whereIn('status', self::ACTIVE_STATUSES)
                 ->whereNull('deleted_at')
                 ->pluck('ticket_id')
                 ->toArray();
             $progressMap = self::progressMapForTickets($allTicketIds);
 
-            $result = $consultants->map(function (Employee $emp) use ($month, $year, $progressMap) {
+            // Pre-load modules dari employee_qualification per employee
+            $empIds     = $consultants->pluck('employee_id')->toArray();
+            $modulesMap = self::modulesMapForEmployees($empIds);
+
+            $result = $consultants->map(function (Employee $emp) use ($progressMap, $modulesMap) {
                 $name = $emp->basicData
                     ? trim($emp->basicData->first_name . ' ' . ($emp->basicData->last_name ?? ''))
                     : $emp->eci;
@@ -48,34 +53,37 @@ class ConsultantWorkloadController extends Controller
 
                 $tickets = $this->ticketsByEmployee($emp->employee_id, $progressMap);
 
-                $totalDays   = (float) ($tickets->sum('man_days') ?? 0);
-                $capacity    = (float) ($emp->monthly_capacity_md ?? 20);
-                $workloadPct = $capacity > 0 ? round(($totalDays / $capacity) * 100, 1) : 0;
-                $avgProgress = $tickets->count() > 0
-                    ? round($tickets->avg('consultant_progress'), 1)
+                // Aggregate from sub-row consultant_details so main row always matches sub-rows
+                $totalAllocMd = 0;
+                $totalRemain  = 0;
+                foreach ($tickets as $ticket) {
+                    $myDetail = collect($ticket->consultant_details)
+                        ->firstWhere('employee_id', $emp->employee_id);
+                    if ($myDetail) {
+                        $totalAllocMd += (float) $myDetail['effective_md'];
+                        $totalRemain  += (float) $myDetail['remain_md'];
+                    }
+                }
+                $workloadPct = $totalAllocMd > 0
+                    ? round($totalRemain / $totalAllocMd * 100, 1)
                     : 0;
 
-                $actualMd = (float) (DB::table('timesheets')
-                    ->where('employee_id', $emp->employee_id)
-                    ->whereMonth('date', $month)
-                    ->whereYear('date', $year)
-                    ->whereIn('status', ['submitted', 'approved'])
-                    ->whereNull('deleted_at')
-                    ->sum('md_consumed') ?? 0);
+                $ticketCount = $tickets->count();
+                // Load Score = Remain × (1 + 0.1 × n)
+                $loadScore   = round($totalRemain * (1 + 0.1 * $ticketCount), 2);
 
                 return [
-                    'employee_id'      => $emp->employee_id,
-                    'eci'              => $emp->eci,
-                    'name'             => $name,
-                    'roles'            => $roles,
-                    'modules'          => $emp->modules ?? '-',
-                    'monthly_capacity' => $capacity,
-                    'ticket_count'     => $tickets->count(),
-                    'total_days'       => $totalDays,
-                    'actual_md'        => $actualMd,
-                    'workload_pct'     => $workloadPct,
-                    'avg_progress'     => $avgProgress,
-                    'tickets'          => $tickets->values(),
+                    'employee_id'  => $emp->employee_id,
+                    'eci'          => $emp->eci,
+                    'name'         => $name,
+                    'roles'        => $roles,
+                    'modules'      => $modulesMap[$emp->employee_id] ?? '-',
+                    'ticket_count' => $ticketCount,
+                    'total_days'   => round($totalAllocMd, 2),
+                    'workload_days' => round($totalRemain, 2),
+                    'workload_pct'  => $workloadPct,
+                    'load_score'   => $loadScore,
+                    'tickets'      => $tickets->values(),
                 ];
             });
 
@@ -133,13 +141,15 @@ class ConsultantWorkloadController extends Controller
                 ->whereNull('deleted_at')
                 ->sum('md_consumed') ?? 0);
 
+            $modulesMap = self::modulesMapForEmployees([$id]);
+
             return response()->json([
                 'success'          => true,
                 'employee_id'      => $emp->employee_id,
                 'eci'              => $emp->eci,
                 'name'             => $name,
                 'roles'            => $emp->roles->pluck('name'),
-                'modules'          => $emp->modules ?? '-',
+                'modules'          => $modulesMap[$id] ?? '-',
                 'monthly_capacity' => $capacity,
                 'total_days'       => $totalDays,
                 'actual_md'        => $actualMd,
@@ -220,7 +230,8 @@ class ConsultantWorkloadController extends Controller
 
     /**
      * Load per-konsultan progress dari consultant_mandays_detail untuk sekumpulan ticket_id.
-     * Return: [ticket_id => [ [employee_id, name, mandays, approved_additional, progress_percentage, progress_note, detail_id], ... ]]
+     * Return: [ticket_id => [ [...], ... ]]
+     * remain_md = effective_md × (1 − progress/100)
      */
     private function consultantDetailsForTickets(array $ticketIds): array
     {
@@ -230,6 +241,17 @@ class ConsultantWorkloadController extends Controller
             ->join('consultant_mandays_detail as cmd', 'cmd.consultant_mandays_id', '=', 'cm.id')
             ->leftJoin('employee as e', 'e.employee_id', '=', 'cmd.employee_id')
             ->leftJoin('employee_basic_data as ebd', 'ebd.employee_id', '=', 'e.employee_id')
+            ->leftJoinSub(
+                DB::table('employee_qualification')
+                    ->whereNotNull('module')
+                    ->where('module', '!=', '')
+                    ->select('employee_id', DB::raw("GROUP_CONCAT(DISTINCT module ORDER BY module SEPARATOR ', ') as qualification_modules"))
+                    ->groupBy('employee_id'),
+                'eq',
+                'eq.employee_id',
+                '=',
+                'cmd.employee_id'
+            )
             ->whereIn('cm.ticket_id', $ticketIds)
             ->select(
                 'cm.ticket_id',
@@ -237,7 +259,7 @@ class ConsultantWorkloadController extends Controller
                 'cmd.employee_id',
                 DB::raw("TRIM(CONCAT(COALESCE(ebd.first_name,''), ' ', COALESCE(ebd.last_name,''))) as emp_name"),
                 'e.eci',
-                'cmd.module',
+                'eq.qualification_modules',
                 'cmd.mandays',
                 'cmd.approved_additional',
                 'cmd.progress_percentage',
@@ -248,20 +270,26 @@ class ConsultantWorkloadController extends Controller
 
         $map = [];
         foreach ($rows as $row) {
-            $tid = (int) $row->ticket_id;
-            $effectiveMd = (float) $row->mandays + (float) $row->approved_additional;
+            $tid         = (int) $row->ticket_id;
+            $mandays     = (float) $row->mandays;
+            $additional  = (float) $row->approved_additional;
+            $effectiveMd = $mandays + $additional;
+            $progress    = (float) $row->progress_percentage;
+            $remainShare = round($effectiveMd * (1 - $progress / 100), 2);
+
             $map[$tid][] = [
                 'detail_id'           => $row->detail_id,
                 'employee_id'         => $row->employee_id,
                 'emp_name'            => trim($row->emp_name) ?: ($row->eci ?? '—'),
                 'eci'                 => $row->eci ?? '—',
-                'module'              => $row->module ?? '—',
-                'mandays'             => (float) $row->mandays,
-                'approved_additional' => (float) $row->approved_additional,
+                'module'              => $row->qualification_modules ?? '—',
+                'mandays'             => $mandays,
+                'approved_additional' => $additional,
                 'effective_md'        => $effectiveMd,
-                'progress_percentage' => (float) $row->progress_percentage,
+                'progress_percentage' => $progress,
                 'progress_note'       => $row->progress_note ?? '',
                 'progress_updated_at' => $row->progress_updated_at,
+                'remain_md'           => $remainShare,
             ];
         }
 
@@ -394,6 +422,70 @@ class ConsultantWorkloadController extends Controller
             $map[(int) $row->ticket_id] = $row->total_weight > 0
                 ? round($row->weighted_sum / $row->total_weight, 1)
                 : 0;
+        }
+
+        return $map;
+    }
+
+    /**
+     * Load modules dari employee_qualification per employee.
+     * Return: [employee_id => "Module1, Module2"]
+     */
+    public static function modulesMapForEmployees(array $empIds): array
+    {
+        if (empty($empIds)) return [];
+
+        $rows = DB::table('employee_qualification')
+            ->whereIn('employee_id', $empIds)
+            ->whereNotNull('module')
+            ->where('module', '!=', '')
+            ->select('employee_id', 'module')
+            ->get();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[$row->employee_id][] = $row->module;
+        }
+
+        return array_map(
+            fn($modules) => implode(', ', array_unique($modules)),
+            $map
+        );
+    }
+
+    /**
+     * Hitung workload per consultant: sisa MD vs alokasi awal.
+     * Formula: remain = mandays × (1 − progress/100)  per tiket per konsultan
+     *          workload_days = Σ remain  |  workload_pct = workload_days / Σ mandays × 100
+     * Return: [employee_id => ['days' => X, 'pct' => Y]]
+     */
+    public static function workloadByRemainForEmployees(array $empIds, array $activeStatuses): array
+    {
+        if (empty($empIds)) return [];
+
+        $rows = DB::table('consultant_mandays_detail as cmd')
+            ->join('consultant_mandays as cm', 'cm.id', '=', 'cmd.consultant_mandays_id')
+            ->join('ticket as t', 't.ticket_id', '=', 'cm.ticket_id')
+            ->whereIn('cmd.employee_id', $empIds)
+            ->whereIn('t.status', $activeStatuses)
+            ->whereNull('t.deleted_at')
+            ->select(
+                'cmd.employee_id',
+                DB::raw('SUM(cmd.mandays) as total_allocated_md'),
+                DB::raw('SUM(cmd.mandays * (1 - cmd.progress_percentage / 100)) as total_remain')
+            )
+            ->groupBy('cmd.employee_id')
+            ->get();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $allocatedMd = (float) $row->total_allocated_md;
+            $totalRemain = (float) $row->total_remain;
+            $map[(int) $row->employee_id] = [
+                'allocated_md' => round($allocatedMd, 2),
+                'remain_days'  => round($totalRemain, 2),
+                'pct'          => $allocatedMd > 0 ? round($totalRemain / $allocatedMd * 100, 1) : 0,
+            ];
         }
 
         return $map;

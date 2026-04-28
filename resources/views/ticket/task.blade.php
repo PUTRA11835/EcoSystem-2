@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'My Tasks')
 @section('page-title', 'My Tasks')
-@section('page-subtitle', 'Tiket aktif yang saya tangani sebagai PIC')
+@section('page-subtitle', 'Active tickets where I am assigned as PIC')
 
 @section('content')
 <div class="flex flex-col gap-4">
@@ -23,7 +23,7 @@
                     <option value="{{ $y }}" {{ $y == now()->year ? 'selected' : '' }}>{{ $y }}</option>
                 @endfor
             </select>
-            <input id="searchTask" type="text" placeholder="Cari tiket, subject, customer..."
+            <input id="searchTask" type="text" placeholder="Search ticket, subject, customer..."
                 oninput="filterTable()"
                 class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent w-56">
         </div>
@@ -35,7 +35,7 @@
     {{-- Summary Cards --}}
     <div class="grid grid-cols-3 gap-3">
         <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
-            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Tiket Aktif</p>
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Active Tickets</p>
             <p class="text-2xl font-bold text-gray-900" id="cardTicketCount">—</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
@@ -43,7 +43,7 @@
             <p class="text-2xl font-bold text-gray-900" id="cardTotalMd">—</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
-            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Actual MD Bulan Ini</p>
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Actual MD This Month</p>
             <p class="text-2xl font-bold text-gray-900" id="cardActualMd">—</p>
         </div>
     </div>
@@ -54,12 +54,12 @@
             <table class="w-full text-sm" id="taskTable">
                 <thead>
                     <tr class="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        <th class="px-4 py-3 text-left" style="min-width:130px">No Tiket</th>
+                        <th class="px-4 py-3 text-left" style="min-width:130px">Ticket No.</th>
                         <th class="px-4 py-3 text-left" style="min-width:260px">Subject</th>
                         <th class="px-4 py-3 text-left" style="min-width:150px">Customer</th>
                         <th class="px-4 py-3 text-left" style="min-width:110px">Status</th>
                         <th class="px-4 py-3 text-left" style="min-width:90px">Priority</th>
-                        <th class="px-4 py-3 text-left" style="min-width:80px">Modul</th>
+                        <th class="px-4 py-3 text-left" style="min-width:80px">Module</th>
                         <th class="px-4 py-3 text-right" style="min-width:90px">Man Days</th>
                         <th class="px-4 py-3 text-right" style="min-width:90px">End Date</th>
                         <th class="px-4 py-3 text-left" style="min-width:200px">Progress</th>
@@ -72,7 +72,7 @@
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
                             </svg>
-                            Memuat data...
+                            Loading data...
                         </td>
                     </tr>
                 </tbody>
@@ -84,7 +84,7 @@
 {{-- Consultant Progress Modal --}}
 <div id="cpModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
-        <h3 class="text-base font-bold text-gray-900 mb-0.5">Update Progress Saya</h3>
+        <h3 class="text-base font-bold text-gray-900 mb-0.5">Update My Progress</h3>
         <p class="text-xs text-indigo-600 font-semibold mb-0.5" id="cpModalEmp">—</p>
         <p class="text-sm text-gray-500 mb-4 truncate" id="cpModalSubject">—</p>
         <input type="hidden" id="cpModalDetailId">
@@ -98,15 +98,15 @@
             </div>
         </div>
         <div class="mb-5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Catatan</label>
-            <textarea id="cpModalNote" rows="2" placeholder="Update terkini..."
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</label>
+            <textarea id="cpModalNote" rows="2" placeholder="Latest update..."
                 class="mt-2 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 resize-none"></textarea>
         </div>
         <div class="flex gap-2">
             <button onclick="submitCpModal()"
-                class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2.5 rounded-lg transition">Simpan</button>
+                class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2.5 rounded-lg transition">Save</button>
             <button onclick="closeCpModal()"
-                class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">Batal</button>
+                class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">Cancel</button>
         </div>
     </div>
 </div>
@@ -145,7 +145,7 @@ async function loadTasks() {
             <svg class="animate-spin w-5 h-5 mx-auto mb-2 text-red-400" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-            </svg>Memuat data...
+            </svg>Loading data...
         </td></tr>`;
 
     try {
@@ -156,7 +156,7 @@ async function loadTasks() {
         catch {
             console.error('Non-JSON:', text.substring(0, 500));
             document.getElementById('taskBody').innerHTML =
-                `<tr><td colspan="9" class="text-center py-8 text-red-500 text-sm">Server error. Cek console.</td></tr>`;
+                `<tr><td colspan="9" class="text-center py-8 text-red-500 text-sm">Server error. Check console.</td></tr>`;
             return;
         }
         if (!json.success) {
@@ -169,7 +169,7 @@ async function loadTasks() {
         renderTable(allTasks);
     } catch (e) {
         document.getElementById('taskBody').innerHTML =
-            `<tr><td colspan="9" class="text-center py-8 text-red-500 text-sm">Gagal: ${e.message}</td></tr>`;
+            `<tr><td colspan="9" class="text-center py-8 text-red-500 text-sm">Failed: ${e.message}</td></tr>`;
     }
 }
 
@@ -189,7 +189,7 @@ function updateCards(summary) {
     document.getElementById('cardTicketCount').textContent = summary.ticket_count ?? 0;
     document.getElementById('cardTotalMd').textContent     = (summary.total_man_days ?? 0) + ' md';
     document.getElementById('cardActualMd').textContent    = (summary.actual_md ?? 0) + ' md';
-    document.getElementById('summaryText').textContent     = `${summary.ticket_count ?? 0} tiket aktif sebagai PIC`;
+    document.getElementById('summaryText').textContent     = `${summary.ticket_count ?? 0} active ticket(s) as PIC`;
 }
 
 // ── Render ─────────────────────────────────────────────────────────
@@ -198,7 +198,7 @@ function renderTable(tasks) {
         document.getElementById('taskBody').innerHTML =
             `<tr><td colspan="9" class="text-center py-12 text-gray-400">
                 <i class="fas fa-check-circle text-3xl mb-3 block text-gray-300"></i>
-                Tidak ada tiket aktif sebagai PIC
+                No active tickets assigned as PIC
             </td></tr>`;
         return;
     }
@@ -209,7 +209,7 @@ function taskRows(t) {
     const pct     = parseFloat(t.consultant_progress) || 0;
     const st      = STATUS_BADGE[t.status] ?? { text: t.status, cls: 'bg-gray-100 text-gray-600' };
     const prCls   = PRIORITY_CLS[t.ticket_priority] ?? 'bg-gray-100 text-gray-600';
-    const endDate = t.end_date ? new Date(t.end_date).toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+    const endDate = t.end_date ? new Date(t.end_date).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—';
 
     const details    = t.consultant_details ?? [];
     const hasDetails = details.length > 0;
@@ -217,10 +217,10 @@ function taskRows(t) {
     const expandBtn = hasDetails
         ? `<button onclick="event.stopPropagation(); toggleDetail(${t.ticket_id})"
                 class="ml-1 text-indigo-500 hover:text-indigo-700 text-xs font-semibold border border-indigo-200 px-1.5 py-0.5 rounded hover:bg-indigo-50 transition"
-                title="Progress per konsultan">
+                title="Progress per consultant">
                 <span id="det-icon-${t.ticket_id}">▶</span> ${details.length}
            </button>`
-        : `<span class="ml-1 text-xs text-gray-300">Belum ada mandays</span>`;
+        : `<span class="ml-1 text-xs text-gray-300">No mandays yet</span>`;
 
     const detailSubTable = hasDetails ? `
     <tr id="det-${t.ticket_id}" class="hidden bg-indigo-50/40">
@@ -229,20 +229,21 @@ function taskRows(t) {
                 <table class="w-full text-xs">
                     <thead>
                         <tr class="bg-indigo-50 text-indigo-700 font-semibold uppercase tracking-wide">
-                            <th class="px-3 py-1.5 text-left">Konsultan</th>
-                            <th class="px-3 py-1.5 text-left">Modul</th>
+                            <th class="px-3 py-1.5 text-left">Consultant</th>
+                            <th class="px-3 py-1.5 text-left">Module</th>
                             <th class="px-3 py-1.5 text-right">MD</th>
-                            <th class="px-3 py-1.5 text-right">+Tambahan</th>
+                            <th class="px-3 py-1.5 text-right">+Additional</th>
+                            <th class="px-3 py-1.5 text-right">Remain Duration</th>
                             <th class="px-3 py-1.5 text-left w-44">Progress</th>
-                            <th class="px-3 py-1.5 text-left">Catatan</th>
-                            <th class="px-3 py-1.5 text-center">Aksi</th>
+                            <th class="px-3 py-1.5 text-left">Notes</th>
+                            <th class="px-3 py-1.5 text-center">Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${details.map(d => {
                             const dpct  = parseFloat(d.progress_percentage) || 0;
                             const updAt = d.progress_updated_at
-                                ? new Date(d.progress_updated_at).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'})
+                                ? new Date(d.progress_updated_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})
                                 : '—';
                             return `<tr class="border-t border-indigo-100 hover:bg-indigo-50/60">
                                 <td class="px-3 py-1.5 font-medium text-gray-800">
@@ -250,7 +251,13 @@ function taskRows(t) {
                                 </td>
                                 <td class="px-3 py-1.5 text-gray-500">${d.module}</td>
                                 <td class="px-3 py-1.5 text-right font-semibold text-gray-700">${d.mandays}</td>
-                                <td class="px-3 py-1.5 text-right text-gray-500">${d.approved_additional > 0 ? '+'+d.approved_additional : '—'}</td>
+                                <td class="px-3 py-1.5 text-right text-gray-500">${d.approved_additional > 0 ? d.approved_additional : '—'}</td>
+                                <td class="px-3 py-1.5 text-right">
+                                    ${d.remain_md !== null && d.remain_md !== undefined
+                                        ? `<span class="font-semibold ${d.remain_md > 0 ? 'text-orange-600' : 'text-green-600'}">${d.remain_md} d</span>
+                                           <span class="ml-1 text-xs font-bold text-orange-800 bg-orange-100 rounded px-1 py-0.5">↑${Math.ceil(d.remain_md)} d</span>`
+                                        : '<span class="text-gray-300">—</span>'}
+                                </td>
                                 <td class="px-3 py-1.5">
                                     <div class="flex items-center gap-1.5">
                                         <div class="bg-gray-200 rounded-full h-1.5" style="width:80px">
@@ -258,7 +265,7 @@ function taskRows(t) {
                                         </div>
                                         <span class="font-bold ${dpct>=75?'text-green-700':dpct>=40?'text-yellow-700':'text-red-600'}">${dpct}%</span>
                                     </div>
-                                    <div class="text-gray-400 mt-0.5">Diperbarui: ${updAt}</div>
+                                    <div class="text-gray-400 mt-0.5">Updated: ${updAt}</div>
                                 </td>
                                 <td class="px-3 py-1.5 text-gray-500 max-w-xs">
                                     <span class="line-clamp-2">${d.progress_note || '—'}</span>
@@ -346,7 +353,7 @@ async function submitCpModal() {
         });
         const json = await res.json();
         if (json.success) { closeCpModal(); loadTasks(); }
-        else alert('Gagal: ' + (json.message ?? 'Error'));
+        else alert('Failed: ' + (json.message ?? 'Error'));
     } catch (e) { alert('Error: ' + e.message); }
 }
 

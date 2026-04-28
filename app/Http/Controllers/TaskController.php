@@ -124,6 +124,17 @@ class TaskController extends Controller
             ->join('consultant_mandays_detail as cmd', 'cmd.consultant_mandays_id', '=', 'cm.id')
             ->leftJoin('employee as e', 'e.employee_id', '=', 'cmd.employee_id')
             ->leftJoin('employee_basic_data as ebd', 'ebd.employee_id', '=', 'e.employee_id')
+            ->leftJoinSub(
+                DB::table('employee_qualification')
+                    ->whereNotNull('module')
+                    ->where('module', '!=', '')
+                    ->select('employee_id', DB::raw("GROUP_CONCAT(DISTINCT module ORDER BY module SEPARATOR ', ') as qualification_modules"))
+                    ->groupBy('employee_id'),
+                'eq',
+                'eq.employee_id',
+                '=',
+                'cmd.employee_id'
+            )
             ->whereIn('cm.ticket_id', $ticketIds)
             ->select(
                 'cm.ticket_id',
@@ -131,7 +142,7 @@ class TaskController extends Controller
                 'cmd.employee_id',
                 DB::raw("TRIM(CONCAT(COALESCE(ebd.first_name,''), ' ', COALESCE(ebd.last_name,''))) as emp_name"),
                 'e.eci',
-                'cmd.module',
+                'eq.qualification_modules',
                 'cmd.mandays',
                 'cmd.approved_additional',
                 'cmd.progress_percentage',
@@ -143,19 +154,25 @@ class TaskController extends Controller
         $map = [];
         foreach ($rows as $row) {
             $tid         = (int) $row->ticket_id;
-            $effectiveMd = (float) $row->mandays + (float) $row->approved_additional;
+            $mandays     = (float) $row->mandays;
+            $additional  = (float) $row->approved_additional;
+            $effectiveMd = $mandays + $additional;
+            $progress    = (float) $row->progress_percentage;
+            $remainShare = round($effectiveMd * (1 - $progress / 100), 2);
+
             $map[$tid][] = [
                 'detail_id'           => $row->detail_id,
                 'employee_id'         => $row->employee_id,
                 'emp_name'            => trim($row->emp_name) ?: ($row->eci ?? '—'),
                 'eci'                 => $row->eci ?? '—',
-                'module'              => $row->module ?? '—',
-                'mandays'             => (float) $row->mandays,
-                'approved_additional' => (float) $row->approved_additional,
+                'module'              => $row->qualification_modules ?? '—',
+                'mandays'             => $mandays,
+                'approved_additional' => $additional,
                 'effective_md'        => $effectiveMd,
-                'progress_percentage' => (float) $row->progress_percentage,
+                'progress_percentage' => $progress,
                 'progress_note'       => $row->progress_note ?? '',
                 'progress_updated_at' => $row->progress_updated_at,
+                'remain_md'           => $remainShare,
             ];
         }
 
