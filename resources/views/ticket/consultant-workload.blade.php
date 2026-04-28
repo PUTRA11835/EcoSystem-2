@@ -28,24 +28,35 @@
                 class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent w-52">
         </div>
         <div class="flex items-center gap-3 text-sm text-gray-500">
-            <span id="summaryText">—</span>
-            <span class="text-gray-300">|</span>
             <button onclick="expandAll()" class="text-xs text-blue-600 hover:underline">Expand All</button>
             <button onclick="collapseAll()" class="text-xs text-blue-600 hover:underline">Collapse All</button>
         </div>
     </div>
 
-    {{-- Legend --}}
-    <div class="flex items-center gap-4 text-xs text-gray-500 bg-gray-50 rounded-lg px-4 py-2 border border-gray-100">
-        <span class="font-semibold text-gray-600">Legend:</span>
-        <span><span class="inline-block w-3 h-3 rounded-full bg-red-500 mr-1"></span>Busy &gt;70%</span>
-        <span><span class="inline-block w-3 h-3 rounded-full bg-yellow-400 mr-1"></span>Moderate 40–70%</span>
-        <span><span class="inline-block w-3 h-3 rounded-full bg-green-500 mr-1"></span>Light &lt;40%</span>
-        <span class="text-gray-300">|</span>
-        <span><b>Workload</b> = Σ(mandays × (1 − progress%)) / Σ(mandays) × 100 &nbsp;·&nbsp; 0% = done, 100% = not started</span>
-        <span class="text-gray-300">|</span>
-        <span><b>Load Score</b> = Remain × (1 + 0.1 × n) &nbsp;·&nbsp; merah ≥10, kuning ≥5, hijau &lt;5</span>
+    {{-- Summary Cards --}}
+    <div class="grid grid-cols-5 gap-3">
+        <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Consultants</p>
+            <p class="text-2xl font-bold text-gray-900" id="cardTotal">—</p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Busy</p>
+            <p class="text-2xl font-bold text-red-600" id="cardBusy">—</p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Moderate</p>
+            <p class="text-2xl font-bold text-yellow-600" id="cardModerate">—</p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Light</p>
+            <p class="text-2xl font-bold text-green-600" id="cardLight">—</p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Active Tickets</p>
+            <p class="text-2xl font-bold text-gray-900" id="cardTickets">—</p>
+        </div>
     </div>
+
 
     {{-- Table --}}
     <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -55,7 +66,16 @@
                     <tr class="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                         <th class="w-8 px-3 py-3"></th>
                         <th class="px-4 py-3 text-left">Consultant</th>
-                        <th class="px-4 py-3 text-left">Module</th>
+                        <th class="px-4 py-3 text-left" style="min-width:170px">
+                            <div class="flex items-center gap-1.5">
+                                <span>Module</span>
+                                <select id="filterModule" onchange="filterTable()"
+                                    onclick="event.stopPropagation()"
+                                    class="normal-case font-normal tracking-normal text-xs bg-transparent border-0 text-gray-400 cursor-pointer hover:text-gray-600 focus:outline-none focus:text-gray-700 pr-1 pl-0 py-0 appearance-none">
+                                    <option value="">▾</option>
+                                </select>
+                            </div>
+                        </th>
                         <th class="px-4 py-3 text-center cursor-pointer select-none hover:bg-gray-100 transition"
                             onclick="sortBy('ticket_count')" title="Sort">
                             <div class="flex items-center justify-center gap-1">
@@ -234,6 +254,7 @@ async function loadWorkload() {
             return;
         }
         allConsultants = json.data ?? [];
+        populateModuleFilter();
         updateSortIcons();
         renderTable(applySortTo(allConsultants));
         updateSummary(allConsultants);
@@ -243,16 +264,38 @@ async function loadWorkload() {
     }
 }
 
+function populateModuleFilter() {
+    const modules = new Set();
+    allConsultants.forEach(c => {
+        if (c.modules && c.modules !== '-') {
+            c.modules.split(', ').forEach(m => modules.add(m.trim()));
+        }
+    });
+    const sel = document.getElementById('filterModule');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">▾</option>';
+    [...modules].sort().forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        if (m === current) opt.selected = true;
+        sel.appendChild(opt);
+    });
+}
+
 function filterTable() {
-    const q = document.getElementById('searchConsultant').value.toLowerCase();
-    const filtered = q
-        ? allConsultants.filter(c =>
-            c.name.toLowerCase().includes(q) ||
-            (c.modules ?? '').toLowerCase().includes(q) ||
-            c.eci.toLowerCase().includes(q))
-        : allConsultants;
+    const q   = document.getElementById('searchConsultant').value.toLowerCase();
+    const mod = document.getElementById('filterModule').value;
+    let filtered = allConsultants;
+    if (mod) filtered = filtered.filter(c =>
+        (c.modules ?? '').split(', ').map(m => m.trim()).includes(mod));
+    if (q)   filtered = filtered.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        (c.modules ?? '').toLowerCase().includes(q) ||
+        c.eci.toLowerCase().includes(q));
     renderTable(applySortTo(filtered));
 }
+
 
 // ── Sort ───────────────────────────────────────────────────────────
 const SORTABLE_KEYS = ['ticket_count', 'total_days', 'workload_days', 'workload_pct', 'load_score'];
@@ -267,11 +310,30 @@ function sortBy(key) {
     filterTable();
 }
 
+function calcInProgress(c) {
+    const tickets = c.tickets.filter(t => t.status === 'in_progress');
+    let allocMd = 0, remainMd = 0;
+    tickets.forEach(t => {
+        const my = (t.consultant_details ?? []).find(d => d.employee_id == c.employee_id);
+        if (my) {
+            allocMd  += parseFloat(my.mandays) || 0;
+            remainMd += parseFloat(my.remain_md) || 0;
+        }
+    });
+    return {
+        ticket_count:  tickets.length,
+        total_days:    allocMd,
+        workload_days: remainMd,
+        workload_pct:  allocMd > 0 ? Math.round(remainMd / allocMd * 1000) / 10 : 0,
+        load_score:    Math.round(remainMd * (1 + 0.1 * tickets.length) * 100) / 100,
+    };
+}
+
 function applySortTo(list) {
     const { key, dir } = currentSort;
     return [...list].sort((a, b) => {
-        const va = parseFloat(a[key]) || 0;
-        const vb = parseFloat(b[key]) || 0;
+        const va = calcInProgress(a)[key] ?? 0;
+        const vb = calcInProgress(b)[key] ?? 0;
         return dir === 'desc' ? vb - va : va - vb;
     });
 }
@@ -314,9 +376,22 @@ function barHtml(pct, colorFn, width = 100) {
 }
 
 function consultantRows(c) {
-    const wPct      = parseFloat(c.workload_pct) || 0;
-    const wDays     = parseFloat(c.workload_days) || 0;
-    const loadScore = parseFloat(c.load_score) || 0;
+    const visibleTickets = c.tickets.filter(t => t.status === 'in_progress');
+
+    // Recalculate main row values from visible tickets
+    let totalAllocMdMain = 0, totalAddMdMain = 0, totalRemainMain = 0;
+    visibleTickets.forEach(t => {
+        const my = (t.consultant_details ?? []).find(d => d.employee_id == c.employee_id);
+        if (my) {
+            totalAllocMdMain += parseFloat(my.mandays) || 0;
+            totalAddMdMain   += parseFloat(my.approved_additional) || 0;
+            totalRemainMain  += parseFloat(my.remain_md) || 0;
+        }
+    });
+    const ticketCount = visibleTickets.length;
+    const wPct      = totalAllocMdMain > 0 ? Math.round(totalRemainMain / totalAllocMdMain * 100 * 10) / 10 : 0;
+    const wDays     = Math.round(totalRemainMain * 100) / 100;
+    const loadScore = Math.round(totalRemainMain * (1 + 0.1 * ticketCount) * 100) / 100;
 
     let html = `
     <tr class="border-b border-gray-100 hover:bg-gray-50/70 cursor-pointer"
@@ -335,12 +410,12 @@ function consultantRows(c) {
         </td>
         <td class="px-4 py-3 text-center">
             <span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold
-                ${c.ticket_count > 0 ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-400'}">
-                ${c.ticket_count}
+                ${ticketCount > 0 ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-400'}">
+                ${ticketCount}
             </span>
         </td>
-        <td class="px-4 py-3 text-right font-semibold text-gray-800 tabular-nums">${c.total_days} md</td>
-        <td class="px-4 py-3 text-right font-semibold text-orange-600 tabular-nums">${c.workload_days} d</td>
+        <td class="px-4 py-3 text-right font-semibold text-gray-800 tabular-nums">${totalAllocMdMain.toFixed(2)} md</td>
+        <td class="px-4 py-3 text-right font-semibold text-orange-600 tabular-nums">${wDays} d</td>
         <td class="px-4 py-3">
             <div class="flex items-center gap-2">
                 <div class="bg-gray-100 rounded-full h-2" style="width:100px">
@@ -360,16 +435,16 @@ function consultantRows(c) {
                     </span>
                     <span class="text-xs text-gray-400 font-normal">score</span>
                 </div>
-                <div class="text-xs text-gray-400">${wDays} d × (1 + 0.1×${c.ticket_count})</div>
+                <div class="text-xs text-gray-400">${wDays} d × (1 + 0.1×${ticketCount})</div>
             </div>
         </td>
     </tr>`;
 
-    if (c.tickets.length === 0) {
+    if (visibleTickets.length === 0) {
         html += `
     <tr id="tickets-${c.employee_id}" class="hidden bg-slate-50/60 border-b border-gray-100">
         <td colspan="8" class="pl-12 pr-4 py-2.5 text-xs text-gray-400 italic">
-            No active tickets this month
+            No In Progress tickets
         </td>
     </tr>`;
     } else {
@@ -393,21 +468,21 @@ function consultantRows(c) {
                     </tr>
                 </thead>
                 <tbody>
-                    ${c.tickets.map((t, idx) => ticketRow(t, idx + 1, c.employee_id, c.modules)).join('')}
+                    ${visibleTickets.map((t, idx) => ticketRow(t, idx + 1, c.employee_id, c.modules)).join('')}
                     <tr class="bg-slate-50 border-t border-slate-200">
-                        <td colspan="6" class="pl-12 pr-3 py-2 text-xs text-right text-gray-500 font-semibold">Total</td>
+                        <td colspan="5" class="pl-12 pr-3 py-2 text-xs text-left text-gray-500 font-semibold">
+                            Total (${visibleTickets.length} ticket${visibleTickets.length > 1 ? 's' : ''})
+                        </td>
                         <td class="px-3 py-2 text-right text-xs font-bold text-gray-700">
-                            ${c.tickets.reduce((s, t) => {
-                                const my = (t.consultant_details ?? []).find(d => d.employee_id == c.employee_id);
-                                return s + (my ? parseFloat(my.mandays) || 0 : 0);
-                            }, 0).toFixed(1)} md
+                            ${totalAllocMdMain.toFixed(1)} md
+                        </td>
+                        <td class="px-3 py-2 text-right text-xs font-bold text-indigo-600">
+                            ${totalAddMdMain.toFixed(1)} md
                         </td>
                         <td class="px-3 py-2 text-right text-xs font-bold text-orange-600">
-                            ${c.workload_days} d
+                            ${totalRemainMain.toFixed(2)} d
                         </td>
-                        <td class="px-3 py-2 text-xs font-semibold text-orange-600" colspan="3">
-                            ${wDays} d remain across ${c.tickets.length} ticket(s)
-                        </td>
+                        <td colspan="3"></td>
                     </tr>
                 </tbody>
             </table>
@@ -506,14 +581,16 @@ function collapseAll() {
 
 // ── Summary ────────────────────────────────────────────────────────
 function updateSummary(data) {
-    const high = data.filter(c => c.workload_pct >= 70).length;
-    const mid  = data.filter(c => c.workload_pct >= 40 && c.workload_pct < 70).length;
-    const low  = data.filter(c => c.workload_pct < 40).length;
-    document.getElementById('summaryText').innerHTML =
-        `${data.length} consultant(s) &nbsp;·&nbsp;
-         <span class="text-red-600 font-semibold">${high} busy</span> &nbsp;·&nbsp;
-         <span class="text-yellow-600 font-semibold">${mid} moderate</span> &nbsp;·&nbsp;
-         <span class="text-green-600 font-semibold">${low} light</span>`;
+    const high    = data.filter(c => calcInProgress(c).workload_pct >= 70).length;
+    const mid     = data.filter(c => { const p = calcInProgress(c).workload_pct; return p >= 40 && p < 70; }).length;
+    const low     = data.filter(c => calcInProgress(c).workload_pct < 40).length;
+    const tickets = data.reduce((s, c) => s + calcInProgress(c).ticket_count, 0);
+
+    document.getElementById('cardTotal').textContent    = data.length;
+    document.getElementById('cardBusy').textContent     = high;
+    document.getElementById('cardModerate').textContent = mid;
+    document.getElementById('cardLight').textContent    = low;
+    document.getElementById('cardTickets').textContent  = tickets;
 }
 
 // ── Progress Modal ─────────────────────────────────────────────────

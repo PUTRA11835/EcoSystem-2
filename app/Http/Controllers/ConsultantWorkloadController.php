@@ -188,7 +188,13 @@ class ConsultantWorkloadController extends Controller
             ->where('employee_id', $empId)
             ->pluck('ticket_id');
 
-        $ticketIds = $picIds->merge($memberIds)->unique()->values();
+        // Tiket di mana employee punya alokasi di consultant_mandays_detail
+        $mandaysIds = DB::table('consultant_mandays_detail as cmd')
+            ->join('consultant_mandays as cm', 'cm.id', '=', 'cmd.consultant_mandays_id')
+            ->where('cmd.employee_id', $empId)
+            ->pluck('cm.ticket_id');
+
+        $ticketIds = $picIds->merge($memberIds)->merge($mandaysIds)->unique()->values();
 
         $baseSelect = [
             'ticket.ticket_id', 'ticket.ticket_number', 'ticket.subject',

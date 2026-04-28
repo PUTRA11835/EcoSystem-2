@@ -55,22 +55,11 @@ class TaskController extends Controller
                 ]);
             }
 
-            $ticketIds   = $tickets->pluck('ticket_id')->toArray();
-            $progressMap = ConsultantWorkloadController::progressMapForTickets($ticketIds);
-
-            // Load per-consultant progress detail
+            $ticketIds         = $tickets->pluck('ticket_id')->toArray();
+            $progressMap       = ConsultantWorkloadController::progressMapForTickets($ticketIds);
             $consultantDetails = $this->consultantDetailsForTickets($ticketIds);
-
-            // Actual md konsultan ini di bulan terpilih
-            $actualMd = (float) DB::table('timesheets')
-                ->where('employee_id', $empId)
-                ->whereMonth('date', $month)
-                ->whereYear('date', $year)
-                ->whereIn('status', ['submitted', 'approved'])
-                ->whereNull('deleted_at')
-                ->sum('md_consumed');
-
-            $totalManDays = (float) $tickets->sum('man_days');
+            $modulesMap        = ConsultantWorkloadController::modulesMapForEmployees([$empId]);
+            $myModules         = $modulesMap[$empId] ?? '-';
 
             $ticketsData = $tickets->map(function ($ticket) use ($progressMap, $consultantDetails) {
                 $tid = $ticket->ticket_id;
@@ -93,16 +82,35 @@ class TaskController extends Controller
                 ];
             });
 
+            // Summary: aggregate dari consultant_details milik user ini
+            $totalAllocMd = 0;
+            $totalRemain  = 0;
+            foreach ($consultantDetails as $details) {
+                foreach ($details as $d) {
+                    if ((int) $d['employee_id'] === $empId) {
+                        $totalAllocMd += $d['effective_md'];
+                        $totalRemain  += $d['remain_md'];
+                    }
+                }
+            }
+            $ticketCount  = $tickets->count();
+            $workloadPct  = $totalAllocMd > 0 ? round($totalRemain / $totalAllocMd * 100, 1) : 0;
+            $loadScore    = round($totalRemain * (1 + 0.1 * $ticketCount), 2);
+
             return response()->json([
-                'success'        => true,
-                'data'           => $ticketsData->values(),
-                'summary'        => [
-                    'ticket_count'  => $tickets->count(),
-                    'total_man_days'=> $totalManDays,
-                    'actual_md'     => $actualMd,
+                'success'    => true,
+                'data'       => $ticketsData->values(),
+                'emp_id'     => $empId,
+                'my_modules' => $myModules,
+                'summary'    => [
+                    'ticket_count'  => $ticketCount,
+                    'total_alloc_md'=> round($totalAllocMd, 2),
+                    'total_remain'  => round($totalRemain, 2),
+                    'workload_pct'  => $workloadPct,
+                    'load_score'    => $loadScore,
                 ],
-                'month'          => $month,
-                'year'           => $year,
+                'month'      => $month,
+                'year'       => $year,
             ]);
         } catch (\Exception $e) {
             Log::error('Task@list error: ' . $e->getMessage(), [

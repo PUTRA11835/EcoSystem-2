@@ -33,18 +33,26 @@
     </div>
 
     {{-- Summary Cards --}}
-    <div class="grid grid-cols-3 gap-3">
+    <div class="grid grid-cols-5 gap-3">
         <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
             <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Active Tickets</p>
             <p class="text-2xl font-bold text-gray-900" id="cardTicketCount">—</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
-            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Total Man Days</p>
-            <p class="text-2xl font-bold text-gray-900" id="cardTotalMd">—</p>
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Total Alloc MD</p>
+            <p class="text-2xl font-bold text-gray-900" id="cardTotalAllocMd">—</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
-            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Actual MD This Month</p>
-            <p class="text-2xl font-bold text-gray-900" id="cardActualMd">—</p>
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Total Remain</p>
+            <p class="text-2xl font-bold text-orange-600" id="cardTotalRemain">—</p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Workload %</p>
+            <p class="text-2xl font-bold" id="cardWorkloadPct">—</p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Load Score</p>
+            <p class="text-2xl font-bold" id="cardLoadScore">—</p>
         </div>
     </div>
 
@@ -55,11 +63,12 @@
                 <thead>
                     <tr class="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                         <th class="px-4 py-3 text-left" style="min-width:130px">Ticket No.</th>
-                        <th class="px-4 py-3 text-left" style="min-width:260px">Subject</th>
                         <th class="px-4 py-3 text-left" style="min-width:150px">Customer</th>
                         <th class="px-4 py-3 text-left" style="min-width:110px">Status</th>
                         <th class="px-4 py-3 text-left" style="min-width:90px">Priority</th>
-                        <th class="px-4 py-3 text-left" style="min-width:80px">Module</th>
+                        <th class="px-4 py-3 text-left cursor-pointer select-none hover:bg-gray-100 transition" style="min-width:120px" onclick="toggleSort('module')" id="th-module">
+                            Module <span id="sort-icon-module" class="text-gray-400 text-xs ml-0.5">⇅</span>
+                        </th>
                         <th class="px-4 py-3 text-right" style="min-width:90px">Man Days</th>
                         <th class="px-4 py-3 text-right" style="min-width:90px">End Date</th>
                         <th class="px-4 py-3 text-left" style="min-width:200px">Progress</th>
@@ -112,7 +121,26 @@
 </div>
 
 <script>
-let allTasks = [];
+let allTasks   = [];
+let myModules  = '-';
+let myEmpId    = null;
+let sortState  = { col: null, dir: 'asc' };
+
+function computeSummary(tasks) {
+    let totalAllocMd = 0, totalRemain = 0;
+    tasks.forEach(t => {
+        const me = (t.consultant_details ?? []).find(d => d.employee_id == myEmpId);
+        if (me) {
+            totalAllocMd += parseFloat(me.effective_md) || 0;
+            totalRemain  += parseFloat(me.remain_md) || 0;
+        }
+    });
+    const ticketCount = tasks.length;
+    const workloadPct = totalAllocMd > 0 ? Math.round(totalRemain / totalAllocMd * 1000) / 10 : 0;
+    const loadScore   = Math.round(totalRemain * (1 + 0.1 * ticketCount) * 100) / 100;
+    return { ticket_count: ticketCount, total_alloc_md: Math.round(totalAllocMd * 100) / 100,
+             total_remain: Math.round(totalRemain * 100) / 100, workload_pct: workloadPct, load_score: loadScore };
+}
 
 const STATUS_BADGE = {
     open:          { text: 'Open',        cls: 'bg-blue-100 text-blue-700' },
@@ -141,7 +169,7 @@ async function loadTasks() {
     const year  = document.getElementById('filterYear').value;
 
     document.getElementById('taskBody').innerHTML = `
-        <tr><td colspan="9" class="text-center py-12 text-gray-400">
+        <tr><td colspan="8" class="text-center py-12 text-gray-400">
             <svg class="animate-spin w-5 h-5 mx-auto mb-2 text-red-400" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
@@ -164,9 +192,11 @@ async function loadTasks() {
                 `<tr><td colspan="9" class="text-center py-8 text-red-500 text-sm">${json.message}</td></tr>`;
             return;
         }
-        allTasks = json.data ?? [];
-        updateCards(json.summary ?? {});
-        renderTable(allTasks);
+        myEmpId   = json.emp_id ?? null;
+        allTasks  = (json.data ?? []).filter(t => t.status === 'in_progress');
+        myModules = json.my_modules ?? '-';
+        updateCards(computeSummary(allTasks));
+        filterTable();
     } catch (e) {
         document.getElementById('taskBody').innerHTML =
             `<tr><td colspan="9" class="text-center py-8 text-red-500 text-sm">Failed: ${e.message}</td></tr>`;
@@ -175,28 +205,63 @@ async function loadTasks() {
 
 function filterTable() {
     const q = document.getElementById('searchTask').value.toLowerCase();
-    const filtered = q
+    let filtered = q
         ? allTasks.filter(t =>
             (t.ticket_number ?? '').toLowerCase().includes(q) ||
             (t.subject ?? '').toLowerCase().includes(q) ||
             (t.customer_name ?? '').toLowerCase().includes(q) ||
             (t.module ?? '').toLowerCase().includes(q))
-        : allTasks;
+        : [...allTasks];
+    if (sortState.col) filtered = applySortTo(filtered);
     renderTable(filtered);
 }
 
+function toggleSort(col) {
+    if (sortState.col === col) {
+        sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortState.col = col;
+        sortState.dir = 'asc';
+    }
+    document.getElementById('sort-icon-module').textContent =
+        sortState.col === 'module' ? (sortState.dir === 'asc' ? '↑' : '↓') : '⇅';
+    filterTable();
+}
+
+function applySortTo(arr) {
+    return [...arr].sort((a, b) => {
+        const va = (a.module ?? '').toLowerCase();
+        const vb = (b.module ?? '').toLowerCase();
+        if (va < vb) return sortState.dir === 'asc' ? -1 : 1;
+        if (va > vb) return sortState.dir === 'asc' ? 1 : -1;
+        return 0;
+    });
+}
+
 function updateCards(summary) {
-    document.getElementById('cardTicketCount').textContent = summary.ticket_count ?? 0;
-    document.getElementById('cardTotalMd').textContent     = (summary.total_man_days ?? 0) + ' md';
-    document.getElementById('cardActualMd').textContent    = (summary.actual_md ?? 0) + ' md';
-    document.getElementById('summaryText').textContent     = `${summary.ticket_count ?? 0} active ticket(s) as PIC`;
+    const wPct  = parseFloat(summary.workload_pct) || 0;
+    const score = parseFloat(summary.load_score) || 0;
+
+    document.getElementById('cardTicketCount').textContent   = summary.ticket_count ?? 0;
+    document.getElementById('cardTotalAllocMd').textContent  = (summary.total_alloc_md ?? 0) + ' md';
+    document.getElementById('cardTotalRemain').textContent   = (summary.total_remain ?? 0) + ' d';
+
+    const wEl = document.getElementById('cardWorkloadPct');
+    wEl.textContent = wPct + '%';
+    wEl.className   = `text-2xl font-bold ${wPct >= 70 ? 'text-red-600' : wPct >= 40 ? 'text-yellow-600' : 'text-green-600'}`;
+
+    const sEl = document.getElementById('cardLoadScore');
+    sEl.textContent = score;
+    sEl.className   = `text-2xl font-bold ${score >= 10 ? 'text-red-600' : score >= 5 ? 'text-yellow-600' : 'text-green-600'}`;
+
+    document.getElementById('summaryText').textContent = `${summary.ticket_count ?? 0} active ticket(s) as PIC`;
 }
 
 // ── Render ─────────────────────────────────────────────────────────
 function renderTable(tasks) {
     if (!tasks.length) {
         document.getElementById('taskBody').innerHTML =
-            `<tr><td colspan="9" class="text-center py-12 text-gray-400">
+            `<tr><td colspan="8" class="text-center py-12 text-gray-400">
                 <i class="fas fa-check-circle text-3xl mb-3 block text-gray-300"></i>
                 No active tickets assigned as PIC
             </td></tr>`;
@@ -224,16 +289,16 @@ function taskRows(t) {
 
     const detailSubTable = hasDetails ? `
     <tr id="det-${t.ticket_id}" class="hidden bg-indigo-50/40">
-        <td colspan="9" class="px-0 py-0">
+        <td colspan="8" class="px-0 py-0">
             <div class="ml-8 mr-4 my-2 rounded-lg border border-indigo-100 overflow-hidden">
                 <table class="w-full text-xs">
                     <thead>
                         <tr class="bg-indigo-50 text-indigo-700 font-semibold uppercase tracking-wide">
                             <th class="px-3 py-1.5 text-left">Consultant</th>
                             <th class="px-3 py-1.5 text-left">Module</th>
-                            <th class="px-3 py-1.5 text-right">MD</th>
-                            <th class="px-3 py-1.5 text-right">+Additional</th>
-                            <th class="px-3 py-1.5 text-right">Remain Duration</th>
+                            <th class="px-3 py-1.5 text-right">Alloc MD</th>
+                            <th class="px-3 py-1.5 text-right">Add. MD</th>
+                            <th class="px-3 py-1.5 text-right">Remain</th>
                             <th class="px-3 py-1.5 text-left w-44">Progress</th>
                             <th class="px-3 py-1.5 text-left">Notes</th>
                             <th class="px-3 py-1.5 text-center">Action</th>
@@ -250,8 +315,8 @@ function taskRows(t) {
                                     ${d.emp_name}<br><span class="text-gray-400 font-normal">${d.eci}</span>
                                 </td>
                                 <td class="px-3 py-1.5 text-gray-500">${d.module}</td>
-                                <td class="px-3 py-1.5 text-right font-semibold text-gray-700">${d.mandays}</td>
-                                <td class="px-3 py-1.5 text-right text-gray-500">${d.approved_additional > 0 ? d.approved_additional : '—'}</td>
+                                <td class="px-3 py-1.5 text-right font-semibold text-gray-700">${d.mandays} md</td>
+                                <td class="px-3 py-1.5 text-right text-indigo-600 font-semibold">${d.approved_additional > 0 ? d.approved_additional + ' md' : '<span class="text-gray-300">—</span>'}</td>
                                 <td class="px-3 py-1.5 text-right">
                                     ${d.remain_md !== null && d.remain_md !== undefined
                                         ? `<span class="font-semibold ${d.remain_md > 0 ? 'text-orange-600' : 'text-green-600'}">${d.remain_md} d</span>
@@ -278,19 +343,34 @@ function taskRows(t) {
                                 </td>
                             </tr>`;
                         }).join('')}
+                        <tr class="border-t-2 border-indigo-200 bg-indigo-50 font-semibold text-xs">
+                            <td class="px-3 py-1.5 text-indigo-700">Total (${details.length} consultant${details.length > 1 ? 's' : ''})</td>
+                            <td class="px-3 py-1.5"></td>
+                            <td class="px-3 py-1.5 text-right text-gray-700">
+                                ${details.reduce((s, d) => s + (parseFloat(d.mandays) || 0), 0).toFixed(2)} md
+                            </td>
+                            <td class="px-3 py-1.5 text-right text-indigo-600">
+                                ${details.reduce((s, d) => s + (parseFloat(d.approved_additional) || 0), 0).toFixed(2)} md
+                            </td>
+                            <td class="px-3 py-1.5 text-right text-orange-600">
+                                ${details.reduce((s, d) => s + (parseFloat(d.remain_md) || 0), 0).toFixed(2)} d
+                            </td>
+                            <td colspan="3"></td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
         </td>
     </tr>` : '';
 
+    const moduleHtml = myModules && myModules !== '-'
+        ? myModules.split(', ').map(m => `<span class="inline-block bg-indigo-50 text-indigo-700 border border-indigo-100 rounded px-1.5 py-0.5 mr-0.5 mb-0.5 text-xs font-medium">${m}</span>`).join('')
+        : '<span class="text-gray-300">—</span>';
+
     const mainRow = `
     <tr class="border-b border-gray-100 hover:bg-gray-50/70 cursor-pointer"
         onclick="window.location='/ticket/${t.ticket_id}'">
         <td class="px-4 py-3 font-mono text-xs font-semibold text-gray-700">${t.ticket_number ?? '—'}</td>
-        <td class="px-4 py-3 text-sm text-gray-800 max-w-xs">
-            <span class="line-clamp-2" title="${(t.subject??'').replace(/"/g,'&quot;')}">${t.subject ?? '—'}</span>
-        </td>
         <td class="px-4 py-3 text-sm text-gray-700">${t.customer_name ?? '—'}</td>
         <td class="px-4 py-3">
             <span class="px-1.5 py-0.5 rounded text-xs font-medium ${st.cls}">${st.text}</span>
@@ -298,7 +378,7 @@ function taskRows(t) {
         <td class="px-4 py-3">
             <span class="px-1.5 py-0.5 rounded text-xs font-medium ${prCls}">${t.ticket_priority ?? '—'}</span>
         </td>
-        <td class="px-4 py-3 text-xs text-gray-500">${t.module ?? '—'}</td>
+        <td class="px-4 py-3">${moduleHtml}</td>
         <td class="px-4 py-3 text-right font-semibold text-gray-700">${t.man_days || '—'}</td>
         <td class="px-4 py-3 text-right text-xs text-gray-500">${endDate}</td>
         <td class="px-4 py-3" onclick="event.stopPropagation()">
