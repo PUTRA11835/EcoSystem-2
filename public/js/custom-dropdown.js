@@ -59,9 +59,17 @@ function initCustomDropdowns(root) {
     if (!window._customDdListenerAdded) {
         window._customDdListenerAdded = true;
         document.addEventListener('click', _closeAllDropdowns);
-        window.addEventListener('scroll', _closeAllDropdowns, true);
+        window.addEventListener('scroll', _onScrollMaybeClose, true);
         window.addEventListener('resize', _closeAllDropdowns);
     }
+}
+
+function _onScrollMaybeClose(e) {
+    // Jangan tutup kalau scroll terjadi di dalam panel dropdown (user sedang scroll opsi).
+    // Tetap tutup untuk scroll di luar (jaga posisi tombol vs panel, terutama mode fixed).
+    const t = e.target;
+    if (t && t.nodeType === 1 && t.closest && t.closest('.custom-dd-panel')) return;
+    _closeAllDropdowns();
 }
 
 function _positionFixed(btn, panel) {

@@ -204,7 +204,7 @@ class StagingTicketService
      * @throws \LogicException   jika staging sudah pernah diproses
      * @throws \RuntimeException jika DB transaction gagal
      */
-    public function approve(StagingTicket $staging, int $validatedBy, ?string $ticketType = null, ?string $ticketPriority = null): array
+    public function approve(StagingTicket $staging, int $validatedBy, ?string $ticketType = null, ?string $ticketPriority = null, ?string $scale = null): array
     {
         // Guard: cegah double validation
         if ($staging->isProcessed()) {
@@ -213,13 +213,17 @@ class StagingTicketService
             );
         }
 
-        return DB::transaction(function () use ($staging, $validatedBy, $ticketType, $ticketPriority) {
+        return DB::transaction(function () use ($staging, $validatedBy, $ticketType, $ticketPriority, $scale) {
 
             // Generate ticket number (format: YYMM####, locked against race condition)
             $ticketNumber = $this->ticketNumbers->generate();
 
             // Priority: use what validator set, fallback to staging's stored priority
             $finalPriority = $ticketPriority ?? $staging->ticket_priority ?? 'Medium';
+
+            // Scale: ambil nilai validator → fallback staging (kalau pernah disimpan).
+            // Kosong = null (kolom nullable, optional di UI).
+            $finalScale = $scale ?? $staging->scale;
 
             // Normalize cc_emails dari staging (bisa array atau JSON string)
             $ccEmails = $staging->cc_emails;
@@ -234,6 +238,7 @@ class StagingTicketService
                 'description'     => $staging->description,
                 'ticket_priority' => $finalPriority,
                 'ticket_type'     => $ticketType,
+                'scale'           => $finalScale,
                 'status'          => 'open',
                 'jarvies_status'  => 'sent it to support',
                 'channel'         => $staging->channel,

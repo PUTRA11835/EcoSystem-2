@@ -458,7 +458,7 @@ function fillModal(s) {
                 <span class="text-xs font-semibold text-gray-600">Ticket Classification</span>
                 <span class="text-xs text-gray-400 ml-1">— required before approving</span>
             </div>
-            <div class="px-4 py-4 grid grid-cols-2 gap-4">
+            <div class="px-4 py-4 grid grid-cols-3 gap-4">
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Type <span class="text-red-500">*</span></label>
                     <select id="approveTicketType"
@@ -483,15 +483,30 @@ function fillModal(s) {
                     </select>
                     <p id="priorityError" class="hidden mt-1 text-xs text-red-500">Required.</p>
                 </div>
+                {{-- Scale: opsional. Daftar value masih didiskusikan — placeholder
+                     berikut bisa diubah belakangan tanpa migrasi (kolom VARCHAR). --}}
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Scale</label>
+                    <select id="approveScale"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
+                        <option value="">Select scale…</option>
+                        <option value="Small">Small</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Large">Large</option>
+                        <option value="Enterprise">Enterprise</option>
+                    </select>
+                    <p class="mt-1 text-[11px] text-gray-400">Optional</p>
+                </div>
             </div>
         </div>`;
-    } else if (s.ticket_type || s.ticket_priority) {
+    } else if (s.ticket_type || s.ticket_priority || s.scale) {
         const typePill  = s.ticket_type     ? `<span class="px-2.5 py-1 rounded-full text-xs font-semibold border ${typeColors[s.ticket_type]  ?? 'bg-gray-50 text-gray-600 border-gray-200'}">${escHtml(s.ticket_type)}</span>`     : '';
         const prioPill  = s.ticket_priority ? `<span class="px-2.5 py-1 rounded-full text-xs font-semibold ${prioColors[s.ticket_priority] ?? 'bg-gray-100 text-gray-600'}">${escHtml(s.ticket_priority)}</span>` : '';
+        const scalePill = s.scale           ? `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">Scale: ${escHtml(s.scale)}</span>` : '';
         const ticketLink = s.ticket_number  ? `<a href="/ticket/${s.ticket_id}" class="inline-flex items-center gap-1 text-xs font-semibold text-red-700 hover:underline ml-auto"><i class="fas fa-external-link-alt text-[10px]"></i> Ticket ${escHtml(s.ticket_number)}</a>` : '';
         validationHtml  = `
         <div class="flex items-center gap-2.5 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl mb-5 text-xs">
-            ${typePill}${prioPill}${ticketLink}
+            ${typePill}${prioPill}${scalePill}${ticketLink}
         </div>`;
     }
 
@@ -701,6 +716,7 @@ function cancelReject() {
 async function submitApprove(id) {
     const ticketType = document.getElementById('approveTicketType')?.value ?? '';
     const priority   = document.getElementById('approvePriority')?.value   ?? '';
+    const scale      = document.getElementById('approveScale')?.value      ?? '';
 
     const typeErr = document.getElementById('typeError');
     const prioErr = document.getElementById('priorityError');
@@ -719,13 +735,14 @@ async function submitApprove(id) {
 
     const t0 = performance.now();
     console.group(`%c[Approve] Staging #${id}`, 'color:#c62828;font-weight:bold');
-    console.log('▶ Submit approve', { staging_id: id, ticket_type: ticketType, priority });
+    console.log('▶ Submit approve', { staging_id: id, ticket_type: ticketType, priority, scale });
 
     try {
         console.log('⏳ Sending POST /api/staging-tickets/' + id + '/approve …');
         const res = await apiFetch(`/api/staging-tickets/${id}/approve`, 'POST', {
             ticket_type:     ticketType,
             ticket_priority: priority,
+            scale:           scale || null,
         });
         const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
         console.log(`✅ Approve SUCCESS (${elapsed}s)`, res);
