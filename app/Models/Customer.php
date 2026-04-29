@@ -774,12 +774,50 @@ class Customer extends Authenticatable
             $query->search($filters['search']);
         }
 
+        // Filter `customer` (input "Search by email or company name") — frontend
+        // mengirim key `customer`, jadi alias-kan ke scopeSearch yang sudah meng-cover
+        // email + name_1 + name_2 + customer_code + search_term_*. Tetap pakai scope
+        // yang sama supaya logic search konsisten.
+        if (!empty($filters['customer'])) {
+            $query->search($filters['customer']);
+        }
+
         if (isset($filters['is_active'])) {
             $query->where('is_active', $filters['is_active']);
         }
 
+        // Filter status — derive dari kolom `block` & `deletion_flag` di
+        // customer_basic_data (sumber yang sama dengan logika status di
+        // CustomerController@getData baris 137-143).
+        if (!empty($filters['status'])) {
+            $status = $filters['status'];
+            $query->whereHas('basicData', function ($q) use ($status) {
+                if ($status === 'active') {
+                    $q->where(function ($qq) {
+                        $qq->where('block', false)->orWhereNull('block');
+                    })->where(function ($qq) {
+                        $qq->where('deletion_flag', false)->orWhereNull('deletion_flag');
+                    });
+                } elseif ($status === 'blocked') {
+                    $q->where('block', true)
+                      ->where(function ($qq) {
+                          $qq->where('deletion_flag', false)->orWhereNull('deletion_flag');
+                      });
+                } elseif ($status === 'deleted') {
+                    $q->where('deletion_flag', true);
+                }
+            });
+        }
+
+        // Customer Group: pakai LIKE (bukan exact match scopeByGroup) supaya
+        // input bertahap "cor" → match "Corporate". Konsisten dengan UX text
+        // search di frontend. byGroup scope tetap dipertahankan untuk caller
+        // lain yang butuh exact match.
         if (!empty($filters['customer_group'])) {
-            $query->byGroup($filters['customer_group']);
+            $term = $filters['customer_group'];
+            $query->whereHas('basicData', function ($q) use ($term) {
+                $q->where('customer_group', 'like', "%{$term}%");
+            });
         }
 
         if (!empty($filters['customer_category'])) {

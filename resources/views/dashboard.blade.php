@@ -428,13 +428,40 @@
 
                 <!-- TICKET - Visible to all roles -->
                 <div class="mb-2">
-                    <a href="{{ route('ticket.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ticket*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    @php
+                        $ticketActive = Request::is('ticket') || (Request::is('ticket/*') && !Request::is('ticket/task*') && !Request::is('ticket/consultant-workload*'));
+                    @endphp
+                    <a href="{{ route('ticket.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ $ticketActive ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-ticket-alt"></i>
                         </span>
                         <span class="nav-text font-medium">Ticket</span>
                     </a>
                 </div>
+
+                @if(in_array($userRoleId, [2, 15]))
+                <!-- MY TASKS - Employee & Employee Project (bisa jadi PIC) -->
+                <div class="mb-2">
+                    <a href="{{ route('ticket.task') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ticket/task*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-tasks"></i>
+                        </span>
+                        <span class="nav-text font-medium">My Tasks</span>
+                    </a>
+                </div>
+                @endif
+
+                @if(in_array($userRoleId, [1, 4, 5, 6, 7]))
+                <!-- CONSULTANT WORKLOAD - Admin, Head, Helpdesk, RPMO -->
+                <div class="mb-2">
+                    <a href="{{ route('ticket.consultant-workload') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ticket/consultant-workload*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-users-cog"></i>
+                        </span>
+                        <span class="nav-text font-medium">Consultant Workload</span>
+                    </a>
+                </div>
+                @endif
 
                 @if(in_array($userRoleId, [1, 6, 7]))
                 <!-- STAGING TICKET - Only for admin & helpdesk (not Delivery Support User) -->
@@ -837,6 +864,18 @@
         })();
     </script>
     @stack('scripts')
+
+    {{-- ==================== GLOBAL SELECT ENHANCER ====================
+         Auto-styles every native <select> across the app dengan UI bergaya
+         custom-dd (button + panel + chevron animasi). <select> asli tetap di
+         DOM (visually hidden) sehingga form submission, kode legacy yang
+         membaca .value, dan listener change/onchange tetap berfungsi.
+         Opt-out per element: tambahkan atribut `data-no-enhance`. --}}
+    @php
+        $selectEnhancePath = public_path('js/select-enhance.js');
+        $selectEnhanceVer  = file_exists($selectEnhancePath) ? filemtime($selectEnhancePath) : time();
+    @endphp
+    <script src="/js/select-enhance.js?v={{ $selectEnhanceVer }}"></script>
 
     <!-- ==================== NOTIFICATION BELL JS ==================== -->
     <script>

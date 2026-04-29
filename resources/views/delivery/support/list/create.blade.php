@@ -73,13 +73,22 @@
                             <label for="client_id" class="block text-sm font-medium text-gray-700 mb-1">
                                 Client <span class="text-red-500">*</span>
                             </label>
-                            <select name="client_id" id="client_id" required
-                                    class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
-                                <option value="">Select Client</option>
-                                @foreach($clients ?? [] as $client)
-                                    <option value="{{ $client->customer_id }}">{{ $client->basicData->name_1 ?? 'N/A' }}</option>
-                                @endforeach
-                            </select>
+                            {{-- custom-dd manual untuk konsistensi visual & animasi.
+                                 Hidden input pakai name="client_id" supaya form submit
+                                 tetap kirim value seperti <select> biasa. --}}
+                            <div class="custom-dd relative" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-500">Select Client</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" name="client_id" id="client_id" value="" required>
+                                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:280px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Client</button>
+                                    @foreach($clients ?? [] as $client)
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $client->customer_id }}">{{ $client->basicData->name_1 ?? 'N/A' }}</button>
+                                    @endforeach
+                                </div>
+                            </div>
                             @error('client_id')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
@@ -90,15 +99,21 @@
                             <label for="type" class="block text-sm font-medium text-gray-700 mb-1">
                                 Type <span class="text-red-500">*</span>
                             </label>
-                            <select name="type" id="type" required
-                                    class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
-                                <option value="">Select Type</option>
-                                <option value="AMS">AMS</option>
-                                <option value="MO">MO</option>
-                                <option value="ATS">ATS</option>
-                                <option value="Project">Project</option>
-                                <option value="Internal">Internal</option>
-                            </select>
+                            <div class="custom-dd relative" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-500">Select Type</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" name="type" id="type" value="" required>
+                                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Type</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="AMS">AMS</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="MO">MO</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="ATS">ATS</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Project">Project</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Internal">Internal</button>
+                                </div>
+                            </div>
                             @error('type')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
@@ -109,13 +124,19 @@
                             <label for="support_method" class="block text-sm font-medium text-gray-700 mb-1">
                                 Support Method
                             </label>
-                            <select name="support_method" id="support_method"
-                                    class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
-                                <option value="">Select method</option>
-                                <option value="Remote">Remote</option>
-                                <option value="On-Site">On-Site</option>
-                                <option value="Hybrid">Hybrid</option>
-                            </select>
+                            <div class="custom-dd relative" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-500">Select method</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" name="support_method" id="support_method" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select method</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Remote">Remote</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="On-Site">On-Site</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Hybrid">Hybrid</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -165,26 +186,38 @@
                                 <label for="delivery_owner_id" class="block text-sm font-medium text-gray-700 mb-1">
                                     Delivery Owner
                                 </label>
-                                <select name="delivery_owner_id" id="delivery_owner_id"
-                                        class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
-                                    <option value="">Select delivery owner</option>
-                                    @foreach($employees ?? [] as $employee)
-                                        <option value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? 'N/A' }}</option>
-                                    @endforeach
-                                </select>
+                                <div class="custom-dd relative" data-fixed="true">
+                                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                        <span class="custom-dd-label text-gray-500">Select delivery owner</span>
+                                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" name="delivery_owner_id" id="delivery_owner_id" value="">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:280px;">
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select delivery owner</button>
+                                        @foreach($employees ?? [] as $employee)
+                                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? 'N/A' }}</button>
+                                        @endforeach
+                                    </div>
+                                </div>
                             </div>
 
                             <div>
                                 <label for="support_manager_id" class="block text-sm font-medium text-gray-700 mb-1">
                                     Support Manager
                                 </label>
-                                <select name="support_manager_id" id="support_manager_id"
-                                        class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
-                                    <option value="">Select support manager</option>
-                                    @foreach($employees ?? [] as $employee)
-                                        <option value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? 'N/A' }}</option>
-                                    @endforeach
-                                </select>
+                                <div class="custom-dd relative" data-fixed="true">
+                                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                        <span class="custom-dd-label text-gray-500">Select support manager</span>
+                                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" name="support_manager_id" id="support_manager_id" value="">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:280px;">
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select support manager</button>
+                                        @foreach($employees ?? [] as $employee)
+                                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? 'N/A' }}</button>
+                                        @endforeach
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -272,6 +305,19 @@ document.addEventListener('DOMContentLoaded', function() {
             this.value = startDate.value;
         }
     });
+
+    // Init custom-dd untuk semua dropdown form. Guard typeof biar halaman
+    // tidak crash kalau custom-dropdown.js gagal di-load.
+    if (typeof initCustomDropdowns === 'function') {
+        initCustomDropdowns();
+    }
 });
 </script>
+{{-- Load custom-dd component (sama dengan halaman admin lain). filemtime
+     cache buster supaya production auto-invalidate setiap deploy. --}}
+@php
+    $customDdPath = public_path('js/custom-dropdown.js');
+    $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
+@endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 @endsection

@@ -28,15 +28,21 @@
             <span id="fetchEmailStatus" class="text-xs text-gray-400"></span>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
-            <div class="relative">
-                <select id="filterStatus" onchange="loadStagingTickets()"
-                        class="pl-3 pr-8 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent appearance-none">
-                    <option value="">All Status</option>
-                    <option value="unvalidated" selected>Pending Validation</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                </select>
-                <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+            {{-- custom-dd manual (sama dengan Employee/Customer/Ticket filter).
+                 data-fixed="true" supaya panel tidak terpotong oleh container.
+                 Default selected = "Pending Validation" — di-set oleh init script. --}}
+            <div class="custom-dd relative" data-onchange="loadStagingTickets" data-fixed="true" style="min-width:170px">
+                <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                    <span class="custom-dd-label text-gray-700">Pending Validation</span>
+                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <input type="hidden" id="filterStatus" value="unvalidated">
+                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-900 font-medium bg-gray-50 hover:bg-gray-50 transition-colors" data-value="unvalidated">Pending Validation</button>
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="approved">Approved</button>
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="rejected">Rejected</button>
+                </div>
             </div>
             <button onclick="handleRefresh()" id="btnRefresh"
                 class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
@@ -140,6 +146,11 @@ let currentStagingData = null;
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+    // Init custom-dd untuk filter "Pending Validation". Guard typeof biar
+    // halaman tidak crash kalau custom-dropdown.js gagal di-load.
+    if (typeof initCustomDropdowns === 'function') {
+        initCustomDropdowns();
+    }
     loadStats();
     loadStagingTickets();
     fetchEmailInbox(true);                              // fetch sekali saat halaman dibuka
@@ -910,4 +921,11 @@ async function fetchEmailInbox(silent = false) {
     }
 }
 </script>
+{{-- Load custom-dd component (sama dengan halaman admin lain). filemtime
+     cache buster supaya production auto-invalidate setiap deploy. --}}
+@php
+    $customDdPath = public_path('js/custom-dropdown.js');
+    $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
+@endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 @endpush

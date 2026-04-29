@@ -34,19 +34,30 @@
         <div class="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200">
             <div class="flex justify-between items-center flex-wrap gap-4">
                 <h3 class="text-lg font-medium text-gray-900">Daftar Project Planning</h3>
-                <select id="statusFilter" class="px-8 py-4 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 transition">
-                    <option value="">Semua Status</option>
-                    <option value="On Track">On Track</option>
-                    <option value="Monitoring">Monitoring</option>
-                    <option value="At Risk">At Risk</option>
-                </select>
+                {{-- custom-dd manual untuk style konsisten. Hidden input pakai
+                     id="statusFilter" supaya reading .value tetap jalan. JS
+                     handler dipanggil via data-onchange (custom-dd tidak fire
+                     event 'change' di hidden input). --}}
+                <div class="custom-dd relative" data-onchange="onProjectStatusFilterChange" data-fixed="true" style="min-width:160px">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-700">Semua Status</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="statusFilter" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Semua Status</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="On Track">On Track</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Monitoring">Monitoring</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="At Risk">At Risk</button>
+                    </div>
+                </div>
             </div>
         </div>
-        {{-- Search Bar --}}
+        {{-- Search Bar — selaras dengan style index lain --}}
         <div class="p-4">
-            <input type="search" id="searchInput" 
-                   placeholder="Cari project, client, atau deskripsi..." 
-                   class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition text-sm sm:text-base">
+            <input type="search" id="searchInput"
+                   placeholder="Cari project, client, atau deskripsi..."
+                   class="block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition text-sm px-4 py-2.5">
         </div>
         {{-- MOBILE VIEW: Card Layout --}}
         <div class="block lg:hidden px-4 pb-4">
@@ -455,13 +466,18 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
-    // Status filter
-    if (statusFilter) {
-        statusFilter.addEventListener('change', function() {
-            const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
-            filterProjects(searchTerm, this.value);
-        });
+    // Status filter — custom-dd memanggil onProjectStatusFilterChange via
+    // data-onchange. Expose filterProjects ke window biar bisa dipanggil
+    // handler global di luar scope DOMContentLoaded ini.
+    window._filterProjects = function (searchTerm, selectedStatus) {
+        filterProjects(searchTerm, selectedStatus);
+    };
+
+    // Init custom-dd untuk status filter
+    if (typeof initCustomDropdowns === 'function') {
+        initCustomDropdowns();
     }
+
     function filterProjects(searchTerm, selectedStatus) {
         // Apply to mobile cards
         const mobileCards = document.querySelectorAll('.mobile-project-card');
@@ -535,5 +551,23 @@ document.addEventListener('DOMContentLoaded', function () {
         lastTouchEnd = now;
     }, false);
 });
+
+// Dipanggil custom-dd via data-onchange="onProjectStatusFilterChange" setiap
+// kali user pilih opsi status. Wrapper untuk memanggil filterProjects yang
+// di-expose ke window dari DOMContentLoaded scope.
+function onProjectStatusFilterChange() {
+    const search   = document.getElementById('searchInput');
+    const statusEl = document.getElementById('statusFilter');
+    const term     = search ? search.value.toLowerCase().trim() : '';
+    const status   = statusEl ? statusEl.value : '';
+    if (typeof window._filterProjects === 'function') window._filterProjects(term, status);
+}
 </script>
+{{-- Load custom-dd component (sama dengan halaman admin lain). filemtime
+     cache buster supaya production auto-invalidate setiap deploy. --}}
+@php
+    $customDdPath = public_path('js/custom-dropdown.js');
+    $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
+@endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 @endsection

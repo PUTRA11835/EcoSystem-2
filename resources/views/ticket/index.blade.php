@@ -90,26 +90,69 @@
     <div id="filtersSection" class="overflow-hidden transition-all duration-300" style="max-height: 300px;">
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                {{-- Filter By: pakai custom-dd manual (sama dengan Employee/Customer)
+                     supaya tampilan & animasi konsisten. data-onchange memanggil
+                     updateFilterOptions yang menampilkan opsi sesuai tipe terpilih. --}}
                 <div class="flex flex-col">
                     <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter By</label>
-                    <div class="relative">
-                        <select id="filterTypeSelect" onchange="updateFilterOptions()" class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white appearance-none">
-                            <option value="">Select Type</option>
-                            <option value="jarvies_status">Jarvies Status</option>
-                            <option value="status">Status</option>
-                            <option value="ticket_type">Ticket Type</option>
-                            <option value="priority">Priority</option>
-                        </select>
-                        <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    {{-- data-fixed="true" → panel di-detach ke body dengan position
+                         fixed agar tidak terpotong oleh #filtersSection (overflow-hidden). --}}
+                    <div class="custom-dd relative" data-onchange="updateFilterOptions" data-fixed="true">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select Type</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="filterTypeSelect" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Type</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="jarvies_status">Jarvies Status</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="status">Status</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="ticket_type">Ticket Type</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="priority">Priority</button>
+                        </div>
                     </div>
                 </div>
+                {{-- Filter Value: opsi dinamis. Semua kemungkinan item DI-PRE-RENDER
+                     dengan atribut data-for="<filterType>" dan disembunyikan via
+                     class .filter-value-item.hidden. updateFilterOptions() hanya
+                     toggle visibility — semua handler sudah ter-bind sekali oleh
+                     initCustomDropdowns, tidak perlu re-init saat ganti tipe. --}}
                 <div class="flex flex-col">
                     <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter Value</label>
-                    <div class="relative">
-                        <select id="filterValueSelect" disabled class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white disabled:bg-gray-50 disabled:text-gray-400 appearance-none">
-                            <option value="">Select Type First</option>
-                        </select>
-                        <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    <div class="custom-dd relative" id="filterValueDdWrap" data-onchange="applyAdvancedFilters" data-fixed="true">
+                        <button type="button" id="filterValueBtn" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed" disabled>
+                            <span class="custom-dd-label text-gray-400">Select Type First</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="filterValueSelect" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
+                            <button type="button" class="custom-dd-item filter-value-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="" data-value="">Select Value</button>
+                            {{-- jarvies_status --}}
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="sent it to support">Sent It To Support</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="in process">In Process</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="author action">Author Action</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="proposed solution">Proposed Solution</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="closed">Closed</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="sent in to SAP">Sent In To SAP</button>
+                            {{-- status --}}
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="open">Open</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="in_progress">In Progress</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="hold">Hold</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="wait_to_close">Wait To Close</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="cancel">Cancel</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="closed">Closed</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="reply">Reply</button>
+                            {{-- ticket_type --}}
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Incident">Incident</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Service Request">Service Request</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Change Request">Change Request</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Consult">Consult</button>
+                            {{-- priority --}}
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="priority" data-value="Very High">Very High</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="priority" data-value="High">High</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="priority" data-value="Medium">Medium</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="priority" data-value="Low">Low</button>
+                        </div>
                     </div>
                 </div>
                 <div class="flex flex-col md:col-span-2">
@@ -178,6 +221,7 @@
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Type</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Assign Delivery</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:140px;">Customer Mandays</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:160px;">Progress</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:170px;">Target Respon Time (Hour)</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Respon Time (Hour)</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Respon Time Status</th>
@@ -384,6 +428,11 @@
     let currentEmployeeId  = {{ $currentEmployeeId ?? 'null' }};
 
     document.addEventListener('DOMContentLoaded', function() {
+        // Init custom-dd untuk Filter By & Filter Value. Guard typeof biar
+        // halaman tidak crash kalau custom-dropdown.js gagal di-load.
+        if (typeof initCustomDropdowns === 'function') {
+            initCustomDropdowns();
+        }
         loadTickets();
         if (userRole === 1 || userRole === 2) updateViewToggle();
         startEmailPolling();
@@ -646,6 +695,20 @@
             ${cell(ticket.ticket_type ? badge(typeLabel, typeCls) : '—')}
             ${dash()}
             ${cell(mandays !== '—' ? `<span class="font-medium">${mandays}</span>` : '—')}
+            <td class="px-3 py-2.5 whitespace-nowrap">
+                ${(function() {
+                    const pct = parseFloat(ticket.all_consultant_progress) || 0;
+                    const barCls = pct >= 75 ? 'bg-green-500' : pct >= 40 ? 'bg-yellow-400' : 'bg-red-400';
+                    const txtCls = pct >= 75 ? 'text-green-700' : pct >= 40 ? 'text-yellow-700' : 'text-red-600';
+                    if (pct === 0 && !ticket.man_days) return '<span class="text-gray-300 text-xs">—</span>';
+                    return `<div class="flex items-center gap-1.5">
+                        <div class="bg-gray-200 rounded-full h-1.5" style="width:80px">
+                            <div class="${barCls} h-1.5 rounded-full" style="width:${pct}%"></div>
+                        </div>
+                        <span class="text-xs font-bold ${txtCls}">${pct}%</span>
+                    </div>`;
+                })()}
+            </td>
             ${dash()}
             ${dash()}
             ${dash()}
@@ -701,25 +764,40 @@
 
     function updateFilterOptions() {
         const filterType = document.getElementById('filterTypeSelect').value;
-        const filterValue = document.getElementById('filterValueSelect');
-        filterValue.disabled = false;
-        filterValue.innerHTML = '<option value="">Select value</option>';
+        const btn   = document.getElementById('filterValueBtn');
+        const wrap  = document.getElementById('filterValueDdWrap');
+        const items = wrap ? wrap.querySelectorAll('.filter-value-item') : [];
 
-        const options = {
-            'jarvies_status': ['sent it to support', 'in process', 'author action', 'proposed solution', 'closed', 'sent in to SAP'],
-            'status': ['open', 'in_progress', 'hold', 'wait_to_close', 'cancel', 'closed', 'reply'],
-            'ticket_type': ['Incident', 'Service Request', 'Change Request', 'Consult'],
-            'priority': ['Very High', 'High', 'Medium', 'Low']
-        };
+        // Toggle visibility item per filterType — yang `data-for=""` (placeholder
+        // "Select Value") selalu tampil saat filterType ada. Item lain tampil
+        // hanya kalau data-for cocok.
+        items.forEach(item => {
+            const dataFor = item.dataset.for || '';
+            if (!filterType) {
+                // Belum ada tipe terpilih → semua sembunyikan kecuali placeholder default
+                item.classList.toggle('hidden', dataFor !== '');
+            } else {
+                item.classList.toggle('hidden', dataFor !== '' && dataFor !== filterType);
+            }
+        });
 
-        if (filterType && options[filterType]) {
-            options[filterType].forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt;
-                option.textContent = opt.charAt(0).toUpperCase() + opt.slice(1).replace(/_/g, ' ');
-                filterValue.appendChild(option);
-            });
-        } else { filterValue.disabled = true; }
+        // Reset value & label saat tipe berubah
+        if (typeof setCustomDropdownValue === 'function') {
+            setCustomDropdownValue('filterValueSelect', '');
+        }
+        const labelEl = wrap?.querySelector('.custom-dd-label');
+        if (labelEl) {
+            labelEl.textContent = filterType ? 'Select Value' : 'Select Type First';
+            labelEl.classList.toggle('text-gray-500', !!filterType);
+            labelEl.classList.toggle('text-gray-400', !filterType);
+        }
+
+        // Enable/disable trigger
+        if (btn) btn.disabled = !filterType;
+
+        // Trigger filter sekarang juga supaya konsisten (kalau sebelumnya ada
+        // filterValue lama yang kini di-reset, list table ikut update).
+        if (typeof applyAdvancedFilters === 'function') applyAdvancedFilters();
     }
 
     function applyAdvancedFilters() {
@@ -753,9 +831,32 @@
 
     function resetFilters() {
         document.getElementById('searchInput').value = '';
-        document.getElementById('filterTypeSelect').value = '';
-        document.getElementById('filterValueSelect').value = '';
-        document.getElementById('filterValueSelect').disabled = true;
+        // Pakai setCustomDropdownValue supaya label trigger ikut reset, bukan
+        // hanya hidden input.
+        if (typeof setCustomDropdownValue === 'function') {
+            setCustomDropdownValue('filterTypeSelect', '');
+            setCustomDropdownValue('filterValueSelect', '');
+        } else {
+            document.getElementById('filterTypeSelect').value = '';
+            document.getElementById('filterValueSelect').value = '';
+        }
+        // Sembunyikan kembali semua filter-value-item kecuali placeholder, dan
+        // disable trigger Filter Value.
+        const wrap = document.getElementById('filterValueDdWrap');
+        if (wrap) {
+            wrap.querySelectorAll('.filter-value-item').forEach(item => {
+                item.classList.toggle('hidden', (item.dataset.for || '') !== '');
+            });
+            const labelEl = wrap.querySelector('.custom-dd-label');
+            if (labelEl) {
+                labelEl.textContent = 'Select Type First';
+                labelEl.classList.add('text-gray-400');
+                labelEl.classList.remove('text-gray-500');
+            }
+        }
+        const btn = document.getElementById('filterValueBtn');
+        if (btn) btn.disabled = true;
+
         currentFilter = 'all';
         filterTickets('all');
     }
@@ -916,5 +1017,13 @@
         }
     });
 </script>
+
+{{-- Load custom-dd component (sama dengan Employee/Customer Management).
+     filemtime cache buster supaya production auto-invalidate setiap deploy. --}}
+@php
+    $customDdPath = public_path('js/custom-dropdown.js');
+    $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
+@endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 
 @endsection
