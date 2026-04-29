@@ -303,34 +303,62 @@
 #ticketsListBody tr { cursor: pointer; transition: background 0.15s; }
 #ticketsListBody tr:hover { background: #fafafa; }
 
-/* ── Unread ticket row ── */
-#ticketsListBody tr.ticket-unread {
+/* ── Unread ticket row — blue (customer email) ── */
+#ticketsListBody tr.ticket-unread-customer {
     background: #f0f7ff;
 }
-#ticketsListBody tr.ticket-unread:hover {
+#ticketsListBody tr.ticket-unread-customer:hover {
     background: #e6f0fd;
 }
-#ticketsListBody tr.ticket-unread td:first-child {
+#ticketsListBody tr.ticket-unread-customer td:first-child {
     border-left: 3px solid #93c5fd;
     padding-left: 10px;
 }
-#ticketsListBody tr.ticket-unread td:first-child,
-#ticketsListBody tr.ticket-unread td:nth-child(2) {
+#ticketsListBody tr.ticket-unread-customer td:first-child,
+#ticketsListBody tr.ticket-unread-customer td:nth-child(2) {
     background: #f0f7ff;
 }
-#ticketsListBody tr.ticket-unread:hover td:first-child,
-#ticketsListBody tr.ticket-unread:hover td:nth-child(2) {
+#ticketsListBody tr.ticket-unread-customer:hover td:first-child,
+#ticketsListBody tr.ticket-unread-customer:hover td:nth-child(2) {
     background: #e6f0fd;
 }
+
+/* ── Unread ticket row — yellow (internal note) ── */
+#ticketsListBody tr.ticket-unread-internal {
+    background: #fffbeb;
+}
+#ticketsListBody tr.ticket-unread-internal:hover {
+    background: #fef3c7;
+}
+#ticketsListBody tr.ticket-unread-internal td:first-child {
+    border-left: 3px solid #fbbf24;
+    padding-left: 10px;
+}
+#ticketsListBody tr.ticket-unread-internal td:first-child,
+#ticketsListBody tr.ticket-unread-internal td:nth-child(2) {
+    background: #fffbeb;
+}
+#ticketsListBody tr.ticket-unread-internal:hover td:first-child,
+#ticketsListBody tr.ticket-unread-internal:hover td:nth-child(2) {
+    background: #fef3c7;
+}
+
+/* ── Unread dots ── */
 .unread-dot {
     display: inline-block;
     width: 7px; height: 7px;
     border-radius: 50%;
-    background: #3b82f6;
     vertical-align: middle;
     margin-right: 5px;
     flex-shrink: 0;
+}
+.unread-dot-blue {
+    background: #3b82f6;
     box-shadow: 0 0 0 2px #dbeafe;
+}
+.unread-dot-yellow {
+    background: #f59e0b;
+    box-shadow: 0 0 0 2px #fde68a;
 }
 
 /* Sticky columns */
@@ -352,7 +380,8 @@
     let totalItems = 0;
     let totalPages = 0;
     let currentView = ({{ $user->role->role_id ?? 0 }} === {{ \App\Enums\RoleId::EMPLOYEE->value }}) ? 'my' : 'all';
-    let userRole = {{ $user->role->role_id ?? 0 }};
+    let userRole           = {{ $user->role->role_id ?? 0 }};
+    let currentEmployeeId  = {{ $currentEmployeeId ?? 'null' }};
 
     document.addEventListener('DOMContentLoaded', function() {
         loadTickets();
@@ -361,42 +390,32 @@
     });
 
     // -------------------------------------------------------------------------
-    // Email polling: cek email masuk setiap 30 detik, refresh tiket jika ada baru
+    // Ticket polling: cek update tiket setiap 30 detik dari DB lokal (bukan Graph API)
+    // Email inbox diproses server-side oleh scheduler (email:process-inbox tiap menit)
     // -------------------------------------------------------------------------
-    async function checkNewEmails() {
+    let _lastTicketUpdate = null;
+
+    async function checkTicketUpdates() {
         try {
-            const res = await fetch('/api/email/process-inbox', {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? ''
-                },
+            const res = await fetch('/ticket/latest-update', {
+                headers: { 'Accept': 'application/json' },
                 credentials: 'same-origin'
             });
-
-            if (!res.ok) {
-                console.warn('[Email Polling] HTTP', res.status, await res.text());
-                return;
-            }
-
+            if (!res.ok) return;
             const data = await res.json();
-            console.log('[Email Polling]', data);
-
-            if (data.processed > 0) {
-                loadTickets();
+            const latest = data.latest_update ?? null;
+            if (latest && latest !== _lastTicketUpdate) {
+                if (_lastTicketUpdate !== null) loadTickets();
+                _lastTicketUpdate = latest;
             }
         } catch (err) {
-            console.warn('[Email Polling] error:', err.message);
+            console.warn('[Ticket Polling] error:', err.message);
         }
     }
 
     function startEmailPolling() {
-        // Langsung cek saat halaman dibuka
-        checkNewEmails();
-        // Lalu setiap 30 detik
-        setInterval(checkNewEmails, 30000);
+        checkTicketUpdates();
+        setInterval(checkTicketUpdates, 15000);
     }
 
     function toggleView(view) {
@@ -575,13 +594,33 @@
         const mandays = ticket.man_days != null ? ticket.man_days : '—';
 
         // ── Unread detection ──
-        // Unread = last_message_at (any message: customer reply OR internal note) is newer
-        // than last_agent_reply_at (only updated when agent sends a public reply).
-        const lastMsg   = ticket.last_message_at     ? new Date(ticket.last_message_at)     : null;
-        const lastAgent = ticket.last_agent_reply_at ? new Date(ticket.last_agent_reply_at) : null;
-        const isUnread  = lastMsg && (!lastAgent || lastMsg > lastAgent);
-        const unreadCls = isUnread ? 'ticket-unread' : '';
-        const dot       = isUnread ? '<span class="unread-dot" title="Unread — new activity"></span>' : '';
+        // Blue   = customer email belum dibalas (last_customer_reply_at > last_agent_reply_at)
+        // Yellow = ada internal note dari orang LAIN yang belum ada public reply setelahnya,
+        //          DAN pengirim note terakhir bukan kamu sendiri
+        // Priority: yellow > blue
+        const lastCustomer   = ticket.last_customer_reply_at  ? new Date(ticket.last_customer_reply_at)  : null;
+        const lastInternal   = ticket.last_internal_note_at   ? new Date(ticket.last_internal_note_at)   : null;
+        const lastAgent      = ticket.last_agent_reply_at     ? new Date(ticket.last_agent_reply_at)     : null;
+        const lastNoteSender = ticket.last_internal_note_sender_id;
+
+        const hasUnreadCustomer = lastCustomer && (!lastAgent || lastCustomer > lastAgent);
+        // Yellow menyala jika note terakhir dikirim orang LAIN (bukan saya)
+        // Tidak bergantung pada last_agent_reply_at — email reply tidak menghapus yellow
+        const hasUnreadInternal = lastInternal
+            && (Number(lastNoteSender) !== currentEmployeeId);
+
+        let unreadCls = '', dot = '', timeColor = 'text-gray-500', numColor = 'text-gray-800';
+        if (hasUnreadInternal) {
+            unreadCls  = 'ticket-unread-internal';
+            dot        = '<span class="unread-dot unread-dot-yellow" title="Ada internal note belum dibalas"></span>';
+            timeColor  = 'text-amber-600 font-semibold';
+            numColor   = 'text-amber-700';
+        } else if (hasUnreadCustomer) {
+            unreadCls  = 'ticket-unread-customer';
+            dot        = '<span class="unread-dot unread-dot-blue" title="Customer belum dibalas"></span>';
+            timeColor  = 'text-blue-600 font-semibold';
+            numColor   = 'text-blue-700';
+        }
 
         const badge = (label, cls) => `<span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${cls}">${label}</span>`;
         const cell  = (content, extraCls = '') => `<td class="px-3 py-2.5 text-sm text-gray-700 whitespace-nowrap ${extraCls}">${content}</td>`;
@@ -589,10 +628,10 @@
 
         return `<tr class="${unreadCls}" onclick="window.location='/ticket/${ticket.ticket_id}'">
             <td class="px-3 py-2.5 whitespace-nowrap sticky left-0 bg-white" title="${lastUpdateTitle}">
-                ${dot}<span class="text-xs ${isUnread ? 'text-blue-600 font-semibold' : 'text-gray-500'}">${lastUpdateStr}</span>
+                ${dot}<span class="text-xs ${timeColor}">${lastUpdateStr}</span>
             </td>
             <td class="px-3 py-2.5 whitespace-nowrap sticky bg-white border-r border-gray-100" style="left:110px;">
-                <span class="font-mono text-xs font-semibold ${isUnread ? 'text-blue-700' : 'text-gray-800'}">${ticket.ticket_number || '—'}</span>
+                <span class="font-mono text-xs font-semibold ${numColor}">${ticket.ticket_number || '—'}</span>
             </td>
             <td class="px-3 py-2.5 text-sm text-gray-700" style="min-width:260px;max-width:320px;">
                 <span class="block truncate" title="${(ticket.description||'').replace(/"/g,'&quot;')}">${ticket.description || '—'}</span>

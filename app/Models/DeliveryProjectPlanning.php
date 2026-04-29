@@ -340,12 +340,12 @@ class DeliveryProjectPlanning extends Model
     public function getStatusTextAttribute(): string
     {
         $texts = [
-            'not_started' => 'Belum Dimulai',
-            'in_progress' => 'Sedang Berjalan',
-            'completed' => 'Selesai',
-            'delayed' => 'Terlambat',
+            'not_started' => 'Not Started',
+            'in_progress' => 'In Progress',
+            'completed'   => 'Completed',
+            'delayed'     => 'Delayed',
         ];
-        return $texts[$this->status] ?? 'Belum Dimulai';
+        return $texts[$this->status] ?? 'Not Started';
     }
 
     /**

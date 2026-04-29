@@ -240,7 +240,7 @@
                 @endforelse
                 {{-- Mobile No Results --}}
                 <div id="mobile-no-results" class="hidden text-center py-8">
-                    <p class="text-sm text-gray-500">Tidak ada project yang cocok dengan pencarian.</p>
+                    <p class="text-sm text-gray-500">No projects match your search criteria.</p>
                 </div>
             </div>
         </div>
@@ -421,7 +421,7 @@
                     {{-- Desktop No Results Row --}}
                     <tr id="desktop-no-results-row" class="hidden">
                         <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">
-                            Tidak ada project yang cocok dengan pencarian.
+                            No projects match your search criteria.
                         </td>
                     </tr>
                 </tbody>

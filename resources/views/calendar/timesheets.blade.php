@@ -522,47 +522,63 @@
                         <div class="flex items-center gap-2">
                             {{-- Start time --}}
                             <div id="timesheetStartTimeField" class="flex items-center gap-1 flex-1">
-                                <div class="sel-wrap flex-1">
-                                    <select id="timesheetStartHour" required
-                                        class="w-full px-2 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50 text-center">
+                                {{-- Start Hour --}}
+                                <div class="custom-dd flex-1" data-fixed="true" data-onchange="tsUpdateStartTime">
+                                    <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
+                                        <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">08</span>
+                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">
                                         @for($h = 0; $h < 24; $h++)
-                                            <option value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</option>
+                                            <button type="button" class="custom-dd-item w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 text-center font-mono" data-value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</button>
                                         @endfor
-                                    </select>
-                                    <i class="fas fa-bars sel-icon" style="right:6px;"></i>
+                                    </div>
+                                    <input type="hidden" id="timesheetStartHour" value="08">
                                 </div>
                                 <span class="text-sm font-bold text-gray-400 flex-shrink-0">:</span>
-                                <div class="sel-wrap flex-1">
-                                    <select id="timesheetStartMinute" required
-                                        class="w-full px-2 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50 text-center">
+                                {{-- Start Minute --}}
+                                <div class="custom-dd flex-1" data-fixed="true" data-onchange="tsUpdateStartTime">
+                                    <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
+                                        <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">00</span>
+                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">
                                         @for($m = 0; $m < 60; $m += 5)
-                                            <option value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</option>
+                                            <button type="button" class="custom-dd-item w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 text-center font-mono" data-value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</button>
                                         @endfor
-                                    </select>
-                                    <i class="fas fa-bars sel-icon" style="right:6px;"></i>
+                                    </div>
+                                    <input type="hidden" id="timesheetStartMinute" value="00">
                                 </div>
                             </div>
                             <i class="fas fa-arrow-right text-xs text-gray-300 flex-shrink-0"></i>
                             {{-- End time --}}
                             <div id="timesheetEndTimeField" class="flex items-center gap-1 flex-1">
-                                <div class="sel-wrap flex-1">
-                                    <select id="timesheetEndHour" required
-                                        class="w-full px-2 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50 text-center">
+                                {{-- End Hour --}}
+                                <div class="custom-dd flex-1" data-fixed="true" data-onchange="tsUpdateEndTime">
+                                    <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
+                                        <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">17</span>
+                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">
                                         @for($h = 0; $h < 24; $h++)
-                                            <option value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</option>
+                                            <button type="button" class="custom-dd-item w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 text-center font-mono" data-value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</button>
                                         @endfor
-                                    </select>
-                                    <i class="fas fa-bars sel-icon" style="right:6px;"></i>
+                                    </div>
+                                    <input type="hidden" id="timesheetEndHour" value="17">
                                 </div>
                                 <span class="text-sm font-bold text-gray-400 flex-shrink-0">:</span>
-                                <div class="sel-wrap flex-1">
-                                    <select id="timesheetEndMinute" required
-                                        class="w-full px-2 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50 text-center">
+                                {{-- End Minute --}}
+                                <div class="custom-dd flex-1" data-fixed="true" data-onchange="tsUpdateEndTime">
+                                    <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
+                                        <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">00</span>
+                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">
                                         @for($m = 0; $m < 60; $m += 5)
-                                            <option value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</option>
+                                            <button type="button" class="custom-dd-item w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 text-center font-mono" data-value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</button>
                                         @endfor
-                                    </select>
-                                    <i class="fas fa-bars sel-icon" style="right:6px;"></i>
+                                    </div>
+                                    <input type="hidden" id="timesheetEndMinute" value="00">
                                 </div>
                             </div>
                         </div>
@@ -736,27 +752,7 @@
     </div>
 </div>
 
-<style>
-.sel-wrap {
-    position: relative;
-    display: block;
-}
-.sel-wrap select {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 100%;
-    padding-right: 2.25rem;
-}
-.sel-wrap .sel-icon {
-    position: absolute;
-    right: 0.65rem;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 0.65rem;
-    color: #9ca3af;
-    pointer-events: none;
-}
-</style>
+
 
 <script>
     // Pass PHP variables to JavaScript

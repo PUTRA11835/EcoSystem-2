@@ -39,7 +39,7 @@ class EmailController extends Controller
         );
 
         if (!$response->successful()) {
-            throw new \RuntimeException('Gagal mendapatkan access token' . $response->body());
+            throw new \RuntimeException('Failed to obtain Microsoft Graph access token: ' . $response->body());
         }
 
         return $response->json('access_token');
@@ -93,7 +93,7 @@ class EmailController extends Controller
         $response = $http->get("{$baseUrl}{$path}", $query);
 
         if (!$response->successful()) {
-            throw new \RuntimeException("Graph GET {$path} gagal: " . $response->body());
+            throw new \RuntimeException("Graph GET {$path} failed: " . $response->body());
         }
 
         return $response->json();
@@ -107,7 +107,7 @@ class EmailController extends Controller
         $response = Http::withToken($token)->post("{$baseUrl}{$path}", $body);
 
         if (!$response->successful()) {
-            throw new \RuntimeException("Graph POST {$path} gagal: " . $response->body());
+            throw new \RuntimeException("Graph POST {$path} failed: " . $response->body());
         }
 
         return $response;
@@ -290,6 +290,16 @@ class EmailController extends Controller
      */
     public function processInbox(Request $request)
     {
+        // Lepas session lock sebelum hit external API agar tab/request lain tidak ikut terblokir
+        session()->save();
+
+        // Cegah proses ganda: jika scheduler + request manual datang bersamaan, skip
+        $lockKey = 'process_inbox_lock';
+        if (cache()->get($lockKey)) {
+            return response()->json(['processed' => 0, 'skipped' => true, 'reason' => 'already_running']);
+        }
+        cache()->put($lockKey, true, now()->addSeconds(55));
+
         try {
             $sender = config('services.microsoft_graph.sender_email');
 
@@ -595,6 +605,8 @@ class EmailController extends Controller
                 }
             }
 
+            cache()->forget($lockKey);
+
             return response()->json([
                 'status'    => 'done',
                 'processed' => $processed,
@@ -603,6 +615,8 @@ class EmailController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            cache()->forget($lockKey);
+
             Log::error('EmailController@processInbox: Graph API gagal', [
                 'error' => $e->getMessage(),
             ]);
@@ -1124,7 +1138,7 @@ class EmailController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'An error occurred'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to reprocess email attachments. Check the server logs for details.'], 500);
         }
     }
 

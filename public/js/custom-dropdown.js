@@ -18,14 +18,15 @@ function initCustomDropdowns(root) {
         if (dd._ddInited) return;
         dd._ddInited = true;
 
-        const btn        = dd.querySelector('.custom-dd-btn');
-        const panel      = dd.querySelector('.custom-dd-panel');
-        const hidden     = dd.querySelector('input[type="hidden"]');
-        const items      = dd.querySelectorAll('.custom-dd-item');
-        const onchangeFn = dd.dataset.onchange;
-        const useFixed   = dd.dataset.fixed === 'true';
+        const btn      = dd.querySelector('.custom-dd-btn');
+        const panel    = dd.querySelector('.custom-dd-panel');
+        const hidden   = dd.querySelector('input[type="hidden"]');
+        const useFixed = dd.dataset.fixed === 'true';
 
         if (!btn || !panel || !hidden) return;
+
+        // Store panel ref so _selectItem can find it even when detached (fixed mode)
+        dd._ddPanel = panel;
 
         btn.addEventListener('click', e => {
             e.stopPropagation();
@@ -43,16 +44,19 @@ function initCustomDropdowns(root) {
             }
         });
 
-        items.forEach(item => {
-            item.addEventListener('click', e => {
-                e.stopPropagation();
-                const val  = item.dataset.value;
-                const text = item.textContent.trim();
-                _selectItem(dd, val, text);
-                if (onchangeFn && typeof window[onchangeFn] === 'function') {
-                    window[onchangeFn]();
-                }
-            });
+        // Panel-level event delegation — handles both static and dynamically injected items
+        panel.addEventListener('click', e => {
+            const item = e.target.closest('.custom-dd-item');
+            if (!item) return;
+            e.stopPropagation();
+            const val        = item.dataset.value;
+            const text       = item.textContent.trim();
+            const owner      = panel._ddOwner || dd;
+            const onchangeFn = owner.dataset.onchange;
+            _selectItem(owner, val, text);
+            if (onchangeFn && typeof window[onchangeFn] === 'function') {
+                window[onchangeFn]();
+            }
         });
     });
 
@@ -78,11 +82,11 @@ function _positionFixed(btn, panel) {
 }
 
 function _selectItem(dd, val, text) {
-    const panel  = dd.querySelector('.custom-dd-panel') || document.querySelector(`.custom-dd-panel[data-dd-id="${dd.dataset.ddId}"]`);
+    // Panel may be detached from dd when fixed mode is active — use stored ref
+    const panel  = dd.querySelector('.custom-dd-panel') || dd._ddPanel;
     const label  = dd.querySelector('.custom-dd-label');
     const arrow  = dd.querySelector('.custom-dd-arrow');
     const hidden = dd.querySelector('input[type="hidden"]');
-    const items  = dd.querySelectorAll('.custom-dd-item');
 
     if (hidden) hidden.value = val;
 
@@ -91,9 +95,13 @@ function _selectItem(dd, val, text) {
         label.className   = val ? 'custom-dd-label text-gray-700' : 'custom-dd-label text-gray-500';
     }
 
-    items.forEach(i => i.classList.remove('bg-gray-50', 'font-medium', 'text-gray-900'));
-    const active = dd.querySelector(`.custom-dd-item[data-value="${CSS.escape(val)}"]`);
-    if (active && val) active.classList.add('bg-gray-50', 'font-medium', 'text-gray-900');
+    if (panel) {
+        panel.querySelectorAll('.custom-dd-item').forEach(i => i.classList.remove('bg-gray-50', 'font-medium', 'text-gray-900'));
+        if (val) {
+            const active = panel.querySelector(`.custom-dd-item[data-value="${CSS.escape(val)}"]`);
+            if (active) active.classList.add('bg-gray-50', 'font-medium', 'text-gray-900');
+        }
+    }
 
     if (panel) {
         panel.classList.add('hidden');
@@ -130,10 +138,11 @@ function _closeAllDropdowns() {
 function setCustomDropdownValue(hiddenId, value) {
     const hidden = document.getElementById(hiddenId);
     if (!hidden) return;
-    const dd   = hidden.closest('.custom-dd');
-    if (!dd)    return;
-    const item = dd.querySelector(`.custom-dd-item[data-value="${CSS.escape(value)}"]`);
-    const text = item ? item.textContent.trim()
-                      : (dd.querySelector('.custom-dd-item[data-value=""]')?.textContent.trim() || '');
+    const dd    = hidden.closest('.custom-dd');
+    if (!dd)     return;
+    const panel = dd.querySelector('.custom-dd-panel') || dd._ddPanel;
+    const item  = panel?.querySelector(`.custom-dd-item[data-value="${CSS.escape(value)}"]`);
+    const text  = item ? item.textContent.trim()
+                       : (panel?.querySelector('.custom-dd-item[data-value=""]')?.textContent.trim() || '');
     _selectItem(dd, value, text);
 }

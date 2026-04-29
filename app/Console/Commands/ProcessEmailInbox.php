@@ -20,11 +20,11 @@ class ProcessEmailInbox extends Command
         $data       = $response->getData(true);
 
         if (($data['status'] ?? '') === 'error') {
-            $this->error('Gagal: ' . ($data['message'] ?? 'Unknown error'));
+            $this->error('Failed: ' . ($data['message'] ?? 'Unknown error'));
             return;
         }
 
-        $this->info("Selesai. Diproses: {$data['processed']}, Dilewati: {$data['skipped']}");
+        $this->info("Done. Processed: {$data['processed']}, Skipped: {$data['skipped']}");
 
         if (!empty($data['errors'])) {
             foreach ($data['errors'] as $err) {

@@ -436,14 +436,10 @@ class PhaseDataImport implements ToCollection, WithHeadingRow, WithValidation
     {
         $statusText = strtolower(trim($statusText));
         $statusMap = [
-            'belum dimulai' => 'not_started',
             'not started' => 'not_started',
-            'sedang berjalan' => 'in_progress',
             'in progress' => 'in_progress',
-            'selesai' => 'completed',
-            'completed' => 'completed',
-            'terlambat' => 'delayed',
-            'delayed' => 'delayed',
+            'completed'   => 'completed',
+            'delayed'     => 'delayed',
         ];
         
         return $statusMap[$statusText] ?? 'not_started';

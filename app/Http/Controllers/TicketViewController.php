@@ -65,8 +65,9 @@ class TicketViewController extends Controller
         }
 
         return view('ticket.index', [
-            'user' => $user,
-            'customers' => $customers
+            'user'              => $user,
+            'customers'         => $customers,
+            'currentEmployeeId' => $user->id,
         ]);
     }
 

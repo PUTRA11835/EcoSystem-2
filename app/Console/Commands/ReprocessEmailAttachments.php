@@ -35,7 +35,7 @@ class ReprocessEmailAttachments extends Command
         $messages = $query->get();
 
         if ($messages->isEmpty()) {
-            $this->warn('Tidak ada pesan email yang ditemukan.');
+            $this->warn('No email messages found.');
             return 0;
         }
 
@@ -53,18 +53,18 @@ class ReprocessEmailAttachments extends Command
             ]);
 
             if (!$search->successful()) {
-                $this->warn("  Graph query gagal: " . $search->body());
+                $this->warn("  Graph query failed: " . $search->body());
                 continue;
             }
 
             $graphMsg = $search->json('value.0');
             if (!$graphMsg) {
-                $this->warn("  Email tidak ditemukan di Graph (sudah terhapus dari inbox?).");
+                $this->warn("  Email not found in Graph (may have been deleted from inbox).");
                 continue;
             }
 
             if (empty($graphMsg['hasAttachments'])) {
-                $this->line("  Tidak ada attachment.");
+                $this->line("  No attachments found.");
                 continue;
             }
 
@@ -78,7 +78,7 @@ class ReprocessEmailAttachments extends Command
             );
 
             if (!$attRes->successful()) {
-                $this->warn("  Gagal fetch attachments: " . $attRes->body());
+                $this->warn("  Failed to fetch attachments: " . $attRes->body());
                 continue;
             }
 

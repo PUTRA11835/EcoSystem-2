@@ -788,7 +788,7 @@ class EmployeeController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('getMentionable error', ['error' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => 'Error'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to retrieve mentionable employees and roles.'], 500);
         }
     }
 
@@ -898,9 +898,9 @@ public function getRoles()
             'role_ids'   => 'required|array|min:1',
             'role_ids.*' => 'integer|exists:employee_role,id',
         ], [
-            'role_ids.required' => 'Pilih minimal satu role',
-            'role_ids.min'      => 'Pilih minimal satu role',
-            'role_ids.*.exists' => 'Role tidak valid',
+            'role_ids.required' => 'At least one role must be selected.',
+            'role_ids.min'      => 'At least one role must be selected.',
+            'role_ids.*.exists' => 'One or more selected roles are invalid.',
         ]);
 
         if ($validator->fails()) {

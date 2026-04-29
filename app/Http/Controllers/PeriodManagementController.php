@@ -93,7 +93,7 @@ class PeriodManagementController extends Controller
     public function index()
     {
         if (!$this->authorizeRoles(RoleId::PERIOD_MANAGEMENT_GROUP)) {
-            abort(403);
+            abort(403, 'Access denied. You do not have permission to manage periods.');
         }
 
         $roleId  = $this->actorRoleId();

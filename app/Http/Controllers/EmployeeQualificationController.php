@@ -184,7 +184,7 @@ class EmployeeQualificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Employee qualification record data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -306,7 +306,7 @@ class EmployeeQualificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Employee qualification record data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }

@@ -35,9 +35,10 @@ class Timesheet extends Model
     ];
 
     protected $casts = [
-        'date' => 'date',
-        'approved_at' => 'datetime',
-        'is_billable' => 'boolean',
+        'employee_id'  => 'integer',
+        'date'         => 'date',
+        'approved_at'  => 'datetime',
+        'is_billable'  => 'boolean',
     ];
 
     protected static function boot()

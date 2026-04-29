@@ -202,7 +202,7 @@ class CalendarController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Calendar event data is invalid.',
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
@@ -246,7 +246,7 @@ class CalendarController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Calendar event update data is invalid.',
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {

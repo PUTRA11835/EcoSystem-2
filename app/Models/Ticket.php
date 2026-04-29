@@ -34,6 +34,8 @@ class Ticket extends Model
         'last_message_at',
         'last_customer_reply_at',
         'last_agent_reply_at',
+        'last_internal_note_at',
+        'last_internal_note_sender_id',
         // Field tambahan dari form Jarvies
         'name',
         'no_hp',
@@ -54,7 +56,9 @@ class Ticket extends Model
         'last_message_at'        => 'datetime',
         'last_customer_reply_at' => 'datetime',
         'last_agent_reply_at'    => 'datetime',
-        'cc_emails'              => 'array',
+        'last_internal_note_at'        => 'datetime',
+        'last_internal_note_sender_id' => 'integer',
+        'cc_emails'                    => 'array',
     ];
 
     // Relasi ke Customer

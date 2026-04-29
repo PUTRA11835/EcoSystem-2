@@ -124,7 +124,7 @@ class StagingTicketController extends Controller
                 'error'   => $e->getMessage(),
                 'user_id' => $sessionUser['id'] ?? null,
             ]);
-            return response()->json(['success' => false, 'message' => 'Query failed'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to retrieve staging tickets. A database error occurred.'], 500);
         }
 
         Log::info('StagingTicketController@index: success', [
@@ -349,9 +349,9 @@ class StagingTicketController extends Controller
                 ],
             ]);
         } catch (\LogicException $e) {
-            return response()->json(['success' => false, 'message' => 'An error occurred'], 422);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
-            Log::error('StagingTicketController@approve: gagal approve', [
+            Log::error('StagingTicketController@approve: failed to approve', [
                 'staging_id' => $id,
                 'error'      => $e->getMessage(),
             ]);
@@ -395,9 +395,9 @@ class StagingTicketController extends Controller
                 'data'    => ['staging_id' => $staging->id, 'status' => 'rejected'],
             ]);
         } catch (\LogicException $e) {
-            return response()->json(['success' => false, 'message' => 'An error occurred'], 422);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
-            Log::error('StagingTicketController@reject: gagal reject', [
+            Log::error('StagingTicketController@reject: failed to reject', [
                 'staging_id' => $id,
                 'error'      => $e->getMessage(),
             ]);
@@ -525,7 +525,7 @@ class StagingTicketController extends Controller
     {
         $sessionUser = session('user');
         if (!$sessionUser) {
-            abort(401);
+            abort(401, 'Authentication required. Please log in to access this resource.');
         }
 
         $attId = $request->query('attId');
