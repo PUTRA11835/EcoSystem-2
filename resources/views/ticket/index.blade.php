@@ -221,6 +221,7 @@
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Type</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Assign Delivery</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:140px;">Customer Mandays</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:160px;">Progress</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:170px;">Target Respon Time (Hour)</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Respon Time (Hour)</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Respon Time Status</th>
@@ -655,6 +656,20 @@
             ${cell(ticket.ticket_type ? badge(typeLabel, typeCls) : '—')}
             ${dash()}
             ${cell(mandays !== '—' ? `<span class="font-medium">${mandays}</span>` : '—')}
+            <td class="px-3 py-2.5 whitespace-nowrap">
+                ${(function() {
+                    const pct = parseFloat(ticket.all_consultant_progress) || 0;
+                    const barCls = pct >= 75 ? 'bg-green-500' : pct >= 40 ? 'bg-yellow-400' : 'bg-red-400';
+                    const txtCls = pct >= 75 ? 'text-green-700' : pct >= 40 ? 'text-yellow-700' : 'text-red-600';
+                    if (pct === 0 && !ticket.man_days) return '<span class="text-gray-300 text-xs">—</span>';
+                    return `<div class="flex items-center gap-1.5">
+                        <div class="bg-gray-200 rounded-full h-1.5" style="width:80px">
+                            <div class="${barCls} h-1.5 rounded-full" style="width:${pct}%"></div>
+                        </div>
+                        <span class="text-xs font-bold ${txtCls}">${pct}%</span>
+                    </div>`;
+                })()}
+            </td>
             ${dash()}
             ${dash()}
             ${dash()}

@@ -18,6 +18,8 @@ class Employee extends Model
         'role_id',
         'eci',
         'is_active',
+        'modules',
+        'monthly_capacity_md',
     ];
 
     protected $casts = [

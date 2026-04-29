@@ -577,26 +577,45 @@ class MandaysController extends Controller
             } else {
                 $proposal = $existing;
                 $proposal->update([
-                    'status'         => 'draft',
-                    'last_edited_at' => now(),
-                    'helpdesk_notes' => $request->notes,
-                    'total_mandays'  => $total,
+                    'status'           => 'draft',
+                    'last_edited_at'   => now(),
+                    'helpdesk_notes'   => $request->notes,
+                    'total_mandays'    => $total,
                     'rejection_reason' => null,
                 ]);
-                $proposal->details()->delete();
             }
+
+            // Preserve progress: load existing detail rows keyed by employee_id
+            $existingDetails = $proposal->details()->get()->keyBy('employee_id');
+            $newEmployeeIds  = collect($request->details)->pluck('employee_id')->map('intval')->toArray();
+
+            // Hapus hanya row yang tidak ada di request baru
+            $proposal->details()->whereNotIn('employee_id', $newEmployeeIds)->delete();
 
             foreach ($request->details as $d) {
                 if (($d['mandays'] ?? 0) > 0 || ($d['additional_mandays'] ?? 0) > 0) {
-                    ConsultantMandaysDetail::create([
-                        'consultant_mandays_id' => $proposal->id,
-                        'employee_id'           => $d['employee_id'],
-                        'module'                => $d['module'] ?? null,
-                        'mandays'               => $d['mandays'] ?? 0,
-                        'additional_mandays'    => $d['additional_mandays'] ?? 0,
-                        'approved_additional'   => 0,
-                        'notes'                 => $d['notes'] ?? null,
-                    ]);
+                    $empId   = (int) $d['employee_id'];
+                    $existing = $existingDetails->get($empId);
+
+                    if ($existing) {
+                        // Update mandays saja — progress_percentage/progress_note tetap
+                        $existing->update([
+                            'module'             => $d['module'] ?? null,
+                            'mandays'            => $d['mandays'] ?? 0,
+                            'additional_mandays' => $d['additional_mandays'] ?? 0,
+                            'notes'              => $d['notes'] ?? null,
+                        ]);
+                    } else {
+                        ConsultantMandaysDetail::create([
+                            'consultant_mandays_id' => $proposal->id,
+                            'employee_id'           => $empId,
+                            'module'                => $d['module'] ?? null,
+                            'mandays'               => $d['mandays'] ?? 0,
+                            'additional_mandays'    => $d['additional_mandays'] ?? 0,
+                            'approved_additional'   => 0,
+                            'notes'                 => $d['notes'] ?? null,
+                        ]);
+                    }
                 }
             }
 

@@ -24,6 +24,8 @@ use App\Http\Controllers\DeliveryProjectPlanningExportController;
 use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\TicketViewController;
+use App\Http\Controllers\ConsultantWorkloadController;
+use App\Http\Controllers\TaskController;
 use App\Http\Controllers\PasswordSetupController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Middleware\CheckAuthToken;
@@ -279,6 +281,8 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::prefix('ticket')->name('ticket.')->group(function () {
         Route::get('/', [TicketViewController::class, 'index'])->name('index');
         Route::get('/create', [TicketViewController::class, 'create'])->name('create');
+        Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload');
+        Route::get('/task', [TaskController::class, 'index'])->name('task');
         Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
     });
 
