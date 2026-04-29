@@ -49,11 +49,11 @@
             </h3>
         </div>
 
-        {{-- Search Bar --}}
+        {{-- Search Bar — selaras dengan style index lain --}}
         <div class="p-4">
             <input type="search" id="issue-search"
                    placeholder="Search by customer, issue, action, status..."
-                   class="block w-full border-gray-300 rounded-md shadow-sm primary-focus transition text-sm sm:text-base">
+                   class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus transition text-sm px-4 py-2.5">
         </div>
 
         {{-- MOBILE VIEW: Card Layout --}}

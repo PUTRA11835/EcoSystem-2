@@ -35,20 +35,31 @@
         <div class="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200">
             <div class="flex justify-between items-center flex-wrap gap-4">
                 <h3 class="text-lg font-medium text-gray-900">Support Planning List</h3>
-                <select id="statusFilter" class="px-4 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 transition">
-                    <option value="">All Status</option>
-                    <option value="completed">Completed</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="not_started">Not Started</option>
-                </select>
+                {{-- custom-dd manual untuk style konsisten. Hidden input pakai
+                     id="statusFilter" supaya reading .value tetap jalan. JS
+                     handler dipanggil via data-onchange (custom-dd tidak fire
+                     event 'change' di hidden input). --}}
+                <div class="custom-dd relative" data-onchange="onSupportStatusFilterChange" data-fixed="true" style="min-width:160px">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-700">All Status</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="statusFilter" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="completed">Completed</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="in_progress">In Progress</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="not_started">Not Started</button>
+                    </div>
+                </div>
             </div>
         </div>
 
-        {{-- Search Bar --}}
+        {{-- Search Bar — selaras dengan style index lain --}}
         <div class="p-4">
             <input type="search" id="searchInput"
                    placeholder="Search by support name, client..."
-                   class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition text-sm">
+                   class="block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition text-sm px-4 py-2.5">
         </div>
 
         {{-- MOBILE VIEW: Card Layout --}}
@@ -369,13 +380,28 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Status filter
-    if (statusFilter) {
-        statusFilter.addEventListener('change', function() {
-            const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
-            filterSupports(searchTerm, this.value);
-        });
+    // Init custom-dd untuk status filter
+    if (typeof initCustomDropdowns === 'function') {
+        initCustomDropdowns();
     }
 });
+
+// Dipanggil custom-dd via data-onchange="onSupportStatusFilterChange" setiap
+// kali user memilih opsi (custom-dd tidak dispatch event 'change' di hidden
+// input, harus pakai pattern callback ini).
+function onSupportStatusFilterChange() {
+    const search   = document.getElementById('searchInput');
+    const statusEl = document.getElementById('statusFilter');
+    const term     = search ? search.value.toLowerCase().trim() : '';
+    const status   = statusEl ? statusEl.value : '';
+    if (typeof filterSupports === 'function') filterSupports(term, status);
+}
 </script>
+{{-- Load custom-dd component (sama dengan halaman admin lain). filemtime
+     cache buster supaya production auto-invalidate setiap deploy. --}}
+@php
+    $customDdPath = public_path('js/custom-dropdown.js');
+    $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
+@endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 @endsection

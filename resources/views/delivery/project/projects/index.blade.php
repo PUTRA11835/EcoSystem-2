@@ -54,11 +54,11 @@
                 </a>
             </div>
         </div>
-        {{-- Search Bar --}}
+        {{-- Search Bar — selaras dengan style input pada Create form (rounded-lg + border eksplisit + padding seragam) --}}
         <div class="p-4">
             <input type="search" id="project-search"
                 placeholder="Search by customer, type, description, PIC, or status..."
-                class="block w-full border-gray-300 rounded-md shadow-sm primary-focus transition text-sm sm:text-base">
+                class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus transition text-sm px-4 py-2.5">
         </div>
         {{-- MOBILE VIEW: Card Layout --}}
         <div class="block lg:hidden px-4 pb-4">

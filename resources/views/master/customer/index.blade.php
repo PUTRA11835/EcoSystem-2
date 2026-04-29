@@ -15,13 +15,20 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Status</label>
-                <div class="relative">
-                    <select id="filterStatus" onchange="applyFilters()" class="w-full px-3 py-2.5 pr-8 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white appearance-none">
-                        <option value="">All Status</option>
-                        <option value="active">Active</option>
-                        <option value="blocked">Blocked</option>
-                    </select>
-                    <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                {{-- Markup custom-dd disamakan persis dengan Employee Management
+                     supaya tampilan & animasi konsisten. Hidden input tetap pakai
+                     id="filterStatus" supaya applyFilters() lama jalan tanpa diubah. --}}
+                <div class="custom-dd relative" data-onchange="applyFilters">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">All Status</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="filterStatus" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="active">Active</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="blocked">Blocked</button>
+                    </div>
                 </div>
             </div>
             <div class="flex flex-col">
@@ -546,7 +553,13 @@
     }
 
     function resetFilters() {
-        document.getElementById('filterStatus').value = '';
+        // Pakai setCustomDropdownValue supaya label trigger ikut reset ke "All Status",
+        // bukan cuma hidden input. Fallback ke set .value langsung kalau helper belum ada.
+        if (typeof setCustomDropdownValue === 'function') {
+            setCustomDropdownValue('filterStatus', '');
+        } else {
+            document.getElementById('filterStatus').value = '';
+        }
         document.getElementById('filterCustomer').value = '';
         document.getElementById('filterCustomerGroup').value = '';
         fetchCustomers();
@@ -568,6 +581,11 @@
 
     // Initialize on page load
     document.addEventListener('DOMContentLoaded', function() {
+        // Init custom-dd untuk filter Status. Guard typeof biar halaman tidak
+        // crash kalau custom-dropdown.js gagal di-load (lihat fix activity-log).
+        if (typeof initCustomDropdowns === 'function') {
+            initCustomDropdowns();
+        }
         console.log('Page loaded, fetching customers...');
         fetchCustomers();
     });
@@ -597,4 +615,11 @@
 
     document.addEventListener('click', closeCustMenu);
 </script>
+{{-- Load custom-dd component (sama dengan Employee Management). filemtime
+     cache buster supaya production auto-invalidate begitu file di-update. --}}
+@php
+    $customDdPath = public_path('js/custom-dropdown.js');
+    $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
+@endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 @endpush
