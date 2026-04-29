@@ -12,34 +12,50 @@
 
     #sectionNav {
         position: fixed;
-        top: 90px; /* Tepat di bawah header */
-        left: 256px; /* Sidebar width (w-64 = 256px) */
+        top: 90px;            /* tepat di bawah header */
+        left: 256px;          /* w-64 sidebar */
         right: 0;
         z-index: 35;
-        background: white;
-        padding-left: 2rem;
-        padding-right: 2rem;
-        padding-top: 0;
-        padding-bottom: 0;
-        border-radius: 0;
-        box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.1);
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        padding: 0 2rem;
+        border-bottom: 1px solid #e5e7eb;
+        box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+        transition: box-shadow 0.2s ease, background 0.2s ease;
     }
 
-    /* Spacer untuk content di bawah fixed nav */
+    /* Spacer cukup untuk nav (~52px) + sedikit breathing room di atas konten */
     .nav-spacer {
-        height: 50px;
+        height: 64px;
     }
 
     .section-tab {
-        transition: all 0.2s ease;
+        position: relative;
+        transition: color 0.18s ease, background-color 0.18s ease;
+        padding: 0.875rem 1.25rem;
     }
 
     .section-tab:hover {
         background-color: #f9fafb;
+        color: #1f2937;
     }
 
     .section-tab.active {
         font-weight: 600;
+        color: #991b1b;
+    }
+
+    /* Indikator underline aktif — bar primary-color tebal sehingga mudah dilihat */
+    .section-tab.active::after {
+        content: '';
+        position: absolute;
+        left: 1rem;
+        right: 1rem;
+        bottom: -1px;          /* overlap border-bottom #sectionNav */
+        height: 3px;
+        background: linear-gradient(to right, #991b1b, #b91c1c);
+        border-radius: 3px 3px 0 0;
     }
 
     /* Scrollbar untuk tab navigation */
@@ -235,25 +251,25 @@
 {{-- ✅ Sticky Navigation Tabs - PALING ATAS --}}
 <div class="bg-white" id="sectionNav">
     <nav class="flex overflow-x-auto scrollbar-hide border-b border-gray-200">
-        <button onclick="scrollToSection('general')" data-section="general" class="section-tab active px-5 py-3 text-sm font-medium primary-tab-active border-b-2 whitespace-nowrap">
+        <button onclick="scrollToSection('general')" data-section="general" class="section-tab active text-sm font-medium text-gray-600 whitespace-nowrap">
             General
         </button>
-        <button onclick="scrollToSection('delivery')" data-section="delivery" class="section-tab px-5 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent hover:border-gray-300 whitespace-nowrap">
+        <button onclick="scrollToSection('delivery')" data-section="delivery" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Delivery Info
         </button>
-        <button onclick="scrollToSection('team')" data-section="team" class="section-tab px-5 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent hover:border-gray-300 whitespace-nowrap">
+        <button onclick="scrollToSection('team')" data-section="team" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Team
         </button>
-        <button onclick="scrollToSection('documents')" data-section="documents" class="section-tab px-5 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent hover:border-gray-300 whitespace-nowrap">
+        <button onclick="scrollToSection('documents')" data-section="documents" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Documents
         </button>
-        <button onclick="scrollToSection('issues')" data-section="issues" class="section-tab px-5 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent hover:border-gray-300 whitespace-nowrap">
+        <button onclick="scrollToSection('issues')" data-section="issues" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Issues
         </button>
-        <button onclick="scrollToSection('location')" data-section="location" class="section-tab px-5 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent hover:border-gray-300 whitespace-nowrap">
+        <button onclick="scrollToSection('location')" data-section="location" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Location
         </button>
-        <button onclick="scrollToSection('planning')" data-section="planning" class="section-tab px-5 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent hover:border-gray-300 whitespace-nowrap flex items-center">
+        <button onclick="scrollToSection('planning')" data-section="planning" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
             </svg>
@@ -311,17 +327,22 @@
                         <tr class="hover:bg-blue-50">
                             <td class="px-4 py-3 text-sm font-medium text-gray-900">PIC / Project Manager</td>
                             <td class="px-4 py-3 text-sm text-gray-900">
-                                <form action="{{ route('projects.updateField', $project->id) }}" method="POST">
+                                <form id="picUpdateForm" action="{{ route('projects.updateField', $project->id) }}" method="POST">
                                     @csrf @method('PATCH')
                                     <input type="hidden" name="field" value="pic">
-                                    <select name="value" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus" onchange="this.form.submit()">
-                                        <option value="">-- Select Project Manager --</option>
-                                        @foreach($projectManagers as $pm)
-                                            <option value="{{ $pm->basicData->full_name ?? '-' }}" {{ $project->pic == ($pm->basicData->full_name ?? '-') ? 'selected' : '' }}>
-                                                {{ $pm->basicData->full_name ?? '-' }}
-                                            </option>
-                                        @endforeach
-                                    </select>
+                                    <div class="custom-dd relative" data-onchange="submitPicForm" data-fixed="true">
+                                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                                            <span class="custom-dd-label {{ $project->pic ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->pic ?: '-- Select Project Manager --' }}</span>
+                                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                        </button>
+                                        <input type="hidden" name="value" id="picValue" value="{{ $project->pic }}">
+                                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:280px;">
+                                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Project Manager --</button>
+                                            @foreach($projectManagers as $pm)
+                                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pm->basicData->full_name ?? '-' }}">{{ $pm->basicData->full_name ?? '-' }}</button>
+                                            @endforeach
+                                        </div>
+                                    </div>
                                 </form>
                             </td>
                         </tr>
@@ -345,14 +366,21 @@
                         <tr class="hover:bg-blue-50" id="statusRow" style="{{ $project->category != 'In Process' ? 'display: none;' : '' }}">
                             <td class="px-4 py-3 text-sm font-medium text-gray-900">Status</td>
                             <td class="px-4 py-3 text-sm text-gray-900">
-                                <form action="{{ route('projects.updateField', $project->id) }}" method="POST">
+                                <form id="statusUpdateForm" action="{{ route('projects.updateField', $project->id) }}" method="POST">
                                     @csrf @method('PATCH')
                                     <input type="hidden" name="field" value="status">
-                                    <select name="value" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus" onchange="this.form.submit()">
-                                        @foreach(['On Track', 'Monitoring', 'At Risk'] as $status)
-                                            <option value="{{ $status }}" {{ $project->status == $status ? 'selected' : '' }}>{{ $status }}</option>
-                                        @endforeach
-                                    </select>
+                                    <div class="custom-dd relative" data-onchange="submitStatusForm" data-fixed="true">
+                                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                                            <span class="custom-dd-label text-gray-700">{{ $project->status ?: 'On Track' }}</span>
+                                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                        </button>
+                                        <input type="hidden" name="value" id="statusValue" value="{{ $project->status ?: 'On Track' }}">
+                                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
+                                            @foreach(['On Track', 'Monitoring', 'At Risk'] as $status)
+                                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $status }}">{{ $status }}</button>
+                                            @endforeach
+                                        </div>
+                                    </div>
                                 </form>
                             </td>
                         </tr>
@@ -418,11 +446,18 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Account Executive Type</label>
-                    <select name="ae_type" id="ae_type" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
-                        <option value="">-- Select --</option>
-                        <option value="Internal" {{ $project->ae_type == 'Internal' ? 'selected' : '' }}>Internal</option>
-                        <option value="External" {{ $project->ae_type == 'External' ? 'selected' : '' }}>External</option>
-                    </select>
+                    <div class="custom-dd relative" data-fixed="true">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label {{ $project->ae_type ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->ae_type ?: '-- Select --' }}</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" name="ae_type" id="ae_type" value="{{ $project->ae_type }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select --</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Internal">Internal</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="External">External</button>
+                        </div>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Account Executive</label>
@@ -431,34 +466,59 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Delivery Owner</label>
-                    <select name="delivery_owner_id" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
-                        <option value="">-- Select --</option>
-                        @foreach($employees as $employee)
-                            <option value="{{ $employee->employee_id }}" {{ $project->delivery_owner_id == $employee->employee_id ? 'selected' : '' }}>
-                                {{ $employee->basicData->full_name ?? '-' }}
-                            </option>
-                        @endforeach
-                    </select>
+                    @php
+                        $doLabel = '';
+                        foreach($employees as $e) { if ($project->delivery_owner_id == $e->employee_id) { $doLabel = $e->basicData->full_name ?? '-'; break; } }
+                    @endphp
+                    <div class="custom-dd relative" data-fixed="true">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label {{ $doLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $doLabel ?: '-- Select --' }}</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" name="delivery_owner_id" value="{{ $project->delivery_owner_id }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:280px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select --</button>
+                            @foreach($employees as $employee)
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? '-' }}</button>
+                            @endforeach
+                        </div>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Delivery Manager</label>
-                    <select name="delivery_manager_id" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
-                        <option value="">-- Select --</option>
-                        @foreach($employees as $employee)
-                            <option value="{{ $employee->employee_id }}" {{ $project->delivery_manager_id == $employee->employee_id ? 'selected' : '' }}>
-                                {{ $employee->basicData->full_name ?? '-' }}
-                            </option>
-                        @endforeach
-                    </select>
+                    @php
+                        $dmLabel = '';
+                        foreach($employees as $e) { if ($project->delivery_manager_id == $e->employee_id) { $dmLabel = $e->basicData->full_name ?? '-'; break; } }
+                    @endphp
+                    <div class="custom-dd relative" data-fixed="true">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label {{ $dmLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $dmLabel ?: '-- Select --' }}</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" name="delivery_manager_id" value="{{ $project->delivery_manager_id }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:280px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select --</button>
+                            @foreach($employees as $employee)
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? '-' }}</button>
+                            @endforeach
+                        </div>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Delivery Method</label>
-                    <select name="delivery_method" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
-                        <option value="">-- Select --</option>
-                        <option value="Onsite" {{ $project->delivery_method == 'Onsite' ? 'selected' : '' }}>Onsite</option>
-                        <option value="Hybrid" {{ $project->delivery_method == 'Hybrid' ? 'selected' : '' }}>Hybrid</option>
-                        <option value="WFH" {{ $project->delivery_method == 'WFH' ? 'selected' : '' }}>WFH</option>
-                    </select>
+                    <div class="custom-dd relative" data-fixed="true">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label {{ $project->delivery_method ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->delivery_method ?: '-- Select --' }}</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" name="delivery_method" value="{{ $project->delivery_method }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select --</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Onsite">Onsite</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Hybrid">Hybrid</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="WFH">WFH</button>
+                        </div>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Total Mandays</label>
@@ -695,11 +755,18 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Type of Address</label>
-                    <select name="location_type" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
-                        <option value="">-- Select --</option>
-                        <option value="Head Office" {{ $project->location_type == 'Head Office' ? 'selected' : '' }}>Head Office</option>
-                        <option value="Plant" {{ $project->location_type == 'Plant' ? 'selected' : '' }}>Plant</option>
-                    </select>
+                    <div class="custom-dd relative" data-fixed="true">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label {{ $project->location_type ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->location_type ?: '-- Select --' }}</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" name="location_type" value="{{ $project->location_type }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select --</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Head Office">Head Office</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Plant">Plant</button>
+                        </div>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Country</label>
@@ -2106,8 +2173,33 @@ document.addEventListener('DOMContentLoaded', function() {
     sections.forEach((section, index) => {
         section.style.animationDelay = (index * 0.1) + 's';
     });
+
+    // Init custom-dd untuk semua dropdown PIC/Status/Delivery/Location.
+    // Guard typeof biar halaman tidak crash kalau custom-dropdown.js gagal di-load.
+    if (typeof initCustomDropdowns === 'function') {
+        initCustomDropdowns();
+    }
 });
+
+// Auto-submit handlers untuk PIC & Status — dipanggil custom-dd via
+// data-onchange setiap kali user pilih opsi (custom-dd tidak fire event
+// 'change' di hidden input).
+function submitPicForm() {
+    const f = document.getElementById('picUpdateForm');
+    if (f) f.submit();
+}
+function submitStatusForm() {
+    const f = document.getElementById('statusUpdateForm');
+    if (f) f.submit();
+}
 
 console.log('✅ Project Show Page with Integrated Planning initialized');
 </script>
+{{-- Load custom-dd component (sama dengan halaman admin lain). filemtime
+     cache buster supaya production auto-invalidate setiap deploy. --}}
+@php
+    $customDdPath = public_path('js/custom-dropdown.js');
+    $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
+@endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 @endsection

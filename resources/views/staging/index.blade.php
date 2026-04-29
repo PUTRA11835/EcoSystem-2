@@ -28,15 +28,21 @@
             <span id="fetchEmailStatus" class="text-xs text-gray-400"></span>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
-            <div class="relative">
-                <select id="filterStatus" onchange="loadStagingTickets()"
-                        class="pl-3 pr-8 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent appearance-none">
-                    <option value="">All Status</option>
-                    <option value="unvalidated" selected>Pending Validation</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                </select>
-                <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+            {{-- custom-dd manual (sama dengan Employee/Customer/Ticket filter).
+                 data-fixed="true" supaya panel tidak terpotong oleh container.
+                 Default selected = "Pending Validation" — di-set oleh init script. --}}
+            <div class="custom-dd relative" data-onchange="loadStagingTickets" data-fixed="true" style="min-width:170px">
+                <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                    <span class="custom-dd-label text-gray-700">Pending Validation</span>
+                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <input type="hidden" id="filterStatus" value="unvalidated">
+                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-900 font-medium bg-gray-50 hover:bg-gray-50 transition-colors" data-value="unvalidated">Pending Validation</button>
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="approved">Approved</button>
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="rejected">Rejected</button>
+                </div>
             </div>
             <button onclick="handleRefresh()" id="btnRefresh"
                 class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
@@ -140,6 +146,11 @@ let currentStagingData = null;
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+    // Init custom-dd untuk filter "Pending Validation". Guard typeof biar
+    // halaman tidak crash kalau custom-dropdown.js gagal di-load.
+    if (typeof initCustomDropdowns === 'function') {
+        initCustomDropdowns();
+    }
     loadStats();
     loadStagingTickets();
     fetchEmailInbox(true);                              // fetch sekali saat halaman dibuka
@@ -458,7 +469,7 @@ function fillModal(s) {
                 <span class="text-xs font-semibold text-gray-600">Ticket Classification</span>
                 <span class="text-xs text-gray-400 ml-1">— required before approving</span>
             </div>
-            <div class="px-4 py-4 grid grid-cols-2 gap-4">
+            <div class="px-4 py-4 grid grid-cols-3 gap-4">
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Type <span class="text-red-500">*</span></label>
                     <select id="approveTicketType"
@@ -483,15 +494,30 @@ function fillModal(s) {
                     </select>
                     <p id="priorityError" class="hidden mt-1 text-xs text-red-500">Required.</p>
                 </div>
+                {{-- Scale: opsional. Daftar value masih didiskusikan — placeholder
+                     berikut bisa diubah belakangan tanpa migrasi (kolom VARCHAR). --}}
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Scale</label>
+                    <select id="approveScale"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
+                        <option value="">Select scale…</option>
+                        <option value="Small">Small</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Large">Large</option>
+                        <option value="Enterprise">Enterprise</option>
+                    </select>
+                    <p class="mt-1 text-[11px] text-gray-400">Optional</p>
+                </div>
             </div>
         </div>`;
-    } else if (s.ticket_type || s.ticket_priority) {
+    } else if (s.ticket_type || s.ticket_priority || s.scale) {
         const typePill  = s.ticket_type     ? `<span class="px-2.5 py-1 rounded-full text-xs font-semibold border ${typeColors[s.ticket_type]  ?? 'bg-gray-50 text-gray-600 border-gray-200'}">${escHtml(s.ticket_type)}</span>`     : '';
         const prioPill  = s.ticket_priority ? `<span class="px-2.5 py-1 rounded-full text-xs font-semibold ${prioColors[s.ticket_priority] ?? 'bg-gray-100 text-gray-600'}">${escHtml(s.ticket_priority)}</span>` : '';
+        const scalePill = s.scale           ? `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">Scale: ${escHtml(s.scale)}</span>` : '';
         const ticketLink = s.ticket_number  ? `<a href="/ticket/${s.ticket_id}" class="inline-flex items-center gap-1 text-xs font-semibold text-red-700 hover:underline ml-auto"><i class="fas fa-external-link-alt text-[10px]"></i> Ticket ${escHtml(s.ticket_number)}</a>` : '';
         validationHtml  = `
         <div class="flex items-center gap-2.5 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl mb-5 text-xs">
-            ${typePill}${prioPill}${ticketLink}
+            ${typePill}${prioPill}${scalePill}${ticketLink}
         </div>`;
     }
 
@@ -701,6 +727,7 @@ function cancelReject() {
 async function submitApprove(id) {
     const ticketType = document.getElementById('approveTicketType')?.value ?? '';
     const priority   = document.getElementById('approvePriority')?.value   ?? '';
+    const scale      = document.getElementById('approveScale')?.value      ?? '';
 
     const typeErr = document.getElementById('typeError');
     const prioErr = document.getElementById('priorityError');
@@ -719,13 +746,14 @@ async function submitApprove(id) {
 
     const t0 = performance.now();
     console.group(`%c[Approve] Staging #${id}`, 'color:#c62828;font-weight:bold');
-    console.log('▶ Submit approve', { staging_id: id, ticket_type: ticketType, priority });
+    console.log('▶ Submit approve', { staging_id: id, ticket_type: ticketType, priority, scale });
 
     try {
         console.log('⏳ Sending POST /api/staging-tickets/' + id + '/approve …');
         const res = await apiFetch(`/api/staging-tickets/${id}/approve`, 'POST', {
             ticket_type:     ticketType,
             ticket_priority: priority,
+            scale:           scale || null,
         });
         const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
         console.log(`✅ Approve SUCCESS (${elapsed}s)`, res);
@@ -893,4 +921,11 @@ async function fetchEmailInbox(silent = false) {
     }
 }
 </script>
+{{-- Load custom-dd component (sama dengan halaman admin lain). filemtime
+     cache buster supaya production auto-invalidate setiap deploy. --}}
+@php
+    $customDdPath = public_path('js/custom-dropdown.js');
+    $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
+@endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 @endpush

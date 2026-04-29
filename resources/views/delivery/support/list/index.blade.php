@@ -73,11 +73,11 @@
             </div>
         </div>
 
-        {{-- Search Bar --}}
+        {{-- Search Bar — selaras dengan style input pada Create form (rounded-lg + border eksplisit + padding seragam) --}}
         <div class="p-4">
             <input type="search" id="support-search"
                 placeholder="Search by client, ticket ID, or description..."
-                class="block w-full border-gray-300 rounded-md shadow-sm primary-focus transition text-sm">
+                class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus transition text-sm px-4 py-2.5">
         </div>
 
         {{-- MOBILE VIEW: Card Layout --}}

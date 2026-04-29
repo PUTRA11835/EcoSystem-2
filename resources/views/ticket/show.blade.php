@@ -214,18 +214,19 @@
                 {{-- Hidden file input (button injected into Quill toolbar via JS) --}}
                 <input type="file" id="attachInput" multiple class="hidden"
                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar,.csv">
-                <div class="flex items-center justify-end mt-2 mb-1 gap-2">
-                    <span id="attachCount" class="hidden text-xs text-blue-600 font-medium mr-auto"></span>
-                    {{-- Send buttons --}}
+                <div class="flex items-center mt-2 mb-1 gap-2">
+                    {{-- Internal Note dipindah ke kiri agar tidak bersebelahan dengan Send (mencegah salah klik) --}}
                     <button onclick="sendReply('internal_note')" class="inline-flex items-center px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg hover:bg-amber-100 transition-all duration-200">
                         Internal Note
                     </button>
+                    <span id="attachCount" class="hidden text-xs text-blue-600 font-medium ml-2"></span>
+                    {{-- Send button dipisah ke pojok kanan --}}
                     @if($ticket->channel === 'email')
-                    <button onclick="sendReply('reply')" class="inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
+                    <button onclick="sendReply('reply')" class="ml-auto inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
                         Send via Email
                     </button>
                     @else
-                    <button onclick="sendReply('reply')" class="inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
+                    <button onclick="sendReply('reply')" class="ml-auto inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
                         Send Reply
                     </button>
                     @endif

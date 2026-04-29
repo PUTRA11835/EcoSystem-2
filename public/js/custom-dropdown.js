@@ -12,6 +12,11 @@
  *   input[type=hidden] — hidden input that holds the value (read via getElementById)
  */
 
+// Threshold item count untuk otomatis menampilkan search input.
+// Dropdown dengan ≤ jumlah ini tidak perlu search (mis. Type, Priority, Status).
+// Bisa di-override per dropdown via data-searchable="true|false".
+const _DD_SEARCH_THRESHOLD = 7;
+
 function initCustomDropdowns(root) {
     const scope = root || document;
     scope.querySelectorAll('.custom-dd').forEach(dd => {
@@ -27,19 +32,74 @@ function initCustomDropdowns(root) {
 
         if (!btn || !panel || !hidden) return;
 
+        // Back-reference dd → panel. Penting untuk mode fixed: saat panel
+        // di-detach ke <body>, dd.querySelector('.custom-dd-panel') return
+        // null karena panel bukan lagi descendant dd. _selectItem butuh ref
+        // ini supaya bisa menutup panel setelah item dipilih.
+        dd._ddPanel = panel;
+
+        // ── Search input (auto untuk dropdown dengan banyak opsi) ────────────
+        // Hitung opsi "real" (kecuali placeholder data-value="") supaya
+        // dropdown 8 item dengan placeholder = 7 real → tidak dapat search.
+        // Override eksplisit: data-searchable="true" / "false" di .custom-dd.
+        let realItemCount = 0;
+        items.forEach(it => { if ((it.dataset.value || '') !== '') realItemCount++; });
+        const wantSearch = (dd.dataset.searchable === 'true')
+            || (dd.dataset.searchable !== 'false' && realItemCount > _DD_SEARCH_THRESHOLD);
+
+        let searchInput = null;
+        if (wantSearch) {
+            searchInput = document.createElement('input');
+            searchInput.type = 'text';
+            searchInput.placeholder = 'Search…';
+            searchInput.className = 'custom-dd-search';
+            searchInput.style.cssText = 'display:block;width:100%;padding:0.5rem 0.75rem;font-size:0.875rem;border:0;border-bottom:1px solid #f3f4f6;outline:none;background:#fff;position:sticky;top:0;z-index:1;';
+            // Insert paling atas panel, di atas item-item
+            panel.insertBefore(searchInput, panel.firstChild);
+
+            // Cegah klik di input bubble ke document → menutup dropdown
+            searchInput.addEventListener('click',     e => e.stopPropagation());
+            searchInput.addEventListener('mousedown', e => e.stopPropagation());
+
+            // Filtering
+            searchInput.addEventListener('input', () => {
+                const q = searchInput.value.toLowerCase().trim();
+                items.forEach(item => {
+                    // Hormat .hidden eksternal (mis. filter-value-item ticket page
+                    // yang di-toggle via data-for) — jangan pernah tampakkan
+                    // item yang sudah di-hide oleh logika lain.
+                    if (item.classList.contains('hidden')) return;
+                    const match = !q || item.textContent.toLowerCase().includes(q);
+                    item.style.display = match ? '' : 'none';
+                });
+            });
+
+            panel._ddSearch = searchInput;
+        }
+
         btn.addEventListener('click', e => {
             e.stopPropagation();
             const isOpen = !panel.classList.contains('hidden');
             _closeAllDropdowns();
             if (!isOpen) {
                 if (useFixed) {
-                    _positionFixed(btn, panel);
+                    // Order: detach ke body → set inline positioning (panel masih
+                    // hidden, tidak masalah karena _positionFixed pakai estimasi
+                    // tinggi dari inline max-height, bukan scrollHeight) → lepas
+                    // class hidden. Saat panel jadi visible, sudah di posisi
+                    // benar — tidak ada flash di posisi salah.
                     document.body.appendChild(panel);
                     panel._ddOwner = dd;
+                    _positionFixed(btn, panel);
                 }
                 panel.classList.remove('hidden');
                 const arrow = dd.querySelector('.custom-dd-arrow');
                 if (arrow) arrow.classList.add('rotate-180');
+
+                // Auto-focus search input setelah panel render.
+                if (panel._ddSearch) {
+                    requestAnimationFrame(() => panel._ddSearch.focus());
+                }
             }
         });
 
@@ -59,22 +119,158 @@ function initCustomDropdowns(root) {
     if (!window._customDdListenerAdded) {
         window._customDdListenerAdded = true;
         document.addEventListener('click', _closeAllDropdowns);
-        window.addEventListener('scroll', _closeAllDropdowns, true);
+        window.addEventListener('scroll', _onScrollMaybeClose, true);
         window.addEventListener('resize', _closeAllDropdowns);
+    }
+}
+
+function _onScrollMaybeClose(e) {
+    // Scroll di dalam panel itu sendiri (user sedang scroll opsi) → biarkan.
+    const t = e.target;
+    if (t && t.nodeType === 1 && t.closest && t.closest('.custom-dd-panel')) return;
+
+    // Untuk panel mode fixed, REPOSISI mengikuti tombol bukan tutup — UX lebih
+    // baik & tidak frustrating saat user scroll halaman dengan dropdown terbuka.
+    // Kalau tombol sudah keluar viewport, baru tutup karena panel jadi
+    // "ngambang" lepas dari konteksnya.
+    let repositioned = false;
+    document.querySelectorAll('.custom-dd-panel:not(.hidden)').forEach(p => {
+        const owner = p._ddOwner;
+        // Hanya panel mode fixed yang punya _ddOwner & sudah pindah ke <body>
+        if (!owner || p.parentElement !== document.body) return;
+        const btn = owner.querySelector('.custom-dd-btn');
+        if (!btn) return;
+        const r = btn.getBoundingClientRect();
+        // Tombol keluar viewport → tutup
+        if (r.bottom < 0 || r.top > window.innerHeight) {
+            _closeAllDropdowns();
+            return;
+        }
+        // Update posisi panel mengikuti tombol
+        p.style.top  = `${r.bottom + 4}px`;
+        p.style.left = `${r.left}px`;
+        repositioned = true;
+    });
+    // Untuk panel mode non-fixed (panel masih di dalam .custom-dd) → tetap tutup
+    // karena `position:absolute` relatif ke wrapper sehingga tidak ada masalah
+    // posisi, tapi page scroll biasanya berarti user pindah konteks.
+    if (!repositioned) {
+        document.querySelectorAll('.custom-dd-panel:not(.hidden)').forEach(p => {
+            // Skip yang sudah di-detach (sudah di-handle di atas)
+            if (p.parentElement === document.body) return;
+            _closeDropdown(p);
+        });
     }
 }
 
 function _positionFixed(btn, panel) {
     const r = btn.getBoundingClientRect();
-    panel.style.cssText = `position:fixed;top:${r.bottom + 4}px;left:${r.left}px;width:${r.width}px;z-index:9999;`;
+
+    // Simpan inline max-height ASLI (dari markup) sekali saja.
+    if (panel._origMaxHeight === undefined) {
+        panel._origMaxHeight = panel.style.maxHeight || '';
+    }
+
+    // Set core fixed positioning properties.
+    panel.style.position = 'fixed';
+    panel.style.left     = `${r.left}px`;
+    panel.style.width    = `${r.width}px`;
+    panel.style.zIndex   = '9999';
+
+    // Estimasi tinggi panel hanya dari inline max-height (lebih reliable
+    // daripada scrollHeight yang bisa 0 di edge case render). Default 280
+    // kalau markup tidak set max-height.
+    const margin     = 8;
+    const spaceBelow = window.innerHeight - r.bottom - margin;
+    const spaceAbove = r.top - margin;
+    const estimateH  = parseInt(panel._origMaxHeight, 10) || 280;
+
+    // Reset max-height ke nilai asli sebelum hitung penempatan.
+    panel.style.maxHeight = panel._origMaxHeight;
+
+    // PENTING: saat flip ke atas (set bottom), kita HARUS set `top: auto` —
+    // bukan `top: ''`. Markup punya class Tailwind `top-full` (top:100%) yang
+    // jadi aktif kembali begitu inline top di-clear, dan kombinasi `top:100%`
+    // + `bottom:Ypx` → panel height jadi 0 → invisible.
+    // Sebaliknya, saat tampil di bawah (set top), `bottom: auto` mencegah
+    // residual inline bottom dari run sebelumnya.
+    //
+    // Pilih sisi & cap tinggi:
+    // 1. Cukup di bawah → tampil di bawah dengan max-height asli
+    // 2. Tidak cukup di bawah tapi cukup di atas → flip ke atas
+    // 3. Dua-duanya sempit → pilih yang lebih luas + cap max-height ke ruang itu
+    if (estimateH <= spaceBelow) {
+        panel.style.top    = `${r.bottom + 4}px`;
+        panel.style.bottom = 'auto';
+    } else if (estimateH <= spaceAbove) {
+        panel.style.top    = 'auto';
+        panel.style.bottom = `${window.innerHeight - r.top + 4}px`;
+    } else {
+        // Dua-duanya sempit — pilih sisi yang lebih luas, cap max-height
+        const cap = Math.max(120, Math.max(spaceBelow, spaceAbove));
+        if (spaceBelow >= spaceAbove) {
+            panel.style.top    = `${r.bottom + 4}px`;
+            panel.style.bottom = 'auto';
+        } else {
+            panel.style.top    = 'auto';
+            panel.style.bottom = `${window.innerHeight - r.top + 4}px`;
+        }
+        panel.style.maxHeight = `${cap}px`;
+    }
+}
+
+// Helper: bersihkan property fixed-mode dan restore max-height asli markup.
+function _clearFixedStyles(panel) {
+    panel.style.position = '';
+    panel.style.top      = '';
+    panel.style.bottom   = '';
+    panel.style.left     = '';
+    panel.style.width    = '';
+    panel.style.zIndex   = '';
+    // Restore max-height asli (yang dari markup `style="max-height:..."`).
+    // Jika _positionFixed sempat override, sini kembalikan ke nilai semula.
+    if (panel._origMaxHeight !== undefined) {
+        panel.style.maxHeight = panel._origMaxHeight;
+    }
+}
+
+// Helper: reset search input + munculkan kembali semua item saat panel ditutup.
+// Tanpa ini, search filter sebelumnya akan tetap aktif saat panel dibuka lagi.
+function _resetSearchState(panel) {
+    if (!panel._ddSearch) return;
+    panel._ddSearch.value = '';
+    panel.querySelectorAll('.custom-dd-item').forEach(item => {
+        // Jangan ubah item yang di-hide oleh logika eksternal (.hidden class).
+        if (item.classList.contains('hidden')) return;
+        item.style.display = '';
+    });
+}
+
+// Helper: tutup satu panel (dipakai oleh _onScrollMaybeClose untuk panel non-fixed)
+function _closeDropdown(p) {
+    p.classList.add('hidden');
+    _resetSearchState(p);
+    const owner = p._ddOwner || p.closest('.custom-dd');
+    if (owner) {
+        const arrow = owner.querySelector('.custom-dd-arrow');
+        if (arrow) arrow.classList.remove('rotate-180');
+        if (p._ddOwner && p.parentElement !== p._ddOwner) {
+            p._ddOwner.appendChild(p);
+            _clearFixedStyles(p);
+        }
+    }
 }
 
 function _selectItem(dd, val, text) {
-    const panel  = dd.querySelector('.custom-dd-panel') || document.querySelector(`.custom-dd-panel[data-dd-id="${dd.dataset.ddId}"]`);
+    // Cari panel via back-reference dulu — di mode fixed, panel sudah pindah
+    // ke <body> sehingga querySelector dari dd return null. Tanpa fallback
+    // ini, panel tidak pernah ditutup setelah user pilih item.
+    const panel  = dd._ddPanel || dd.querySelector('.custom-dd-panel');
     const label  = dd.querySelector('.custom-dd-label');
     const arrow  = dd.querySelector('.custom-dd-arrow');
     const hidden = dd.querySelector('input[type="hidden"]');
-    const items  = dd.querySelectorAll('.custom-dd-item');
+    // Items juga ikut pindah ke body bersama panel — query via panel, bukan dd.
+    const items  = panel ? panel.querySelectorAll('.custom-dd-item') : dd.querySelectorAll('.custom-dd-item');
 
     if (hidden) hidden.value = val;
 
@@ -89,10 +285,13 @@ function _selectItem(dd, val, text) {
 
     if (panel) {
         panel.classList.add('hidden');
+        _resetSearchState(panel);
         // Re-attach to original owner if detached via fixed mode
         if (panel._ddOwner && panel.parentElement !== panel._ddOwner) {
             panel._ddOwner.appendChild(panel);
-            panel.style.cssText = '';
+            // Hanya bersihkan property fixed-mode — pertahankan inline style asli
+            // (mis. `style="max-height:280px"`) supaya tidak hilang saat reuse.
+            _clearFixedStyles(panel);
         }
     }
     if (arrow) arrow.classList.remove('rotate-180');
@@ -101,6 +300,7 @@ function _selectItem(dd, val, text) {
 function _closeAllDropdowns() {
     document.querySelectorAll('.custom-dd-panel:not(.hidden)').forEach(p => {
         p.classList.add('hidden');
+        _resetSearchState(p);
         const owner = p._ddOwner || p.closest('.custom-dd');
         if (owner) {
             const arrow = owner.querySelector('.custom-dd-arrow');
@@ -108,7 +308,7 @@ function _closeAllDropdowns() {
             // Re-attach fixed panel back to its owner
             if (p._ddOwner && p.parentElement !== p._ddOwner) {
                 p._ddOwner.appendChild(p);
-                p.style.cssText = '';
+                _clearFixedStyles(p);
             }
         }
     });

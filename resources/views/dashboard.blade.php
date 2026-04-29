@@ -838,6 +838,18 @@
     </script>
     @stack('scripts')
 
+    {{-- ==================== GLOBAL SELECT ENHANCER ====================
+         Auto-styles every native <select> across the app dengan UI bergaya
+         custom-dd (button + panel + chevron animasi). <select> asli tetap di
+         DOM (visually hidden) sehingga form submission, kode legacy yang
+         membaca .value, dan listener change/onchange tetap berfungsi.
+         Opt-out per element: tambahkan atribut `data-no-enhance`. --}}
+    @php
+        $selectEnhancePath = public_path('js/select-enhance.js');
+        $selectEnhanceVer  = file_exists($selectEnhancePath) ? filemtime($selectEnhancePath) : time();
+    @endphp
+    <script src="/js/select-enhance.js?v={{ $selectEnhanceVer }}"></script>
+
     <!-- ==================== NOTIFICATION BELL JS ==================== -->
     <script>
     (function () {
