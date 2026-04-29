@@ -189,7 +189,7 @@ class EmployeeEducationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Employee education record data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -313,7 +313,7 @@ class EmployeeEducationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Employee education record data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }

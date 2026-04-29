@@ -49,6 +49,19 @@ class TicketController extends Controller
     }
 
     /**
+     * Lightweight endpoint untuk polling — kembalikan timestamp update terakhir dari DB lokal.
+     * Tidak menyentuh Graph API, aman dipanggil dari browser setiap 30 detik.
+     */
+    public function latestUpdate()
+    {
+        $latest = DB::table('ticket')
+            ->whereNull('deleted_at')
+            ->max('last_message_at');
+
+        return response()->json(['latest_update' => $latest]);
+    }
+
+    /**
      * Display a listing of tickets
      */
     public function index(Request $request)
@@ -156,6 +169,8 @@ class TicketController extends Controller
                     'last_message_at' => $ticket->last_message_at,
                     'last_customer_reply_at' => $ticket->last_customer_reply_at,
                     'last_agent_reply_at' => $ticket->last_agent_reply_at,
+                    'last_internal_note_at'        => $ticket->last_internal_note_at,
+                    'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -267,7 +282,7 @@ class TicketController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Ticket creation data is invalid. Provide a valid customer_id, customer_code, or external_number.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -455,6 +470,8 @@ class TicketController extends Controller
                     'last_message_at' => $ticket->last_message_at,
                     'last_customer_reply_at' => $ticket->last_customer_reply_at,
                     'last_agent_reply_at' => $ticket->last_agent_reply_at,
+                    'last_internal_note_at'        => $ticket->last_internal_note_at,
+                    'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -516,7 +533,7 @@ class TicketController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Ticket assignment data is invalid. man_days is required and member IDs must be valid.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -1022,6 +1039,8 @@ class TicketController extends Controller
                 'last_message_at' => $ticket->last_message_at,
                 'last_customer_reply_at' => $ticket->last_customer_reply_at,
                 'last_agent_reply_at' => $ticket->last_agent_reply_at,
+                'last_internal_note_at'        => $ticket->last_internal_note_at,
+                'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
                 'customer' => $ticket->customer ? [
                     'customer_id' => $ticket->customer->customer_id,
                     'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -1098,7 +1117,7 @@ class TicketController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Ticket update data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -1514,7 +1533,7 @@ class TicketController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Ticket status is invalid. Allowed values: open, in_progress, hold, cancel, closed, reply, wait_to_close.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -2176,7 +2195,7 @@ class TicketController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'The support_id is required and must reference an existing delivery support record.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -2400,7 +2419,7 @@ class TicketController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Delivery list entry data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }

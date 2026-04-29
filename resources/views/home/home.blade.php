@@ -9,17 +9,18 @@
 <div class="space-y-6">
 
     {{-- Ticket Status Stats --}}
-    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
         @php
             $stats = $data['ticket_stats'] ?? [];
             $statCards = [
-                ['label' => 'Total',             'key' => 'total',             'color' => 'text-gray-900'],
-                ['label' => 'Open',              'key' => 'open',              'color' => 'text-blue-600'],
-                ['label' => 'In Process',        'key' => 'in_process',        'color' => 'text-purple-600'],
-                ['label' => 'Action Required',   'key' => 'action_required',   'color' => 'text-orange-500'],
-                ['label' => 'Proposed Solution', 'key' => 'proposed_solution', 'color' => 'text-teal-600'],
-                ['label' => 'Closed',            'key' => 'closed',            'color' => 'text-green-600'],
-                ['label' => 'Pending Approval',  'key' => 'pending_approval',  'color' => 'text-orange-500'],
+                ['label' => 'Total',          'key' => 'total',         'color' => 'text-gray-900'],
+                ['label' => 'Open',           'key' => 'open',          'color' => 'text-blue-600'],
+                ['label' => 'In Progress',    'key' => 'in_progress',   'color' => 'text-purple-600'],
+                ['label' => 'Hold',           'key' => 'hold',          'color' => 'text-amber-500'],
+                ['label' => 'Cancel',         'key' => 'cancel',        'color' => 'text-red-400'],
+                ['label' => 'Closed',         'key' => 'closed',        'color' => 'text-green-600'],
+                ['label' => 'Reply',          'key' => 'reply',         'color' => 'text-indigo-600'],
+                ['label' => 'Wait to Close',  'key' => 'wait_to_close', 'color' => 'text-orange-500'],
             ];
         @endphp
         @foreach($statCards as $card)
@@ -199,17 +200,18 @@
 <div class="space-y-6">
 
     {{-- Ticket Status Stats --}}
-    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
         @php
             $stats = $data['ticket_stats'] ?? [];
             $statCards = [
-                ['label' => 'Total',             'key' => 'total',             'color' => 'text-gray-900'],
-                ['label' => 'Open',              'key' => 'open',              'color' => 'text-blue-600'],
-                ['label' => 'In Process',        'key' => 'in_process',        'color' => 'text-purple-600'],
-                ['label' => 'Action Required',   'key' => 'action_required',   'color' => 'text-orange-500'],
-                ['label' => 'Proposed Solution', 'key' => 'proposed_solution', 'color' => 'text-teal-600'],
-                ['label' => 'Closed',            'key' => 'closed',            'color' => 'text-green-600'],
-                ['label' => 'Pending Approval',  'key' => 'pending_approval',  'color' => 'text-orange-500'],
+                ['label' => 'Total',          'key' => 'total',         'color' => 'text-gray-900'],
+                ['label' => 'Open',           'key' => 'open',          'color' => 'text-blue-600'],
+                ['label' => 'In Progress',    'key' => 'in_progress',   'color' => 'text-purple-600'],
+                ['label' => 'Hold',           'key' => 'hold',          'color' => 'text-amber-500'],
+                ['label' => 'Cancel',         'key' => 'cancel',        'color' => 'text-red-400'],
+                ['label' => 'Closed',         'key' => 'closed',        'color' => 'text-green-600'],
+                ['label' => 'Reply',          'key' => 'reply',         'color' => 'text-indigo-600'],
+                ['label' => 'Wait to Close',  'key' => 'wait_to_close', 'color' => 'text-orange-500'],
             ];
         @endphp
         @foreach($statCards as $card)

@@ -55,14 +55,14 @@ class DashboardController extends Controller
                 $base = DB::table('ticket')->whereNull('deleted_at');
 
                 $dashboardData['ticket_stats'] = [
-                    'total'             => (clone $base)->count(),
-                    'open'              => (clone $base)->where('status', 'open')->count(),
-                    'in_process'        => (clone $base)->where('jarvies_status', 'in process')->count(),
-                    'action_required'   => (clone $base)->where('jarvies_status', 'action required')->count(),
-                    'proposed_solution' => (clone $base)->where('jarvies_status', 'proposed solution')->count(),
-                    'closed'            => (clone $base)->where('status', 'closed')->count(),
-                    'pending_approval'  => (clone $base)->where('status', 'wait_to_close')->count(),
-                    'very_high'         => (clone $base)->where('ticket_priority', 'Very High')->whereNotIn('status', ['closed', 'cancel'])->count(),
+                    'total'          => (clone $base)->count(),
+                    'open'           => (clone $base)->where('status', 'open')->count(),
+                    'in_progress'    => (clone $base)->where('status', 'in_progress')->count(),
+                    'hold'           => (clone $base)->where('status', 'hold')->count(),
+                    'cancel'         => (clone $base)->where('status', 'cancel')->count(),
+                    'closed'         => (clone $base)->where('status', 'closed')->count(),
+                    'reply'          => (clone $base)->where('status', 'reply')->count(),
+                    'wait_to_close'  => (clone $base)->where('status', 'wait_to_close')->count(),
                 ];
 
                 // Chart: all tickets created in last 30 days
@@ -126,18 +126,14 @@ class DashboardController extends Controller
                 $base = DB::table('ticket')->whereIn('ticket_id', $ticketIds);
 
                 $dashboardData['ticket_stats'] = [
-                    'total'             => (clone $base)->count(),
-                    'open'              => (clone $base)->where(function($q) {
-                                              $q->where('jarvies_status', 'open')
-                                                ->orWhere(function($q2) {
-                                                    $q2->where('status', 'open')->whereNull('jarvies_status');
-                                                });
-                                          })->count(),
-                    'in_process'        => (clone $base)->where('jarvies_status', 'in process')->count(),
-                    'action_required'   => (clone $base)->where('jarvies_status', 'action required')->count(),
-                    'proposed_solution' => (clone $base)->where('jarvies_status', 'proposed solution')->count(),
-                    'closed'            => (clone $base)->where('status', 'closed')->count(),
-                    'pending_approval'  => (clone $base)->where('status', 'wait_to_close')->count(),
+                    'total'          => (clone $base)->count(),
+                    'open'           => (clone $base)->where('status', 'open')->count(),
+                    'in_progress'    => (clone $base)->where('status', 'in_progress')->count(),
+                    'hold'           => (clone $base)->where('status', 'hold')->count(),
+                    'cancel'         => (clone $base)->where('status', 'cancel')->count(),
+                    'closed'         => (clone $base)->where('status', 'closed')->count(),
+                    'reply'          => (clone $base)->where('status', 'reply')->count(),
+                    'wait_to_close'  => (clone $base)->where('status', 'wait_to_close')->count(),
                 ];
 
                 // Chart: tickets created in last 30 days grouped by date

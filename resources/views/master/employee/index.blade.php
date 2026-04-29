@@ -407,7 +407,7 @@
             <div id="crRoleCheckboxes" class="grid grid-cols-2 gap-2">
                 <p class="col-span-2 text-sm text-gray-400">Loading roles...</p>
             </div>
-            <p id="crRoleEmpty" class="hidden text-sm text-center text-gray-400 py-6">Tidak ada role yang cocok</p>
+            <p id="crRoleEmpty" class="hidden text-sm text-center text-gray-400 py-6">No matching roles found</p>
         </div>
 
         <!-- Footer -->
@@ -828,7 +828,7 @@
                 closeModal();
                 fetchEmployees();
             } else {
-                showApiErrors(data, 'Gagal menyimpan employee');
+                showApiErrors(data, 'Failed to save employee record');
             }
         } catch (error) {
             showNotification('An error occurred while saving employee', 'error');

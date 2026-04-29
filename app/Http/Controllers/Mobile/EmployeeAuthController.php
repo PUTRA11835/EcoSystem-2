@@ -56,7 +56,7 @@ class EmployeeAuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Akses ditolak. Hanya employee yang dapat login melalui aplikasi ini.',
+                'message' => 'Access denied. This application is restricted to employees only.',
                 'code'    => 'NOT_EMPLOYEE',
             ], 403);
         }
@@ -195,7 +195,7 @@ class EmployeeAuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Refresh token sudah expired. Silakan login ulang.',
+                'message' => 'Your refresh token has expired. Please log in again.',
                 'code'    => 'REFRESH_TOKEN_EXPIRED',
             ], 401);
         }
@@ -213,7 +213,7 @@ class EmployeeAuthController extends Controller
         if (!$authUser->isEmployee()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Akses ditolak.',
+                'message' => 'Access denied. Your account does not have employee privileges.',
                 'code'    => 'NOT_EMPLOYEE',
             ], 403);
         }

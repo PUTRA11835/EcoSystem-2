@@ -179,7 +179,7 @@ class EmployeeBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Bank account data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -290,7 +290,7 @@ class EmployeeBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Bank account data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }

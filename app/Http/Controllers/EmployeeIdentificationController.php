@@ -108,7 +108,7 @@ class EmployeeIdentificationController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Employee identification data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -202,7 +202,7 @@ class EmployeeIdentificationController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Employee identification data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }

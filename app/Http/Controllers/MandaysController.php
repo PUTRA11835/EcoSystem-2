@@ -156,7 +156,7 @@ class MandaysController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('saveCustomerDraft error', ['e' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => 'Server error.'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to save the customer mandays draft. Please try again.'], 500);
         }
     }
 
@@ -625,7 +625,7 @@ class MandaysController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('saveInternalProposal error', ['e' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            return response()->json(['success' => false, 'message' => 'Server error'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to save the internal mandays proposal. Please try again.'], 500);
         }
 
         return response()->json([
@@ -724,7 +724,7 @@ class MandaysController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('approveInternalProposal error', ['e' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => 'Server error'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to approve the internal mandays proposal. Please try again.'], 500);
         }
 
         return response()->json([
@@ -1226,14 +1226,14 @@ class MandaysController extends Controller
                         <strong>Total Man Days: {$total}</strong>
                     </p>
                     <p style="margin:16px 0 0;font-size:12px;color:#666;">
-                        Silakan hubungi kami jika ada pertanyaan mengenai proposal ini.
+                        Please contact us if you have any questions regarding this proposal.
                     </p>
                 </td>
             </tr>
             <tr>
                 <td style="padding:12px 24px;background:#f3f4f6;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 6px 6px;">
                     <p style="margin:0;font-size:11px;color:#6b7280;">
-                        Dikirim oleh: <strong>{$agent}</strong> &nbsp;&middot;&nbsp; PT Eclectic Consulting Helpdesk
+                        Sent by: <strong>{$agent}</strong> &nbsp;&middot;&nbsp; PT Eclectic Consulting Helpdesk
                     </p>
                 </td>
             </tr>

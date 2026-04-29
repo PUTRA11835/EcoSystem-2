@@ -113,7 +113,7 @@ class TicketMessageController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Ticket message data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -123,7 +123,7 @@ class TicketMessageController extends Controller
         if (empty(trim(strip_tags($request->input('message_body', '')))) && !$hasFiles) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ketik pesan atau lampirkan file.'
+                'message' => 'A message body or at least one attachment is required.'
             ], 422);
         }
 
@@ -254,9 +254,11 @@ class TicketMessageController extends Controller
                     $this->saveLocalAttachments($uploadedFiles, $message, $ticketId, $senderId);
                 }
 
-                // Internal note advances last_message_at so others see the unread indicator,
-                // but does NOT update last_agent_reply_at — only a public reply clears unread.
-                $ticket->update(['last_message_at' => now()]);
+                $ticket->update([
+                    'last_message_at'              => now(),
+                    'last_internal_note_at'        => now(),
+                    'last_internal_note_sender_id' => $senderId,
+                ]);
 
                 // Fire mention notifications (non-fatal)
                 if (!empty($mentionedEmployeeIds) || !empty($mentionedRoleIds)) {

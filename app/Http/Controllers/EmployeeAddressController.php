@@ -199,7 +199,7 @@ class EmployeeAddressController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Employee address data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -347,7 +347,7 @@ class EmployeeAddressController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Employee address data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }

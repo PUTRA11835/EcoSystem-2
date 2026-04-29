@@ -6,7 +6,7 @@
             <!-- Header -->
             <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
                 <div>
-                    <h3 class="text-xl font-bold text-gray-900" id="modal-title">Konfigurasi Fase Proyek</h3>
+                    <h3 class="text-xl font-bold text-gray-900" id="modal-title">Phase Configuration</h3>
                     <p class="text-sm text-gray-500 mt-0.5">Manage project phases and weights</p>
                 </div>
                 <button onclick="closePhaseConfigModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
@@ -21,7 +21,7 @@
                 <!-- Current Phases -->
                 <div class="space-y-4">
                     <div class="bg-gray-50 rounded-lg p-3 sm:p-4">
-                        <h4 class="text-sm font-semibold text-gray-700 mb-3">Fase Aktif</h4>
+                        <h4 class="text-sm font-semibold text-gray-700 mb-3">Active Phases</h4>
                         <div id="verticalPhasesList" class="space-y-2">
                             @foreach($support->phases()->where('orientation', 'vertical')->orderBy('order_sequence')->get() as $phase)
                                 <div class="phase-item bg-white p-3 rounded border border-gray-200"
@@ -90,38 +90,38 @@
 
                         <!-- Total Weight Indicator -->
                         <div class="mt-3 flex justify-between items-center text-sm">
-                            <span class="text-gray-600">Total Bobot:</span>
+                            <span class="text-gray-600">Total Weight:</span>
                             <span id="verticalTotalWeight" class="font-bold">0%</span>
                         </div>
 
                         <!-- Warning if not 100% -->
                         <div id="weightWarning" class="hidden mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs sm:text-sm text-yellow-800">
-                            ⚠️ Total bobot harus 100% untuk dapat menyimpan konfigurasi
+                            ⚠️ Total weight must equal 100% before saving the configuration.
                         </div>
                     </div>
 
                     <!-- Add New Phase -->
                     <div class="border-t pt-4">
-                        <h4 class="text-sm font-semibold text-gray-700 mb-3">Tambah Fase Vertikal Baru</h4>
+                        <h4 class="text-sm font-semibold text-gray-700 mb-3">Add New Vertical Phase</h4>
                         <div class="space-y-3">
                             <div class="flex flex-col sm:flex-row sm:items-center gap-3">
                                 <input type="text"
                                     id="verticalPhaseName"
-                                    placeholder="Nama fase baru..."
+                                    placeholder="Phase name..."
                                     class="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                 <div class="flex items-center space-x-2">
-                                    <label class="text-sm text-gray-600">Warna:</label>
+                                    <label class="text-sm text-gray-600">Color:</label>
                                     <input type="color"
                                         id="verticalPhaseColor"
                                         value="#3B82F6"
                                         class="h-10 w-16 border border-gray-300 rounded cursor-pointer"
-                                        title="Pilih warna fase">
+                                        title="Pick phase color">
                                 </div>
                             </div>
                             <div class="flex flex-col sm:flex-row sm:items-center gap-3">
                                 <input type="number"
                                     id="verticalPhaseWeight"
-                                    placeholder="Bobot (%) *"
+                                    placeholder="Weight (%) *"
                                     class="w-full sm:w-32 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     min="0" max="100" step="0.1">
                                 <label class="flex items-center space-x-2 cursor-pointer">
@@ -135,11 +135,11 @@
                                     <svg class="inline-block w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                                     </svg>
-                                    Tambah ke List
+                                    Add to List
                                 </button>
                             </div>
                             <p class="text-xs text-gray-500">
-                                💡 Fase akan ditambahkan ke list di atas. Klik "Simpan Konfigurasi" untuk menyimpan semua perubahan.
+                                💡 The phase will be added to the list above. Click "Save Configuration" to apply all changes.
                             </p>
                         </div>
                     </div>
@@ -150,12 +150,12 @@
             <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
                 <button onclick="closePhaseConfigModal()"
                     class="px-5 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-                    Batal
+                    Cancel
                 </button>
                 <button onclick="saveAllPhaseChanges()"
                     id="saveConfigBtn"
                     class="inline-flex items-center gap-2 px-5 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all shadow-sm">
-                    Simpan Konfigurasi
+                    Save Configuration
                 </button>
             </div>
         </div>
@@ -168,7 +168,7 @@
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg">
             <!-- Header -->
             <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
-                <h3 class="text-xl font-bold text-gray-900" id="confirm-title">Konfirmasi Hapus Fase</h3>
+                <h3 class="text-xl font-bold text-gray-900" id="confirm-title">Confirm Phase Deletion</h3>
                 <button onclick="closeConfirmDeleteModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -188,7 +188,7 @@
                     </div>
                     <div class="ml-4 flex-1">
                         <p class="text-sm text-gray-700 mb-2">
-                            Apakah Anda yakin ingin menghapus fase ini dari proyek?
+                            Are you sure you want to remove this phase from the project?
                         </p>
                         <div id="confirmDeletePhaseName" class="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
                             <div class="flex items-center space-x-2">
@@ -201,7 +201,7 @@
                                 <svg class="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
                                 </svg>
-                                <span>Fase akan ditandai untuk dihapus. Klik "Simpan Konfigurasi" untuk menerapkan perubahan.</span>
+                                <span>The phase will be marked for deletion. Click "Save Configuration" to apply the changes.</span>
                             </p>
                         </div>
                     </div>
@@ -212,14 +212,14 @@
             <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
                 <button onclick="closeConfirmDeleteModal()"
                     class="px-5 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-                    Batal
+                    Cancel
                 </button>
                 <button onclick="confirmDeletePhase()"
                     class="inline-flex items-center gap-2 px-5 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all shadow-sm">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                     </svg>
-                    Ya, Hapus Fase
+                    Yes, Delete Phase
                 </button>
             </div>
         </div>
@@ -890,7 +890,7 @@ window.saveAllPhaseChanges = async function() {
         console.error('❌ Error saving phase configuration:', error);
         if (typeof showNotification === 'function') {
             showNotification(
-                '❌ Gagal menyimpan: ' + (error.response?.data?.message || error.message),
+                '❌ Failed to save configuration: ' + (error.response?.data?.message || error.message),
                 'error'
             );
         }
@@ -913,7 +913,7 @@ window.closePhaseConfigModal = function() {
             window.phaseChanges.modified.size > 0;
 
         if (hasChanges) {
-            if (!confirm('Ada perubahan yang belum disimpan. Apakah Anda yakin ingin menutup?')) {
+            if (!confirm('You have unsaved changes. Are you sure you want to close without saving?')) {
                 return;
             }
         }

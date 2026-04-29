@@ -1,7 +1,7 @@
 @extends('dashboard')
-@section('title', 'Edit Isu Proyek')
-@section('page-title', 'Edit Isu')
-@section('page-subtitle', 'Ubah data isu proyek')
+@section('title', 'Edit Project Issue')
+@section('page-title', 'Edit Issue')
+@section('page-subtitle', 'Update project issue details')
 
 @section('content')
     <div class="px-4 sm:px-0">
@@ -11,9 +11,9 @@
             <div class="bg-white overflow-hidden shadow-md rounded-lg">
                 {{-- Header --}}
                 <div class="p-4 sm:p-6 border-b border-gray-200 bg-gray-50">
-                    <h3 class="text-lg sm:text-xl font-semibold text-gray-700">Edit Isu / Update</h3>
+                    <h3 class="text-lg sm:text-xl font-semibold text-gray-700">Edit Issue / Update</h3>
                     <p class="mt-1 text-xs sm:text-sm text-gray-600">
-                        Untuk Proyek: <span class="font-medium block sm:inline mt-1 sm:mt-0">{{ $update->project->description }}</span>
+                        For Project: <span class="font-medium block sm:inline mt-1 sm:mt-0">{{ $update->project->description }}</span>
                     </p>
                 </div>
                 
@@ -81,7 +81,7 @@
                                     id="status" 
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm sm:text-base" 
                                     required>
-                                <option value="">Pilih Status</option>
+                                <option value="">Select Status</option>
                                 @foreach(['Open', 'In Progress', 'Done', 'Closed', 'To Be Discussed', 'To Be Confirmed'] as $status)
                                     <option value="{{ $status }}" 
                                             {{ old('status', $update->status) == $status ? 'selected' : '' }}

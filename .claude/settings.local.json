@@ -90,13 +90,28 @@
       "Bash(grep -v \"{{--\\\\|//\")",
       "Bash(grep -l \"consultant_mandays\\\\|customer_mandays\" /c/EcoSystem-2/database/migrations/*.php)",
       "Bash(php artisan *)",
-      "Bash(git status *)"
+      "Bash(git status *)",
+      "Bash(grep -E \"'[^']*[A-Za-z]{2,}.*'|\\\\\"[^\\\\\"]*[A-Za-z]{2,}.*\\\\\"\")",
+      "Read(//c/Users/HP/AppData/Local/Temp/claude/c--EcoSystem-2/7f07f07a-3339-4bcb-91d8-bc0ac58e8ab4/tasks/**)",
+      "Bash(grep -v \"//.*\\\\b\\\\\\(en\\\\|English\\\\|translation\\\\\\)\\\\b\")",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Http\\\\Controllers\\\\TimesheetController.php\")",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Http\\\\Controllers\\\\TicketController.php\")",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Http\\\\Controllers\\\\TicketMessageController.php\")",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Http\\\\Controllers\\\\TicketViewController.php\")",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Http\\\\Controllers\\\\ReportingController.php\")",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\database\\\\migrations\\\\2026_04_28_161208_add_last_internal_note_at_to_ticket_table.php\")",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\database\\\\migrations\\\\2026_04_28_161756_add_last_internal_note_sender_to_ticket_table.php\")",
+      "Bash(node --input-type=module)",
+      "Bash(echo \"JS file readable: $?\")",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Http\\\\Controllers\\\\DashboardController.php\")",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Http\\\\Controllers\\\\EmailController.php\")"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",
       "c:\\JARVIES-new-main\\resources\\views",
       "c:\\JARVIES-new-main\\routes",
-      "C:\\EcoSystem-2\\s\\Log::error('Error retrieving timesheets');"
+      "C:\\EcoSystem-2\\s\\Log::error('Error retrieving timesheets');",
+      "c:\\k6-test"
     ]
   }
 }

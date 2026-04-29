@@ -110,7 +110,7 @@ class EmployeeFamilyController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Employee family member data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -170,7 +170,7 @@ class EmployeeFamilyController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Employee family member data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -338,7 +338,7 @@ class EmployeeFamilyController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Employee family member data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }

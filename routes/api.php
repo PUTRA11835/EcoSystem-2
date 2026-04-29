@@ -260,6 +260,7 @@ Route::middleware(['web'])->group(function () {
         // Static routes first
         Route::get('/', [TicketController::class, 'index']);
         Route::get('/my', [TicketController::class, 'myTickets']);
+        Route::get('/latest-update', [TicketController::class, 'latestUpdate']);
         Route::get('/statistics', [TicketController::class, 'statistics']);
         Route::get('/pending-confirmations', [TicketController::class, 'pendingConfirmations']);
         Route::get('/pending-member-changes', [TicketController::class, 'pendingMemberChanges']);
