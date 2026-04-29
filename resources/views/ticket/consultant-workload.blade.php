@@ -169,9 +169,11 @@
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Progress (%)</label>
             <div class="flex items-center gap-3 mt-2">
                 <input type="range" id="cpSlider" min="0" max="100" step="5" value="0"
-                    oninput="document.getElementById('cpValue').textContent = this.value + '%'"
+                    oninput="const v=Math.min(100,Math.max(0,+this.value));this.value=v;document.getElementById('cpValue').value=v"
                     class="flex-1 accent-indigo-600">
-                <span id="cpValue" class="text-sm font-bold text-indigo-600 w-10 text-right">0%</span>
+                <input type="number" id="cpValue" min="0" max="100" value="0"
+                    oninput="const v=Math.min(100,Math.max(0,+this.value||0));document.getElementById('cpSlider').value=v"
+                    class="w-16 text-sm font-bold text-indigo-600 border border-indigo-200 rounded-lg px-2 py-1 text-right focus:ring-2 focus:ring-indigo-400 focus:outline-none">
             </div>
         </div>
         <div class="mb-5">
@@ -339,7 +341,7 @@
         tickets.forEach(t => {
             const my = (t.consultant_details ?? []).find(d => d.employee_id == c.employee_id);
             if (my) {
-                allocMd += parseFloat(my.mandays) || 0;
+                allocMd += parseFloat(my.effective_md) || 0;
                 remainMd += parseFloat(my.remain_md) || 0;
             }
         });
@@ -411,7 +413,7 @@
         visibleTickets.forEach(t => {
             const my = (t.consultant_details ?? []).find(d => d.employee_id == c.employee_id);
             if (my) {
-                totalAllocMdMain += parseFloat(my.mandays) || 0;
+                totalAllocMdMain += parseFloat(my.effective_md) || 0;
                 totalAddMdMain += parseFloat(my.approved_additional) || 0;
                 totalRemainMain += parseFloat(my.remain_md) || 0;
             }
@@ -684,7 +686,7 @@
         document.getElementById('cpEmpName').textContent = empName;
         document.getElementById('cpSubject').textContent = subject;
         document.getElementById('cpSlider').value = currentPct;
-        document.getElementById('cpValue').textContent = currentPct + '%';
+        document.getElementById('cpValue').value = currentPct;
         document.getElementById('cpNote').value = currentNote ?? '';
         document.getElementById('consultantProgressModal').classList.remove('hidden');
         document.getElementById('consultantProgressModal').classList.add('flex');

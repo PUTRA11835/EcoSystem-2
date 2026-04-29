@@ -101,9 +101,11 @@
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Progress (%)</label>
             <div class="flex items-center gap-3 mt-2">
                 <input type="range" id="cpModalSlider" min="0" max="100" step="5" value="0"
-                    oninput="document.getElementById('cpModalValue').textContent = this.value + '%'"
+                    oninput="const v=Math.min(100,Math.max(0,+this.value));this.value=v;document.getElementById('cpModalValue').value=v"
                     class="flex-1 accent-indigo-600">
-                <span id="cpModalValue" class="text-sm font-bold text-indigo-600 w-10 text-right">0%</span>
+                <input type="number" id="cpModalValue" min="0" max="100" value="0"
+                    oninput="const v=Math.min(100,Math.max(0,+this.value||0));document.getElementById('cpModalSlider').value=v"
+                    class="w-16 text-sm font-bold text-indigo-600 border border-indigo-200 rounded-lg px-2 py-1 text-right focus:ring-2 focus:ring-indigo-400 focus:outline-none">
             </div>
         </div>
         <div class="mb-5">
@@ -409,8 +411,8 @@ function openCpModal(detailId, empName, subject, pct, note) {
     document.getElementById('cpModalDetailId').value       = detailId;
     document.getElementById('cpModalEmp').textContent      = empName;
     document.getElementById('cpModalSubject').textContent  = subject;
-    document.getElementById('cpModalSlider').value         = pct;
-    document.getElementById('cpModalValue').textContent    = pct + '%';
+    document.getElementById('cpModalSlider').value = pct;
+    document.getElementById('cpModalValue').value  = pct;
     document.getElementById('cpModalNote').value           = note ?? '';
     document.getElementById('cpModal').classList.remove('hidden');
     document.getElementById('cpModal').classList.add('flex');
