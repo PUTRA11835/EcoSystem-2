@@ -239,7 +239,6 @@ Route::middleware(['web'])->group(function () {
         Route::get('/', [\App\Http\Controllers\ConsultantWorkloadController::class, 'list']);
         Route::get('/{id}', [\App\Http\Controllers\ConsultantWorkloadController::class, 'detail']);
         Route::patch('/tickets/{ticketId}/progress', [\App\Http\Controllers\ConsultantWorkloadController::class, 'updateProgress']);
-        Route::patch('/consultant-progress/{detailId}', [\App\Http\Controllers\ConsultantWorkloadController::class, 'updateConsultantProgress']);
     });
 
     // ==================== STAGING TICKET ROUTES ====================
