@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
 
             DeliveryProjectSeeder::class,
             DbmlMissingTablesSeeder::class,
+            ConsultantWorkloadSeeder::class,
         ]);
     }
 }

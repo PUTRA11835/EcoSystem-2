@@ -428,7 +428,10 @@
             </span>
         </td>
         <td class="px-4 py-3 text-right font-semibold text-gray-800 tabular-nums">${totalAllocMdMain.toFixed(2)} md</td>
-        <td class="px-4 py-3 text-right font-semibold text-orange-600 tabular-nums">${wDays} d</td>
+        <td class="px-4 py-3 text-right font-semibold text-orange-600 tabular-nums">
+            ${wDays} d
+            <span class="ml-1 text-xs font-bold bg-orange-100 text-orange-700 rounded px-1 py-0.5">↑${Math.ceil(wDays)} d</span>
+        </td>
         <td class="px-4 py-3">
             <div class="flex items-center gap-2">
                 <div class="bg-gray-100 rounded-full h-2" style="width:100px">
@@ -470,6 +473,7 @@
                     <tr class="text-xs font-semibold text-blue-800 uppercase tracking-wide" style="background:#dbeafe">
                         <th class="pl-6 pr-3 py-2.5 text-left w-8">#</th>
                         <th class="px-3 py-2.5 text-left w-36">Ticket No.</th>
+                        <th class="px-3 py-2.5 text-left">Subject</th>
                         <th class="px-3 py-2.5 text-left w-20">Role</th>
                         <th class="px-3 py-2.5 text-left w-28">Status</th>
                         <th class="px-3 py-2.5 text-left w-20">Priority</th>
@@ -477,13 +481,12 @@
                         <th class="px-3 py-2.5 text-right w-24">Add. MD</th>
                         <th class="px-3 py-2.5 text-right w-36">Remain</th>
                         <th class="px-3 py-2.5 text-left w-48">Progress</th>
-                        <th class="px-3 py-2.5 text-left w-48">Notes</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${visibleTickets.map((t, idx) => ticketRow(t, idx + 1, c.employee_id, c.modules)).join('')}
                     <tr style="background:#eff6ff;border-top:1px solid #bfdbfe">
-                        <td colspan="5" class="pl-6 pr-3 py-2.5 text-xs text-left text-blue-700 font-semibold">
+                        <td colspan="6" class="pl-6 pr-3 py-2.5 text-xs text-left text-blue-700 font-semibold">
                             Total (${visibleTickets.length} ticket${visibleTickets.length > 1 ? 's' : ''})
                         </td>
                         <td class="px-3 py-2.5 text-right text-xs font-bold text-gray-700">
@@ -495,7 +498,7 @@
                         <td class="px-3 py-2.5 text-right text-xs font-bold text-orange-600">
                             ${totalRemainMain.toFixed(2)} d
                         </td>
-                        <td colspan="2"></td>
+                        <td colspan="1"></td>
                     </tr>
                 </tbody>
             </table>
@@ -540,6 +543,7 @@
     <tr class="border-t border-blue-100 hover:bg-blue-50/60 transition-colors" style="background:#ffffff">
         <td class="pl-6 pr-3 py-2.5 text-xs text-gray-400">${num}</td>
         <td class="px-3 py-2.5 font-mono text-xs text-gray-500 whitespace-nowrap">${t.ticket_number ?? '—'}</td>
+        <td class="px-3 py-2.5 text-xs text-gray-700 max-w-xs"><span class="line-clamp-2">${t.subject || '—'}</span></td>
         <td class="px-3 py-2.5">
             <span class="px-1.5 py-0.5 rounded text-xs font-semibold ${roleCls}">${roleLabel}</span>
         </td>
@@ -565,7 +569,6 @@
             </div>
             <div class="text-xs text-gray-400 mt-0.5">Updated: ${updAt}</div>
         </td>
-        <td class="px-3 py-2.5 text-xs text-gray-500 max-w-xs"><span class="line-clamp-2">${t.progress_note || '—'}</span></td>
     </tr>`;
     }
 
