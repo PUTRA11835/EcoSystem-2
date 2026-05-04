@@ -49,6 +49,19 @@ class TicketController extends Controller
     }
 
     /**
+     * Lightweight endpoint untuk polling — kembalikan timestamp update terakhir dari DB lokal.
+     * Tidak menyentuh Graph API, aman dipanggil dari browser setiap 30 detik.
+     */
+    public function latestUpdate()
+    {
+        $latest = DB::table('ticket')
+            ->whereNull('deleted_at')
+            ->max('last_message_at');
+
+        return response()->json(['latest_update' => $latest]);
+    }
+
+    /**
      * Display a listing of tickets
      */
     public function index(Request $request)
@@ -112,8 +125,15 @@ class TicketController extends Controller
 
             Log::info('Tickets fetched', ['count' => $tickets->count()]);
 
+            // Weighted average progress per tiket dari consultant_mandays_detail
+            $ticketIds   = $tickets->pluck('ticket_id')->toArray();
+            $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
+
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) {
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap) {
+                $allProgress = $progressMap[$ticket->ticket_id]
+                    ?? (float) ($ticket->progress_percentage ?? 0);
+
                 // ✅ Hitung pending confirmations untuk admin
                 $pendingCount = DB::table('ticket_confirmation')
                     ->where('ticket_id', $ticket->ticket_id)
@@ -143,10 +163,14 @@ class TicketController extends Controller
                     'start_date' => $ticket->start_date,
                     'end_date' => $ticket->end_date,
                     'man_days' => $ticket->man_days,
+                    'progress_percentage' => (float) ($ticket->progress_percentage ?? 0),
+                    'all_consultant_progress' => $allProgress,
                     'wait_close' => $ticket->wait_close,
                     'last_message_at' => $ticket->last_message_at,
                     'last_customer_reply_at' => $ticket->last_customer_reply_at,
                     'last_agent_reply_at' => $ticket->last_agent_reply_at,
+                    'last_internal_note_at'        => $ticket->last_internal_note_at,
+                    'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -258,7 +282,7 @@ class TicketController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Ticket creation data is invalid. Provide a valid customer_id, customer_code, or external_number.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -402,20 +426,27 @@ class TicketController extends Controller
 
             Log::info('My Tickets fetched', ['count' => $tickets->count()]);
 
+            // Weighted average progress per tiket dari consultant_mandays_detail
+            $myTicketIds   = $tickets->pluck('ticket_id')->toArray();
+            $myProgressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($myTicketIds);
+
             // ✅ Transform data dengan confirmation info
-            $ticketsData = $tickets->map(function($ticket) {
+            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap) {
+                $myAllProgress = $myProgressMap[$ticket->ticket_id]
+                    ?? (float) ($ticket->progress_percentage ?? 0);
+
                 // ✅ Hitung pending confirmations
                 $pendingCount = DB::table('ticket_confirmation')
                     ->where('ticket_id', $ticket->ticket_id)
                     ->where('status', 'pending')
                     ->count();
-                
+
                 // ✅ Get pending confirmation detail
                 $pendingConfirmation = DB::table('ticket_confirmation')
                     ->where('ticket_id', $ticket->ticket_id)
                     ->where('status', 'pending')
                     ->first();
-                
+
                 return [
                     'ticket_id' => $ticket->ticket_id,
                     'ticket_number' => $ticket->ticket_number,
@@ -433,10 +464,14 @@ class TicketController extends Controller
                     'start_date' => $ticket->start_date,
                     'end_date' => $ticket->end_date,
                     'man_days' => $ticket->man_days,
+                    'progress_percentage' => (float) ($ticket->progress_percentage ?? 0),
+                    'all_consultant_progress' => $myAllProgress,
                     'wait_close' => $ticket->wait_close,
                     'last_message_at' => $ticket->last_message_at,
                     'last_customer_reply_at' => $ticket->last_customer_reply_at,
                     'last_agent_reply_at' => $ticket->last_agent_reply_at,
+                    'last_internal_note_at'        => $ticket->last_internal_note_at,
+                    'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -498,7 +533,7 @@ class TicketController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Ticket assignment data is invalid. man_days is required and member IDs must be valid.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -1004,6 +1039,8 @@ class TicketController extends Controller
                 'last_message_at' => $ticket->last_message_at,
                 'last_customer_reply_at' => $ticket->last_customer_reply_at,
                 'last_agent_reply_at' => $ticket->last_agent_reply_at,
+                'last_internal_note_at'        => $ticket->last_internal_note_at,
+                'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
                 'customer' => $ticket->customer ? [
                     'customer_id' => $ticket->customer->customer_id,
                     'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -1080,7 +1117,7 @@ class TicketController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Ticket update data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -1496,7 +1533,7 @@ class TicketController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Ticket status is invalid. Allowed values: open, in_progress, hold, cancel, closed, reply, wait_to_close.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -1714,11 +1751,11 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
         
-        // Only employee can request
-        if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::EMPLOYEE->value) {
+        $allowedRoles = [RoleId::EMPLOYEE->value, RoleId::HELPDESK->value, RoleId::RPMO->value];
+        if (!$sessionUser || !in_array($sessionUser['role']['id'], $allowedRoles, true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only employees can request member changes'
+                'message' => 'Hanya PIC atau Helpdesk yang dapat mengajukan perubahan member'
             ], 403);
         }
 
@@ -1758,7 +1795,7 @@ class TicketController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Member change request submitted. Waiting for admin approval.'
+                'message' => 'Permintaan perubahan member dikirim. Menunggu persetujuan Head of Support.'
             ]);
         } catch (\Exception $e) {
             Log::error('Error requesting member change:', [
@@ -1784,50 +1821,48 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $ticket  = Ticket::with('members.basicData')->findOrFail($ticketId);
+        $ticket     = Ticket::with('members.basicData')->findOrFail($ticketId);
         $roleId     = $sessionUser['role']['id'];
         $isAdmin    = $roleId === RoleId::ADMIN->value;
+        $isHoS      = $roleId === RoleId::HEAD_OF_SUPPORT->value;
         $isHelpdesk = in_array($roleId, RoleId::HELPDESK_GROUP, true);
         $isPic      = $roleId === RoleId::EMPLOYEE->value && $ticket->employee_id == $sessionUser['id'];
 
-        if (!$isAdmin && !$isHelpdesk && !$isPic) {
+        if (!$isAdmin && !$isHoS && !$isHelpdesk && !$isPic) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only Admin, Helpdesk, or the assigned PIC can remove members.'
+                'message' => 'Tidak memiliki akses untuk menghapus member.'
             ], 403);
         }
 
         try {
-            // Find employee name before detach (for response)
-            $member = $ticket->members->firstWhere('employee_id', $employeeId);
-            $memberName = $member ? trim(($member->basicData->first_name ?? '') . ' ' . ($member->basicData->last_name ?? '')) : null;
+            $member     = $ticket->members->firstWhere('employee_id', $employeeId);
+            $memberName = $member
+                ? trim(($member->basicData->first_name ?? '') . ' ' . ($member->basicData->last_name ?? ''))
+                : null;
 
-            // Detach member
             $ticket->members()->detach($employeeId);
-
-            // Return updated members list
             $ticket->load('members.basicData');
-            $members = $ticket->members->map(fn ($m) => [
-                'employee_id' => $m->employee_id,
-                'name'        => trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? '')),
-            ]);
 
             return response()->json([
                 'success'       => true,
                 'message'       => 'Member removed successfully',
                 'employee_name' => $memberName,
-                'data'          => $members,
+                'data'          => $ticket->members->map(fn ($m) => [
+                    'employee_id' => $m->employee_id,
+                    'name'        => trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? '')),
+                ]),
             ]);
         } catch (\Exception $e) {
             Log::error('Error removing member:', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to remove member',
-                'error' => $e->getMessage()
+                'error'   => $e->getMessage()
             ], 500);
         }
     }
@@ -1870,7 +1905,7 @@ class TicketController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Member removal request submitted. Waiting for admin approval.'
+                'message' => 'Permintaan hapus member dikirim. Menunggu persetujuan Head of Support.'
             ]);
         } catch (\Exception $e) {
             Log::error('Error requesting member removal:', [
@@ -1893,10 +1928,11 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
         
-        if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::ADMIN->value) {
+        $allowedRoles = [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value];
+        if (!$sessionUser || !in_array($sessionUser['role']['id'], $allowedRoles, true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Admin only'
+                'message' => 'Hanya Head of Support atau Admin yang dapat memproses permintaan ini'
             ], 403);
         }
 
@@ -2159,7 +2195,7 @@ class TicketController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'The support_id is required and must reference an existing delivery support record.',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -2383,7 +2419,7 @@ class TicketController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Delivery list entry data is invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }

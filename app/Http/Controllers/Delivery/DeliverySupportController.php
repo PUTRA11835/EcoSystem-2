@@ -305,7 +305,7 @@ class DeliverySupportController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Delivery support record data is invalid.',
                 'errors' => $e->errors()
             ], 422);
 

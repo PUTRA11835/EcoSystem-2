@@ -26,7 +26,7 @@ class EnsureMobileEmployee
         if (!$bearerToken) {
             return response()->json([
                 'success' => false,
-                'message' => 'Token tidak ditemukan. Silakan login terlebih dahulu.',
+                'message' => 'No authentication token provided. Please log in to continue.',
                 'code'    => 'UNAUTHENTICATED',
             ], 401);
         }
@@ -37,7 +37,7 @@ class EnsureMobileEmployee
         if (count($parts) !== 2) {
             return response()->json([
                 'success' => false,
-                'message' => 'Format token tidak valid.',
+                'message' => 'The provided authentication token has an invalid format.',
                 'code'    => 'INVALID_TOKEN',
             ], 401);
         }
@@ -52,7 +52,7 @@ class EnsureMobileEmployee
         if (!$tokenRecord || !hash_equals($tokenRecord->token, hash('sha256', $rawToken))) {
             return response()->json([
                 'success' => false,
-                'message' => 'Token tidak valid.',
+                'message' => 'The authentication token is invalid or has been revoked.',
                 'code'    => 'INVALID_TOKEN',
             ], 401);
         }
@@ -62,7 +62,7 @@ class EnsureMobileEmployee
         if (in_array('refresh', $abilities) && !in_array('*', $abilities)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Gunakan access token untuk mengakses endpoint ini.',
+                'message' => 'A refresh token cannot be used to access this endpoint. Please use an access token.',
                 'code'    => 'INVALID_TOKEN_TYPE',
             ], 401);
         }
@@ -71,7 +71,7 @@ class EnsureMobileEmployee
         if ($tokenRecord->expires_at && now()->isAfter($tokenRecord->expires_at)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Access token sudah expired. Gunakan refresh token untuk memperbarui.',
+                'message' => 'Your access token has expired. Please use your refresh token to obtain a new one.',
                 'code'    => 'ACCESS_TOKEN_EXPIRED',
             ], 401);
         }
@@ -82,7 +82,7 @@ class EnsureMobileEmployee
         if (!$authUser || !$authUser->is_active) {
             return response()->json([
                 'success' => false,
-                'message' => 'Akun tidak aktif atau tidak ditemukan.',
+                'message' => 'Your account is inactive or does not exist. Please contact your administrator.',
                 'code'    => 'ACCOUNT_INACTIVE',
             ], 403);
         }
@@ -91,7 +91,7 @@ class EnsureMobileEmployee
         if (!$authUser->isEmployee()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Akses ditolak. Endpoint ini hanya untuk employee.',
+                'message' => 'Access denied. This endpoint is restricted to employees only.',
                 'code'    => 'NOT_EMPLOYEE',
             ], 403);
         }

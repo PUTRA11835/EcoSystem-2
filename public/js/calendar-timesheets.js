@@ -302,106 +302,101 @@ async function confirmReject() {
 
 // ==================== END APPROVAL MODE FUNCTIONS ====================
 
+// Global callbacks for the time-picker custom dropdowns (called via data-onchange)
+function tsUpdateDuration() {
+    const startH = parseInt(document.getElementById('timesheetStartHour')?.value || '0');
+    const startM = parseInt(document.getElementById('timesheetStartMinute')?.value || '0');
+    const endH   = parseInt(document.getElementById('timesheetEndHour')?.value || '0');
+    const endM   = parseInt(document.getElementById('timesheetEndMinute')?.value || '0');
+
+    let startMins = startH * 60 + startM;
+    let endMins   = endH   * 60 + endM;
+    if (endMins < startMins) endMins += 24 * 60;
+
+    const dur   = endMins - startMins;
+    const hours = Math.floor(dur / 60);
+    const mins  = dur % 60;
+
+    const durationField = document.getElementById('timesheetDuration');
+    if (durationField) {
+        if (durationField.tagName === 'INPUT') {
+            durationField.value = `${hours}h ${mins}m`;
+        } else {
+            durationField.textContent = `${hours}h ${mins}m`;
+        }
+    }
+}
+
+function tsUpdateStartTime() {
+    const h = document.getElementById('timesheetStartHour')?.value || '08';
+    const m = document.getElementById('timesheetStartMinute')?.value || '00';
+    const hiddenInput = document.getElementById('timesheetStartTime');
+    if (hiddenInput) hiddenInput.value = `${h}:${m}`;
+    tsUpdateDuration();
+}
+
+function tsUpdateEndTime() {
+    const h = document.getElementById('timesheetEndHour')?.value || '17';
+    const m = document.getElementById('timesheetEndMinute')?.value || '00';
+    const hiddenInput = document.getElementById('timesheetEndTime');
+    if (hiddenInput) hiddenInput.value = `${h}:${m}`;
+    tsUpdateDuration();
+}
+
 // Initialize time picker dropdowns
 function initializeTimePickers() {
-    const startHour = document.getElementById('timesheetStartHour');
-    const startMinute = document.getElementById('timesheetStartMinute');
-    const endHour = document.getElementById('timesheetEndHour');
-    const endMinute = document.getElementById('timesheetEndMinute');
-
-    // Sync dropdowns to hidden inputs
-    function updateStartTime() {
-        const h = startHour?.value || '08';
-        const m = startMinute?.value || '00';
-        const hiddenInput = document.getElementById('timesheetStartTime');
-        if (hiddenInput) hiddenInput.value = `${h}:${m}`;
-        updateDurationDisplay();
-    }
-
-    function updateEndTime() {
-        const h = endHour?.value || '17';
-        const m = endMinute?.value || '00';
-        const hiddenInput = document.getElementById('timesheetEndTime');
-        if (hiddenInput) hiddenInput.value = `${h}:${m}`;
-        updateDurationDisplay();
-    }
-
-    function updateDurationDisplay() {
-        const startH = parseInt(startHour?.value || '0');
-        const startM = parseInt(startMinute?.value || '0');
-        const endH = parseInt(endHour?.value || '0');
-        const endM = parseInt(endMinute?.value || '0');
-
-        let startMinutes = startH * 60 + startM;
-        let endMinutes = endH * 60 + endM;
-
-        // Handle overnight (end before start)
-        if (endMinutes < startMinutes) {
-            endMinutes += 24 * 60;
-        }
-
-        const durationMinutes = endMinutes - startMinutes;
-        const hours = Math.floor(durationMinutes / 60);
-        const mins = durationMinutes % 60;
-
-        const durationField = document.getElementById('timesheetDuration');
-        if (durationField) {
-            // Support both <input> (legacy) and <span> (new design)
-            if (durationField.tagName === 'INPUT') {
-                durationField.value = `${hours}h ${mins}m`;
-            } else {
-                durationField.textContent = `${hours}h ${mins}m`;
-            }
-        }
-    }
-
-    if (startHour) startHour.addEventListener('change', updateStartTime);
-    if (startMinute) startMinute.addEventListener('change', updateStartTime);
-    if (endHour) endHour.addEventListener('change', updateEndTime);
-    if (endMinute) endMinute.addEventListener('change', updateEndTime);
-
-    // Set default values (08:00 - 17:00)
-    if (startHour) startHour.value = '08';
-    if (startMinute) startMinute.value = '00';
-    if (endHour) endHour.value = '17';
-    if (endMinute) endMinute.value = '00';
-
-    updateStartTime();
-    updateEndTime();
+    // Set default values (08:00 - 17:00) via the custom-dd setter
+    setCustomDropdownValue('timesheetStartHour',   '08');
+    setCustomDropdownValue('timesheetStartMinute', '00');
+    setCustomDropdownValue('timesheetEndHour',     '17');
+    setCustomDropdownValue('timesheetEndMinute',   '00');
+    tsUpdateStartTime();
+    tsUpdateEndTime();
 }
 
 // Helper to set time picker from HH:mm:ss or HH:mm string
 function setTimePicker(type, timeString) {
     if (!timeString) return;
 
-    const parts = timeString.split(':');
-    const hour = parts[0] || '00';
+    const parts  = timeString.split(':');
+    const hour   = (parts[0] || '00').padStart(2, '0');
     const minute = parts[1] || '00';
 
-    const hourSelect = document.getElementById(`timesheet${type}Hour`);
-    const minuteSelect = document.getElementById(`timesheet${type}Minute`);
+    // Snap minute to nearest 5 for the display picker
+    const roundedMins = Math.round(parseInt(minute) / 5) * 5;
+    const minuteVal   = String(roundedMins % 60).padStart(2, '0');
+
+    setCustomDropdownValue(`timesheet${type}Hour`,   hour);
+    setCustomDropdownValue(`timesheet${type}Minute`, minuteVal);
+
+    // Set the combined hidden time input directly (exact minute, not rounded)
     const hiddenInput = document.getElementById(`timesheet${type}Time`);
-
-    if (hourSelect) hourSelect.value = hour.padStart(2, '0');
-
-    // Find closest minute (rounded to 5)
-    if (minuteSelect) {
-        const mins = parseInt(minute);
-        const roundedMins = Math.round(mins / 5) * 5;
-        minuteSelect.value = String(roundedMins % 60).padStart(2, '0');
-    }
-
     if (hiddenInput) hiddenInput.value = `${hour}:${minute}`;
+
+    tsUpdateDuration();
 }
 
 const TS_MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function tsCurrentPeriod() {
-    const now = new Date();
-    return now.getDate() >= 21
-        ? { month: now.getMonth() + 1, year: now.getFullYear() }
-        : { month: now.getMonth() === 0 ? 12 : now.getMonth(),
-            year:  now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear() };
+    const now  = new Date();
+    const day  = now.getDate();
+    const m0   = now.getMonth();   // 0-indexed: Jan=0 … Dec=11
+    const year = now.getFullYear();
+
+    if (day >= 21) {
+        // On/after the 21st we are in NEXT month's period
+        // e.g. Apr 21+ → period ending May 20 → "May period" → month=5
+        // +1 converts 0-indexed to 1-indexed; +1 again for next month
+        const nextM = m0 + 2;
+        return nextM > 12
+            ? { month: 1, year: year + 1 }  // Dec 21+ wraps to January of next year
+            : { month: nextM, year };
+    } else {
+        // Before the 21st we are in the CURRENT month's period
+        // e.g. Apr 1–20 → period ending Apr 20 → "April period" → month=4
+        return { month: m0 + 1, year };
+    }
 }
 
 function tsPeriodToDateRange(month, year) {
@@ -462,16 +457,29 @@ function handleTimesheetTypeChange() {
 
     let fieldsHTML = '';
 
+    const CHEVRON = `<svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>`;
+    const PRESENCE_ITEMS = `
+        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50" data-value="">Select...</button>
+        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="onsite">On-site</button>
+        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="remote">Remote</button>
+        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="hybrid">Hybrid</button>`;
+
     if (selectedType === 'project') {
-        // Project type: Activity dropdown + Activity Type + Presence + Location
         fieldsHTML = `
             <div>
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">
                     Activity <span class="text-red-500">*</span>
                 </label>
-                <select id="timesheetActivity" required class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50" onchange="onActivitySelected()">
-                    <option value="">Select an Activity</option>
-                </select>
+                <div class="custom-dd w-full" data-fixed="true" data-onchange="onActivitySelected">
+                    <button type="button" class="custom-dd-btn w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-2">
+                        <span class="custom-dd-label text-gray-500 truncate flex-1 text-left">Select an Activity</span>
+                        ${CHEVRON}
+                    </button>
+                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-56">
+                        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50" data-value="">Select an Activity</button>
+                    </div>
+                    <input type="hidden" id="timesheetActivity">
+                </div>
                 <p class="mt-1 text-xs text-gray-400">Only activities assigned to you</p>
                 <input type="hidden" id="timesheetProjectId" value="">
             </div>
@@ -480,14 +488,21 @@ function handleTimesheetTypeChange() {
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">
                     Activity Type <span class="text-red-500">*</span>
                 </label>
-                <select id="timesheetActivityType" required class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50">
-                    <option value="development">Development</option>
-                    <option value="meeting">Meeting</option>
-                    <option value="documentation">Documentation</option>
-                    <option value="testing">Testing</option>
-                    <option value="training">Training</option>
-                    <option value="other">Other</option>
-                </select>
+                <div class="custom-dd w-full" data-fixed="true">
+                    <button type="button" class="custom-dd-btn w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-2">
+                        <span class="custom-dd-label text-gray-700 truncate flex-1 text-left">Development</span>
+                        ${CHEVRON}
+                    </button>
+                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">
+                        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="development">Development</button>
+                        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="meeting">Meeting</button>
+                        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="documentation">Documentation</button>
+                        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="testing">Testing</button>
+                        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="training">Training</button>
+                        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="other">Other</button>
+                    </div>
+                    <input type="hidden" id="timesheetActivityType" value="development">
+                </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
@@ -495,12 +510,14 @@ function handleTimesheetTypeChange() {
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">
                         Presence <span class="text-red-500">*</span>
                     </label>
-                    <select id="timesheetPresence" required class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50">
-                        <option value="">Select...</option>
-                        <option value="onsite">On-site</option>
-                        <option value="remote">Remote</option>
-                        <option value="hybrid">Hybrid</option>
-                    </select>
+                    <div class="custom-dd w-full" data-fixed="true">
+                        <button type="button" class="custom-dd-btn w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-2">
+                            <span class="custom-dd-label text-gray-500 flex-1 text-left">Select...</span>
+                            ${CHEVRON}
+                        </button>
+                        <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">${PRESENCE_ITEMS}</div>
+                        <input type="hidden" id="timesheetPresence">
+                    </div>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">
@@ -511,20 +528,24 @@ function handleTimesheetTypeChange() {
             </div>
         `;
 
-        if (billableSection) {
-            billableSection.classList.remove('hidden');
-        }
+        if (billableSection) billableSection.classList.remove('hidden');
 
     } else if (selectedType === 'support') {
-        // Support type: Ticket dropdown + auto-fill Customer/Jatah MD/Remaining MD + MD Consumed + On Site
         fieldsHTML = `
             <div>
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">
                     Ticket <span class="text-red-500">*</span>
                 </label>
-                <select id="timesheetTicket" required class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50" onchange="onSupportTicketSelected(this.value)">
-                    <option value="">Select a Ticket</option>
-                </select>
+                <div class="custom-dd w-full" data-fixed="true" data-onchange="onSupportTicketSelected">
+                    <button type="button" class="custom-dd-btn w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-2">
+                        <span class="custom-dd-label text-gray-500 truncate flex-1 text-left">Select a Ticket</span>
+                        ${CHEVRON}
+                    </button>
+                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-56">
+                        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50" data-value="">Select a Ticket</button>
+                    </div>
+                    <input type="hidden" id="timesheetTicket">
+                </div>
             </div>
 
             <div class="grid grid-cols-3 gap-2">
@@ -561,24 +582,23 @@ function handleTimesheetTypeChange() {
             </div>
         `;
 
-        if (billableSection) {
-            billableSection.classList.add('hidden');
-        }
+        if (billableSection) billableSection.classList.add('hidden');
 
     } else if (selectedType === 'office') {
-        // Office type: Presence + Location
         fieldsHTML = `
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">
                         Presence <span class="text-red-500">*</span>
                     </label>
-                    <select id="timesheetPresence" required class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50">
-                        <option value="">Select...</option>
-                        <option value="onsite">On-site</option>
-                        <option value="remote">Remote</option>
-                        <option value="hybrid">Hybrid</option>
-                    </select>
+                    <div class="custom-dd w-full" data-fixed="true">
+                        <button type="button" class="custom-dd-btn w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-2">
+                            <span class="custom-dd-label text-gray-500 flex-1 text-left">Select...</span>
+                            ${CHEVRON}
+                        </button>
+                        <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">${PRESENCE_ITEMS}</div>
+                        <input type="hidden" id="timesheetPresence">
+                    </div>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">
@@ -588,10 +608,8 @@ function handleTimesheetTypeChange() {
                 </div>
             </div>
         `;
-        
-        if (billableSection) {
-            billableSection.classList.add('hidden');
-        }
+
+        if (billableSection) billableSection.classList.add('hidden');
     }
 
     // Show/hide the entire time block (support type doesn't use start/end time)
@@ -599,8 +617,11 @@ function handleTimesheetTypeChange() {
     const isSupport = selectedType === 'support';
     if (timeBlock) timeBlock.style.display = isSupport ? 'none' : '';
 
-    // Set the HTML first
+    // Inject HTML and init custom dropdowns
     dynamicFieldsContainer.innerHTML = fieldsHTML;
+    if (typeof initCustomDropdowns === 'function') {
+        initCustomDropdowns(dynamicFieldsContainer);
+    }
 
     // Update description label and placeholder based on type
     const descLabel = document.querySelector('label[for="timesheetDescription"]');
@@ -629,12 +650,16 @@ let allActivitiesData = [];
 
 // Load ALL activities assigned to the logged-in employee (across all projects)
 async function loadAllMyActivities() {
-    const activitySelect = document.getElementById('timesheetActivity');
+    const hidden = document.getElementById('timesheetActivity');
+    const dd     = hidden?.closest('.custom-dd');
+    const panel  = dd?.querySelector('.custom-dd-panel') || dd?._ddPanel;
 
-    if (!activitySelect) {
-        console.error('Activity select element not found');
+    if (!hidden || !dd || !panel) {
+        console.error('Activity custom-dd not found');
         return;
     }
+
+    panel.innerHTML = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-400 cursor-default" data-value="">Loading activities…</button>';
 
     try {
         const response = await fetch('/api/timesheets/my-activities/all', {
@@ -648,11 +673,9 @@ async function loadAllMyActivities() {
 
         if (!response.ok) {
             console.error('Failed to load activities:', data.message);
-            activitySelect.innerHTML = `<option value="">Error: ${data.message || 'Failed to load'}</option>`;
+            panel.innerHTML = `<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-red-500 cursor-default" data-value="">Error: ${data.message || 'Failed to load'}</button>`;
             return;
         }
-
-        activitySelect.innerHTML = '<option value="">Select an Activity</option>';
 
         if (data.success && data.data && data.data.length > 0) {
             allActivitiesData = data.data;
@@ -661,74 +684,67 @@ async function loadAllMyActivities() {
             const groupedByProject = {};
             data.data.forEach(activity => {
                 const projectName = activity.project_name || 'Unknown Project';
-                if (!groupedByProject[projectName]) {
-                    groupedByProject[projectName] = [];
-                }
+                if (!groupedByProject[projectName]) groupedByProject[projectName] = [];
                 groupedByProject[projectName].push(activity);
             });
 
-            // Create optgroups for each project
+            let html = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50" data-value="">Select an Activity</button>';
+
             Object.keys(groupedByProject).forEach(projectName => {
-                const optgroup = document.createElement('optgroup');
-                optgroup.label = projectName;
-
+                html += `<div class="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide bg-gray-50 border-t border-gray-100 pointer-events-none select-none">${projectName}</div>`;
                 groupedByProject[projectName].forEach(activity => {
-                    const option = document.createElement('option');
-                    option.value = activity.id;
-                    option.dataset.projectId = activity.delivery_projects_id;
-
-                    // Show activity name with phase/stage and status
                     const phaseName = activity.phase_name || '';
                     const stageName = activity.stage_name || '';
-                    const status = activity.status ? ` [${activity.status}]` : '';
-                    let label = activity.name;
+                    const status    = activity.status ? ` [${activity.status}]` : '';
+                    let label       = activity.name;
                     if (phaseName) label += ` - ${phaseName}`;
                     if (stageName) label += ` > ${stageName}`;
                     label += status;
-
-                    option.textContent = label;
-                    optgroup.appendChild(option);
+                    html += `<button type="button" class="custom-dd-item w-full pl-5 pr-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                        data-value="${activity.id}"
+                        data-project-id="${activity.delivery_projects_id}">${label}</button>`;
                 });
-
-                activitySelect.appendChild(optgroup);
             });
 
-            // H-4 fix: pre-select activity if coming from editTimesheet() (reliable, no race condition)
+            panel.innerHTML = html;
+
+            // H-4 fix: pre-select activity if coming from editTimesheet()
             if (_pendingActivityPreselect) {
-                const preselectId = _pendingActivityPreselect;
+                const preselectId = String(_pendingActivityPreselect);
                 _pendingActivityPreselect = null;
-                activitySelect.value = preselectId;
-                if (activitySelect.value) {
+                setCustomDropdownValue('timesheetActivity', preselectId);
+                if (hidden.value === preselectId) {
                     onActivitySelected();
                 }
             }
         } else {
-            activitySelect.innerHTML = '<option value="">No activities assigned to you</option>';
+            panel.innerHTML = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 cursor-default" data-value="">No activities assigned to you</button>';
         }
     } catch (error) {
         console.error('Error loading all assigned activities:', error);
-        activitySelect.innerHTML = '<option value="">Failed to load activities</option>';
+        panel.innerHTML = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-red-500 cursor-default" data-value="">Failed to load activities</button>';
     }
 }
 
 // Handle activity selection - set the project ID automatically
 function onActivitySelected() {
-    const activitySelect = document.getElementById('timesheetActivity');
+    const hidden         = document.getElementById('timesheetActivity');
     const projectIdInput = document.getElementById('timesheetProjectId');
+    if (!hidden || !projectIdInput) return;
 
-    if (!activitySelect || !projectIdInput) return;
-
-    const selectedOption = activitySelect.options[activitySelect.selectedIndex];
-
-    if (selectedOption && selectedOption.dataset.projectId) {
-        projectIdInput.value = selectedOption.dataset.projectId;
-    } else {
-        projectIdInput.value = '';
-    }
+    const dd   = hidden.closest('.custom-dd');
+    const val  = hidden.value;
+    const panel = dd?.querySelector('.custom-dd-panel') || dd?._ddPanel;
+    const item  = panel?.querySelector(`.custom-dd-item[data-value="${CSS.escape(val)}"]`);
+    projectIdInput.value = item?.dataset.projectId || '';
 }
 
 // Load only USER'S tickets (like support.blade.php)
 async function loadTicketsForDropdown() {
+    const hidden = document.getElementById('timesheetTicket');
+    const dd     = hidden?.closest('.custom-dd');
+    const panel  = dd?.querySelector('.custom-dd-panel') || dd?._ddPanel;
+
     try {
         const response = await fetch('/api/tickets/my', {
             method: 'GET',
@@ -743,10 +759,8 @@ async function loadTicketsForDropdown() {
 
         if (response.ok) {
             const data = await response.json();
-            const select = document.getElementById('timesheetTicket');
 
-            if (select && data.success && data.data) {
-                // Cache tickets for auto-fill use
+            if (panel && data.success && data.data) {
                 const activeTickets = data.data.filter(t =>
                     t.status !== 'closed' &&
                     t.status !== 'cancel' &&
@@ -754,54 +768,48 @@ async function loadTicketsForDropdown() {
                 );
                 myTicketsCache = activeTickets;
 
-                select.innerHTML = '<option value="">Select a Ticket</option>';
-
                 if (activeTickets.length === 0) {
-                    select.innerHTML = '<option value="">No active tickets assigned to you</option>';
-                    select.disabled = true;
+                    panel.innerHTML = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 cursor-default" data-value="">No active tickets assigned to you</button>';
                     return;
                 }
 
                 // Sort by ticket_id descending (newest first)
                 activeTickets.sort((a, b) => b.ticket_id - a.ticket_id);
 
+                let html = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50" data-value="">Select a Ticket</button>';
                 activeTickets.forEach(ticket => {
-                    const option = document.createElement('option');
-                    option.value = ticket.ticket_id;
                     const ticketLabel  = ticket.ticket_number || `#${ticket.ticket_id}`;
                     const customerCode = ticket.customer?.customer_code || ticket.customer?.customer_name || '';
                     const description  = ticket.description || '';
-                    option.textContent = `${ticketLabel} - ${customerCode} - ${description}`;
-                    select.appendChild(option);
+                    const labelText    = `${ticketLabel} - ${customerCode} - ${description}`;
+                    html += `<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="${ticket.ticket_id}">${labelText}</button>`;
                 });
+                panel.innerHTML = html;
 
                 // Pre-select ticket if coming from editTimesheet()
                 if (_pendingTicketPreselect) {
-                    const preselectId = _pendingTicketPreselect;
+                    const preselectId = String(_pendingTicketPreselect);
                     _pendingTicketPreselect = null;
-                    select.value = preselectId;
-                    if (select.value) {
-                        onSupportTicketSelected(preselectId).then(() => {
-                            // Restore md_consumed and onSite after auto-fill overwrites them
-                            // (handled by editTimesheet via its own timeout)
-                        });
+                    setCustomDropdownValue('timesheetTicket', preselectId);
+                    if (hidden && hidden.value === preselectId) {
+                        onSupportTicketSelected();
                     }
                 }
             }
         }
     } catch (error) {
         console.error('Error loading tickets:', error);
-        const select = document.getElementById('timesheetTicket');
-        if (select) {
-            select.innerHTML = '<option value="">Failed to load tickets</option>';
-            select.disabled = true;
+        if (panel) {
+            panel.innerHTML = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-red-500 cursor-default" data-value="">Failed to load tickets</button>';
         }
     }
 }
 
 // Auto-fill Customer, Jatah MD, and Remaining MD when a support ticket is selected.
-// Customer/Quota/Remaining are now <p> display elements, not <input>s.
-async function onSupportTicketSelected(ticketId) {
+// Called via data-onchange (no argument) — reads ticket ID from the hidden input.
+async function onSupportTicketSelected() {
+    const ticketId = document.getElementById('timesheetTicket')?.value || null;
+
     const customerEl  = document.getElementById('supportCustomer');
     const jatahMdEl   = document.getElementById('supportJatahMd');
     const remainingEl = document.getElementById('supportRemainingMd');
@@ -1708,18 +1716,22 @@ function editTimesheet(id) {
     loadPeriodSelector();
 
     setTimeout(() => {
-        const presence = document.getElementById('timesheetPresence');
         const location = document.getElementById('timesheetLocation');
         const billable  = document.getElementById('timesheetBillable');
 
-        if (presence) presence.value = timesheet.presence || '';
         if (location) location.value  = timesheet.location || '';
         if (billable) billable.checked = timesheet.is_billable || false;
 
+        // Presence custom-dd (present in both project and office types)
+        if (timesheet.presence) {
+            setCustomDropdownValue('timesheetPresence', timesheet.presence);
+        }
+
         if (timesheetType === 'project') {
-            // activity_type select pre-fill (rendered synchronously by handleTimesheetTypeChange)
-            const actTypeEl = document.getElementById('timesheetActivityType');
-            if (actTypeEl && timesheet.activity_type) actTypeEl.value = timesheet.activity_type;
+            // activity_type custom-dd pre-fill
+            if (timesheet.activity_type) {
+                setCustomDropdownValue('timesheetActivityType', timesheet.activity_type);
+            }
             // project_id hidden input — set as fallback in case _pendingActivityPreselect is consumed
             const projectIdInput = document.getElementById('timesheetProjectId');
             if (projectIdInput && timesheet.delivery_projects_id) {
@@ -1786,12 +1798,36 @@ async function confirmDelete() {
 }
 
 // Open single submit confirmation modal
-function openSubmitModal(id) {
+async function openSubmitModal(id) {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+    const timesheet = timesheets.find(t => String(t.id) === String(id));
+
+    // For support timesheets, check remaining MD quota before allowing submit
+    if (timesheet?.ticket_id) {
+        try {
+            const res  = await fetch(`/api/timesheets/remaining-md?ticket_id=${timesheet.ticket_id}`, {
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (data?.success && data.data?.remaining !== null) {
+                const remaining = Number(data.data.remaining);
+                if (remaining < 0) {
+                    showNotification(
+                        `Cannot submit: quota exceeded (remaining MD: ${remaining.toFixed(2)}). Save as draft only until quota is increased.`,
+                        'error'
+                    );
+                    return;
+                }
+            }
+        } catch (e) {
+            // Network error — proceed, backend will validate
+        }
+    }
+
     const modal = document.getElementById('confirmSubmitModal');
     const submitTimesheetId = document.getElementById('submitTimesheetId');
-
     if (submitTimesheetId) submitTimesheetId.value = id;
-
     if (modal) {
         modal.classList.remove('hidden');
         modal.classList.add('flex');
@@ -1958,17 +1994,74 @@ async function confirmBulkDelete() {
     }
 }
 
-function openBulkSubmitModal() {
+async function openBulkSubmitModal() {
     const checkboxes = document.querySelectorAll('.timesheet-checkbox:checked');
-    
+
     if (checkboxes.length === 0) {
         showNotification('Please select timesheets to submit', 'error');
         return;
     }
-    
+
+    const csrf        = document.querySelector('meta[name="csrf-token"]')?.content;
+    const selectedIds = [...checkboxes].map(cb => cb.getAttribute('data-id'));
+
+    // Collect unique ticket IDs from selected support timesheets
+    const supportTs       = selectedIds.map(id => timesheets.find(t => String(t.id) === String(id))).filter(t => t?.ticket_id);
+    const uniqueTicketIds = [...new Set(supportTs.map(t => String(t.ticket_id)))];
+
+    const overQuotaTickets = new Set();
+    if (uniqueTicketIds.length > 0) {
+        // Fetch remaining per ticket and store for per-timesheet comparison below
+        const remainingByTicket = {};
+        await Promise.all(uniqueTicketIds.map(async ticketId => {
+            try {
+                const res  = await fetch(`/api/timesheets/remaining-md?ticket_id=${ticketId}`, {
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+                    credentials: 'same-origin'
+                });
+                const data = await res.json();
+                if (data?.success && data.data?.remaining !== null) {
+                    remainingByTicket[ticketId] = Number(data.data.remaining);
+                }
+            } catch (e) {}
+        }));
+
+        // A ticket is over-quota when remaining is strictly negative
+        supportTs.forEach(t => {
+            const rem = remainingByTicket[String(t.ticket_id)];
+            if (rem !== undefined && rem < 0) {
+                overQuotaTickets.add(String(t.ticket_id));
+            }
+        });
+    }
+
+    // Uncheck over-quota support timesheets so they are excluded from bulk submit
+    if (overQuotaTickets.size > 0) {
+        const blockedIds = new Set(
+            supportTs.filter(t => overQuotaTickets.has(String(t.ticket_id))).map(t => String(t.id))
+        );
+        document.querySelectorAll('.timesheet-checkbox:checked').forEach(cb => {
+            if (blockedIds.has(cb.getAttribute('data-id'))) cb.checked = false;
+        });
+        updateBulkActionButtons();
+
+        const remaining = document.querySelectorAll('.timesheet-checkbox:checked').length;
+        if (remaining === 0) {
+            showNotification('Cannot submit: all selected support timesheets have exceeded their MD quota.', 'error');
+            return;
+        }
+        showNotification(
+            `${blockedIds.size} support timesheet(s) excluded (MD quota exceeded). Submitting ${remaining} remaining.`,
+            'warning'
+        );
+    }
+
+    const finalCount = document.querySelectorAll('.timesheet-checkbox:checked').length;
+    if (finalCount === 0) return;
+
     const bulkSubmitCount = document.getElementById('bulkSubmitCount');
-    if (bulkSubmitCount) bulkSubmitCount.textContent = checkboxes.length;
-    
+    if (bulkSubmitCount) bulkSubmitCount.textContent = finalCount;
+
     const modal = document.getElementById('confirmBulkSubmitModal');
     if (modal) {
         modal.classList.remove('hidden');

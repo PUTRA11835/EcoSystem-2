@@ -124,7 +124,7 @@ class AuthController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
             
-            return redirect()->route('login')->with('error', 'A system error occurred');
+            return redirect()->route('login')->with('error', 'An unexpected error occurred while loading the login page. Please try again.');
         }
     }
 
@@ -980,7 +980,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'An error occurred',
+                'message' => 'Failed to retrieve your profile. Please refresh and try again.',
             ], 500);
         }
     }

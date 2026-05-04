@@ -102,31 +102,50 @@ class ProfileController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $request->validate([
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'password'              => 'required|string|min:8|confirmed',
             'password_confirmation' => 'required|string',
         ]);
 
-        $authUser = DB::table('auth_users')
-            ->where('employee_id', $sessionUser['id'])
-            ->first();
-
-        if (!$authUser) {
-            return response()->json(['success' => false, 'message' => 'Account not found'], 404);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Password update data is invalid.',
+                'errors'  => $validator->errors(),
+            ], 422);
         }
 
-        DB::table('auth_users')->where('id', $authUser->id)->update([
-            'password'   => Hash::make($request->password),
-            'updated_at' => now(),
-        ]);
+        try {
+            $authUser = DB::table('auth_users')
+                ->where('employee_id', $sessionUser['id'])
+                ->first();
 
-        Log::info('ProfileController: password berhasil diubah', [
-            'auth_user_id' => $authUser->id,
-        ]);
+            if (!$authUser) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No auth account found for this employee.',
+                ], 404);
+            }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Password changed successfully',
-        ]);
+            DB::table('auth_users')->where('id', $authUser->id)->update([
+                'password'   => Hash::make($request->password),
+                'updated_at' => now(),
+            ]);
+
+            Log::info('ProfileController: password changed successfully', [
+                'auth_user_id' => $authUser->id,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Password changed successfully.',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('ProfileController@changePassword', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to change password. Please try again.',
+            ], 500);
+        }
     }
 }

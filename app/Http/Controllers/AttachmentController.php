@@ -22,7 +22,7 @@ class AttachmentController extends Controller
         // Wajib login
         $sessionUser = session('user');
         if (!$sessionUser) {
-            abort(401, 'Silakan login terlebih dahulu.');
+            abort(401, 'Authentication required. Please log in to access this resource.');
         }
 
         $attachment = TicketAttachment::findOrFail($id);
@@ -97,7 +97,7 @@ class AttachmentController extends Controller
                                         }
                                     }
                                 } catch (\Exception $attE) {
-                                    Log::warning('AttachmentController@show: gagal fetch Sent Items att list', [
+                                    Log::warning('AttachmentController@show: failed to fetch Sent Items attachment list', [
                                         'attachment_id' => $id,
                                         'error'         => $attE->getMessage(),
                                     ]);
@@ -114,13 +114,13 @@ class AttachmentController extends Controller
                                     "{$baseUrl}/users/{$sender}/messages/{$sentMsgId}/attachments/{$sentAttId}"
                                 );
                             } else {
-                                Log::warning('AttachmentController@show: sentMsgId tidak ditemukan di SentItems', [
+                                Log::warning('AttachmentController@show: sentMsgId not found in SentItems', [
                                     'attachment_id'    => $id,
                                     'email_message_id' => $ticketMsg->email_message_id,
                                 ]);
                             }
                         } catch (\Exception $retryE) {
-                            Log::warning('AttachmentController@show: retry Graph gagal', [
+                            Log::warning('AttachmentController@show: Graph retry failed', [
                                 'attachment_id' => $id,
                                 'error'         => $retryE->getMessage(),
                             ]);
@@ -129,12 +129,12 @@ class AttachmentController extends Controller
                 }
 
                 if (!$response->successful()) {
-                    Log::warning('AttachmentController@show: Graph gagal', [
+                    Log::warning('AttachmentController@show: Graph request failed', [
                         'attachment_id' => $id,
                         'status'        => $response->status(),
                         'body'          => substr($response->body(), 0, 500),
                     ]);
-                    abort(404, 'File tidak dapat diambil dari Microsoft Graph. Mungkin email sudah dihapus dari inbox.');
+                    abort(404, 'The file could not be retrieved from Microsoft Graph. The source email may have been deleted from the inbox.');
                 }
             }
 
@@ -142,7 +142,7 @@ class AttachmentController extends Controller
             $content = base64_decode($data['contentBytes'] ?? '');
 
             if (empty($content)) {
-                abort(404, 'Konten file kosong.');
+                abort(404, 'The file content is empty. The attachment may be corrupted or unavailable.');
             }
 
             $mime     = $data['contentType'] ?? $attachment->mime_type ?? 'application/octet-stream';
@@ -162,7 +162,7 @@ class AttachmentController extends Controller
                 'attachment_id' => $id,
                 'error'         => $e->getMessage(),
             ]);
-            abort(500, 'Terjadi kesalahan saat mengambil file.');
+            abort(500, 'An unexpected error occurred while retrieving the file.');
         }
     }
 
@@ -182,7 +182,7 @@ class AttachmentController extends Controller
         );
 
         if (!$response->successful()) {
-            throw new \RuntimeException('Gagal mendapatkan access token Graph' . $response->body());
+            throw new \RuntimeException('Failed to obtain Microsoft Graph access token: ' . $response->body());
         }
 
         return $response->json('access_token');

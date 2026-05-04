@@ -231,6 +231,17 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/cleanup', [CustomerHistoryController::class, 'cleanup']);
     });
 
+    // ==================== TASK (MY PIC TICKETS) ====================
+    Route::get('/task', [\App\Http\Controllers\TaskController::class, 'list']);
+
+    // ==================== CONSULTANT WORKLOAD ROUTES ====================
+    Route::prefix('consultant-workload')->group(function () {
+        Route::get('/', [\App\Http\Controllers\ConsultantWorkloadController::class, 'list']);
+        Route::get('/{id}', [\App\Http\Controllers\ConsultantWorkloadController::class, 'detail']);
+        Route::patch('/tickets/{ticketId}/progress', [\App\Http\Controllers\ConsultantWorkloadController::class, 'updateProgress']);
+        Route::patch('/consultant-progress/{detailId}', [\App\Http\Controllers\ConsultantWorkloadController::class, 'updateConsultantProgress']);
+    });
+
     // ==================== STAGING TICKET ROUTES ====================
     Route::prefix('staging-tickets')->group(function () {
         Route::get('/statistics', [StagingTicketController::class, 'statistics']);
@@ -249,6 +260,7 @@ Route::middleware(['web'])->group(function () {
         // Static routes first
         Route::get('/', [TicketController::class, 'index']);
         Route::get('/my', [TicketController::class, 'myTickets']);
+        Route::get('/latest-update', [TicketController::class, 'latestUpdate']);
         Route::get('/statistics', [TicketController::class, 'statistics']);
         Route::get('/pending-confirmations', [TicketController::class, 'pendingConfirmations']);
         Route::get('/pending-member-changes', [TicketController::class, 'pendingMemberChanges']);

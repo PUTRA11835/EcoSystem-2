@@ -209,7 +209,7 @@ class StagingTicketService
         // Guard: cegah double validation
         if ($staging->isProcessed()) {
             throw new \LogicException(
-                "Staging ticket #{$staging->id} sudah berstatus '{$staging->status}'. Tidak bisa diproses ulang."
+                "Staging ticket #{$staging->id} already has status '{$staging->status}' and cannot be reprocessed."
             );
         }
 
@@ -402,7 +402,7 @@ class StagingTicketService
         // Guard: cegah double validation
         if ($staging->isProcessed()) {
             throw new \LogicException(
-                "Staging ticket #{$staging->id} sudah berstatus '{$staging->status}'. Tidak bisa diproses ulang."
+                "Staging ticket #{$staging->id} already has status '{$staging->status}' and cannot be reprocessed."
             );
         }
 

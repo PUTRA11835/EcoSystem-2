@@ -270,7 +270,7 @@ class DeliveryDynamicPhaseController extends Controller
             Log::error('Error removing phase');
             return response()->json([
                 'success' => false,
-                'message' => 'An error occurred'
+                'message' => 'Failed to remove the phase. Please try again.'
             ], 400);
         }
     }
@@ -389,10 +389,10 @@ class DeliveryDynamicPhaseController extends Controller
             
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Phase view configuration data is invalid.',
                 'errors' => $e->errors()
             ], 422);
-            
+
         } catch (\Exception $e) {
             Log::error('❌ Error updating view config', [
                 'delivery_projects_id' => $project->id,

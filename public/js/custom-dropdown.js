@@ -23,59 +23,15 @@ function initCustomDropdowns(root) {
         if (dd._ddInited) return;
         dd._ddInited = true;
 
-        const btn        = dd.querySelector('.custom-dd-btn');
-        const panel      = dd.querySelector('.custom-dd-panel');
-        const hidden     = dd.querySelector('input[type="hidden"]');
-        const items      = dd.querySelectorAll('.custom-dd-item');
-        const onchangeFn = dd.dataset.onchange;
-        const useFixed   = dd.dataset.fixed === 'true';
+        const btn      = dd.querySelector('.custom-dd-btn');
+        const panel    = dd.querySelector('.custom-dd-panel');
+        const hidden   = dd.querySelector('input[type="hidden"]');
+        const useFixed = dd.dataset.fixed === 'true';
 
         if (!btn || !panel || !hidden) return;
 
-        // Back-reference dd → panel. Penting untuk mode fixed: saat panel
-        // di-detach ke <body>, dd.querySelector('.custom-dd-panel') return
-        // null karena panel bukan lagi descendant dd. _selectItem butuh ref
-        // ini supaya bisa menutup panel setelah item dipilih.
+        // Store panel ref so _selectItem can find it even when detached (fixed mode)
         dd._ddPanel = panel;
-
-        // ── Search input (auto untuk dropdown dengan banyak opsi) ────────────
-        // Hitung opsi "real" (kecuali placeholder data-value="") supaya
-        // dropdown 8 item dengan placeholder = 7 real → tidak dapat search.
-        // Override eksplisit: data-searchable="true" / "false" di .custom-dd.
-        let realItemCount = 0;
-        items.forEach(it => { if ((it.dataset.value || '') !== '') realItemCount++; });
-        const wantSearch = (dd.dataset.searchable === 'true')
-            || (dd.dataset.searchable !== 'false' && realItemCount > _DD_SEARCH_THRESHOLD);
-
-        let searchInput = null;
-        if (wantSearch) {
-            searchInput = document.createElement('input');
-            searchInput.type = 'text';
-            searchInput.placeholder = 'Search…';
-            searchInput.className = 'custom-dd-search';
-            searchInput.style.cssText = 'display:block;width:100%;padding:0.5rem 0.75rem;font-size:0.875rem;border:0;border-bottom:1px solid #f3f4f6;outline:none;background:#fff;position:sticky;top:0;z-index:1;';
-            // Insert paling atas panel, di atas item-item
-            panel.insertBefore(searchInput, panel.firstChild);
-
-            // Cegah klik di input bubble ke document → menutup dropdown
-            searchInput.addEventListener('click',     e => e.stopPropagation());
-            searchInput.addEventListener('mousedown', e => e.stopPropagation());
-
-            // Filtering
-            searchInput.addEventListener('input', () => {
-                const q = searchInput.value.toLowerCase().trim();
-                items.forEach(item => {
-                    // Hormat .hidden eksternal (mis. filter-value-item ticket page
-                    // yang di-toggle via data-for) — jangan pernah tampakkan
-                    // item yang sudah di-hide oleh logika lain.
-                    if (item.classList.contains('hidden')) return;
-                    const match = !q || item.textContent.toLowerCase().includes(q);
-                    item.style.display = match ? '' : 'none';
-                });
-            });
-
-            panel._ddSearch = searchInput;
-        }
 
         btn.addEventListener('click', e => {
             e.stopPropagation();
@@ -103,16 +59,19 @@ function initCustomDropdowns(root) {
             }
         });
 
-        items.forEach(item => {
-            item.addEventListener('click', e => {
-                e.stopPropagation();
-                const val  = item.dataset.value;
-                const text = item.textContent.trim();
-                _selectItem(dd, val, text);
-                if (onchangeFn && typeof window[onchangeFn] === 'function') {
-                    window[onchangeFn]();
-                }
-            });
+        // Panel-level event delegation — handles both static and dynamically injected items
+        panel.addEventListener('click', e => {
+            const item = e.target.closest('.custom-dd-item');
+            if (!item) return;
+            e.stopPropagation();
+            const val        = item.dataset.value;
+            const text       = item.textContent.trim();
+            const owner      = panel._ddOwner || dd;
+            const onchangeFn = owner.dataset.onchange;
+            _selectItem(owner, val, text);
+            if (onchangeFn && typeof window[onchangeFn] === 'function') {
+                window[onchangeFn]();
+            }
         });
     });
 
@@ -262,15 +221,11 @@ function _closeDropdown(p) {
 }
 
 function _selectItem(dd, val, text) {
-    // Cari panel via back-reference dulu — di mode fixed, panel sudah pindah
-    // ke <body> sehingga querySelector dari dd return null. Tanpa fallback
-    // ini, panel tidak pernah ditutup setelah user pilih item.
-    const panel  = dd._ddPanel || dd.querySelector('.custom-dd-panel');
+    // Panel may be detached from dd when fixed mode is active — use stored ref
+    const panel  = dd.querySelector('.custom-dd-panel') || dd._ddPanel;
     const label  = dd.querySelector('.custom-dd-label');
     const arrow  = dd.querySelector('.custom-dd-arrow');
     const hidden = dd.querySelector('input[type="hidden"]');
-    // Items juga ikut pindah ke body bersama panel — query via panel, bukan dd.
-    const items  = panel ? panel.querySelectorAll('.custom-dd-item') : dd.querySelectorAll('.custom-dd-item');
 
     if (hidden) hidden.value = val;
 
@@ -279,9 +234,13 @@ function _selectItem(dd, val, text) {
         label.className   = val ? 'custom-dd-label text-gray-700' : 'custom-dd-label text-gray-500';
     }
 
-    items.forEach(i => i.classList.remove('bg-gray-50', 'font-medium', 'text-gray-900'));
-    const active = dd.querySelector(`.custom-dd-item[data-value="${CSS.escape(val)}"]`);
-    if (active && val) active.classList.add('bg-gray-50', 'font-medium', 'text-gray-900');
+    if (panel) {
+        panel.querySelectorAll('.custom-dd-item').forEach(i => i.classList.remove('bg-gray-50', 'font-medium', 'text-gray-900'));
+        if (val) {
+            const active = panel.querySelector(`.custom-dd-item[data-value="${CSS.escape(val)}"]`);
+            if (active) active.classList.add('bg-gray-50', 'font-medium', 'text-gray-900');
+        }
+    }
 
     if (panel) {
         panel.classList.add('hidden');
@@ -322,10 +281,11 @@ function _closeAllDropdowns() {
 function setCustomDropdownValue(hiddenId, value) {
     const hidden = document.getElementById(hiddenId);
     if (!hidden) return;
-    const dd   = hidden.closest('.custom-dd');
-    if (!dd)    return;
-    const item = dd.querySelector(`.custom-dd-item[data-value="${CSS.escape(value)}"]`);
-    const text = item ? item.textContent.trim()
-                      : (dd.querySelector('.custom-dd-item[data-value=""]')?.textContent.trim() || '');
+    const dd    = hidden.closest('.custom-dd');
+    if (!dd)     return;
+    const panel = dd.querySelector('.custom-dd-panel') || dd._ddPanel;
+    const item  = panel?.querySelector(`.custom-dd-item[data-value="${CSS.escape(value)}"]`);
+    const text  = item ? item.textContent.trim()
+                       : (panel?.querySelector('.custom-dd-item[data-value=""]')?.textContent.trim() || '');
     _selectItem(dd, value, text);
 }

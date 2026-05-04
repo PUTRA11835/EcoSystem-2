@@ -34,6 +34,8 @@ class Ticket extends Model
         'last_message_at',
         'last_customer_reply_at',
         'last_agent_reply_at',
+        'last_internal_note_at',
+        'last_internal_note_sender_id',
         // Field tambahan dari form Jarvies
         'name',
         'no_hp',
@@ -44,6 +46,11 @@ class Ticket extends Model
         'internal_mandays_status',
         // CC recipients (disalin dari staging saat approve)
         'cc_emails',
+        // Progress tracking
+        'progress_percentage',
+        'progress_note',
+        'last_progress_at',
+        'progress_updated_by',
     ];
 
     protected $casts = [
@@ -51,10 +58,13 @@ class Ticket extends Model
         'end_date'               => 'date',
         'man_days'               => 'decimal:2',
         'wait_close'             => 'decimal:2',
+        'progress_percentage'    => 'decimal:2',
         'last_message_at'        => 'datetime',
         'last_customer_reply_at' => 'datetime',
         'last_agent_reply_at'    => 'datetime',
-        'cc_emails'              => 'array',
+        'last_internal_note_at'        => 'datetime',
+        'last_internal_note_sender_id' => 'integer',
+        'cc_emails'                    => 'array',
     ];
 
     // Relasi ke Customer

@@ -305,11 +305,15 @@ document.addEventListener('DOMContentLoaded', function () {
 const RPT_MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function currentActivePeriod() {
-    const now = new Date();
-    return now.getDate() >= 21
-        ? { month: now.getMonth() + 1, year: now.getFullYear() }          // period of this month
-        : { month: now.getMonth() === 0 ? 12 : now.getMonth(),            // period of last month
-            year:  now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear() };
+    const now  = new Date();
+    const day  = now.getDate();
+    const m0   = now.getMonth();   // 0-indexed: Jan=0…Dec=11
+    const year = now.getFullYear();
+    if (day >= 21) {
+        const nextM = m0 + 2;      // +1 to make 1-indexed, +1 for next month
+        return nextM > 12 ? { month: 1, year: year + 1 } : { month: nextM, year };
+    }
+    return { month: m0 + 1, year };
 }
 
 function initPeriodDates() {
@@ -542,6 +546,7 @@ function renderRptTable() {
     const approvalBadge = (s) => {
         if (s === 'approved')  return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700">Approved</span>`;
         if (s === 'submitted') return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700">Submitted</span>`;
+        if (s === 'draft')     return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600">Draft</span>`;
         return `<span class="text-xs text-gray-400">${escRpt(s)}</span>`;
     };
 

@@ -238,7 +238,7 @@ class ActivityManagementController extends Controller
             
             return response()->json([
                 'success' => false,
-                'message' => 'Server error'
+                'message' => 'Failed to create the activity. Please try again.'
             ], 500);
         }
     }
@@ -777,7 +777,7 @@ class ActivityManagementController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'An error occurred'
+                'message' => 'Failed to delete the activity. It may be referenced by other records.'
             ], 422);
         }
     }

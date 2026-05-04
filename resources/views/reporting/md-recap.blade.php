@@ -218,10 +218,19 @@ function updatePeriodLabel() {
 document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
 
-    const now = new Date();
-    const isAfter21 = now.getDate() >= 21;
-    const periodMonth = isAfter21 ? now.getMonth() + 1 : (now.getMonth() === 0 ? 12 : now.getMonth());
-    const periodYear  = isAfter21 ? now.getFullYear() : (now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear());
+    const now  = new Date();
+    const day  = now.getDate();
+    const m0   = now.getMonth();
+    const year = now.getFullYear();
+    let periodMonth, periodYear;
+    if (day >= 21) {
+        const nextM = m0 + 2;
+        if (nextM > 12) { periodMonth = 1;      periodYear = year + 1; }
+        else            { periodMonth = nextM;  periodYear = year; }
+    } else {
+        periodMonth = m0 + 1;
+        periodYear  = year;
+    }
     document.getElementById('recapYear').value = periodYear;
     if (typeof setCustomDropdownValue === 'function') {
         setCustomDropdownValue('recapMonth', String(periodMonth));
@@ -298,10 +307,19 @@ async function loadRecap() {
 }
 
 function resetRecap() {
-    const now = new Date();
-    const isAfter21 = now.getDate() >= 21;
-    const resetMonth = isAfter21 ? now.getMonth() + 1 : (now.getMonth() === 0 ? 12 : now.getMonth());
-    const resetYear  = isAfter21 ? now.getFullYear() : (now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear());
+    const now  = new Date();
+    const day  = now.getDate();
+    const m0   = now.getMonth();
+    const year = now.getFullYear();
+    let resetMonth, resetYear;
+    if (day >= 21) {
+        const nextM = m0 + 2;
+        if (nextM > 12) { resetMonth = 1;      resetYear = year + 1; }
+        else            { resetMonth = nextM;  resetYear = year; }
+    } else {
+        resetMonth = m0 + 1;
+        resetYear  = year;
+    }
     document.getElementById('recapYear').value = resetYear;
     document.getElementById('recapFilterName').value = '';
     if (typeof setCustomDropdownValue === 'function') {

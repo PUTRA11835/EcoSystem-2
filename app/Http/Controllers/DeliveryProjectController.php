@@ -11,6 +11,7 @@ use App\Models\DeliveryProjectPhase;
 use App\Models\DeliveryProjectActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
@@ -81,7 +82,14 @@ class DeliveryProjectController extends Controller
             'delivery_method', 'warranty_period', 'total_mandays'
         ]));
 
-        $project = DeliveryProject::create($projectData);
+        try {
+            $project = DeliveryProject::create($projectData);
+        } catch (\Exception $e) {
+            Log::error('DeliveryProjectController@store', ['error' => $e->getMessage()]);
+            return redirect()->back()
+                             ->withInput()
+                             ->with('error', 'Failed to create the project due to a server error. Please try again.');
+        }
 
         return redirect()->route('projects.index')
                          ->with('success', 'Project successfully created.');
@@ -140,8 +148,15 @@ class DeliveryProjectController extends Controller
             $project->location_valid_to = $lastEndDate->toDateString();
         }
         
-        $project->save();
-        $project->updateStatusAutomatically();
+        try {
+            $project->save();
+            $project->updateStatusAutomatically();
+        } catch (\Exception $e) {
+            Log::error('DeliveryProjectController@show: failed to auto-update project', [
+                'project_id' => $project->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
 
         $employees = Employee::with(['basicData', 'addresses'])->get();
 

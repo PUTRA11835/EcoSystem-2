@@ -7,14 +7,16 @@ use App\Http\Resources\Mobile\ProjectDetailResource;
 use App\Http\Resources\Mobile\ProjectListResource;
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectUpdate;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 /**
  * Mobile Project Controller
  *
- * Semua endpoint dilindungi middleware `mobile.employee`.
- * Auth user didapat dari $request->user() → instance AuthUser.
+ * All endpoints are protected by the `mobile.employee` middleware.
+ * Authenticated user: $request->user() → AuthUser instance.
  */
 class ProjectController extends Controller
 {
@@ -22,85 +24,87 @@ class ProjectController extends Controller
     // GET /api/mobile/employee/projects
     // =========================================================================
 
-    /**
-     * List project dengan pagination & filter.
-     *
-     * Query params:
-     *   ?search=  string  — cari nama customer atau description
-     *   ?status=  string  — Open | In Process | Closed
-     *   ?page=    integer — halaman (default 1, per halaman 15)
-     */
     public function index(Request $request)
     {
-        $query = DeliveryProject::with([
-            'client.basicData',
-            'deliveryOwner.basicData',
-            'teamMembers.basicData',
-        ]);
+        try {
+            $query = DeliveryProject::with([
+                'client.basicData',
+                'deliveryOwner.basicData',
+                'teamMembers.basicData',
+            ]);
 
-        if ($search = $request->query('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('description', 'like', "%{$search}%")
-                  ->orWhereHas('client.basicData', fn ($cq) =>
-                      $cq->where('name_1', 'like', "%{$search}%")
-                  );
-            });
+            if ($search = $request->query('search')) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('description', 'like', "%{$search}%")
+                      ->orWhereHas('client.basicData', fn ($cq) =>
+                          $cq->where('name_1', 'like', "%{$search}%")
+                      );
+                });
+            }
+
+            if ($status = $request->query('status')) {
+                $query->where('category', $status);
+            }
+
+            $projects = $query->orderBy('updated_at', 'desc')->paginate(15);
+
+            return response()->json([
+                'success' => true,
+                'data'    => ProjectListResource::collection($projects->items()),
+                'meta'    => [
+                    'current_page' => $projects->currentPage(),
+                    'last_page'    => $projects->lastPage(),
+                    'total'        => $projects->total(),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Mobile\ProjectController@index', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve project list. Please try again.',
+            ], 500);
         }
-
-        if ($status = $request->query('status')) {
-            $query->where('category', $status);
-        }
-
-        $projects = $query->orderBy('updated_at', 'desc')->paginate(15);
-
-        return response()->json([
-            'success' => true,
-            'data'    => ProjectListResource::collection($projects->items()),
-            'meta'    => [
-                'current_page' => $projects->currentPage(),
-                'last_page'    => $projects->lastPage(),
-                'total'        => $projects->total(),
-            ],
-        ]);
     }
 
     // =========================================================================
     // GET /api/mobile/employee/projects/{id}
     // =========================================================================
 
-    /**
-     * Detail satu project, termasuk phases, team, dan updates.
-     */
     public function show($id)
     {
-        $project = DeliveryProject::with([
-            'client.basicData',
-            'deliveryOwner.basicData',
-            'teamMembers.basicData',
-            'phases.plannings',
-            'updates',
-        ])->findOrFail($id);
+        try {
+            $project = DeliveryProject::with([
+                'client.basicData',
+                'deliveryOwner.basicData',
+                'teamMembers.basicData',
+                'phases.plannings',
+                'updates',
+            ])->findOrFail($id);
 
-        return response()->json([
-            'success' => true,
-            'data'    => new ProjectDetailResource($project),
-        ]);
+            return response()->json([
+                'success' => true,
+                'data'    => new ProjectDetailResource($project),
+            ]);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "Project #{$id} not found.",
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error('Mobile\ProjectController@show', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve project details. Please try again.',
+            ], 500);
+        }
     }
 
     // =========================================================================
     // POST /api/mobile/employee/projects/{id}/updates
     // =========================================================================
 
-    /**
-     * Tambah catatan update ke project.
-     *
-     * Request body:
-     *   { "note": "string" }
-     */
     public function storeUpdate(Request $request, $id)
     {
-        $project = DeliveryProject::findOrFail($id);
-
         $validator = Validator::make($request->all(), [
             'note' => 'required|string',
         ]);
@@ -108,35 +112,50 @@ class ProjectController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validasi gagal.',
+                'message' => 'Project update note is required.',
                 'errors'  => $validator->errors(),
             ], 422);
         }
 
-        $authUser = $request->user();
-        $employee = $authUser->employee;
-        $bd = $employee?->basicData;
-        $authorName = $bd
-            ? trim($bd->first_name . ' ' . ($bd->last_name ?? ''))
-            : ($authUser->email ?? null);
+        try {
+            $project = DeliveryProject::findOrFail($id);
 
-        $update = DeliveryProjectUpdate::create([
-            'delivery_projects_id' => $project->id,
-            'notes'                => $request->note,
-        ]);
+            $authUser   = $request->user();
+            $employee   = $authUser->employee;
+            $bd         = $employee?->basicData;
+            $authorName = $bd
+                ? trim($bd->first_name . ' ' . ($bd->last_name ?? ''))
+                : ($authUser->email ?? null);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Update berhasil ditambahkan.',
-            'data'    => [
-                'id'         => $update->id,
-                'author'     => [
-                    'id'   => $employee?->employee_id,
-                    'name' => $authorName,
+            $update = DeliveryProjectUpdate::create([
+                'delivery_projects_id' => $project->id,
+                'notes'                => $request->note,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Project update added successfully.',
+                'data'    => [
+                    'id'         => $update->id,
+                    'author'     => [
+                        'id'   => $employee?->employee_id,
+                        'name' => $authorName,
+                    ],
+                    'note'       => $update->notes,
+                    'created_at' => $update->created_at?->toDateString(),
                 ],
-                'note'       => $update->notes,
-                'created_at' => $update->created_at?->toDateString(),
-            ],
-        ], 201);
+            ], 201);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "Project #{$id} not found.",
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error('Mobile\ProjectController@storeUpdate', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to add project update. Please try again.',
+            ], 500);
+        }
     }
 }

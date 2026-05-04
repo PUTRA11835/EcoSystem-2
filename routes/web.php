@@ -24,6 +24,9 @@ use App\Http\Controllers\DeliveryProjectPlanningExportController;
 use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\TicketViewController;
+use App\Http\Controllers\ConsultantWorkloadController;
+use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TicketController;
 use App\Http\Controllers\PasswordSetupController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Middleware\CheckAuthToken;
@@ -31,7 +34,7 @@ use App\Http\Middleware\CheckAuthToken;
 // ==================== PUBLIC ROUTES ====================
 
 Route::prefix('api/auth')->group(function () {
-    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:200,1'); // SEMENTARA untuk load test
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 });
@@ -279,6 +282,9 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::prefix('ticket')->name('ticket.')->group(function () {
         Route::get('/', [TicketViewController::class, 'index'])->name('index');
         Route::get('/create', [TicketViewController::class, 'create'])->name('create');
+        Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload');
+        Route::get('/task', [TaskController::class, 'index'])->name('task');
+        Route::get('/latest-update', [TicketController::class, 'latestUpdate'])->name('latest-update');
         Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
     });
 

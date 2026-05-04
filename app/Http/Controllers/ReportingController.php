@@ -58,7 +58,7 @@ class ReportingController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('currentPeriod error');
-            return response()->json(['success' => false, 'message' => 'An error occurred'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to retrieve current period data. Please try again.'], 500);
         }
     }
 
@@ -96,7 +96,7 @@ class ReportingController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
             Log::error('closePeriod error: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'An error occurred'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to close the period. Please try again.'], 500);
         }
     }
 
@@ -116,7 +116,7 @@ class ReportingController extends Controller
                 ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
                 ->leftJoin('customer',            'ticket.customer_id',   '=', 'customer.customer_id')
                 ->leftJoin('customer_basic_data', 'customer.customer_id', '=', 'customer_basic_data.customer_id')
-                ->whereIn('timesheets.status', ['submitted', 'approved'])
+                ->whereIn('timesheets.status', ['draft', 'submitted', 'approved'])
                 ->whereNotNull('timesheets.ticket_id')
                 ->whereNull('timesheets.deleted_at')
                 ->select(
@@ -166,8 +166,30 @@ class ReportingController extends Controller
                     });
             }
 
+            // Pre-load consumed from BEFORE the date range so the running total carries over
+            // from previous periods (cumulative quota, not per-period reset).
+            $preBase = [];
+            if ($request->filled('start_date') && $rows->isNotEmpty()) {
+                $ticketEmpPairs = $rows->map(fn($r) => ['t' => $r->ticket_id, 'e' => $r->employee_id])->unique()->values();
+                $ticketIds2     = $ticketEmpPairs->pluck('t')->unique()->toArray();
+                $empIds2        = $ticketEmpPairs->pluck('e')->unique()->toArray();
+
+                DB::table('timesheets')
+                    ->whereIn('ticket_id', $ticketIds2)
+                    ->whereIn('employee_id', $empIds2)
+                    ->whereIn('status', ['draft', 'submitted', 'approved'])
+                    ->whereNull('deleted_at')
+                    ->where('date', '<', $request->start_date)
+                    ->select('ticket_id', 'employee_id', DB::raw('SUM(md_consumed) as base'))
+                    ->groupBy('ticket_id', 'employee_id')
+                    ->get()
+                    ->each(function ($r) use (&$preBase) {
+                        $preBase[$r->ticket_id . '_' . $r->employee_id] = (float) $r->base;
+                    });
+            }
+
             // Running cumulative MD consumed per employee per ticket (rows sorted asc for correct accumulation)
-            $runningTotals = [];
+            $runningTotals = $preBase;
             $data = $rows->map(function ($row) use ($jatahMap, &$runningTotals) {
                 $jatahMd    = $jatahMap[$row->ticket_id . '_' . $row->employee_id] ?? null;
                 $mdConsumed = (float) $row->md_consumed;
@@ -203,7 +225,7 @@ class ReportingController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Reporting timesheetSupport');
-            return response()->json(['success' => false, 'message' => 'An error occurred'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to retrieve the timesheet support report. Please try again.'], 500);
         }
     }
 
@@ -217,7 +239,7 @@ class ReportingController extends Controller
             $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
 
             if (!in_array($currentRoleId, [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value])) {
-                abort(403);
+                abort(403, 'Access denied. Only Admins and Head of Support can export reports.');
             }
 
             // Determine period for export
@@ -332,7 +354,7 @@ class ReportingController extends Controller
 
         } catch (\Exception $e) {
             Log::error('exportExcel error: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'An error occurred'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to generate the Excel export. Please try again.'], 500);
         }
     }
 
@@ -345,7 +367,7 @@ class ReportingController extends Controller
 
         $roleId = (int) ($sessionUser['role']['id'] ?? 0);
         if (!in_array($roleId, [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value])) {
-            abort(403);
+            abort(403, 'Access denied. Only Admins and Head of Support can view the MD recap.');
         }
 
         return view('reporting.md-recap', ['user' => $sessionUser]);
@@ -401,7 +423,7 @@ class ReportingController extends Controller
 
         } catch (\Exception $e) {
             Log::error('mdRecap error');
-            return response()->json(['success' => false, 'message' => 'An error occurred'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to retrieve MD recap data. Please try again.'], 500);
         }
     }
 
@@ -414,7 +436,7 @@ class ReportingController extends Controller
             $currentRoleId = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
 
             if (!in_array($currentRoleId, [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value])) {
-                abort(403);
+                abort(403, 'Access denied. Only Admins and Head of Support can export the MD recap.');
             }
 
             $month = $request->filled('month') ? (int) $request->month : now()->month;

@@ -40,7 +40,7 @@ class TimesheetController extends Controller
             }
 
             $query = Timesheet::with(['employee.basicData', 'activity.delivery_project', 'delivery_project', 'approver.basicData', 'ticket.customer.basicData', 'ticket'])
-                ->whereIn('status', ['submitted', 'approved', 'rejected']);
+                ->whereIn('status', ['draft', 'submitted', 'approved', 'rejected']);
 
             // Filter by date range if provided
             if ($request->has('start_date') && $request->has('end_date')) {
@@ -177,6 +177,7 @@ class TimesheetController extends Controller
             : null;
 
         // Total MD consumed by this employee for this ticket.
+        // Draft timesheets count — they represent planned/in-progress work.
         // Rejected timesheets return their MD to the quota — exclude them.
         $consumed = (float) Timesheet::where('ticket_id', $ticketId)
             ->where('employee_id', $employeeId)
@@ -569,7 +570,7 @@ class TimesheetController extends Controller
             
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Timesheet data is invalid.',
                 'errors' => $e->errors()
             ], 422);
             
@@ -598,7 +599,7 @@ class TimesheetController extends Controller
             $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
             $privilegedRoles   = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
 
-            if (!in_array($currentRoleId, $privilegedRoles, true) && $timesheet->employee_id !== $currentEmployeeId) {
+            if (!in_array($currentRoleId, $privilegedRoles, true) && (int) $timesheet->employee_id !== (int) $currentEmployeeId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Forbidden: you can only edit your own timesheets'
@@ -668,7 +669,7 @@ class TimesheetController extends Controller
             
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Timesheet data is invalid.',
                 'errors' => $e->errors()
             ], 422);
             
@@ -696,7 +697,7 @@ class TimesheetController extends Controller
             $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
             $privilegedRoles   = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
 
-            if (!in_array($currentRoleId, $privilegedRoles, true) && $timesheet->employee_id !== $currentEmployeeId) {
+            if (!in_array($currentRoleId, $privilegedRoles, true) && (int) $timesheet->employee_id !== (int) $currentEmployeeId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Forbidden: you can only delete your own timesheets'
@@ -740,7 +741,7 @@ class TimesheetController extends Controller
             $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
             $privilegedRoles   = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
 
-            if (!in_array($currentRoleId, $privilegedRoles, true) && $timesheet->employee_id !== $currentEmployeeId) {
+            if (!in_array($currentRoleId, $privilegedRoles, true) && (int) $timesheet->employee_id !== (int) $currentEmployeeId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Forbidden: you can only submit your own timesheets'
@@ -752,6 +753,41 @@ class TimesheetController extends Controller
                     'success' => false,
                     'message' => 'Only draft timesheets can be submitted'
                 ], 400);
+            }
+
+            // For support timesheets, block submit when remaining MD quota is exhausted
+            if ($timesheet->ticket_id) {
+                $empId    = $timesheet->employee_id;
+                $ticketId = $timesheet->ticket_id;
+
+                $latestApproved = ConsultantMandays::where('ticket_id', $ticketId)
+                    ->where('status', 'approved')
+                    ->orderBy('approved_at', 'desc')
+                    ->first();
+
+                $quotaDetail = $latestApproved
+                    ? ConsultantMandaysDetail::where('consultant_mandays_id', $latestApproved->id)
+                        ->where('employee_id', $empId)
+                        ->first()
+                    : null;
+
+                if ($quotaDetail) {
+                    $quota = round((float) $quotaDetail->mandays + (float) ($quotaDetail->approved_additional ?? 0), 2);
+
+                    $consumed  = (float) Timesheet::where('ticket_id', $ticketId)
+                        ->where('employee_id', $empId)
+                        ->whereIn('status', ['draft', 'submitted', 'approved'])
+                        ->sum('md_consumed');
+
+                    $remaining = round($quota - $consumed, 2);
+
+                    if ($remaining < 0) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Cannot submit: quota exceeded. Remaining MD is {$remaining}. Contact your Head to increase the quota.",
+                        ], 422);
+                    }
+                }
             }
 
             $timesheet->update(['status' => 'submitted']);
