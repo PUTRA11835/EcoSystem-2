@@ -336,20 +336,24 @@ class MandaysController extends Controller
                     ->first();
                 $inReplyTo = $lastEmailMsg?->email_message_id;
 
-                $originalSubject = $ticket->subject
-                    ?? ($ticket->description ? mb_substr($ticket->description, 0, 100) : null)
-                    ?? ('Ticket #' . ($ticket->ticket_number ?? ''));
-                $subject = stripos($originalSubject, 're:') === 0
-                    ? $originalSubject
-                    : 'Re: ' . $originalSubject;
+                $subject = 'Ticket #' . $ticket->ticket_number . ': ' . mb_substr($ticket->description ?? '', 0, 80);
 
-                $firstMsgWithCc = TicketMessage::where('ticket_id', $ticketId)
-                    ->whereNotNull('cc_emails')
-                    ->orderBy('created_at', 'asc')
-                    ->first();
-                $ccList = $firstMsgWithCc?->cc_emails
-                    ? json_decode($firstMsgWithCc->cc_emails, true)
+                // CC: prioritaskan ticket.cc_emails, fallback ke pesan pertama dengan CC.
+                // Gunakan is_array check karena model cast 'array' sudah decode JSON → array.
+                $rawTicketCc = $ticket->cc_emails;
+                $ccList = $rawTicketCc
+                    ? (is_array($rawTicketCc) ? $rawTicketCc : (json_decode($rawTicketCc, true) ?? []))
                     : [];
+                if (empty($ccList)) {
+                    $firstMsgWithCc = TicketMessage::where('ticket_id', $ticketId)
+                        ->whereNotNull('cc_emails')
+                        ->orderBy('created_at', 'asc')
+                        ->first();
+                    $rawMsgCc = $firstMsgWithCc?->cc_emails;
+                    $ccList = $rawMsgCc
+                        ? (is_array($rawMsgCc) ? $rawMsgCc : (json_decode($rawMsgCc, true) ?? []))
+                        : [];
+                }
 
                 $result = app(EmailController::class)->sendTicketReply(
                     $customerEmail,
@@ -368,7 +372,8 @@ class MandaysController extends Controller
                     'email_message_id' => $result['internet_message_id'] ?? null,
                 ]);
 
-                if (!empty($result['conversation_id']) && empty($ticket->email_thread_id)) {
+                // Selalu sync email_thread_id ke conversationId terbaru (bukan hanya saat kosong)
+                if (!empty($result['conversation_id']) && $result['conversation_id'] !== $ticket->email_thread_id) {
                     $ticket->update(['email_thread_id' => $result['conversation_id']]);
                 }
 

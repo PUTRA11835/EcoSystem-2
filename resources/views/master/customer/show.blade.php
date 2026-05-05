@@ -299,9 +299,7 @@
                 setText('lastChangedBy', basicData.last_changed_by);
                 setText('lastChangedOn', formatDateTime(basicData.last_changed_on));
                 
-                console.log('Basic data loaded successfully');
             } else {
-                console.log('No basic data found - form ready for new entry');
             }
         } catch (error) {
             console.error('Error loading basic data:', error);
@@ -402,7 +400,6 @@
 
     // Load data when page loads
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('Loading customer data for ID:', customerId);
         loadCustomerBasicData(customerId);
     });
 </script>

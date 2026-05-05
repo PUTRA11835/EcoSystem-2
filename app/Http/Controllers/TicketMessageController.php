@@ -35,12 +35,21 @@ class TicketMessageController extends Controller
             // Check access based on role
             $roleId = $sessionUser['role']['id'];
 
-            // Build query for messages (eager load attachments)
-            $query = TicketMessage::with(['attachments'])
+            // Build query for messages (eager load attachments + replied-to message)
+            $query = TicketMessage::with(['attachments', 'replyTo'])
                 ->where('ticket_id', $ticketId)
                 ->orderBy('created_at', 'asc');
 
             $messages = $query->get()->map(function ($message) {
+                $replyToPreview = null;
+                if ($message->reply_to_id && $message->replyTo) {
+                    $parent = $message->replyTo;
+                    $replyToPreview = [
+                        'id'          => $parent->id,
+                        'sender_name' => $parent->sender_name,
+                        'text'        => mb_substr(strip_tags($parent->message_html ?: $parent->message ?? ''), 0, 120),
+                    ];
+                }
                 return [
                     'id'                  => $message->id,
                     'ticket_id'           => $message->ticket_id,
@@ -51,13 +60,13 @@ class TicketMessageController extends Controller
                     'message_body'        => $message->message,
                     'message_html'        => $message->message_html,
                     'message_type'        => $message->is_internal_note ? 'internal_note' : 'reply',
+                    'reply_to_id'         => $message->reply_to_id,
+                    'reply_to_preview'    => $replyToPreview,
                     'channel'             => $message->channel ?? 'web',
                     'email_message_id'    => $message->email_message_id,
                     'is_read_by_customer' => $message->is_read_by_customer,
                     'is_read_by_agent'    => $message->is_read_by_agent,
                     'cc_emails'           => (function($cc) {
-                                                // Model cast 'array' normalnya mengembalikan array.
-                                                // Jika tersimpan double-encoded (JSON string), decode sekali lagi.
                                                 if (is_array($cc)) return $cc;
                                                 if (is_string($cc) && $cc !== '') return json_decode($cc, true) ?? [];
                                                 return [];
@@ -108,6 +117,7 @@ class TicketMessageController extends Controller
             'mentioned_employee_ids.*'=> 'integer',
             'mentioned_role_ids'      => 'nullable|array',
             'mentioned_role_ids.*'    => 'integer',
+            'reply_to_id'             => 'nullable|integer|exists:ticket_message,id',
         ]);
 
         if ($validator->fails()) {
@@ -234,6 +244,7 @@ class TicketMessageController extends Controller
                 // Internal note — tidak pernah dikirim ke email
                 $mentionedEmployeeIds = $request->input('mentioned_employee_ids', []);
                 $mentionedRoleIds     = $request->input('mentioned_role_ids', []);
+                $replyToId            = $request->input('reply_to_id');
 
                 $message = TicketMessage::create([
                     'ticket_id'              => $ticketId,
@@ -243,6 +254,7 @@ class TicketMessageController extends Controller
                     'message'                => trim(strip_tags($messageBody)),
                     'message_html'           => $messageBody,
                     'is_internal_note'       => true,
+                    'reply_to_id'            => $replyToId ?: null,
                     'channel'                => 'web',
                     'is_read_by_customer'    => false,
                     'is_read_by_agent'       => true,

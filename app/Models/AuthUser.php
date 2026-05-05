@@ -27,6 +27,7 @@ class AuthUser extends Authenticatable
         'last_login_at',
         'is_active',
         'is_already_cp',
+        'can_view_all_tickets',
         'cp_token',
         'cp_token_expires_at',
         'email_verified_at',
@@ -41,8 +42,9 @@ class AuthUser extends Authenticatable
 
     protected $casts = [
         'last_login_at'       => 'datetime',
-        'is_active'           => 'boolean',
-        'is_already_cp'       => 'boolean',
+        'is_active'               => 'boolean',
+        'is_already_cp'           => 'boolean',
+        'can_view_all_tickets'    => 'boolean',
         'cp_token_expires_at' => 'datetime',
         'email_verified_at'   => 'datetime',
         'phone_verified_at'   => 'datetime',

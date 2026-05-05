@@ -12,6 +12,26 @@
 @endif
 @endsection
 
+@section('page-actions')
+@if($ticket->onedrive_folder_url)
+<a id="ticketFolderBtn" href="{{ $ticket->onedrive_folder_url }}" target="_blank" rel="noopener"
+   class="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+    </svg>
+    Open Folder
+</a>
+@else
+<button type="button" id="ticketFolderBtn" onclick="openOneDriveModal()"
+        class="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+    </svg>
+    Create Folder
+</button>
+@endif
+@endsection
+
 {{-- Override sidebar with ticket inbox --}}
 @section('sidebar-nav')
 {{-- Resize handle – draggable right edge --}}
@@ -143,6 +163,16 @@
                 </svg>
             </button>
             @endif
+            {{-- Toggle right panel --}}
+            <button id="toggleRightPanelBtn" onclick="toggleRightPanel()" title="Toggle Properties Panel"
+                class="ml-2 flex-shrink-0 w-9 h-9 hidden xl:flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all">
+                <svg id="rightPanelIconCollapse" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <svg id="rightPanelIconExpand" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+            </button>
         </div>
 
         {{-- Messages Thread --}}
@@ -157,18 +187,35 @@
 
         {{-- Compose Area with Quill Editor --}}
         <div class="border-t border-gray-200 flex-shrink-0">
-            {{-- Channel mode indicator --}}
-            @if($ticket->channel === 'email' || $ticket->email_thread_id)
-            <div class="px-4 pt-2 flex items-center gap-1.5 text-xs text-blue-700">
-                <i class="fas fa-envelope text-[10px]"></i>
-                <span>Replies will be sent to customer via <strong>Email</strong></span>
+
+            {{-- Toggle strip: channel indicator + collapse button --}}
+            <div class="flex items-center pr-3">
+                <div class="flex-1">
+                    @if($ticket->channel === 'email' || $ticket->email_thread_id)
+                    <div class="px-4 pt-2 pb-0.5 flex items-center gap-1.5 text-xs text-blue-700">
+                        <i class="fas fa-envelope text-[10px]"></i>
+                        <span>Replies will be sent to customer via <strong>Email</strong></span>
+                    </div>
+                    @else
+                    <div class="px-4 pt-2 pb-0.5 flex items-center gap-1.5 text-xs text-gray-400">
+                        <i class="fas fa-comment text-[10px]"></i>
+                        <span>Replies only visible in <strong>Jarvies</strong> — no email will be sent</span>
+                    </div>
+                    @endif
+                </div>
+                <button onclick="toggleReplyBox()" title="Toggle reply box"
+                    class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
+                    <svg id="replyToggleIconDown" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                    <svg id="replyToggleIconUp" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+                    </svg>
+                </button>
             </div>
-            @else
-            <div class="px-4 pt-2 flex items-center gap-1.5 text-xs text-gray-400">
-                <i class="fas fa-comment text-[10px]"></i>
-                <span>Replies only visible in <strong>Jarvies</strong> — no email will be sent</span>
-            </div>
-            @endif
+
+            {{-- Collapsible compose content --}}
+            <div id="replyComposeInner" style="max-height:600px;overflow:hidden;opacity:1;transition:max-height .2s ease,opacity .2s ease;">
 
             {{-- To / CC Row: hanya tampil untuk email tickets --}}
             @if(($ticket->channel === 'email' || $ticket->email_thread_id) && !empty($customerEmail))
@@ -195,6 +242,24 @@
                 </div>
             </div>
             @endif
+
+            {{-- Reply-to context bar (WhatsApp-style) --}}
+            <div id="replyContextBar" class="hidden px-4 pt-2">
+                <div class="flex items-center gap-2 bg-amber-50 border-l-4 border-amber-400 rounded-r-lg px-3 py-2">
+                    <svg class="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                        <span class="text-[10px] font-bold text-amber-700 block" id="replyContextName"></span>
+                        <span class="text-xs text-gray-500 truncate block" id="replyContextText"></span>
+                    </div>
+                    <button onclick="cancelReply()" class="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors" title="Cancel reply">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
 
             <div class="px-4 pt-2 pb-2">
                 {{-- Mention dropdown (positioned relative to editor wrapper) --}}
@@ -232,6 +297,7 @@
                     @endif
                 </div>
             </div>
+            </div>{{-- /replyComposeInner --}}
         </div>
     </div>
 
@@ -283,7 +349,7 @@
                            || $canTakeTicket || $canAssignPic || in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true);
     @endphp
 
-    <div class="hidden xl:flex xl:flex-col w-72 gap-3 flex-shrink-0 overflow-y-auto">
+    <div id="rightSidePanel" class="hidden xl:flex xl:flex-col w-72 gap-3 flex-shrink-0 overflow-y-auto" style="transition: width 0.25s ease, opacity 0.25s ease;">
 
         {{-- ── Mandays Panel ── --}}
         @if($hasMandaysSection)
@@ -767,6 +833,11 @@
 .sb-status-reply        { background:#fef9c3; color:#a16207; }
 .sb-status-cancel       { background:#fee2e2; color:#b91c1c; }
 .sb-status-default      { background:#f3f4f6; color:#6b7280; }
+
+/* ─── Internal note reply button (hidden until hover on group) ─── */
+.note-reply-btn {
+    transition: opacity 0.15s;
+}
 
 /* ─── Primary theme helpers (mandays modals) ─── */
 .primary-focus:focus {
@@ -1295,6 +1366,58 @@
     const assignedDsType = @json(isset($deliverySupport) && $deliverySupport ? $deliverySupport->type : null);
     let quillEditor     = null;
 
+    // ── Reply-to state (WhatsApp-style internal note reply) ───────────────────
+    let replyToId = null;
+
+    function setReplyTo(msgId, senderName, msgText) {
+        replyToId = msgId;
+        document.getElementById('replyContextName').textContent = senderName;
+        document.getElementById('replyContextText').textContent = msgText || '(no text)';
+        document.getElementById('replyContextBar').classList.remove('hidden');
+        quillEditor && quillEditor.focus();
+    }
+
+    function cancelReply() {
+        replyToId = null;
+        document.getElementById('replyContextBar').classList.add('hidden');
+    }
+
+    function scrollToMessage(msgId) {
+        const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('ring-2', 'ring-amber-400', 'rounded-lg');
+            setTimeout(() => el.classList.remove('ring-2', 'ring-amber-400', 'rounded-lg'), 2000);
+        }
+    }
+
+    // ── Right panel toggle ────────────────────────────────────────────────────
+    function toggleRightPanel() {
+        const panel        = document.getElementById('rightSidePanel');
+        const iconCollapse = document.getElementById('rightPanelIconCollapse');
+        const iconExpand   = document.getElementById('rightPanelIconExpand');
+        if (!panel) return;
+        const isExpanded = panel.style.width !== '0px';
+        panel.style.width    = isExpanded ? '0px'   : '288px';
+        panel.style.opacity  = isExpanded ? '0'     : '1';
+        panel.style.overflow = isExpanded ? 'hidden' : '';
+        if (iconCollapse) iconCollapse.classList.toggle('hidden', !isExpanded);
+        if (iconExpand)   iconExpand.classList.toggle('hidden', isExpanded);
+    }
+
+    // ── Compose area collapse toggle ─────────────────────────────────────────
+    function toggleReplyBox() {
+        const inner    = document.getElementById('replyComposeInner');
+        const iconDown = document.getElementById('replyToggleIconDown');
+        const iconUp   = document.getElementById('replyToggleIconUp');
+        if (!inner) return;
+        const isExpanded = inner.style.maxHeight !== '0px';
+        inner.style.maxHeight = isExpanded ? '0px'   : '600px';
+        inner.style.opacity   = isExpanded ? '0'     : '1';
+        if (iconDown) iconDown.classList.toggle('hidden', isExpanded);
+        if (iconUp)   iconUp.classList.toggle('hidden', !isExpanded);
+    }
+
     // ── CC state ─────────────────────────────────────────────────────────────
     let ccEmails = @json(
         collect($ticket->cc_emails ?? [])
@@ -1748,14 +1871,12 @@
                 // Load pertama: render semua sekaligus (innerHTML sekali, bukan per-pesan)
                 thread.innerHTML = messages.map(msg => createMessageBubble(msg)).join('');
                 messages.forEach(msg => renderedMessageIds.add(msg.id));
-                console.log('[loadMessages] Initial render:', messages.length, 'pesan');
             } else {
                 // Poll berikutnya: hanya append pesan baru di bawah, pesan lama tidak disentuh
                 newMessages.forEach(msg => {
                     thread.insertAdjacentHTML('beforeend', createMessageBubble(msg));
                     renderedMessageIds.add(msg.id);
                 });
-                console.log('[loadMessages] Appended', newMessages.length, 'pesan baru');
             }
 
             // Auto-populate CC input saat ada reply customer baru yang bawa CC —
@@ -1960,17 +2081,33 @@
             const bubbleExtra = isMine ? 'mine' : '';
             const noteBadge = `<span class="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-semibold leading-none">📝 Internal Note</span>`;
 
+            // Quoted context if this is a reply to another note
+            const replyQuote = msg.reply_to_preview
+                ? `<div class="mb-2 border-l-[3px] border-amber-400 pl-2 py-0.5 bg-amber-50 rounded-r text-xs cursor-pointer" onclick="scrollToMessage(${msg.reply_to_preview.id})">
+                    <span class="font-semibold text-amber-700 block truncate">${escHtml(msg.reply_to_preview.sender_name || '')}</span>
+                    <span class="text-gray-500 block truncate">${escHtml(msg.reply_to_preview.text || '')}</span>
+                  </div>`
+                : '';
+
+            const replyBtn = `<button onclick="setReplyTo(${msg.id}, '${escHtml(senderName).replace(/'/g,"\\'")}', '${escHtml((msg.message_body || '')).replace(/'/g, "\\'").substring(0, 80)}')"
+                class="note-reply-btn opacity-0 group-hover:opacity-100 transition-opacity text-amber-600 hover:text-amber-800 text-[10px] font-semibold flex items-center gap-0.5 px-1.5 py-0.5 rounded hover:bg-amber-100 flex-shrink-0" title="Reply to this note">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                Reply
+            </button>`;
+
             if (isMine) {
                 return `
-                <div class="flex gap-3 flex-row-reverse">
+                <div class="flex gap-3 flex-row-reverse group" data-msg-id="${msg.id}">
                     <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${avatarBgNote} ${avatarTextNote} text-xs font-bold">${initials}</div>
                     <div class="text-right">
                         <div class="flex items-center gap-2 justify-end mb-1">
+                            ${replyBtn}
                             ${noteBadge}
                             <span class="text-sm font-semibold text-gray-900">${senderName}</span>
                             <span class="text-xs text-gray-400">${date}</span>
                         </div>
                         <div class="message-bubble internal-note ${bubbleExtra} p-3 inline-block text-left">
+                            ${replyQuote}
                             ${messageContent(msg)}
                             ${attachmentsHtml}
                         </div>
@@ -1978,15 +2115,17 @@
                 </div>`;
             } else {
                 return `
-                <div class="flex gap-3">
+                <div class="flex gap-3 group" data-msg-id="${msg.id}">
                     <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${avatarBgNote} ${avatarTextNote} text-xs font-bold">${initials}</div>
                     <div>
                         <div class="flex items-center gap-2 mb-1">
                             <span class="text-sm font-semibold text-gray-900">${senderName}</span>
                             ${noteBadge}
                             <span class="text-xs text-gray-400">${date}</span>
+                            ${replyBtn}
                         </div>
                         <div class="message-bubble internal-note ${bubbleExtra} p-3 inline-block text-left">
+                            ${replyQuote}
                             ${messageContent(msg)}
                             ${attachmentsHtml}
                         </div>
@@ -2166,6 +2305,7 @@
                 selectedFiles.forEach(file => formData.append('attachments[]', file));
                 mentionedEmployeeIds.forEach(id => formData.append('mentioned_employee_ids[]', id));
                 mentionedRoleIds.forEach(id => formData.append('mentioned_role_ids[]', id));
+                if (replyToId && messageType === 'internal_note') formData.append('reply_to_id', replyToId);
                 requestBody = formData;
             } else {
                 headers['Content-Type'] = 'application/json';
@@ -2175,6 +2315,7 @@
                     cc_emails: ccEmails,
                     mentioned_employee_ids: mentionedEmployeeIds,
                     mentioned_role_ids: mentionedRoleIds,
+                    ...(replyToId && messageType === 'internal_note' ? { reply_to_id: replyToId } : {}),
                 });
             }
 
@@ -2191,6 +2332,7 @@
                 quillEditor.setContents([]);
                 resetAttachments();
                 pendingMentions = []; // reset mentions
+                cancelReply();        // clear reply context
                 await loadMessages();
                 showNotification(messageType === 'internal_note' ? 'Internal note added' : 'Reply sent', 'success');
             } else {
@@ -3731,18 +3873,15 @@
         document.getElementById('hdCancelConfirmWrap')?.classList.add('hidden');
 
         try {
-            console.log('[hdMandays] fetching modules + hd-draft for ticket', ticketId);
             const [modRes, draftRes] = await Promise.all([
                 fetch(MANDAYS_API('modules'), { headers: getHeaders(), credentials: 'same-origin' }),
                 fetch(MANDAYS_API('hd-draft'), { headers: getHeaders(), credentials: 'same-origin' }),
             ]);
-            console.log('[hdMandays] responses:', modRes.status, draftRes.status);
             if (!modRes.ok || !draftRes.ok) {
                 throw new Error(`API error: modules=${modRes.status} hd-draft=${draftRes.status}`);
             }
             const modData   = await modRes.json();
             const draftData = await draftRes.json();
-            console.log('[hdMandays] data loaded, status=', draftData.ticket_mandays_status);
             const modules   = modData.data || [];
             const proposal  = draftData.data;
             const status    = draftData.ticket_mandays_status || 'none';
@@ -3876,7 +4015,6 @@
             console.error('[hdMandays] error:', e);
             showNotification('Failed to load proposal: ' + e.message, 'error');
         } finally {
-            console.log('[hdMandays] finally: hiding loading');
             const loadingEl = document.getElementById('hdMandaysLoading');
             if (loadingEl) loadingEl.classList.add('hidden');
         }
@@ -4317,5 +4455,246 @@
     <div class="absolute inset-0 -z-10" onclick="closeCredentialModal()"></div>
 </div>
 @endif
+
+{{-- OneDrive Folder Modal --}}
+<div id="oneDriveModal" class="hidden fixed inset-0 z-[9999] overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeOneDriveModal()"></div>
+        <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full z-10 overflow-hidden">
+
+            {{-- State 1: Generate form --}}
+            <div id="odrStateGenerate">
+                <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                        </svg>
+                        <h3 class="text-base font-semibold text-gray-900">Create OneDrive Folder</h3>
+                    </div>
+                    <button onclick="closeOneDriveModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="px-6 py-5 space-y-4">
+                    <p class="text-sm text-gray-500">
+                        The folder will be created inside the <strong class="text-gray-700">TICKETING</strong>
+                        folder in the OneDrive account <strong class="text-gray-700">{{ config('services.microsoft_graph.sender_email') }}</strong>
+                        and can be accessed by anyone with the link (edit &amp; upload access).
+                    </p>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Folder Name <span class="font-normal text-gray-400">(optional)</span>
+                        </label>
+                        <input type="text" id="odrFolderName"
+                               value="{{ $ticket->ticket_number . ' - ' . $ticket->description }}"
+                               class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <p class="text-xs text-gray-400 mt-1">Name of the folder to be created inside TICKETING.</p>
+                    </div>
+                    <div class="flex gap-2 pt-1">
+                        <button onclick="generateTicketFolder()" id="odrGenerateBtn"
+                            class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-all disabled:opacity-60 disabled:cursor-not-allowed">
+                            <svg id="odrGenerateIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                            </svg>
+                            <svg id="odrGenerateSpinner" class="hidden animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                            </svg>
+                            <span id="odrGenerateLabel">{{ $ticket->onedrive_folder_id ? 'Regenerate Link' : 'Generate Folder' }}</span>
+                        </button>
+                        <button type="button" id="odrDeleteBtnForm" onclick="deleteTicketFolder()"
+                            class="{{ $ticket->onedrive_folder_id ? '' : 'hidden' }} px-4 py-2.5 border border-red-200 text-sm text-red-600 rounded-lg hover:bg-red-50 transition-all inline-flex items-center gap-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                            Delete Folder
+                        </button>
+                        <button type="button" onclick="closeOneDriveModal()"
+                            class="px-4 py-2.5 border border-gray-300 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-all">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {{-- State 2: Success --}}
+            <div id="odrStateSuccess" class="hidden">
+                <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <h3 class="text-base font-semibold text-gray-900">OneDrive Folder Ready</h3>
+                    </div>
+                    <button onclick="closeOneDriveModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="px-6 py-5 space-y-4">
+                    <div class="flex justify-center">
+                        <div class="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
+                            <svg class="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-600 text-center">
+                        Folder created successfully inside <strong>TICKETING</strong>. Share the link below with anyone who needs access.
+                    </p>
+                    <div class="flex gap-2">
+                        <input type="text" id="odrFolderUrl" readonly
+                               class="flex-1 px-3 py-2 text-xs border border-gray-300 rounded-lg bg-gray-50 text-gray-700 focus:outline-none cursor-text select-all">
+                        <button onclick="copyFolderLink()" id="odrCopyBtn" title="Copy link"
+                            class="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition-all">
+                            <svg id="odrCopyIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                            <svg id="odrCopiedIcon" class="hidden w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="flex gap-2 pt-1">
+                        <a id="odrOpenLink" href="#" target="_blank" rel="noopener"
+                           class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                            </svg>
+                            Open Folder
+                        </a>
+                        <button onclick="deleteTicketFolder()"
+                            class="px-4 py-2.5 border border-red-200 text-sm text-red-600 rounded-lg hover:bg-red-50 transition-all inline-flex items-center gap-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                            Delete Folder
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+// ── OneDrive Modal (Ticket) ────────────────────────────────────────────────
+let _odrHasFolder = {{ $ticket->onedrive_folder_id ? 'true' : 'false' }};
+
+function openOneDriveModal() {
+    document.getElementById('oneDriveModal').classList.remove('hidden');
+    _showOdrGenerate();
+}
+function closeOneDriveModal() {
+    document.getElementById('oneDriveModal').classList.add('hidden');
+}
+function _showOdrGenerate() {
+    document.getElementById('odrStateGenerate').classList.remove('hidden');
+    document.getElementById('odrStateSuccess').classList.add('hidden');
+    const del = document.getElementById('odrDeleteBtnForm');
+    if (del) del.classList.toggle('hidden', !_odrHasFolder);
+}
+function _showOdrSuccess(url) {
+    document.getElementById('odrStateGenerate').classList.add('hidden');
+    document.getElementById('odrStateSuccess').classList.remove('hidden');
+    document.getElementById('odrFolderUrl').value = url;
+    document.getElementById('odrOpenLink').href   = url;
+    document.getElementById('odrCopyIcon').classList.remove('hidden');
+    document.getElementById('odrCopiedIcon').classList.add('hidden');
+    _odrHasFolder = true;
+    // Swap header button to "Open Folder"
+    const btn = document.getElementById('ticketFolderBtn');
+    if (btn && btn.tagName === 'BUTTON') {
+        const a = document.createElement('a');
+        a.id = 'ticketFolderBtn'; a.href = url; a.target = '_blank'; a.rel = 'noopener';
+        a.className = btn.className;
+        a.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg> Open Folder`;
+        btn.replaceWith(a);
+    }
+}
+async function deleteTicketFolder() {
+    if (!confirm('Are you sure you want to delete this OneDrive folder? The folder and all its contents will be permanently deleted.')) return;
+    try {
+        const res  = await fetch('{{ route('ticket.delete-folder', $ticket->ticket_id) }}', {
+            method:  'DELETE',
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+        });
+        const data = await res.json();
+        if (data.success) {
+            _odrHasFolder = false;
+            closeOneDriveModal();
+            // Revert header button to "Create Folder"
+            const el = document.getElementById('ticketFolderBtn');
+            if (el) {
+                const btn = document.createElement('button');
+                btn.type = 'button'; btn.id = 'ticketFolderBtn'; btn.onclick = openOneDriveModal;
+                btn.className = el.className;
+                btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg> Create Folder`;
+                el.replaceWith(btn);
+            }
+            showToast('Folder deleted successfully.', 'success');
+        } else {
+            showToast(data.message || 'Failed to delete folder.', 'error');
+        }
+    } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+    }
+}
+async function generateTicketFolder() {
+    const btn     = document.getElementById('odrGenerateBtn');
+    const icon    = document.getElementById('odrGenerateIcon');
+    const spinner = document.getElementById('odrGenerateSpinner');
+    const label   = document.getElementById('odrGenerateLabel');
+
+    btn.disabled = true;
+    icon.classList.add('hidden');
+    spinner.classList.remove('hidden');
+    label.textContent = 'Creating folder…';
+
+    try {
+        const res  = await fetch('{{ route('ticket.generate-folder', $ticket->ticket_id) }}', {
+            method:  'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept':       'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({ folder_name: document.getElementById('odrFolderName').value.trim() }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            _showOdrSuccess(data.folder_url);
+            showToast('OneDrive folder created successfully!', 'success');
+        } else {
+            showToast(data.message || 'Failed to create folder.', 'error');
+            label.textContent = 'Generate Folder';
+        }
+    } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+        label.textContent = 'Generate Folder';
+    } finally {
+        btn.disabled = false;
+        icon.classList.remove('hidden');
+        spinner.classList.add('hidden');
+    }
+}
+function copyFolderLink() {
+    const val = document.getElementById('odrFolderUrl').value;
+    navigator.clipboard.writeText(val).then(() => {
+        document.getElementById('odrCopyIcon').classList.add('hidden');
+        document.getElementById('odrCopiedIcon').classList.remove('hidden');
+        setTimeout(() => {
+            document.getElementById('odrCopyIcon').classList.remove('hidden');
+            document.getElementById('odrCopiedIcon').classList.add('hidden');
+        }, 2000);
+        showToast('Link copied!', 'success');
+    });
+}
+</script>
 
 @endsection

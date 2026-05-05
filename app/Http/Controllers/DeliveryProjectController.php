@@ -9,6 +9,7 @@ use App\Models\Document;
 use App\Models\DeliveryProjectPlanning;
 use App\Models\DeliveryProjectPhase;
 use App\Models\DeliveryProjectActivity;
+use App\Services\OneDriveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -751,5 +752,72 @@ class DeliveryProjectController extends Controller
         ];
         
         return $cities[$region] ?? [];
+    }
+
+    /**
+     * Generate (or re-generate) an OneDrive folder + anonymous edit link for a project.
+     * Idempotent: if a folder already exists, only the share link is recreated.
+     */
+    public function generateFolder(Request $request, DeliveryProject $project)
+    {
+        $request->validate([
+            'folder_name' => ['nullable', 'string', 'max:255', 'not_regex:~[\\\\/:*?"<>|]~'],
+        ], [
+            'folder_name.not_regex' => 'Folder name cannot contain: \\ / : * ? " < > |',
+        ]);
+
+        try {
+            $oneDrive   = new OneDriveService();
+            $folderName = trim($request->input('folder_name') ?: ($project->name ?? 'Project-' . $project->id));
+
+            if ($project->onedrive_folder_id) {
+                // Folder already exists — just recreate the share link
+                $shareUrl = $oneDrive->createAnonymousLink($project->onedrive_folder_id);
+                $project->update(['onedrive_folder_url' => $shareUrl]);
+            } else {
+                // First time — create folder then share link
+                $folderId = $oneDrive->createFolder($folderName);
+                $shareUrl = $oneDrive->createAnonymousLink($folderId);
+                $project->update([
+                    'onedrive_folder_id'  => $folderId,
+                    'onedrive_folder_url' => $shareUrl,
+                ]);
+            }
+
+            return response()->json([
+                'success'    => true,
+                'message'    => 'OneDrive folder ready.',
+                'folder_url' => $shareUrl,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('OneDrive generateFolder failed (project)', [
+                'project_id' => $project->id,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate OneDrive folder: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function deleteFolder(Request $request, DeliveryProject $project)
+    {
+        if (!$project->onedrive_folder_id) {
+            return response()->json(['success' => false, 'message' => 'No folder to delete.'], 400);
+        }
+
+        try {
+            (new OneDriveService())->deleteFolder($project->onedrive_folder_id);
+            $project->update(['onedrive_folder_id' => null, 'onedrive_folder_url' => null]);
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            Log::error('OneDrive deleteFolder failed (project)', [
+                'project_id' => $project->id,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
     }
 }

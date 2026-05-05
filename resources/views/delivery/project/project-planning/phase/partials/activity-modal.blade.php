@@ -381,7 +381,6 @@ let isGroupDirectActivity = false;
  * Open activity modal for activities directly under a GROUP (without stage)
  */
 window.openActivityModalForGroup = function(groupId, groupName, phaseId, activityId = null) {
-    console.log('📝 Opening activity modal for GROUP:', { groupId, groupName, phaseId, activityId });
 
     if (!groupId || groupId === 'null' || groupId === 'undefined') {
         console.error('❌ Invalid groupId:', groupId);
@@ -462,12 +461,10 @@ window.openActivityModalForGroup = function(groupId, groupName, phaseId, activit
 window.openActivityModal = function(stageId, groupId, activityId = null, groupNameForDirect = null) {
     // Check if this is a group-direct activity call (stageId is null)
     if ((!stageId || stageId === 'null' || stageId === 'undefined') && groupId) {
-        console.log('📝 Redirecting to openActivityModalForGroup');
         window.openActivityModalForGroup(groupId, groupNameForDirect, null, activityId);
         return;
     }
 
-    console.log('📝 Opening activity modal:', { stageId, groupId, activityId });
 
     if (!stageId || stageId === 'null' || stageId === 'undefined') {
         console.error('❌ Invalid stageId:', stageId);
@@ -540,7 +537,6 @@ window.openActivityModal = function(stageId, groupId, activityId = null, groupNa
 };
 
 window.closeActivityModal = function() {
-    console.log('❌ Closing activity modal');
     const modal = document.getElementById('activityModal');
     if (modal) {
         modal.classList.add('hidden');
@@ -591,13 +587,11 @@ function loadActivityData(activityId) {
     const form = document.getElementById('activityForm');
     form.classList.add('opacity-50', 'pointer-events-none');
 
-    console.log('📥 Loading activity data for ID:', activityId);
 
     axios.get(`/planning/${window.projectId}/activities/${activityId}?type=activity`)
         .then(response => {
             const activity = response.data;
 
-            console.log('✅ Activity data loaded:', activity);
             
             document.getElementById('activityName').value = activity.name || '';
             document.getElementById('activityStartDate').value = isoToIndonesian(activity.start_date);
@@ -636,7 +630,6 @@ function loadActivityData(activityId) {
  */
 window.saveActivity = function(event) {
     event.preventDefault();
-    console.log('💾 Saving activity...', activityFormMode, { isGroupDirectActivity, currentPhaseIdForActivity });
 
     setSubmitButtonLoading();
 
@@ -666,7 +659,6 @@ window.saveActivity = function(event) {
     // ✅ For group-direct activities, include phase_id since stage_id is null
     if (isGroupDirectActivity && currentPhaseIdForActivity) {
         formData.phase_id = currentPhaseIdForActivity;
-        console.log('📍 Adding phase_id for group-direct activity:', currentPhaseIdForActivity);
     }
 
     // Validate dates
@@ -689,13 +681,8 @@ window.saveActivity = function(event) {
         formData.status = document.getElementById('activityStatus')?.value;
         formData.progress_percentage = parseFloat(document.getElementById('activityProgress')?.value) || 0;
 
-        console.log('📅 Activity actual dates being sent:', {
-            actual_start_date: formData.actual_start_date,
-            actual_end_date: formData.actual_end_date
-        });
     }
     
-    console.log('📤 Sending data:', formData);
     
     let url, method;
     if (activityFormMode === 'create') {
@@ -707,7 +694,6 @@ window.saveActivity = function(event) {
         method = 'PUT';
     }
     
-    console.log(`  → ${method} ${url}`);
     
     const timeoutId = setTimeout(() => {
         console.warn('⏱️ Request timeout - resetting button');
@@ -721,7 +707,6 @@ window.saveActivity = function(event) {
         .then(response => {
             clearTimeout(timeoutId);
             
-            console.log('✅ Activity saved:', response.data);
             
             if (typeof showNotification === 'function') {
                 showNotification('Activity saved successfully', 'success');
@@ -729,7 +714,6 @@ window.saveActivity = function(event) {
 
             closeActivityModal();
 
-            console.log('🔄 Reloading page to update all sections...');
             setTimeout(() => window.location.reload(), 500);
         })
         .catch(error => {
@@ -769,7 +753,6 @@ window.saveActivity = function(event) {
         });
 };
 
-console.log('✅ Activity modal script loaded (Super Fixed - Auto Recovery)');
 
 // ============================================================================
 // ✅ TEAM MEMBER ASSIGNMENT FUNCTIONS
@@ -798,7 +781,6 @@ async function loadProjectTeamMembers() {
     try {
         const response = await axios.get(`/projects/${window.projectId}/team-members`);
         projectTeamMembers = response.data.team_members || response.data || [];
-        console.log('✅ Project team members loaded:', projectTeamMembers);
         updateMemberDropdown();
     } catch (error) {
         console.error('❌ Error loading team members:', error);
@@ -814,8 +796,6 @@ async function loadAssignedMembers(activityId) {
         const response = await axios.get(`/planning/${window.projectId}/activities/${activityId}/members`);
         // ✅ FIX: API returns { success: true, data: [...] }
         assignedActivityMembers = response.data.data || response.data.members || response.data || [];
-        console.log('✅ Assigned members loaded:', assignedActivityMembers);
-        console.log('✅ Members structure:', JSON.stringify(assignedActivityMembers, null, 2));
         renderAssignedMembers();
         updateMemberDropdown();
     } catch (error) {
@@ -833,15 +813,12 @@ function updateMemberDropdown() {
     if (!select) return;
 
     const assignedIds = assignedActivityMembers.map(m => m.employee_id);
-    console.log('📋 Updating dropdown - Assigned IDs:', assignedIds);
-    console.log('📋 Project team members:', projectTeamMembers);
 
     select.innerHTML = '<option value="">Select team member...</option>';
 
     projectTeamMembers.forEach(member => {
         if (!assignedIds.includes(member.employee_id)) {
             const name = getEmployeeName(member);
-            console.log(`  → Member ${member.employee_id}: "${name}"`, member);
             const module = member.pivot?.module ? ` (${member.pivot.module})` : '';
             select.innerHTML += `<option value="${member.employee_id}">${name}${module}</option>`;
         }
@@ -934,7 +911,6 @@ async function addActivityMember() {
             role: role
         });
 
-        console.log('✅ Member assigned:', response.data);
         showNotification('Team member assigned successfully', 'success');
 
         await loadAssignedMembers(currentActivityId);
@@ -964,7 +940,6 @@ async function removeActivityMember(employeeId) {
     try {
         await axios.delete(`/planning/${window.projectId}/activities/${currentActivityId}/members/${employeeId}`);
 
-        console.log('✅ Member unassigned');
         showNotification('Team member removed', 'success');
 
         await loadAssignedMembers(currentActivityId);

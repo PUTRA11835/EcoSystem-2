@@ -53,6 +53,11 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
         // Update support (section-based via AJAX)
         Route::patch('/field', [DeliverySupportController::class, 'updateField'])->name('update-field');
 
+        // Generate OneDrive folder
+        Route::post('/generate-folder', [DeliverySupportController::class, 'generateFolder'])->name('generate-folder');
+        // Delete OneDrive folder
+        Route::delete('/folder', [DeliverySupportController::class, 'deleteFolder'])->name('delete-folder');
+
         // Delete support
         Route::delete('/', [DeliverySupportController::class, 'destroy'])->name('destroy');
 

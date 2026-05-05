@@ -372,7 +372,6 @@ function initializeSortable() {
             handle: '.drag-handle',
             ghostClass: 'sortable-ghost',
             onEnd: function(evt) {
-                console.log('🔄 Phase order changed');
                 markOrderAsChanged();
                 calculateTotalWeights();
             }
@@ -438,7 +437,6 @@ function calculateTotalWeights() {
  * ✅ FIXED: Mark phase as modified when weight is changed
  */
 window.markPhaseAsModified = function(phaseId) {
-    console.log('📝 Phase modified:', phaseId);
     
     phaseId = normalizePhaseId(phaseId);
     
@@ -479,7 +477,6 @@ window.markPhaseAsModified = function(phaseId) {
  * ✅ Toggle Go-Live phase
  */
 window.toggleGoLivePhase = function(phaseId) {
-    console.log('🎯 Toggle Go-Live phase:', phaseId);
     
     phaseId = normalizePhaseId(phaseId);
     
@@ -517,7 +514,6 @@ window.toggleGoLivePhase = function(phaseId) {
  * ✅ FIXED: Toggle phase visibility (UI only)
  */
 window.togglePhaseVisibilityUI = function(phaseId) {
-    console.log('👁️ Toggle visibility UI:', phaseId);
     
     phaseId = normalizePhaseId(phaseId);
     
@@ -599,7 +595,6 @@ window.closeConfirmDeleteModal = function() {
 window.confirmDeletePhase = function() {
     if (!pendingDeletePhaseId) return;
     
-    console.log('🗑️ Mark phase for deletion:', pendingDeletePhaseId);
     
     const phaseId = pendingDeletePhaseId;
     const phaseItem = document.querySelector(`.phase-item[data-phase-id="${phaseId}"]`);
@@ -667,7 +662,6 @@ document.addEventListener('keydown', function(e) {
  * ✅ Mark order as changed
  */
 function markOrderAsChanged() {
-    console.log('🔄 Marking order as changed');
     const phases = [];
     
     document.querySelectorAll('#verticalPhasesList .phase-item').forEach((item, index) => {
@@ -716,7 +710,6 @@ window.addNewPhaseToList = function() {
         return;
     }
     
-    console.log('➕ Adding new phase to list:', { name, weight, color, isGoLive });
     
     // Generate temporary ID
     const tempId = 'new_' + Date.now();
@@ -800,7 +793,6 @@ window.addNewPhaseToList = function() {
  * ✅ FIXED: Save all changes - Batch update
  */
 window.saveAllPhaseChanges = async function() {
-    console.log('💾 Saving all phase changes...', window.phaseChanges);
     
     // Validate total weight (exclude deleted)
     let totalWeight = 0;
@@ -830,7 +822,6 @@ window.saveAllPhaseChanges = async function() {
         for (const phaseId of window.phaseChanges.toDelete) {
             if (isNewPhaseId(phaseId)) continue;
             
-            console.log('🗑️ Deleting phase:', phaseId);
             await axios.delete(`/planning/${projectId}/phases/${phaseId}`, {
                 data: { _token: '{{ csrf_token() }}' }
             });
@@ -838,7 +829,6 @@ window.saveAllPhaseChanges = async function() {
         
         // 2. Create new phases
         for (const newPhase of window.phaseChanges.toCreate) {
-            console.log('➕ Creating new phase:', newPhase.name);
             
             const createResponse = await axios.post('{{ route("planning.phases.create", $project) }}', {
                 name: newPhase.name,
@@ -863,7 +853,6 @@ window.saveAllPhaseChanges = async function() {
             if (isNewPhaseId(phaseId)) continue;
             if (window.phaseChanges.toDelete.has(phaseId)) continue;
             
-            console.log('✏️ Updating phase:', phaseId);
             
             const updates = {};
             
@@ -892,7 +881,6 @@ window.saveAllPhaseChanges = async function() {
         
         // 4. Update order if changed
         if (window.phaseChanges.orderChanges.length > 0) {
-            console.log('🔄 Updating order:', window.phaseChanges.orderChanges);
 
             await axios.post(`/planning/${projectId}/phases/reorder`, {
                 phases: window.phaseChanges.orderChanges,
@@ -942,7 +930,6 @@ window.saveAllPhaseChanges = async function() {
  * ✅ Close modal and reset
  */
 window.closePhaseConfigModal = function() {
-    console.log('❌ Closing phase configuration modal');
     
     const modal = document.getElementById('phaseConfigModal');
     if (modal) {
@@ -1003,7 +990,6 @@ function escapeHtml(text) {
 function initializePhaseConfigModal() {
     initializeSortable();
     calculateTotalWeights();
-    console.log('✅ Phase configuration modal initialized');
 }
 
 // Initialize when DOM is ready

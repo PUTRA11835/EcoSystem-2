@@ -602,6 +602,7 @@
                     
                     <div class="flex items-center gap-4">
                         <!-- Search Bar -->
+                        @yield('page-actions')
                         <!-- Notification Bell -->
                         <div class="relative" id="bellWrapper">
                             <button id="bellBtn" onclick="toggleBellDropdown()"
@@ -785,7 +786,7 @@
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
                 const href = this.getAttribute('href');
-                if (!href || href === '#') return;
+                if (!href || href === '#' || !href.startsWith('#')) return;
                 e.preventDefault();
                 const target = document.querySelector(href);
                 if (target) {

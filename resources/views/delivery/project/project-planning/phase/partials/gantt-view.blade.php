@@ -631,7 +631,6 @@
 (function() {
     'use strict';
     
-    console.log('🚀 Gantt Chart View - FIXED VERSION Initializing...');
     
     // ==========================================
     // GLOBAL VARIABLES
@@ -649,7 +648,6 @@
     // ✅ FIXED: EXPAND ALL FUNCTION
     // ==========================================
     window.expandAllGantt = function() {
-        console.log('📂 Expanding all rows...');
         
         // Expand all toggle buttons
         var allToggleButtons = document.querySelectorAll('.gantt-toggle-button');
@@ -672,14 +670,12 @@
             row.classList.remove('gantt-row-hidden');
         });
         
-        console.log('✅ All rows expanded');
     };
     
     // ==========================================
     // ✅ FIXED: COLLAPSE ALL FUNCTION
     // ==========================================
     window.collapseAllGantt = function() {
-        console.log('📁 Collapsing all rows...');
         
         // First, hide all child rows
         var allSidebarRows = document.querySelectorAll('.gantt-sidebar-body .gantt-activity-row');
@@ -708,14 +704,12 @@
             }
         });
         
-        console.log('✅ All rows collapsed');
     };
     
     // ==========================================
     // ✅ FIXED: TOGGLE ROW FUNCTION
     // ==========================================
     window.toggleRow = function(rowId) {
-        console.log('🔄 Toggling row:', rowId);
         
         // Get the toggle button
         var sidebarRow = document.querySelector('.gantt-sidebar-body [data-id="' + rowId + '"]');
@@ -774,7 +768,6 @@
     // ✅ FIXED: REFRESH FUNCTION
     // ==========================================
     window.refreshGanttView = function() {
-        console.log('🔄 Refreshing Gantt View...');
         ganttInitialized = false;
         document.getElementById('ganttLoading').classList.remove('hidden');
         document.getElementById('ganttChartContent').classList.add('hidden');
@@ -795,13 +788,11 @@
         // Method 1: Try from data attribute
         var container = document.getElementById('ganttViewContainer');
         if (container && container.dataset.projectId) {
-            console.log('✅ Project ID from data attribute:', container.dataset.projectId);
             return container.dataset.projectId;
         }
         
         // Method 2: Try from window variable
         if (window.currentProjectId) {
-            console.log('✅ Project ID from window variable:', window.currentProjectId);
             return window.currentProjectId;
         }
         
@@ -810,7 +801,6 @@
         var projectIndex = urlParts.indexOf('projects');
         if (projectIndex !== -1 && urlParts[projectIndex + 1]) {
             var projectId = urlParts[projectIndex + 1];
-            console.log('✅ Project ID from URL:', projectId);
             return projectId;
         }
         
@@ -822,10 +812,8 @@
     // LOAD GANTT CHART DATA
     // ==========================================
     window.loadGanttChartView = function() {
-        console.log('📊 Loading Gantt Chart View...');
         
         if (ganttInitialized) {
-            console.log('⏭️ Gantt already initialized');
             return;
         }
         
@@ -836,13 +824,11 @@
             return;
         }
         
-        console.log('🔍 Fetching Gantt data for project:', projectId);
 
         var apiUrl = '/planning/' + projectId + '/data/gantt';
 
         axios.get(apiUrl)
             .then(function(response) {
-                console.log('✅ Gantt data loaded:', response.data);
                 ganttData = response.data;
                 
                 if (!ganttData.vertical_groups || ganttData.vertical_groups.length === 0) {
@@ -865,7 +851,6 @@
     // UPDATE STATISTICS
     // ==========================================
     function updateStatistics(verticalGroups) {
-        console.log('📊 Calculating statistics from vertical_groups:', verticalGroups);
         
         var totalStages = 0;
         var completedStages = 0;
@@ -952,14 +937,6 @@
         
         document.getElementById('ganttProgressText').textContent = overallProgress + '%';
         
-        console.log('✅ Statistics updated:', {
-            totalStages: totalStages,
-            notStarted: notStartedStages,
-            inProgress: inProgressStages,
-            completed: completedStages,
-            delayed: delayedStages,
-            overallProgress: overallProgress
-        });
     }
     
     // ==========================================
@@ -1017,7 +994,6 @@
             localStorage.setItem('ganttSidebarWidth', 400);
         });
         
-        console.log('✅ Resize functionality initialized');
     }
     
     function setSidebarWidth(width) {
@@ -1033,7 +1009,6 @@
     // RENDER GANTT CHART
     // ==========================================
     function renderGanttChart() {
-        console.log('🎨 Rendering Gantt Chart...');
         
         document.getElementById('ganttLoading').classList.add('hidden');
         document.getElementById('ganttChartContent').classList.remove('hidden');
@@ -1069,7 +1044,6 @@
         syncScroll();
         scrollToToday(allDates);
         
-        console.log('✅ Gantt Chart rendered successfully');
     }
     
     // ==========================================

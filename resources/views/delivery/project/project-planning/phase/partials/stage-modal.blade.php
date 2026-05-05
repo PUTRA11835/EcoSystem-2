@@ -470,7 +470,6 @@ window.openStageModal = function(activityId, activityName, groupId = null) {
         return;
     }
 
-    console.log('📂 Opening stage modal:', { activityId, activityName, groupId });
 
     currentActivityId = activityId;
     currentGroupId = groupId;
@@ -493,7 +492,6 @@ window.openStageModal = function(activityId, activityName, groupId = null) {
  * ✅ Close Stage Modal with confirmation if there are unsaved changes
  */
 window.closeStageModal = function() {
-    console.log('❌ Closing stage modal');
 
     // Check if there are unsaved changes
     const hasChanges = window.stageChanges.toCreate.length > 0 ||
@@ -555,7 +553,6 @@ window.openAddStageForm = function() {
  * ✅ Edit Stage - Load data into form
  */
 window.editStage = function(stageId, stageName = null, groupId = null) {
-    console.log('✏️ Editing stage:', { stageId, stageName, groupId });
 
     stageFormMode = 'edit';
     currentStageId = stageId;
@@ -588,7 +585,6 @@ window.editStage = function(stageId, stageName = null, groupId = null) {
     axios.get(`/planning/${window.projectId}/stages/${stageId}`)
         .then(response => {
             const stage = response.data.data || response.data;
-            console.log('✅ Stage data loaded:', stage);
             populateStageForm(stage, false);
             form.classList.remove('opacity-50', 'pointer-events-none');
         })
@@ -668,7 +664,6 @@ function populateStageForm(stage, isNew = false) {
  */
 window.addStageToList = function(event) {
     event.preventDefault();
-    console.log('📝 Adding/updating stage to list...', stageFormMode);
 
     // Get form data
     const startDateIndo = document.getElementById('stagePlannedStart').value;
@@ -702,7 +697,6 @@ window.addStageToList = function(event) {
         // Add to pending creates
         window.stageChanges.toCreate.push(stageData);
 
-        console.log('➕ New stage added to list:', stageData);
         showNotification('Stage added to list. Click "Submit All Changes" to save.', 'success');
     } else {
         // Edit mode
@@ -731,7 +725,6 @@ window.addStageToList = function(event) {
             window.stageChanges.toUpdate[currentStageId] = stageData;
         }
 
-        console.log('✏️ Stage updated in list:', currentStageId);
         showNotification('Stage updated in list. Click "Submit All Changes" to save.', 'success');
     }
 
@@ -749,7 +742,6 @@ window.deleteStage = function(stageId, stageName = 'this stage') {
         return;
     }
 
-    console.log('🗑️ Delete stage requested:', { stageId, stageName });
 
     currentStageId = stageId;
     currentStageName = stageName;
@@ -774,7 +766,6 @@ window.deleteStage = function(stageId, stageName = 'this stage') {
 window.confirmStageDelete = async function() {
     if (!currentStageId) return;
 
-    console.log('🗑️ Confirming stage deletion:', currentStageId);
 
     const stageId = normalizeStageId(currentStageId);
 
@@ -825,7 +816,6 @@ window.confirmStageDelete = async function() {
 };
 
 window.closeStageFormModal = function() {
-    console.log('❌ Closing stage form modal');
     document.getElementById('stageFormModal').classList.add('hidden');
     stageFormMode = 'create';
     currentStageId = null;
@@ -833,7 +823,6 @@ window.closeStageFormModal = function() {
 };
 
 window.closeStageDeleteModal = function() {
-    console.log('❌ Closing stage delete modal');
     document.getElementById('stageDeleteModal').classList.add('hidden');
     currentStageId = null;
     currentStageName = null;
@@ -843,7 +832,6 @@ window.closeStageDeleteModal = function() {
  * ✅ Load Stages from Server
  */
 function loadStages(activityId) {
-    console.log('📥 Loading stages for activity:', activityId);
 
     const stagesList = document.getElementById('stagesList');
     stagesList.innerHTML = `
@@ -855,7 +843,6 @@ function loadStages(activityId) {
 
     axios.get(`/planning/${window.projectId}/activities/${activityId}`)
         .then(response => {
-            console.log('✅ Stages loaded:', response.data);
 
             if (response.data.success) {
                 // Store original stages for reference
@@ -1101,7 +1088,6 @@ function createStageItemHtml(stage) {
  * ✅ Undo Stage Delete
  */
 window.undoStageDelete = function(stageId) {
-    console.log('↩️ Undoing stage delete:', stageId);
     window.stageChanges.toDelete.delete(normalizeStageId(stageId));
     showNotification('Stage deletion cancelled', 'success');
     renderStagesFromLocal();
@@ -1138,7 +1124,6 @@ function updateValidationBanner(validation) {
  * ✅ SAVE ALL STAGE CHANGES - Batch Update
  */
 window.saveAllStageChanges = async function() {
-    console.log('💾 Saving all stage changes...', window.stageChanges);
 
     // Validate weight before saving
     let allStages = [];
@@ -1171,7 +1156,6 @@ window.saveAllStageChanges = async function() {
         for (const stageId of window.stageChanges.toDelete) {
             if (isNewStageId(stageId)) continue;
 
-            console.log('🗑️ Deleting stage:', stageId);
             await axios.delete(`/planning/${window.projectId}/stages/${stageId}`);
         }
 
@@ -1179,13 +1163,11 @@ window.saveAllStageChanges = async function() {
         for (const [stageId, updates] of Object.entries(window.stageChanges.toUpdate)) {
             if (isNewStageId(stageId)) continue;
 
-            console.log('✏️ Updating stage:', stageId);
             await axios.put(`/planning/${window.projectId}/stages/${stageId}`, updates);
         }
 
         // 3. Create new stages last (after weights have been adjusted)
         for (const newStage of window.stageChanges.toCreate) {
-            console.log('➕ Creating new stage:', newStage.name);
 
             const createData = {
                 name: newStage.name,
@@ -1258,5 +1240,4 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-console.log('✅ Stage management script loaded (Batch Mode)');
 </script>

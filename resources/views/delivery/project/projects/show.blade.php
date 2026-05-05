@@ -302,11 +302,30 @@
                 <span class="font-semibold">{{ $project->project_type ?? 'N/A' }}</span>
             </p>
         </div>
-        <button type="button"
-                onclick="openDeleteModal('{{ $project->id }}', '{{ addslashes($project->name) }}')"
-                class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200 flex-shrink-0">
-            Delete Project
-        </button>
+        <div class="flex items-center gap-2 flex-shrink-0">
+            @if($project->onedrive_folder_url)
+            <a id="headerFolderBtn" href="{{ $project->onedrive_folder_url }}" target="_blank" rel="noopener"
+               class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                </svg>
+                Open Folder
+            </a>
+            @else
+            <button type="button" id="headerFolderBtn" onclick="openOneDriveModal()"
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                </svg>
+                Create Folder
+            </button>
+            @endif
+            <button type="button"
+                    onclick="openDeleteModal('{{ $project->id }}', '{{ addslashes($project->name) }}')"
+                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Delete Project
+            </button>
+        </div>
     </div>
 </div>
 
@@ -1361,6 +1380,130 @@
     </div>
 </div>
 
+{{-- OneDrive Folder Modal --}}
+<div id="oneDriveModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeOneDriveModal()"></div>
+        <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full z-10 overflow-hidden">
+
+            {{-- State 1: Generate form --}}
+            <div id="odrStateGenerate">
+                <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                        </svg>
+                        <h3 class="text-base font-semibold text-gray-900">Create OneDrive Folder</h3>
+                    </div>
+                    <button onclick="closeOneDriveModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="px-6 py-5 space-y-4">
+                    <p class="text-sm text-gray-500">
+                        The folder will be created in the OneDrive account <strong class="text-gray-700">{{ config('services.microsoft_graph.sender_email') }}</strong>
+                        and accessible to anyone with the link (edit &amp; upload access).
+                    </p>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Folder Name <span class="font-normal text-gray-400">(optional)</span>
+                        </label>
+                        <input type="text" id="odrFolderName"
+                               value="{{ $project->name ?? 'Project-' . $project->id }}"
+                               class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <p class="text-xs text-gray-400 mt-1">Name of the folder to be created in OneDrive.</p>
+                    </div>
+                    <div class="flex gap-2 pt-1">
+                        <button onclick="generateProjectFolder()" id="odrGenerateBtn"
+                            class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-all disabled:opacity-60 disabled:cursor-not-allowed">
+                            <svg id="odrGenerateIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                            </svg>
+                            <svg id="odrGenerateSpinner" class="hidden animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                            </svg>
+                            <span id="odrGenerateLabel">{{ $project->onedrive_folder_id ? 'Regenerate Link' : 'Generate Folder' }}</span>
+                        </button>
+                        <button type="button" id="odrDeleteBtnForm" onclick="deleteProjectFolder()"
+                            class="{{ $project->onedrive_folder_id ? '' : 'hidden' }} px-4 py-2.5 border border-red-200 text-sm text-red-600 rounded-lg hover:bg-red-50 transition-all inline-flex items-center gap-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                            Delete Folder
+                        </button>
+                        <button type="button" onclick="closeOneDriveModal()"
+                            class="px-4 py-2.5 border border-gray-300 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-all">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {{-- State 2: Success --}}
+            <div id="odrStateSuccess" class="hidden">
+                <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <h3 class="text-base font-semibold text-gray-900">OneDrive Folder Ready</h3>
+                    </div>
+                    <button onclick="closeOneDriveModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="px-6 py-5 space-y-4">
+                    <div class="flex justify-center">
+                        <div class="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
+                            <svg class="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-600 text-center">
+                        Folder created successfully. Share the link below with anyone who needs access.
+                    </p>
+                    <div class="flex gap-2">
+                        <input type="text" id="odrFolderUrl" readonly
+                               class="flex-1 px-3 py-2 text-xs border border-gray-300 rounded-lg bg-gray-50 text-gray-700 focus:outline-none cursor-text select-all">
+                        <button onclick="copyFolderLink()" id="odrCopyBtn" title="Copy link"
+                            class="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition-all">
+                            <svg id="odrCopyIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                            <svg id="odrCopiedIcon" class="hidden w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="flex gap-2 pt-1">
+                        <a id="odrOpenLink" href="#" target="_blank" rel="noopener"
+                           class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                            </svg>
+                            Open Folder
+                        </a>
+                        <button onclick="deleteProjectFolder()"
+                            class="px-4 py-2.5 border border-red-200 text-sm text-red-600 rounded-lg hover:bg-red-50 transition-all inline-flex items-center gap-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                            Delete Folder
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
 {{-- Delete Confirmation Modal --}}
 <div id="deleteModal" class="fixed inset-0 z-[9998] hidden">
     <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 z-[9998]" onclick="closeModal('deleteModal')"></div>
@@ -1496,7 +1639,6 @@ let planningDataLoaded = false;
 let ganttPlanningLoaded = false;
 
 function switchPlanningView(view) {
-    console.log('🔄 Switching planning view to:', view);
     currentPlanningView = view;
     
     // Update button states
@@ -1533,14 +1675,12 @@ function switchPlanningView(view) {
 
 // ✅ Load Planning Table Data
 function loadPlanningTableData() {
-    console.log('📊 Loading planning table data...');
     
     const tbody = document.getElementById('planningTableBody');
     if (!tbody) return;
     
     axios.get(`/planning/${projectId}/data/table`)
         .then(response => {
-            console.log('✅ Planning data loaded:', response.data);
             renderPlanningTable(response.data);
             planningDataLoaded = true;
         })
@@ -1641,14 +1781,12 @@ function renderPlanningTable(phasesData) {
 
 // ✅ Load Planning Gantt Data
 function loadPlanningGanttData() {
-    console.log('📊 Loading planning gantt data...');
     
     const loading = document.getElementById('ganttLoadingPlanning');
     const content = document.getElementById('ganttContentPlanning');
     
     axios.get(`/planning/${projectId}/data/gantt`)
         .then(response => {
-            console.log('✅ Gantt data loaded:', response.data);
 
             loading.classList.add('hidden');
             content.classList.remove('hidden');
@@ -1718,7 +1856,6 @@ function collapseAllGanttPlanning() {
 const planningObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
         if (entry.isIntersecting && !planningDataLoaded) {
-            console.log('📍 Planning section in view, loading data...');
             loadPlanningTableData();
         }
     });
@@ -2193,7 +2330,127 @@ function submitStatusForm() {
     if (f) f.submit();
 }
 
-console.log('✅ Project Show Page with Integrated Planning initialized');
+
+// ── OneDrive Modal ────────────────────────────────────────────────────────
+let _odrHasFolder = {{ $project->onedrive_folder_id ? 'true' : 'false' }};
+
+function openOneDriveModal() {
+    document.getElementById('oneDriveModal').classList.remove('hidden');
+    _showOdrGenerate();
+}
+
+function closeOneDriveModal() {
+    document.getElementById('oneDriveModal').classList.add('hidden');
+}
+
+function _showOdrGenerate() {
+    document.getElementById('odrStateGenerate').classList.remove('hidden');
+    document.getElementById('odrStateSuccess').classList.add('hidden');
+    const del = document.getElementById('odrDeleteBtnForm');
+    if (del) del.classList.toggle('hidden', !_odrHasFolder);
+}
+
+function _showOdrSuccess(url) {
+    document.getElementById('odrStateGenerate').classList.add('hidden');
+    document.getElementById('odrStateSuccess').classList.remove('hidden');
+    document.getElementById('odrFolderUrl').value = url;
+    document.getElementById('odrOpenLink').href   = url;
+    document.getElementById('odrCopyIcon').classList.remove('hidden');
+    document.getElementById('odrCopiedIcon').classList.add('hidden');
+    _odrHasFolder = true;
+    // Swap header button to "Open Folder"
+    const btn = document.getElementById('headerFolderBtn');
+    if (btn && btn.tagName === 'BUTTON') {
+        const a = document.createElement('a');
+        a.id = 'headerFolderBtn'; a.href = url; a.target = '_blank'; a.rel = 'noopener';
+        a.className = btn.className;
+        a.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg> Open Folder`;
+        btn.replaceWith(a);
+    }
+}
+
+async function deleteProjectFolder() {
+    if (!confirm('Are you sure you want to delete this OneDrive folder? The folder and all its contents will be permanently deleted.')) return;
+    try {
+        const res  = await fetch('{{ route('projects.deleteFolder', $project->id) }}', {
+            method:  'DELETE',
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+        });
+        const data = await res.json();
+        if (data.success) {
+            _odrHasFolder = false;
+            closeOneDriveModal();
+            // Revert header button to "Create Folder"
+            const el = document.getElementById('headerFolderBtn');
+            if (el) {
+                const btn = document.createElement('button');
+                btn.type = 'button'; btn.id = 'headerFolderBtn'; btn.onclick = openOneDriveModal;
+                btn.className = el.className;
+                btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg> Create Folder`;
+                el.replaceWith(btn);
+            }
+            showToast('Folder deleted successfully.', 'success');
+        } else {
+            showToast(data.message || 'Failed to delete folder.', 'error');
+        }
+    } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+    }
+}
+
+async function generateProjectFolder() {
+    const btn     = document.getElementById('odrGenerateBtn');
+    const icon    = document.getElementById('odrGenerateIcon');
+    const spinner = document.getElementById('odrGenerateSpinner');
+    const label   = document.getElementById('odrGenerateLabel');
+
+    btn.disabled = true;
+    icon.classList.add('hidden');
+    spinner.classList.remove('hidden');
+    label.textContent = 'Creating folder…';
+
+    try {
+        const res  = await fetch('{{ route('projects.generateFolder', $project->id) }}', {
+            method:  'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept':       'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({ folder_name: document.getElementById('odrFolderName').value.trim() }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            _showOdrSuccess(data.folder_url);
+            showToast('OneDrive folder created successfully!', 'success');
+        } else {
+            showToast(data.message || 'Failed to create folder.', 'error');
+            label.textContent = 'Generate Folder';
+        }
+    } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+        label.textContent = 'Generate Folder';
+    } finally {
+        btn.disabled = false;
+        icon.classList.remove('hidden');
+        spinner.classList.add('hidden');
+    }
+}
+
+function copyFolderLink() {
+    const val = document.getElementById('odrFolderUrl').value;
+    navigator.clipboard.writeText(val).then(() => {
+        document.getElementById('odrCopyIcon').classList.add('hidden');
+        document.getElementById('odrCopiedIcon').classList.remove('hidden');
+        setTimeout(() => {
+            document.getElementById('odrCopyIcon').classList.remove('hidden');
+            document.getElementById('odrCopiedIcon').classList.add('hidden');
+        }, 2000);
+        showToast('Link copied to clipboard!', 'success');
+    });
+}
+
 </script>
 {{-- Load custom-dd component (sama dengan halaman admin lain). filemtime
      cache buster supaya production auto-invalidate setiap deploy. --}}

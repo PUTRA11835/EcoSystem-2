@@ -288,7 +288,6 @@ function parseIndonesianDate(indoDate) {
  * ✅ Open Activity Modal
  */
 window.openActivityModal = function(activityId = null) {
-    console.log('📝 Opening activity modal:', activityId);
     
     const modal = document.getElementById('activityModal');
     const form = document.getElementById('activityForm');
@@ -340,7 +339,6 @@ window.openActivityModal = function(activityId = null) {
  * ✅ Close Activity Modal
  */
 window.closeActivityModal = function() {
-    console.log('❌ Closing activity modal');
     const modal = document.getElementById('activityModal');
     if (modal) {
         modal.classList.add('hidden');
@@ -352,7 +350,6 @@ window.closeActivityModal = function() {
  * ✅ Load Activity Data for Edit Mode
  */
 function loadActivityData(activityId) {
-    console.log('📥 Loading activity data for ID:', activityId);
     
     const form = document.getElementById('activityForm');
     form.classList.add('opacity-50', 'pointer-events-none');
@@ -360,7 +357,6 @@ function loadActivityData(activityId) {
     axios.get(`/delivery/support/{{ $support->id }}/activities/${activityId}`)
         .then(response => {
             const activity = response.data;
-            console.log('✅ Activity data loaded:', activity);
             
             // Set form values
             document.getElementById('activityName').value = activity.name || '';
@@ -405,7 +401,6 @@ function loadActivityData(activityId) {
  */
 window.saveActivity = function(event) {
     event.preventDefault();
-    console.log('💾 Saving activity...');
     
     setSubmitButtonLoading();
     
@@ -483,7 +478,6 @@ window.saveActivity = function(event) {
         _token: document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}'
     };
     
-    console.log('📤 Sending data:', formData);
     
     // Determine URL and method
     const activityId = window.currentActivityId;
@@ -497,12 +491,10 @@ window.saveActivity = function(event) {
         method = 'POST';
     }
     
-    console.log(`  → ${method} ${url}`);
     
     // Send request
     axios({ method: method, url: url, data: formData })
         .then(response => {
-            console.log('✅ Activity saved:', response.data);
             if (typeof showNotification === 'function') {
                 showNotification('Activity saved successfully', 'success');
             }
@@ -562,5 +554,4 @@ function setSubmitButtonLoading() {
     }
 }
 
-console.log('✅ Activity modal script loaded');
 </script>

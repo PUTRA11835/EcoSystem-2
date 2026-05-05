@@ -41,6 +41,8 @@ class Ticket extends Model
         'no_hp',
         'module',
         'client',
+        'submitted_by_email',
+        'submitted_by_name',
         // Mandays status
         'mandays_proposal_status',
         'internal_mandays_status',
@@ -51,6 +53,9 @@ class Ticket extends Model
         'progress_note',
         'last_progress_at',
         'progress_updated_by',
+        // OneDrive
+        'onedrive_folder_id',
+        'onedrive_folder_url',
     ];
 
     protected $casts = [

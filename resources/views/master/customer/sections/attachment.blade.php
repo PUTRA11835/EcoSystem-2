@@ -431,7 +431,6 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 Attachment section initialized');
         loadAttachments();
     });
 

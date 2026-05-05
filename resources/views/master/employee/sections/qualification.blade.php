@@ -282,7 +282,6 @@
      */
     async function loadQualifications() {
         try {
-            console.log(' Loading qualifications for employee:', employeeId);
             
             const response = await fetch(`/api/employees/${employeeId}/qualification`, {
                 method: 'GET',
@@ -294,7 +293,6 @@
             });
 
             const data = await response.json();
-            console.log(' Qualifications loaded:', data);
 
             if (data.success && data.data && data.data.length > 0) {
                 qualificationsData = data.data;
@@ -403,7 +401,6 @@
      */
     function selectQualification(qualificationId) {
         selectedQualificationId = qualificationId;
-        console.log(' Selected qualification:', qualificationId);
         loadQualificationToForm(qualificationId);
     }
 
@@ -427,7 +424,6 @@
      */
     async function loadQualificationToForm(qualificationId) {
         try {
-            console.log(' Loading qualification to form:', qualificationId);
             
             const response = await fetch(`/api/employees/${employeeId}/qualification/${qualificationId}`, {
                 method: 'GET',
@@ -439,7 +435,6 @@
             });
 
             const data = await response.json();
-            console.log(' Qualification data loaded:', data);
 
             if (data.success && data.data) {
                 const qual = data.data;
@@ -466,7 +461,6 @@
                 // Update button text
                 document.getElementById('saveQualificationButtonText').textContent = 'Update';
                 
-                console.log(' Qualification loaded to form fields');
             }
         } catch (error) {
             console.error(' Error loading qualification:', error);
@@ -542,8 +536,6 @@
             
             const method = isUpdate ? 'PUT' : 'POST';
             
-            console.log(` ${isUpdate ? 'Updating' : 'Creating'} qualification:`, url);
-            console.log(' Qualification data:', qualificationData);
             
             const response = await fetch(url, {
                 method: method,
@@ -558,7 +550,6 @@
             });
 
             const data = await response.json();
-            console.log(' Save response:', data);
             
             if (data.success) {
                 showNotification(
@@ -633,7 +624,6 @@
         if (!deleteQualificationId) return;
 
         try {
-            console.log(' Deleting qualification:', deleteQualificationId);
             
             const response = await fetch(`/api/employees/${employeeId}/qualification/${deleteQualificationId}`, {
                 method: 'DELETE',
@@ -668,7 +658,6 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log(' Qualification section initialized');
         loadQualifications();
         toggleQualificationFields(); // Initialize field visibility
     });
