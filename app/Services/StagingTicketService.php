@@ -246,10 +246,12 @@ class StagingTicketService
                 'cc_emails'       => $ccEmails,              // checklist G
                 'start_date'      => now()->toDateString(),
                 // Salin field tambahan dari staging
-                'name'            => $staging->name,
-                'no_hp'           => $staging->no_hp,
-                'module'          => $staging->module,
-                'client'          => $staging->client,
+                'name'               => $staging->name,
+                'no_hp'              => $staging->no_hp,
+                'module'             => $staging->module,
+                'client'             => $staging->client,
+                'submitted_by_email' => $staging->submitted_by_email,
+                'submitted_by_name'  => $staging->sender_name,
             ]);
 
             // Update staging → approved, simpan FK ke ticket

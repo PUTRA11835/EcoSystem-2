@@ -217,6 +217,7 @@
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Valid From</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Valid To</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Jarvies Access</th>
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Ticket Access</th>
                         <th class="w-10 px-4 py-3 text-left">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-500">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
@@ -409,6 +410,28 @@
                 loginBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-400">No Access</span>`;
             }
 
+            // Ticket access — toggle switch checkbox (only when contact has login account)
+            let ticketAccessBadge;
+            if (contact.auth_user_id) {
+                const isAdmin = contact.can_view_all_tickets == 1 || contact.can_view_all_tickets === true;
+                ticketAccessBadge = `
+                    <label class="inline-flex items-center gap-2 cursor-pointer select-none" onclick="event.stopPropagation()" title="${isAdmin ? 'Admin: can see all company tickets. Click to restrict.' : 'Regular: sees own tickets only. Click to grant admin.'}">
+                        <div class="relative flex-shrink-0">
+                            <input type="checkbox" id="cbAdmin_${contact.contact_id}" ${isAdmin ? 'checked' : ''}
+                                   onchange="window.toggleViewAllTickets(${contact.contact_id})"
+                                   class="sr-only peer">
+                            <div class="relative w-9 h-5 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 transition-colors
+                                        after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+                                        after:bg-white after:border after:border-gray-300 after:rounded-full
+                                        after:h-4 after:w-4 after:transition-all
+                                        peer-checked:after:translate-x-4 peer-checked:after:border-white"></div>
+                        </div>
+                        <span class="text-xs font-semibold ${isAdmin ? 'text-blue-700' : 'text-gray-400'}" id="cbAdminLabel_${contact.contact_id}">${isAdmin ? 'Admin' : 'Regular'}</span>
+                    </label>`;
+            } else {
+                ticketAccessBadge = `<span class="text-gray-300 text-xs">—</span>`;
+            }
+
             return `
                 <tr class="hover:bg-gray-50 transition-colors cursor-pointer" onclick="window.selectContactRow(${contact.contact_id}, event)">
                     <td class="px-4 py-3">
@@ -426,6 +449,7 @@
                     <td class="px-4 py-3 text-sm text-gray-600">${validFrom}</td>
                     <td class="px-4 py-3 text-sm text-gray-600">${validTo}</td>
                     <td class="px-4 py-3">${loginBadge}</td>
+                    <td class="px-4 py-3">${ticketAccessBadge}</td>
                     <td class="px-4 py-3">
                         <button onclick="window.loadContactToForm(${contact.contact_id}); event.stopPropagation();" class="text-gray-400 hover:text-gray-600">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
@@ -859,6 +883,56 @@
     }
 
     /**
+     * Toggle can_view_all_tickets — callable from checkbox (contactId param) or action button (uses selectedContactId)
+     */
+    async function toggleViewAllTickets(contactId) {
+        const resolvedId = contactId || selectedContactId;
+        if (!resolvedId) {
+            showNotification('Please select a contact first', 'warning');
+            return;
+        }
+        const contact = contactsData.find(c => parseInt(c.contact_id) === parseInt(resolvedId));
+        if (!contact?.auth_user_id) {
+            showNotification('This contact does not have a Jarvies login account', 'warning');
+            return;
+        }
+
+        // Disable checkbox to prevent double-click
+        const cb  = document.getElementById(`cbAdmin_${resolvedId}`);
+        const btn = document.getElementById('btnToggleViewAll');
+        if (cb)  cb.disabled  = true;
+        if (btn) btn.disabled = true;
+
+        try {
+            const response = await fetch(`/api/customers/{{ $customerId }}/contacts/${resolvedId}/toggle-view-all`, {
+                method: 'PATCH',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin'
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                showNotification(data.message, 'success');
+                loadContacts();
+            } else {
+                // Revert checkbox on failure
+                if (cb) cb.checked = !cb.checked;
+                showNotification(data.message || 'Failed to toggle access', 'error');
+            }
+        } catch (error) {
+            if (cb) cb.checked = !cb.checked;
+            showNotification('An error occurred', 'error');
+        } finally {
+            if (cb)  cb.disabled  = false;
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    /**
      * Revoke login access for selected contact
      */
     function revokeLoginAccess() {
@@ -928,6 +1002,7 @@
     window.openGrantLoginModal = openGrantLoginModal;
     window.closeGrantLoginModal = closeGrantLoginModal;
     window.confirmGrantLogin = confirmGrantLogin;
+    window.toggleViewAllTickets = toggleViewAllTickets;
     window.revokeLoginAccess = revokeLoginAccess;
     window.closeRevokeLoginModal = closeRevokeLoginModal;
     window.confirmRevokeLogin = confirmRevokeLogin;

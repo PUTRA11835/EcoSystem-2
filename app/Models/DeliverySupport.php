@@ -27,6 +27,8 @@ class DeliverySupport extends Model
         'created_by_id',
         'approval_date',
         'approval_name',
+        'onedrive_folder_id',
+        'onedrive_folder_url',
     ];
 
     protected $casts = [
