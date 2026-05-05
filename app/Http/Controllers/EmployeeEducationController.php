@@ -65,7 +65,7 @@ class EmployeeEducationController extends Controller
             Log::error('Error retrieving education records', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -129,7 +129,7 @@ class EmployeeEducationController extends Controller
                 'employee_id' => $employeeId,
                 'education_id' => $educationId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -251,7 +251,7 @@ class EmployeeEducationController extends Controller
             Log::error('Error creating education record', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -387,7 +387,7 @@ class EmployeeEducationController extends Controller
                 'employee_id' => $employeeId,
                 'education_id' => $educationId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -451,7 +451,7 @@ class EmployeeEducationController extends Controller
                 'employee_id' => $employeeId,
                 'education_id' => $educationId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -520,7 +520,7 @@ class EmployeeEducationController extends Controller
             Log::error('Error retrieving education statistics', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -575,7 +575,7 @@ class EmployeeEducationController extends Controller
                 'employee_id' => $employeeId,
                 'type' => $type,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

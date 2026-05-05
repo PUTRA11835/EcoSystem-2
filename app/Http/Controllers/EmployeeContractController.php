@@ -65,7 +65,7 @@ class EmployeeContractController extends Controller
             Log::error('Error retrieving contract records', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -129,7 +129,7 @@ class EmployeeContractController extends Controller
                 'employee_id' => $employeeId,
                 'contract_id' => $contractId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -264,7 +264,7 @@ class EmployeeContractController extends Controller
             Log::error('Error creating contract record', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -415,7 +415,7 @@ class EmployeeContractController extends Controller
                 'employee_id' => $employeeId,
                 'contract_id' => $contractId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -479,7 +479,7 @@ class EmployeeContractController extends Controller
                 'employee_id' => $employeeId,
                 'contract_id' => $contractId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -557,7 +557,7 @@ class EmployeeContractController extends Controller
             Log::error('Error retrieving contract statistics', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -612,7 +612,7 @@ class EmployeeContractController extends Controller
                 'employee_id' => $employeeId,
                 'type' => $type,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -665,7 +665,7 @@ class EmployeeContractController extends Controller
             Log::error('Error retrieving expired contracts', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -727,7 +727,7 @@ class EmployeeContractController extends Controller
             Log::error('Error retrieving active contract', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -779,7 +779,7 @@ class EmployeeContractController extends Controller
             Log::error('Error retrieving contracts expiring soon', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

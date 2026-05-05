@@ -39,15 +39,10 @@
                         </x-dropdown-link>
 
                         <!-- Authentication -->
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-
-                            <x-dropdown-link :href="route('logout')"
-                                    onclick="event.preventDefault();
-                                                this.closest('form').submit();">
-                                {{ __('Log Out') }}
-                            </x-dropdown-link>
-                        </form>
+                        <x-dropdown-link href="#"
+                                onclick="event.preventDefault(); handleLogout(this);">
+                            {{ __('Log Out') }}
+                        </x-dropdown-link>
                     </x-slot>
                 </x-dropdown>
             </div>
@@ -85,15 +80,18 @@
                 </x-responsive-nav-link>
 
                 <!-- Authentication -->
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
+                <x-responsive-nav-link href="#"
+                        onclick="event.preventDefault(); handleLogout(this);">
+                    {{ __('Log Out') }}
+                </x-responsive-nav-link>
 
-                    <x-responsive-nav-link :href="route('logout')"
-                            onclick="event.preventDefault();
-                                        this.closest('form').submit();">
-                        {{ __('Log Out') }}
-                    </x-responsive-nav-link>
-                </form>
+                <script>
+                    function handleLogout(el) {
+                        if (el) el.style.pointerEvents = 'none';
+                        fetch('/api/auth/logout', { method: 'POST' })
+                            .finally(() => { window.location.href = '/auth/login'; });
+                    }
+                </script>
             </div>
         </div>
     </div>

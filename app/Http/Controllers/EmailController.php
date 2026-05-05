@@ -609,7 +609,7 @@ class EmailController extends Controller
                 } catch (\Exception $e) {
                     Log::error('EmailController@processInbox: error processing message', [
                         'error' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString(),
+                        'error_at' => $e->getFile() . ':' . $e->getLine(),
                     ]);
                     $errors[] = $e->getMessage();
                     $skipped++;

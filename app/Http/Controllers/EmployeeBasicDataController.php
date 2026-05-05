@@ -183,19 +183,20 @@ class EmployeeBasicDataController extends Controller
 
             // Check if basic data already exists
             $basicData = EmployeeBasicData::where('employee_id', $employeeId)->first();
+            $isNew     = $basicData === null;
 
             if ($basicData) {
                 // Update existing data
                 $basicDataInput['last_changed_by'] = $currentUserECI;
                 $basicDataInput['last_changed_on'] = now();
-                
+
                 $basicData->update($basicDataInput);
                 $message = 'Basic data updated successfully';
             } else {
                 // Create new data
                 $basicDataInput['created_by'] = $currentUserECI;
                 $basicDataInput['created_on'] = now();
-                
+
                 $basicData = EmployeeBasicData::create($basicDataInput);
                 $message = 'Basic data created successfully';
             }
@@ -215,7 +216,7 @@ class EmployeeBasicDataController extends Controller
                 'success' => true,
                 'message' => $message,
                 'data' => $responseData
-            ]);
+            ], $isNew ? 201 : 200);
 
         } catch (\Exception $e) {
             DB::rollBack();

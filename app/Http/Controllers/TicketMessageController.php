@@ -91,7 +91,7 @@ class TicketMessageController extends Controller
         } catch (\Exception $e) {
             Log::error('Error fetching ticket messages:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -298,11 +298,11 @@ class TicketMessageController extends Controller
                     'created_at'  => $message->created_at,
                 ],
                 'message' => 'Message sent successfully'
-            ]);
+            ], 201);
         } catch (\Exception $e) {
             Log::error('Error sending ticket message:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -497,16 +497,26 @@ class TicketMessageController extends Controller
             $recipientIds = collect($mentionedEmployeeIds)->map(fn ($id) => (int) $id)->toArray();
 
             // Fan-out role mentions → individual employees
-            // Uses employee_role_assignment (many-to-many) which covers both primary and secondary role assignments
+            // Query both sources: employee.role_id (primary) and employee_role_assignment (pivot).
+            // The pivot is only populated at migration time; employees added/role-changed afterwards
+            // only appear in employee.role_id — so both must be checked to avoid silent misses.
             if (!empty($mentionedRoleIds)) {
-                $roleMembers = DB::table('employee_role_assignment as era')
+                $byPrimaryRole = DB::table('employee as e')
+                    ->whereIn('e.role_id', $mentionedRoleIds)
+                    ->where('e.is_active', true)
+                    ->pluck('e.employee_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->toArray();
+
+                $byPivot = DB::table('employee_role_assignment as era')
                     ->join('employee as e', 'era.employee_id', '=', 'e.employee_id')
                     ->whereIn('era.role_id', $mentionedRoleIds)
                     ->where('e.is_active', true)
                     ->pluck('era.employee_id')
                     ->map(fn ($id) => (int) $id)
                     ->toArray();
-                $recipientIds = array_merge($recipientIds, $roleMembers);
+
+                $recipientIds = array_merge($recipientIds, $byPrimaryRole, $byPivot);
             }
 
             $recipientIds = array_unique($recipientIds);
@@ -919,7 +929,7 @@ class TicketMessageController extends Controller
         } catch (\Exception $e) {
             Log::error('Error marking messages as read:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

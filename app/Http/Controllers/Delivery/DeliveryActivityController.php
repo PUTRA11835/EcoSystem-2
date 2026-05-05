@@ -182,7 +182,7 @@ class DeliveryActivityController extends Controller
         } catch (\Exception $e) {
             Log::error('Error creating delivery activity', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

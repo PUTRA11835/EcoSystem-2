@@ -37,7 +37,7 @@ class ActivityLogController extends Controller
             return response()->json(['success' => false, 'message' => 'Access denied.'], 403);
         }
 
-        $perPage  = min((int) $request->input('per_page', 25), 100);
+        $perPage  = max(1, min((int) $request->input('per_page', 25), 100));
         $search   = trim($request->input('search', ''));
         $status   = $request->input('status', '');
         $userType = $request->input('user_type', '');
@@ -104,9 +104,16 @@ class ActivityLogController extends Controller
             ];
         });
 
+        $statsQuery = DB::table('login_activity');
+        $stats = [
+            'success' => (clone $statsQuery)->where('status', 'success')->count(),
+            'failed'  => (clone $statsQuery)->where('status', 'failed')->count(),
+        ];
+
         return response()->json([
             'success' => true,
             'data'    => $items,
+            'stats'   => $stats,
             'meta'    => [
                 'total'        => $records->total(),
                 'per_page'     => $records->perPage(),

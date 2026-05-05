@@ -74,7 +74,7 @@ class DeliverySupportDataController extends Controller
             Log::error('Error getting table data', [
                 'support_id' => $support->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -142,7 +142,7 @@ class DeliverySupportDataController extends Controller
             Log::error('Error getting gantt data', [
                 'support_id' => $support->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -206,7 +206,7 @@ class DeliverySupportDataController extends Controller
             Log::error('Error getting s-curve data', [
                 'support_id' => $support->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

@@ -36,7 +36,7 @@ class CustomerAddressController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING CUSTOMER ADDRESSES ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -79,7 +79,7 @@ class CustomerAddressController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING CUSTOMER ADDRESS ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -185,7 +185,7 @@ class CustomerAddressController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR CREATING CUSTOMER ADDRESS ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -288,7 +288,7 @@ class CustomerAddressController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR UPDATING CUSTOMER ADDRESS ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -331,7 +331,7 @@ class CustomerAddressController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR DELETING CUSTOMER ADDRESS ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

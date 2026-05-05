@@ -36,7 +36,7 @@ class CustomerIdentificationController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING CUSTOMER IDENTIFICATIONS ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -79,7 +79,7 @@ class CustomerIdentificationController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING CUSTOMER IDENTIFICATION ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -159,7 +159,7 @@ class CustomerIdentificationController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR CREATING CUSTOMER IDENTIFICATION ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -236,7 +236,7 @@ class CustomerIdentificationController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR UPDATING CUSTOMER IDENTIFICATION ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -279,7 +279,7 @@ class CustomerIdentificationController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR DELETING CUSTOMER IDENTIFICATION ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

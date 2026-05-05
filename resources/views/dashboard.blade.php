@@ -275,7 +275,7 @@
         .toast-info .toast-close { color: #1e3a8a; }
         .toast-info .toast-progress { background: #3b82f6; }
 
-        /* Modal backdrop blur — applied automatically when overlay is visible */
+        /* Modal backdrop blur â€” applied automatically when overlay is visible */
         .modal-blur-active {
             backdrop-filter: blur(4px);
             -webkit-backdrop-filter: blur(4px);
@@ -290,10 +290,9 @@
         <!-- Sidebar - Modern Design -->
         <aside id="sidebar" class="sidebar-transition fixed h-screen overflow-y-auto {{ $preferences['sidebar_style'] === 'gradient' ? 'primary-gradient' : 'primary-solid' }} text-white shadow-2xl z-50 w-64">
             <!-- Logo Section -->
-            <div class="p-5 pb-2 flex items-center justify-center">
+            <div class="sidebar-logo p-5 pb-2 flex items-center justify-center">
                     <div class="w-full rounded-xl p-3 backdrop-blur-sm">
-                        <img src="/images/eclectic_logo_nobg.png" alt="EcoSystem Logo" class="logo-expanded w-full h-auto"/>
-                        <img src="/images/logo_nobg.png" alt="EcoSystem Icon" class="logo-collapsed hidden w-20 h-auto mx-auto"/>
+                        <img src="/images/eclectic_logo_nobg.png" alt="EcoSystem Logo" class="w-full h-auto"/>
                     </div>
             </div>
 
@@ -510,14 +509,38 @@
                 @endif
 
                 @if($showAllMenus)
-                <!-- ACTIVITY LOG - Only for admin -->
+                <!-- CONTROL CENTER - Only for admin -->
+                @php $adminOpen = Request::is('admin*'); @endphp
                 <div class="mb-2">
-                    <a href="{{ route('admin.activity-log') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('admin/activity-log*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <button onclick="toggleAdminDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $adminOpen ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-shield-alt"></i>
                         </span>
-                        <span class="nav-text font-medium">Activity Log</span>
-                    </a>
+                        <span class="nav-text flex-1 font-medium">Control Center</span>
+                        <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $adminOpen ? 'rotate-180' : '' }}" id="adminChevron"></i>
+                    </button>
+                    <div id="adminDropdown" class="nav-text {{ $adminOpen ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
+                        <a href="{{ route('admin.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-th-large text-xs"></i></span>
+                            <span class="nav-text text-sm">Overview</span>
+                        </a>
+                        <a href="{{ route('admin.activity-log') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/activity-log*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-history text-xs"></i></span>
+                            <span class="nav-text text-sm">Activity Log</span>
+                        </a>
+                        <a href="{{ route('admin.sessions') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/sessions*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-users text-xs"></i></span>
+                            <span class="nav-text text-sm">Active Sessions</span>
+                        </a>
+                        <a href="{{ route('admin.failed-jobs') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/failed-jobs*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-exclamation-triangle text-xs"></i></span>
+                            <span class="nav-text text-sm">Failed Jobs</span>
+                        </a>
+                        <a href="{{ route('admin.backup') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/backup*') || Request::is('admin/export*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-database text-xs"></i></span>
+                            <span class="nav-text text-sm">Backup & Export</span>
+                        </a>
+                    </div>
                 </div>
                 @endif
 
@@ -666,14 +689,11 @@
                                     <span>Help & Support</span>
                                 </a>
                                 <hr class="my-2 border-gray-200">
-                                <form action="{{ route('logout') }}" method="POST" class="w-full">
-                                    @csrf
-                                    <button type="submit" 
-                                        class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-50 text-red-600 text-sm w-full text-left transition-all font-medium">
-                                        <i class="fas fa-sign-out-alt w-5 text-center"></i>
-                                        <span>Sign Out</span>
-                                    </button>
-                                </form>
+                                <button type="button" onclick="handleLogout(this)"
+                                    class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-50 text-red-600 text-sm w-full text-left transition-all font-medium">
+                                    <i class="fas fa-sign-out-alt w-5 text-center"></i>
+                                    <span>Sign Out</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -688,10 +708,17 @@
     </div>
 
     <script>
+        function handleLogout(el) {
+            if (el) el.style.pointerEvents = 'none';
+            fetch('/api/auth/logout', { method: 'POST' })
+                .finally(() => { window.location.href = '/auth/login'; });
+        }
+    </script>
+
+    <script>
         var isCalendarDropdownOpen = {{ Request::is('calendar*') ? 'true' : 'false' }};
 
         function toggleCalendarDropdown() {
-            if (isCollapsed) return;
 
             var dropdown = document.getElementById('calendarDropdown');
             isCalendarDropdownOpen = !isCalendarDropdownOpen;
@@ -706,67 +733,55 @@
         var isReportingDropdownOpen = {{ Request::is('reporting*') ? 'true' : 'false' }};
         
         function toggleSidebar() {
-            var sidebar = document.getElementById('sidebar');
+            var sidebar     = document.getElementById('sidebar');
             var mainContent = document.getElementById('mainContent');
-            var navTexts = document.querySelectorAll('.nav-text');
-            var logoExpanded = document.querySelector('.logo-expanded');
-            var logoCollapsed = document.querySelector('.logo-collapsed');
-            
+
             isCollapsed = !isCollapsed;
-            
+
             if (isCollapsed) {
                 sidebar.classList.remove('w-64');
-                sidebar.classList.add('w-16');
+                sidebar.classList.add('w-0', 'overflow-hidden');
                 mainContent.classList.remove('ml-64');
-                mainContent.classList.add('ml-16');
-                navTexts.forEach(function(text) { text.classList.add('hidden'); });
-                logoExpanded.classList.add('hidden');
-                logoCollapsed.classList.remove('hidden');
-                document.querySelectorAll('.nav-link').forEach(function(link) {
-                    link.classList.add('justify-center');
-                    link.classList.remove('gap-3');
-                });
+                mainContent.classList.add('ml-0');
             } else {
-                sidebar.classList.remove('w-16');
+                sidebar.classList.remove('w-0', 'overflow-hidden');
                 sidebar.classList.add('w-64');
-                mainContent.classList.remove('ml-16');
+                mainContent.classList.remove('ml-0');
                 mainContent.classList.add('ml-64');
-                navTexts.forEach(function(text) { text.classList.remove('hidden'); });
-                logoExpanded.classList.remove('hidden');
-                logoCollapsed.classList.add('hidden');
-                document.querySelectorAll('.nav-link').forEach(function(link) {
-                    link.classList.remove('justify-center');
-                    link.classList.add('gap-3');
-                });
             }
         }
 
         function toggleMasterDropdown() {
-            if (isCollapsed) return;
             isMasterDropdownOpen = !isMasterDropdownOpen;
             document.getElementById('masterDropdown').classList.toggle('hidden', !isMasterDropdownOpen);
         }
 
         function toggleReportingDropdown() {
-            if (isCollapsed) return;
             isReportingDropdownOpen = !isReportingDropdownOpen;
             document.getElementById('reportingDropdown').classList.toggle('hidden', !isReportingDropdownOpen);
         }
 
         function toggleDeliveryDropdown() {
-            if (isCollapsed) return;
             isDeliveryDropdownOpen = !isDeliveryDropdownOpen;
             document.getElementById('deliveryDropdown').classList.toggle('hidden', !isDeliveryDropdownOpen);
         }
 
         let isRpmoDropdownOpen = {{ Request::is('rpmo*') ? 'true' : 'false' }};
         function toggleRpmoDropdown() {
-            if (isCollapsed) return;
             isRpmoDropdownOpen = !isRpmoDropdownOpen;
             const submenu = document.getElementById('rpmoSubmenu');
             const chevron = document.getElementById('rpmoChevron');
             if (submenu) submenu.classList.toggle('hidden', !isRpmoDropdownOpen);
             if (chevron) chevron.classList.toggle('rotate-180', isRpmoDropdownOpen);
+        }
+
+        function toggleAdminDropdown() {
+            const submenu = document.getElementById('adminDropdown');
+            const chevron = document.getElementById('adminChevron');
+            if (!submenu) return;
+            const isOpen = !submenu.classList.contains('hidden');
+            submenu.classList.toggle('hidden', isOpen);
+            if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
         }
 
         function toggleUserDropdown() {
@@ -849,7 +864,7 @@
             if (toast) toast.click();
         }
 
-        // ── Modal backdrop blur (auto-applied, no per-modal changes needed) ──
+        // â”€â”€ Modal backdrop blur (auto-applied, no per-modal changes needed) â”€â”€
         (function() {
             function _syncModalBlur() {
                 document.querySelectorAll('.fixed.inset-0').forEach(function(el) {
@@ -963,10 +978,10 @@
                             titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Customer Mandays Proposal canceled</p>`;
                         } else if (n.type === 'customer_mandays_proposed') {
                             iconHtml  = `<div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-file-invoice text-blue-600 text-xs"></i></div>`;
-                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Customer Mandays Proposal — needs review</p>`;
+                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Customer Mandays Proposal â€” needs review</p>`;
                         } else if (n.type === 'internal_mandays_proposed') {
                             iconHtml  = `<div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-users text-indigo-600 text-xs"></i></div>`;
-                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Internal Mandays Proposal — needs review</p>`;
+                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Internal Mandays Proposal â€” needs review</p>`;
                         } else {
                             iconHtml  = `<div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-at text-red-700 text-xs"></i></div>`;
                             titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">${escapeHtml(n.from_name || 'Someone')} mentioned you</p>`;
@@ -1025,5 +1040,16 @@
         setInterval(fetchUnreadCount, 30000);
     })();
     </script>
+
+    @if(!config('app.debug'))
+    <script>
+        (function () {
+            var noop = function () {};
+            console.log   = noop;
+            console.debug = noop;
+            console.info  = noop;
+        })();
+    </script>
+    @endif
 </body>
 </html>

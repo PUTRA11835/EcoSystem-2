@@ -33,6 +33,8 @@ enum RoleId: int
     // ── Extended roles (added via migration 2026_04_16) ─────────────────────
     // DB name: Delivery Project User (employee_role.id = 15)
     case EMPLOYEE_PROJECT = 15;
+    // DB name: Delivery Support Manager (employee_role.id = 20)
+    case SUPPORT_MANAGER = 20;
 
     // ── Grup yang sering dipakai bersama ────────────────────────────────────
 
@@ -45,6 +47,7 @@ enum RoleId: int
         self::HELPDESK->value,
         self::RPMO->value,
         self::EMPLOYEE_PROJECT->value,
+        self::SUPPORT_MANAGER->value,
     ];
 
     /** Delivery domain users (subject to period restrictions) */

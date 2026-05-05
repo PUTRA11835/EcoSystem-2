@@ -36,7 +36,7 @@ class CustomerBankController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING CUSTOMER BANK ACCOUNTS ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -79,7 +79,7 @@ class CustomerBankController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING CUSTOMER BANK ACCOUNT ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -155,7 +155,7 @@ class CustomerBankController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR CREATING CUSTOMER BANK ACCOUNT ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -240,7 +240,7 @@ class CustomerBankController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR UPDATING CUSTOMER BANK ACCOUNT ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -283,7 +283,7 @@ class CustomerBankController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR DELETING CUSTOMER BANK ACCOUNT ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

@@ -49,7 +49,7 @@ class CustomerBasicDataController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING CUSTOMER BASIC DATA ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -220,17 +220,17 @@ class CustomerBasicDataController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => $message
-            ]);
+            ], $action === 'create' ? 201 : 200);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            
+
             Log::error('=== API: ERROR STORING CUSTOMER BASIC DATA ===', [
                 'customer_id' => $customerId,
                 'error' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'file' => $e->getFile(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -289,7 +289,7 @@ class CustomerBasicDataController extends Controller
             
             Log::error('=== API: ERROR DELETING CUSTOMER BASIC DATA ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

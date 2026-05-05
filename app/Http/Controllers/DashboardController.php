@@ -185,7 +185,7 @@ class DashboardController extends Controller
         } catch (\Exception $e) {
             Log::error('Dashboard error', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'error_at' => $e->getFile() . ':' . $e->getLine(),
                 'ip_address' => $request->ip(),
             ]);
 

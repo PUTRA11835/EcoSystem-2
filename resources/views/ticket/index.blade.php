@@ -24,6 +24,24 @@
             </div>
             @endif
 
+            @if($user->role->role_id === \App\Enums\RoleId::HELPDESK->value)
+            <div class="inline-flex bg-gray-100 rounded-xl p-1">
+                <button onclick="toggleView('assigned')" id="btnViewAssigned" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
+                    <i class="fas fa-user-check text-xs mr-1"></i> Assigned
+                </button>
+                <button onclick="toggleView('unassigned')" id="btnViewUnassigned" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
+                    <i class="fas fa-user-clock text-xs mr-1"></i> Unassigned
+                </button>
+            </div>
+            @endif
+
+            @if($user->role->role_id === \App\Enums\RoleId::SUPPORT_MANAGER->value)
+            <div class="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700 font-medium">
+                <i class="fas fa-layer-group text-xs"></i>
+                <span>Delivery Support Tickets</span>
+            </div>
+            @endif
+
             @if($user->role->role_id === \App\Enums\RoleId::ADMIN->value)
             <button onclick="openCreateTicketModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Create Ticket
@@ -423,9 +441,21 @@
     let currentPage = 1;
     let totalItems = 0;
     let totalPages = 0;
-    let currentView = ({{ $user->role->role_id ?? 0 }} === {{ \App\Enums\RoleId::EMPLOYEE->value }}) ? 'my' : 'all';
-    let userRole           = {{ $user->role->role_id ?? 0 }};
-    let currentEmployeeId  = {{ $currentEmployeeId ?? 'null' }};
+    let userRole          = {{ $user->role->role_id ?? 0 }};
+    let currentEmployeeId = {{ $currentEmployeeId ?? 'null' }};
+    const HELPDESK_ROLE   = {{ \App\Enums\RoleId::HELPDESK->value }};
+    let currentView = userRole === {{ \App\Enums\RoleId::EMPLOYEE->value }} ? 'my'
+                    : userRole === HELPDESK_ROLE ? 'assigned'
+                    : 'all';
+
+    function getViewBase() {
+        if (userRole === HELPDESK_ROLE) {
+            return currentView === 'assigned'
+                ? allTickets.filter(t => t.employee_id !== null)
+                : allTickets.filter(t => t.employee_id === null);
+        }
+        return allTickets;
+    }
 
     document.addEventListener('DOMContentLoaded', function() {
         // Init custom-dd untuk Filter By & Filter Value. Guard typeof biar
@@ -434,7 +464,7 @@
             initCustomDropdowns();
         }
         loadTickets();
-        if (userRole === 1 || userRole === 2) updateViewToggle();
+        if (userRole === 1 || userRole === 2 || userRole === HELPDESK_ROLE) updateViewToggle();
         startEmailPolling();
     });
 
@@ -470,19 +500,34 @@
     function toggleView(view) {
         currentView = view;
         updateViewToggle();
-        loadTickets();
+        if (userRole === HELPDESK_ROLE) {
+            // Helpdesk: all tickets already loaded — filter client-side, no re-fetch
+            currentFilter = 'all';
+            currentPage   = 1;
+            filteredTickets = getViewBase();
+            updateStats();
+            renderTickets();
+        } else {
+            loadTickets();
+        }
     }
 
     function updateViewToggle() {
-        if (userRole !== 1 && userRole !== 2) return;
-        const btnAll = document.getElementById('btnViewAll');
-        const btnMy = document.getElementById('btnViewMy');
-        if (currentView === 'all') {
-            btnAll.classList.add('active');
-            btnMy.classList.remove('active');
-        } else {
-            btnMy.classList.add('active');
-            btnAll.classList.remove('active');
+        if (userRole === 1 || userRole === 2) {
+            const btnAll = document.getElementById('btnViewAll');
+            const btnMy  = document.getElementById('btnViewMy');
+            if (btnAll && btnMy) {
+                btnAll.classList.toggle('active', currentView === 'all');
+                btnMy.classList.toggle('active',  currentView !== 'all');
+            }
+        }
+        if (userRole === HELPDESK_ROLE) {
+            const btnA = document.getElementById('btnViewAssigned');
+            const btnU = document.getElementById('btnViewUnassigned');
+            if (btnA && btnU) {
+                btnA.classList.toggle('active', currentView === 'assigned');
+                btnU.classList.toggle('active', currentView === 'unassigned');
+            }
         }
     }
 
@@ -508,7 +553,7 @@
 
             if (data.success) {
                 allTickets = data.data.sort((a, b) => new Date(b.last_message_at || b.created_at) - new Date(a.last_message_at || a.created_at));
-                filteredTickets = allTickets;
+                filteredTickets = getViewBase();
                 updateStats();
                 renderTickets();
             } else {
@@ -525,13 +570,14 @@
     }
 
     function updateStats() {
-        document.getElementById('totalCount').textContent   = allTickets.length;
-        document.getElementById('supportCount').textContent = allTickets.filter(t => t.jarvies_status === 'sent it to support').length;
-        document.getElementById('processCount').textContent = allTickets.filter(t => t.jarvies_status === 'in process').length;
-        document.getElementById('authorCount').textContent  = allTickets.filter(t => t.jarvies_status === 'author action').length;
-        document.getElementById('proposedCount').textContent= allTickets.filter(t => t.jarvies_status === 'proposed solution').length;
-        document.getElementById('sapCount').textContent     = allTickets.filter(t => t.jarvies_status === 'sent in to SAP').length;
-        document.getElementById('closedCount').textContent  = allTickets.filter(t => t.jarvies_status === 'closed').length;
+        const base = getViewBase();
+        document.getElementById('totalCount').textContent    = base.length;
+        document.getElementById('supportCount').textContent  = base.filter(t => t.jarvies_status === 'sent it to support').length;
+        document.getElementById('processCount').textContent  = base.filter(t => t.jarvies_status === 'in process').length;
+        document.getElementById('authorCount').textContent   = base.filter(t => t.jarvies_status === 'author action').length;
+        document.getElementById('proposedCount').textContent = base.filter(t => t.jarvies_status === 'proposed solution').length;
+        document.getElementById('sapCount').textContent      = base.filter(t => t.jarvies_status === 'sent in to SAP').length;
+        document.getElementById('closedCount').textContent   = base.filter(t => t.jarvies_status === 'closed').length;
     }
 
     function renderTickets() {
@@ -755,7 +801,7 @@
             el.classList.add('border-red-600', 'shadow-md', 'border-2');
         }
 
-        filteredTickets = status === 'all' ? allTickets : allTickets.filter(t => t.jarvies_status === status);
+        filteredTickets = status === 'all' ? getViewBase() : getViewBase().filter(t => t.jarvies_status === status);
         currentPage = 1;
         renderTickets();
     }
@@ -805,7 +851,7 @@
         const filterValue = document.getElementById('filterValueSelect').value;
         const searchTerm = document.getElementById('searchInput').value.toLowerCase();
 
-        filteredTickets = allTickets.filter(ticket => {
+        filteredTickets = getViewBase().filter(ticket => {
             const matchesSearch = !searchTerm ||
                 (ticket.ticket_number && ticket.ticket_number.toLowerCase().includes(searchTerm)) ||
                 (ticket.ticket_id && ticket.ticket_id.toString().includes(searchTerm)) ||

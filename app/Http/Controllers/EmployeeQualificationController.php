@@ -65,7 +65,7 @@ class EmployeeQualificationController extends Controller
             Log::error('Error retrieving qualification records', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -129,7 +129,7 @@ class EmployeeQualificationController extends Controller
                 'employee_id' => $employeeId,
                 'qualification_id' => $qualificationId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -249,7 +249,7 @@ class EmployeeQualificationController extends Controller
             Log::error('Error creating qualification record', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -384,7 +384,7 @@ class EmployeeQualificationController extends Controller
                 'employee_id' => $employeeId,
                 'qualification_id' => $qualificationId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -448,7 +448,7 @@ class EmployeeQualificationController extends Controller
                 'employee_id' => $employeeId,
                 'qualification_id' => $qualificationId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -529,7 +529,7 @@ class EmployeeQualificationController extends Controller
             Log::error('Error retrieving qualification statistics', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -584,7 +584,7 @@ class EmployeeQualificationController extends Controller
                 'employee_id' => $employeeId,
                 'type' => $type,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -637,7 +637,7 @@ class EmployeeQualificationController extends Controller
             Log::error('Error retrieving expired qualifications', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

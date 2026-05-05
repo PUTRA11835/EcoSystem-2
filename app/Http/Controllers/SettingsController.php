@@ -46,7 +46,7 @@ class SettingsController extends Controller
         } catch (\Exception $e) {
             Log::error('Settings page error', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'error_at' => $e->getFile() . ':' . $e->getLine(),
             ]);
 
             return redirect()->route('dashboard')->withErrors([
