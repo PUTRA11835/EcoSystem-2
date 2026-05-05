@@ -575,8 +575,10 @@ class TimesheetController extends Controller
             ], 422);
             
         } catch (\Exception $e) {
-            Log::error('Error creating timesheet: ' . $e->getMessage());
-            Log::error('Stack trace' . $e->getTraceAsString());
+            Log::error('Error creating timesheet', [
+                'error'    => $e->getMessage(),
+                'error_at' => $e->getFile() . ':' . $e->getLine(),
+            ]);
             
             return response()->json([
                 'success' => false,
@@ -1039,8 +1041,10 @@ class TimesheetController extends Controller
                 'message' => 'Statistics retrieved successfully'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error retrieving statistics: ' . $e->getMessage());
-            Log::error('Stack trace' . $e->getTraceAsString());
+            Log::error('Error retrieving statistics', [
+                'error'    => $e->getMessage(),
+                'error_at' => $e->getFile() . ':' . $e->getLine(),
+            ]);
             
             return response()->json([
                 'success' => false,

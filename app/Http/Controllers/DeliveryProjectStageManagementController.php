@@ -74,7 +74,7 @@ class DeliveryProjectStageManagementController extends Controller
                     'success' => true,
                     'message' => 'Stage created successfully',
                     'data' => $stage->fresh()
-                ]);
+                ], 201);
             });
 
         } catch (\Exception $e) {

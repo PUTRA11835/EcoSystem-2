@@ -6,6 +6,7 @@ use App\Models\TicketAttachment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class AttachmentController extends Controller
 {
@@ -29,7 +30,21 @@ class AttachmentController extends Controller
 
         // Record lama: file disimpan lokal → redirect ke storage path
         if (!$attachment->graph_message_id && $attachment->file_path) {
-            return redirect('/storage/' . $attachment->file_path);
+            $filePath = $attachment->file_path;
+            // Cegah path traversal: tolak path yang mengandung '..' atau dimulai dengan '/'
+            abort_if(
+                str_contains($filePath, '..') || str_starts_with($filePath, '/') || str_starts_with($filePath, '\\'),
+                404,
+                'File tidak ditemukan.'
+            );
+            abort_if(!Storage::disk('public')->exists($filePath), 404, 'File tidak ditemukan.');
+            Log::info('AttachmentController: legacy file accessed', [
+                'attachment_id' => $id,
+                'file_name'     => $attachment->file_name ?? $filePath,
+                'ticket_id'     => $attachment->ticket_id ?? null,
+                'accessed_by'   => $sessionUser['eci'] ?? $sessionUser['name'] ?? $sessionUser['id'] ?? 'unknown',
+            ]);
+            return redirect(Storage::disk('public')->url($filePath));
         }
 
         // Validasi: harus punya graph_message_id + graph_attachment_id
@@ -147,6 +162,14 @@ class AttachmentController extends Controller
 
             $mime     = $data['contentType'] ?? $attachment->mime_type ?? 'application/octet-stream';
             $filename = $data['name'] ?? $attachment->file_name ?? 'attachment';
+
+            Log::info('AttachmentController: file downloaded via Graph', [
+                'attachment_id' => $id,
+                'file_name'     => $filename,
+                'ticket_id'     => $attachment->ticket_id ?? null,
+                'mime_type'     => $mime,
+                'accessed_by'   => $sessionUser['eci'] ?? $sessionUser['name'] ?? $sessionUser['id'] ?? 'unknown',
+            ]);
 
             // Inline: tampilkan di browser (gambar, PDF). Attachment: paksa download.
             $disposition = $attachment->is_inline ? 'inline' : 'attachment';

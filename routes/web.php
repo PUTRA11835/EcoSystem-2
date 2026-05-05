@@ -29,12 +29,15 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\PasswordSetupController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\AdminSessionController;
+use App\Http\Controllers\AdminJobController;
+use App\Http\Controllers\AdminBackupController;
 use App\Http\Middleware\CheckAuthToken;
 
 // ==================== PUBLIC ROUTES ====================
 
 Route::prefix('api/auth')->group(function () {
-    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:200,1'); // SEMENTARA untuk load test
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 });
@@ -143,7 +146,20 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // ==================== ADMIN ====================
     Route::prefix('admin')->name('admin.')->group(function () {
+        Route::get('/', function () {
+            if ((int) session('user.role.id') !== 1) abort(403);
+            return view('admin.index');
+        })->name('index');
         Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('activity-log');
+        Route::get('/sessions', [AdminSessionController::class, 'page'])->name('sessions');
+        Route::get('/failed-jobs', [AdminJobController::class, 'page'])->name('failed-jobs');
+        Route::get('/backup', [AdminBackupController::class, 'page'])->name('backup');
+        Route::get('/backup/download/{filename}', [AdminBackupController::class, 'downloadBackup'])->name('backup.download');
+        Route::get('/export/employees', [AdminBackupController::class, 'exportEmployees'])->name('export.employees');
+        Route::get('/export/customers', [AdminBackupController::class, 'exportCustomers'])->name('export.customers');
+        Route::get('/export/tickets',   [AdminBackupController::class, 'exportTickets'])->name('export.tickets');
+        Route::get('/import/template/employees', [AdminBackupController::class, 'templateEmployees'])->name('import.template.employees');
+        Route::get('/import/template/customers', [AdminBackupController::class, 'templateCustomers'])->name('import.template.customers');
     });
 
     // ==================== SETTINGS ====================

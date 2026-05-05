@@ -624,7 +624,7 @@ class MandaysController extends Controller
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('saveInternalProposal error', ['e' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            Log::error('saveInternalProposal error', ['e' => $e->getMessage(), 'error_at' => $e->getFile() . ':' . $e->getLine()]);
             return response()->json(['success' => false, 'message' => 'Failed to save the internal mandays proposal. Please try again.'], 500);
         }
 

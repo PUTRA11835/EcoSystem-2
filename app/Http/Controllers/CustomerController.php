@@ -41,7 +41,7 @@ class CustomerController extends Controller
         } catch (\Exception $e) {
             Log::error('=== WEB: ERROR LOADING CUSTOMER INDEX PAGE ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return redirect()->route('dashboard')->withErrors([
@@ -114,7 +114,7 @@ class CustomerController extends Controller
                 'filters' => $request->all()
             ]);
 
-            $perPage = $request->get('per_page', 15);
+            $perPage = max(1, min((int) $request->get('per_page', 15), 100));
             
             $filters = [
                 'search' => $request->get('search'),
@@ -180,7 +180,7 @@ class CustomerController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING CUSTOMERS ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -303,7 +303,7 @@ class CustomerController extends Controller
             
             Log::error('=== API: ERROR CREATING CUSTOMER ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -445,7 +445,7 @@ class CustomerController extends Controller
             Log::error('=== API: ERROR UPDATING CUSTOMER ===', [
                 'customer_id' => $id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -496,7 +496,7 @@ class CustomerController extends Controller
             Log::error('=== API: ERROR DELETING CUSTOMER ===', [
                 'customer_id' => $id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -530,7 +530,7 @@ class CustomerController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING CUSTOMER STATISTICS ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -579,7 +579,7 @@ class CustomerController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR SEARCHING CUSTOMERS ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -624,7 +624,7 @@ class CustomerController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR SOFT DELETING CUSTOMER ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -670,7 +670,7 @@ class CustomerController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR RESTORING CUSTOMER ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

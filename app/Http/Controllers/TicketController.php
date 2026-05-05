@@ -116,6 +116,28 @@ class TicketController extends Controller
                 }
                 $tickets = $query->get();
 
+            // Delivery Support Manager (role 20): lihat hanya tiket dari delivery support yang mereka kelola
+            } elseif ($sessionUser['role']['id'] === RoleId::SUPPORT_MANAGER->value) {
+                $employeeId = DB::table('auth_users')
+                    ->where('id', $sessionUser['id'])
+                    ->value('employee_id');
+
+                Log::info('Support Manager viewing delivery tickets', ['employee_id' => $employeeId]);
+
+                $ticketIds = $employeeId
+                    ? DB::table('delivery_support_activities')
+                        ->join('delivery_support', 'delivery_support.id', '=', 'delivery_support_activities.delivery_support_id')
+                        ->where('delivery_support.support_manager_id', $employeeId)
+                        ->whereNotNull('delivery_support_activities.ticket_id')
+                        ->pluck('delivery_support_activities.ticket_id')
+                        ->unique()
+                    : collect();
+
+                $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+                    ->whereIn('ticket_id', $ticketIds)
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
+                    ->get();
+
             } else {
                 return response()->json([
                     'success' => false,
@@ -206,7 +228,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error fetching tickets:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return response()->json([
@@ -244,11 +266,11 @@ class TicketController extends Controller
                     'success' => true,
                     'message' => 'Ticket created successfully',
                     'data'    => $ticket,
-                ]);
+                ], 201);
             } catch (\Exception $e) {
                 Log::error('TicketController@store (admin): gagal', [
                     'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
+                    'error_at' => $e->getFile() . ':' . $e->getLine(),
                 ]);
                 return response()->json([
                     'success' => false,
@@ -328,7 +350,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error creating external ticket (query):', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -370,7 +392,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error fetching external tickets:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -508,7 +530,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error fetching my tickets:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -606,7 +628,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error taking ticket:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return response()->json([
@@ -674,7 +696,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error fetching confirmations:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return response()->json([
@@ -774,7 +796,7 @@ class TicketController extends Controller
             DB::rollBack();
             Log::error('Error confirming assignment:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return response()->json([
@@ -931,7 +953,7 @@ class TicketController extends Controller
             DB::rollBack();
             Log::error('Error updating man days:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return response()->json([
@@ -971,7 +993,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error fetching history:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return response()->json([
@@ -1126,16 +1148,15 @@ class TicketController extends Controller
             $ticket = Ticket::findOrFail($id);
 
             // Build update data from validated fields
-            // Helpdesk can only change employee_id (PIC assignment)
             $updateData = [];
 
-            if ($request->has('jarvies_status') && $isAdmin) {
+            if ($request->has('jarvies_status') && ($isAdmin || $isHelpdesk)) {
                 $updateData['jarvies_status'] = $request->jarvies_status;
             }
-            if ($request->has('ticket_priority') && $isAdmin) {
+            if ($request->has('ticket_priority') && ($isAdmin || $isHelpdesk)) {
                 $updateData['ticket_priority'] = $request->ticket_priority;
             }
-            if ($request->has('ticket_type') && $isAdmin) {
+            if ($request->has('ticket_type') && ($isAdmin || $isHelpdesk)) {
                 $updateData['ticket_type'] = $request->ticket_type;
             }
             if ($request->has('employee_id')) {
@@ -1163,7 +1184,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error updating ticket:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -1552,7 +1573,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error updating ticket status:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return response()->json([
@@ -1615,7 +1636,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error fetching member changes:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return response()->json([
@@ -1733,7 +1754,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error updating members:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return response()->json([
@@ -1800,7 +1821,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error requesting member change:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return response()->json([
@@ -1856,7 +1877,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error removing member:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -1910,7 +1931,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error requesting member removal:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return response()->json([
@@ -2003,7 +2024,7 @@ class TicketController extends Controller
             DB::rollBack();
             Log::error('Error processing member change:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return response()->json([
@@ -2075,7 +2096,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error fetching confirmation:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return response()->json([
@@ -2154,7 +2175,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Error fetching available supports:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -2376,7 +2397,7 @@ class TicketController extends Controller
             Log::error('Error assigning ticket to support:', [
                 'ticket_id' => $id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -2593,7 +2614,7 @@ class TicketController extends Controller
             Log::error('Error creating delivery support from ticket:', [
                 'ticket_id' => $id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

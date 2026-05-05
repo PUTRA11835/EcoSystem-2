@@ -126,13 +126,13 @@ class ActivityStageController extends Controller
                         'is_valid' => $planning->validateStagesWeight(),
                         'message' => $planning->getStagesWeightValidationMessage()
                     ]
-                ]);
+                ], 201);
             });
         } catch (\Exception $e) {
             Log::error('Error creating stage', [
                 'planning_id' => $planning->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -287,7 +287,7 @@ class ActivityStageController extends Controller
             Log::error('Error updating stage', [
                 'stage_id' => $stage->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

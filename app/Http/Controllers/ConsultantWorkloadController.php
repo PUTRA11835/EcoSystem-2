@@ -201,8 +201,8 @@ class ConsultantWorkloadController extends Controller
             'ticket.status', 'ticket.ticket_priority', 'ticket.ticket_type',
             'ticket.man_days', 'ticket.progress_percentage', 'ticket.progress_note',
             'ticket.last_progress_at', 'ticket.module', 'ticket.start_date',
-            'ticket.end_date', 'customer_basic_data.name_1 as customer_name',
-            DB::raw("CASE WHEN ticket.employee_id = {$empId} THEN 'pic' ELSE 'member' END as role_in_ticket"),
+            'ticket.end_date', 'ticket.employee_id',
+            'customer_basic_data.name_1 as customer_name',
         ];
 
         if ($ticketIds->isEmpty()) {
@@ -220,7 +220,8 @@ class ConsultantWorkloadController extends Controller
         // Load per-consultant progress detail untuk semua tiket sekaligus
         $consultantDetails = $this->consultantDetailsForTickets($ticketIds->toArray());
 
-        return $tickets->map(function ($ticket) use ($progressMap, $consultantDetails) {
+        return $tickets->map(function ($ticket) use ($progressMap, $consultantDetails, $empId) {
+            $ticket->role_in_ticket = ((int) $ticket->employee_id === $empId) ? 'pic' : 'member';
             $tid = $ticket->ticket_id;
 
             // Weighted average dari consultant_mandays_detail, fallback ke ticket.progress_percentage

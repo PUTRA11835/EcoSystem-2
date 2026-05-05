@@ -38,7 +38,7 @@ class CustomerAttachmentController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING CUSTOMER ATTACHMENTS ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -81,7 +81,7 @@ class CustomerAttachmentController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING CUSTOMER ATTACHMENT ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -159,7 +159,7 @@ class CustomerAttachmentController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR CREATING CUSTOMER ATTACHMENT ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -222,7 +222,7 @@ class CustomerAttachmentController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR UPDATING CUSTOMER ATTACHMENT ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -277,7 +277,7 @@ class CustomerAttachmentController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR DELETING CUSTOMER ATTACHMENT ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -322,7 +322,7 @@ class CustomerAttachmentController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR DOWNLOADING CUSTOMER ATTACHMENT ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

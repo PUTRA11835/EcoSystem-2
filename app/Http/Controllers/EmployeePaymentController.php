@@ -65,7 +65,7 @@ class EmployeePaymentController extends Controller
             Log::error('Error retrieving payment records', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -129,7 +129,7 @@ class EmployeePaymentController extends Controller
                 'employee_id' => $employeeId,
                 'payment_id' => $paymentId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -245,7 +245,7 @@ class EmployeePaymentController extends Controller
             Log::error('Error creating payment record', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -370,7 +370,7 @@ class EmployeePaymentController extends Controller
                 'employee_id' => $employeeId,
                 'payment_id' => $paymentId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -434,7 +434,7 @@ class EmployeePaymentController extends Controller
                 'employee_id' => $employeeId,
                 'payment_id' => $paymentId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -519,7 +519,7 @@ class EmployeePaymentController extends Controller
             Log::error('Error retrieving payment statistics', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -574,7 +574,7 @@ class EmployeePaymentController extends Controller
                 'employee_id' => $employeeId,
                 'status' => $status,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -629,7 +629,7 @@ class EmployeePaymentController extends Controller
                 'employee_id' => $employeeId,
                 'method' => $method,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -681,7 +681,7 @@ class EmployeePaymentController extends Controller
             Log::error('Error retrieving completed payments', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -733,7 +733,7 @@ class EmployeePaymentController extends Controller
             Log::error('Error retrieving pending payments', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -801,7 +801,7 @@ class EmployeePaymentController extends Controller
             Log::error('Error retrieving payments by date range', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

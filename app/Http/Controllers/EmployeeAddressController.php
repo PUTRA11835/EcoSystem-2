@@ -65,7 +65,7 @@ class EmployeeAddressController extends Controller
             Log::error('Error retrieving addresses', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -129,7 +129,7 @@ class EmployeeAddressController extends Controller
                 'employee_id' => $employeeId,
                 'address_id' => $addressId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -275,7 +275,7 @@ class EmployeeAddressController extends Controller
             Log::error('Error creating address', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -434,7 +434,7 @@ class EmployeeAddressController extends Controller
                 'employee_id' => $employeeId,
                 'address_id' => $addressId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -511,7 +511,7 @@ class EmployeeAddressController extends Controller
                 'employee_id' => $employeeId,
                 'address_id' => $addressId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -577,7 +577,7 @@ class EmployeeAddressController extends Controller
                 'employee_id' => $employeeId,
                 'address_id' => $addressId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

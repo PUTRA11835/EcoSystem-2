@@ -165,7 +165,7 @@ class DeliverySupportActivityController extends Controller
         } catch (\Exception $e) {
             Log::error('Error creating support activity', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

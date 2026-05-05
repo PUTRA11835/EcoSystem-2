@@ -166,7 +166,7 @@ class PeriodManagementController extends Controller
                 'success' => true,
                 'message' => 'Period created successfully.',
                 'data'    => $period,
-            ]);
+            ], 201);
         } catch (\InvalidArgumentException $e) {
             return $this->invalid($e->getMessage());
         }

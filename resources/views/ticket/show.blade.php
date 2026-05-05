@@ -1048,6 +1048,7 @@
                 <button id="hdBtnCancel" onclick="hdShowCancelConfirm()" class="hidden px-4 py-2 bg-red-100 text-red-700 text-xs font-semibold rounded-lg hover:bg-red-200 border border-red-300">Cancel Proposal</button>
             </div>
             <div class="flex flex-wrap gap-2">
+                <button id="hdBtnSaveDraft"     onclick="hdSaveDraft()"         class="hidden inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 border border-gray-300 transition-all duration-200">Save Draft</button>
                 <button id="hdBtnSendToChat"    onclick="hdSubmitToChat()"      class="hidden inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Send to Customer</button>
                 <button id="hdBtnReviseResend"  onclick="hdReviseResend()"      class="hidden inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Revise &amp; Resend</button>
                 <button id="hdBtnApprove"       onclick="hdApprove()"           class="hidden inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Approve</button>
@@ -3846,10 +3847,11 @@
             document.getElementById('hdMandaysFoot').innerHTML = footHtml;
 
             // Show/hide buttons per state
-            ['hdBtnSendToChat','hdBtnReviseResend','hdBtnApprove','hdBtnCancel','hdBtnNewProposal'].forEach(id => {
+            ['hdBtnSaveDraft','hdBtnSendToChat','hdBtnReviseResend','hdBtnApprove','hdBtnCancel','hdBtnNewProposal'].forEach(id => {
                 document.getElementById(id)?.classList.add('hidden');
             });
             if (isPicSubmitted) {
+                document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
                 document.getElementById('hdBtnSendToChat')?.classList.remove('hidden');
                 document.getElementById('hdBtnCancel')?.classList.remove('hidden');
                 // Show info banner: must send to chat before approving
@@ -3859,6 +3861,7 @@
                 banner.classList.remove('hidden');
                 banner.classList.add('flex', 'bg-blue-50', 'border', 'border-blue-200', 'text-blue-800');
             } else if (isCustomerRejected) {
+                document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
                 document.getElementById('hdBtnReviseResend')?.classList.remove('hidden');
                 document.getElementById('hdBtnCancel')?.classList.remove('hidden');
             } else if (isSentToChat) {
@@ -3927,6 +3930,36 @@
         return res.json();
     }
 
+    async function hdSaveDraft() {
+        const btn = document.getElementById('hdBtnSaveDraft');
+        if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+        try {
+            const details = [];
+            document.querySelectorAll('.hd-cell:not([readonly])').forEach(inp => {
+                const v = parseFloat(inp.value) || 0;
+                if (v > 0) details.push({ activity: inp.dataset.activity, module: inp.dataset.module, mandays: v });
+            });
+            if (details.length === 0) {
+                showNotification('Please fill in at least one mandays value.', 'warning');
+                return;
+            }
+            const res = await fetch(MANDAYS_API('hd-draft'), {
+                method: 'PUT', headers: getHeaders(), credentials: 'same-origin',
+                body: JSON.stringify({ details }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Draft saved. Team members can now view the updated proposal.', 'success');
+            } else {
+                showNotification(data.message || 'Failed to save draft.', 'error');
+            }
+        } catch(e) {
+            showNotification('Error: ' + e.message, 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = 'Save Draft'; }
+        }
+    }
+
     async function hdSubmitToChat() {
         const btn = document.getElementById('hdBtnSendToChat');
         if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
@@ -3980,7 +4013,7 @@
     }
     function hdShowCancelConfirm() {
         // Hide action buttons and show cancel confirmation form
-        ['hdBtnSendToChat','hdBtnReviseResend','hdBtnApprove','hdBtnCancel','hdBtnNewProposal'].forEach(id => {
+        ['hdBtnSaveDraft','hdBtnSendToChat','hdBtnReviseResend','hdBtnApprove','hdBtnCancel','hdBtnNewProposal'].forEach(id => {
             document.getElementById(id)?.classList.add('hidden');
         });
         document.getElementById('hdCancelConfirmWrap').classList.remove('hidden');

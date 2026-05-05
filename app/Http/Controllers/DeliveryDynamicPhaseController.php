@@ -397,7 +397,7 @@ class DeliveryDynamicPhaseController extends Controller
             Log::error('❌ Error updating view config', [
                 'delivery_projects_id' => $project->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return response()->json([
