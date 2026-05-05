@@ -102,7 +102,6 @@
 
     // Open Stage Modal
     window.openStageModal = function(groupId, groupName, phaseId) {
-        console.log('Opening stage modal for group:', { groupId, groupName, phaseId });
 
         window.currentGroupId = groupId;
         window.currentStageName = groupName;
@@ -243,7 +242,6 @@
 
     // Edit Stage
     window.editStage = function(stageId, stageName, groupId) {
-        console.log('Edit stage:', { stageId, stageName, groupId });
 
         axios.get(`/delivery/support/${window.supportId}/planning/stages/${stageId}`)
             .then(response => {
@@ -317,6 +315,5 @@
         return div.innerHTML;
     }
 
-    console.log('Stage modal functions loaded');
 })();
 </script>

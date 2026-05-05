@@ -238,7 +238,6 @@
      */
     async function loadContracts() {
         try {
-            console.log(' Loading contracts for employee:', employeeId);
             
             const response = await fetch(`/api/employees/${employeeId}/contract`, {
                 method: 'GET',
@@ -250,7 +249,6 @@
             });
 
             const data = await response.json();
-            console.log(' Contracts loaded:', data);
 
             if (data.success && data.data && data.data.length > 0) {
                 contractsData = data.data;
@@ -388,7 +386,6 @@
      */
     function selectContract(contractId) {
         selectedContractId = contractId;
-        console.log(' Selected contract:', contractId);
         loadContractToForm(contractId);
     }
 
@@ -412,7 +409,6 @@
      */
     async function loadContractToForm(contractId) {
         try {
-            console.log(' Loading contract to form:', contractId);
             
             const response = await fetch(`/api/employees/${employeeId}/contract/${contractId}`, {
                 method: 'GET',
@@ -424,7 +420,6 @@
             });
 
             const data = await response.json();
-            console.log(' Contract data loaded:', data);
 
             if (data.success && data.data) {
                 const contract = data.data;
@@ -448,7 +443,6 @@
                 // Update button text
                 document.getElementById('saveContractButtonText').textContent = 'Update';
                 
-                console.log(' Contract loaded to form fields');
             }
         } catch (error) {
             console.error(' Error loading contract:', error);
@@ -524,8 +518,6 @@
             
             const method = isUpdate ? 'PUT' : 'POST';
             
-            console.log(` ${isUpdate ? 'Updating' : 'Creating'} contract:`, url);
-            console.log(' Contract data:', contractData);
             
             const response = await fetch(url, {
                 method: method,
@@ -540,7 +532,6 @@
             });
 
             const data = await response.json();
-            console.log(' Save response:', data);
             
             if (data.success) {
                 showNotification(
@@ -614,7 +605,6 @@
         if (!deleteContractId) return;
 
         try {
-            console.log(' Deleting contract:', deleteContractId);
             
             const response = await fetch(`/api/employees/${employeeId}/contract/${deleteContractId}`, {
                 method: 'DELETE',
@@ -649,7 +639,6 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log(' Contract section initialized');
         loadContracts();
     });
 

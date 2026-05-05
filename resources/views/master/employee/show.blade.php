@@ -287,9 +287,7 @@
                 setText('lastChangedBy', basicData.last_changed_by);
                 setText('lastChangedOn', formatDateTime(basicData.last_changed_on));
                 
-                console.log('Basic data loaded successfully');
             } else {
-                console.log('No basic data found - form ready for new entry');
             }
         } catch (error) {
             console.error('Error loading basic data:', error);
@@ -411,7 +409,6 @@
         if (typeof initCustomDropdowns === 'function') {
             initCustomDropdowns();
         }
-        console.log('Loading employee data for ID:', employeeId);
         loadEmployeeBasicData(employeeId);
     });
 </script>

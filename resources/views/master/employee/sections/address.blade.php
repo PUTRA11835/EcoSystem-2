@@ -361,7 +361,6 @@
      */
     async function loadAddresses() {
         try {
-            console.log(' Loading addresses for employee:', employeeId);
             
             const response = await fetch(`/api/employees/${employeeId}/addresses`, {
                 method: 'GET',
@@ -373,7 +372,6 @@
             });
 
             const data = await response.json();
-            console.log(' Addresses loaded:', data);
 
             if (data.success && data.data && data.data.length > 0) {
                 addressesData = data.data;
@@ -454,7 +452,6 @@
      */
     function selectAddress(addressId) {
         selectedAddressId = addressId;
-        console.log(' Selected address:', addressId);
         loadAddressToForm(addressId);
     }
 
@@ -478,7 +475,6 @@
      */
     async function loadAddressToForm(addressId) {
         try {
-            console.log(' Loading address to form:', addressId);
             
             const response = await fetch(`/api/employees/${employeeId}/addresses/${addressId}`, {
                 method: 'GET',
@@ -490,7 +486,6 @@
             });
 
             const data = await response.json();
-            console.log(' Address data loaded:', data);
 
             if (data.success && data.data) {
                 const address = data.data;
@@ -525,7 +520,6 @@
                 
                 document.getElementById('saveAddressButtonText').textContent = 'Update';
                 
-                console.log(' Address loaded to form fields');
             }
         } catch (error) {
             console.error(' Error loading address:', error);
@@ -697,7 +691,6 @@
         if (!deleteAddressId) return;
 
         try {
-            console.log(' Deleting address:', deleteAddressId);
             
             const response = await fetch(`/api/employees/${employeeId}/addresses/${deleteAddressId}`, {
                 method: 'DELETE',
@@ -731,7 +724,6 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log(' Address section initialized');
         loadAddresses();
     });
 

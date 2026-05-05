@@ -336,7 +336,6 @@
      */
     async function loadContacts() {
         try {
-            console.log('📡 Loading contacts for customer:', {{ $customerId }});
             
             const response = await fetch(`/api/customers/{{ $customerId }}/contacts`, {
                 method: 'GET',
@@ -1010,7 +1009,6 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 Contact section initialized');
         loadContacts();
     });
 

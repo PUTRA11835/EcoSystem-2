@@ -196,7 +196,6 @@ async function loadStagingTickets(page = 1) {
 
     const url = '/api/staging-tickets?' + params.toString();
     const ts = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-    console.log(`[StagingFetch] ${ts} — Memulai fetch: ${url}`);
 
     const tbody = document.getElementById('stagingTableBody');
     tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-12 text-center text-gray-400">
@@ -209,16 +208,8 @@ async function loadStagingTickets(page = 1) {
             credentials: 'same-origin',
         };
         const rawRes = await fetch(url, opts);
-        console.log(`[StagingFetch] HTTP ${rawRes.status} ${rawRes.statusText} | url: ${url}`);
 
         const data = await rawRes.json();
-        console.log(`[StagingFetch] Response:`, {
-            success: data.success,
-            total:   data.meta?.total ?? '?',
-            page:    data.meta?.current_page ?? '?',
-            count:   data.data?.length ?? 0,
-            message: data.message ?? null,
-        });
 
         if (!data.success) {
             console.error(`[StagingFetch] Server error:`, data.message ?? data);
@@ -746,18 +737,14 @@ async function submitApprove(id) {
 
     const t0 = performance.now();
     console.group(`%c[Approve] Staging #${id}`, 'color:#c62828;font-weight:bold');
-    console.log('▶ Submit approve', { staging_id: id, ticket_type: ticketType, priority, scale });
 
     try {
-        console.log('⏳ Sending POST /api/staging-tickets/' + id + '/approve …');
         const res = await apiFetch(`/api/staging-tickets/${id}/approve`, 'POST', {
             ticket_type:     ticketType,
             ticket_priority: priority,
             scale:           scale || null,
         });
         const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
-        console.log(`✅ Approve SUCCESS (${elapsed}s)`, res);
-        console.log('📧 Ticket number:', res.data?.ticket_number ?? '(none)');
         console.groupEnd();
         closeModal();
         loadStagingTickets(currentPage);
@@ -812,7 +799,6 @@ async function apiFetch(url, method = 'GET', body = null) {
     if (body) opts.body = JSON.stringify(body);
 
     const t0 = performance.now();
-    console.log(`%c[apiFetch] ${method} ${url}`, 'color:#1d4ed8;font-weight:bold', body ?? '');
 
     let res, data;
     try {
@@ -825,7 +811,6 @@ async function apiFetch(url, method = 'GET', body = null) {
 
     const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
     const logStyle = res.ok ? 'color:#15803d' : 'color:#b91c1c';
-    console.log(`%c[apiFetch] HTTP ${res.status} (${elapsed}s) ← ${url}`, logStyle, data);
 
     if (!data.success) throw new Error(data.message || 'Request failed');
     return data;
@@ -856,7 +841,6 @@ async function fetchEmailInbox(silent = false) {
     if (status) { status.textContent = 'Refreshing...'; }
 
     const ts = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-    console.log(`[FetchEmail] ${ts} — Memulai fetch${silent ? ' (auto-poll)' : ' (manual)'}`);
 
     const postJson = async (url) => {
         const r = await fetch(url, {
@@ -864,9 +848,7 @@ async function fetchEmailInbox(silent = false) {
             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
             credentials: 'same-origin',
         });
-        console.log(`[FetchEmail] ${url} → HTTP ${r.status} ${r.statusText}`);
         const body = await r.json();
-        console.log(`[FetchEmail] ${url} response:`, body);
         return body;
     };
 
@@ -888,7 +870,6 @@ async function fetchEmailInbox(silent = false) {
         const newFromInbox = inbox.processed ?? 0;
         const linkedSent   = sent.linked     ?? 0;
 
-        console.log(`[FetchEmail] ${ts} — Inbox: ${newFromInbox} new | Sent: ${linkedSent} linked (total scanned: ${sent.total ?? '?'}) | skipped: ${sent.skipped ?? '?'} | errors: ${sent.errors?.length ?? 0}`);
         if (inbox.errors?.length) console.warn(`[FetchEmail] Inbox errors:`, inbox.errors);
         if (sent.errors?.length)  console.warn(`[FetchEmail] Sent errors:`, sent.errors);
         if (!inbox.success && inbox.message) console.warn(`[FetchEmail] process-inbox server error:`, inbox.message);

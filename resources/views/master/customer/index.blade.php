@@ -586,7 +586,6 @@
         if (typeof initCustomDropdowns === 'function') {
             initCustomDropdowns();
         }
-        console.log('Page loaded, fetching customers...');
         fetchCustomers();
     });
 

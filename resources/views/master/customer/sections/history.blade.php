@@ -360,7 +360,6 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 History section initialized');
         loadBusinessHistory();
         loadProjectHistory();
     });

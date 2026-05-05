@@ -113,7 +113,6 @@
             return;
         }
         
-        console.log('📡 Loading all phases data for project:', projectId);
         
         const tbody = document.getElementById('activitiesTableBody');
         if (tbody) {
@@ -134,7 +133,6 @@
         
         axios.get(`/planning/${projectId}/data/table`)
             .then(function(response) {
-                console.log('✅ All phases data loaded:', response.data);
                 renderHierarchicalTable(response.data);
             })
             .catch(function(error) {
@@ -193,30 +191,25 @@
         });
 
         localStorage.setItem('tableExpandedState_' + window.projectId, JSON.stringify(state));
-        console.log('💾 Saved expanded state:', state);
         return state;
     }
 
     function restoreExpandedState() {
         const savedState = localStorage.getItem('tableExpandedState_' + window.projectId);
         if (!savedState) {
-            console.log('📂 No saved state found');
             return;
         }
 
         try {
             const state = JSON.parse(savedState);
-            console.log('📂 Restoring expanded state:', state);
 
             // Restore phases first, then groups, then stages in sequence
             setTimeout(function() {
-                console.log('📂 Step 1: Expanding phases...');
                 state.phases.forEach(function(phaseId) {
                     const button = document.querySelector(`button[onclick*="togglePhase(${phaseId}"]`);
                     if (button) {
                         const icon = button.querySelector('svg');
                         if (icon && !icon.classList.contains('rotate-90')) {
-                            console.log('📂 Clicking phase', phaseId);
                             button.click();
                         }
                     }
@@ -224,13 +217,11 @@
 
                 // Wait for phases to expand, then expand groups
                 setTimeout(function() {
-                    console.log('📂 Step 2: Expanding groups...');
                     state.groups.forEach(function(groupId) {
                         const button = document.querySelector(`button[onclick*="toggleGroup(${groupId}"]`);
                         if (button) {
                             const icon = button.querySelector('svg');
                             if (icon && !icon.classList.contains('rotate-90')) {
-                                console.log('📂 Clicking group', groupId);
                                 button.click();
                             }
                         }
@@ -238,18 +229,15 @@
 
                     // Wait for groups to expand, then expand stages
                     setTimeout(function() {
-                        console.log('📂 Step 3: Expanding stages...');
                         state.stages.forEach(function(stageId) {
                             const button = document.querySelector(`button[onclick*="toggleStage(${stageId}"]`);
                             if (button) {
                                 const icon = button.querySelector('svg');
                                 if (icon && !icon.classList.contains('rotate-90')) {
-                                    console.log('📂 Clicking stage', stageId);
                                     button.click();
                                 }
                             }
                         });
-                        console.log('✅ State restoration complete');
                     }, 150);
                 }, 150);
             }, 150);
@@ -259,7 +247,6 @@
     }
 
     function renderHierarchicalTable(phasesData) {
-        console.log('🎨 Rendering hierarchical table with', phasesData.length, 'phases');
 
         const tbody = document.getElementById('activitiesTableBody');
         if (!tbody) {
@@ -303,12 +290,10 @@
         });
         
         tbody.appendChild(fragment);
-        console.log('✅ Hierarchical table rendered');
 
         // Auto-expand all items after rendering for better UX
         setTimeout(function() {
             expandAll();
-            console.log('✅ Auto-expanded all items');
         }, 100);
     }
     
@@ -765,7 +750,6 @@
      * Edit activity that is directly under a group
      */
     window.editActivityForGroup = function(activityId, groupId) {
-        console.log('✏️ Edit activity for group:', { activityId, groupId });
 
         if (typeof window.openActivityModalForGroup === 'function') {
             window.openActivityModalForGroup(groupId, null, null, activityId);
@@ -849,7 +833,6 @@
     };
     
     window.quickAddActivityToStage = function(stageId, groupId) {
-        console.log('📝 Add activity to stage:', { stageId, groupId });
 
         if (typeof window.openActivityModal === 'function') {
             window.openActivityModal(stageId, groupId);
@@ -863,7 +846,6 @@
      * Add activity directly to a group (without stage)
      */
     window.quickAddActivityToGroup = function(groupId, groupName, phaseId) {
-        console.log('📝 Add activity directly to group:', { groupId, groupName, phaseId });
 
         if (typeof window.openActivityModalForGroup === 'function') {
             window.openActivityModalForGroup(groupId, groupName, phaseId);
@@ -877,7 +859,6 @@
     };
 
     window.quickAddSubGroup = function(parentGroupId, groupName, phaseId) {
-        console.log('📝 Adding sub-group to group:', { parentGroupId, groupName, phaseId });
         if (typeof openQuickModal === 'function') {
             openQuickModal('group', phaseId, parentGroupId);
         }
@@ -888,7 +869,6 @@
     // =========================================================================
 
     window.editActivity = function(activityId, stageId) {
-        console.log('✏️ Edit activity directly:', { activityId, stageId });
 
         if (!activityId || activityId <= 0) {
             console.error('❌ Invalid activity ID:', activityId);
@@ -921,7 +901,6 @@
             const itemName = deleteBtn.dataset.itemName;
             const isGroup = deleteBtn.dataset.isGroup === 'true';
 
-            console.log('🗑️ Delete group clicked:', { itemId, itemName, isGroup });
 
             if (typeof deleteItem === 'function') {
                 deleteItem(itemId, isGroup, itemName);
@@ -937,7 +916,6 @@
             const activityId = deleteActivityBtn.dataset.activityId;
             const activityName = deleteActivityBtn.dataset.activityName;
 
-            console.log('🗑️ Delete activity clicked:', { activityId, activityName });
 
             if (typeof deleteActivity === 'function') {
                 deleteActivity(activityId, activityName);
@@ -956,7 +934,6 @@
             const stageId = deleteStageBtn.dataset.stageId;
             const stageName = deleteStageBtn.dataset.stageName;
 
-            console.log('🗑️ Delete stage clicked:', { stageId, stageName });
 
             if (typeof deleteStage === 'function') {
                 deleteStage(stageId, stageName);
@@ -977,7 +954,6 @@
     
     // Auto-load
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('📄 Page loaded, loading hierarchical table...');
         setTimeout(loadAllPhasesData, 300);
     });
 })();

@@ -1871,14 +1871,12 @@
                 // Load pertama: render semua sekaligus (innerHTML sekali, bukan per-pesan)
                 thread.innerHTML = messages.map(msg => createMessageBubble(msg)).join('');
                 messages.forEach(msg => renderedMessageIds.add(msg.id));
-                console.log('[loadMessages] Initial render:', messages.length, 'pesan');
             } else {
                 // Poll berikutnya: hanya append pesan baru di bawah, pesan lama tidak disentuh
                 newMessages.forEach(msg => {
                     thread.insertAdjacentHTML('beforeend', createMessageBubble(msg));
                     renderedMessageIds.add(msg.id);
                 });
-                console.log('[loadMessages] Appended', newMessages.length, 'pesan baru');
             }
 
             // Auto-populate CC input saat ada reply customer baru yang bawa CC —
@@ -3875,18 +3873,15 @@
         document.getElementById('hdCancelConfirmWrap')?.classList.add('hidden');
 
         try {
-            console.log('[hdMandays] fetching modules + hd-draft for ticket', ticketId);
             const [modRes, draftRes] = await Promise.all([
                 fetch(MANDAYS_API('modules'), { headers: getHeaders(), credentials: 'same-origin' }),
                 fetch(MANDAYS_API('hd-draft'), { headers: getHeaders(), credentials: 'same-origin' }),
             ]);
-            console.log('[hdMandays] responses:', modRes.status, draftRes.status);
             if (!modRes.ok || !draftRes.ok) {
                 throw new Error(`API error: modules=${modRes.status} hd-draft=${draftRes.status}`);
             }
             const modData   = await modRes.json();
             const draftData = await draftRes.json();
-            console.log('[hdMandays] data loaded, status=', draftData.ticket_mandays_status);
             const modules   = modData.data || [];
             const proposal  = draftData.data;
             const status    = draftData.ticket_mandays_status || 'none';
@@ -4020,7 +4015,6 @@
             console.error('[hdMandays] error:', e);
             showNotification('Failed to load proposal: ' + e.message, 'error');
         } finally {
-            console.log('[hdMandays] finally: hiding loading');
             const loadingEl = document.getElementById('hdMandaysLoading');
             if (loadingEl) loadingEl.classList.add('hidden');
         }

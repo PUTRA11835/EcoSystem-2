@@ -11,7 +11,6 @@
 <div class="min-h-screen bg-gray-50 pb-20 sm:pb-6" data-project-id="{{ $project->id }}">
     <script>
         window.currentProjectId = {{ $project->id }};
-        console.log('Project initialized:', window.currentProjectId);
     </script>
     <!-- ======================================== -->
          <!-- MOBILE HEADER (< lg) -->
@@ -339,7 +338,6 @@
 <script>
 (function() {
     'use strict';
-    console.log('🔧 Step 1: Initializing global variables...');
 
     // ==========================================
     // Get Project ID with multiple fallbacks
@@ -375,7 +373,6 @@
     const projectId = getProjectId();
     if (projectId) {
         window.projectId = projectId;
-        console.log('✅ Project ID set:', projectId);
     } else {
         console.error('❌ Could not determine project ID!');
     }
@@ -409,18 +406,12 @@
         horizontal: @json($horizontalPhases ?? [])
     };
 
-    console.log('✅ All global variables initialized:', {
-        projectId: window.projectId,
-        currentView: window.currentView,
-        hasPhaseData: !!window.phaseData
-    });
 })();
 </script>
 
 {{-- ✅ STEP 2: EDIT ITEM FUNCTION --}}
 <script>
 window.editItem = function(itemId) {
-    console.log('✏️ Edit item:', itemId);
     
     if (!itemId || itemId === 'null' || itemId <= 0) {
         console.error('❌ Invalid item ID:', itemId);
@@ -433,10 +424,8 @@ window.editItem = function(itemId) {
     axios.get(`/planning/${window.projectId}/activities/${itemId}`)
         .then(response => {
             const item = response.data;
-            console.log('📦 Item data:', item);
             
             if (item.is_group) {
-                console.log('✏️ Editing group:', item.name);
                 if (typeof openQuickModal === 'function') {
                     openQuickModal('group', item.phase_id, item.parent_id, item);
                 } else {
@@ -444,7 +433,6 @@ window.editItem = function(itemId) {
                     showNotification('Quick modal not available', 'error');
                 }
             } else {
-                console.log('✏️ Editing activity:', item.name);
                 if (typeof window.openActivityModal === 'function') {
                     window.openActivityModal(item.stage_id, item.parent_id, item.id);
                 } else {
@@ -459,14 +447,12 @@ window.editItem = function(itemId) {
         });
 };
 
-console.log('✅ editItem function loaded');
 </script>
 
 {{-- ✅ STEP 3: MAIN FUNCTIONS (switchView, selectPhase, etc) --}}
 <script>
 (function() {
     'use strict';
-    console.log('🚀 Step 3: Loading main functions...');
 
 
     window.tableDataLoaded = false;
@@ -480,7 +466,6 @@ console.log('✅ editItem function loaded');
     // MANUAL REFRESH FUNCTION
     // ==========================================
     window.refreshTableData = function() {
-        console.log('🔄 Manual refresh triggered');
         window.tableDataLoaded = false;
         loadTableData();
     };
@@ -489,7 +474,6 @@ console.log('✅ editItem function loaded');
     // SWITCH VIEW (Table / Gantt)
     // ==========================================
     window.switchView = function(view) {
-        console.log('🔄 Switching view to:', view);
         window.currentView = view;
         
         // Update button states
@@ -519,7 +503,6 @@ console.log('✅ editItem function loaded');
             scurveContainer.classList.add('hidden');
             
             if (!window.tableDataLoaded) {
-                console.log('📊 First time loading table data...');
                 loadTableData();
             }
         } else if (view === 'gantt') {
@@ -547,7 +530,6 @@ console.log('✅ editItem function loaded');
     // LOAD TABLE DATA
     // ==========================================
     function loadTableData() {
-        console.log('📊 Loading table data...');
         
         // Call the function from table-view partial
         if (typeof window.loadAllPhasesData === 'function') {
@@ -562,7 +544,6 @@ console.log('✅ editItem function loaded');
     // SELECT PHASE (DEPRECATED - Not used anymore)
     // ==========================================
     window.selectPhase = function(phaseId) {
-        console.log('⚠️ selectPhase is deprecated - using hierarchical view');
         // Keep for backward compatibility but don't do anything
     };
 
@@ -590,11 +571,9 @@ console.log('✅ editItem function loaded');
             _token: document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}'
         };
         
-        console.log('💾 Saving view preference:', data);
         
         axios.post('/project-planning/' + window.projectId + '/view-config', data)
             .then(function(response) {
-                console.log('✅ View preference saved:', response.data);
             })
             .catch(function(error) {
                 console.error('❌ Failed to save view preference:', error);
@@ -610,7 +589,6 @@ console.log('✅ editItem function loaded');
     // DOM READY - INITIALIZE
     // ==========================================
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('📦 DOM Content Loaded - Initializing view...');
         
         if (window.currentView) {
             switchView(window.currentView);
@@ -619,7 +597,6 @@ console.log('✅ editItem function loaded');
         }
     });
 
-    console.log('✅ Main functions loaded');
 })();
 </script>
 
@@ -798,7 +775,6 @@ document.addEventListener('click', function(e) {
 
 <script>
 (function() {
-    console.log('=== VERIFYING ALL FUNCTIONS ===');
     
     const requiredFunctions = [
         'switchView',
@@ -818,7 +794,6 @@ document.addEventListener('click', function(e) {
     
     requiredFunctions.forEach(funcName => {
         const exists = typeof window[funcName] === 'function';
-        console.log(`  ${exists ? '✅' : '❌'} ${funcName}`);
         
         if (!exists) {
             allLoaded = false;
@@ -827,19 +802,16 @@ document.addEventListener('click', function(e) {
     });
     
     if (allLoaded) {
-        console.log('✅ All required functions loaded successfully!');
     } else {
         console.error('❌ Missing functions:', missing);
         console.error('⚠️ Check if modal partials are included correctly');
     }
     
     if (typeof window.projectId !== 'undefined' && window.projectId !== null) {
-        console.log('✅ Project ID available:', window.projectId);
     } else {
         console.error('❌ Project ID not set!');
     }
     
-    console.log('=== END VERIFICATION ===');
 })();
 </script>
 

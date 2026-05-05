@@ -231,7 +231,6 @@
      */
     async function loadBanks() {
         try {
-            console.log(' Loading banks for employee:', employeeId);
             
             const response = await fetch(`/api/employees/${employeeId}/bank`, {
                 method: 'GET',
@@ -243,7 +242,6 @@
             });
 
             const data = await response.json();
-            console.log(' Banks loaded:', data);
 
             if (data.success && data.data && data.data.length > 0) {
                 banksData = data.data;
@@ -378,7 +376,6 @@
      */
     function selectBank(bankId) {
         selectedBankId = bankId;
-        console.log(' Selected bank:', bankId);
         loadBankToForm(bankId);
     }
 
@@ -402,7 +399,6 @@
      */
     async function loadBankToForm(bankId) {
         try {
-            console.log(' Loading bank to form:', bankId);
             
             const response = await fetch(`/api/employees/${employeeId}/bank/${bankId}`, {
                 method: 'GET',
@@ -414,7 +410,6 @@
             });
 
             const data = await response.json();
-            console.log(' Bank data loaded:', data);
 
             if (data.success && data.data) {
                 const bank = data.data;
@@ -435,7 +430,6 @@
                 // Update button text
                 document.getElementById('saveBankButtonText').textContent = 'Update';
                 
-                console.log(' Bank loaded to form fields');
             }
         } catch (error) {
             console.error(' Error loading bank:', error);
@@ -502,8 +496,6 @@
             
             const method = isUpdate ? 'PUT' : 'POST';
             
-            console.log(` ${isUpdate ? 'Updating' : 'Creating'} bank:`, url);
-            console.log(' Bank data:', bankData);
             
             const response = await fetch(url, {
                 method: method,
@@ -518,7 +510,6 @@
             });
 
             const data = await response.json();
-            console.log(' Save response:', data);
             
             if (data.success) {
                 showNotification(
@@ -592,7 +583,6 @@
         if (!deleteBankId) return;
 
         try {
-            console.log(' Deleting bank:', deleteBankId);
             
             const response = await fetch(`/api/employees/${employeeId}/bank/${deleteBankId}`, {
                 method: 'DELETE',
@@ -627,7 +617,6 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log(' Bank section initialized');
         loadBanks();
     });
 

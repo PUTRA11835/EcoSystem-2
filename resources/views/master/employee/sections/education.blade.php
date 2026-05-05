@@ -259,7 +259,6 @@
      */
     async function loadEducations() {
         try {
-            console.log(' Loading educations for employee:', employeeId);
             
             const response = await fetch(`/api/employees/${employeeId}/education`, {
                 method: 'GET',
@@ -271,7 +270,6 @@
             });
 
             const data = await response.json();
-            console.log(' Educations loaded:', data);
 
             if (data.success && data.data && data.data.length > 0) {
                 educationsData = data.data;
@@ -358,7 +356,6 @@
      */
     function selectEducation(educationId) {
         selectedEducationId = educationId;
-        console.log(' Selected education:', educationId);
         loadEducationToForm(educationId);
     }
 
@@ -382,7 +379,6 @@
      */
     async function loadEducationToForm(educationId) {
         try {
-            console.log(' Loading education to form:', educationId);
             
             const response = await fetch(`/api/employees/${employeeId}/education/${educationId}`, {
                 method: 'GET',
@@ -394,7 +390,6 @@
             });
 
             const data = await response.json();
-            console.log(' Education data loaded:', data);
 
             if (data.success && data.data) {
                 const education = data.data;
@@ -422,7 +417,6 @@
                 // Update button text
                 document.getElementById('saveEducationButtonText').textContent = 'Update';
                 
-                console.log(' Education loaded to form fields');
             }
         } catch (error) {
             console.error(' Error loading education:', error);
@@ -503,8 +497,6 @@
             
             const method = isUpdate ? 'PUT' : 'POST';
             
-            console.log(` ${isUpdate ? 'Updating' : 'Creating'} education:`, url);
-            console.log(' Education data:', educationData);
             
             const response = await fetch(url, {
                 method: method,
@@ -519,7 +511,6 @@
             });
 
             const data = await response.json();
-            console.log(' Save response:', data);
             
             if (data.success) {
                 showNotification(
@@ -593,7 +584,6 @@
         if (!deleteEducationId) return;
 
         try {
-            console.log(' Deleting education:', deleteEducationId);
             
             const response = await fetch(`/api/employees/${employeeId}/education/${deleteEducationId}`, {
                 method: 'DELETE',
@@ -628,7 +618,6 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log(' Education section initialized');
         loadEducations();
     });
 

@@ -1639,7 +1639,6 @@ let planningDataLoaded = false;
 let ganttPlanningLoaded = false;
 
 function switchPlanningView(view) {
-    console.log('🔄 Switching planning view to:', view);
     currentPlanningView = view;
     
     // Update button states
@@ -1676,14 +1675,12 @@ function switchPlanningView(view) {
 
 // ✅ Load Planning Table Data
 function loadPlanningTableData() {
-    console.log('📊 Loading planning table data...');
     
     const tbody = document.getElementById('planningTableBody');
     if (!tbody) return;
     
     axios.get(`/planning/${projectId}/data/table`)
         .then(response => {
-            console.log('✅ Planning data loaded:', response.data);
             renderPlanningTable(response.data);
             planningDataLoaded = true;
         })
@@ -1784,14 +1781,12 @@ function renderPlanningTable(phasesData) {
 
 // ✅ Load Planning Gantt Data
 function loadPlanningGanttData() {
-    console.log('📊 Loading planning gantt data...');
     
     const loading = document.getElementById('ganttLoadingPlanning');
     const content = document.getElementById('ganttContentPlanning');
     
     axios.get(`/planning/${projectId}/data/gantt`)
         .then(response => {
-            console.log('✅ Gantt data loaded:', response.data);
 
             loading.classList.add('hidden');
             content.classList.remove('hidden');
@@ -1861,7 +1856,6 @@ function collapseAllGanttPlanning() {
 const planningObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
         if (entry.isIntersecting && !planningDataLoaded) {
-            console.log('📍 Planning section in view, loading data...');
             loadPlanningTableData();
         }
     });
@@ -2336,7 +2330,6 @@ function submitStatusForm() {
     if (f) f.submit();
 }
 
-console.log('✅ Project Show Page with Integrated Planning initialized');
 
 // ── OneDrive Modal ────────────────────────────────────────────────────────
 let _odrHasFolder = {{ $project->onedrive_folder_id ? 'true' : 'false' }};

@@ -343,7 +343,6 @@
      */
     async function loadAddresses() {
         try {
-            console.log('📡 Loading addresses for customer:', {{ $customerId }});
             
             const response = await fetch(`/api/customers/{{ $customerId }}/addresses`, {
                 method: 'GET',
@@ -355,7 +354,6 @@
             });
 
             const data = await response.json();
-            console.log('📦 Addresses loaded:', data);
 
             if (data.success && data.data && data.data.length > 0) {
                 addressesData = data.data;
@@ -436,7 +434,6 @@
      */
     function selectAddress(addressId) {
         selectedAddressId = addressId;
-        console.log('📍 Selected address:', addressId);
         
         // Load address data to form fields above
         loadAddressToForm(addressId);
@@ -639,7 +636,6 @@
         if (!deleteAddressId) return;
 
         try {
-            console.log('🗑️ Deleting address:', deleteAddressId);
             
             const response = await fetch(`/api/customers/{{ $customerId }}/addresses/${deleteAddressId}`, {
                 method: 'DELETE',
@@ -679,7 +675,6 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 Address section initialized');
         loadAddresses();
     });
 

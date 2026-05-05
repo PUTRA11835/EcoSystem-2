@@ -110,7 +110,6 @@
             return;
         }
 
-        console.log('Loading all phases data for support:', supportId);
 
         const tbody = document.getElementById('activitiesTableBody');
         if (tbody) {
@@ -131,7 +130,6 @@
 
         axios.get(`/delivery/support/${supportId}/data/table`)
             .then(function(response) {
-                console.log('All phases data loaded:', response.data);
                 // API returns {success: true, data: [...]} so extract data array
                 const phasesData = response.data.data || response.data;
                 renderHierarchicalTable(phasesData);
@@ -157,7 +155,6 @@
     };
 
     function renderHierarchicalTable(phasesData) {
-        console.log('Rendering hierarchical table with', phasesData.length, 'phases');
 
         const tbody = document.getElementById('activitiesTableBody');
         if (!tbody) {
@@ -201,12 +198,10 @@
         });
 
         tbody.appendChild(fragment);
-        console.log('Hierarchical table rendered');
 
         // Auto-expand all items
         setTimeout(function() {
             expandAll();
-            console.log('Auto-expanded all items');
         }, 100);
     }
 
@@ -610,7 +605,6 @@
     };
 
     window.quickAddActivityToStage = function(stageId, groupId) {
-        console.log('Add activity to stage:', { stageId, groupId });
 
         if (typeof window.openActivityModal === 'function') {
             window.openActivityModal(stageId, groupId);
@@ -621,7 +615,6 @@
     };
 
     window.editActivity = function(activityId, stageId) {
-        console.log('Edit activity:', { activityId, stageId });
 
         if (typeof window.openActivityModal === 'function') {
             window.openActivityModal(stageId, null, activityId);
@@ -684,7 +677,6 @@
 
     // Auto-load
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('Page loaded, loading hierarchical table...');
         setTimeout(loadAllPhasesData, 300);
     });
 })();

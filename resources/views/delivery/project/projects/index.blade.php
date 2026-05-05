@@ -442,9 +442,6 @@
 
             // Debug: Check if container has correct styles
             if (tableContainer) {
-                console.log('Table container height:', tableContainer.style.height);
-                console.log('Table container overflow-y:', window.getComputedStyle(tableContainer).overflowY);
-                console.log('Table content height:', tableContainer.scrollHeight);
             }
         });
     </script>
