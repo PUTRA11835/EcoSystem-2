@@ -121,7 +121,7 @@ class AuthController extends Controller
                 'error_message' => $e->getMessage(),
                 'error_file' => $e->getFile(),
                 'error_line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return redirect()->route('login')->with('error', 'An unexpected error occurred while loading the login page. Please try again.');
@@ -786,6 +786,10 @@ class AuthController extends Controller
                 $request->session()->regenerate();
                 $request->session()->save();
 
+                DB::table('sessions')
+                    ->where('id', $request->session()->getId())
+                    ->update(['user_id' => $authUser->id]);
+
                 Log::channel('daily')->info('=== EMPLOYEE LOGIN SUCCESSFUL ===', [
                     'request_id'  => $requestId,
                     'employee_id' => $userData['id'],
@@ -846,7 +850,7 @@ class AuthController extends Controller
                 'error_code' => $e->getCode(),
                 'error_file' => $e->getFile(),
                 'error_line' => $e->getLine(),
-                'trace_summary' => substr($e->getTraceAsString(), 0, 500),
+                'error_at' => $e->getFile() . ':' . $e->getLine(),
                 'email' => $email ?? 'N/A',
                 'ip_address' => $request->ip(),
                 'timestamp' => now()->toDateTimeString()
@@ -856,7 +860,7 @@ class AuthController extends Controller
             Log::channel('daily')->error('Exception details', [
                 'request_id' => $requestId,
                 'previous_exception' => $e->getPrevious() ? $e->getPrevious()->getMessage() : 'None',
-                'exception_trace' => $e->getTrace()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

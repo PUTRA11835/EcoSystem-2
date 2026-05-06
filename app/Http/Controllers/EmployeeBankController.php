@@ -64,7 +64,7 @@ class EmployeeBankController extends Controller
             Log::error('Error retrieving bank records', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -128,7 +128,7 @@ class EmployeeBankController extends Controller
                 'employee_id' => $employeeId,
                 'bank_id' => $bankId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -237,7 +237,7 @@ class EmployeeBankController extends Controller
             Log::error('Error creating bank record', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -361,7 +361,7 @@ class EmployeeBankController extends Controller
                 'employee_id' => $employeeId,
                 'bank_id' => $bankId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -425,7 +425,7 @@ class EmployeeBankController extends Controller
                 'employee_id' => $employeeId,
                 'bank_id' => $bankId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -496,7 +496,7 @@ class EmployeeBankController extends Controller
             Log::error('Error retrieving bank statistics', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -551,7 +551,7 @@ class EmployeeBankController extends Controller
                 'employee_id' => $employeeId,
                 'bank_name' => $bankName,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -603,7 +603,7 @@ class EmployeeBankController extends Controller
             Log::error('Error retrieving expired bank accounts', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -655,7 +655,7 @@ class EmployeeBankController extends Controller
             Log::error('Error retrieving valid bank accounts', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -707,7 +707,7 @@ class EmployeeBankController extends Controller
             Log::error('Error retrieving bank accounts expiring soon', [
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

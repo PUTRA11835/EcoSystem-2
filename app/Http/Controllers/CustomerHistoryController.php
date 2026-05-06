@@ -45,7 +45,7 @@ class CustomerHistoryController extends Controller
             $totalRecords = $query->count();
 
             // Apply pagination
-            $perPage = $request->get('per_page', 10);
+            $perPage = max(1, min((int) $request->get('per_page', 10), 100));
             $page = $request->get('page', 1);
             $offset = ($page - 1) * $perPage;
 
@@ -75,7 +75,7 @@ class CustomerHistoryController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING CUSTOMER HISTORY ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -131,7 +131,7 @@ class CustomerHistoryController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR CREATING CUSTOMER HISTORY RECORD ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -183,7 +183,7 @@ class CustomerHistoryController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING CUSTOMER HISTORY STATISTICS ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -223,7 +223,7 @@ class CustomerHistoryController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR CLEANING UP CUSTOMER HISTORY ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

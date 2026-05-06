@@ -32,6 +32,38 @@ use App\Http\Controllers\StagingTicketController;
 use App\Http\Controllers\MandaysController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\AdminSessionController;
+use App\Http\Controllers\AdminJobController;
+use App\Http\Controllers\AdminBackupController;
+
+// ==================== HEALTH CHECK (public, no auth) ====================
+Route::get('/health', function () {
+    $checks = [];
+    $status = 'ok';
+
+    try {
+        \Illuminate\Support\Facades\DB::connection()->getPdo();
+        $checks['database'] = 'ok';
+    } catch (\Throwable $e) {
+        $checks['database'] = 'error';
+        $status = 'degraded';
+    }
+
+    try {
+        $queueSize = \Illuminate\Support\Facades\DB::table('jobs')->count();
+        $failedCount = \Illuminate\Support\Facades\DB::table('failed_jobs')->count();
+        $checks['queue_pending'] = $queueSize;
+        $checks['queue_failed'] = $failedCount;
+    } catch (\Throwable $e) {
+        $checks['queue'] = 'unavailable';
+    }
+
+    return response()->json([
+        'status'    => $status,
+        'timestamp' => now()->toISOString(),
+        'checks'    => $checks,
+    ], $status === 'ok' ? 200 : 503);
+})->name('health');
 
 Route::middleware(['web'])->group(function () {
 
@@ -240,7 +272,6 @@ Route::middleware(['web'])->group(function () {
         Route::get('/', [\App\Http\Controllers\ConsultantWorkloadController::class, 'list']);
         Route::get('/{id}', [\App\Http\Controllers\ConsultantWorkloadController::class, 'detail']);
         Route::patch('/tickets/{ticketId}/progress', [\App\Http\Controllers\ConsultantWorkloadController::class, 'updateProgress']);
-        Route::patch('/consultant-progress/{detailId}', [\App\Http\Controllers\ConsultantWorkloadController::class, 'updateConsultantProgress']);
     });
 
     // ==================== STAGING TICKET ROUTES ====================
@@ -424,21 +455,32 @@ Route::middleware(['web'])->group(function () {
     // ==================== ADMIN ROUTES ====================
     Route::prefix('admin')->group(function () {
         Route::get('/activity-logs', [ActivityLogController::class, 'getData']);
+
+        // Session Management
+        Route::get('/sessions', [AdminSessionController::class, 'index']);
+        Route::delete('/sessions/{sessionId}', [AdminSessionController::class, 'destroy']);
+        Route::delete('/sessions', [AdminSessionController::class, 'destroyAll']);
+
+        // DB Backup
+        Route::get('/backup/list', [AdminBackupController::class, 'listBackups']);
+        Route::post('/backup/create', [AdminBackupController::class, 'createBackup']);
+        Route::delete('/backup/{filename}', [AdminBackupController::class, 'deleteBackup']);
+
+        // Import
+        Route::post('/import/employees', [AdminBackupController::class, 'importEmployees']);
+        Route::post('/import/customers', [AdminBackupController::class, 'importCustomers']);
+
+        // Failed Job Monitor
+        Route::get('/failed-jobs', [AdminJobController::class, 'index']);
+        Route::get('/failed-jobs/{uuid}', [AdminJobController::class, 'show']);
+        Route::post('/failed-jobs/{uuid}/retry', [AdminJobController::class, 'retry']);
+        Route::post('/failed-jobs/retry-all', [AdminJobController::class, 'retryAll']);
+        Route::delete('/failed-jobs/{uuid}', [AdminJobController::class, 'destroy']);
+        Route::delete('/failed-jobs', [AdminJobController::class, 'clearAll']);
     });
 
     }); // end auth.session protected group
 });
-
-// ==================== MOBILE AUTH — CUSTOMER ====================
-// Route::prefix('mobile')->group(function () {
-//     Route::post('/auth/login', [\App\Http\Controllers\Mobile\AuthController::class, 'login']);
-//     Route::post('/auth/refresh', [\App\Http\Controllers\Mobile\AuthController::class, 'refresh']);
-
-//     Route::middleware(['mobile.customer'])->group(function () {
-//         Route::post('/auth/logout', [\App\Http\Controllers\Mobile\AuthController::class, 'logout']);
-//         Route::get('/auth/me', [\App\Http\Controllers\Mobile\AuthController::class, 'me']);
-//     });
-// });
 
 // ==================== MOBILE AUTH — EMPLOYEE ====================
 Route::prefix('mobile/employee')->group(function () {

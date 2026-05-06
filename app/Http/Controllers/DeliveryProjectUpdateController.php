@@ -28,7 +28,7 @@ class DeliveryProjectUpdateController extends Controller
                 'success' => true,
                 'message' => 'Issue added successfully',
                 'update' => $update
-            ]);
+            ], 201);
         }
 
         return back()->with('success', 'Issue added successfully.');

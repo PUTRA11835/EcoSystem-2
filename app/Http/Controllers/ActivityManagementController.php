@@ -220,7 +220,7 @@ class ActivityManagementController extends Controller
                         'name' => $planning->name,
                         'is_group' => $planning->is_group,
                     ]
-                ]);
+                ], 201);
             });
 
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -233,7 +233,7 @@ class ActivityManagementController extends Controller
         } catch (\Exception $e) {
             Log::error('=== CREATE ERROR ===', [
                 'message' => 'An error occurred',
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             
             return response()->json([

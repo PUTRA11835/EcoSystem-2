@@ -42,7 +42,7 @@ class EmployeeController extends Controller
         } catch (\Exception $e) {
             Log::error('=== ERROR LOADING EMPLOYEE INDEX PAGE ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return redirect()->route('dashboard')->withErrors([
@@ -152,7 +152,7 @@ class EmployeeController extends Controller
             Log::error('=== ERROR LOADING EMPLOYEE DETAIL PAGE ===', [
                 'employee_id' => $id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return redirect()->route('master.employee.index')->withErrors([
@@ -295,7 +295,7 @@ class EmployeeController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING EMPLOYEES ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'error_at' => $e->getFile() . ':' . $e->getLine(),
                 'filters' => $request->all()
             ]);
 
@@ -388,7 +388,7 @@ class EmployeeController extends Controller
             Log::error('=== API: ERROR FETCHING EMPLOYEE DETAIL ===', [
                 'employee_id' => $id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -567,7 +567,7 @@ class EmployeeController extends Controller
             
             Log::error('=== API: ERROR CREATING EMPLOYEE ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'error_at' => $e->getFile() . ':' . $e->getLine(),
                 'data' => $request->except(['password', 'password_confirmation'])
             ]);
 
@@ -721,7 +721,7 @@ class EmployeeController extends Controller
             Log::error('=== API: ERROR UPDATING EMPLOYEE ===', [
                 'employee_id' => $id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -1042,7 +1042,7 @@ public function getRoles()
                 'employee_id' => $id,
                 'error_code' => $errorCode,
                 'error' => $errorMessage,
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             // Check for foreign key constraint errors
@@ -1064,7 +1064,7 @@ public function getRoles()
             Log::error('=== API: ERROR DELETING EMPLOYEE ===', [
                 'employee_id' => $id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([

@@ -182,7 +182,7 @@ class DeliverySupportController extends Controller
             DB::rollBack();
             Log::error('Error creating support delivery', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return back()
@@ -434,7 +434,7 @@ class DeliverySupportController extends Controller
             Log::error('Error creating default phases', [
                 'support_id' => $support->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
             throw $e;
         }

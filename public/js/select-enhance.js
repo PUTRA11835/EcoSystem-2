@@ -103,7 +103,7 @@
             .se-item.is-disabled:hover { background: transparent; }
             /* Mode panel fixed (untuk select di dalam container overflow:auto/hidden).
                Saat panel di-detach ke <body>, selector descendant
-               `.se-wrap.is-open .se-panel` tidak match lagi — jadi state visible
+               \`.se-wrap.is-open .se-panel\` tidak match lagi — jadi state visible
                harus dideklarasi ulang via class .is-fixed agar panel benar-benar
                muncul. Tanpa rule ini, panel akan tetap display:none meski sudah
                di-detach (penyebab "dropdown tidak ada value" di banyak halaman). */

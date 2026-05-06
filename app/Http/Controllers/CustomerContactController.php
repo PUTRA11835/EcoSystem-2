@@ -73,7 +73,7 @@ class CustomerContactController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING CUSTOMER CONTACTS ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -116,7 +116,7 @@ class CustomerContactController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR FETCHING CUSTOMER CONTACT ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -222,7 +222,7 @@ class CustomerContactController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR CREATING CUSTOMER CONTACT ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -323,7 +323,7 @@ class CustomerContactController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR UPDATING CUSTOMER CONTACT ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -366,7 +366,7 @@ class CustomerContactController extends Controller
         } catch (\Exception $e) {
             Log::error('=== API: ERROR DELETING CUSTOMER CONTACT ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
@@ -460,7 +460,7 @@ class CustomerContactController extends Controller
             DB::rollBack();
             Log::error('=== API: ERROR CREATING CONTACT LOGIN ===', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'error_at' => $e->getFile() . ':' . $e->getLine(),
             ]);
             return response()->json([
                 'success' => false,

@@ -157,38 +157,6 @@
     </div>
 </div>
 
-{{-- Consultant Progress Modal --}}
-<div id="consultantProgressModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
-        <h3 class="text-base font-bold text-gray-900 mb-0.5">Update Consultant Progress</h3>
-        <p class="text-xs text-indigo-600 font-semibold mb-0.5" id="cpEmpName">—</p>
-        <p class="text-sm text-gray-500 mb-4 truncate" id="cpSubject">—</p>
-        <input type="hidden" id="cpDetailId">
-        <input type="hidden" id="cpTicketId">
-        <div class="mb-4">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Progress (%)</label>
-            <div class="flex items-center gap-3 mt-2">
-                <input type="range" id="cpSlider" min="0" max="100" step="5" value="0"
-                    oninput="const v=Math.min(100,Math.max(0,+this.value));this.value=v;document.getElementById('cpValue').value=v"
-                    class="flex-1 accent-indigo-600">
-                <input type="number" id="cpValue" min="0" max="100" value="0"
-                    oninput="const v=Math.min(100,Math.max(0,+this.value||0));document.getElementById('cpSlider').value=v"
-                    class="w-16 text-sm font-bold text-indigo-600 border border-indigo-200 rounded-lg px-2 py-1 text-right focus:ring-2 focus:ring-indigo-400 focus:outline-none">
-            </div>
-        </div>
-        <div class="mb-5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</label>
-            <textarea id="cpNote" rows="2" placeholder="Latest update..."
-                class="mt-2 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 resize-none"></textarea>
-        </div>
-        <div class="flex gap-2">
-            <button onclick="submitConsultantProgress()"
-                class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2.5 rounded-lg transition">Save</button>
-            <button onclick="closeConsultantProgressModal()"
-                class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">Cancel</button>
-        </div>
-    </div>
-</div>
 
 <script>
     let allConsultants = [];
@@ -337,19 +305,18 @@
     function calcInProgress(c) {
         const tickets = c.tickets.filter(t => t.status === 'in_progress');
         let allocMd = 0,
+            effectiveMd = 0,
             remainMd = 0;
         tickets.forEach(t => {
-            const my = (t.consultant_details ?? []).find(d => d.employee_id == c.employee_id);
-            if (my) {
-                allocMd += parseFloat(my.effective_md) || 0;
-                remainMd += parseFloat(my.remain_md) || 0;
-            }
+            allocMd += ticketTotalMd(t);
+            effectiveMd += ticketTotalEffectiveMd(t);
+            remainMd += ticketRemainMd(t);
         });
         return {
             ticket_count: tickets.length,
             total_days: allocMd,
             workload_days: remainMd,
-            workload_pct: allocMd > 0 ? Math.round(remainMd / allocMd * 1000) / 10 : 0,
+            workload_pct: effectiveMd > 0 ? Math.round(remainMd / effectiveMd * 1000) / 10 : 0,
             load_score: Math.round(remainMd * (1 + 0.1 * tickets.length) * 100) / 100,
         };
     }
@@ -403,23 +370,39 @@
         </div>`;
     }
 
+    function ticketTotalMd(t) {
+        return (t.consultant_details ?? []).reduce((s, d) => s + (parseFloat(d.mandays) || 0), 0);
+    }
+
+    function ticketTotalAddMd(t) {
+        return (t.consultant_details ?? []).reduce((s, d) => s + (parseFloat(d.approved_additional) || 0), 0);
+    }
+
+    function ticketTotalEffectiveMd(t) {
+        return (t.consultant_details ?? []).reduce((s, d) => s + (parseFloat(d.effective_md) || 0), 0);
+    }
+
+    function ticketRemainMd(t) {
+        const pct = parseFloat(t.progress_percentage) || 0;
+        return Math.round(ticketTotalEffectiveMd(t) * (1 - pct / 100) * 100) / 100;
+    }
+
     function consultantRows(c) {
         const visibleTickets = c.tickets.filter(t => t.status === 'in_progress');
 
-        // Recalculate main row values from visible tickets
+        // Recalculate main row values from visible tickets (ticket-level alloc/add/remain)
         let totalAllocMdMain = 0,
             totalAddMdMain = 0,
+            totalEffectiveMdMain = 0,
             totalRemainMain = 0;
         visibleTickets.forEach(t => {
-            const my = (t.consultant_details ?? []).find(d => d.employee_id == c.employee_id);
-            if (my) {
-                totalAllocMdMain += parseFloat(my.effective_md) || 0;
-                totalAddMdMain += parseFloat(my.approved_additional) || 0;
-                totalRemainMain += parseFloat(my.remain_md) || 0;
-            }
+            totalAllocMdMain += ticketTotalMd(t);
+            totalAddMdMain += ticketTotalAddMd(t);
+            totalEffectiveMdMain += ticketTotalEffectiveMd(t);
+            totalRemainMain += ticketRemainMd(t);
         });
         const ticketCount = visibleTickets.length;
-        const wPct = totalAllocMdMain > 0 ? Math.round(totalRemainMain / totalAllocMdMain * 100 * 10) / 10 : 0;
+        const wPct = totalEffectiveMdMain > 0 ? Math.round(totalRemainMain / totalEffectiveMdMain * 100 * 10) / 10 : 0;
         const wDays = Math.round(totalRemainMain * 100) / 100;
         const loadScore = Math.round(totalRemainMain * (1 + 0.1 * ticketCount) * 100) / 100;
 
@@ -445,7 +428,10 @@
             </span>
         </td>
         <td class="px-4 py-3 text-right font-semibold text-gray-800 tabular-nums">${totalAllocMdMain.toFixed(2)} md</td>
-        <td class="px-4 py-3 text-right font-semibold text-orange-600 tabular-nums">${wDays} d</td>
+        <td class="px-4 py-3 text-right font-semibold text-orange-600 tabular-nums">
+            ${wDays} d
+            <span class="ml-1 text-xs font-bold bg-orange-100 text-orange-700 rounded px-1 py-0.5">↑${Math.ceil(wDays)} d</span>
+        </td>
         <td class="px-4 py-3">
             <div class="flex items-center gap-2">
                 <div class="bg-gray-100 rounded-full h-2" style="width:100px">
@@ -472,50 +458,51 @@
 
         if (visibleTickets.length === 0) {
             html += `
-    <tr id="tickets-${c.employee_id}" class="hidden bg-slate-50/60 border-b border-gray-100">
-        <td colspan="8" class="pl-12 pr-4 py-2.5 text-xs text-gray-400 italic">
+    <tr id="tickets-${c.employee_id}" class="hidden border-b border-blue-100">
+        <td colspan="8" class="pl-12 pr-4 py-3 text-xs text-slate-400 italic bg-slate-50/80">
             No In Progress tickets
         </td>
     </tr>`;
         } else {
             html += `
     <tr id="tickets-${c.employee_id}" class="hidden">
-        <td colspan="8" class="p-0 border-b border-gray-200">
+        <td colspan="8" class="p-0 border-b-2 border-blue-200" style="background:#f0f5ff">
+            <div class="mx-4 my-3 rounded-xl overflow-hidden border border-blue-200 shadow-sm">
             <table class="w-full">
                 <thead>
-                    <tr class="bg-slate-50 text-xs font-semibold text-gray-500 uppercase tracking-wide border-y border-slate-200">
-                        <th class="pl-12 pr-3 py-2 text-left w-8">#</th>
-                        <th class="px-3 py-2 text-left w-36">Ticket No.</th>
-                        <th class="px-3 py-2 text-left w-20">Role</th>
-                        <th class="px-3 py-2 text-left w-28">Status</th>
-                        <th class="px-3 py-2 text-left w-20">Priority</th>
-                        <th class="px-3 py-2 text-right w-24">Alloc MD</th>
-                        <th class="px-3 py-2 text-right w-24">Add. MD</th>
-                        <th class="px-3 py-2 text-right w-36">Remain</th>
-                        <th class="px-3 py-2 text-left w-48">Progress</th>
-                        <th class="px-3 py-2 text-left w-32">Notes</th>
-                        <th class="px-3 py-2 text-center w-20">Action</th>
+                    <tr class="text-xs font-semibold text-blue-800 uppercase tracking-wide" style="background:#dbeafe">
+                        <th class="pl-6 pr-3 py-2.5 text-left w-8">#</th>
+                        <th class="px-3 py-2.5 text-left w-36">Ticket No.</th>
+                        <th class="px-3 py-2.5 text-left">Subject</th>
+                        <th class="px-3 py-2.5 text-left w-20">Role</th>
+                        <th class="px-3 py-2.5 text-left w-28">Status</th>
+                        <th class="px-3 py-2.5 text-left w-20">Priority</th>
+                        <th class="px-3 py-2.5 text-right w-24">Alloc MD</th>
+                        <th class="px-3 py-2.5 text-right w-24">Add. MD</th>
+                        <th class="px-3 py-2.5 text-right w-36">Remain</th>
+                        <th class="px-3 py-2.5 text-left w-48">Progress</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${visibleTickets.map((t, idx) => ticketRow(t, idx + 1, c.employee_id, c.modules)).join('')}
-                    <tr class="bg-slate-50 border-t border-slate-200">
-                        <td colspan="5" class="pl-12 pr-3 py-2 text-xs text-left text-gray-500 font-semibold">
+                    <tr style="background:#eff6ff;border-top:1px solid #bfdbfe">
+                        <td colspan="6" class="pl-6 pr-3 py-2.5 text-xs text-left text-blue-700 font-semibold">
                             Total (${visibleTickets.length} ticket${visibleTickets.length > 1 ? 's' : ''})
                         </td>
-                        <td class="px-3 py-2 text-right text-xs font-bold text-gray-700">
+                        <td class="px-3 py-2.5 text-right text-xs font-bold text-gray-700">
                             ${totalAllocMdMain.toFixed(1)} md
                         </td>
-                        <td class="px-3 py-2 text-right text-xs font-bold text-indigo-600">
+                        <td class="px-3 py-2.5 text-right text-xs font-bold text-indigo-600">
                             ${totalAddMdMain.toFixed(1)} md
                         </td>
-                        <td class="px-3 py-2 text-right text-xs font-bold text-orange-600">
+                        <td class="px-3 py-2.5 text-right text-xs font-bold text-orange-600">
                             ${totalRemainMain.toFixed(2)} d
                         </td>
-                        <td colspan="3"></td>
+                        <td colspan="1"></td>
                     </tr>
                 </tbody>
             </table>
+            </div>
         </td>
     </tr>`;
         }
@@ -523,58 +510,40 @@
         return html;
     }
 
-    function ticketRow(t, num, empId, consultantModules) {
+    function ticketRow(t, num, empId) {
         const st = STATUS_BADGE[t.status] ?? {
             text: t.status,
             cls: 'bg-gray-100 text-gray-600'
         };
         const prCls = PRIORITY_CLS[t.ticket_priority] ?? 'bg-gray-100 text-gray-600';
         const isPic = t.role_in_ticket === 'pic';
-        const roleCls = isPic ? 'bg-amber-100 text-amber-700 border border-amber-200' :
-            'bg-sky-100 text-sky-700 border border-sky-200';
+        const roleCls = isPic ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-sky-100 text-sky-700 border border-sky-200';
         const roleLabel = isPic ? 'PIC' : 'Member';
 
-        // Find this consultant's own entry in the mandays detail
-        const myDetail = (t.consultant_details ?? []).find(d => d.employee_id == empId);
-        const myPct = myDetail ? parseFloat(myDetail.progress_percentage) || 0 : null;
-        const myRemain = myDetail ? parseFloat(myDetail.remain_md) : null;
-        const myNote = myDetail ? (myDetail.progress_note || '—') : '—';
-        const myMd = myDetail ? parseFloat(myDetail.mandays) : null;
-        const myDetailId = myDetail ? myDetail.detail_id : null;
-        const updAt = (myDetail && myDetail.progress_updated_at) ?
-            new Date(myDetail.progress_updated_at).toLocaleDateString('en-GB', {
+        const ticketAllocMd = ticketTotalMd(t);
+        const ticketAddMd = ticketTotalAddMd(t);
+        const ticketRemain = ticketRemainMd(t);
+
+        // Progress dari ticket (bukan per-consultant)
+        const ticketPct = parseFloat(t.progress_percentage) || 0;
+        const updAt = t.last_progress_at ?
+            new Date(t.last_progress_at).toLocaleDateString('en-GB', {
                 day: '2-digit',
                 month: 'short',
                 year: 'numeric'
             }) :
             '—';
 
-        const progressCell = myDetail ? `
-        <div class="flex items-center gap-2">
-            <div class="bg-gray-200 rounded-full h-2" style="width:90px">
-                <div class="${progressBarColor(myPct)} h-2 rounded-full" style="width:${myPct}%"></div>
-            </div>
-            <span class="text-xs font-bold ${myPct>=75?'text-green-700':myPct>=40?'text-yellow-600':'text-red-600'}">${myPct}%</span>
-        </div>
-        <div class="text-xs text-gray-400 mt-0.5">Updated: ${updAt}</div>` :
-            `<span class="text-xs text-gray-300">No mandays data</span>`;
-
-        const remainCell = myRemain !== null ?
-            `<span class="font-semibold ${myRemain > 0 ? 'text-orange-600' : 'text-green-600'}">${myRemain} d</span>
-           <span class="ml-1 text-xs font-bold bg-orange-100 text-orange-700 rounded px-1 py-0.5">↑${Math.ceil(myRemain)} d</span>` :
-            `<span class="text-gray-300">—</span>`;
-
-        const actionCell = myDetail ?
-            `<button onclick="event.stopPropagation(); openConsultantProgressModal(${myDetailId}, '${(myDetail.emp_name??'').replace(/'/g,"\\'")}', ${t.ticket_id}, '${(t.subject??'').replace(/'/g,"\\'")}', ${myPct}, '${myNote.replace(/'/g,"\\'")}')"
-               class="text-xs text-indigo-600 hover:text-indigo-700 font-semibold border border-indigo-200 px-2 py-0.5 rounded hover:bg-indigo-50 transition whitespace-nowrap">
-               Edit
-           </button>` :
-            `<span class="text-gray-300 text-xs">—</span>`;
+        const remainCell = ticketAllocMd > 0
+            ? `<span class="font-semibold ${ticketRemain > 0 ? 'text-orange-600' : 'text-green-600'}">${ticketRemain.toFixed(2)} d</span>
+               <span class="ml-1 text-xs font-bold bg-orange-100 text-orange-700 rounded px-1 py-0.5">↑${Math.ceil(ticketRemain)} d</span>`
+            : `<span class="text-gray-300">—</span>`;
 
         return `
-    <tr class="border-t border-slate-100 hover:bg-blue-50/30">
-        <td class="pl-12 pr-3 py-2.5 text-xs text-gray-400">${num}</td>
+    <tr class="border-t border-blue-100 hover:bg-blue-50/60 transition-colors" style="background:#ffffff">
+        <td class="pl-6 pr-3 py-2.5 text-xs text-gray-400">${num}</td>
         <td class="px-3 py-2.5 font-mono text-xs text-gray-500 whitespace-nowrap">${t.ticket_number ?? '—'}</td>
+        <td class="px-3 py-2.5 text-xs text-gray-700 max-w-xs"><span class="line-clamp-2">${t.subject || '—'}</span></td>
         <td class="px-3 py-2.5">
             <span class="px-1.5 py-0.5 rounded text-xs font-semibold ${roleCls}">${roleLabel}</span>
         </td>
@@ -584,16 +553,22 @@
         <td class="px-3 py-2.5">
             <span class="px-1.5 py-0.5 rounded text-xs font-medium ${prCls}">${t.ticket_priority ?? '—'}</span>
         </td>
-        <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${myMd !== null ? myMd + ' md' : '—'}</td>
+        <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${ticketAllocMd > 0 ? ticketAllocMd.toFixed(2) + ' md' : '—'}</td>
         <td class="px-3 py-2.5 text-right text-xs text-gray-500">
-            ${myDetail && myDetail.approved_additional > 0
-                ? `<span class="text-indigo-600 font-semibold">${myDetail.approved_additional} md</span>`
+            ${ticketAddMd > 0
+                ? `<span class="text-indigo-600 font-semibold">${ticketAddMd.toFixed(2)} md</span>`
                 : '<span class="text-gray-300">—</span>'}
         </td>
         <td class="px-3 py-2.5 text-right">${remainCell}</td>
-        <td class="px-3 py-2.5">${progressCell}</td>
-        <td class="px-3 py-2.5 text-xs text-gray-500 max-w-xs"><span class="line-clamp-2">${myNote}</span></td>
-        <td class="px-3 py-2.5 text-center">${actionCell}</td>
+        <td class="px-3 py-2.5">
+            <div class="flex items-center gap-2">
+                <div class="bg-gray-200 rounded-full h-2" style="width:90px">
+                    <div class="${progressBarColor(ticketPct)} h-2 rounded-full" style="width:${ticketPct}%"></div>
+                </div>
+                <span class="text-xs font-bold ${ticketPct>=75?'text-green-700':ticketPct>=40?'text-yellow-600':'text-red-600'}">${ticketPct}%</span>
+            </div>
+            <div class="text-xs text-gray-400 mt-0.5">Updated: ${updAt}</div>
+        </td>
     </tr>`;
     }
 
@@ -677,54 +652,6 @@
 
     document.getElementById('progressModal').addEventListener('click', function(e) {
         if (e.target === this) closeProgressModal();
-    });
-
-    // ── Per-Consultant Progress Modal ──────────────────────────────────
-    function openConsultantProgressModal(detailId, empName, ticketId, subject, currentPct, currentNote) {
-        document.getElementById('cpDetailId').value = detailId;
-        document.getElementById('cpTicketId').value = ticketId;
-        document.getElementById('cpEmpName').textContent = empName;
-        document.getElementById('cpSubject').textContent = subject;
-        document.getElementById('cpSlider').value = currentPct;
-        document.getElementById('cpValue').value = currentPct;
-        document.getElementById('cpNote').value = currentNote ?? '';
-        document.getElementById('consultantProgressModal').classList.remove('hidden');
-        document.getElementById('consultantProgressModal').classList.add('flex');
-    }
-
-    function closeConsultantProgressModal() {
-        document.getElementById('consultantProgressModal').classList.add('hidden');
-        document.getElementById('consultantProgressModal').classList.remove('flex');
-    }
-
-    async function submitConsultantProgress() {
-        const detailId = document.getElementById('cpDetailId').value;
-        const pct = document.getElementById('cpSlider').value;
-        const note = document.getElementById('cpNote').value;
-        try {
-            const res = await fetch(`/api/consultant-workload/consultant-progress/${detailId}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify({
-                    progress_percentage: pct,
-                    progress_note: note
-                }),
-            });
-            const json = await res.json();
-            if (json.success) {
-                closeConsultantProgressModal();
-                loadWorkload();
-            } else alert('Failed: ' + (json.message ?? 'Error'));
-        } catch (e) {
-            alert('Error: ' + e.message);
-        }
-    }
-
-    document.getElementById('consultantProgressModal').addEventListener('click', function(e) {
-        if (e.target === this) closeConsultantProgressModal();
     });
 
     document.addEventListener('DOMContentLoaded', loadWorkload);
