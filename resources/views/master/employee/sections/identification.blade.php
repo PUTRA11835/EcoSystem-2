@@ -235,7 +235,6 @@
      */
     async function loadIdentifications() {
         try {
-            console.log(' Loading identifications for employee:', employeeId);
             
             const response = await fetch(`/api/employees/${employeeId}/identifications`, {
                 method: 'GET',
@@ -247,7 +246,6 @@
             });
 
             const data = await response.json();
-            console.log(' Identifications loaded:', data);
 
             if (data.success && data.data && data.data.length > 0) {
                 identificationsData = data.data;
@@ -340,7 +338,6 @@
      */
     function selectIdentification(identificationId) {
         selectedIdentificationId = identificationId;
-        console.log(' Selected identification:', identificationId);
         loadIdentificationToForm(identificationId);
     }
 
@@ -364,7 +361,6 @@
      */
     async function loadIdentificationToForm(identificationId) {
         try {
-            console.log(' Loading identification to form:', identificationId);
             
             const response = await fetch(`/api/employees/${employeeId}/identifications/${identificationId}`, {
                 method: 'GET',
@@ -376,7 +372,6 @@
             });
 
             const data = await response.json();
-            console.log(' Identification data loaded:', data);
 
             if (data.success && data.data) {
                 const ident = data.data;
@@ -399,7 +394,6 @@
                 // Update button text
                 document.getElementById('saveButtonText').textContent = 'Update';
                 
-                console.log(' Identification loaded to form fields');
             }
         } catch (error) {
             console.error(' Error loading identification:', error);
@@ -470,8 +464,6 @@
             
             const method = isUpdate ? 'PUT' : 'POST';
             
-            console.log(` ${isUpdate ? 'Updating' : 'Creating'} identification:`, url);
-            console.log(' Identification data:', identificationData);
             
             const response = await fetch(url, {
                 method: method,
@@ -486,7 +478,6 @@
             });
 
             const data = await response.json();
-            console.log(' Save response:', data);
             
             if (data.success) {
                 showNotification(
@@ -562,7 +553,6 @@
         if (!deleteIdentificationId) return;
 
         try {
-            console.log(' Deleting identification:', deleteIdentificationId);
             
             const response = await fetch(`/api/employees/${employeeId}/identifications/${deleteIdentificationId}`, {
                 method: 'DELETE',
@@ -597,7 +587,6 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log(' Identification section initialized');
         loadIdentifications();
     });
 

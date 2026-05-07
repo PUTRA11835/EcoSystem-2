@@ -206,7 +206,6 @@
      */
     async function loadIdentifications() {
         try {
-            console.log('📡 Loading identifications for customer:', {{ $customerId }});
             
             const response = await fetch(`/api/customers/{{ $customerId }}/identifications`, {
                 method: 'GET',
@@ -551,7 +550,6 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 Identification section initialized');
         loadIdentifications();
     });
 

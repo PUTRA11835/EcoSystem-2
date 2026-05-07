@@ -241,8 +241,6 @@ async function loadEmployeeBasicData(employeeId) {
             const basicData = result.data;
             
             // DEBUG: Lihat data yang diterima
-            console.log('Raw birth_date from API:', basicData.birth_date);
-            console.log('Raw since_date from API:', basicData.since_date);
             
             // General Information
             setValue('title', basicData.title);
@@ -259,8 +257,6 @@ async function loadEmployeeBasicData(employeeId) {
             const formattedBirthDate = formatDateForInput(basicData.birth_date);
             const formattedSinceDate = formatDateForInput(basicData.since_date);
             
-            console.log('Formatted birth_date:', formattedBirthDate);
-            console.log('Formatted since_date:', formattedSinceDate);
             
             setValue('birthDate', formattedBirthDate);
             setValue('birthPlace', basicData.birth_place);
@@ -288,9 +284,7 @@ async function loadEmployeeBasicData(employeeId) {
             setText('lastChangedBy', basicData.last_changed_by);
             setText('lastChangedOn', formatDateTime(basicData.last_changed_on));
             
-            console.log('Basic data loaded successfully');
         } else {
-            console.log('No basic data found - form ready for new entry');
         }
     } catch (error) {
         console.error('Error loading basic data:', error);

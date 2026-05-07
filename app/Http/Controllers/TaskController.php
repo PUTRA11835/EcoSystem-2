@@ -128,6 +128,10 @@ class TaskController extends Controller
     {
         if (empty($ticketIds)) return [];
 
+        $ticketProgress = DB::table('ticket')
+            ->whereIn('ticket_id', $ticketIds)
+            ->pluck('progress_percentage', 'ticket_id');
+
         $rows = DB::table('consultant_mandays as cm')
             ->join('consultant_mandays_detail as cmd', 'cmd.consultant_mandays_id', '=', 'cm.id')
             ->leftJoin('employee as e', 'e.employee_id', '=', 'cmd.employee_id')
@@ -152,10 +156,7 @@ class TaskController extends Controller
                 'e.eci',
                 'eq.qualification_modules',
                 'cmd.mandays',
-                'cmd.approved_additional',
-                'cmd.progress_percentage',
-                'cmd.progress_note',
-                'cmd.progress_updated_at'
+                'cmd.approved_additional'
             )
             ->get();
 
@@ -165,7 +166,7 @@ class TaskController extends Controller
             $mandays     = (float) $row->mandays;
             $additional  = (float) $row->approved_additional;
             $effectiveMd = $mandays + $additional;
-            $progress    = (float) $row->progress_percentage;
+            $progress    = (float) ($ticketProgress[$tid] ?? 0);
             $remainShare = round($effectiveMd * (1 - $progress / 100), 2);
 
             $map[$tid][] = [
@@ -177,9 +178,6 @@ class TaskController extends Controller
                 'mandays'             => $mandays,
                 'approved_additional' => $additional,
                 'effective_md'        => $effectiveMd,
-                'progress_percentage' => $progress,
-                'progress_note'       => $row->progress_note ?? '',
-                'progress_updated_at' => $row->progress_updated_at,
                 'remain_md'           => $remainShare,
             ];
         }

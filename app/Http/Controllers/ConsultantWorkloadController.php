@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ConsultantMandaysDetail;
 use App\Models\Employee;
 use App\Models\Ticket;
 use Illuminate\Http\Request;
@@ -244,6 +243,11 @@ class ConsultantWorkloadController extends Controller
     {
         if (empty($ticketIds)) return [];
 
+        // Ambil ticket.progress_percentage untuk dipakai hitung remain per consultant
+        $ticketProgress = DB::table('ticket')
+            ->whereIn('ticket_id', $ticketIds)
+            ->pluck('progress_percentage', 'ticket_id');
+
         $rows = DB::table('consultant_mandays as cm')
             ->join('consultant_mandays_detail as cmd', 'cmd.consultant_mandays_id', '=', 'cm.id')
             ->leftJoin('employee as e', 'e.employee_id', '=', 'cmd.employee_id')
@@ -268,10 +272,7 @@ class ConsultantWorkloadController extends Controller
                 'e.eci',
                 'eq.qualification_modules',
                 'cmd.mandays',
-                'cmd.approved_additional',
-                'cmd.progress_percentage',
-                'cmd.progress_note',
-                'cmd.progress_updated_at'
+                'cmd.approved_additional'
             )
             ->get();
 
@@ -281,7 +282,7 @@ class ConsultantWorkloadController extends Controller
             $mandays     = (float) $row->mandays;
             $additional  = (float) $row->approved_additional;
             $effectiveMd = $mandays + $additional;
-            $progress    = (float) $row->progress_percentage;
+            $progress    = (float) ($ticketProgress[$tid] ?? 0);
             $remainShare = round($effectiveMd * (1 - $progress / 100), 2);
 
             $map[$tid][] = [
@@ -293,9 +294,6 @@ class ConsultantWorkloadController extends Controller
                 'mandays'             => $mandays,
                 'approved_additional' => $additional,
                 'effective_md'        => $effectiveMd,
-                'progress_percentage' => $progress,
-                'progress_note'       => $row->progress_note ?? '',
-                'progress_updated_at' => $row->progress_updated_at,
                 'remain_md'           => $remainShare,
             ];
         }
@@ -304,7 +302,7 @@ class ConsultantWorkloadController extends Controller
     }
 
     /**
-     * API: Update progress tiket (legacy — satu field di ticket).
+     * API: Update progress tiket oleh PIC.
      */
     public function updateProgress(Request $request, int $ticketId)
     {
@@ -332,106 +330,17 @@ class ConsultantWorkloadController extends Controller
     }
 
     /**
-     * API: Update progress per-konsultan di consultant_mandays_detail.
-     */
-    public function updateConsultantProgress(Request $request, int $detailId)
-    {
-        try {
-            $validated = $request->validate([
-                'progress_percentage' => 'required|numeric|min:0|max:100',
-                'progress_note'       => 'nullable|string|max:1000',
-            ]);
-
-            $detail = ConsultantMandaysDetail::findOrFail($detailId);
-
-            $detail->update([
-                'progress_percentage' => $validated['progress_percentage'],
-                'progress_note'       => $validated['progress_note'] ?? null,
-                'progress_updated_at' => now(),
-            ]);
-
-            // Hitung ulang weighted average progress untuk tiket ini
-            $ticketId  = DB::table('consultant_mandays')
-                ->where('id', $detail->consultant_mandays_id)
-                ->value('ticket_id');
-
-            $ticketProgress = $this->calcTicketProgress($detail->consultant_mandays_id);
-
-            // Update ticket.progress_percentage dengan weighted average
-            if ($ticketId) {
-                Ticket::where('ticket_id', $ticketId)->update([
-                    'progress_percentage' => $ticketProgress,
-                    'last_progress_at'    => now(),
-                ]);
-            }
-
-            return response()->json([
-                'success'          => true,
-                'message'          => 'Progress konsultan diperbarui',
-                'ticket_progress'  => $ticketProgress,
-            ]);
-        } catch (\Exception $e) {
-            Log::error('ConsultantWorkload@updateConsultantProgress error: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
-    }
-
-    /**
-     * Hitung weighted average progress tiket dari consultant_mandays_detail.
-     * Bobot = mandays + approved_additional.
-     * Fallback 0 jika tidak ada data.
-     */
-    public static function calcTicketProgress(int $consultantMandaysId): float
-    {
-        $details = DB::table('consultant_mandays_detail')
-            ->where('consultant_mandays_id', $consultantMandaysId)
-            ->select('progress_percentage', 'mandays', 'approved_additional')
-            ->get();
-
-        $totalWeight    = 0;
-        $weightedSum    = 0;
-
-        foreach ($details as $d) {
-            $weight       = (float) $d->mandays + (float) $d->approved_additional;
-            $totalWeight += $weight;
-            $weightedSum += $weight * (float) $d->progress_percentage;
-        }
-
-        return $totalWeight > 0
-            ? round($weightedSum / $totalWeight, 1)
-            : 0;
-    }
-
-    /**
-     * Kembalikan map ticket_id → weighted_progress untuk sekumpulan ticket_id.
-     * Digunakan oleh TicketController agar tidak duplikasi query.
-     *
-     * @param  array $ticketIds
-     * @return array<int, float>  [ticket_id => progress_pct]
+     * Kembalikan map ticket_id → progress_percentage langsung dari ticket table.
      */
     public static function progressMapForTickets(array $ticketIds): array
     {
         if (empty($ticketIds)) return [];
 
-        $rows = DB::table('consultant_mandays as cm')
-            ->join('consultant_mandays_detail as cmd', 'cmd.consultant_mandays_id', '=', 'cm.id')
-            ->whereIn('cm.ticket_id', $ticketIds)
-            ->select(
-                'cm.ticket_id',
-                DB::raw('SUM((cmd.mandays + cmd.approved_additional) * cmd.progress_percentage) as weighted_sum'),
-                DB::raw('SUM(cmd.mandays + cmd.approved_additional) as total_weight')
-            )
-            ->groupBy('cm.ticket_id')
-            ->get();
-
-        $map = [];
-        foreach ($rows as $row) {
-            $map[(int) $row->ticket_id] = $row->total_weight > 0
-                ? round($row->weighted_sum / $row->total_weight, 1)
-                : 0;
-        }
-
-        return $map;
+        return DB::table('ticket')
+            ->whereIn('ticket_id', $ticketIds)
+            ->pluck('progress_percentage', 'ticket_id')
+            ->map(fn($v) => (float) $v)
+            ->toArray();
     }
 
     /**

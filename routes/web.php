@@ -182,6 +182,8 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::patch('/projects/{project}/update-field', [DeliveryProjectController::class, 'updateField'])->name('projects.updateField');
     Route::patch('/projects/{project}/delivery-info', [DeliveryProjectController::class, 'updateDeliveryInfo'])->name('projects.updateDeliveryInfo');
     Route::patch('/projects/{project}/location-info', [DeliveryProjectController::class, 'updateLocationInfo'])->name('projects.updateLocationInfo');
+    Route::post('/projects/{project}/generate-folder', [DeliveryProjectController::class, 'generateFolder'])->name('projects.generateFolder');
+    Route::delete('/projects/{project}/folder', [DeliveryProjectController::class, 'deleteFolder'])->name('projects.deleteFolder');
 
     // Document management routes
     Route::post('/projects/{project}/documents', [DeliveryProjectController::class, 'storeDocument'])->name('project.documents.store');
@@ -301,6 +303,8 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload');
         Route::get('/task', [TaskController::class, 'index'])->name('task');
         Route::get('/latest-update', [TicketController::class, 'latestUpdate'])->name('latest-update');
+        Route::post('/{id}/generate-folder', [TicketController::class, 'generateFolder'])->name('generate-folder');
+        Route::delete('/{id}/folder', [TicketController::class, 'deleteFolder'])->name('delete-folder');
         Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
     });
 

@@ -570,6 +570,17 @@ class EmailController extends Controller
                             continue;
                         }
 
+                        // Pengirim tidak terdaftar sebagai contact person client → abaikan
+                        if (!$customer) {
+                            $this->graphPatch("/users/{$sender}/messages/{$graphMsgId}", ['isRead' => true]);
+                            Log::info('EmailController@processInbox: pengirim tidak terdaftar sebagai customer, email dilewati', [
+                                'from'    => $fromEmail,
+                                'subject' => $subject,
+                            ]);
+                            $skipped++;
+                            continue;
+                        }
+
                         // Email baru tanpa tiket terkait → simpan ke staging untuk divalidasi Helpdesk
                         app(StagingTicketService::class)->createFromEmail([
                             'customer_id'         => $customer?->customer_id,

@@ -90,13 +90,12 @@
     </div>
 </div>
 
-{{-- Consultant Progress Modal --}}
+{{-- Ticket Progress Modal --}}
 <div id="cpModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
-        <h3 class="text-base font-bold text-gray-900 mb-0.5">Update My Progress</h3>
-        <p class="text-xs text-indigo-600 font-semibold mb-0.5" id="cpModalEmp">—</p>
-        <p class="text-sm text-gray-500 mb-4 truncate" id="cpModalSubject">—</p>
-        <input type="hidden" id="cpModalDetailId">
+        <h3 class="text-base font-bold text-gray-900 mb-1">Update Ticket Progress</h3>
+        <p class="text-sm text-gray-500 mb-4 truncate font-semibold" id="cpModalSubject">—</p>
+        <input type="hidden" id="cpModalTicketId">
         <div class="mb-4">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Progress (%)</label>
             <div class="flex items-center gap-3 mt-2">
@@ -273,7 +272,7 @@ function renderTable(tasks) {
 }
 
 function taskRows(t) {
-    const pct     = parseFloat(t.consultant_progress) || 0;
+    const pct     = parseFloat(t.progress_percentage) || 0;
     const st      = STATUS_BADGE[t.status] ?? { text: t.status, cls: 'bg-gray-100 text-gray-600' };
     const prCls   = PRIORITY_CLS[t.ticket_priority] ?? 'bg-gray-100 text-gray-600';
     const endDate = t.end_date ? new Date(t.end_date).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—';
@@ -284,10 +283,10 @@ function taskRows(t) {
     const expandBtn = hasDetails
         ? `<button onclick="event.stopPropagation(); toggleDetail(${t.ticket_id})"
                 class="ml-1 text-indigo-500 hover:text-indigo-700 text-xs font-semibold border border-indigo-200 px-1.5 py-0.5 rounded hover:bg-indigo-50 transition"
-                title="Progress per consultant">
+                title="Consultants">
                 <span id="det-icon-${t.ticket_id}">▶</span> ${details.length}
            </button>`
-        : `<span class="ml-1 text-xs text-gray-300">No mandays yet</span>`;
+        : '';
 
     const detailSubTable = hasDetails ? `
     <tr id="det-${t.ticket_id}" class="hidden bg-indigo-50/40">
@@ -301,63 +300,30 @@ function taskRows(t) {
                             <th class="px-3 py-1.5 text-right">Alloc MD</th>
                             <th class="px-3 py-1.5 text-right">Add. MD</th>
                             <th class="px-3 py-1.5 text-right">Remain</th>
-                            <th class="px-3 py-1.5 text-left w-44">Progress</th>
-                            <th class="px-3 py-1.5 text-left">Notes</th>
-                            <th class="px-3 py-1.5 text-center">Action</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${details.map(d => {
-                            const dpct  = parseFloat(d.progress_percentage) || 0;
-                            const updAt = d.progress_updated_at
-                                ? new Date(d.progress_updated_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})
-                                : '—';
-                            return `<tr class="border-t border-indigo-100 hover:bg-indigo-50/60">
-                                <td class="px-3 py-1.5 font-medium text-gray-800">
-                                    ${d.emp_name}<br><span class="text-gray-400 font-normal">${d.eci}</span>
-                                </td>
-                                <td class="px-3 py-1.5 text-gray-500">${d.module}</td>
-                                <td class="px-3 py-1.5 text-right font-semibold text-gray-700">${d.mandays} md</td>
-                                <td class="px-3 py-1.5 text-right text-indigo-600 font-semibold">${d.approved_additional > 0 ? d.approved_additional + ' md' : '<span class="text-gray-300">—</span>'}</td>
-                                <td class="px-3 py-1.5 text-right">
-                                    ${d.remain_md !== null && d.remain_md !== undefined
-                                        ? `<span class="font-semibold ${d.remain_md > 0 ? 'text-orange-600' : 'text-green-600'}">${d.remain_md} d</span>
-                                           <span class="ml-1 text-xs font-bold text-orange-800 bg-orange-100 rounded px-1 py-0.5">↑${Math.ceil(d.remain_md)} d</span>`
-                                        : '<span class="text-gray-300">—</span>'}
-                                </td>
-                                <td class="px-3 py-1.5">
-                                    <div class="flex items-center gap-1.5">
-                                        <div class="bg-gray-200 rounded-full h-1.5" style="width:80px">
-                                            <div class="${progressBarColor(dpct)} h-1.5 rounded-full" style="width:${dpct}%"></div>
-                                        </div>
-                                        <span class="font-bold ${dpct>=75?'text-green-700':dpct>=40?'text-yellow-700':'text-red-600'}">${dpct}%</span>
-                                    </div>
-                                    <div class="text-gray-400 mt-0.5">Updated: ${updAt}</div>
-                                </td>
-                                <td class="px-3 py-1.5 text-gray-500 max-w-xs">
-                                    <span class="line-clamp-2">${d.progress_note || '—'}</span>
-                                </td>
-                                <td class="px-3 py-1.5 text-center">
-                                    <button onclick="event.stopPropagation(); openCpModal(${d.detail_id}, '${d.emp_name.replace(/'/g,"\\'")}', '${(t.subject??'').replace(/'/g,"\\'")}', ${dpct}, '${(d.progress_note??'').replace(/'/g,"\\'")}')"
-                                        class="text-xs text-indigo-600 hover:text-indigo-700 font-semibold border border-indigo-200 px-2 py-0.5 rounded hover:bg-indigo-50 transition whitespace-nowrap">
-                                        Edit
-                                    </button>
-                                </td>
-                            </tr>`;
-                        }).join('')}
+                        ${details.map(d => `
+                        <tr class="border-t border-indigo-100 hover:bg-indigo-50/60">
+                            <td class="px-3 py-1.5 font-medium text-gray-800">
+                                ${d.emp_name}<br><span class="text-gray-400 font-normal">${d.eci}</span>
+                            </td>
+                            <td class="px-3 py-1.5 text-gray-500">${d.module}</td>
+                            <td class="px-3 py-1.5 text-right font-semibold text-gray-700">${d.mandays} md</td>
+                            <td class="px-3 py-1.5 text-right text-indigo-600 font-semibold">${d.approved_additional > 0 ? d.approved_additional + ' md' : '<span class="text-gray-300">—</span>'}</td>
+                            <td class="px-3 py-1.5 text-right">
+                                ${d.remain_md !== null && d.remain_md !== undefined
+                                    ? `<span class="font-semibold ${d.remain_md > 0 ? 'text-orange-600' : 'text-green-600'}">${d.remain_md} d</span>
+                                       <span class="ml-1 text-xs font-bold text-orange-800 bg-orange-100 rounded px-1 py-0.5">↑${Math.ceil(d.remain_md)} d</span>`
+                                    : '<span class="text-gray-300">—</span>'}
+                            </td>
+                        </tr>`).join('')}
                         <tr class="border-t-2 border-indigo-200 bg-indigo-50 font-semibold text-xs">
                             <td class="px-3 py-1.5 text-indigo-700">Total (${details.length} consultant${details.length > 1 ? 's' : ''})</td>
                             <td class="px-3 py-1.5"></td>
-                            <td class="px-3 py-1.5 text-right text-gray-700">
-                                ${details.reduce((s, d) => s + (parseFloat(d.mandays) || 0), 0).toFixed(2)} md
-                            </td>
-                            <td class="px-3 py-1.5 text-right text-indigo-600">
-                                ${details.reduce((s, d) => s + (parseFloat(d.approved_additional) || 0), 0).toFixed(2)} md
-                            </td>
-                            <td class="px-3 py-1.5 text-right text-orange-600">
-                                ${details.reduce((s, d) => s + (parseFloat(d.remain_md) || 0), 0).toFixed(2)} d
-                            </td>
-                            <td colspan="3"></td>
+                            <td class="px-3 py-1.5 text-right text-gray-700">${details.reduce((s,d)=>s+(parseFloat(d.mandays)||0),0).toFixed(2)} md</td>
+                            <td class="px-3 py-1.5 text-right text-indigo-600">${details.reduce((s,d)=>s+(parseFloat(d.approved_additional)||0),0).toFixed(2)} md</td>
+                            <td class="px-3 py-1.5 text-right text-orange-600">${details.reduce((s,d)=>s+(parseFloat(d.remain_md)||0),0).toFixed(2)} d</td>
                         </tr>
                     </tbody>
                 </table>
@@ -389,6 +355,10 @@ function taskRows(t) {
                     <div class="${progressBarColor(pct)} h-2 rounded-full transition-all" style="width:${pct}%"></div>
                 </div>
                 <span class="text-xs font-bold text-gray-700 w-9 text-right shrink-0">${pct}%</span>
+                <button onclick="event.stopPropagation(); openCpModal(${t.ticket_id}, '${(t.ticket_number??'').replace(/'/g,"\\'")}', ${pct}, '${(t.progress_note??'').replace(/'/g,"\\'")}')"
+                    class="ml-1 text-xs text-red-600 hover:text-red-700 font-semibold border border-red-200 px-1.5 py-0.5 rounded hover:bg-red-50 transition">
+                    Edit
+                </button>
                 ${expandBtn}
             </div>
         </td>
@@ -406,14 +376,13 @@ function toggleDetail(ticketId) {
     if (icon) icon.textContent = hidden ? '▼' : '▶';
 }
 
-// ── Consultant Progress Modal ──────────────────────────────────────
-function openCpModal(detailId, empName, subject, pct, note) {
-    document.getElementById('cpModalDetailId').value       = detailId;
-    document.getElementById('cpModalEmp').textContent      = empName;
-    document.getElementById('cpModalSubject').textContent  = subject;
+// ── Ticket Progress Modal ──────────────────────────────────────────
+function openCpModal(ticketId, ticketNumber, pct, note) {
+    document.getElementById('cpModalTicketId').value        = ticketId;
+    document.getElementById('cpModalSubject').textContent   = ticketNumber;
     document.getElementById('cpModalSlider').value = pct;
     document.getElementById('cpModalValue').value  = pct;
-    document.getElementById('cpModalNote').value           = note ?? '';
+    document.getElementById('cpModalNote').value            = note ?? '';
     document.getElementById('cpModal').classList.remove('hidden');
     document.getElementById('cpModal').classList.add('flex');
 }
@@ -424,11 +393,11 @@ function closeCpModal() {
 }
 
 async function submitCpModal() {
-    const detailId = document.getElementById('cpModalDetailId').value;
-    const pct      = document.getElementById('cpModalSlider').value;
+    const ticketId = document.getElementById('cpModalTicketId').value;
+    const pct      = document.getElementById('cpModalValue').value;
     const note     = document.getElementById('cpModalNote').value;
     try {
-        const res = await fetch(`/api/consultant-workload/consultant-progress/${detailId}`, {
+        const res = await fetch(`/api/consultant-workload/tickets/${ticketId}/progress`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
             body: JSON.stringify({ progress_percentage: pct, progress_note: note }),

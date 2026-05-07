@@ -54,6 +54,8 @@ class DeliveryProject extends Model
         'location_street',
         'location_valid_from',
         'location_valid_to',
+        'onedrive_folder_id',
+        'onedrive_folder_url',
     ];
 
     protected $casts = [

@@ -294,7 +294,6 @@
      */
     async function loadFamilies() {
         try {
-            console.log(' Loading families for employee:', employeeId);
             
             const response = await fetch(`/api/employees/${employeeId}/family`, {
                 method: 'GET',
@@ -306,7 +305,6 @@
             });
 
             const data = await response.json();
-            console.log(' Families loaded:', data);
 
             if (data.success && data.data && data.data.length > 0) {
                 familiesData = data.data;
@@ -403,7 +401,6 @@
      */
     function selectFamily(familyId) {
         selectedFamilyId = familyId;
-        console.log(' Selected family:', familyId);
         loadFamilyToForm(familyId);
     }
 
@@ -427,7 +424,6 @@
      */
     async function loadFamilyToForm(familyId) {
         try {
-            console.log(' Loading family to form:', familyId);
             
             const response = await fetch(`/api/employees/${employeeId}/family/${familyId}`, {
                 method: 'GET',
@@ -439,7 +435,6 @@
             });
 
             const data = await response.json();
-            console.log(' Family data loaded:', data);
 
             if (data.success && data.data) {
                 const family = data.data;
@@ -465,7 +460,6 @@
                 // Update button text
                 document.getElementById('saveFamilyButtonText').textContent = 'Update';
                 
-                console.log(' Family loaded to form fields');
             }
         } catch (error) {
             console.error(' Error loading family:', error);
@@ -542,8 +536,6 @@
             
             const method = isUpdate ? 'PUT' : 'POST';
             
-            console.log(` ${isUpdate ? 'Updating' : 'Creating'} family:`, url);
-            console.log(' Family data:', familyData);
             
             const response = await fetch(url, {
                 method: method,
@@ -558,7 +550,6 @@
             });
 
             const data = await response.json();
-            console.log(' Save response:', data);
             
             if (data.success) {
                 showNotification(
@@ -633,7 +624,6 @@
         if (!deleteFamilyId) return;
 
         try {
-            console.log(' Deleting family:', deleteFamilyId);
             
             const response = await fetch(`/api/employees/${employeeId}/family/${deleteFamilyId}`, {
                 method: 'DELETE',
@@ -668,7 +658,6 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log(' Family section initialized');
         loadFamilies();
     });
 

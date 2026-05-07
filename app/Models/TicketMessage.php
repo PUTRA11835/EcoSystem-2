@@ -20,6 +20,7 @@ class TicketMessage extends Model
         'message',
         'message_html',
         'is_internal_note',
+        'reply_to_id',
         'channel',
         'email_message_id',
         'email_in_reply_to',
@@ -59,6 +60,11 @@ class TicketMessage extends Model
     public function attachments()
     {
         return $this->hasMany(TicketAttachment::class, 'message_id');
+    }
+
+    public function replyTo()
+    {
+        return $this->belongsTo(TicketMessage::class, 'reply_to_id');
     }
 
     public function scopeInternal($query)

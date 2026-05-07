@@ -613,7 +613,6 @@
 (function() {
     'use strict';
 
-    console.log('Gantt Chart View for Support Initializing...');
 
     // GLOBAL VARIABLES
     var ganttData = null;
@@ -648,7 +647,6 @@
 
     // EXPAND ALL
     window.expandAllGantt = function() {
-        console.log('Expanding all rows...');
 
         var allToggleButtons = document.querySelectorAll('.gantt-toggle-button');
         allToggleButtons.forEach(function(btn) {
@@ -672,7 +670,6 @@
 
     // COLLAPSE ALL
     window.collapseAllGantt = function() {
-        console.log('Collapsing all rows...');
 
         var allSidebarRows = document.querySelectorAll('.gantt-sidebar-body .gantt-activity-row');
         var allTimelineRows = document.querySelectorAll('.gantt-timeline-body .gantt-timeline-row:not(.gantt-phase-bg)');
@@ -702,7 +699,6 @@
 
     // TOGGLE ROW
     window.toggleRow = function(rowId) {
-        console.log('Toggling row:', rowId);
 
         var sidebarRow = document.querySelector('.gantt-sidebar-body [data-id="' + rowId + '"]');
         if (!sidebarRow) return;
@@ -750,7 +746,6 @@
 
     // REFRESH
     window.refreshGanttView = function() {
-        console.log('Refreshing Gantt View...');
         ganttInitialized = false;
         document.getElementById('ganttLoading').classList.remove('hidden');
         document.getElementById('ganttChartContent').classList.add('hidden');
@@ -764,10 +759,8 @@
 
     // LOAD GANTT CHART DATA
     window.loadGanttChartView = function() {
-        console.log('Loading Gantt Chart View...');
 
         if (ganttInitialized) {
-            console.log('Gantt already initialized');
             return;
         }
 
@@ -778,13 +771,11 @@
             return;
         }
 
-        console.log('Fetching Gantt data for support:', supportId);
 
         var apiUrl = '/delivery/support/' + supportId + '/data/gantt';
 
         axios.get(apiUrl)
             .then(function(response) {
-                console.log('Gantt data loaded:', response.data);
                 ganttData = response.data;
 
                 if (!ganttData.vertical_groups || ganttData.vertical_groups.length === 0) {
@@ -805,7 +796,6 @@
 
     // UPDATE STATISTICS
     function updateStatistics(verticalGroups) {
-        console.log('Calculating statistics from vertical_groups:', verticalGroups);
 
         var totalStages = 0;
         var completedStages = 0;
@@ -946,7 +936,6 @@
             localStorage.setItem('supportGanttSidebarWidth', 400);
         });
 
-        console.log('Resize functionality initialized');
     }
 
     function setSidebarWidth(width) {
@@ -960,7 +949,6 @@
 
     // RENDER GANTT CHART
     function renderGanttChart() {
-        console.log('Rendering Gantt Chart...');
 
         document.getElementById('ganttLoading').classList.add('hidden');
         document.getElementById('ganttChartContent').classList.remove('hidden');
@@ -996,7 +984,6 @@
         syncScroll();
         scrollToToday(allDates);
 
-        console.log('Gantt Chart rendered successfully');
     }
 
     // RENDER TIMELINE HEADER

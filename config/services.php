@@ -36,11 +36,12 @@ return [
     ],
 
     'microsoft_graph' => [
-        'tenant_id'     => env('MS_TENANT_ID'),
-        'client_id'     => env('MS_CLIENT_ID'),
-        'client_secret' => env('MS_CLIENT_SECRET'),
-        'sender_email'  => env('MS_SENDER_EMAIL'),
-        'base_url'      => env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'),
+        'tenant_id'             => env('MS_TENANT_ID'),
+        'client_id'             => env('MS_CLIENT_ID'),
+        'client_secret'         => env('MS_CLIENT_SECRET'),
+        'sender_email'          => env('MS_SENDER_EMAIL'),
+        'base_url'              => env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'),
+        'ticket_parent_folder'  => env('ONEDRIVE_TICKET_PARENT_FOLDER', 'TICKETING'),
     ],
 
     // Set JARVIES_URL in .env to the public JARVIES base URL in production

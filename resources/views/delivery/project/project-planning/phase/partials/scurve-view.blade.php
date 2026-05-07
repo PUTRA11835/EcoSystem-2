@@ -227,7 +227,6 @@
 (function() {
     'use strict';
     
-    console.log('🚀 Enhanced S-Curve View Initializing...');
     
     // ==========================================
     // GLOBAL VARIABLES
@@ -262,7 +261,6 @@
     // LOAD S-CURVE DATA
     // ==========================================
     window.loadSCurveView = function() {
-        console.log('📊 Loading Enhanced S-Curve View...');
         
         const projectId = getProjectId();
         if (!projectId) {
@@ -271,11 +269,9 @@
             return;
         }
         
-        console.log('🔍 Fetching S-Curve data for project:', projectId);
 
         axios.get(`/planning/${projectId}/data/scurve`)
             .then(function(response) {
-                console.log('✅ S-Curve data loaded:', response.data);
                 scurveData = response.data;
                 
                 if (!scurveData.weekly_data || scurveData.weekly_data.length === 0) {
@@ -481,7 +477,6 @@
             }
         });
         
-        console.log('✅ S-Curve chart rendered');
     }
     
     // ==========================================
@@ -730,6 +725,5 @@
     
     setTimeout(function() { clearInterval(checkInterval); }, 10000);
     
-    console.log('✅ Enhanced S-Curve View loaded');
 })();
 </script>

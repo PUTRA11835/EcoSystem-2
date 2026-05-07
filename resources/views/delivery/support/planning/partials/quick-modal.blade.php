@@ -149,7 +149,6 @@ let currentQuickType = 'group';
  * OPEN QUICK MODAL
  */
 window.openQuickModal = function(type, phaseId, parentId = null, existingItem = null) {
-    console.log('Opening quick modal:', { type, phaseId, parentId, existingItem });
 
     if (!phaseId || phaseId === 'null' || phaseId === 'undefined') {
         console.error('Invalid phaseId:', phaseId);
@@ -181,13 +180,11 @@ window.openQuickModal = function(type, phaseId, parentId = null, existingItem = 
         document.getElementById('quickName').value = existingItem.name || existingItem.group_name || '';
         document.getElementById('quickNotes').value = existingItem.notes || '';
 
-        console.log('Edit mode - loaded data:', existingItem);
     }
     // CREATE MODE
     else {
         quickFormMode = 'create';
         title.textContent = 'Add New Group';
-        console.log('Create mode');
     }
 
     modal.classList.remove('hidden');
@@ -198,7 +195,6 @@ window.openQuickModal = function(type, phaseId, parentId = null, existingItem = 
  * CLOSE QUICK MODAL
  */
 window.closeQuickModal = function() {
-    console.log('Closing quick modal');
     const modal = document.getElementById('quickModal');
     if (modal) {
         modal.classList.add('hidden');
@@ -216,7 +212,6 @@ window.closeQuickModal = function() {
  */
 window.saveQuickItem = function(event) {
     event.preventDefault();
-    console.log('Saving quick item...', quickFormMode);
 
     // Use supportId instead of projectId
     const supportId = window.supportId || (typeof supportId !== 'undefined' ? supportId : null);
@@ -236,7 +231,6 @@ window.saveQuickItem = function(event) {
         notes: document.getElementById('quickNotes').value || null,
     };
 
-    console.log('Form data:', formData);
 
     const submitBtn = event.target.querySelector('button[type="submit"]');
     const originalBtnText = submitBtn.innerHTML;
@@ -254,7 +248,6 @@ window.saveQuickItem = function(event) {
         method = 'POST';
     }
 
-    console.log(`${method} ${url}`);
 
     axios({
         method: method,
@@ -265,7 +258,6 @@ window.saveQuickItem = function(event) {
         }
     })
         .then(response => {
-            console.log('Item saved:', response.data);
 
             if (typeof showNotification === 'function') {
                 showNotification('Group saved successfully', 'success');
@@ -274,7 +266,6 @@ window.saveQuickItem = function(event) {
             closeQuickModal();
 
             // Reload page to update both table and progress overview
-            console.log('Reloading page to update all sections...');
             setTimeout(() => window.location.reload(), 500);
         })
         .catch(error => {
@@ -305,7 +296,6 @@ let deleteItemName = '';
  * DELETE ITEM
  */
 window.deleteItem = function(itemId, isGroup, itemName = null) {
-    console.log('Delete requested:', { itemId, isGroup, itemName });
 
     if (!itemId || itemId === 'null' || itemId === 'undefined') {
         console.error('Invalid item ID');
@@ -355,7 +345,6 @@ function openDeleteModal(itemId, isGroup, itemName) {
  * CLOSE DELETE MODAL
  */
 window.closeDeleteModal = function() {
-    console.log('Closing delete modal');
     document.getElementById('deleteModal').classList.add('hidden');
     deleteItemId = null;
     deleteItemIsGroup = false;
@@ -366,7 +355,6 @@ window.closeDeleteModal = function() {
  * CONFIRM DELETE
  */
 window.confirmDelete = function() {
-    console.log('Confirming delete:', deleteItemId);
 
     if (!deleteItemId || deleteItemId === 'null' || deleteItemId === 'undefined') {
         console.error('Invalid item ID for deletion');
@@ -391,14 +379,12 @@ window.confirmDelete = function() {
         }
     })
     .then(response => {
-        console.log('Delete successful:', response.data);
 
         if (typeof showNotification === 'function') {
             showNotification(response.data.message || 'Item deleted successfully', 'success');
         }
 
         // Reload page to update both table and progress overview
-        console.log('Reloading page to update all sections...');
         setTimeout(() => window.location.reload(), 500);
     })
     .catch(error => {
@@ -442,12 +428,9 @@ if (typeof showNotification !== 'function') {
 
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof supportId !== 'undefined') {
-        console.log('Quick Modal using Support ID:', supportId);
     } else if (typeof window.supportId !== 'undefined') {
-        console.log('Quick Modal using Support ID from window:', window.supportId);
     } else {
         console.warn('Support ID not found - this may cause issues');
     }
-    console.log('Quick Modal (GROUP ONLY) script loaded for Support');
 });
 </script>

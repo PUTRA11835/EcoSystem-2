@@ -221,6 +221,7 @@ Route::middleware(['web'])->group(function () {
         // Jarvies login management per contact person
         Route::post('/{contactId}/create-login', [CustomerContactController::class, 'createLogin']);
         Route::delete('/{contactId}/revoke-login', [CustomerContactController::class, 'revokeLogin']);
+        Route::patch('/{contactId}/toggle-view-all', [CustomerContactController::class, 'toggleViewAllTickets']);
     });
 
     // Customer Identification endpoints
@@ -271,7 +272,6 @@ Route::middleware(['web'])->group(function () {
         Route::get('/', [\App\Http\Controllers\ConsultantWorkloadController::class, 'list']);
         Route::get('/{id}', [\App\Http\Controllers\ConsultantWorkloadController::class, 'detail']);
         Route::patch('/tickets/{ticketId}/progress', [\App\Http\Controllers\ConsultantWorkloadController::class, 'updateProgress']);
-        Route::patch('/consultant-progress/{detailId}', [\App\Http\Controllers\ConsultantWorkloadController::class, 'updateConsultantProgress']);
     });
 
     // ==================== STAGING TICKET ROUTES ====================

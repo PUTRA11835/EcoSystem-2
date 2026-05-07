@@ -56,6 +56,7 @@ class CustomerContactController extends Controller
                     'au.email as login_email',
                     'au.is_active as login_active',
                     'au.is_already_cp as login_setup_done',
+                    'au.can_view_all_tickets',
                     'au.last_login_at'
                 )
                 ->get();
@@ -466,6 +467,41 @@ class CustomerContactController extends Controller
                 'message' => 'Failed to create login'
             ], 500);
         }
+    }
+
+    /**
+     * Toggle can_view_all_tickets for a contact's auth_users record.
+     */
+    public function toggleViewAllTickets($customerId, $contactId)
+    {
+        $authUser = DB::table('auth_users')->where('contact_id', $contactId)->first();
+
+        if (!$authUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This contact does not have a Jarvies login account.',
+            ], 404);
+        }
+
+        $newValue = !((bool) $authUser->can_view_all_tickets);
+
+        DB::table('auth_users')
+            ->where('contact_id', $contactId)
+            ->update(['can_view_all_tickets' => $newValue, 'updated_at' => now()]);
+
+        Log::info('=== API: TOGGLE CAN_VIEW_ALL_TICKETS ===', [
+            'customer_id' => $customerId,
+            'contact_id'  => $contactId,
+            'new_value'   => $newValue,
+        ]);
+
+        return response()->json([
+            'success'              => true,
+            'can_view_all_tickets' => $newValue,
+            'message'              => $newValue
+                ? 'This contact can now view all company tickets.'
+                : 'This contact can now only view tickets they submitted.',
+        ]);
     }
 
     /**

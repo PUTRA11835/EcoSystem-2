@@ -225,7 +225,6 @@
      */
     async function loadPayments() {
         try {
-            console.log(' Loading payments for employee:', employeeId);
             
             const response = await fetch(`/api/employees/${employeeId}/payment`, {
                 method: 'GET',
@@ -237,7 +236,6 @@
             });
 
             const data = await response.json();
-            console.log(' Payments loaded:', data);
 
             if (data.success && data.data && data.data.length > 0) {
                 paymentsData = data.data;
@@ -381,7 +379,6 @@
      */
     function selectPayment(paymentId) {
         selectedPaymentId = paymentId;
-        console.log(' Selected payment:', paymentId);
         loadPaymentToForm(paymentId);
     }
 
@@ -405,7 +402,6 @@
      */
     async function loadPaymentToForm(paymentId) {
         try {
-            console.log(' Loading payment to form:', paymentId);
             
             const response = await fetch(`/api/employees/${employeeId}/payment/${paymentId}`, {
                 method: 'GET',
@@ -417,7 +413,6 @@
             });
 
             const data = await response.json();
-            console.log(' Payment data loaded:', data);
 
             if (data.success && data.data) {
                 const payment = data.data;
@@ -438,7 +433,6 @@
                 // Update button text
                 document.getElementById('savePaymentButtonText').textContent = 'Update';
                 
-                console.log(' Payment loaded to form fields');
             }
         } catch (error) {
             console.error(' Error loading payment:', error);
@@ -507,8 +501,6 @@
             
             const method = isUpdate ? 'PUT' : 'POST';
             
-            console.log(` ${isUpdate ? 'Updating' : 'Creating'} payment:`, url);
-            console.log(' Payment data:', paymentData);
             
             const response = await fetch(url, {
                 method: method,
@@ -523,7 +515,6 @@
             });
 
             const data = await response.json();
-            console.log(' Save response:', data);
             
             if (data.success) {
                 showNotification(
@@ -597,7 +588,6 @@
         if (!deletePaymentId) return;
 
         try {
-            console.log(' Deleting payment:', deletePaymentId);
             
             const response = await fetch(`/api/employees/${employeeId}/payment/${deletePaymentId}`, {
                 method: 'DELETE',
@@ -632,7 +622,6 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log(' Payment section initialized');
         // Set default date to today
         document.getElementById('paymentPaidAt').value = new Date().toISOString().split('T')[0];
         loadPayments();
