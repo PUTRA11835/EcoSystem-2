@@ -121,6 +121,37 @@ class OneDriveService
     }
 
     /**
+     * Upload a file into a OneDrive folder (identified by its item ID).
+     * Uses the simple PUT upload endpoint (supports files up to 4 MB).
+     * Returns an array with 'id', 'webUrl', and 'downloadUrl'.
+     */
+    public function uploadFile(string $folderId, string $fileName, string $fileContent, string $mimeType = 'application/octet-stream'): array
+    {
+        $token   = $this->getAccessToken();
+        $encoded = rawurlencode($fileName);
+
+        $response = Http::withToken($token)
+            ->withBody($fileContent, $mimeType)
+            ->put("{$this->baseUrl}/users/{$this->userEmail}/drive/items/{$folderId}:/{$encoded}:/content");
+
+        if (!$response->successful()) {
+            Log::error('OneDrive uploadFile failed', [
+                'folder_id' => $folderId,
+                'file_name' => $fileName,
+                'status'    => $response->status(),
+                'body'      => $response->body(),
+            ]);
+            throw new \RuntimeException('Failed to upload file to OneDrive: ' . $response->body());
+        }
+
+        return [
+            'id'          => $response->json('id'),
+            'webUrl'      => $response->json('webUrl'),
+            'downloadUrl' => $response->json('@microsoft.graph.downloadUrl'),
+        ];
+    }
+
+    /**
      * Create an anonymous share link for the given folder ID.
      * type='edit' grants upload + edit access to anyone with the link.
      * Returns the web URL of the share link.

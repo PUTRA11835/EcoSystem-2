@@ -329,6 +329,12 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{ticketId}/customer-reply', [TicketMessageController::class, 'customerReply']);
         Route::put('/{ticketId}/messages/mark-all-read', [TicketMessageController::class, 'markAllRead']);
 
+        // ==================== DELIVERABLE ROUTES ====================
+        Route::get('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'index']);
+        Route::post('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'store']);
+        Route::patch('/{id}/deliverables/{delivId}/send', [\App\Http\Controllers\TicketDeliverableController::class, 'send']);
+        Route::delete('/{id}/deliverables/{delivId}', [\App\Http\Controllers\TicketDeliverableController::class, 'destroy']);
+
         // Assign ticket to delivery support
         Route::get('/{id}/available-supports', [TicketController::class, 'getAvailableSupports']);
         Route::post('/{id}/assign-to-support', [TicketController::class, 'assignToSupport']);

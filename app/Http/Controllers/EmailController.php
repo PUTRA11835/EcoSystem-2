@@ -1451,14 +1451,22 @@ class EmailController extends Controller
         // ── Ambil internetMessageId dari draft sebelum dikirim ────────────────
         // internetMessageId diperlukan oleh Jarvies sebagai In-Reply-To header
         // agar balasan customer masuk ke thread yang sama di Gmail/Outlook.
+        //
+        // CATATAN PENTING — conversationId post-patch:
+        // Jika subject di-patch (kasus $noRePrefix=true, contoh "Ticket #XXXX: ..."),
+        // Exchange akan assign conversationId BARU saat draft dikirim. convId yang
+        // didapat dari createReply (sebelum patch) jadi STALE. Kita harus selalu
+        // ambil convId terbaru, bukan hanya saat null — kalau tidak, ticket.email_thread_id
+        // akan tetap menunjuk ke thread lama ("[Pending Validation]") dan reply
+        // berikutnya dari Jarvies akan threading ke thread yang salah.
         $internetMessageId = null;
         try {
             $draftInfo = $this->graphGet("/users/{$sender}/messages/{$draftId}", [
                 '$select' => 'internetMessageId,conversationId',
             ]);
             $internetMessageId = $draftInfo['internetMessageId'] ?? null;
-            if (!$conversationId) {
-                $conversationId = $draftInfo['conversationId'] ?? null;
+            if (!empty($draftInfo['conversationId'])) {
+                $conversationId = $draftInfo['conversationId'];
             }
             if (!$internetMessageId) {
                 Log::warning('EmailController@sendTicketReply: internetMessageId null dari draft', [
@@ -1489,12 +1497,19 @@ class EmailController extends Controller
                 try {
                     $searchResult = $this->graphGet("/users/{$sender}/mailFolders/SentItems/messages", [
                         '$orderby' => 'sentDateTime desc',
-                        '$select'  => 'id,internetMessageId',
+                        '$select'  => 'id,internetMessageId,conversationId',
                         '$top'     => 20,
                     ]);
                     foreach ($searchResult['value'] ?? [] as $msg) {
                         if (($msg['internetMessageId'] ?? '') === $internetMessageId) {
                             $sentMessageId = $msg['id'];
+                            // convId final dari Sent Items — ini yang authoritative.
+                            // Setelah subject patch, Exchange bisa assign convId baru saat
+                            // draft dikirim. Update ke convId final agar caller (yang
+                            // menyimpan ke ticket.email_thread_id) ref ke thread aktif.
+                            if (!empty($msg['conversationId'])) {
+                                $conversationId = $msg['conversationId'];
+                            }
                             break 2;
                         }
                     }
