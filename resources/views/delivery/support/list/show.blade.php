@@ -461,15 +461,30 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Client <span class="text-red-500">*</span></label>
-                            <select name="client_id" id="edit-client_id" required
-                                    class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
-                                <option value="">Select Client</option>
-                                @foreach($clients ?? [] as $client)
-                                    <option value="{{ $client->customer_id }}" {{ $support->client_id == $client->customer_id ? 'selected' : '' }}>
-                                        {{ $client->basicData->name_1 ?? 'N/A' }}
-                                    </option>
-                                @endforeach
-                            </select>
+                            @php
+                                $currentClientLabel = '';
+                                if ($support->client_id) {
+                                    foreach($clients ?? [] as $_c) {
+                                        if ($_c->customer_id == $support->client_id) {
+                                            $currentClientLabel = $_c->basicData->name_1 ?? 'N/A';
+                                            break;
+                                        }
+                                    }
+                                }
+                            @endphp
+                            <div class="custom-dd relative" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label {{ $currentClientLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $currentClientLabel ?: 'Select Client' }}</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" name="client_id" id="edit-client_id" value="{{ $support->client_id }}" required>
+                                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Client</button>
+                                    @foreach($clients ?? [] as $client)
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $client->customer_id }}">{{ $client->basicData->name_1 ?? 'N/A' }}</button>
+                                    @endforeach
+                                </div>
+                            </div>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Support Method</label>
@@ -602,29 +617,46 @@
                     </div>
                 </div>
                 <div class="bg-white px-4 sm:px-6 py-4 sm:py-5 space-y-4">
+                    @php
+                        $currentDoLabel = '';
+                        $currentSmLabel = '';
+                        foreach($employees ?? [] as $_e) {
+                            $name = $_e->basicData->full_name ?? 'N/A';
+                            if ($support->delivery_owner_id  == $_e->employee_id) $currentDoLabel = $name;
+                            if ($support->support_manager_id == $_e->employee_id) $currentSmLabel = $name;
+                        }
+                    @endphp
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Delivery Owner</label>
-                        <select name="delivery_owner_id" id="edit-delivery_owner_id"
-                                class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
-                            <option value="">Not assigned</option>
-                            @foreach($employees ?? [] as $employee)
-                                <option value="{{ $employee->employee_id }}" {{ $support->delivery_owner_id == $employee->employee_id ? 'selected' : '' }}>
-                                    {{ $employee->basicData->full_name ?? 'N/A' }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <div class="custom-dd relative" data-fixed="true">
+                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                <span class="custom-dd-label {{ $currentDoLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $currentDoLabel ?: 'Not assigned' }}</span>
+                                <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <input type="hidden" name="delivery_owner_id" id="edit-delivery_owner_id" value="{{ $support->delivery_owner_id }}">
+                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Not assigned</button>
+                                @foreach($employees ?? [] as $employee)
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? 'N/A' }}</button>
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Support Manager</label>
-                        <select name="support_manager_id" id="edit-support_manager_id"
-                                class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
-                            <option value="">Not assigned</option>
-                            @foreach($employees ?? [] as $employee)
-                                <option value="{{ $employee->employee_id }}" {{ $support->support_manager_id == $employee->employee_id ? 'selected' : '' }}>
-                                    {{ $employee->basicData->full_name ?? 'N/A' }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <div class="custom-dd relative" data-fixed="true">
+                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                <span class="custom-dd-label {{ $currentSmLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $currentSmLabel ?: 'Not assigned' }}</span>
+                                <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <input type="hidden" name="support_manager_id" id="edit-support_manager_id" value="{{ $support->support_manager_id }}">
+                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Not assigned</button>
+                                @foreach($employees ?? [] as $employee)
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? 'N/A' }}</button>
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="bg-gray-50 px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
@@ -795,6 +827,12 @@ function openUpdatesModal() {
 // INITIALIZATION
 // ============================================================================
 document.addEventListener('DOMContentLoaded', function() {
+    // Init custom-dd untuk semua dropdown (Client, Delivery Owner, Support Manager).
+    // Auto-inject search input bila > 7 item (lihat custom-dropdown.js).
+    if (typeof initCustomDropdowns === 'function') {
+        initCustomDropdowns();
+    }
+
     // Show flash messages as toasts
     @if(session('success'))
         showNotification('{{ session('success') }}', 'success');
@@ -938,4 +976,12 @@ function copyFolderLink() {
 }
 
 </script>
+
+{{-- Load custom-dd script + cache buster supaya production auto-invalidate setiap deploy. --}}
+@php
+    $customDdPath = public_path('js/custom-dropdown.js');
+    $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
+@endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
+
 @endsection

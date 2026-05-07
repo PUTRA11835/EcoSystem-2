@@ -392,7 +392,7 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
                     </svg>
-                    <input id="crRoleSearch" type="text" placeholder="Cari role…"
+                    <input id="crRoleSearch" type="text" placeholder="Search role…"
                         oninput="filterCrRoles()"
                         class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
                 </div>
@@ -935,7 +935,7 @@
         const confirmation = document.getElementById('cpConfirmPassword').value.trim();
 
         if (!password) {
-            showNotification('Password baru wajib diisi', 'error');
+            showNotification('New password is required', 'error');
             return;
         }
         if (password.length < 6) {
@@ -1024,7 +1024,7 @@
         const total   = document.querySelectorAll('.cr-role-checkbox').length;
         const checked = document.querySelectorAll('.cr-role-checkbox:checked').length;
         const el = document.getElementById('crRoleCount');
-        if (el) el.textContent = checked ? `${checked} dipilih dari ${total}` : `${total} roles`;
+        if (el) el.textContent = checked ? `${checked} selected of ${total}` : `${total} roles`;
     }
 
     function filterCrRoles() {

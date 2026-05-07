@@ -56,7 +56,7 @@
         {{-- Search Bar — selaras dengan style index lain --}}
         <div class="p-4">
             <input type="search" id="searchInput"
-                   placeholder="Cari project, client, atau deskripsi..."
+                   placeholder="Search project, client, or description..."
                    class="block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition text-sm px-4 py-2.5">
         </div>
         {{-- MOBILE VIEW: Card Layout --}}

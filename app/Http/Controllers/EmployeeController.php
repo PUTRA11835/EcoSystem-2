@@ -430,9 +430,9 @@ class EmployeeController extends Controller
             'password.required' => 'Password is required',
             'password.min' => 'Password must be at least 6 characters',
             'password.confirmed' => 'Password confirmation does not match',
-            'email_work.required' => 'Email kerja wajib diisi agar dapat menerima link aktivasi akun',
-            'email_work.email' => 'Format email kerja tidak valid',
-            'email_work.unique' => 'Email kerja sudah digunakan oleh akun lain',
+            'email_work.required' => 'Work email is required so the activation link can be sent',
+            'email_work.email' => 'Work email format is invalid',
+            'email_work.unique' => 'Work email is already used by another account',
         ]);
 
         if ($validator->fails()) {
@@ -827,10 +827,10 @@ public function getRoles()
             'password'              => 'required|string|min:6|confirmed',
             'password_confirmation' => 'required|string',
         ], [
-            'password.required'              => 'Password baru wajib diisi',
-            'password.min'                   => 'Password minimal 6 karakter',
-            'password.confirmed'             => 'Konfirmasi password tidak cocok',
-            'password_confirmation.required' => 'Konfirmasi password wajib diisi',
+            'password.required'              => 'New password is required',
+            'password.min'                   => 'Password must be at least 6 characters',
+            'password.confirmed'             => 'Password confirmation does not match',
+            'password_confirmation.required' => 'Password confirmation is required',
         ]);
 
         if ($validator->fails()) {

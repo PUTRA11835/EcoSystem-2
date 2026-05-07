@@ -33,6 +33,22 @@ function initCustomDropdowns(root) {
         // Store panel ref so _selectItem can find it even when detached (fixed mode)
         dd._ddPanel = panel;
 
+        // Wire up search input. Tiga kondisi yang trigger:
+        // 1. Hardcoded di HTML (`<input class="custom-dd-search">` sudah ada di markup)
+        //    — selalu wire up, tidak peduli threshold. Ini pattern yang dipakai untuk
+        //    panel yang programmer ingin selalu punya search regardless of item count.
+        // 2. data-searchable="true" eksplisit di .custom-dd
+        // 3. Auto-inject jika item count > _DD_SEARCH_THRESHOLD (dan tidak data-searchable="false")
+        const explicit           = dd.dataset.searchable;
+        const itemCount          = panel.querySelectorAll('.custom-dd-item').length;
+        const hasHardcodedSearch = !!panel.querySelector('.custom-dd-search');
+        const wantSearch = hasHardcodedSearch
+            || explicit === 'true'
+            || (explicit !== 'false' && itemCount > _DD_SEARCH_THRESHOLD);
+        if (wantSearch) {
+            _injectSearch(dd, panel);
+        }
+
         btn.addEventListener('click', e => {
             e.stopPropagation();
             const isOpen = !panel.classList.contains('hidden');
@@ -178,6 +194,80 @@ function _positionFixed(btn, panel) {
     }
 }
 
+// Setup sticky search input di atas panel + real-time filter.
+// Dipanggil saat init untuk dropdown dengan item count > threshold
+// atau yang punya data-searchable="true".
+//
+// Mendukung dua mode:
+// 1. Hardcoded — jika di HTML panel sudah ada `<input class="custom-dd-search">`
+//    (mis. dibuat manual di Blade), fungsi ini cukup wire up event filter.
+// 2. Auto-inject — jika belum ada, fungsi ini buat sticky search bar di atas panel.
+function _injectSearch(dd, panel) {
+    if (panel._ddSearch) return; // already wired
+
+    // Cek apakah search input sudah di-hardcode di HTML
+    let input = panel.querySelector('.custom-dd-search');
+    let empty = panel.querySelector('.custom-dd-empty');
+
+    if (!input) {
+        // Auto-inject: buat sticky search bar
+        const placeholder = dd.dataset.searchPlaceholder || 'Search…';
+
+        const wrap = document.createElement('div');
+        wrap.className = 'custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2';
+        wrap.style.zIndex = '1';
+
+        input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = placeholder;
+        input.className = 'custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400';
+        input.setAttribute('autocomplete', 'off');
+        input.setAttribute('spellcheck', 'false');
+
+        wrap.appendChild(input);
+        panel.insertBefore(wrap, panel.firstChild);
+    }
+
+    if (!empty) {
+        // Empty-state placeholder ketika tidak ada item yang cocok
+        empty = document.createElement('div');
+        empty.className = 'custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center';
+        empty.textContent = 'No results';
+        panel.appendChild(empty);
+    }
+
+    // Cegah klik di search input meng-trigger document click handler
+    // (yang akan menutup dropdown via _closeAllDropdowns).
+    input.addEventListener('click',     e => e.stopPropagation());
+    input.addEventListener('mousedown', e => e.stopPropagation());
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter')  e.preventDefault();   // jangan submit form
+        if (e.key === 'Escape') _closeAllDropdowns(); // tutup panel
+    });
+
+    // Real-time filter — match by item textContent
+    input.addEventListener('input', () => {
+        const q = input.value.trim().toLowerCase();
+        let visible = 0;
+        panel.querySelectorAll('.custom-dd-item').forEach(item => {
+            const val = item.dataset.value;
+            // Saat search aktif, sembunyikan placeholder option (data-value="")
+            if (val === '' && q !== '') {
+                item.style.display = 'none';
+                return;
+            }
+            const text  = item.textContent.toLowerCase();
+            const match = !q || text.includes(q);
+            item.style.display = match ? '' : 'none';
+            if (match && val !== '') visible++;
+        });
+        empty.classList.toggle('hidden', !q || visible > 0);
+    });
+
+    panel._ddSearch = input;
+    panel._ddEmpty  = empty;
+}
+
 // Helper: bersihkan property fixed-mode dan restore max-height asli markup.
 function _clearFixedStyles(panel) {
     panel.style.position = '';
@@ -203,6 +293,7 @@ function _resetSearchState(panel) {
         if (item.classList.contains('hidden')) return;
         item.style.display = '';
     });
+    if (panel._ddEmpty) panel._ddEmpty.classList.add('hidden');
 }
 
 // Helper: tutup satu panel (dipakai oleh _onScrollMaybeClose untuk panel non-fixed)
