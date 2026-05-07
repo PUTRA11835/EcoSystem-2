@@ -360,6 +360,8 @@
 /* View Toggle */
 #btnViewAll, #btnViewMy { background: transparent; color: #6b7280; }
 #btnViewAll.active, #btnViewMy.active { background: white; color: #111827; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+#btnViewAssigned, #btnViewUnassigned { background: transparent; color: #6b7280; }
+#btnViewAssigned.active, #btnViewUnassigned.active { background: #991b1b; color: white; box-shadow: 0 1px 3px rgba(153,27,27,0.3); }
 
 /* Table rows */
 #ticketsListBody tr { cursor: pointer; transition: background 0.15s; }

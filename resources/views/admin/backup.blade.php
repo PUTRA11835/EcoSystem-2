@@ -243,7 +243,7 @@
         </div>
         <div id="errorModalBody" class="p-5 max-h-80 overflow-y-auto space-y-1.5"></div>
         <div class="px-5 pb-4">
-            <button onclick="closeErrorModal()" class="w-full px-4 py-2 rounded-xl bg-gray-100 text-gray-600 text-sm font-medium hover:bg-gray-200 transition">Tutup</button>
+            <button onclick="closeErrorModal()" class="w-full px-4 py-2 rounded-xl bg-gray-100 text-gray-600 text-sm font-medium hover:bg-gray-200 transition">Close</button>
         </div>
     </div>
 </div>
@@ -268,7 +268,7 @@ function handleDrop(e, type) {
     if (file && (file.name.endsWith('.csv') || file.name.endsWith('.txt'))) {
         setFile(type, file);
     } else {
-        showToast('Hanya file CSV yang diterima', 'error');
+        showToast('Only CSV files are accepted', 'error');
     }
 }
 
@@ -309,7 +309,7 @@ async function runImport(type) {
 
     const btn = document.getElementById(btnId);
     btn.disabled = true;
-    btn.innerHTML = '<svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> Mengimport...';
+    btn.innerHTML = '<svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> Importing...';
 
     const form = new FormData();
     form.append('file', file);
@@ -324,7 +324,7 @@ async function runImport(type) {
         const json = await res.json();
         showImportResult(type, json);
     } catch (e) {
-        showToast('Import gagal: ' + e.message, 'error');
+        showToast('Import failed: ' + e.message, 'error');
     } finally {
         const color = type === 'emp' ? 'emerald' : 'violet';
         btn.disabled = false;
@@ -442,7 +442,7 @@ document.getElementById('btnCreateBackup').addEventListener('click', async () =>
 });
 
 async function deleteBackup(filename) {
-    if (!confirm('Hapus backup: ' + filename + '?')) return;
+    if (!confirm('Delete backup: ' + filename + '?')) return;
     try {
         const res  = await fetch('/api/admin/backup/' + encodeURIComponent(filename), {
             method: 'DELETE',

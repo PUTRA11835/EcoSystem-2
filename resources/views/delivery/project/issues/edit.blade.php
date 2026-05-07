@@ -138,7 +138,7 @@
                             </div>
                             <div class="ml-3">
                                 <p class="text-xs sm:text-sm text-blue-700">
-                                    Pastikan informasi yang diisi sudah benar sebelum menyimpan perubahan.
+                                    Make sure the information you entered is correct before saving the changes.
                                 </p>
                             </div>
                         </div>
@@ -150,11 +150,11 @@
                     <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
                         <a href="{{ route('projects.show', $update->project_id) }}"
                            class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200 text-center justify-center">
-                            Batal
+                            Cancel
                         </a>
                         <button type="submit"
                                 class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                            Update Isu
+                            Update Issue
                         </button>
                     </div>
                 </div>

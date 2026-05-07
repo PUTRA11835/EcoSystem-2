@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Models\Customer;
 use App\Models\Ticket;
+use App\Models\TicketMessage;
 use App\Services\OneDriveService;
 use App\Services\StagingTicketService;
 use App\Services\TicketNumberService;
@@ -1378,10 +1380,61 @@ class TicketController extends Controller
 
         try {
             $ticket = Ticket::findOrFail($id);
-            
+
             $ticket->update([
                 'status' => $request->status
             ]);
+
+            // Add system log and send email when ticket is closed or cancelled
+            if (in_array($request->status, ['closed', 'cancel'])) {
+                $userName  = $sessionUser['name'] ?? $sessionUser['email'] ?? 'Unknown User';
+                $label     = $request->status === 'closed' ? 'Closed' : 'Cancelled';
+                $timestamp = now()->format('d/m/Y H:i');
+                $logMessage = "Status change to \"{$label}\" by {$userName} at {$timestamp}";
+
+                DB::table('ticket_message')->insert([
+                    'ticket_id'   => $ticket->ticket_id,
+                    'sender_type' => 'system',
+                    'message'     => $logMessage,
+                    'created_at'  => now(),
+                    'updated_at'  => now(),
+                ]);
+
+                try {
+                    $customerEmail = $ticket->customer?->email
+                        ?? Customer::find($ticket->customer_id)?->email;
+
+                    if ($customerEmail) {
+                        $ticketNum = $ticket->ticket_number ?? $ticket->ticket_id;
+                        $subject   = 'Ticket #' . $ticketNum . ' - ' . $label;
+                        $htmlBody  = '<p>Your ticket <strong>#' . htmlspecialchars((string) $ticketNum) . '</strong> has been <strong>' . $label . '</strong>.</p>'
+                                   . '<p>' . htmlspecialchars($logMessage) . '</p>';
+
+                        $inReplyTo = TicketMessage::where('ticket_id', $ticket->ticket_id)
+                            ->where('channel', 'email')
+                            ->whereNotNull('email_message_id')
+                            ->orderByDesc('created_at')
+                            ->value('email_message_id');
+
+                        $emailController = new EmailController();
+                        $emailController->sendTicketReply(
+                            $customerEmail,
+                            $subject,
+                            $htmlBody,
+                            $inReplyTo,
+                            [],
+                            [],
+                            true,
+                            $ticket->email_thread_id
+                        );
+                    }
+                } catch (\Exception $emailEx) {
+                    Log::warning('updateTicketStatus: email notification failed', [
+                        'error'     => $emailEx->getMessage(),
+                        'ticket_id' => $id,
+                    ]);
+                }
+            }
 
             return response()->json([
                 'success' => true,
@@ -1392,7 +1445,7 @@ class TicketController extends Controller
                 'error' => $e->getMessage(),
                 'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update ticket status',

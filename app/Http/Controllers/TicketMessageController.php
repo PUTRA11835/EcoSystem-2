@@ -66,6 +66,7 @@ class TicketMessageController extends Controller
                     'email_message_id'    => $message->email_message_id,
                     'is_read_by_customer' => $message->is_read_by_customer,
                     'is_read_by_agent'    => $message->is_read_by_agent,
+                    'read_at'             => $message->read_at?->toIso8601String(),
                     'cc_emails'           => (function($cc) {
                                                 if (is_array($cc)) return $cc;
                                                 if (is_string($cc) && $cc !== '') return json_decode($cc, true) ?? [];

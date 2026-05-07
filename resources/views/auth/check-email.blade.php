@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cek Email Anda - EcoSystem</title>
+    <title>Check Your Email - EcoSystem</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>* { font-family: 'Inter', sans-serif; }</style>
@@ -27,52 +27,52 @@
             </div>
 
             @if($type === 'reset')
-                <h1 class="text-2xl font-bold text-gray-900 mb-2">Email Terkirim</h1>
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">Email Sent</h1>
                 <p class="text-gray-600 text-sm leading-relaxed mb-4">
-                    Kami telah mengirimkan link reset password ke
+                    We have sent a password reset link to
                     @if($email)
                         <span class="font-semibold text-gray-800">{{ $email }}</span>
                     @else
-                        alamat email yang Anda masukkan
+                        the email address you entered
                     @endif
                     .
                 </p>
                 <p class="text-gray-500 text-sm leading-relaxed mb-8">
-                    Buka email tersebut dan klik tombol <strong>"Reset Password Saya"</strong>
-                    untuk mengatur password baru. Link berlaku selama <strong>24 jam</strong>.
+                    Open the email and click the <strong>"Reset My Password"</strong> button
+                    to set a new password. The link is valid for <strong>24 hours</strong>.
                 </p>
             @else
-                <h1 class="text-2xl font-bold text-gray-900 mb-2">Cek Email Anda</h1>
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h1>
                 <p class="text-gray-600 text-sm leading-relaxed mb-4">
-                    Kami telah mengirimkan email aktivasi ke
+                    We have sent an activation email to
                     @if($email)
                         <span class="font-semibold text-gray-800">{{ $email }}</span>
                     @else
-                        alamat email yang terdaftar pada akun Anda
+                        the email address registered to your account
                     @endif
                     .
                 </p>
                 <p class="text-gray-500 text-sm leading-relaxed mb-8">
-                    Buka email tersebut dan klik tombol <strong>"Atur Password Saya"</strong>
-                    untuk mengatur password baru sebelum dapat masuk ke sistem.
-                    Link berlaku selama <strong>24 jam</strong>.
+                    Open the email and click the <strong>"Set My Password"</strong> button
+                    to set a new password before you can log in to the system.
+                    The link is valid for <strong>24 hours</strong>.
                 </p>
             @endif
 
             <!-- Tips -->
             <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left mb-8">
-                <p class="text-xs font-semibold text-amber-800 mb-1">Tidak menerima email?</p>
+                <p class="text-xs font-semibold text-amber-800 mb-1">Didn't receive the email?</p>
                 <ul class="text-xs text-amber-700 list-disc list-inside space-y-1">
-                    <li>Periksa folder <strong>Spam / Junk</strong></li>
-                    <li>Pastikan email yang digunakan sudah benar</li>
+                    <li>Check your <strong>Spam / Junk</strong> folder</li>
+                    <li>Make sure the email address you used is correct</li>
                     @if($type === 'reset')
                         <li>
                             <a href="{{ route('password-setup.forgot') }}" class="underline font-semibold">
-                                Kirim ulang link reset password
+                                Resend password reset link
                             </a>
                         </li>
                     @else
-                        <li>Hubungi tim helpdesk jika masih tidak menerima email</li>
+                        <li>Contact the helpdesk team if you still do not receive the email</li>
                     @endif
                 </ul>
             </div>
@@ -82,7 +82,7 @@
                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                 </svg>
-                Kembali ke halaman login
+                Back to login page
             </a>
 
         </div>

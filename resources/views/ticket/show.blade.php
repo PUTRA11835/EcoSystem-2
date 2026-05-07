@@ -451,6 +451,25 @@
         </div>
         @endif
 
+        {{-- ── Deliverable Panel ── --}}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
+            <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+                 onclick="toggleSidebarPanel('deliverablePanel', 'deliverableChevron')">
+                <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Deliverable</h4>
+                <i id="deliverableChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
+            </div>
+            <div id="deliverablePanel" class="px-4 pb-4 pt-1 border-t border-gray-100">
+                <button onclick="openDeliverableModal()"
+                    class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    View Documents
+                    <span id="delivBadgeCount" class="hidden ml-1 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none"></span>
+                </button>
+            </div>
+        </div>
+
         {{-- ── Properties Panel ── --}}
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
             <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
@@ -573,19 +592,22 @@
                     </div>
                     @if($canManageMembers)
                     <div class="flex gap-1.5">
-                        <div class="relative flex-1 min-w-0">
-                            <select id="addMemberSelect"
-                                    class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white primary-focus appearance-none">
-                                <option value="">-- Add member --</option>
+                        <div id="addMemberDd" class="custom-dd relative flex-1 min-w-0" data-fixed="true">
+                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white primary-focus text-left">
+                                <span class="custom-dd-label text-gray-500 truncate">-- Add member --</span>
+                                <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform duration-200 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <input type="hidden" id="addMemberSelect" value="">
+                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:320px;">
+                                <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Add member --</button>
                                 @foreach($employees as $emp)
                                     @if(!in_array($emp['employee_id'], $currentMemberIds) && $emp['employee_id'] != $ticket->employee_id)
-                                        <option value="{{ $emp['employee_id'] }}">{{ $emp['name'] }}</option>
+                                        <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $emp['employee_id'] }}">{{ $emp['name'] }}</button>
                                     @endif
                                 @endforeach
-                            </select>
-                            <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                            </div>
                         </div>
-                        <button type="button" onclick="addMemberBtn()"
+                        <button type="button" id="addMemberBtnEl" onclick="addMemberBtn()"
                                 class="px-2.5 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all flex-shrink-0"
                                 title="Add member">
                             <i class="fas fa-user-plus text-[10px]"></i>
@@ -769,6 +791,24 @@
 }
 .msg-channel-email { background: #dbeafe; color: #1d4ed8; }
 .msg-channel-web   { background: #f0fdf4; color: #15803d; }
+
+/* Status delivery indicator (WhatsApp-style) — hanya untuk reply helpdesk */
+.msg-status-row {
+    display: flex; justify-content: flex-end;
+    margin-top: 6px; padding-top: 4px;
+    border-top: 1px solid rgba(0,0,0,0.04);
+}
+.msg-status {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; color: #9ca3af; user-select: none; cursor: default;
+    line-height: 1;
+}
+.msg-status.read { color: #2563eb; font-weight: 600; }
+.msg-status .check-pair {
+    display: inline-flex; align-items: center; flex-shrink: 0;
+}
+.msg-status .check-pair svg { width: 12px; height: 12px; }
+.msg-status .check-pair svg + svg { margin-left: -7px; }
 
 /* Message content */
 .message-content p { margin-bottom: 0.25rem; }
@@ -2057,7 +2097,61 @@
         return `<div class="message-content text-sm text-gray-700">${linkifyText(msg.message_body)}</div>`;
     }
 
+    // Status delivery icon: single check (sent) dan double check (delivered/read)
+    const ICON_CHECK_SINGLE = `<span class="check-pair"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg></span>`;
+    const ICON_CHECK_DOUBLE = `<span class="check-pair"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg></span>`;
+
+    /**
+     * Status indikator delivery untuk reply helpdesk → customer.
+     * - Sent (✓ abu-abu)            : pesan tersimpan ke DB (default web)
+     * - Sent via email (✓✓ abu-abu) : email berhasil dikirim ke inbox customer
+     * - Read (✓✓ biru)              : customer sudah baca pesan di Jarvies
+     *
+     * Tidak ditampilkan untuk: pesan customer (sender_type='customer'),
+     * internal note, atau system message — indikator hanya relevan saat
+     * helpdesk perlu tahu apakah pesannya sampai dan dibaca customer.
+     */
+    function statusIndicator(msg) {
+        if (msg.sender_type !== 'employee') return '';
+        if (msg.message_type === 'internal_note') return '';
+
+        // Format read_at sebagai tooltip "Read at 06 May 2026, 14:25 (WIB)"
+        let readAtTip = '';
+        if (msg.read_at) {
+            try {
+                const t = new Date(msg.read_at).toLocaleString('en-GB', {
+                    timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit', hour12: false
+                }) + ' (WIB)';
+                readAtTip = `Read at ${t}`;
+            } catch (e) { readAtTip = 'Read by customer'; }
+        } else {
+            readAtTip = 'Read by customer';
+        }
+
+        if (msg.is_read_by_customer) {
+            return `<div class="msg-status read" title="${readAtTip}">${ICON_CHECK_DOUBLE}<span>Read</span></div>`;
+        }
+
+        if (msg.channel === 'email' && msg.email_message_id) {
+            return `<div class="msg-status" title="Delivered to customer email">${ICON_CHECK_DOUBLE}<span>Sent via email</span></div>`;
+        }
+
+        return `<div class="msg-status" title="Saved to ticket">${ICON_CHECK_SINGLE}<span>Sent</span></div>`;
+    }
+
     function createMessageBubble(msg) {
+        // System messages (status changes, audit log) → centered pill, no bubble
+        if (msg.sender_type === 'system' || /^Status change to "/i.test(msg.message_body || msg.message || '')) {
+            const date = new Date(msg.created_at).toLocaleString('en-GB', {
+                timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', hour12: false
+            }) + ' (WIB)';
+            return `<div class="flex justify-center my-2">
+                <span class="text-xs text-gray-500 bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-full" title="${date}">${escHtml(msg.message_body || msg.message || '')}</span>
+            </div>`;
+        }
+
         const isEmployee     = msg.sender_type === 'employee';
         const isInternalNote = msg.message_type === 'internal_note';
         const senderName     = msg.sender_name || (isEmployee ? 'Employee' : 'Customer');
@@ -2150,6 +2244,10 @@
         const avatarBg   = isEmployee ? 'bg-blue-500' : 'bg-gray-400';
         const bubbleClass = isEmployee ? 'employee' : 'customer';
 
+        // Status delivery indicator (hanya untuk reply helpdesk → customer)
+        const statusHtml    = statusIndicator(msg);
+        const statusSection = statusHtml ? `<div class="msg-status-row">${statusHtml}</div>` : '';
+
         return `
             <div class="flex gap-3 ${isEmployee ? 'flex-row-reverse' : ''}">
                 <div class="w-8 h-8 ${avatarBg} rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">${initials}</div>
@@ -2165,6 +2263,7 @@
                     <div class="message-bubble ${bubbleClass} p-3 inline-block text-left">
                         ${messageContent(msg)}
                         ${attachmentsHtml}
+                        ${statusSection}
                     </div>
                 </div>
             </div>`;
@@ -2588,27 +2687,48 @@
                 </div>`).join('');
         }
 
-        // Rebuild dropdown: show only employees not already in members and not the PIC
-        const sel = document.getElementById('addMemberSelect');
-        if (sel) {
-            sel.innerHTML = '<option value="">-- Add member --</option>';
+        // Rebuild custom-dd panel items: show only employees not already in members
+        // and not the PIC. Preserve search input wrapper + empty-state element.
+        const ddPanel = document.querySelector('#addMemberDd .custom-dd-panel');
+        const hidden  = document.getElementById('addMemberSelect');
+        if (ddPanel) {
+            const searchWrap = ddPanel.querySelector('.custom-dd-search-wrap');
+            const emptyEl    = ddPanel.querySelector('.custom-dd-empty');
+
+            // Build new items HTML (placeholder + filtered employees)
+            const escAttr = (s) => String(s).replace(/"/g, '&quot;');
+            const escTxt  = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const itemCls = 'custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors';
+            let itemsHtml = `<button type="button" class="${itemCls}" data-value="">-- Add member --</button>`;
             allEmployees.forEach(emp => {
                 if (!memberIds.has(emp.employee_id) && emp.employee_id != {{ $ticket->employee_id ?? 'null' }}) {
-                    const opt = document.createElement('option');
-                    opt.value = emp.employee_id;
-                    opt.textContent = emp.name;
-                    sel.appendChild(opt);
+                    itemsHtml += `<button type="button" class="${itemCls}" data-value="${escAttr(emp.employee_id)}">${escTxt(emp.name)}</button>`;
                 }
             });
+
+            // Replace items, preserve search + empty-state refs (panel-level click delegation
+            // di custom-dropdown.js tetap menangkap item baru tanpa re-init).
+            ddPanel.innerHTML = '';
+            if (searchWrap) ddPanel.appendChild(searchWrap);
+            ddPanel.insertAdjacentHTML('beforeend', itemsHtml);
+            if (emptyEl) ddPanel.appendChild(emptyEl);
+
+            // Reset selection state
+            if (hidden) hidden.value = '';
+            const label = document.querySelector('#addMemberDd .custom-dd-label');
+            if (label) {
+                label.textContent = '-- Add member --';
+                label.className   = 'custom-dd-label text-gray-500 truncate';
+            }
         }
     }
 
     async function addMemberBtn() {
-        const sel   = document.getElementById('addMemberSelect');
-        const empId = sel?.value;
+        const hidden = document.getElementById('addMemberSelect');
+        const empId  = hidden?.value;
         if (!empId) { showNotification('Please select a member to add.', 'error'); return; }
 
-        const btn = sel.nextElementSibling;
+        const btn = document.getElementById('addMemberBtnEl');
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-[10px]"></i>'; }
 
         try {
@@ -4744,6 +4864,459 @@ function copyFolderLink() {
         showToast('Link copied!', 'success');
     });
 }
+</script>
+
+{{-- Load custom-dd script + cache buster supaya production auto-invalidate setiap deploy. --}}
+@php
+    $customDdPath = public_path('js/custom-dropdown.js');
+    $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
+@endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
+<script>
+    // Init custom-dd untuk Add Member dropdown setelah script di atas dimuat.
+    if (typeof initCustomDropdowns === 'function') {
+        initCustomDropdowns();
+    }
+</script>
+
+{{-- ==================== REUSABLE CONFIRM MODAL ==================== --}}
+<div id="confirmModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4">
+        <div class="px-6 pt-6 pb-3">
+            <div class="flex items-start gap-3">
+                <div id="confirmIconWrap" class="w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5"></div>
+                <div>
+                    <h3 id="confirmTitle" class="text-sm font-bold text-gray-900 mb-1">Confirm</h3>
+                    <p id="confirmMessage" class="text-sm text-gray-600 leading-relaxed"></p>
+                </div>
+            </div>
+        </div>
+        <div class="px-6 pb-5 pt-2 flex gap-2 justify-end">
+            <button id="confirmCancelBtn"
+                class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition font-medium">
+                Cancel
+            </button>
+            <button id="confirmOkBtn"
+                class="px-4 py-2 text-sm font-semibold text-white rounded-lg transition">
+                OK
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- ==================== DELIVERABLE MODAL ==================== --}}
+<div id="deliverableModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 flex flex-col" style="max-height:90vh">
+        {{-- Header --}}
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+            <div>
+                <h3 class="text-base font-bold text-gray-900">Deliverable Documents</h3>
+                <p class="text-xs text-gray-400 mt-0.5">{{ $ticket->ticket_number }} — {{ Str::limit($ticket->description, 50) }}</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="openNewDocModal()"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold rounded-lg transition">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    New Document
+                </button>
+                <button onclick="closeDeliverableModal()"
+                    class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        {{-- Table --}}
+        <div class="overflow-auto flex-1 px-2">
+            <table class="w-full text-xs border-collapse" id="deliverableTable">
+                <thead class="sticky top-0 bg-white z-10">
+                    <tr class="border-b border-gray-200">
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Upload Date</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Time</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" style="min-width:90px">Doc Type</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide" style="min-width:200px">Body Text</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide" style="min-width:160px">File Name</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="deliverableBody">
+                    <tr>
+                        <td colspan="7" class="text-center py-10 text-gray-400">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="px-6 py-3 border-t border-gray-100 text-[10px] text-gray-400 shrink-0" id="deliverableFooter"></div>
+    </div>
+</div>
+
+{{-- ==================== NEW DOCUMENT MODAL ==================== --}}
+<div id="newDocModal" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+            <h3 class="text-sm font-bold text-gray-900">New Document</h3>
+            <button onclick="closeNewDocModal()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="px-5 py-4 space-y-4">
+            {{-- Doc Type --}}
+            <div>
+                <label class="text-xs font-semibold text-gray-600 mb-1 block">Doc Type <span class="text-red-500">*</span></label>
+                <select id="ndDocType" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 focus:outline-none">
+                    <option value="">-- Select --</option>
+                    @foreach(['IR','RCA','CR Form','FSD','TD','UAT','MOM','BAST','Other'] as $dt)
+                    <option value="{{ $dt }}">{{ $dt }}</option>
+                    @endforeach
+                </select>
+            </div>
+            {{-- Body Text --}}
+            <div>
+                <label class="text-xs font-semibold text-gray-600 mb-1 block">Body Text</label>
+                <textarea id="ndBodyText" rows="3" placeholder="Short description..."
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-red-400 focus:outline-none"></textarea>
+            </div>
+            {{-- File --}}
+            <div>
+                <label class="text-xs font-semibold text-gray-600 mb-1 block">File
+                    @if(!$ticket->onedrive_folder_id)
+                    <span class="ml-1 text-orange-500 font-normal">(generate folder first)</span>
+                    @endif
+                </label>
+                <div class="flex items-center gap-2">
+                    <label class="flex-1 cursor-pointer flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                        <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                        </svg>
+                        <span id="ndFileName" class="text-xs text-gray-400 truncate">Choose file...</span>
+                        <input type="file" id="ndFile" class="hidden" onchange="updateFileName()">
+                    </label>
+                    <button onclick="document.getElementById('ndFile').value=''; document.getElementById('ndFileName').textContent='Choose file...'"
+                        class="px-2 py-2 text-gray-400 hover:text-red-500 transition" title="Clear">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            {{-- Error --}}
+            <p id="ndError" class="hidden text-xs text-red-600 font-medium"></p>
+        </div>
+        <div class="px-5 pb-5 flex gap-2">
+            <button onclick="submitNewDoc()" id="ndSubmitBtn"
+                class="flex-1 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold py-2.5 rounded-lg transition">
+                Save Document
+            </button>
+            <button onclick="closeNewDocModal()"
+                class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==================== REUSABLE CONFIRM HELPER ====================
+/**
+ * Tampilkan modal konfirmasi custom (mengganti browser confirm()).
+ * @param {string} message   - Isi pesan konfirmasi
+ * @param {string} title     - Judul modal (default: 'Confirm')
+ * @param {string} variant   - 'danger' (tombol merah) | 'primary' (tombol biru) | default abu-abu
+ * @returns {Promise<boolean>}
+ */
+function showConfirm(message, title = 'Confirm', variant = 'default') {
+    return new Promise(resolve => {
+        const modal     = document.getElementById('confirmModal');
+        const titleEl   = document.getElementById('confirmTitle');
+        const msgEl     = document.getElementById('confirmMessage');
+        const okBtn     = document.getElementById('confirmOkBtn');
+        const cancelBtn = document.getElementById('confirmCancelBtn');
+        const iconWrap  = document.getElementById('confirmIconWrap');
+
+        titleEl.textContent = title;
+        msgEl.textContent   = message;
+
+        // Icon & warna tombol sesuai variant
+        if (variant === 'danger') {
+            iconWrap.className = 'w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-red-100';
+            iconWrap.innerHTML = `<svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>`;
+            okBtn.className = 'px-4 py-2 text-sm font-semibold text-white bg-red-700 hover:bg-red-800 rounded-lg transition';
+        } else if (variant === 'primary') {
+            iconWrap.className = 'w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-blue-100';
+            iconWrap.innerHTML = `<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 110 20A10 10 0 0112 2z"/></svg>`;
+            okBtn.className = 'px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition';
+        } else {
+            iconWrap.className = 'w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-gray-100';
+            iconWrap.innerHTML = `<svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M12 2a10 10 0 110 20A10 10 0 0112 2z"/></svg>`;
+            okBtn.className = 'px-4 py-2 text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800 rounded-lg transition';
+        }
+
+        modal.classList.remove('hidden');
+
+        function cleanup() {
+            modal.classList.add('hidden');
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+            modal.removeEventListener('click', onBackdrop);
+        }
+        function onOk()      { cleanup(); resolve(true); }
+        function onCancel()  { cleanup(); resolve(false); }
+        function onBackdrop(e) { if (e.target === modal) onCancel(); }
+
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        modal.addEventListener('click', onBackdrop);
+    });
+}
+
+// ==================== DELIVERABLE JS ====================
+const DELIV_TICKET_ID = {{ $ticket->ticket_id }};
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.content ?? '{{ csrf_token() }}';
+let deliverableData = [];
+
+const DOC_TYPE_ROWS = ['IR', 'RCA', 'CR Form', 'FSD', 'TD', 'UAT', 'MOM', 'BAST', 'Other'];
+
+async function openDeliverableModal() {
+    document.getElementById('deliverableModal').classList.remove('hidden');
+    await loadDeliverables();
+}
+
+function closeDeliverableModal() {
+    document.getElementById('deliverableModal').classList.add('hidden');
+}
+
+async function loadDeliverables() {
+    document.getElementById('deliverableBody').innerHTML =
+        `<tr><td colspan="7" class="text-center py-10 text-gray-400">Loading...</td></tr>`;
+
+    try {
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables`, {
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message);
+        deliverableData = json.data ?? [];
+        renderDeliverableTable(deliverableData);
+
+        // Update badge
+        const badge = document.getElementById('delivBadgeCount');
+        if (deliverableData.length > 0) {
+            badge.textContent = deliverableData.length;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+
+        const footer = document.getElementById('deliverableFooter');
+        if (!json.has_folder) {
+            footer.innerHTML = '<span class="text-orange-500">⚠ No OneDrive folder — generate folder first to enable file upload.</span>';
+        } else {
+            footer.innerHTML = json.folder_url
+                ? `<a href="${json.folder_url}" target="_blank" rel="noopener" class="text-blue-500 hover:underline">🔗 Open OneDrive Folder</a>`
+                : '';
+        }
+    } catch (e) {
+        document.getElementById('deliverableBody').innerHTML =
+            `<tr><td colspan="7" class="text-center py-8 text-red-500 text-xs">Failed to load: ${e.message}</td></tr>`;
+    }
+}
+
+function renderDeliverableTable(data) {
+    if (!data || data.length === 0) {
+        document.getElementById('deliverableBody').innerHTML =
+            `<tr><td colspan="7" class="text-center py-14 text-gray-400">
+                <svg class="w-9 h-9 mx-auto mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                No documents yet. Click <strong>+ New Document</strong> to add one.
+            </td></tr>`;
+        return;
+    }
+
+    const rows = data.map(d => {
+        const statusCls = d.status === 'Sended'
+            ? 'bg-green-100 text-green-700'
+            : 'bg-orange-100 text-orange-700';
+
+        const fileCell = d.file_name
+            ? (d.file_url
+                ? `<a href="${escHtmlD(d.file_url)}" target="_blank" rel="noopener" class="text-blue-600 hover:underline truncate max-w-[160px] block">${escHtmlD(d.file_name)}</a>`
+                : `<span class="text-gray-600 truncate max-w-[160px] block">${escHtmlD(d.file_name)}</span>`)
+            : '<span class="text-gray-300">—</span>';
+
+        const sendBtn = d.status !== 'Sended'
+            ? `<button onclick="sendDeliverable(${d.id})"
+                class="text-[10px] text-blue-600 hover:text-blue-800 font-semibold border border-blue-200 px-1.5 py-0.5 rounded hover:bg-blue-50 transition">
+                Send to Customer</button>`
+            : '';
+
+        const delBtn = `<button onclick="deleteDeliverable(${d.id})"
+            class="text-[10px] text-red-500 hover:text-red-700 font-semibold border border-red-200 px-1.5 py-0.5 rounded hover:bg-red-50 transition ml-1">
+            Delete</button>`;
+
+        return `<tr class="border-b border-gray-100 hover:bg-gray-50/60">
+            <td class="px-3 py-2 text-gray-600 whitespace-nowrap">${escHtmlD(d.upload_date ?? '—')}</td>
+            <td class="px-3 py-2 text-gray-600 whitespace-nowrap">${escHtmlD(d.upload_time ?? '—')}</td>
+            <td class="px-3 py-2">
+                <span class="inline-block bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-semibold px-1.5 py-0.5 rounded">${escHtmlD(d.doc_type)}</span>
+            </td>
+            <td class="px-3 py-2 text-gray-700 max-w-[220px]">
+                <span class="line-clamp-2">${d.body_text ? escHtmlD(d.body_text) : '<span class="text-gray-300">—</span>'}</span>
+            </td>
+            <td class="px-3 py-2">${fileCell}</td>
+            <td class="px-3 py-2 whitespace-nowrap">
+                <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ${statusCls}">${escHtmlD(d.status)}</span>
+            </td>
+            <td class="px-3 py-2 whitespace-nowrap">${sendBtn}${delBtn}</td>
+        </tr>`;
+    });
+
+    document.getElementById('deliverableBody').innerHTML = rows.join('');
+}
+
+function escHtmlD(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── New Document modal ─────────────────────────────────────────────
+function openNewDocModal() {
+    document.getElementById('ndDocType').value = '';
+    document.getElementById('ndBodyText').value = '';
+    document.getElementById('ndFile').value = '';
+    document.getElementById('ndFileName').textContent = 'Choose file...';
+    document.getElementById('ndError').classList.add('hidden');
+    document.getElementById('ndSubmitBtn').disabled = false;
+    document.getElementById('newDocModal').classList.remove('hidden');
+}
+
+function closeNewDocModal() {
+    document.getElementById('newDocModal').classList.add('hidden');
+}
+
+function updateFileName() {
+    const f = document.getElementById('ndFile').files[0];
+    document.getElementById('ndFileName').textContent = f ? f.name : 'Choose file...';
+}
+
+async function submitNewDoc() {
+    const docType  = document.getElementById('ndDocType').value.trim();
+    const bodyText = document.getElementById('ndBodyText').value.trim();
+    const file     = document.getElementById('ndFile').files[0];
+    const errEl    = document.getElementById('ndError');
+
+    errEl.classList.add('hidden');
+
+    if (!docType) { errEl.textContent = 'Please select a Doc Type.'; errEl.classList.remove('hidden'); return; }
+
+    const submitBtn = document.getElementById('ndSubmitBtn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving…';
+
+    try {
+        const form = new FormData();
+        form.append('doc_type',  docType);
+        if (bodyText) form.append('body_text', bodyText);
+        if (file)     form.append('file', file);
+
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            credentials: 'same-origin',
+            body: form,
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message);
+
+        closeNewDocModal();
+        await loadDeliverables();
+        showToast('Document saved successfully.', 'success');
+    } catch (e) {
+        errEl.textContent = 'Error: ' + e.message;
+        errEl.classList.remove('hidden');
+        showToast('Upload failed: ' + e.message, 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save Document';
+    }
+}
+
+async function sendDeliverable(id) {
+    if (!await showConfirm('Mark this document as "Sended to Customer"?', 'Send to Customer')) return;
+    try {
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/send`, {
+            method: 'PATCH',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            credentials: 'same-origin',
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message);
+        await loadDeliverables();
+        showToast('Document sent to customer.', 'success');
+    } catch (e) {
+        showDelivError(e.message);
+        showToast('Failed to send: ' + e.message, 'error');
+    }
+}
+
+async function deleteDeliverable(id) {
+    if (!await showConfirm('Delete this deliverable document? This cannot be undone.', 'Delete Document', 'danger')) return;
+    try {
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            credentials: 'same-origin',
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message);
+        await loadDeliverables();
+        showToast('Document deleted.', 'success');
+    } catch (e) {
+        showDelivError(e.message);
+        showToast('Failed to delete: ' + e.message, 'error');
+    }
+}
+
+// Tampilkan error di footer modal deliverable (non-blocking)
+function showDelivError(msg) {
+    const el = document.getElementById('deliverableFooter');
+    if (!el) return;
+    el.innerHTML = `<span class="text-red-600 font-medium">⚠ ${msg}</span>`;
+    setTimeout(() => { if (el.querySelector('.text-red-600')) el.innerHTML = ''; }, 5000);
+}
+
+// Close deliverable modal on backdrop click
+document.getElementById('deliverableModal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeliverableModal();
+});
+document.getElementById('newDocModal').addEventListener('click', function(e) {
+    if (e.target === this) closeNewDocModal();
+});
+
+// Load badge on page load
+(async () => {
+    try {
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables`, {
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (json.success && (json.data ?? []).length > 0) {
+            const badge = document.getElementById('delivBadgeCount');
+            badge.textContent = json.data.length;
+            badge.classList.remove('hidden');
+        }
+    } catch {}
+})();
 </script>
 
 @endsection

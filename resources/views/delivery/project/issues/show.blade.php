@@ -1,7 +1,7 @@
 @extends('dashboard')
-@section('title', 'Detail Isu Proyek')
-@section('page-title', 'Detail Isu')
-@section('page-subtitle', 'Lihat detail isu proyek')
+@section('title', 'Project Issue Detail')
+@section('page-title', 'Issue Detail')
+@section('page-subtitle', 'View project issue details')
 
 @section('content')
 <div class="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200">
@@ -15,7 +15,7 @@
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
                 </svg>
-                Kembali
+                Back
             </a>
         </div>
     </div>
@@ -25,7 +25,7 @@
 <div class="bg-white overflow-hidden shadow-md sm:rounded-lg mt-3">
     <div class="p-4 sm:p-6 border-b border-gray-200">
         <h3 class="text-lg sm:text-xl font-semibold text-gray-700">
-            Daftar Isu untuk Proyek: <span class="font-normal block sm:inline mt-1 sm:mt-0">{{ $project->name }}</span>
+            Issues for Project: <span class="font-normal block sm:inline mt-1 sm:mt-0">{{ $project->name }}</span>
         </h3>
         <p class="mt-1 text-xs sm:text-sm text-gray-600">Client: {{ $project->client->company_name ?? 'N/A' }}</p>
     </div>
@@ -39,7 +39,7 @@
                     <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
                         <div class="flex justify-between items-start">
                             <div>
-                                <p class="text-xs text-gray-500">Tanggal:</p>
+                                <p class="text-xs text-gray-500">Date:</p>
                                 <p class="text-sm font-semibold text-gray-900">{{ $issue->created_at->format('d M Y') }}</p>
                             </div>
                             <div class="flex gap-2">
@@ -59,13 +59,13 @@
                     <div class="px-4 py-3 space-y-3">
                         {{-- Issue --}}
                         <div>
-                            <p class="text-xs text-gray-500 font-semibold">ISU:</p>
+                            <p class="text-xs text-gray-500 font-semibold">ISSUE:</p>
                             <p class="text-sm text-gray-900 mt-1">{{ $issue->highlight_issue }}</p>
                         </div>
                         
                         {{-- Action --}}
                         <div>
-                            <p class="text-xs text-gray-500 font-semibold">AKSI:</p>
+                            <p class="text-xs text-gray-500 font-semibold">ACTION:</p>
                             <p class="text-sm text-gray-900 mt-1">{{ $issue->action }}</p>
                         </div>
                         
@@ -73,7 +73,7 @@
                         <div class="pt-3 border-t border-gray-200">
                             <div class="flex justify-between items-center">
                                 <div>
-                                    <span class="text-xs text-gray-500">Kompleksitas:</span>
+                                    <span class="text-xs text-gray-500">Complexity:</span>
                                     <span class="ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full 
                                         {{ $issue->complexity === 'Medium' ? 'bg-yellow-100 text-yellow-800' : 
                                            ($issue->complexity === 'Low' ? 'bg-gray-100 text-gray-800' :
@@ -100,8 +100,8 @@
                         <svg class="w-12 h-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        <p class="text-gray-500 text-sm font-medium">Proyek ini belum memiliki data isu.</p>
-                        <p class="text-gray-400 text-xs mt-1">Isu akan muncul di sini setelah ditambahkan ke proyek.</p>
+                        <p class="text-gray-500 text-sm font-medium">This project has no issues yet.</p>
+                        <p class="text-gray-400 text-xs mt-1">Issues will appear here after they are added to the project.</p>
                     </div>
                 </div>
             @endforelse
