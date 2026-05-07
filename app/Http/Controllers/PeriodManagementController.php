@@ -344,6 +344,10 @@ class PeriodManagementController extends Controller
             'end_date'   => 'required|date|after:start_date',
         ]);
 
+        if (ReportingPeriod::hasOverlap($data['start_date'], $data['end_date'], $period->id)) {
+            return $this->invalid('Period dates overlap with an existing period. Please choose a non-overlapping range.');
+        }
+
         $period->start_date = $data['start_date'];
         $period->end_date   = $data['end_date'];
         $period->save();

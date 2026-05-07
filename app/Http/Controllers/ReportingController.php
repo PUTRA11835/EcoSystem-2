@@ -399,7 +399,6 @@ class ReportingController extends Controller
                     $range['start']->format('Y-m-d'),
                     $range['end']->format('Y-m-d'),
                 ])
-                ->whereNotNull('timesheets.presence')
                 ->select(
                     'timesheets.id',
                     'timesheets.date',
@@ -453,7 +452,6 @@ class ReportingController extends Controller
                     $range['start']->format('Y-m-d'),
                     $range['end']->format('Y-m-d'),
                 ])
-                ->whereNotNull('timesheets.presence')
                 ->select(
                     'timesheets.date',
                     DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
@@ -464,12 +462,17 @@ class ReportingController extends Controller
                 ->orderBy('timesheets.date')
                 ->get();
 
-            $exportRows = $rows->map(fn($r) => [
-                'name'    => trim($r->employee_name),
-                'date'    => $r->date,
-                'mode'    => $r->mode,
-                'mandays' => round((float) $r->mandays, 2),
-            ]);
+            // Aggregate: same employee + same mode → one merged row
+            $exportRows = $rows
+                ->groupBy(fn($r) => trim($r->employee_name) . '||' . $r->mode)
+                ->map(fn($group) => [
+                    'name'    => trim($group->first()->employee_name),
+                    'mode'    => $group->first()->mode,
+                    'entries' => $group->count(),
+                    'mandays' => round((float) $group->sum(fn($r) => (float) $r->mandays), 2),
+                ])
+                ->sortBy([['name', 'asc'], ['mode', 'asc']])
+                ->values();
 
             $filename = "MD_Recap_{$this->monthName($month)}_{$year}.xlsx";
 

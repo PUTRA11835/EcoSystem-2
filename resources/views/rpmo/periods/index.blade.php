@@ -384,14 +384,14 @@
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Year</label>
-                    <input type="number" id="cpYear" min="2020" max="2100"
+                    <input type="number" id="cpYear" min="2020" max="2100" required
                         oninput="computeDefaultDates()"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus-ring">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Month</label>
                     <div class="relative">
-                        <select id="cpMonth" onchange="computeDefaultDates()"
+                        <select id="cpMonth" onchange="computeDefaultDates()" required
                             class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus-ring appearance-none">
                             <option value="">Select</option>
                             @foreach(['','January','February','March','April','May','June','July','August','September','October','November','December'] as $i => $m)
@@ -408,11 +408,11 @@
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Start Date</label>
-                    <input type="date" id="cpStartDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus-ring">
+                    <input type="date" id="cpStartDate" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus-ring">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">End Date</label>
-                    <input type="date" id="cpEndDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus-ring">
+                    <input type="date" id="cpEndDate" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus-ring">
                 </div>
             </div>
             <p class="text-[10px] text-gray-400">Dates can be customized. Default follows the 21st–20th rule.</p>

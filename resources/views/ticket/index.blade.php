@@ -337,7 +337,7 @@
                 </div>
                 <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
                     <button type="button" onclick="closeCreateTicketModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Cancel</button>
-                    <button type="submit" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Create Ticket</button>
+                    <button type="submit" id="btnCreateTicket" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Create Ticket</button>
                 </div>
             </form>
         </div>
@@ -938,13 +938,16 @@
         document.getElementById('createTicketForm').reset();
         document.getElementById('customerSearch').value = '';
         document.getElementById('newCustomerId').value = '';
-        // Reset dropdown options visibility
+        const btn = document.getElementById('btnCreateTicket');
+        if (btn) { btn.disabled = false; btn.textContent = 'Create Ticket'; }
         const options = document.querySelectorAll('.customer-option');
         options.forEach(opt => opt.classList.remove('hidden'));
     }
 
     async function submitCreateTicket(e) {
         e.preventDefault();
+        const btn = document.getElementById('btnCreateTicket');
+        btn.disabled = true; btn.textContent = 'Creating…';
         const form = document.getElementById('createTicketForm');
         const ticketTypeVal = form.querySelector('#newTicketType').value;
         const data = {
@@ -966,8 +969,14 @@
                 showNotification('Ticket created successfully!', 'success');
                 closeCreateTicketModal();
                 loadTickets();
-            } else { showNotification(result.message || 'Failed to create ticket', 'error'); }
-        } catch (error) { showNotification('Failed to create ticket: ' + error.message, 'error'); }
+            } else {
+                showNotification(result.message || 'Failed to create ticket', 'error');
+                btn.disabled = false; btn.textContent = 'Create Ticket';
+            }
+        } catch (error) {
+            showNotification('Failed to create ticket: ' + error.message, 'error');
+            btn.disabled = false; btn.textContent = 'Create Ticket';
+        }
     }
 
     // ==================== COLLAPSIBLE SECTIONS ====================
