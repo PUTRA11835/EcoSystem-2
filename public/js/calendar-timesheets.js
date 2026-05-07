@@ -24,6 +24,7 @@ const SUPPORT_THEAD_HTML = `<tr>
     <th class="${TH}" style="min-width:55px;">Month</th>
     <th class="${TH}" style="min-width:55px;">Year</th>
     <th class="${TH}" style="min-width:130px;">Name</th>
+    <th class="${TH}" style="min-width:100px;">Status</th>
     <th class="${TH}" style="min-width:130px;">Ticket</th>
     <th class="${TH}" style="min-width:180px;">Description</th>
     <th class="${TH}" style="min-width:120px;">Customer</th>
@@ -31,7 +32,6 @@ const SUPPORT_THEAD_HTML = `<tr>
     <th class="${TH}" style="min-width:180px;">Activity</th>
     <th class="${TH}" style="min-width:90px;">MD Consumed</th>
     <th class="${TH}" style="min-width:70px;">On Site</th>
-    <th class="${TH}" style="min-width:100px;">Status</th>
 </tr>`;
 let currentFilters = {
     start_date: null,
@@ -1304,6 +1304,7 @@ function renderTimesheetRows() {
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">' + bln + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">' + thn + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-800 font-medium">' + nam + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap">' + statusCell + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs font-semibold text-purple-700"><i class="fas fa-ticket-alt mr-1 opacity-60"></i>' + tkt + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-600 max-w-[180px]" title="' + escapeHtml(ts.ticket_description || '') + '">' + tdesc + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700">' + cust + '</td>'
@@ -1311,7 +1312,6 @@ function renderTimesheetRows() {
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700 max-w-[180px]" title="' + escapeHtml(ts.description || '') + '">' + akt + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">' + mdc + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-bold text-green-700">' + ons + '</td>'
-                + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap">' + statusCell + '</td>'
                 + '</tr>';
         }
         tbody.innerHTML = rows;
@@ -1802,7 +1802,7 @@ async function openSubmitModal(id) {
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
     const timesheet = timesheets.find(t => String(t.id) === String(id));
 
-    // For support timesheets, check remaining MD quota before allowing submit
+    // For support timesheets, enforce mandays quota before allowing submit
     if (timesheet?.ticket_id) {
         try {
             const res  = await fetch(`/api/timesheets/remaining-md?ticket_id=${timesheet.ticket_id}`, {
@@ -1810,18 +1810,26 @@ async function openSubmitModal(id) {
                 credentials: 'same-origin'
             });
             const data = await res.json();
-            if (data?.success && data.data?.remaining !== null) {
-                const remaining = Number(data.data.remaining);
-                if (remaining < 0) {
+            if (data?.success) {
+                const remaining = data.data?.remaining;
+                if (remaining === null || remaining === undefined) {
                     showNotification(
-                        `Cannot submit: quota exceeded (remaining MD: ${remaining.toFixed(2)}). Save as draft only until quota is increased.`,
+                        'Cannot submit: no approved mandays proposal found for this ticket. Contact your Head.',
+                        'error'
+                    );
+                    return;
+                }
+                const rem = Number(remaining);
+                if (rem < 0) {
+                    showNotification(
+                        `Cannot submit: quota exceeded (remaining MD: ${rem.toFixed(2)}). Save as draft only until quota is increased.`,
                         'error'
                     );
                     return;
                 }
             }
         } catch (e) {
-            // Network error — proceed, backend will validate
+            // Network error — backend will validate
         }
     }
 
@@ -2020,8 +2028,10 @@ async function openBulkSubmitModal() {
                     credentials: 'same-origin'
                 });
                 const data = await res.json();
-                if (data?.success && data.data?.remaining !== null) {
-                    remainingByTicket[ticketId] = Number(data.data.remaining);
+                if (data?.success) {
+                    const rem = data.data?.remaining;
+                    // null means no approved proposal — store -Infinity so it is treated as over-quota
+                    remainingByTicket[ticketId] = (rem !== null && rem !== undefined) ? Number(rem) : -Infinity;
                 }
             } catch (e) {}
         }));
@@ -2147,7 +2157,10 @@ function showRejectionReason(id) {
 
 async function handleFormSubmit(e) {
     e.preventDefault();
-    
+
+    const saveBtn = document.getElementById('btnSaveTimesheet');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+
     const timesheetId = document.getElementById('timesheetId');
     
     const userMeta = document.querySelector('meta[name="user-data"]');
@@ -2247,10 +2260,12 @@ async function handleFormSubmit(e) {
             await loadStatistics();
         } else {
             showNotification('Failed to save timesheet: ' + (data.message || 'Unknown error'), 'error');
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Timesheet'; }
         }
     } catch (error) {
         console.error('Error:', error);
         showNotification('An error occurred while saving timesheet', 'error');
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Timesheet'; }
     }
 }
 

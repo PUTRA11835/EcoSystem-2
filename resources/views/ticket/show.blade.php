@@ -267,8 +267,8 @@
                     <div class="bg-white border border-gray-300 rounded-lg overflow-hidden">
                         <div id="quillEditor" style="min-height: 80px;"></div>
                     </div>
-                    {{-- @mention autocomplete dropdown --}}
-                    <div id="mentionDropdown" class="hidden absolute z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-72 max-h-48 overflow-y-auto" style="bottom: calc(100% + 4px); left: 0;">
+                    {{-- @mention autocomplete dropdown — fixed so it's never clipped by overflow parents --}}
+                    <div id="mentionDropdown" class="hidden fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl overflow-y-auto" style="max-height:192px;">
                         <div id="mentionList" class="py-1"></div>
                     </div>
                 </div>
@@ -349,7 +349,7 @@
                            || $canTakeTicket || $canAssignPic || in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true);
     @endphp
 
-    <div id="rightSidePanel" class="hidden xl:flex xl:flex-col w-72 gap-3 flex-shrink-0 overflow-y-auto" style="transition: width 0.25s ease, opacity 0.25s ease;">
+    <div id="rightSidePanel" class="hidden xl:flex xl:flex-col w-64 gap-3 flex-shrink-0 overflow-y-auto" style="transition: width 0.25s ease, opacity 0.25s ease;">
 
         {{-- ── Mandays Panel ── --}}
         @if($hasMandaysSection)
@@ -1749,6 +1749,18 @@
             });
         });
 
+        // Position relative to the quill editor using fixed coords (avoids overflow clipping)
+        const editorEl = document.getElementById('quillEditor');
+        if (editorEl) {
+            const rect = editorEl.getBoundingClientRect();
+            dropdown.style.left  = rect.left + 'px';
+            dropdown.style.width = rect.width + 'px';
+            // Appear above the editor; clamp max-height so it never goes off screen
+            const spaceAbove = rect.top - 8;
+            dropdown.style.maxHeight = Math.min(192, spaceAbove) + 'px';
+            dropdown.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+            dropdown.style.top = 'auto';
+        }
         dropdown.classList.remove('hidden');
     }
 
@@ -3799,14 +3811,18 @@
             });
             const data = await res.json();
             if (data.success) {
-                showNotification('Internal draft saved!', 'success');
+                if (data.data_changed === false) {
+                    showNotification('No changes detected — approval status unchanged.', 'info');
+                } else {
+                    showNotification('Draft saved. Submit to Head Support for approval.', 'success');
+                }
                 internalUpdateSidebarBadge(data.internal_mandays_status);
                 internalPicData = data.data;
             } else {
                 showNotification(data.message || 'Failed', 'error');
             }
         } catch(e) { showNotification('Error: ' + e.message, 'error'); }
-        finally { btn.disabled = false; btn.textContent = 'Save Draft'; }
+        finally { btn.disabled = false; btn.textContent = 'Save'; }
     }
 
     async function internalPicSubmit() {

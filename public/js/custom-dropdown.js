@@ -132,9 +132,17 @@ function _positionFixed(btn, panel) {
 
     // Set core fixed positioning properties.
     panel.style.position = 'fixed';
-    panel.style.left     = `${r.left}px`;
-    panel.style.width    = `${r.width}px`;
     panel.style.zIndex   = '9999';
+    // Don't force the panel width to match the tiny button — let min-width rule.
+    panel.style.width    = '';
+    // Horizontal: prefer left-aligned to button; flip to right-aligned if it
+    // would overflow the viewport.
+    const minW = parseInt(panel.style.minWidth, 10) || 120;
+    if (r.left + minW > window.innerWidth - 8) {
+        panel.style.left = `${Math.max(4, r.right - minW)}px`;
+    } else {
+        panel.style.left = `${r.left}px`;
+    }
 
     // Estimasi tinggi panel hanya dari inline max-height (lebih reliable
     // daripada scrollHeight yang bisa 0 di edge case render). Default 280

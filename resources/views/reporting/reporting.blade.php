@@ -63,7 +63,7 @@
                 <span id="periodStatus" class="font-semibold"></span>
             </div>
             {{-- Export Excel --}}
-            <button onclick="exportExcel()"
+            <button id="btnExportExcel" onclick="exportExcel()"
                 class="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-all duration-200 shadow-sm">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -238,13 +238,55 @@
                     <tr class="bg-gray-50 border-b border-gray-200">
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:160px;">Employee</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:110px;">Date</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:130px;">Ticket</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:130px;">Customer</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:130px;">
+                            <div class="flex items-center gap-1.5">
+                                <span>Ticket</span>
+                                <div class="custom-dd relative" id="rptTicketFilterDd" data-onchange="rptTicketFilterChanged" data-fixed="true">
+                                    <button type="button" class="custom-dd-btn flex items-center normal-case font-normal tracking-normal text-xs text-gray-400 hover:text-gray-600 cursor-pointer bg-transparent border-0 p-0 focus:outline-none">
+                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" id="rptFilterTicket" value="">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:180px;">
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:130px;">
+                            <div class="flex items-center gap-1.5">
+                                <span>Customer</span>
+                                <div class="custom-dd relative" id="rptCustomerFilterDd" data-onchange="rptCustomerFilterChanged" data-fixed="true">
+                                    <button type="button" class="custom-dd-btn flex items-center normal-case font-normal tracking-normal text-xs text-gray-400 hover:text-gray-600 cursor-pointer bg-transparent border-0 p-0 focus:outline-none">
+                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" id="rptFilterCustomer" value="">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:200px;">
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:95px;">MD Input</th>
                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:90px;">Quota MD</th>
                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:90px;">Remain</th>
                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:100px;">MD Status</th>
-                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:105px;">Approval</th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:105px;">
+                            <div class="flex items-center justify-center gap-1.5">
+                                <span>Approval</span>
+                                <div class="custom-dd relative" id="rptApprovalFilterDd" data-onchange="rptApprovalFilterChanged" data-fixed="true">
+                                    <button type="button" class="custom-dd-btn flex items-center normal-case font-normal tracking-normal text-xs text-gray-400 hover:text-gray-600 cursor-pointer bg-transparent border-0 p-0 focus:outline-none">
+                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" id="rptFilterApproval" value="">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:140px;">
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="approved">Approved</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="submitted">Submitted</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="draft">Draft</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody id="rptTableBody" class="divide-y divide-gray-100 bg-white">
@@ -389,7 +431,12 @@ function exportExcel() {
         showNotification('Period info not loaded yet. Please wait.', 'error');
         return;
     }
+    const btn = document.getElementById('btnExportExcel');
+    if (btn) { btn.disabled = true; btn.textContent = 'Exporting…'; }
     window.location.href = `/reporting/export-excel?year=${currentPeriod.year}&month=${currentPeriod.month}`;
+    setTimeout(() => {
+        if (btn) { btn.disabled = false; btn.textContent = 'Export Excel'; }
+    }, 3000);
 }
 @endif
 
@@ -437,6 +484,7 @@ async function loadReport() {
         if (!json.success) throw new Error(json.message || 'API error');
 
         rptAllData = json.data || [];
+        populateRptColumnFilters();
         applyRptFilter();
     } catch (e) {
         console.error(e);
@@ -463,17 +511,60 @@ async function loadReport() {
 }
 
 function applyRptFilter() {
-    const statusFilter = document.getElementById('rptFilterStatus').value;
-    const nameFilter   = (document.getElementById('rptFilterName').value || '').trim().toLowerCase();
+    const statusFilter   = document.getElementById('rptFilterStatus').value;
+    const nameFilter     = (document.getElementById('rptFilterName').value || '').trim().toLowerCase();
+    const ticketFilter   = document.getElementById('rptFilterTicket').value;
+    const customerFilter = document.getElementById('rptFilterCustomer').value;
+    const approvalFilter = document.getElementById('rptFilterApproval').value;
 
     rptFiltered = rptAllData.filter(r => {
-        const matchStatus = !statusFilter || r.status === statusFilter;
-        const matchName   = !nameFilter   || String(r.employee_name ?? '').toLowerCase().includes(nameFilter);
-        return matchStatus && matchName;
+        const matchStatus   = !statusFilter   || r.status === statusFilter;
+        const matchName     = !nameFilter     || String(r.employee_name ?? '').toLowerCase().includes(nameFilter);
+        const matchTicket   = !ticketFilter   || String(r.ticket_number || r.ticket_id || '') === ticketFilter;
+        const matchCustomer = !customerFilter || r.customer_name === customerFilter;
+        const matchApproval = !approvalFilter || r.timesheet_status === approvalFilter;
+        return matchStatus && matchName && matchTicket && matchCustomer && matchApproval;
     });
     renderRptTable();
     updateRptCards();
 }
+
+function populateRptColumnFilters() {
+    const ticketHidden   = document.getElementById('rptFilterTicket');
+    const customerHidden = document.getElementById('rptFilterCustomer');
+
+    // Ticket
+    const tickets = [...new Set(rptAllData.map(r => String(r.ticket_number || r.ticket_id || '')).filter(Boolean))].sort();
+    const ticketPanel = document.getElementById('rptTicketFilterDd').querySelector('.custom-dd-panel');
+    ticketPanel.innerHTML = '<button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>';
+    tickets.forEach(t => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50';
+        btn.dataset.value = t;
+        btn.textContent = '#' + t;
+        ticketPanel.appendChild(btn);
+    });
+    if (!tickets.includes(ticketHidden.value)) ticketHidden.value = '';
+
+    // Customer
+    const customers = [...new Set(rptAllData.map(r => r.customer_name || '').filter(Boolean))].sort();
+    const customerPanel = document.getElementById('rptCustomerFilterDd').querySelector('.custom-dd-panel');
+    customerPanel.innerHTML = '<button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>';
+    customers.forEach(c => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50';
+        btn.dataset.value = c;
+        btn.textContent = c;
+        customerPanel.appendChild(btn);
+    });
+    if (!customers.includes(customerHidden.value)) customerHidden.value = '';
+}
+
+window.rptTicketFilterChanged   = applyRptFilter;
+window.rptCustomerFilterChanged = applyRptFilter;
+window.rptApprovalFilterChanged = applyRptFilter;
 
 function filterCardStatus(status) {
     if (typeof setCustomDropdownValue === 'function') {
@@ -490,9 +581,15 @@ function resetReport() {
     if (typeof setCustomDropdownValue === 'function') {
         setCustomDropdownValue('rptMonth', String(p.month));
         setCustomDropdownValue('rptFilterStatus', '');
+        setCustomDropdownValue('rptFilterTicket', '');
+        setCustomDropdownValue('rptFilterCustomer', '');
+        setCustomDropdownValue('rptFilterApproval', '');
     } else {
         document.getElementById('rptMonth').value = p.month;
         document.getElementById('rptFilterStatus').value = '';
+        document.getElementById('rptFilterTicket').value = '';
+        document.getElementById('rptFilterCustomer').value = '';
+        document.getElementById('rptFilterApproval').value = '';
     }
     updateRptPeriodLabel();
     document.getElementById('rptFilterName').value = '';
