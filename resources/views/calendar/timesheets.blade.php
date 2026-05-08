@@ -296,6 +296,7 @@
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:55px;">Month</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:55px;">Year</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Name</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Status</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Ticket</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:180px;">Description</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Customer</th>
@@ -303,7 +304,6 @@
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:180px;">Activity</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:90px;">MD Consumed</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:70px;">On Site</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Status</th>
                     </tr>
                     @else
                     <tr>
@@ -634,7 +634,7 @@
         {{-- Footer --}}
         <div class="flex items-center justify-between px-6 py-4 border-t border-gray-100 flex-shrink-0 bg-gray-50/40">
             <p class="text-xs text-gray-400"><span class="text-red-500">*</span> Required fields</p>
-            <button type="submit" form="timesheetForm"
+            <button type="submit" form="timesheetForm" id="btnSaveTimesheet"
                 class="px-6 py-2 text-sm font-semibold text-white primary-gradient hover:opacity-90 transition-all shadow-sm rounded-lg">
                 Save Timesheet
             </button>
@@ -946,7 +946,6 @@ async function loadLateAccessHistory() {
                     <p class="text-sm font-semibold text-gray-900">${r.period_label}</p>
                     <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold shrink-0 ${r.status_color}">${r.status_label}</span>
                 </div>
-                <p class="text-xs text-gray-500">${r.period_start} – ${r.period_end}</p>
                 ${r.notes ? `<p class="text-xs text-gray-600 mt-1.5 bg-gray-50 rounded px-2 py-1">${r.notes}</p>` : ''}
                 ${r.status === 'pending_head' ? `<p class="text-xs text-yellow-600 mt-1.5"><i class="fas fa-hourglass-half mr-1"></i>Waiting for Head approval.</p>` : ''}
                 ${r.status === 'pending_rpmo' ? `<p class="text-xs text-blue-600 mt-1.5"><i class="fas fa-hourglass-half mr-1"></i>Approved by Head. Waiting for RPMO.</p>` : ''}

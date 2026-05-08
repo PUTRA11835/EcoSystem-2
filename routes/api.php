@@ -307,16 +307,11 @@ Route::middleware(['web'])->group(function () {
         // Routes with {id} parameter last
         Route::get('/{id}', [TicketController::class, 'show']);
         Route::get('/{id}/mandays-history', [TicketController::class, 'getMandaysHistory']);
-        Route::get('/{id}/negotiation-history', [TicketController::class, 'getNegotiationHistory']);
         Route::post('/{id}/take', [TicketController::class, 'takeTicket']);
         Route::post('/{id}/assign-pic', [TicketController::class, 'assignPic']);
         Route::put('/{id}', [TicketController::class, 'update']);
         Route::put('/{id}/update-status', [TicketController::class, 'updateTicketStatus']);
         Route::put('/{id}/update-mandays', [TicketController::class, 'updateManDays']);
-        Route::delete('/{id}', [TicketController::class, 'destroy']);
-        Route::post('/{id}/send-to-customer', [TicketController::class, 'sendToCustomer']);
-        Route::post('/{id}/customer-response', [TicketController::class, 'customerResponse']);
-        Route::post('/{id}/admin-response', [TicketController::class, 'adminResponse']);
         Route::post('/{id}/members', [TicketController::class, 'addMember']);
         Route::delete('/{id}/members/{employeeId}', [TicketController::class, 'removeMember']);
         Route::post('/{id}/update-members', [TicketController::class, 'updateMembers']);

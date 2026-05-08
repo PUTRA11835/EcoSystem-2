@@ -148,7 +148,7 @@
                 <thead class="sticky top-0 z-10">
                     <tr class="bg-gray-50 border-b border-gray-200">
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Entries</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Mode</th>
                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Mandays</th>
                     </tr>
@@ -361,20 +361,19 @@ function renderRecap() {
     }
     empty.classList.add('hidden');
 
-    const fmtDate = (d) => {
-        if (!d) return '—';
-        const [y, m, day] = String(d).split('-');
-        return `${day}/${m}/${y}`;
-    };
     const modeBadge = (mode) => (mode || '').toLowerCase() === 'onsite'
         ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700">OnSite</span>`
         : `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">Remote</span>`;
 
-    // Group entries by employee
+    // Group by employee → mode → {count, mandays}
     const grouped = new Map();
     filtered.forEach(row => {
-        if (!grouped.has(row.name)) grouped.set(row.name, []);
-        grouped.get(row.name).push(row);
+        if (!grouped.has(row.name)) grouped.set(row.name, new Map());
+        const modeMap = grouped.get(row.name);
+        if (!modeMap.has(row.mode)) modeMap.set(row.mode, { count: 0, mandays: 0 });
+        const agg = modeMap.get(row.mode);
+        agg.count++;
+        agg.mandays += Number(row.mandays || 0);
     });
 
     let totalMd     = 0;
@@ -383,15 +382,14 @@ function renderRecap() {
     const empCount  = grouped.size;
 
     let html = '';
-    grouped.forEach((entries, name) => {
-        const subtotal = entries.reduce((s, r) => s + Number(r.mandays || 0), 0);
-        totalMd += subtotal;
-        entries.forEach(r => {
-            if ((r.mode || '').toLowerCase() === 'onsite') totalOnsite += Number(r.mandays || 0);
-            else totalRemote += Number(r.mandays || 0);
+    grouped.forEach((modeMap, name) => {
+        modeMap.forEach((agg, mode) => {
+            totalMd += agg.mandays;
+            if ((mode || '').toLowerCase() === 'onsite') totalOnsite += agg.mandays;
+            else totalRemote += agg.mandays;
         });
 
-        // Employee header row (name only)
+        // Employee header row
         const initials = name.trim().split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
         html += `<tr class="recap-emp-row border-t-2 border-gray-200">
             <td class="px-4 py-2.5" colspan="4">
@@ -402,20 +400,21 @@ function renderRecap() {
             </td>
         </tr>`;
 
-        // One row per timesheet entry
-        entries.forEach(r => {
-            const isOnsite   = (r.mode || '').toLowerCase() === 'onsite';
+        // One merged row per mode
+        modeMap.forEach((agg, mode) => {
+            const isOnsite   = (mode || '').toLowerCase() === 'onsite';
             const valueColor = isOnsite ? 'text-green-700 font-semibold' : 'text-blue-700 font-semibold';
+            const entryLabel = agg.count === 1 ? '1 entry' : `${agg.count} entries`;
             html += `<tr class="recap-sub-row border-t border-gray-100">
                 <td class="px-4 py-2">
                     <span class="inline-flex items-center gap-2 pl-6 text-xs text-gray-400">
                         <span class="w-1 h-1 rounded-full bg-gray-300 shrink-0"></span>
-                        Entry
+                        ${entryLabel}
                     </span>
                 </td>
-                <td class="px-4 py-2 text-xs text-gray-600 whitespace-nowrap">${fmtDate(r.date)}</td>
-                <td class="px-4 py-2">${modeBadge(r.mode)}</td>
-                <td class="px-4 py-2 text-sm text-center ${valueColor}">${Number(r.mandays).toFixed(2)}</td>
+                <td class="px-4 py-2"></td>
+                <td class="px-4 py-2">${modeBadge(mode)}</td>
+                <td class="px-4 py-2 text-sm text-center ${valueColor}">${agg.mandays.toFixed(2)}</td>
             </tr>`;
         });
     });

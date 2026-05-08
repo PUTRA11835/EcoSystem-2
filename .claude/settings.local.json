@@ -124,7 +124,12 @@
       "Bash(where mysqldump *)",
       "Read(//c/xampp/mysql/bin/**)",
       "Read(//c/Program Files/**)",
-      "Bash(php -r 'require '\\\\''c:/EcoSystem-2/vendor/autoload.php'\\\\''; $app = require '\\\\''c:/EcoSystem-2/bootstrap/app.php'\\\\''; $app->make\\('\\\\''Illuminate\\\\Contracts\\\\Console\\\\Kernel'\\\\''\\)->bootstrap\\(\\); $roles = DB::table\\('\\\\''employee_role'\\\\''\\)->get\\(\\); echo json_encode\\($roles, JSON_PRETTY_PRINT\\);')"
+      "Bash(php -r 'require '\\\\''c:/EcoSystem-2/vendor/autoload.php'\\\\''; $app = require '\\\\''c:/EcoSystem-2/bootstrap/app.php'\\\\''; $app->make\\('\\\\''Illuminate\\\\Contracts\\\\Console\\\\Kernel'\\\\''\\)->bootstrap\\(\\); $roles = DB::table\\('\\\\''employee_role'\\\\''\\)->get\\(\\); echo json_encode\\($roles, JSON_PRETTY_PRINT\\);')",
+      "Bash(Get-ChildItem -Path \"c:\\\\EcoSystem-2\\\\resources\\\\views\\\\\" -Recurse -Filter \"*.blade.php\" | Select-Object -ExpandProperty FullName | Head -20)",
+      "Bash(Select-String \"Mandays\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\EcoSystem-2\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(git -C \"c:/EcoSystem-2\" diff --stat HEAD)"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",

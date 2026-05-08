@@ -56,10 +56,28 @@ class ReportingPeriod extends Model
 
     // ── Computed helpers ──────────────────────────────────────────────────────
 
-    /** Human-readable period label, e.g. "March 2026" */
+    /** Human-readable period label, e.g. "March 2026 (21 Feb 2026 – 20 Mar 2026)" */
     public function getLabel(): string
     {
-        return Carbon::create($this->year, $this->month, 1)->format('F Y');
+        static $short = [
+            1=>'Jan',2=>'Feb',3=>'Mar',4=>'Apr',
+            5=>'May',6=>'Jun',7=>'Jul',8=>'Aug',
+            9=>'Sep',10=>'Oct',11=>'Nov',12=>'Dec',
+        ];
+
+        $name = Carbon::create($this->year, $this->month, 1)->format('F Y');
+
+        if ($this->start_date && $this->end_date) {
+            $s = Carbon::parse($this->start_date);
+            $e = Carbon::parse($this->end_date);
+            $range = "{$s->day} {$short[$s->month]} {$s->year} – {$e->day} {$short[$e->month]} {$e->year}";
+            return "{$name} ({$range})";
+        }
+
+        // Fallback: compute from convention (21st prev month → 20th current month)
+        $sm = $this->month === 1 ? 12 : $this->month - 1;
+        $sy = $this->month === 1 ? $this->year - 1 : $this->year;
+        return "{$name} (21 {$short[$sm]} {$sy} – 20 {$short[$this->month]} {$this->year})";
     }
 
     /** Is the period globally active (open)? */
@@ -134,6 +152,28 @@ class ReportingPeriod extends Model
         $start = Carbon::create($startYear, $startMonth, 21)->startOfDay();
         $end   = Carbon::create($year, $month, 20)->endOfDay();
         return ['start' => $start, 'end' => $end];
+    }
+
+    /**
+     * Check whether a date range overlaps any existing period.
+     * Pass $excludeId when updating an existing period so it is not compared against itself.
+     *
+     * Overlap exists when:
+     *   - Another period's start_date or end_date falls inside [start, end], OR
+     *   - Another period completely contains [start, end]
+     */
+    public static function hasOverlap(string $startDate, string $endDate, ?int $excludeId = null): bool
+    {
+        return self::when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+            ->where(function ($q) use ($startDate, $endDate) {
+                $q->whereBetween('start_date', [$startDate, $endDate])
+                  ->orWhereBetween('end_date', [$startDate, $endDate])
+                  ->orWhere(function ($q2) use ($startDate, $endDate) {
+                      $q2->where('start_date', '<=', $startDate)
+                         ->where('end_date', '>=', $endDate);
+                  });
+            })
+            ->exists();
     }
 
     /**

@@ -179,16 +179,7 @@ class PeriodService
             throw new \InvalidArgumentException("Period {$year}-{$month} already exists.");
         }
 
-        $overlap = ReportingPeriod::where(function ($q) use ($startDate, $endDate) {
-            $q->whereBetween('start_date', [$startDate, $endDate])
-              ->orWhereBetween('end_date', [$startDate, $endDate])
-              ->orWhere(function ($q2) use ($startDate, $endDate) {
-                  $q2->where('start_date', '<=', $startDate)
-                     ->where('end_date', '>=', $endDate);
-              });
-        })->exists();
-
-        if ($overlap) {
+        if (ReportingPeriod::hasOverlap($startDate, $endDate)) {
             throw new \InvalidArgumentException('Period dates overlap with an existing period.');
         }
 
