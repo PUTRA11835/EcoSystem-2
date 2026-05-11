@@ -493,10 +493,9 @@ function fillModal(s) {
                     <select id="approveScale"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
                         <option value="">Select scale…</option>
-                        <option value="Small">Small</option>
+                        <option value="Simple">Simple</option>
                         <option value="Medium">Medium</option>
-                        <option value="Large">Large</option>
-                        <option value="Enterprise">Enterprise</option>
+                        <option value="Complex">Complex</option>
                     </select>
                     <p class="mt-1 text-[11px] text-gray-400">Optional</p>
                 </div>

@@ -21,6 +21,7 @@ class Timesheet extends Model
         'end_time',
         'duration_minutes',
         'description',
+        'notes',
         'activity_type',
         'status',
         'rejection_reason',

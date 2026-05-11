@@ -4,7 +4,7 @@
 @section('page-subtitle', 'Your mention notifications')
 
 @section('content')
-<div class="max-w-3xl mx-auto py-6 px-4">
+<div class="py-6 px-4">
 
     <div class="flex items-center justify-between mb-4">
         <h2 class="text-base font-semibold text-gray-800">All Notifications</h2>

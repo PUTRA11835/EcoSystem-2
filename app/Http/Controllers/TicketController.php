@@ -1190,9 +1190,10 @@ class TicketController extends Controller
         $validator = Validator::make($request->all(), [
             'jarvies_status' => 'sometimes|string|in:in process,author action,proposed solution,closed,sent in to SAP,sent it to support',
             'ticket_priority' => 'sometimes|string|in:Very High,High,Medium,Low',
-            'ticket_type' => 'sometimes|nullable|string|in:Incident,Service Request,Change Request,Consult',
-            'employee_id' => 'sometimes|nullable|exists:employee,employee_id',
-            'man_days' => 'sometimes|nullable|numeric|min:0|max:9999.99',
+            'ticket_type'    => 'sometimes|nullable|string|in:Incident,Service Request,Change Request,Consult',
+            'scale'          => 'sometimes|nullable|string|in:Simple,Medium,Complex',
+            'employee_id'    => 'sometimes|nullable|exists:employee,employee_id',
+            'man_days'       => 'sometimes|nullable|numeric|min:0|max:9999.99',
         ]);
 
         if ($validator->fails()) {
@@ -1217,6 +1218,9 @@ class TicketController extends Controller
             }
             if ($request->has('ticket_type') && ($isAdmin || $isHelpdesk)) {
                 $updateData['ticket_type'] = $request->ticket_type;
+            }
+            if ($request->has('scale') && ($isAdmin || $isHelpdesk)) {
+                $updateData['scale'] = $request->scale;
             }
             if ($request->has('employee_id')) {
                 $updateData['employee_id'] = $request->employee_id;

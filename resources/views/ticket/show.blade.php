@@ -533,8 +533,13 @@
                 {{-- Scale --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Scale</label>
-                    <div class="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs bg-gray-50 text-gray-500">
-                        {{ $ticket->scale ?? '—' }}
+                    <div class="relative">
+                        <select id="detailScale" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
+                            <option value="Simple" {{ ($ticket->scale == 'Simple' || !$ticket->scale) ? 'selected' : '' }}>Simple</option>
+                            <option value="Medium" {{ $ticket->scale == 'Medium' ? 'selected' : '' }}>Medium</option>
+                            <option value="Complex" {{ $ticket->scale == 'Complex' ? 'selected' : '' }}>Complex</option>
+                        </select>
+                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
                     </div>
                 </div>
                 {{-- Ticket Type --}}
@@ -542,8 +547,7 @@
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Ticket Type</label>
                     <div class="relative">
                         <select id="detailType" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
-                            <option value="" {{ !$ticket->ticket_type ? 'selected' : '' }}>-- Select Type --</option>
-                            <option value="Incident" {{ $ticket->ticket_type == 'Incident' ? 'selected' : '' }}>Incident</option>
+                            <option value="Incident" {{ ($ticket->ticket_type == 'Incident' || !$ticket->ticket_type) ? 'selected' : '' }}>Incident</option>
                             <option value="Service Request" {{ $ticket->ticket_type == 'Service Request' ? 'selected' : '' }}>Service Request</option>
                             <option value="Change Request" {{ $ticket->ticket_type == 'Change Request' ? 'selected' : '' }}>Change Request</option>
                             <option value="Consult" {{ $ticket->ticket_type == 'Consult' ? 'selected' : '' }}>Consult</option>
@@ -556,7 +560,6 @@
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Agent (PIC)</label>
                     <div class="relative">
                         <select id="detailPIC" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
-                            <option value="" {{ !$ticket->employee_id ? 'selected' : '' }}>-- Unassigned --</option>
                             @foreach($consultants as $consultant)
                                 <option value="{{ $consultant['employee_id'] }}" {{ $ticket->employee_id == $consultant['employee_id'] ? 'selected' : '' }}>
                                     {{ $consultant['name'] }}
@@ -2792,6 +2795,7 @@
         const status = document.getElementById('detailStatus').value;
         const jarviesStatus = document.getElementById('detailJarviesStatus').value;
         const priority = document.getElementById('detailPriority').value;
+        const scale = document.getElementById('detailScale').value;
         const type = document.getElementById('detailType').value;
         const pic = document.getElementById('detailPIC').value;
         try {
@@ -2807,6 +2811,7 @@
             const updateData = {
                 jarvies_status: jarviesStatus,
                 ticket_priority: priority,
+                scale: scale || null,
                 ticket_type: type || null,
                 employee_id: pic || null,
             };
@@ -3767,6 +3772,10 @@
         try {
             const res    = await fetch(MANDAYS_API('internal'), { headers: getHeaders(), credentials: 'same-origin' });
             const data   = await res.json();
+            if (!data.success) {
+                showNotification(data.message || 'Failed to load internal mandays', 'error');
+                return;
+            }
             internalPicData    = data.data;
             internalPicPeople  = data.people || [];
             const status       = data.internal_mandays_status || 'none';
@@ -3930,7 +3939,7 @@
         const validationErrors = internalPicValidate();
         if (validationErrors.length) {
             showNotification(
-                'Notes wajib diisi jika Additional MD diisi: ' + validationErrors.join(', '),
+                'Notes are required if Additional MD is filled: ' + validationErrors.join(', '),
                 'error', 6000
             );
             return;
@@ -3963,8 +3972,8 @@
         const validationErrors = internalPicValidate();
         if (validationErrors.length) {
             showNotification(
-                'Notes wajib diisi jika Additional MD diisi: ' + validationErrors.join(', '),
-                'error', 6000
+                    'Notes are required if Additional MD is filled: ' + validationErrors.join(', '),
+                    'error', 6000
             );
             return;
         }
