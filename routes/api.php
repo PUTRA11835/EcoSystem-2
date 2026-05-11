@@ -188,6 +188,8 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [CustomerController::class, 'store']);
         Route::get('/search', [CustomerController::class, 'search']);
         Route::get('/statistics', [CustomerController::class, 'statistics']);
+        Route::get('/top-level', [CustomerController::class, 'topLevel']);
+        Route::get('/grouping-data', [CustomerController::class, 'getGroupingData']);
         Route::get('/{id}', [CustomerController::class, 'show']);
         Route::put('/{id}', [CustomerController::class, 'update']);
         Route::delete('/{id}', [CustomerController::class, 'destroy']);

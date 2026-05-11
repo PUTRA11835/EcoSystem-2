@@ -102,6 +102,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         // Customer routes
         Route::prefix('customer')->name('customer.')->group(function () {
             Route::get('/', [CustomerController::class, 'index'])->name('index');
+            Route::get('/grouping', [CustomerController::class, 'grouping'])->name('grouping');
             Route::get('/{id}', [CustomerController::class, 'show'])->name('detail');
         });
     });

@@ -16,6 +16,7 @@ class Ticket extends Model
     protected $fillable = [
         'ticket_number',
         'customer_id',
+        'end_customer_id',
         'employee_id',
         'description',
         'start_date',
@@ -72,10 +73,14 @@ class Ticket extends Model
         'cc_emails'                    => 'array',
     ];
 
-    // Relasi ke Customer
     public function customer()
     {
         return $this->belongsTo(Customer::class, 'customer_id', 'customer_id');
+    }
+
+    public function endCustomer()
+    {
+        return $this->belongsTo(Customer::class, 'end_customer_id', 'customer_id');
     }
 
     // Relasi ke Employee (PIC - Person In Charge)

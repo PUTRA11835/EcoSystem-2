@@ -155,6 +155,10 @@ class CustomerController extends Controller
                     'city' => $customer->primaryAddress->city ?? null,
                     'region' => $customer->primaryAddress->region ?? null,
                     'status' => $status,
+                    'parent_customer_id' => $customer->parent_customer_id,
+                    'parent_name' => $customer->parentCustomer?->basicData?->name_1,
+                    'customer_type' => $customer->parent_customer_id ? 'end_customer' : 'top_level',
+                    'end_customers_count' => $customer->end_customers_count ?? 0,
                 ];
             });
 
@@ -187,6 +191,71 @@ class CustomerController extends Controller
                 'success' => false,
                 'message' => 'Failed to fetch customers'
             ], 500);
+        }
+    }
+
+    /**
+     * Customer grouping page (WEB)
+     */
+    public function grouping()
+    {
+        return view('master.customer.grouping', ['user' => session('user')]);
+    }
+
+    /**
+     * Get grouping data: parent customers with their end customers (API)
+     */
+    public function getGroupingData()
+    {
+        try {
+            $parents = Customer::topLevel()
+                ->with(['basicData', 'endCustomers.basicData'])
+                ->withCount('endCustomers')
+                ->having('end_customers_count', '>', 0)
+                ->get()
+                ->map(function ($parent) {
+                    return [
+                        'id'            => $parent->customer_id,
+                        'code'          => $parent->customer_code,
+                        'email'         => $parent->email,
+                        'name'          => $parent->basicData->name_1 ?? $parent->customer_code,
+                        'status'        => $parent->is_active ? 'active' : 'inactive',
+                        'end_customers' => $parent->endCustomers->map(fn($c) => [
+                            'id'     => $c->customer_id,
+                            'code'   => $c->customer_code,
+                            'email'  => $c->email,
+                            'name'   => $c->basicData->name_1 ?? $c->customer_code,
+                            'status' => $c->is_active ? 'active' : 'inactive',
+                        ])->values(),
+                    ];
+                });
+
+            return response()->json(['success' => true, 'data' => $parents]);
+        } catch (\Exception $e) {
+            Log::error('getGroupingData error', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to load grouping data'], 500);
+        }
+    }
+
+    /**
+     * Get top-level customers (no parent) for dropdown selection (API)
+     */
+    public function topLevel(Request $request)
+    {
+        try {
+            $customers = Customer::topLevel()
+                ->with('basicData')
+                ->where('is_active', true)
+                ->get()
+                ->map(fn($c) => [
+                    'id'   => $c->customer_id,
+                    'name' => $c->basicData->name_1 ?? $c->customer_code,
+                ]);
+
+            return response()->json(['success' => true, 'data' => $customers]);
+        } catch (\Exception $e) {
+            Log::error('topLevel customers error', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to fetch top-level customers'], 500);
         }
     }
 
@@ -227,9 +296,10 @@ class CustomerController extends Controller
         try {
             // Prepare customer data (company record only — no login here)
             $customerData = [
-                'customer_code' => strtoupper($request->customer_code),
-                'email'         => $request->email ?: null,
-                'is_active'     => 1,
+                'customer_code'      => strtoupper($request->customer_code),
+                'email'              => $request->email ?: null,
+                'is_active'          => 1,
+                'parent_customer_id' => $request->parent_customer_id ?: null,
             ];
 
             // Prepare basic data
