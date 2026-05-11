@@ -176,7 +176,7 @@
                         <th class="px-4 py-3 text-right cursor-pointer select-none hover:bg-gray-100 transition"
                             onclick="sortBy('total_days')" title="Sort">
                             <div class="flex items-center justify-end gap-1">
-                                Alloc MD <span id="sort-icon-total_days" class="text-gray-300">⇅</span>
+                                Alloc Days <span id="sort-icon-total_days" class="text-gray-300">⇅</span>
                             </div>
                         </th>
                         <th class="px-4 py-3 text-right cursor-pointer select-none hover:bg-gray-100 transition"
@@ -527,7 +527,7 @@
                 ${ticketCount}
             </span>
         </td>
-        <td class="px-4 py-3 text-right font-semibold text-gray-800 tabular-nums">${totalAllocMdMain.toFixed(2)} md</td>
+        <td class="px-4 py-3 text-right font-semibold text-gray-800 tabular-nums">${totalAllocMdMain.toFixed(2)} days</td>
         <td class="px-4 py-3 text-right font-semibold text-orange-600 tabular-nums">
             ${wDays} d
             <span class="ml-1 text-xs font-bold bg-orange-100 text-orange-700 rounded px-1 py-0.5">↑${Math.ceil(wDays)} d</span>
@@ -577,8 +577,8 @@
                         <th class="px-3 py-2.5 text-left w-20">Role</th>
                         <th class="px-3 py-2.5 text-left w-28">Status</th>
                         <th class="px-3 py-2.5 text-left w-20">Priority</th>
-                        <th class="px-3 py-2.5 text-right w-24">Alloc MD</th>
-                        <th class="px-3 py-2.5 text-right w-24">Add. MD</th>
+                        <th class="px-3 py-2.5 text-right w-24">Alloc Days</th>
+                        <th class="px-3 py-2.5 text-right w-24">Add. Days</th>
                         <th class="px-3 py-2.5 text-right w-36">Remain</th>
                         <th class="px-3 py-2.5 text-left w-48">Progress</th>
                     </tr>
@@ -590,10 +590,10 @@
                             Total (${visibleTickets.length} ticket${visibleTickets.length > 1 ? 's' : ''})
                         </td>
                         <td class="px-3 py-2.5 text-right text-xs font-bold text-gray-700">
-                            ${totalAllocMdMain.toFixed(1)} md
+                            ${totalAllocMdMain.toFixed(1)} days
                         </td>
                         <td class="px-3 py-2.5 text-right text-xs font-bold text-indigo-600">
-                            ${totalAddMdMain.toFixed(1)} md
+                            ${totalAddMdMain.toFixed(1)} days
                         </td>
                         <td class="px-3 py-2.5 text-right text-xs font-bold text-orange-600">
                             ${totalRemainMain.toFixed(2)} d
@@ -653,10 +653,10 @@
         <td class="px-3 py-2.5">
             <span class="px-1.5 py-0.5 rounded text-xs font-medium ${prCls}">${t.ticket_priority ?? '—'}</span>
         </td>
-        <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${ticketAllocMd > 0 ? ticketAllocMd.toFixed(2) + ' md' : '—'}</td>
+        <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${ticketAllocMd > 0 ? ticketAllocMd.toFixed(2) + ' days' : '—'}</td>
         <td class="px-3 py-2.5 text-right text-xs text-gray-500">
             ${ticketAddMd > 0
-                ? `<span class="text-indigo-600 font-semibold">${ticketAddMd.toFixed(2)} md</span>`
+                ? `<span class="text-indigo-600 font-semibold">${ticketAddMd.toFixed(2)} days</span>`
                 : '<span class="text-gray-300">—</span>'}
         </td>
         <td class="px-3 py-2.5 text-right">${remainCell}</td>

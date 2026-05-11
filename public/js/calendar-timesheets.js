@@ -761,23 +761,19 @@ async function loadTicketsForDropdown() {
             const data = await response.json();
 
             if (panel && data.success && data.data) {
-                const activeTickets = data.data.filter(t =>
-                    t.status !== 'closed' &&
-                    t.status !== 'cancel' &&
-                    t.jarvies_status !== 'closed'
-                );
-                myTicketsCache = activeTickets;
+                const allTickets = data.data;
+                myTicketsCache = allTickets;
 
-                if (activeTickets.length === 0) {
-                    panel.innerHTML = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 cursor-default" data-value="">No active tickets assigned to you</button>';
+                if (allTickets.length === 0) {
+                    panel.innerHTML = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 cursor-default" data-value="">No tickets assigned to you</button>';
                     return;
                 }
 
                 // Sort by ticket_id descending (newest first)
-                activeTickets.sort((a, b) => b.ticket_id - a.ticket_id);
+                allTickets.sort((a, b) => b.ticket_id - a.ticket_id);
 
                 let html = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50" data-value="">Select a Ticket</button>';
-                activeTickets.forEach(ticket => {
+                allTickets.forEach(ticket => {
                     const ticketLabel  = ticket.ticket_number || `#${ticket.ticket_id}`;
                     const customerCode = ticket.customer?.customer_code || ticket.customer?.customer_name || '';
                     const description  = ticket.description || '';
@@ -1689,6 +1685,8 @@ function editTimesheet(id) {
     if (timesheetId) timesheetId.value = timesheet.id;
     if (timesheetDate) timesheetDate.value = timesheet.date;
     if (timesheetDescription) timesheetDescription.value = timesheet.description || '';
+    const timesheetNotes = document.getElementById('timesheetNotes');
+    if (timesheetNotes) timesheetNotes.value = timesheet.notes || '';
 
     // Set time pickers using helper function
     setTimePicker('Start', timesheet.start_time);
@@ -2203,6 +2201,7 @@ async function handleFormSubmit(e) {
         start_time: startTime,
         end_time: endTime,
         description: document.getElementById('timesheetDescription')?.value,
+        notes: document.getElementById('timesheetNotes')?.value || null,
     };
     
     // Type-specific data
