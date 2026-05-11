@@ -129,7 +129,13 @@
       "Bash(Select-String \"Mandays\")",
       "Bash(Get-ChildItem -Path \"c:\\\\EcoSystem-2\" -Directory)",
       "Bash(Select-Object Name)",
-      "Bash(git -C \"c:/EcoSystem-2\" diff --stat HEAD)"
+      "Bash(git -C \"c:/EcoSystem-2\" diff --stat HEAD)",
+      "Bash(awk -F: '$1 >= 1050')",
+      "Bash(awk -F: '{if \\($1+0 >= 1050\\) print}')",
+      "Bash(awk -F: '{if \\($1+0 >= 3700\\) print}')",
+      "Bash(Get-ChildItem -Path \"c:\\\\EcoSystem-2\" -Recurse -Include \"*timesheet*\" -Type File)",
+      "Bash(Select-Object FullName)",
+      "Bash(git checkout *)"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",

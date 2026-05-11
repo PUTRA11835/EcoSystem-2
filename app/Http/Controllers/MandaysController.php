@@ -49,7 +49,31 @@ class MandaysController extends Controller
         }
 
         $isPic    = (int) $ticket->employee_id === (int) $empId;
-        $isMember = $ticket->members()->where('employee_id', $empId)->exists();
+        $isMember = $ticket->members()->where('ticket_member.employee_id', $empId)->exists();
+
+        if (!$isPic && !$isMember) {
+            return response()->json(['success' => false, 'message' => $msg], 403);
+        }
+
+        return null;
+    }
+
+    /** Return 403 if session user is neither a ticket participant nor a head/admin role. */
+    private function denyUnlessParticipantOrHead(Ticket $ticket, string $msg = 'You do not have access to this proposal.'): ?\Illuminate\Http\JsonResponse
+    {
+        $sessionUser = session('user');
+        $roleId      = $sessionUser['role']['id'] ?? 0;
+        $empId       = $sessionUser['id'] ?? null;
+
+        $headRoles = [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value, RoleId::HEAD_OF_PROJECT->value];
+        if (in_array($roleId, $headRoles, true)) return null;
+
+        if (!$empId) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        $isPic    = (int) $ticket->employee_id === (int) $empId;
+        $isMember = $ticket->members()->where('ticket_member.employee_id', $empId)->exists();
 
         if (!$isPic && !$isMember) {
             return response()->json(['success' => false, 'message' => $msg], 403);
@@ -540,7 +564,7 @@ class MandaysController extends Controller
         if ($ticket->employee_id) {
             $recipients->push($ticket->employee_id);
         }
-        $ticket->members()->pluck('employee_id')->each(fn ($id) => $recipients->push($id));
+        $ticket->members->pluck('employee_id')->each(fn ($id) => $recipients->push($id));
 
         $recipients->unique()->each(function ($empId) use ($canceledById, $fromName, $preview, $link) {
             Notification::create([
@@ -573,6 +597,10 @@ class MandaysController extends Controller
     {
         $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
 
+        if ($deny = $this->denyUnlessParticipantOrHead($ticket, 'Only ticket participants or Delivery Support Head can view the internal mandays proposal.')) {
+            return $deny;
+        }
+
         $proposal = ConsultantMandays::where('ticket_id', $ticketId)
             ->latestPerTicket()
             ->with(['details.employee.basicData', 'proposedByAgent.basicData', 'approvedByHead.basicData'])
@@ -598,6 +626,11 @@ class MandaysController extends Controller
     public function saveInternalProposal(Request $request, $ticketId)
     {
         $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
+
+        if ($deny = $this->denyUnlessParticipant($ticket, 'Only the ticket PIC or a member can save the internal mandays proposal.')) {
+            return $deny;
+        }
+
         $sessionUser = session('user');
         $employeeId  = $sessionUser['id'] ?? null;
 
@@ -618,7 +651,7 @@ class MandaysController extends Controller
                 if ($add > 0 && empty(trim($detail['notes'] ?? ''))) {
                     $v->errors()->add(
                         "details.{$i}.notes",
-                        'Notes wajib diisi jika Additional MD diisi.'
+                        'Notes are required if Additional MD is filled.'
                     );
                 }
             }
@@ -785,7 +818,7 @@ class MandaysController extends Controller
 
         $proposal = ConsultantMandays::where('ticket_id', $ticketId)->latestPerTicket()->first();
 
-        if (!$proposal || !in_array($proposal->status, ['draft', 'needs_revision', 'approved'])) {
+        if (!$proposal || !in_array($proposal->status, ['draft', 'needs_revision', 'rejected', 'approved'])) {
             return response()->json(['success' => false, 'message' => 'No draft to submit.'], 422);
         }
 

@@ -417,6 +417,7 @@ class TimesheetController extends Controller
                     'end_time'             => $t->end_time,
                     'duration_minutes'     => $t->duration_minutes,
                     'description'          => $t->description,
+                    'notes'                => $t->notes,
                     'activity_type'        => $t->activity_type,
                     'status'               => $t->status,
                     'rejection_reason'     => $t->rejection_reason,
@@ -500,10 +501,11 @@ class TimesheetController extends Controller
             // Base validation
             $rules = [
                 'employee_id' => 'required|exists:employee,employee_id',
-                'date' => 'required|date',
+                'date' => 'required|date|before_or_equal:today',
                 'start_time' => 'required',
                 'end_time' => 'required|after:start_time',
                 'description' => 'required|string',
+                'notes' => 'nullable|string',
                 'activity_type' => 'required|in:development,meeting,documentation,testing,support,training,other',
                 'is_billable' => 'sometimes|boolean',
                 'presence' => 'nullable|string',
@@ -634,10 +636,11 @@ class TimesheetController extends Controller
             }
 
             $rules = [
-                'date' => 'required|date',
+                'date' => 'required|date|before_or_equal:today',
                 'start_time' => 'required',
                 'end_time' => 'required|after:start_time',
                 'description' => 'required|string',
+                'notes' => 'nullable|string',
                 'activity_type' => 'required|in:development,meeting,documentation,testing,support,training,other',
                 'is_billable' => 'sometimes|boolean',
                 'presence' => 'nullable|string',

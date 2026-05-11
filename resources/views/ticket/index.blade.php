@@ -108,13 +108,8 @@
     <div id="filtersSection" class="overflow-hidden transition-all duration-300" style="max-height: 300px;">
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                {{-- Filter By: pakai custom-dd manual (sama dengan Employee/Customer)
-                     supaya tampilan & animasi konsisten. data-onchange memanggil
-                     updateFilterOptions yang menampilkan opsi sesuai tipe terpilih. --}}
                 <div class="flex flex-col">
                     <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter By</label>
-                    {{-- data-fixed="true" → panel di-detach ke body dengan position
-                         fixed agar tidak terpotong oleh #filtersSection (overflow-hidden). --}}
                     <div class="custom-dd relative" data-onchange="updateFilterOptions" data-fixed="true">
                         <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
                             <span class="custom-dd-label text-gray-500">Select Type</span>
@@ -130,11 +125,6 @@
                         </div>
                     </div>
                 </div>
-                {{-- Filter Value: opsi dinamis. Semua kemungkinan item DI-PRE-RENDER
-                     dengan atribut data-for="<filterType>" dan disembunyikan via
-                     class .filter-value-item.hidden. updateFilterOptions() hanya
-                     toggle visibility — semua handler sudah ter-bind sekali oleh
-                     initCustomDropdowns, tidak perlu re-init saat ganti tipe. --}}
                 <div class="flex flex-col">
                     <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter Value</label>
                     <div class="custom-dd relative" id="filterValueDdWrap" data-onchange="applyAdvancedFilters" data-fixed="true">
@@ -145,14 +135,12 @@
                         <input type="hidden" id="filterValueSelect" value="">
                         <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
                             <button type="button" class="custom-dd-item filter-value-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="" data-value="">Select Value</button>
-                            {{-- jarvies_status --}}
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="sent it to support">Sent It To Support</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="in process">In Process</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="author action">Author Action</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="proposed solution">Proposed Solution</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="closed">Closed</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="sent in to SAP">Sent In To SAP</button>
-                            {{-- status --}}
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="open">Open</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="in_progress">In Progress</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="hold">Hold</button>
@@ -160,12 +148,10 @@
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="cancel">Cancel</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="closed">Closed</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="reply">Reply</button>
-                            {{-- ticket_type --}}
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Incident">Incident</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Service Request">Service Request</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Change Request">Change Request</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Consult">Consult</button>
-                            {{-- priority --}}
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="priority" data-value="Very High">Very High</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="priority" data-value="High">High</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="priority" data-value="Medium">Medium</button>
@@ -226,17 +212,108 @@
             <table class="w-full text-sm border-collapse" style="min-width: 2200px;">
                 <thead class="sticky top-0 z-10 bg-gray-50">
                     <tr>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 sticky left-0 bg-gray-50 z-20" style="min-width:110px;">Last Update</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 sticky left-0 bg-gray-50 z-20 cursor-pointer select-none hover:bg-gray-100 transition" style="min-width:110px;" onclick="sortTickets('last_update')">
+                            <div class="flex items-center gap-1">Last Update <span id="sort-icon-last_update" class="text-red-500 font-bold">↑</span></div>
+                        </th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 sticky bg-gray-50 z-20" style="min-width:120px;left:110px;">Tiket</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:260px;">Description</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Date</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:160px;">Customer</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 cursor-pointer select-none hover:bg-gray-100 transition" style="min-width:100px;" onclick="sortTickets('date')">
+                            <div class="flex items-center gap-1">Date <span id="sort-icon-date" class="text-gray-300">⇅</span></div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 cursor-pointer select-none hover:bg-gray-100 transition" style="min-width:160px;" onclick="sortTickets('customer')">
+                            <div class="flex items-center gap-1">
+                                Customer <span id="sort-icon-customer" class="text-gray-300">⇅</span>
+                                <div class="custom-dd relative" data-onchange="applyAdvancedFilters" data-fixed="true" onclick="event.stopPropagation()">
+                                    <button type="button" class="custom-dd-btn flex items-center cursor-pointer bg-transparent border-0 p-0 focus:outline-none">
+                                        <svg id="col-filter-icon-customer" class="custom-dd-arrow w-3 h-3 text-gray-300 hover:text-gray-500 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" id="col-filter-customer" value="">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:180px;">
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="">All Customer</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">PIC</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:90px;">Priority</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Scale</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Status</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Jarvies Status</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Type</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 cursor-pointer select-none hover:bg-gray-100 transition" style="min-width:90px;" onclick="sortTickets('priority')">
+                            <div class="flex items-center gap-1">Priority <span id="sort-icon-priority" class="text-gray-300">⇅</span></div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 cursor-pointer select-none hover:bg-gray-100 transition" style="min-width:100px;" onclick="sortTickets('scale')">
+                            <div class="flex items-center gap-1">
+                                Scale <span id="sort-icon-scale" class="text-gray-300">⇅</span>
+                                <div class="custom-dd relative" data-onchange="applyAdvancedFilters" data-fixed="true" onclick="event.stopPropagation()">
+                                    <button type="button" class="custom-dd-btn flex items-center cursor-pointer bg-transparent border-0 p-0 focus:outline-none">
+                                        <svg id="col-filter-icon-scale" class="custom-dd-arrow w-3 h-3 text-gray-300 hover:text-gray-500 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" id="col-filter-scale" value="">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:140px;">
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="">All</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="Simple">Simple</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="Medium">Medium</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="Complex">Complex</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 cursor-pointer select-none hover:bg-gray-100 transition" style="min-width:140px;" onclick="sortTickets('status')">
+                            <div class="flex items-center gap-1">
+                                Status <span id="sort-icon-status" class="text-gray-300">⇅</span>
+                                <div class="custom-dd relative" data-onchange="applyAdvancedFilters" data-fixed="true" onclick="event.stopPropagation()">
+                                    <button type="button" class="custom-dd-btn flex items-center cursor-pointer bg-transparent border-0 p-0 focus:outline-none">
+                                        <svg id="col-filter-icon-status" class="custom-dd-arrow w-3 h-3 text-gray-300 hover:text-gray-500 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" id="col-filter-status" value="">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:150px;">
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="">All</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="open">Open</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="in_progress">In Progress</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="hold">Hold</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="wait_to_close">Wait To Close</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="cancel">Cancel</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="closed">Closed</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="reply">Reply</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 cursor-pointer select-none hover:bg-gray-100 transition" style="min-width:175px;" onclick="sortTickets('jarvies_status')">
+                            <div class="flex items-center gap-1">
+                                Jarvies Status <span id="sort-icon-jarvies_status" class="text-gray-300">⇅</span>
+                                <div class="custom-dd relative" data-onchange="applyAdvancedFilters" data-fixed="true" onclick="event.stopPropagation()">
+                                    <button type="button" class="custom-dd-btn flex items-center cursor-pointer bg-transparent border-0 p-0 focus:outline-none">
+                                        <svg id="col-filter-icon-jarvies_status" class="custom-dd-arrow w-3 h-3 text-gray-300 hover:text-gray-500 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" id="col-filter-jarvies_status" value="">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:190px;">
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="">All</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="sent it to support">Sent to Support</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="in process">In Process</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="author action">Author Action</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="proposed solution">Proposed Solution</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="sent in to SAP">Sent to SAP</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="closed">Closed</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 cursor-pointer select-none hover:bg-gray-100 transition" style="min-width:150px;" onclick="sortTickets('type')">
+                            <div class="flex items-center gap-1">
+                                Type <span id="sort-icon-type" class="text-gray-300">⇅</span>
+                                <div class="custom-dd relative" data-onchange="applyAdvancedFilters" data-fixed="true" onclick="event.stopPropagation()">
+                                    <button type="button" class="custom-dd-btn flex items-center cursor-pointer bg-transparent border-0 p-0 focus:outline-none">
+                                        <svg id="col-filter-icon-type" class="custom-dd-arrow w-3 h-3 text-gray-300 hover:text-gray-500 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" id="col-filter-type" value="">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:160px;">
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="">All</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="Incident">Incident</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="Service Request">Service Request</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="Change Request">Change Request</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 normal-case font-normal tracking-normal" data-value="Consult">Consult</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Assign Delivery</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:140px;">Customer Mandays</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:160px;">Progress</th>
@@ -439,6 +516,7 @@
     let allTickets = [];
     let filteredTickets = [];
     let currentFilter = 'all';
+    let currentTicketSort = { key: 'last_update', dir: 'desc' };
     let itemsPerPage = 20;
     let currentPage = 1;
     let totalItems = 0;
@@ -460,11 +538,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-        // Init custom-dd untuk Filter By & Filter Value. Guard typeof biar
-        // halaman tidak crash kalau custom-dropdown.js gagal di-load.
-        if (typeof initCustomDropdowns === 'function') {
-            initCustomDropdowns();
-        }
+        if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
         loadTickets();
         if (userRole === 1 || userRole === 2 || userRole === HELPDESK_ROLE) updateViewToggle();
         startEmailPolling();
@@ -554,8 +628,9 @@
             const data = await response.json();
 
             if (data.success) {
-                allTickets = data.data.sort((a, b) => new Date(b.last_message_at || b.created_at) - new Date(a.last_message_at || a.created_at));
+                allTickets = data.data;
                 filteredTickets = getViewBase();
+                populateCustomerFilter();
                 updateStats();
                 renderTickets();
             } else {
@@ -602,7 +677,8 @@
 
         const startIndex = (currentPage - 1) * itemsPerPage;
         const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-        const paginatedTickets = filteredTickets.slice(startIndex, endIndex);
+        const sortedTickets = applyTicketSort(filteredTickets);
+        const paginatedTickets = sortedTickets.slice(startIndex, endIndex);
 
         listBody.innerHTML = paginatedTickets.map(ticket => createTicketRow(ticket)).join('');
         updatePaginationDisplay();
@@ -803,9 +879,7 @@
             el.classList.add('border-red-600', 'shadow-md', 'border-2');
         }
 
-        filteredTickets = status === 'all' ? getViewBase() : getViewBase().filter(t => t.jarvies_status === status);
-        currentPage = 1;
-        renderTickets();
+        applyAdvancedFilters();
     }
 
     function searchTickets() { applyAdvancedFilters(); }
@@ -816,20 +890,15 @@
         const wrap  = document.getElementById('filterValueDdWrap');
         const items = wrap ? wrap.querySelectorAll('.filter-value-item') : [];
 
-        // Toggle visibility item per filterType — yang `data-for=""` (placeholder
-        // "Select Value") selalu tampil saat filterType ada. Item lain tampil
-        // hanya kalau data-for cocok.
         items.forEach(item => {
             const dataFor = item.dataset.for || '';
             if (!filterType) {
-                // Belum ada tipe terpilih → semua sembunyikan kecuali placeholder default
                 item.classList.toggle('hidden', dataFor !== '');
             } else {
                 item.classList.toggle('hidden', dataFor !== '' && dataFor !== filterType);
             }
         });
 
-        // Reset value & label saat tipe berubah
         if (typeof setCustomDropdownValue === 'function') {
             setCustomDropdownValue('filterValueSelect', '');
         }
@@ -839,19 +908,19 @@
             labelEl.classList.toggle('text-gray-500', !!filterType);
             labelEl.classList.toggle('text-gray-400', !filterType);
         }
-
-        // Enable/disable trigger
         if (btn) btn.disabled = !filterType;
-
-        // Trigger filter sekarang juga supaya konsisten (kalau sebelumnya ada
-        // filterValue lama yang kini di-reset, list table ikut update).
         if (typeof applyAdvancedFilters === 'function') applyAdvancedFilters();
     }
 
     function applyAdvancedFilters() {
-        const filterType = document.getElementById('filterTypeSelect').value;
-        const filterValue = document.getElementById('filterValueSelect').value;
-        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const filterType  = document.getElementById('filterTypeSelect')?.value  || '';
+        const filterValue = document.getElementById('filterValueSelect')?.value || '';
+        const colCustomer = document.getElementById('col-filter-customer')?.value || '';
+        const colStatus   = document.getElementById('col-filter-status')?.value  || '';
+        const colScale    = document.getElementById('col-filter-scale')?.value   || '';
+        const colJarvies  = document.getElementById('col-filter-jarvies_status')?.value || '';
+        const colType     = document.getElementById('col-filter-type')?.value    || '';
+        const searchTerm  = (document.getElementById('searchInput')?.value || '').toLowerCase();
 
         filteredTickets = getViewBase().filter(ticket => {
             const matchesSearch = !searchTerm ||
@@ -861,26 +930,29 @@
                 (ticket.customer?.customer_name && ticket.customer.customer_name.toLowerCase().includes(searchTerm)) ||
                 (ticket.employee?.employee_name && ticket.employee.employee_name.toLowerCase().includes(searchTerm));
 
-            let matchesFilter = true;
+            let matchesBarFilter = true;
             if (filterType && filterValue) {
-                // 'priority' in the UI maps to ticket_priority field
                 const fieldKey = filterType === 'priority' ? 'ticket_priority' : filterType;
-                matchesFilter = ticket[fieldKey] === filterValue;
+                matchesBarFilter = ticket[fieldKey] === filterValue;
             }
 
-            let matchesStatusFilter = true;
-            if (currentFilter !== 'all') matchesStatusFilter = ticket.jarvies_status === currentFilter;
+            const matchesColCust  = !colCustomer || ticket.customer?.customer_name === colCustomer;
+            const matchesColStat  = !colStatus   || ticket.status         === colStatus;
+            const matchesColScale = !colScale    || ticket.scale           === colScale;
+            const matchesColJarv  = !colJarvies  || ticket.jarvies_status === colJarvies;
+            const matchesColType  = !colType     || ticket.ticket_type    === colType;
+            const matchesCard     = currentFilter === 'all' || ticket.jarvies_status === currentFilter;
 
-            return matchesSearch && matchesFilter && matchesStatusFilter;
+            return matchesSearch && matchesBarFilter && matchesColCust && matchesColStat &&
+                   matchesColScale && matchesColJarv && matchesColType && matchesCard;
         });
+        updateColFilterIndicators();
         currentPage = 1;
         renderTickets();
     }
 
     function resetFilters() {
         document.getElementById('searchInput').value = '';
-        // Pakai setCustomDropdownValue supaya label trigger ikut reset, bukan
-        // hanya hidden input.
         if (typeof setCustomDropdownValue === 'function') {
             setCustomDropdownValue('filterTypeSelect', '');
             setCustomDropdownValue('filterValueSelect', '');
@@ -888,8 +960,6 @@
             document.getElementById('filterTypeSelect').value = '';
             document.getElementById('filterValueSelect').value = '';
         }
-        // Sembunyikan kembali semua filter-value-item kecuali placeholder, dan
-        // disable trigger Filter Value.
         const wrap = document.getElementById('filterValueDdWrap');
         if (wrap) {
             wrap.querySelectorAll('.filter-value-item').forEach(item => {
@@ -905,8 +975,122 @@
         const btn = document.getElementById('filterValueBtn');
         if (btn) btn.disabled = true;
 
+        ['customer', 'status', 'scale', 'jarvies_status', 'type'].forEach(col => {
+            if (typeof setCustomDropdownValue === 'function') {
+                setCustomDropdownValue(`col-filter-${col}`, '');
+            } else {
+                const el = document.getElementById(`col-filter-${col}`);
+                if (el) el.value = '';
+            }
+        });
         currentFilter = 'all';
         filterTickets('all');
+    }
+
+    // ── Column Filter Indicators & Customer Populate ──────────────────
+    const COL_FILTER_KEYS = ['customer', 'status', 'scale', 'jarvies_status', 'type'];
+
+    function updateColFilterIndicators() {
+        COL_FILTER_KEYS.forEach(col => {
+            const val  = document.getElementById(`col-filter-${col}`)?.value || '';
+            const icon = document.getElementById(`col-filter-icon-${col}`);
+            if (!icon) return;
+            if (val) {
+                icon.classList.remove('text-gray-300');
+                icon.classList.add('text-red-500');
+            } else {
+                icon.classList.remove('text-red-500');
+                icon.classList.add('text-gray-300');
+            }
+        });
+    }
+
+    function populateCustomerFilter() {
+        const panel = document.querySelector('#col-filter-customer')?.closest('.custom-dd')?.querySelector('.custom-dd-panel');
+        if (!panel) return;
+        const seen = new Set();
+        allTickets.forEach(t => {
+            const name = t.customer?.customer_name;
+            if (name) seen.add(name);
+        });
+        const sorted = [...seen].sort((a, b) => a.localeCompare(b));
+        panel.querySelectorAll('.custom-dd-item:not([data-value=""])').forEach(btn => btn.remove());
+        sorted.forEach(name => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 normal-case font-normal tracking-normal';
+            btn.dataset.value = name;
+            btn.textContent = name;
+            panel.appendChild(btn);
+        });
+    }
+
+    // ── Column Sort ────────────────────────────────────────────────────
+    const TICKET_SORT_KEYS = ['last_update', 'date', 'customer', 'priority', 'scale', 'status', 'jarvies_status', 'type'];
+    const PRIORITY_RANK    = { 'Very High': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
+    const SCALE_RANK       = { 'Complex': 3, 'Medium': 2, 'Simple': 1 };
+
+    function sortTickets(key) {
+        if (currentTicketSort.key === key) {
+            currentTicketSort.dir = currentTicketSort.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentTicketSort = { key, dir: key === 'last_update' ? 'desc' : 'asc' };
+        }
+        updateTicketSortIcons();
+        renderTickets();
+    }
+
+    function applyTicketSort(list) {
+        const { key, dir } = currentTicketSort;
+        return [...list].sort((a, b) => {
+            let va, vb;
+            if (key === 'last_update') {
+                va = new Date(a.last_message_at || a.created_at).getTime();
+                vb = new Date(b.last_message_at || b.created_at).getTime();
+            } else if (key === 'date') {
+                va = new Date(a.created_at).getTime();
+                vb = new Date(b.created_at).getTime();
+            } else if (key === 'customer') {
+                va = (a.customer?.customer_name || '').toLowerCase();
+                vb = (b.customer?.customer_name || '').toLowerCase();
+                return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            } else if (key === 'priority') {
+                va = PRIORITY_RANK[a.ticket_priority] ?? 0;
+                vb = PRIORITY_RANK[b.ticket_priority] ?? 0;
+            } else if (key === 'scale') {
+                va = SCALE_RANK[a.scale] ?? 0;
+                vb = SCALE_RANK[b.scale] ?? 0;
+            } else if (key === 'status') {
+                va = (a.status || '').toLowerCase();
+                vb = (b.status || '').toLowerCase();
+                return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            } else if (key === 'jarvies_status') {
+                va = (a.jarvies_status || '').toLowerCase();
+                vb = (b.jarvies_status || '').toLowerCase();
+                return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            } else if (key === 'type') {
+                va = (a.ticket_type || '').toLowerCase();
+                vb = (b.ticket_type || '').toLowerCase();
+                return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            } else {
+                return 0;
+            }
+            return dir === 'asc' ? va - vb : vb - va;
+        });
+    }
+
+    function updateTicketSortIcons() {
+        TICKET_SORT_KEYS.forEach(k => {
+            const el = document.getElementById(`sort-icon-${k}`);
+            if (!el) return;
+            if (k === currentTicketSort.key) {
+                el.textContent = currentTicketSort.dir === 'asc' ? '↓' : '↑';
+                el.className = 'text-red-500 font-bold';
+            } else {
+                el.textContent = '⇅';
+                el.className = 'text-gray-300';
+            }
+        });
     }
 
     function formatTimeAgo(date) {
