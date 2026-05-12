@@ -721,25 +721,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
 
         const startIndex = (currentPage - 1) * itemsPerPage;
         const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-        let displayTickets = filteredTickets;
-        if (sortField && sortDir) {
-            displayTickets = [...filteredTickets].sort((a, b) => {
-                let va, vb;
-                if (sortField === 'last_update') {
-                    va = new Date(a.last_message_at || a.created_at);
-                    vb = new Date(b.last_message_at || b.created_at);
-                } else if (sortField === 'ticket_number') {
-                    va = a.ticket_number || '';
-                    vb = b.ticket_number || '';
-                } else {
-                    va = new Date(a.created_at);
-                    vb = new Date(b.created_at);
-                }
-                if (va < vb) return sortDir === 'asc' ? -1 : 1;
-                if (va > vb) return sortDir === 'asc' ?  1 : -1;
-                return 0;
-            });
-        }
+        let displayTickets = applyTicketSort(filteredTickets);
         const paginatedTickets = displayTickets.slice(startIndex, endIndex);
 
         listBody.innerHTML = paginatedTickets.map(ticket => createTicketRow(ticket)).join('');
@@ -826,7 +808,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         const typeLabel = ticket.ticket_type || '—';
         const typeCls   = typeColors[ticket.ticket_type] || 'bg-gray-100 text-gray-500';
 
-        const mandays = ticket.man_days != null ? ticket.man_days : '—';
+        const mandays = ticket.customer_mandays != null ? parseFloat(ticket.customer_mandays).toFixed(1) : '—';
 
         // ── Unread detection ──
         // Blue   = customer email belum dibalas (last_customer_reply_at > last_agent_reply_at)
@@ -946,21 +928,6 @@ thead th.th-sortable:hover { background: #f3f4f6; }
 
     function searchTickets() { applyAdvancedFilters(); }
 
-    function sortTickets(field) {
-        if (sortField !== field) { sortField = field; sortDir = 'desc'; }
-        else if (sortDir === 'desc') { sortDir = 'asc'; }
-        else { sortField = null; sortDir = null; }
-        ['last_update', 'ticket_number', 'date'].forEach(f => {
-            const icon = document.getElementById('sort-icon-' + f);
-            if (!icon) return;
-            if (f !== sortField) { icon.textContent = '⇅'; icon.classList.remove('active'); return; }
-            icon.textContent = sortDir === 'desc' ? '↓' : '↑';
-            icon.classList.add('active');
-        });
-        currentPage = 1;
-        renderTickets();
-    }
-
     function populateCustomerFilter() {
         const ddEl = document.getElementById('ddColFilterCustomer');
         if (!ddEl) return;
@@ -1073,13 +1040,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
                 matchesBarFilter = ticket[fieldKey] === filterValue;
             }
 
-            const matchesColCust  = !colCustomer || ticket.customer?.customer_name === colCustomer;
-            const matchesColStat  = !colStatus   || ticket.status         === colStatus;
-            const matchesColScale = !colScale    || ticket.scale           === colScale;
-            const matchesColJarv  = !colJarvies  || ticket.jarvies_status === colJarvies;
-            const matchesColType  = !colType     || ticket.ticket_type    === colType;
-            const matchesCard     = currentFilter === 'all' || ticket.jarvies_status === currentFilter;
-
+            const matchesCard      = currentFilter === 'all' || ticket.jarvies_status === currentFilter;
             const matchColCustomer = !colCustomer || (ticket.customer?.customer_name || '').toLowerCase() === colCustomer;
             const matchColPriority = !colPriority || ticket.ticket_priority === colPriority;
             const matchColScale    = !colScale    || String(ticket.scale ?? '') === colScale;
@@ -1087,7 +1048,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
             const matchColJarvies  = !colJarvies  || ticket.jarvies_status === colJarvies;
             const matchColType     = !colType     || ticket.ticket_type === colType;
 
-            return matchesSearch && matchesFilter && matchesStatusFilter
+            return matchesSearch && matchesBarFilter && matchesCard
                 && matchColCustomer && matchColPriority && matchColScale
                 && matchColStatus && matchColJarvies && matchColType;
         });
@@ -1131,12 +1092,8 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         colDdIds.forEach(id => updateColFilterActive(id, ''));
 
         // Reset sort
-        sortField = null;
-        sortDir   = null;
-        ['last_update', 'ticket_number', 'date'].forEach(f => {
-            const icon = document.getElementById('sort-icon-' + f);
-            if (icon) { icon.textContent = '⇅'; icon.classList.remove('active'); }
-        });
+        currentTicketSort = { key: 'last_update', dir: 'desc' };
+        updateTicketSortIcons();
 
         currentFilter = 'all';
         filterTickets('all');

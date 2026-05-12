@@ -46,7 +46,7 @@ class Ticket extends Model
         'submitted_by_name',
         // Mandays status
         'mandays_proposal_status',
-        'internal_mandays_status',
+        'resolution_days_status',
         // CC recipients (disalin dari staging saat approve)
         'cc_emails',
         // Progress tracking

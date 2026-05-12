@@ -110,6 +110,14 @@ class EmployeeBasicDataController extends Controller
      */
     public function store(Request $request, $employeeId)
     {
+        // API routes don't run ConvertEmptyStringsToNull middleware,
+        // so empty-string dropdown values would fail nullable|in: rules.
+        foreach (['title', 'gender', 'religion', 'marital_status'] as $field) {
+            if ($request->input($field) === '') {
+                $request->merge([$field => null]);
+            }
+        }
+
         $validator = Validator::make($request->all(), [
             // Identitas Pribadi
             'title' => 'nullable|string|max:10',
@@ -241,6 +249,12 @@ class EmployeeBasicDataController extends Controller
                     'success' => false,
                     'message' => 'Basic data not found. Please create it first.'
                 ], 404);
+            }
+
+            foreach (['title', 'gender', 'religion', 'marital_status'] as $field) {
+                if ($request->input($field) === '') {
+                    $request->merge([$field => null]);
+                }
             }
 
             // Validate only provided fields

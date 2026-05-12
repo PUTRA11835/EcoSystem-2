@@ -29,7 +29,7 @@
                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
             <div class="col-span-2">
-                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Full Name</label>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Full Name <span class="text-red-600">*</span></label>
                 <input type="text" id="contactName"
                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
