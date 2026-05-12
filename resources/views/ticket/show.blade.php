@@ -2103,9 +2103,10 @@
             return `<div class="message-content text-sm text-gray-700 email-html-body">${linkifyHtml(sanitizeEmailHtml(msg.message_html))}</div>`;
         }
 
-        // Web reply atau customer message → escape + linkify (XSS safe)
+        // Plain text (web reply, customer message, atau email tanpa HTML body)
+        // whitespace-pre-wrap agar line break (Enter) tampil sebagai baris baru.
         if (!msg.message_body) return '';
-        return `<div class="message-content text-sm text-gray-700">${linkifyText(msg.message_body)}</div>`;
+        return `<div class="message-content text-sm text-gray-700 whitespace-pre-wrap">${linkifyText(msg.message_body)}</div>`;
     }
 
     // Status delivery icon: single check (sent) dan double check (delivered/read)

@@ -356,15 +356,45 @@ async function saveEmployeeBasicData(employeeId) {
             // Reload data to get updated timestamps
             await loadEmployeeBasicData(employeeId);
         } else {
-            showNotification('Failed to save: ' + (data.message || 'Unknown error'), 'error');
-            if (data.errors) {
-                console.error('Validation errors:', data.errors);
-            }
+            const errMsg = buildValidationErrorMessage(data.errors, data.message);
+            showToast(errMsg, 'error', data.errors ? 7000 : 4000);
         }
     } catch (error) {
         console.error('Error saving basic data:', error);
         showNotification('An error occurred while saving', 'error');
     }
+}
+
+// Build a readable HTML error message from Laravel validation errors object.
+function buildValidationErrorMessage(errors, fallbackMessage) {
+    const fieldLabels = {
+        first_name:     'First Name',
+        last_name:      'Last Name',
+        nick_name:      'Nick Name',
+        gender:         'Gender',
+        religion:       'Religion',
+        marital_status: 'Marital Status',
+        birth_date:     'Birth Date',
+        birth_place:    'Birth Place',
+        since_date:     'Since Date',
+        title:          'Title',
+    };
+
+    if (!errors || typeof errors !== 'object') {
+        return fallbackMessage || 'Failed to save. Please try again.';
+    }
+
+    const lines = [];
+    for (const [field, messages] of Object.entries(errors)) {
+        const label = fieldLabels[field] || field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const msg   = Array.isArray(messages) ? messages[0] : messages;
+        lines.push(`<span style="display:block">• <strong>${label}:</strong> ${msg}</span>`);
+    }
+
+    if (!lines.length) return fallbackMessage || 'Failed to save. Please try again.';
+
+    const header = fallbackMessage || 'Please correct the following errors:';
+    return `<span>${header}</span>${lines.join('')}`;
 }
 
 // Helper functions
