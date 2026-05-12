@@ -132,13 +132,13 @@ class EmployeeBasicDataController extends Controller
             'birth_date' => 'nullable|date',
             'birth_place' => 'nullable|string|max:255',
             'since_date' => 'nullable|date',
-            
+
             // Informasi Pencatatan
             'created_by' => 'nullable|string|max:255',
             'created_on' => 'nullable|date',
             'last_changed_by' => 'nullable|string|max:255',
             'last_changed_on' => 'nullable|date',
-            
+
             // Informasi Kepegawaian
             'personnel_area' => 'nullable|string|max:100',
             'personnel_subarea' => 'nullable|string|max:100',
@@ -150,17 +150,25 @@ class EmployeeBasicDataController extends Controller
             'direct_supervision' => 'nullable|string|max:255',
             'manager' => 'nullable|string|max:255',
             'authorization_group' => 'nullable|string|max:100',
-            
+
             // Status Administrasi
             'block' => 'nullable|boolean',
             'deletion_flag' => 'nullable|boolean',
+        ], [
+            'first_name.required' => 'First Name is required.',
+            'first_name.max'      => 'First Name may not exceed 255 characters.',
+            'gender.in'           => 'Gender must be Male or Female.',
+            'marital_status.in'   => 'Marital Status must be one of: Single, Married, Divorced, Widow/Widower.',
+            'religion.in'         => 'Religion value is not valid.',
+            'birth_date.date'     => 'Birth Date must be a valid date.',
+            'since_date.date'     => 'Since Date must be a valid date.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Employee basic information is invalid.',
-                'errors' => $validator->errors()
+                'message' => 'Please correct the following errors:',
+                'errors'  => $validator->errors(),
             ], 422);
         }
 
@@ -258,7 +266,7 @@ class EmployeeBasicDataController extends Controller
             }
 
             // Validate only provided fields
-            $validator = Validator::make($request->all(), [
+            $validator = Validator::make($partialInput, [
                 'title' => 'nullable|string|max:10',
                 'nick_name' => 'nullable|string|max:100',
                 'gender' => 'nullable|in:Male,Female',
@@ -283,13 +291,19 @@ class EmployeeBasicDataController extends Controller
                 'authorization_group' => 'nullable|string|max:100',
                 'block' => 'nullable|boolean',
                 'deletion_flag' => 'nullable|boolean',
+            ], [
+                'gender.in'         => 'Gender must be Male or Female.',
+                'marital_status.in' => 'Marital Status must be one of: Single, Married, Divorced, Widow/Widower.',
+                'religion.in'       => 'Religion value is not valid.',
+                'birth_date.date'   => 'Birth Date must be a valid date.',
+                'since_date.date'   => 'Since Date must be a valid date.',
             ]);
 
             if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Employee basic information is invalid.',
-                    'errors' => $validator->errors()
+                    'message' => 'Please correct the following errors:',
+                    'errors'  => $validator->errors(),
                 ], 422);
             }
 

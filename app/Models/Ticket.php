@@ -57,6 +57,7 @@ class Ticket extends Model
         // OneDrive
         'onedrive_folder_id',
         'onedrive_folder_url',
+        'onedrive_deliverable_folder_id',
     ];
 
     protected $casts = [

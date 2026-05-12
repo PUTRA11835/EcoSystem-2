@@ -72,11 +72,13 @@ class TicketController extends Controller
                 $shareUrl = $oneDrive->createAnonymousLink($ticket->onedrive_folder_id);
                 $ticket->update(['onedrive_folder_url' => $shareUrl]);
             } else {
-                $folderId = $oneDrive->createFolderInPath($folderName, $parentFolder);
-                $shareUrl = $oneDrive->createAnonymousLink($folderId);
+                $folderId            = $oneDrive->createFolderInPath($folderName, $parentFolder);
+                $deliverableFolderId = $oneDrive->createSubFolder($folderId, 'Deliverable');
+                $shareUrl            = $oneDrive->createAnonymousLink($folderId);
                 $ticket->update([
-                    'onedrive_folder_id'  => $folderId,
-                    'onedrive_folder_url' => $shareUrl,
+                    'onedrive_folder_id'              => $folderId,
+                    'onedrive_folder_url'             => $shareUrl,
+                    'onedrive_deliverable_folder_id'  => $deliverableFolderId,
                 ]);
             }
 

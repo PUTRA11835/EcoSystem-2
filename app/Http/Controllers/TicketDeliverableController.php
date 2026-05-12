@@ -77,12 +77,16 @@ class TicketDeliverableController extends Controller
 
             try {
                 $oneDrive = new OneDriveService();
-                $result   = $oneDrive->uploadFile(
-                    $ticket->onedrive_folder_id,
-                    $fileName,
-                    $fileContent,
-                    $mimeType
-                );
+
+                // Resolve target folder: gunakan sub-folder "Deliverable" jika tersedia.
+                // Untuk tiket lama yang belum punya sub-folder, buat sekarang dan simpan ID-nya.
+                $targetFolderId = $ticket->onedrive_deliverable_folder_id;
+                if (!$targetFolderId) {
+                    $targetFolderId = $oneDrive->createSubFolder($ticket->onedrive_folder_id, 'Deliverable');
+                    $ticket->update(['onedrive_deliverable_folder_id' => $targetFolderId]);
+                }
+
+                $result  = $oneDrive->uploadFile($targetFolderId, $fileName, $fileContent, $mimeType);
                 $fileId  = $result['id'];
                 $fileUrl = $result['webUrl'] ?? $result['downloadUrl'] ?? null;
             } catch (\Throwable $e) {

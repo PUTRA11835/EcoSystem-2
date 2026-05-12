@@ -2099,7 +2099,7 @@
 
         // Web reply atau customer message &rarr; escape + linkify (XSS safe)
         if (!msg.message_body) return '';
-        return `<div class="message-content text-sm text-gray-700">${linkifyText(msg.message_body)}</div>`;
+        return `<div class="message-content text-sm text-gray-700 whitespace-pre-wrap">${linkifyText(msg.message_body)}</div>`;
     }
 
     // Status delivery icon: single check (sent) dan double check (delivered/read)
