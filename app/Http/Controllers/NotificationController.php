@@ -128,6 +128,24 @@ class NotificationController extends Controller
     }
 
     /**
+     * DELETE /api/notifications/{id}
+     * Delete a single notification.
+     */
+    public function deleteOne($id)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        Notification::where('id', $id)
+            ->where('employee_id', $sessionUser['id'])
+            ->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
      * DELETE /api/notifications/bulk-delete
      * Delete all read notifications for the current employee.
      */

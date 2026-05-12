@@ -586,18 +586,18 @@ class MandaysController extends Controller
     }
 
     // =========================================================================
-    // INTERNAL MANDAYS — PIC + HEAD OF SUPPORT
+    // RESOLUTION MANDAYS — PIC + HEAD OF SUPPORT
     // =========================================================================
 
     /**
-     * GET /api/tickets/{ticketId}/mandays/internal
-     * Ambil proposal internal + daftar orang.
+     * GET /api/tickets/{ticketId}/mandays/resolution
+     * Ambil proposal resolution + daftar orang.
      */
-    public function getInternalProposal($ticketId)
+    public function getResolutionProposal($ticketId)
     {
         $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
 
-        if ($deny = $this->denyUnlessParticipantOrHead($ticket, 'Only ticket participants or Delivery Support Head can view the internal mandays proposal.')) {
+        if ($deny = $this->denyUnlessParticipantOrHead($ticket, 'Only ticket participants or Delivery Support Head can view the resolution days proposal.')) {
             return $deny;
         }
 
@@ -609,12 +609,12 @@ class MandaysController extends Controller
         // Bangun people list: PIC + Members aktif + Past Members
         $people = $this->buildPeopleList($ticket, $proposal);
 
-        $internalStatus = $ticket->internal_mandays_status ?? 'none';
+        $internalStatus = $ticket->resolution_days_status ?? 'none';
 
         return response()->json([
             'success'                 => true,
-            'data'                    => $proposal ? $this->formatInternalProposal($proposal) : null,
-            'internal_mandays_status' => $internalStatus,
+            'data'                    => $proposal ? $this->formatResolutionProposal($proposal) : null,
+            'resolution_days_status' => $internalStatus,
             'people'                  => $people,
         ]);
     }
@@ -623,11 +623,11 @@ class MandaysController extends Controller
      * POST /api/tickets/{ticketId}/mandays/internal
      * PIC simpan/update draft internal.
      */
-    public function saveInternalProposal(Request $request, $ticketId)
+    public function saveResolutionProposal(Request $request, $ticketId)
     {
         $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
 
-        if ($deny = $this->denyUnlessParticipant($ticket, 'Only the ticket PIC or a member can save the internal mandays proposal.')) {
+        if ($deny = $this->denyUnlessParticipant($ticket, 'Only the ticket PIC or a member can save the resolution days proposal.')) {
             return $deny;
         }
 
@@ -669,7 +669,7 @@ class MandaysController extends Controller
 
         // Snapshot details before transaction for change-detection
         $preDetails  = $existing ? $existing->details()->get()->keyBy('employee_id') : collect();
-        $dataChanged = !$existing || $this->internalDataChanged($existing, $preDetails, $request);
+        $dataChanged = !$existing || $this->resolutionDataChanged($existing, $preDetails, $request);
 
         // If pending Head approval: block edits, but allow no-op saves silently
         if ($existing && $existing->status === 'pending_approval') {
@@ -682,8 +682,8 @@ class MandaysController extends Controller
             return response()->json([
                 'success'                 => true,
                 'message'                 => 'No changes detected.',
-                'data'                    => $this->formatInternalProposal($existing->load(['details.employee.basicData', 'proposedByAgent.basicData', 'approvedByHead.basicData'])),
-                'internal_mandays_status' => 'pending_head',
+                'data'                    => $this->formatResolutionProposal($existing->load(['details.employee.basicData', 'proposedByAgent.basicData', 'approvedByHead.basicData'])),
+                'resolution_days_status' => 'pending_head',
                 'data_changed'            => false,
             ]);
         }
@@ -749,19 +749,19 @@ class MandaysController extends Controller
                 }
             }
 
-            // Map proposal status → ticket internal_mandays_status
+            // Map proposal status → ticket resolution_days_status
             $ticketStatus = match($proposal->status) {
                 'pending_approval' => 'pending_head',
                 'approved'         => 'approved',
                 default            => 'draft',
             };
-            $ticket->update(['internal_mandays_status' => $ticketStatus]);
+            $ticket->update(['resolution_days_status' => $ticketStatus]);
 
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('saveInternalProposal error', ['e' => $e->getMessage(), 'error_at' => $e->getFile() . ':' . $e->getLine()]);
-            return response()->json(['success' => false, 'message' => 'Failed to save the internal mandays proposal. Please try again.'], 500);
+            Log::error('saveResolutionProposal error', ['e' => $e->getMessage(), 'error_at' => $e->getFile() . ':' . $e->getLine()]);
+            return response()->json(['success' => false, 'message' => 'Failed to save the resolution days proposal. Please try again.'], 500);
         }
 
         return response()->json([
@@ -769,13 +769,13 @@ class MandaysController extends Controller
             'message'                 => $dataChanged
                 ? 'Draft saved. Submit to Head Support for approval.'
                 : 'Saved. No changes detected.',
-            'data'                    => $this->formatInternalProposal($proposal->fresh(['details.employee.basicData', 'proposedByAgent.basicData', 'approvedByHead.basicData'])),
-            'internal_mandays_status' => $ticketStatus,
+            'data'                    => $this->formatResolutionProposal($proposal->fresh(['details.employee.basicData', 'proposedByAgent.basicData', 'approvedByHead.basicData'])),
+            'resolution_days_status' => $ticketStatus,
             'data_changed'            => $dataChanged,
         ]);
     }
 
-    private function internalDataChanged(
+    private function resolutionDataChanged(
         ConsultantMandays $existing,
         \Illuminate\Support\Collection $existingDetails,
         Request $request
@@ -808,11 +808,11 @@ class MandaysController extends Controller
      * POST /api/tickets/{ticketId}/mandays/internal/submit
      * PIC submit ke Head of Support.
      */
-    public function submitInternalProposal($ticketId)
+    public function submitResolutionProposal($ticketId)
     {
         $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
 
-        if ($deny = $this->denyUnlessParticipant($ticket, 'Only the ticket PIC or a member can submit the internal mandays proposal.')) {
+        if ($deny = $this->denyUnlessParticipant($ticket, 'Only the ticket PIC or a member can submit the resolution days proposal.')) {
             return $deny;
         }
 
@@ -823,7 +823,7 @@ class MandaysController extends Controller
         }
 
         $proposal->update(['status' => 'pending_approval', 'proposed_at' => now()]);
-        $ticket->update(['internal_mandays_status' => 'pending_head']);
+        $ticket->update(['resolution_days_status' => 'pending_head']);
 
         $sessionUser = session('user');
         $fromName    = $sessionUser['name'] ?? 'PIC';
@@ -831,17 +831,17 @@ class MandaysController extends Controller
         $ticketNum   = $ticket->ticket_number ?? $ticketId;
         $this->notifyRoles(
             [RoleId::HEAD_OF_SUPPORT->value, RoleId::HEAD_OF_PROJECT->value],
-            'internal_mandays_proposed',
+            'resolution_days_proposed',
             $fromName,
             $fromId,
-            "Ticket #{$ticketNum} — Internal mandays proposal submitted for your review",
+            "Ticket #{$ticketNum} — Resolution days proposal submitted for your review",
             "/ticket/{$ticketId}"
         );
 
         return response()->json([
             'success'                 => true,
             'message'                 => 'Internal proposal submitted to Delivery Support Head.',
-            'internal_mandays_status' => 'pending_head',
+            'resolution_days_status' => 'pending_head',
         ]);
     }
 
@@ -849,11 +849,11 @@ class MandaysController extends Controller
      * POST /api/tickets/{ticketId}/mandays/internal/approve
      * Head of Support approve.
      */
-    public function approveInternalProposal(Request $request, $ticketId)
+    public function approveResolutionProposal(Request $request, $ticketId)
     {
         if ($deny = $this->denyUnlessRole(
             [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value, RoleId::HEAD_OF_PROJECT->value],
-            'Only Head of Support or Head of Project can approve internal mandays proposals.'
+            'Only Head of Support or Head of Project can approve resolution days proposals.'
         )) {
             return $deny;
         }
@@ -896,21 +896,21 @@ class MandaysController extends Controller
                 'total_mandays'       => $total,
             ]);
             $ticket->update([
-                'internal_mandays_status' => 'approved',
+                'resolution_days_status' => 'approved',
                 'man_days'                => $total,
             ]);
 
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('approveInternalProposal error', ['e' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => 'Failed to approve the internal mandays proposal. Please try again.'], 500);
+            Log::error('approveResolutionProposal error', ['e' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to approve the resolution days proposal. Please try again.'], 500);
         }
 
         return response()->json([
             'success'                 => true,
             'message'                 => 'Internal proposal approved.',
-            'internal_mandays_status' => 'approved',
+            'resolution_days_status' => 'approved',
             'total_mandays'           => $total,
         ]);
     }
@@ -1191,7 +1191,7 @@ class MandaysController extends Controller
         ];
     }
 
-    private function formatInternalProposal(ConsultantMandays $p): array
+    private function formatResolutionProposal(ConsultantMandays $p): array
     {
         return [
             'id'               => $p->id,

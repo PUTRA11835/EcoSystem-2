@@ -206,8 +206,16 @@ class TicketController extends Controller
             $ticketIds   = $tickets->pluck('ticket_id')->toArray();
             $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
 
+            // Batch load approved customer mandays (latest approved version per ticket)
+            $customerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $ticketIds)
+                ->where('status', 'approved')
+                ->orderBy('version', 'desc')
+                ->get()
+                ->groupBy('ticket_id')
+                ->map(fn($group) => $group->first()->total_mandays);
+
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -240,6 +248,7 @@ class TicketController extends Controller
                     'start_date' => $ticket->start_date,
                     'end_date' => $ticket->end_date,
                     'man_days' => $ticket->man_days,
+                    'customer_mandays' => $customerMandaysMap[$ticket->ticket_id] ?? null,
                     'progress_percentage' => (float) ($ticket->progress_percentage ?? 0),
                     'all_consultant_progress' => $allProgress,
                     'wait_close' => $ticket->wait_close,
@@ -509,8 +518,16 @@ class TicketController extends Controller
             $myTicketIds   = $tickets->pluck('ticket_id')->toArray();
             $myProgressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($myTicketIds);
 
+            // Batch load approved customer mandays (latest approved version per ticket)
+            $myCustomerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $myTicketIds)
+                ->where('status', 'approved')
+                ->orderBy('version', 'desc')
+                ->get()
+                ->groupBy('ticket_id')
+                ->map(fn($group) => $group->first()->total_mandays);
+
             // ✅ Transform data dengan confirmation info
-            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap) {
                 $myAllProgress = $myProgressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -543,6 +560,7 @@ class TicketController extends Controller
                     'start_date' => $ticket->start_date,
                     'end_date' => $ticket->end_date,
                     'man_days' => $ticket->man_days,
+                    'customer_mandays' => $myCustomerMandaysMap[$ticket->ticket_id] ?? null,
                     'progress_percentage' => (float) ($ticket->progress_percentage ?? 0),
                     'all_consultant_progress' => $myAllProgress,
                     'wait_close' => $ticket->wait_close,
@@ -1166,7 +1184,7 @@ class TicketController extends Controller
 
         $roleId     = $sessionUser['role']['id'] ?? 0;
         $isAdmin    = $roleId === RoleId::ADMIN->value;
-        $isHelpdesk = in_array($roleId, RoleId::HELPDESK_GROUP, true);
+        $isHelpdesk = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
         $isEmployee = $roleId !== RoleId::INTERNSHIP->value && $roleId > 0;
 
         if (!$sessionUser) {
@@ -1542,7 +1560,7 @@ class TicketController extends Controller
         $ticket  = Ticket::with('members.basicData')->findOrFail($id);
         $roleId     = $sessionUser['role']['id'];
         $isAdmin    = $roleId === RoleId::ADMIN->value;
-        $isHelpdesk = in_array($roleId, RoleId::HELPDESK_GROUP, true);
+        $isHelpdesk = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
         $isPic      = $roleId === RoleId::EMPLOYEE->value && $ticket->employee_id == $sessionUser['id'];
 
         if (!$isAdmin && !$isHelpdesk && !$isPic) {
@@ -1603,7 +1621,7 @@ class TicketController extends Controller
         $ticket  = Ticket::findOrFail($id);
         $roleId     = $sessionUser['role']['id'];
         $isAdmin    = $roleId === RoleId::ADMIN->value;
-        $isHelpdesk = in_array($roleId, RoleId::HELPDESK_GROUP, true);
+        $isHelpdesk = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
         $isPic      = $roleId === RoleId::EMPLOYEE->value && $ticket->employee_id == $sessionUser['id'];
 
         if (!$isAdmin && !$isHelpdesk && !$isPic) {

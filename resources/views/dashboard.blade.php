@@ -275,7 +275,7 @@
         .toast-info .toast-close { color: #1e3a8a; }
         .toast-info .toast-progress { background: #3b82f6; }
 
-        /* Modal backdrop blur â€” applied automatically when overlay is visible */
+        /* Modal backdrop blur — applied automatically when overlay is visible */
         .modal-blur-active {
             backdrop-filter: blur(4px);
             -webkit-backdrop-filter: blur(4px);
@@ -609,7 +609,7 @@
         </aside>
 
         <!-- Main Content -->
-        <main id="mainContent" class="sidebar-transition flex-1 ml-64 min-w-0 overflow-x-hidden">
+        <main id="mainContent" class="sidebar-transition flex-1 ml-64 min-w-0">
             <!-- Header - Modern Design -->
             <header class="sticky top-0 z-40 shadow-sm border-b border-gray-100" style="background-color: var(--card-bg);">
                 <div class="px-6 py-4 flex justify-between items-center">
@@ -701,8 +701,10 @@
             </header>
 
             <!-- Content Area -->
-            <div class="@yield('content-class', 'p-6')">
-                @yield('content')
+            <div class="overflow-x-hidden">
+                <div class="@yield('content-class', 'p-6')">
+                    @yield('content')
+                </div>
             </div>
         </main>
     </div>
@@ -896,11 +898,13 @@
     <!-- ==================== NOTIFICATION BELL JS ==================== -->
     <script>
     (function () {
-        let bellOpen = false;
+        var bellOpen = false;
+        var csrf = document.querySelector('meta[name=”csrf-token”]') ? document.querySelector('meta[name=”csrf-token”]').content : '';
 
+        /* ---- toggle dropdown ---- */
         function toggleBellDropdown() {
             bellOpen = !bellOpen;
-            const dropdown = document.getElementById('bellDropdown');
+            var dropdown = document.getElementById('bellDropdown');
             if (bellOpen) {
                 dropdown.classList.remove('hidden');
                 loadBellNotifications();
@@ -909,21 +913,23 @@
             }
         }
 
-        // Close dropdown when clicking outside
         document.addEventListener('click', function (e) {
-            if (!document.getElementById('bellWrapper')?.contains(e.target)) {
-                document.getElementById('bellDropdown')?.classList.add('hidden');
+            var wrapper = document.getElementById('bellWrapper');
+            if (wrapper && !wrapper.contains(e.target)) {
+                var dropdown = document.getElementById('bellDropdown');
+                if (dropdown) dropdown.classList.add('hidden');
                 bellOpen = false;
             }
         });
 
+        /* ---- badge count ---- */
         function fetchUnreadCount() {
             fetch('/api/notifications/unread-count', { credentials: 'same-origin' })
-                .then(r => r.json())
-                .then(data => {
-                    const badge = document.getElementById('bellBadge');
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var badge = document.getElementById('bellBadge');
                     if (!badge) return;
-                    const count = data.count || 0;
+                    var count = data.count || 0;
                     if (count > 0) {
                         badge.textContent = count > 99 ? '99+' : count;
                         badge.classList.remove('hidden');
@@ -931,111 +937,200 @@
                         badge.classList.add('hidden');
                     }
                 })
-                .catch(() => {});
+                .catch(function () {});
         }
 
+        /* ---- icon config per type ---- */
+        var TYPE_CFG = {
+            timesheet_submitted:          { bg: '#f3e8ff', color: '#7c3aed', fa: 'fa-file-alt' },
+            late_exception_submitted:     { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-user-clock' },
+            late_exception_pending_rpmo:  { bg: '#dbeafe', color: '#2563eb', fa: 'fa-user-clock' },
+            late_exception_head_approved: { bg: '#dcfce7', color: '#16a34a', fa: 'fa-check-circle' },
+            late_exception_head_rejected: { bg: '#fee2e2', color: '#dc2626', fa: 'fa-times-circle' },
+            late_exception_approved:      { bg: '#dcfce7', color: '#16a34a', fa: 'fa-unlock' },
+            late_exception_rejected:      { bg: '#fee2e2', color: '#dc2626', fa: 'fa-ban' },
+            customer_mandays_canceled:    { bg: '#ffedd5', color: '#ea580c', fa: 'fa-times-circle' },
+            customer_mandays_proposed:    { bg: '#dbeafe', color: '#2563eb', fa: 'fa-file-invoice' },
+            resolution_days_proposed:     { bg: '#e0e7ff', color: '#4f46e5', fa: 'fa-users' }
+        };
+        var DEFAULT_CFG = { bg: '#fee2e2', color: '#b91c1c', fa: 'fa-at' };
+
+        function getTitle(n) {
+            switch (n.type) {
+                case 'timesheet_submitted':          return (n.from_name || 'Consultant') + ' submitted a timesheet';
+                case 'late_exception_submitted':     return 'Late Access Request from ' + (n.from_name || 'Employee');
+                case 'late_exception_pending_rpmo':  return 'Late Access Request needs your review';
+                case 'late_exception_head_approved': return 'Late Access Request approved by Head';
+                case 'late_exception_head_rejected': return 'Late Access Request rejected by Head';
+                case 'late_exception_approved':      return 'Late Access Request approved by RPMO';
+                case 'late_exception_rejected':      return 'Late Access Request rejected by RPMO';
+                case 'customer_mandays_canceled':    return 'Customer Mandays Proposal canceled';
+                case 'customer_mandays_proposed':    return 'Customer Mandays — needs review';
+                case 'resolution_days_proposed':     return 'Resolution Days — needs review';
+                default: return (n.from_name || 'Someone') + ' mentioned you';
+            }
+        }
+
+        function getUrl(n) {
+            if (n.link) return n.link;
+            if (n.type === 'timesheet_submitted') return '/calendar/timesheets';
+            if (n.ticket_id) return '/ticket/' + n.ticket_id;
+            return '/notifications';
+        }
+
+        /* ---- build one notification item using createElement (no Tailwind dependency) ---- */
+        function buildItem(n) {
+            var isUnread = !n.is_read;
+            var cfg = TYPE_CFG[n.type] || DEFAULT_CFG;
+
+            /* outer <a> */
+            var a = document.createElement('a');
+            a.href = getUrl(n);
+            a.style.display         = 'flex';
+            a.style.alignItems      = 'flex-start';
+            a.style.gap             = '12px';
+            a.style.padding         = '10px 16px';
+            a.style.textDecoration  = 'none';
+            a.style.borderBottom    = '1px solid #f3f4f6';
+            a.style.transition      = 'background 0.15s';
+            a.style.background      = isUnread ? '#fff1f2' : '#ffffff';
+            a.addEventListener('mouseover', function () { a.style.background = isUnread ? '#ffe4e6' : '#f9fafb'; });
+            a.addEventListener('mouseout',  function () { a.style.background = isUnread ? '#fff1f2' : '#ffffff'; });
+            a.addEventListener('click', function () { deleteNotif(n.id); });
+
+            /* icon circle */
+            var circle = document.createElement('div');
+            circle.style.width          = '32px';
+            circle.style.height         = '32px';
+            circle.style.borderRadius   = '50%';
+            circle.style.background     = cfg.bg;
+            circle.style.display        = 'flex';
+            circle.style.alignItems     = 'center';
+            circle.style.justifyContent = 'center';
+            circle.style.flexShrink     = '0';
+            circle.style.marginTop      = '2px';
+
+            var ico = document.createElement('i');
+            ico.className   = 'fas ' + cfg.fa;
+            ico.style.color    = cfg.color;
+            ico.style.fontSize = '12px';
+            circle.appendChild(ico);
+
+            /* text container */
+            var textBox = document.createElement('div');
+            textBox.style.flex     = '1';
+            textBox.style.minWidth = '0';
+            textBox.style.overflow = 'hidden';
+
+            var pTitle = document.createElement('p');
+            pTitle.style.margin        = '0';
+            pTitle.style.fontSize      = '12px';
+            pTitle.style.fontWeight    = '600';
+            pTitle.style.color         = '#111827';
+            pTitle.style.overflow      = 'hidden';
+            pTitle.style.whiteSpace    = 'nowrap';
+            pTitle.style.textOverflow  = 'ellipsis';
+            pTitle.textContent = getTitle(n);
+
+            var pPreview = document.createElement('p');
+            pPreview.style.margin       = '2px 0 0';
+            pPreview.style.fontSize     = '11px';
+            pPreview.style.color        = '#6b7280';
+            pPreview.style.overflow     = 'hidden';
+            pPreview.style.whiteSpace   = 'nowrap';
+            pPreview.style.textOverflow = 'ellipsis';
+            pPreview.textContent = n.preview || '';
+
+            var pTime = document.createElement('p');
+            pTime.style.margin    = '3px 0 0';
+            pTime.style.fontSize  = '10px';
+            pTime.style.color     = '#9ca3af';
+            pTime.textContent = n.created_at || '';
+
+            textBox.appendChild(pTitle);
+            textBox.appendChild(pPreview);
+            textBox.appendChild(pTime);
+
+            /* unread dot */
+            a.appendChild(circle);
+            a.appendChild(textBox);
+            if (isUnread) {
+                var dot = document.createElement('span');
+                dot.style.width        = '8px';
+                dot.style.height       = '8px';
+                dot.style.background   = '#ef4444';
+                dot.style.borderRadius = '50%';
+                dot.style.flexShrink   = '0';
+                dot.style.marginTop    = '4px';
+                dot.style.display      = 'block';
+                a.appendChild(dot);
+            }
+
+            return a;
+        }
+
+        function setListMessage(list, msg) {
+            list.innerHTML = '';
+            var d = document.createElement('div');
+            d.style.padding    = '24px 16px';
+            d.style.textAlign  = 'center';
+            d.style.fontSize   = '12px';
+            d.style.color      = '#9ca3af';
+            d.textContent = msg;
+            list.appendChild(d);
+        }
+
+        /* ---- load notifications into bell dropdown ---- */
         function loadBellNotifications() {
-            const list = document.getElementById('bellNotifList');
+            var list = document.getElementById('bellNotifList');
             if (!list) return;
+            setListMessage(list, 'Loading...');
             fetch('/api/notifications?limit=10', { credentials: 'same-origin' })
-                .then(r => r.json())
-                .then(data => {
-                    if (!data.success || !data.data.length) {
-                        list.innerHTML = '<div class="px-4 py-6 text-center text-xs text-gray-400">No notifications</div>';
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    list.innerHTML = '';
+                    if (!data.success || !data.data || !data.data.length) {
+                        setListMessage(list, 'No notifications');
                         return;
                     }
-                    list.innerHTML = data.data.map(n => {
-                        const isUnread = !n.is_read;
-
-                        // Resolve navigation URL: explicit link > ticket fallback > notifications page
-                        const notifUrl = n.link || (n.ticket_id ? '/calendar/timesheets' : '/notifications');
-
-                        // Icon + title per notification type
-                        let iconHtml, titleHtml;
-                        if (n.type === 'timesheet_submitted') {
-                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-file-alt text-purple-700 text-xs"></i></div>`;
-                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">${escapeHtml(n.from_name || 'Consultant')} submitted a timesheet</p>`;
-                        } else if (n.type === 'late_exception_submitted') {
-                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-user-clock text-yellow-600 text-xs"></i></div>`;
-                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Late Access Request from ${escapeHtml(n.from_name || 'Employee')}</p>`;
-                        } else if (n.type === 'late_exception_pending_rpmo') {
-                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-user-clock text-blue-600 text-xs"></i></div>`;
-                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Late Access Request needs your review</p>`;
-                        } else if (n.type === 'late_exception_head_approved') {
-                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-check-circle text-green-600 text-xs"></i></div>`;
-                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Late Access Request approved by Head</p>`;
-                        } else if (n.type === 'late_exception_head_rejected') {
-                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-times-circle text-red-600 text-xs"></i></div>`;
-                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Late Access Request rejected by Head</p>`;
-                        } else if (n.type === 'late_exception_approved') {
-                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-unlock text-green-600 text-xs"></i></div>`;
-                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Late Access Request approved by RPMO</p>`;
-                        } else if (n.type === 'late_exception_rejected') {
-                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-ban text-red-600 text-xs"></i></div>`;
-                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Late Access Request rejected by RPMO</p>`;
-                        } else if (n.type === 'customer_mandays_canceled') {
-                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-times-circle text-orange-600 text-xs"></i></div>`;
-                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Customer Mandays Proposal canceled</p>`;
-                        } else if (n.type === 'customer_mandays_proposed') {
-                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-file-invoice text-blue-600 text-xs"></i></div>`;
-                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Customer Mandays Proposal â€” needs review</p>`;
-                        } else if (n.type === 'internal_mandays_proposed') {
-                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-users text-indigo-600 text-xs"></i></div>`;
-                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">Internal Mandays Proposal â€” needs review</p>`;
-                        } else {
-                            iconHtml  = `<div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-at text-red-700 text-xs"></i></div>`;
-                            titleHtml = `<p class="text-xs font-semibold text-gray-800 truncate">${escapeHtml(n.from_name || 'Someone')} mentioned you</p>`;
-                        }
-
-                        return `<a href="${notifUrl}" onclick="markNotifRead(${n.id}, event)"
-                            class="flex gap-3 px-4 py-3 hover:bg-gray-50 transition-colors ${isUnread ? 'bg-red-50' : ''}">
-                            ${iconHtml}
-                            <div class="flex-1 min-w-0">
-                                ${titleHtml}
-                                <p class="text-xs text-gray-500 line-clamp-2 mt-0.5">${escapeHtml(n.preview || '')}</p>
-                                <p class="text-[10px] text-gray-400 mt-1">${escapeHtml(n.created_at || '')}</p>
-                            </div>
-                            ${isUnread ? '<span class="w-2 h-2 bg-red-500 rounded-full shrink-0 mt-2"></span>' : ''}
-                        </a>`;
-                    }).join('');
+                    data.data.forEach(function (n) { list.appendChild(buildItem(n)); });
                 })
-                .catch(() => {
-                    list.innerHTML = '<div class="px-4 py-6 text-center text-xs text-gray-400">Failed to load</div>';
-                });
+                .catch(function () { setListMessage(list, 'Failed to load'); });
         }
 
-        function markNotifRead(id, e) {
-            fetch('/api/notifications/' + id + '/read', {
-                method: 'PUT',
+        /* ---- fire-and-forget delete (called on click, navigation proceeds normally) ---- */
+        function deleteNotif(id) {
+            var badge = document.getElementById('bellBadge');
+            if (badge && !badge.classList.contains('hidden')) {
+                var count = parseInt(badge.textContent || '0') - 1;
+                if (count <= 0) badge.classList.add('hidden');
+                else badge.textContent = count;
+            }
+            fetch('/api/notifications/' + id, {
+                method: 'DELETE',
                 credentials: 'same-origin',
-                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' }
-            }).catch(() => {});
-            // Let the link navigate
+                headers: { 'X-CSRF-TOKEN': csrf }
+            }).catch(function () {});
         }
 
+        /* ---- mark all read + clear ---- */
         function markAllNotificationsRead() {
-            fetch('/api/notifications/read-all', {
-                method: 'PUT',
-                credentials: 'same-origin',
-                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' }
-            }).then(() => {
-                fetchUnreadCount();
-                loadBellNotifications();
-            }).catch(() => {});
+            var list = document.getElementById('bellNotifList');
+            if (list) setListMessage(list, 'No notifications');
+            var badge = document.getElementById('bellBadge');
+            if (badge) badge.classList.add('hidden');
+            fetch('/api/notifications/read-all', { method: 'PUT', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': csrf } })
+                .then(function () {
+                    return fetch('/api/notifications/bulk-delete', { method: 'DELETE', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': csrf } });
+                })
+                .catch(function () {});
         }
 
-        function escapeHtml(str) {
-            const d = document.createElement('div');
-            d.textContent = str;
-            return d.innerHTML;
-        }
-
-        // Expose globally for onclick attributes
-        window.toggleBellDropdown     = toggleBellDropdown;
+        /* ---- expose globals ---- */
+        window.toggleBellDropdown       = toggleBellDropdown;
         window.markAllNotificationsRead = markAllNotificationsRead;
-        window.markNotifRead          = markNotifRead;
 
-        // Initial count + polling every 30 s
+        /* ---- start ---- */
         fetchUnreadCount();
         setInterval(fetchUnreadCount, 30000);
     })();

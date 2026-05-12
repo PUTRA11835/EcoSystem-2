@@ -110,15 +110,15 @@ class EmployeeBasicDataController extends Controller
      */
     public function store(Request $request, $employeeId)
     {
-        // Normalisasi empty string ke null untuk field enum agar nullable|in: tidak gagal
-        $input = $request->all();
-        foreach (['gender', 'marital_status', 'religion', 'title'] as $field) {
-            if (array_key_exists($field, $input) && $input[$field] === '') {
-                $input[$field] = null;
+        // API routes don't run ConvertEmptyStringsToNull middleware,
+        // so empty-string dropdown values would fail nullable|in: rules.
+        foreach (['title', 'gender', 'religion', 'marital_status'] as $field) {
+            if ($request->input($field) === '') {
+                $request->merge([$field => null]);
             }
         }
 
-        $validator = Validator::make($input, [
+        $validator = Validator::make($request->all(), [
             // Identitas Pribadi
             'title' => 'nullable|string|max:10',
             'nick_name' => 'nullable|string|max:100',
@@ -259,11 +259,9 @@ class EmployeeBasicDataController extends Controller
                 ], 404);
             }
 
-            // Normalisasi empty string ke null untuk field enum
-            $partialInput = $request->all();
-            foreach (['gender', 'marital_status', 'religion', 'title'] as $field) {
-                if (array_key_exists($field, $partialInput) && $partialInput[$field] === '') {
-                    $partialInput[$field] = null;
+            foreach (['title', 'gender', 'religion', 'marital_status'] as $field) {
+                if ($request->input($field) === '') {
+                    $request->merge([$field => null]);
                 }
             }
 
