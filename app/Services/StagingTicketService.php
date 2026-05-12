@@ -64,6 +64,7 @@ class StagingTicketService
 
         return StagingTicket::create([
             'customer_id'        => $customerId,
+            'end_customer_id'    => isset($data['end_customer_id']) ? (int) $data['end_customer_id'] : null,
             'description'        => $data['description'],
             'body'               => $data['body'] ?? null,
             'ticket_priority'    => $data['ticket_priority'] ?? 'Medium',
@@ -235,6 +236,7 @@ class StagingTicketService
             $ticket = Ticket::create([
                 'ticket_number'   => $ticketNumber,
                 'customer_id'     => $staging->customer_id,
+                'end_customer_id' => $staging->end_customer_id,
                 'description'     => $staging->description,
                 'ticket_priority' => $finalPriority,
                 'ticket_type'     => $ticketType,

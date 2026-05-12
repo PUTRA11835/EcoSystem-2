@@ -142,7 +142,7 @@ class TicketController extends Controller
             if ($sessionUser['role']['id'] === RoleId::ADMIN->value) {
                 Log::info('Admin viewing tickets', ['unassigned' => $filterUnassigned]);
 
-                $query = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
                 if ($filterUnassigned) {
                     $query->whereNull('employee_id');
@@ -153,7 +153,7 @@ class TicketController extends Controller
             } elseif ($sessionUser['role']['id'] === RoleId::EMPLOYEE->value) {
                 Log::info('Employee viewing unassigned tickets');
 
-                $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                     ->whereNull('employee_id')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
@@ -162,7 +162,7 @@ class TicketController extends Controller
             } elseif (in_array($sessionUser['role']['id'], array_merge(RoleId::HEAD_GROUP, RoleId::HELPDESK_GROUP), true)) {
                 Log::info('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
 
-                $query = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
                 if ($filterUnassigned) {
                     $query->whereNull('employee_id');
@@ -186,7 +186,7 @@ class TicketController extends Controller
                         ->unique()
                     : collect();
 
-                $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                     ->whereIn('ticket_id', $ticketIds)
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
@@ -251,6 +251,8 @@ class TicketController extends Controller
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
                         'customer_code' => $ticket->customer->customer_code,
                     ] : null,
+                    'end_customer_id'   => $ticket->end_customer_id,
+                    'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
                     'employee' => $ticket->employee ? [
                         'employee_id' => $ticket->employee->employee_id,
                         'employee_name' => $ticket->employee->basicData->first_name ?? 'Unknown',
@@ -482,7 +484,7 @@ class TicketController extends Controller
                 Log::info('My Tickets - Filtering for employee/helpdesk', ['employee_id' => $employeeId]);
 
                 // Ticket yang employee handle sebagai PIC atau member
-                $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                     ->where(function($query) use ($employeeId) {
                         $query->where('ticket.employee_id', $employeeId)
                             ->orWhereHas('members', function($inner) use ($employeeId) {
@@ -552,6 +554,8 @@ class TicketController extends Controller
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
                         'customer_code' => $ticket->customer->customer_code,
                     ] : null,
+                    'end_customer_id'   => $ticket->end_customer_id,
+                    'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
                     'employee' => $ticket->employee ? [
                         'employee_id' => $ticket->employee->employee_id,
                         'employee_name' => $ticket->employee->basicData->first_name ?? 'Unknown',
@@ -1072,7 +1076,7 @@ class TicketController extends Controller
                 ], 401);
             }
 
-            $ticket = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+            $ticket = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                 ->findOrFail($id);
 
             // Customer can only see their own tickets
@@ -1120,6 +1124,8 @@ class TicketController extends Controller
                     'customer_id' => $ticket->customer->customer_id,
                     'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
                 ] : null,
+                'end_customer_id'   => $ticket->end_customer_id,
+                'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
                 'employee' => $ticket->employee ? [
                     'employee_id' => $ticket->employee->employee_id,
                     'employee_name' => $ticket->employee->basicData->first_name ?? 'Unknown',
@@ -1231,7 +1237,7 @@ class TicketController extends Controller
                 $ticket->update($updateData);
             }
 
-            $ticket->load(['customer.basicData', 'employee.basicData', 'members.basicData']);
+            $ticket->load(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData']);
 
             return response()->json([
                 'success' => true,
@@ -1275,7 +1281,7 @@ class TicketController extends Controller
                 ], 403);
             }
 
-            $query = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+            $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                 ->where('jarvies_status', $status)
                 ->orderBy('created_at', 'desc');
 

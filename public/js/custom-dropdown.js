@@ -122,8 +122,9 @@ function _onScrollMaybeClose(e) {
             return;
         }
         // Update posisi panel mengikuti tombol
-        p.style.top  = `${r.bottom + 4}px`;
-        p.style.left = `${r.left}px`;
+        p.style.top   = `${r.bottom + 4}px`;
+        p.style.left  = `${r.left}px`;
+        p.style.width = `${r.width}px`;
         repositioned = true;
     });
     // Untuk panel mode non-fixed (panel masih di dalam .custom-dd) → tetap tutup
@@ -149,16 +150,12 @@ function _positionFixed(btn, panel) {
     // Set core fixed positioning properties.
     panel.style.position = 'fixed';
     panel.style.zIndex   = '9999';
-    // Don't force the panel width to match the tiny button — let min-width rule.
-    panel.style.width    = '';
-    // Horizontal: prefer left-aligned to button; flip to right-aligned if it
-    // would overflow the viewport.
-    const minW = parseInt(panel.style.minWidth, 10) || 120;
-    if (r.left + minW > window.innerWidth - 8) {
-        panel.style.left = `${Math.max(4, r.right - minW)}px`;
-    } else {
-        panel.style.left = `${r.left}px`;
-    }
+    // Match the panel width to the trigger button so it doesn't stretch to the
+    // viewport edge via the `right-0` Tailwind class (which means right:0 in
+    // fixed context = full-viewport width).
+    panel.style.width = `${r.width}px`;
+    panel.style.right = 'auto'; // override right-0 class
+    panel.style.left  = `${r.left}px`;
 
     // Estimasi tinggi panel hanya dari inline max-height (lebih reliable
     // daripada scrollHeight yang bisa 0 di edge case render). Default 280
@@ -282,6 +279,7 @@ function _clearFixedStyles(panel) {
     panel.style.top      = '';
     panel.style.bottom   = '';
     panel.style.left     = '';
+    panel.style.right    = '';
     panel.style.width    = '';
     panel.style.zIndex   = '';
     // Restore max-height asli (yang dari markup `style="max-height:..."`).

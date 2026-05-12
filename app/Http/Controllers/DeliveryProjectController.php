@@ -56,6 +56,10 @@ class DeliveryProjectController extends Controller
             'ae_email' => 'nullable|email',
             'delivery_owner_id' => 'nullable|exists:employee,employee_id',
             'delivery_manager_id' => 'nullable|exists:employee,employee_id',
+            'project_owner_id' => 'nullable|exists:employee,employee_id',
+            'co_pm_id' => 'nullable|exists:employee,employee_id',
+            'project_admin_id' => 'nullable|exists:employee,employee_id',
+            'sales_id' => 'nullable|exists:employee,employee_id',
             'delivery_method' => 'nullable|in:Onsite,Hybrid,WFH',
             'warranty_period' => 'nullable|integer|min:0',
             'total_mandays' => 'nullable|integer|min:0',
@@ -80,6 +84,7 @@ class DeliveryProjectController extends Controller
         $projectData = array_merge($projectData, $request->only([
             'ae_type', 'ae_name', 'ae_phone', 'ae_email',
             'delivery_owner_id', 'delivery_manager_id',
+            'project_owner_id', 'co_pm_id', 'project_admin_id', 'sales_id',
             'delivery_method', 'warranty_period', 'total_mandays'
         ]));
 
@@ -267,6 +272,10 @@ class DeliveryProjectController extends Controller
             'ae_email' => 'nullable|email',
             'delivery_owner_id' => 'nullable|exists:employee,employee_id',
             'delivery_manager_id' => 'nullable|exists:employee,employee_id',
+            'project_owner_id' => 'nullable|exists:employee,employee_id',
+            'co_pm_id' => 'nullable|exists:employee,employee_id',
+            'project_admin_id' => 'nullable|exists:employee,employee_id',
+            'sales_id' => 'nullable|exists:employee,employee_id',
             'delivery_method' => 'nullable|in:Onsite,Hybrid,WFH',
             'warranty_period' => 'nullable|integer|min:0',
             'total_mandays' => 'nullable|integer|min:0',

@@ -623,6 +623,14 @@
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Customer</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->customer?->basicData?->name_1 ?? 'N/A' }}</p>
                 </div>
+                @if($ticket->end_customer_id)
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">For End Customer</label>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-blue-50 rounded-lg border border-blue-200">
+                        &#8627; {{ $ticket->endCustomer?->basicData?->name_1 ?? 'N/A' }}
+                    </p>
+                </div>
+                @endif
                 {{-- Additional Info --}}
                 @if($ticket->name || $ticket->no_hp || $ticket->module || $ticket->client)
                 <div class="pt-3 border-t border-gray-200">
@@ -2144,8 +2152,13 @@
     }
 
     function createMessageBubble(msg) {
-        // System messages (status changes, audit log) → centered pill, no bubble
-        if (msg.sender_type === 'system' || /^Status change to "/i.test(msg.message_body || msg.message || '')) {
+        // System messages (status changes, audit log) → centered pill, no bubble.
+        // Real system messages are never email-channel — they're web/null from server-side events.
+        // CC email replies from unregistered senders get stored as sender_type='system' by
+        // processInbox(), but they are real human messages and must render as chat bubbles.
+        const isSystem = (msg.sender_type === 'system' && msg.channel !== 'email')
+                      || /^Status change to "/i.test(msg.message_body || msg.message || '');
+        if (isSystem) {
             const date = new Date(msg.created_at).toLocaleString('en-GB', {
                 timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric',
                 hour: '2-digit', minute: '2-digit', hour12: false
