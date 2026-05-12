@@ -121,6 +121,36 @@ class OneDriveService
     }
 
     /**
+     * Create a sub-folder inside a parent folder identified by its item ID.
+     * Returns the new sub-folder's item ID.
+     */
+    public function createSubFolder(string $parentFolderId, string $folderName): string
+    {
+        $token = $this->getAccessToken();
+
+        $response = Http::withToken($token)->post(
+            "{$this->baseUrl}/users/{$this->userEmail}/drive/items/{$parentFolderId}/children",
+            [
+                'name'                              => $folderName,
+                'folder'                            => new \stdClass(),
+                '@microsoft.graph.conflictBehavior' => 'rename',
+            ]
+        );
+
+        if (!$response->successful()) {
+            Log::error('OneDrive createSubFolder failed', [
+                'parent_folder_id' => $parentFolderId,
+                'folder_name'      => $folderName,
+                'status'           => $response->status(),
+                'body'             => $response->body(),
+            ]);
+            throw new \RuntimeException('Failed to create OneDrive sub-folder: ' . $response->body());
+        }
+
+        return $response->json('id');
+    }
+
+    /**
      * Upload a file into a OneDrive folder (identified by its item ID).
      * Uses the simple PUT upload endpoint (supports files up to 4 MB).
      * Returns an array with 'id', 'webUrl', and 'downloadUrl'.
