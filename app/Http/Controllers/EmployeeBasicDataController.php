@@ -110,25 +110,34 @@ class EmployeeBasicDataController extends Controller
      */
     public function store(Request $request, $employeeId)
     {
-        // Normalisasi empty string ke null untuk field enum agar nullable|in: tidak gagal
-        $input = $request->all();
-        foreach (['gender', 'marital_status', 'religion', 'title'] as $field) {
-            if (array_key_exists($field, $input) && $input[$field] === '') {
-                $input[$field] = null;
+        // API routes skip ConvertEmptyStringsToNull middleware — convert all
+        // nullable field empty strings to null so nullable|in:, nullable|date,
+        // and nullable|string rules pass correctly.
+        $nullableFields = [
+            'title', 'nick_name', 'gender', 'religion', 'last_name',
+            'search_term_1', 'search_term_2', 'marital_status',
+            'birth_date', 'birth_place', 'since_date',
+            'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup',
+            'position', 'division', 'department', 'direct_supervision',
+            'manager', 'authorization_group',
+        ];
+        foreach ($nullableFields as $field) {
+            if ($request->input($field) === '') {
+                $request->merge([$field => null]);
             }
         }
 
-        $validator = Validator::make($input, [
+        $validator = Validator::make($request->all(), [
             // Identitas Pribadi
             'title' => 'nullable|string|max:10',
             'nick_name' => 'nullable|string|max:100',
-            'gender' => 'nullable|in:Male,Female',
-            'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Confucian',
+            'gender' => 'nullable|string|max:10',
+            'religion' => 'nullable|string|max:50',
             'first_name' => 'required|string|max:255',
             'last_name' => 'nullable|string|max:255',
             'search_term_1' => 'nullable|string|max:255',
             'search_term_2' => 'nullable|string|max:255',
-            'marital_status' => 'nullable|in:Single,Married,Divorced,Widow/Widower',
+            'marital_status' => 'nullable|string|max:50',
             'birth_date' => 'nullable|date',
             'birth_place' => 'nullable|string|max:255',
             'since_date' => 'nullable|date',
@@ -157,8 +166,6 @@ class EmployeeBasicDataController extends Controller
         ], [
             'first_name.required' => 'First Name is required.',
             'first_name.max'      => 'First Name may not exceed 255 characters.',
-            'gender.in'           => 'Gender must be Male or Female.',
-            'marital_status.in'   => 'Marital Status must be one of: Single, Married, Divorced, Widow/Widower.',
             'religion.in'         => 'Religion value is not valid.',
             'birth_date.date'     => 'Birth Date must be a valid date.',
             'since_date.date'     => 'Since Date must be a valid date.',
@@ -259,11 +266,17 @@ class EmployeeBasicDataController extends Controller
                 ], 404);
             }
 
-            // Normalisasi empty string ke null untuk field enum
-            $partialInput = $request->all();
-            foreach (['gender', 'marital_status', 'religion', 'title'] as $field) {
-                if (array_key_exists($field, $partialInput) && $partialInput[$field] === '') {
-                    $partialInput[$field] = null;
+            $nullableFields = [
+                'title', 'nick_name', 'gender', 'religion', 'last_name',
+                'search_term_1', 'search_term_2', 'marital_status',
+                'birth_date', 'birth_place', 'since_date',
+                'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup',
+                'position', 'division', 'department', 'direct_supervision',
+                'manager', 'authorization_group',
+            ];
+            foreach ($nullableFields as $field) {
+                if ($request->input($field) === '') {
+                    $request->merge([$field => null]);
                 }
             }
 
@@ -277,7 +290,7 @@ class EmployeeBasicDataController extends Controller
                 'last_name' => 'nullable|string|max:255',
                 'search_term_1' => 'nullable|string|max:255',
                 'search_term_2' => 'nullable|string|max:255',
-                'marital_status' => 'nullable|in:Single,Married,Divorced,Widow/Widower',
+                'marital_status' => 'nullable|string|max:50',
                 'birth_date' => 'nullable|date',
                 'birth_place' => 'nullable|string|max:255',
                 'since_date' => 'nullable|date',
@@ -294,8 +307,6 @@ class EmployeeBasicDataController extends Controller
                 'block' => 'nullable|boolean',
                 'deletion_flag' => 'nullable|boolean',
             ], [
-                'gender.in'         => 'Gender must be Male or Female.',
-                'marital_status.in' => 'Marital Status must be one of: Single, Married, Divorced, Widow/Widower.',
                 'religion.in'       => 'Religion value is not valid.',
                 'birth_date.date'   => 'Birth Date must be a valid date.',
                 'since_date.date'   => 'Since Date must be a valid date.',

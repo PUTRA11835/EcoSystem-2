@@ -31,7 +31,7 @@ class TicketViewController extends Controller
 
         // Create role object
         $user->role = new \stdClass();
-        $user->role->role_id = $sessionUser['role']['id'] ?? 0;
+        $user->role->role_id = (int) ($sessionUser['role']['id'] ?? 0);
         $user->role->role_name = $sessionUser['role']['name'] ?? 'Unknown';
 
         return $user;

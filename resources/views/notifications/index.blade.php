@@ -29,7 +29,7 @@
             'late_exception_approved'     => ['icon' => 'fa-unlock',        'color' => 'green',  'title' => 'Late Access Request approved by RPMO'],
             'late_exception_rejected'     => ['icon' => 'fa-ban',           'color' => 'red',    'title' => 'Late Access Request rejected by RPMO'],
             'customer_mandays_proposed'   => ['icon' => 'fa-file-invoice',  'color' => 'blue',   'title' => 'Customer Mandays Proposal — needs review'],
-            'internal_mandays_proposed'   => ['icon' => 'fa-users',         'color' => 'indigo', 'title' => 'Internal Mandays Proposal — needs review'],
+            'resolution_days_proposed'   => ['icon' => 'fa-users',         'color' => 'indigo', 'title' => 'Resolution Days Proposal — needs review'],
             'customer_mandays_canceled'   => ['icon' => 'fa-times-circle',  'color' => 'orange', 'title' => 'Customer Mandays Proposal canceled'],
         ];
         $colorMap = [
@@ -48,7 +48,9 @@
             $leInfo     = $isLateEx ? $lateExceptionTypes[$notif->type] : null;
             $leColor    = $leInfo ? $colorMap[$leInfo['color']] : null;
             $navLink    = $notif->link
-                ?? ($notif->ticket_id ? '/ticket/' . $notif->ticket_id : null);
+                ?? ($notif->type === 'timesheet_submitted'
+                    ? '/calendar/timesheets'
+                    : ($notif->ticket_id ? '/ticket/' . $notif->ticket_id : null));
             $iconBg     = $notif->is_read ? 'bg-gray-100' : ($leColor ? $leColor['bg'] : 'bg-red-100');
             $iconColor  = $notif->is_read ? 'text-gray-400' : ($leColor ? $leColor['icon'] : 'text-red-600');
             $iconClass  = $leInfo ? $leInfo['icon'] : ($notif->type === 'timesheet_submitted' ? 'fa-file-alt' : 'fa-at');
@@ -88,8 +90,8 @@
                 </div>
                 <div class="flex gap-3 mt-2">
                     @if($navLink)
-                    <a href="{{ $navLink }}" class="text-xs text-red-700 hover:underline font-medium">
-                        View →
+                    <a href="{{ $navLink }}" onclick="markRead({{ $notif->id }})" class="text-xs text-red-700 hover:underline font-medium">
+                        View &rarr;
                     </a>
                     @endif
                     @if(!$notif->is_read)
@@ -117,20 +119,23 @@
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
 function markRead(id) {
-    fetch(`/api/notifications/${id}/read`, {
-        method: 'PUT',
+    const el = document.getElementById('notif-' + id);
+    if (el) {
+        el.style.transition = 'opacity 0.25s ease, max-height 0.3s ease, padding 0.3s ease';
+        el.style.overflow = 'hidden';
+        el.style.opacity = '0';
+        el.style.maxHeight = el.offsetHeight + 'px';
+        setTimeout(() => {
+            el.style.maxHeight = '0';
+            el.style.paddingTop = '0';
+            el.style.paddingBottom = '0';
+        }, 10);
+        setTimeout(() => el.remove(), 320);
+    }
+    fetch(`/api/notifications/${id}`, {
+        method: 'DELETE',
         credentials: 'same-origin',
         headers: { 'X-CSRF-TOKEN': csrfToken }
-    }).then(() => {
-        const el = document.getElementById('notif-' + id);
-        if (el) {
-            el.classList.remove('bg-red-50');
-            el.querySelectorAll('.bg-red-100,.text-red-600,.bg-red-500').forEach(x => {
-                x.classList.replace('bg-red-100', 'bg-gray-100');
-                x.classList.replace('text-red-600', 'text-gray-400');
-                x.classList.replace('bg-red-500', 'bg-transparent');
-            });
-        }
     }).catch(() => {});
 }
 
@@ -143,7 +148,6 @@ function markAllRead() {
 }
 
 function clearRead() {
-    if (!confirm('Delete all read notifications?')) return;
     fetch('/api/notifications/bulk-delete', {
         method: 'DELETE',
         credentials: 'same-origin',

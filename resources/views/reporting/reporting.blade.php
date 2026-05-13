@@ -256,7 +256,7 @@
                         </th>
                         {{-- TICKET: full-width column filter --}}
                         <th class="p-0 text-left whitespace-nowrap" style="min-width:130px;">
-                            <div class="custom-dd w-full" id="rptTicketFilterDd" data-onchange="rptColFilterChanged" data-fixed="true" data-searchable="true">
+                            <div class="custom-dd relative w-full" id="rptTicketFilterDd" data-onchange="rptColFilterChanged" data-fixed="true" data-searchable="true">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-xs font-semibold text-gray-700 uppercase tracking-wide whitespace-nowrap">Ticket</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
@@ -269,7 +269,7 @@
                         </th>
                         {{-- CUSTOMER: full-width column filter --}}
                         <th class="p-0 text-left whitespace-nowrap" style="min-width:130px;">
-                            <div class="custom-dd w-full" id="rptCustomerFilterDd" data-onchange="rptColFilterChanged" data-fixed="true" data-searchable="true">
+                            <div class="custom-dd relative w-full" id="rptCustomerFilterDd" data-onchange="rptColFilterChanged" data-fixed="true" data-searchable="true">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-xs font-semibold text-gray-700 uppercase tracking-wide whitespace-nowrap">Customer</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
@@ -293,7 +293,7 @@
                         </th>
                         {{-- APPROVAL: full-width column filter --}}
                         <th class="p-0 text-center whitespace-nowrap" style="min-width:105px;">
-                            <div class="custom-dd w-full" id="rptApprovalFilterDd" data-onchange="rptColFilterChanged" data-fixed="true">
+                            <div class="custom-dd relative w-full" id="rptApprovalFilterDd" data-onchange="rptColFilterChanged" data-fixed="true">
                                 <button type="button" class="custom-dd-btn w-full flex items-center justify-center gap-1.5 px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-xs font-semibold text-gray-700 uppercase tracking-wide whitespace-nowrap">Approval</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>

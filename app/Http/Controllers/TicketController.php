@@ -206,8 +206,16 @@ class TicketController extends Controller
             $ticketIds   = $tickets->pluck('ticket_id')->toArray();
             $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
 
+            // Batch load approved customer mandays (latest approved version per ticket)
+            $customerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $ticketIds)
+                ->where('status', 'approved')
+                ->orderBy('version', 'desc')
+                ->get()
+                ->groupBy('ticket_id')
+                ->map(fn($group) => $group->first()->total_mandays);
+
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -222,7 +230,7 @@ class TicketController extends Controller
                     ->where('ticket_id', $ticket->ticket_id)
                     ->where('status', 'pending')
                     ->first();
-                
+
                 return [
                     'ticket_id' => $ticket->ticket_id,
                     'ticket_number' => $ticket->ticket_number,
@@ -231,6 +239,7 @@ class TicketController extends Controller
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
+                    'scale' => $ticket->scale,
                     'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
                     'channel' => $ticket->channel,
@@ -240,6 +249,7 @@ class TicketController extends Controller
                     'start_date' => $ticket->start_date,
                     'end_date' => $ticket->end_date,
                     'man_days' => $ticket->man_days,
+                    'customer_mandays' => $customerMandaysMap[$ticket->ticket_id] ?? null,
                     'progress_percentage' => (float) ($ticket->progress_percentage ?? 0),
                     'all_consultant_progress' => $allProgress,
                     'wait_close' => $ticket->wait_close,
@@ -509,8 +519,16 @@ class TicketController extends Controller
             $myTicketIds   = $tickets->pluck('ticket_id')->toArray();
             $myProgressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($myTicketIds);
 
+            // Batch load approved customer mandays (latest approved version per ticket)
+            $myCustomerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $myTicketIds)
+                ->where('status', 'approved')
+                ->orderBy('version', 'desc')
+                ->get()
+                ->groupBy('ticket_id')
+                ->map(fn($group) => $group->first()->total_mandays);
+
             // ✅ Transform data dengan confirmation info
-            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap) {
                 $myAllProgress = $myProgressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -534,6 +552,7 @@ class TicketController extends Controller
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
+                    'scale' => $ticket->scale,
                     'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
                     'channel' => $ticket->channel,
@@ -543,6 +562,7 @@ class TicketController extends Controller
                     'start_date' => $ticket->start_date,
                     'end_date' => $ticket->end_date,
                     'man_days' => $ticket->man_days,
+                    'customer_mandays' => $myCustomerMandaysMap[$ticket->ticket_id] ?? null,
                     'progress_percentage' => (float) ($ticket->progress_percentage ?? 0),
                     'all_consultant_progress' => $myAllProgress,
                     'wait_close' => $ticket->wait_close,
@@ -1108,6 +1128,7 @@ class TicketController extends Controller
                 'description' => $ticket->description,
                 'ticket_priority' => $ticket->ticket_priority,
                 'ticket_type' => $ticket->ticket_type,
+                'scale' => $ticket->scale,
                 'jarvies_status' => $ticket->jarvies_status,
                 'status' => $ticket->status,
                 'channel' => $ticket->channel,
@@ -1166,7 +1187,7 @@ class TicketController extends Controller
 
         $roleId     = $sessionUser['role']['id'] ?? 0;
         $isAdmin    = $roleId === RoleId::ADMIN->value;
-        $isHelpdesk = in_array($roleId, RoleId::HELPDESK_GROUP, true);
+        $isHelpdesk = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
         $isEmployee = $roleId !== RoleId::INTERNSHIP->value && $roleId > 0;
 
         if (!$sessionUser) {
@@ -1412,39 +1433,34 @@ class TicketController extends Controller
                     'updated_at'  => now(),
                 ]);
 
-                try {
-                    $customerEmail = $ticket->customer?->email
-                        ?? Customer::find($ticket->customer_id)?->email;
+                $customerEmail = $ticket->customer?->email
+                    ?? Customer::find($ticket->customer_id)?->email;
 
-                    if ($customerEmail) {
-                        $ticketNum = $ticket->ticket_number ?? $ticket->ticket_id;
-                        $subject   = 'Ticket #' . $ticketNum . ' - ' . $label;
-                        $htmlBody  = '<p>Your ticket <strong>#' . htmlspecialchars((string) $ticketNum) . '</strong> has been <strong>' . $label . '</strong>.</p>'
-                                   . '<p>' . htmlspecialchars($logMessage) . '</p>';
+                if ($customerEmail) {
+                    $ticketNum    = $ticket->ticket_number ?? $ticket->ticket_id;
+                    $subject      = 'Ticket #' . $ticketNum . ' - ' . $label;
+                    $htmlBody     = '<p>Your ticket <strong>#' . htmlspecialchars((string) $ticketNum) . '</strong> has been <strong>' . $label . '</strong>.</p>'
+                                  . '<p>' . htmlspecialchars($logMessage) . '</p>';
+                    $inReplyTo    = TicketMessage::where('ticket_id', $ticket->ticket_id)
+                        ->where('channel', 'email')
+                        ->whereNotNull('email_message_id')
+                        ->orderByDesc('created_at')
+                        ->value('email_message_id');
+                    $threadId     = $ticket->email_thread_id;
+                    $ticketId_    = $id;
 
-                        $inReplyTo = TicketMessage::where('ticket_id', $ticket->ticket_id)
-                            ->where('channel', 'email')
-                            ->whereNotNull('email_message_id')
-                            ->orderByDesc('created_at')
-                            ->value('email_message_id');
-
-                        $emailController = new EmailController();
-                        $emailController->sendTicketReply(
-                            $customerEmail,
-                            $subject,
-                            $htmlBody,
-                            $inReplyTo,
-                            [],
-                            [],
-                            true,
-                            $ticket->email_thread_id
-                        );
-                    }
-                } catch (\Exception $emailEx) {
-                    Log::warning('updateTicketStatus: email notification failed', [
-                        'error'     => $emailEx->getMessage(),
-                        'ticket_id' => $id,
-                    ]);
+                    dispatch(function () use ($customerEmail, $subject, $htmlBody, $inReplyTo, $threadId, $ticketId_) {
+                        try {
+                            (new EmailController())->sendTicketReply(
+                                $customerEmail, $subject, $htmlBody, $inReplyTo, [], [], true, $threadId
+                            );
+                        } catch (\Exception $e) {
+                            Log::warning('updateTicketStatus: email notification failed', [
+                                'error'     => $e->getMessage(),
+                                'ticket_id' => $ticketId_,
+                            ]);
+                        }
+                    })->afterResponse();
                 }
             }
 
@@ -1542,7 +1558,7 @@ class TicketController extends Controller
         $ticket  = Ticket::with('members.basicData')->findOrFail($id);
         $roleId     = $sessionUser['role']['id'];
         $isAdmin    = $roleId === RoleId::ADMIN->value;
-        $isHelpdesk = in_array($roleId, RoleId::HELPDESK_GROUP, true);
+        $isHelpdesk = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
         $isPic      = $roleId === RoleId::EMPLOYEE->value && $ticket->employee_id == $sessionUser['id'];
 
         if (!$isAdmin && !$isHelpdesk && !$isPic) {
@@ -1603,7 +1619,7 @@ class TicketController extends Controller
         $ticket  = Ticket::findOrFail($id);
         $roleId     = $sessionUser['role']['id'];
         $isAdmin    = $roleId === RoleId::ADMIN->value;
-        $isHelpdesk = in_array($roleId, RoleId::HELPDESK_GROUP, true);
+        $isHelpdesk = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
         $isPic      = $roleId === RoleId::EMPLOYEE->value && $ticket->employee_id == $sessionUser['id'];
 
         if (!$isAdmin && !$isHelpdesk && !$isPic) {
@@ -2005,11 +2021,11 @@ class TicketController extends Controller
                 ], 401);
             }
 
-            // Only Admin and Helpdesk can assign tickets to support
-            if (!in_array($sessionUser['role']['id'], [RoleId::ADMIN->value, RoleId::HELPDESK->value], true)) {
+            // Admin, Helpdesk, and Head of Support can assign tickets to support
+            if (!in_array($sessionUser['role']['id'], [RoleId::ADMIN->value, RoleId::HELPDESK->value, RoleId::HEAD_OF_SUPPORT->value], true)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Only Admin and Helpdesk can assign tickets to delivery support'
+                    'message' => 'Only Admin, Helpdesk, and Delivery Support Head can assign tickets to delivery support'
                 ], 403);
             }
 
@@ -2083,11 +2099,11 @@ class TicketController extends Controller
             ], 401);
         }
 
-        // Only Admin and Helpdesk can assign tickets
-        if (!in_array($sessionUser['role']['id'], [RoleId::ADMIN->value, RoleId::HELPDESK->value], true)) {
+        // Admin, Helpdesk, and Head of Support can assign tickets
+        if (!in_array($sessionUser['role']['id'], [RoleId::ADMIN->value, RoleId::HELPDESK->value, RoleId::HEAD_OF_SUPPORT->value], true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only Admin and Helpdesk can assign tickets to delivery support'
+                'message' => 'Only Admin, Helpdesk, and Delivery Support Head can assign tickets to delivery support'
             ], 403);
         }
 

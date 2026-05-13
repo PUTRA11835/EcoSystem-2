@@ -523,7 +523,7 @@
                             {{-- Start time --}}
                             <div id="timesheetStartTimeField" class="flex items-center gap-1 flex-1">
                                 {{-- Start Hour --}}
-                                <div class="custom-dd flex-1" data-fixed="true" data-onchange="tsUpdateStartTime">
+                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateStartTime">
                                     <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
                                         <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">08</span>
                                         <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -537,7 +537,7 @@
                                 </div>
                                 <span class="text-sm font-bold text-gray-400 flex-shrink-0">:</span>
                                 {{-- Start Minute --}}
-                                <div class="custom-dd flex-1" data-fixed="true" data-onchange="tsUpdateStartTime">
+                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateStartTime">
                                     <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
                                         <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">00</span>
                                         <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -554,7 +554,7 @@
                             {{-- End time --}}
                             <div id="timesheetEndTimeField" class="flex items-center gap-1 flex-1">
                                 {{-- End Hour --}}
-                                <div class="custom-dd flex-1" data-fixed="true" data-onchange="tsUpdateEndTime">
+                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateEndTime">
                                     <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
                                         <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">17</span>
                                         <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -568,7 +568,7 @@
                                 </div>
                                 <span class="text-sm font-bold text-gray-400 flex-shrink-0">:</span>
                                 {{-- End Minute --}}
-                                <div class="custom-dd flex-1" data-fixed="true" data-onchange="tsUpdateEndTime">
+                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateEndTime">
                                     <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
                                         <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">00</span>
                                         <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
