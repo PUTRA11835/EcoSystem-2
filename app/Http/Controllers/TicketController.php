@@ -230,7 +230,7 @@ class TicketController extends Controller
                     ->where('ticket_id', $ticket->ticket_id)
                     ->where('status', 'pending')
                     ->first();
-                
+
                 return [
                     'ticket_id' => $ticket->ticket_id,
                     'ticket_number' => $ticket->ticket_number,
@@ -239,6 +239,7 @@ class TicketController extends Controller
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
+                    'scale' => $ticket->scale,
                     'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
                     'channel' => $ticket->channel,
@@ -551,6 +552,7 @@ class TicketController extends Controller
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
+                    'scale' => $ticket->scale,
                     'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
                     'channel' => $ticket->channel,
@@ -1126,6 +1128,7 @@ class TicketController extends Controller
                 'description' => $ticket->description,
                 'ticket_priority' => $ticket->ticket_priority,
                 'ticket_type' => $ticket->ticket_type,
+                'scale' => $ticket->scale,
                 'jarvies_status' => $ticket->jarvies_status,
                 'status' => $ticket->status,
                 'channel' => $ticket->channel,
@@ -1430,39 +1433,34 @@ class TicketController extends Controller
                     'updated_at'  => now(),
                 ]);
 
-                try {
-                    $customerEmail = $ticket->customer?->email
-                        ?? Customer::find($ticket->customer_id)?->email;
+                $customerEmail = $ticket->customer?->email
+                    ?? Customer::find($ticket->customer_id)?->email;
 
-                    if ($customerEmail) {
-                        $ticketNum = $ticket->ticket_number ?? $ticket->ticket_id;
-                        $subject   = 'Ticket #' . $ticketNum . ' - ' . $label;
-                        $htmlBody  = '<p>Your ticket <strong>#' . htmlspecialchars((string) $ticketNum) . '</strong> has been <strong>' . $label . '</strong>.</p>'
-                                   . '<p>' . htmlspecialchars($logMessage) . '</p>';
+                if ($customerEmail) {
+                    $ticketNum    = $ticket->ticket_number ?? $ticket->ticket_id;
+                    $subject      = 'Ticket #' . $ticketNum . ' - ' . $label;
+                    $htmlBody     = '<p>Your ticket <strong>#' . htmlspecialchars((string) $ticketNum) . '</strong> has been <strong>' . $label . '</strong>.</p>'
+                                  . '<p>' . htmlspecialchars($logMessage) . '</p>';
+                    $inReplyTo    = TicketMessage::where('ticket_id', $ticket->ticket_id)
+                        ->where('channel', 'email')
+                        ->whereNotNull('email_message_id')
+                        ->orderByDesc('created_at')
+                        ->value('email_message_id');
+                    $threadId     = $ticket->email_thread_id;
+                    $ticketId_    = $id;
 
-                        $inReplyTo = TicketMessage::where('ticket_id', $ticket->ticket_id)
-                            ->where('channel', 'email')
-                            ->whereNotNull('email_message_id')
-                            ->orderByDesc('created_at')
-                            ->value('email_message_id');
-
-                        $emailController = new EmailController();
-                        $emailController->sendTicketReply(
-                            $customerEmail,
-                            $subject,
-                            $htmlBody,
-                            $inReplyTo,
-                            [],
-                            [],
-                            true,
-                            $ticket->email_thread_id
-                        );
-                    }
-                } catch (\Exception $emailEx) {
-                    Log::warning('updateTicketStatus: email notification failed', [
-                        'error'     => $emailEx->getMessage(),
-                        'ticket_id' => $id,
-                    ]);
+                    dispatch(function () use ($customerEmail, $subject, $htmlBody, $inReplyTo, $threadId, $ticketId_) {
+                        try {
+                            (new EmailController())->sendTicketReply(
+                                $customerEmail, $subject, $htmlBody, $inReplyTo, [], [], true, $threadId
+                            );
+                        } catch (\Exception $e) {
+                            Log::warning('updateTicketStatus: email notification failed', [
+                                'error'     => $e->getMessage(),
+                                'ticket_id' => $ticketId_,
+                            ]);
+                        }
+                    })->afterResponse();
                 }
             }
 
@@ -2023,11 +2021,11 @@ class TicketController extends Controller
                 ], 401);
             }
 
-            // Only Admin and Helpdesk can assign tickets to support
-            if (!in_array($sessionUser['role']['id'], [RoleId::ADMIN->value, RoleId::HELPDESK->value], true)) {
+            // Admin, Helpdesk, and Head of Support can assign tickets to support
+            if (!in_array($sessionUser['role']['id'], [RoleId::ADMIN->value, RoleId::HELPDESK->value, RoleId::HEAD_OF_SUPPORT->value], true)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Only Admin and Helpdesk can assign tickets to delivery support'
+                    'message' => 'Only Admin, Helpdesk, and Delivery Support Head can assign tickets to delivery support'
                 ], 403);
             }
 
@@ -2101,11 +2099,11 @@ class TicketController extends Controller
             ], 401);
         }
 
-        // Only Admin and Helpdesk can assign tickets
-        if (!in_array($sessionUser['role']['id'], [RoleId::ADMIN->value, RoleId::HELPDESK->value], true)) {
+        // Admin, Helpdesk, and Head of Support can assign tickets
+        if (!in_array($sessionUser['role']['id'], [RoleId::ADMIN->value, RoleId::HELPDESK->value, RoleId::HEAD_OF_SUPPORT->value], true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only Admin and Helpdesk can assign tickets to delivery support'
+                'message' => 'Only Admin, Helpdesk, and Delivery Support Head can assign tickets to delivery support'
             ], 403);
         }
 

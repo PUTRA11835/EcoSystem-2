@@ -297,19 +297,26 @@
 
     // Save employee basic data
     async function saveEmployeeBasicData(employeeId) {
+        const firstName = getValue('firstName').trim();
+        if (!firstName) {
+            showNotification('First Name is required', 'error');
+            document.getElementById('firstName')?.focus();
+            return;
+        }
+        const v = id => getValue(id) || null;
         const basicData = {
-            title: getValue('title'),
+            title: v('title'),
             first_name: getValue('firstName'),
-            last_name: getValue('lastName'),
-            nick_name: getValue('nickName'),
-            gender: getValue('gender'),
-            religion: getValue('religion'),
-            search_term_1: getValue('searchTerm1'),
-            search_term_2: getValue('searchTerm2'),
-            marital_status: getValue('maritalStatus'),
-            birth_date: getValue('birthDate'),
-            birth_place: getValue('birthPlace'),
-            since_date: getValue('sinceDate'),
+            last_name: v('lastName'),
+            nick_name: v('nickName'),
+            gender: v('gender'),
+            religion: v('religion'),
+            search_term_1: v('searchTerm1'),
+            search_term_2: v('searchTerm2'),
+            marital_status: v('maritalStatus'),
+            birth_date: v('birthDate'),
+            birth_place: v('birthPlace'),
+            since_date: v('sinceDate'),
             personnel_area: getValue('personnelArea'),
             personnel_subarea: getValue('personnelSubarea'),
             employee_group: getValue('employeeGroup'),
@@ -343,9 +350,20 @@
                 showNotification('Basic data saved successfully!', 'success');
                 loadEmployeeBasicData(employeeId);
             } else {
-                showNotification('Failed to save: ' + (data.message || 'Unknown error'), 'error');
-                if (data.errors) {
-                    console.error('Validation errors:', data.errors);
+                const fieldLabels = {
+                    first_name: 'First Name', last_name: 'Last Name', nick_name: 'Nick Name',
+                    gender: 'Gender', religion: 'Religion', marital_status: 'Marital Status',
+                    birth_date: 'Birth Date', birth_place: 'Birth Place', since_date: 'Since Date',
+                    title: 'Title',
+                };
+                if (data.errors && typeof data.errors === 'object') {
+                    const msgs = Object.entries(data.errors).map(([field, errs]) => {
+                        const label = fieldLabels[field] || field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                        return `${label}: ${Array.isArray(errs) ? errs[0] : errs}`;
+                    });
+                    showNotification(msgs.join('\n'), 'error');
+                } else {
+                    showNotification(data.message || 'Failed to save', 'error');
                 }
             }
         } catch (error) {

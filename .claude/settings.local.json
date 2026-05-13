@@ -155,7 +155,8 @@
       "Bash(grep -r \"use App\\\\\\\\\\\\\\\\Models\\\\\\\\\\\\\\\\DeliveryActivity\\\\\\\\|use App\\\\\\\\\\\\\\\\Models\\\\\\\\\\\\\\\\DeliveryGroup\\\\\\\\|use App\\\\\\\\\\\\\\\\Models\\\\\\\\\\\\\\\\DeliveryPhase\\\\\\\\|use App\\\\\\\\\\\\\\\\Models\\\\\\\\\\\\\\\\DeliveryStage\\\\\\\\|use App\\\\\\\\\\\\\\\\Models\\\\\\\\\\\\\\\\Project[^a-zA-Z]\" \"c:\\\\EcoSystem-2\\\\app\\\\Http\\\\Controllers\")",
       "Bash(Remove-Item \"c:\\\\EcoSystem-2\\\\app\\\\Http\\\\Controllers\\\\ActivityStageController.php\" -Force)",
       "Bash(Remove-Item \"c:\\\\EcoSystem-2\\\\app\\\\Http\\\\Controllers\\\\DeliveryProjectPlanController.php\" -Force)",
-      "Bash(Write-Output \"Controllers deleted\")"
+      "Bash(Write-Output \"Controllers deleted\")",
+      "Bash(not exist *)"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",
