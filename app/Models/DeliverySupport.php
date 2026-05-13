@@ -32,6 +32,10 @@ class DeliverySupport extends Model
         'approval_name',
         'onedrive_folder_id',
         'onedrive_folder_url',
+        'onedrive_deliverable_folder_id',
+        'onedrive_deliverable_folder_url',
+        'service_window_start',
+        'service_window_end',
     ];
 
     protected $casts = [

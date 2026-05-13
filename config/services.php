@@ -41,7 +41,8 @@ return [
         'client_secret'         => env('MS_CLIENT_SECRET'),
         'sender_email'          => env('MS_SENDER_EMAIL'),
         'base_url'              => env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'),
-        'ticket_parent_folder'  => env('ONEDRIVE_TICKET_PARENT_FOLDER', 'TICKETING'),
+        'ticket_parent_folder'            => env('ONEDRIVE_TICKET_PARENT_FOLDER', 'TICKETING'),
+        'customer_deliverable_path'       => env('ONEDRIVE_CUSTOMER_DELIVERABLE_PATH', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE'),
     ],
 
     // Set JARVIES_URL in .env to the public JARVIES base URL in production

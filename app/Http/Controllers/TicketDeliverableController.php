@@ -120,6 +120,37 @@ class TicketDeliverableController extends Controller
     }
 
     /**
+     * PATCH /api/tickets/{ticketId}/deliverables/{delivId}
+     * Update body_text (only allowed while status is not "Sended").
+     */
+    public function update(Request $request, $ticketId, $delivId)
+    {
+        $user = session('user');
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $request->validate([
+            'body_text' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $deliverable = TicketDeliverable::where('id', $delivId)
+            ->where('ticket_id', $ticketId)
+            ->firstOrFail();
+
+        if ($deliverable->status === 'Sended') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot edit a document that has already been sent to customer.',
+            ], 422);
+        }
+
+        $deliverable->update(['body_text' => $request->body_text]);
+
+        return response()->json(['success' => true, 'data' => $this->format($deliverable->fresh())]);
+    }
+
+    /**
      * PATCH /api/tickets/{ticketId}/deliverables/{delivId}/send
      * Mark a deliverable as "Sended", add to chat, and email the customer.
      */
