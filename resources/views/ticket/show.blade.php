@@ -1996,7 +1996,7 @@
                 const size  = formatFileSize(file.file_size);
                 const isImg = file.mime_type?.startsWith('image/');
                 html += `<div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 max-w-xs">
-                    <span class="text-lg flex-shrink-0">${icon}</span>
+                    ${icon}
                     <div class="flex-1 min-w-0">
                         <p class="text-xs font-medium text-gray-700 truncate">${escHtml(file.file_name)}</p>
                         ${size ? `<p class="text-[10px] text-gray-400">${size}</p>` : ''}
@@ -2014,13 +2014,17 @@
         return html;
     }
 
-    function attachmentIcon(type, mime) {
-        if (mime?.startsWith('image/'))        return '🖼️';
-        if (type === 'pdf')                    return '📄';
-        if (type === 'document')               return '📝';
-        if (type === 'spreadsheet')            return '📊';
-        if (type === 'archive')                return '🗜️';
-        return '📎';
+    // SVG icons (not emoji) — production server kadang tidak set Content-Type charset=utf-8
+    // sehingga emoji UTF-8 ter-render mojibake (e.g. "ÖŸ"). SVG aman dari masalah charset
+    // dan font emoji OS yang berbeda-beda.
+    function attachmentIcon(type, mime, sizeClass = 'w-5 h-5') {
+        const cls = `${sizeClass} flex-shrink-0`;
+        if (mime?.startsWith('image/')) return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-purple-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>`;
+        if (type === 'pdf')             return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>`;
+        if (type === 'document')        return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/><path d="M3 8a2 2 0 012-2v10h8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>`;
+        if (type === 'spreadsheet')     return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm10 1H7v3h6V5zm-6 4v3h2V9H7zm0 4v2h2v-2H7zm4 0v2h2v-2h-2zm0-1v-3h2v3h-2z" clip-rule="evenodd"/></svg>`;
+        if (type === 'archive')         return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm5 1a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm0 3a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm0 3a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm0 3a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clip-rule="evenodd"/></svg>`;
     }
 
     function formatFileSize(bytes) {
@@ -2203,7 +2207,7 @@
             const avatarBgNote = isMine ? 'bg-amber-400' : 'bg-amber-200';
             const avatarTextNote = isMine ? 'text-white' : 'text-amber-800';
             const bubbleExtra = isMine ? 'mine' : '';
-            const noteBadge = `<span class="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-semibold leading-none">📝 Internal Note</span>`;
+            const noteBadge = `<span class="inline-flex items-center gap-1 text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-semibold leading-none"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z"/><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd"/></svg>Internal Note</span>`;
 
             // Quoted context if this is a reply to another note
             const replyQuote = msg.reply_to_preview
@@ -2342,14 +2346,14 @@
 
         preview.innerHTML = selectedFiles.map((file, idx) => {
             const size = formatFileSize(file.size);
-            const icon = file.type.startsWith('image/') ? '🖼️'
-                       : file.type === 'application/pdf' ? '📄'
-                       : /\.(doc|docx)$/i.test(file.name) ? '📝'
-                       : /\.(xls|xlsx|csv)$/i.test(file.name) ? '📊'
-                       : /\.(zip|rar)$/i.test(file.name) ? '🗜️'
-                       : '📎';
+            const fileType = file.type.startsWith('image/')        ? 'image'
+                           : file.type === 'application/pdf'       ? 'pdf'
+                           : /\.(doc|docx)$/i.test(file.name)      ? 'document'
+                           : /\.(xls|xlsx|csv)$/i.test(file.name)  ? 'spreadsheet'
+                           : /\.(zip|rar)$/i.test(file.name)       ? 'archive' : 'generic';
+            const icon = attachmentIcon(fileType, file.type, 'w-4 h-4');
             return `<div class="flex items-center gap-1.5 bg-gray-100 border border-gray-200 rounded-lg px-2.5 py-1.5" style="max-width:200px">
-                <span class="text-sm flex-shrink-0">${icon}</span>
+                ${icon}
                 <div class="flex-1 min-w-0">
                     <p class="text-xs font-medium text-gray-700 truncate" title="${escHtml(file.name)}">${escHtml(file.name)}</p>
                     ${size ? `<p class="text-[10px] text-gray-400">${size}</p>` : ''}
@@ -5046,6 +5050,39 @@ function copyFolderLink() {
     </div>
 </div>
 
+{{-- ==================== EDIT DELIVERABLE MODAL ==================== --}}
+<div id="editDelivModal" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+            <h3 class="text-sm font-bold text-gray-900">Edit Body Text</h3>
+            <button onclick="closeEditDelivModal()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="px-5 py-4 space-y-4">
+            <input type="hidden" id="edDelivId">
+            <div>
+                <label class="text-xs font-semibold text-gray-600 mb-1 block">Body Text</label>
+                <textarea id="edBodyText" rows="5" placeholder="Short description..."
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-red-400 focus:outline-none"></textarea>
+            </div>
+            <p id="edError" class="hidden text-xs text-red-600 font-medium"></p>
+        </div>
+        <div class="px-5 pb-5 flex gap-2">
+            <button onclick="submitEditDeliv()" id="edSubmitBtn"
+                class="flex-1 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold py-2.5 rounded-lg transition">
+                Save
+            </button>
+            <button onclick="closeEditDelivModal()"
+                class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
 // ==================== REUSABLE CONFIRM HELPER ====================
 /**
@@ -5176,9 +5213,15 @@ function renderDeliverableTable(data) {
                 : `<span class="text-gray-600 truncate max-w-[160px] block">${escHtmlD(d.file_name)}</span>`)
             : '<span class="text-gray-300">—</span>';
 
+        const editBtn = d.status !== 'Sended'
+            ? `<button onclick="editDeliverable(${d.id})"
+                class="text-[10px] text-amber-600 hover:text-amber-800 font-semibold border border-amber-200 px-1.5 py-0.5 rounded hover:bg-amber-50 transition">
+                Edit</button>`
+            : '';
+
         const sendBtn = d.status !== 'Sended'
             ? `<button onclick="sendDeliverable(${d.id})"
-                class="text-[10px] text-blue-600 hover:text-blue-800 font-semibold border border-blue-200 px-1.5 py-0.5 rounded hover:bg-blue-50 transition">
+                class="text-[10px] text-blue-600 hover:text-blue-800 font-semibold border border-blue-200 px-1.5 py-0.5 rounded hover:bg-blue-50 transition ml-1">
                 Send to Customer</button>`
             : '';
 
@@ -5199,7 +5242,7 @@ function renderDeliverableTable(data) {
             <td class="px-3 py-2 whitespace-nowrap">
                 <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ${statusCls}">${escHtmlD(d.status)}</span>
             </td>
-            <td class="px-3 py-2 whitespace-nowrap">${sendBtn}${delBtn}</td>
+            <td class="px-3 py-2 whitespace-nowrap">${editBtn}${sendBtn}${delBtn}</td>
         </tr>`;
     });
 
@@ -5308,6 +5351,66 @@ async function deleteDeliverable(id) {
         showToast('Failed to delete: ' + e.message, 'error');
     }
 }
+
+// ── Edit body text ─────────────────────────────────────────────────
+function editDeliverable(id) {
+    const d = deliverableData.find(x => x.id === id);
+    if (!d) return;
+    document.getElementById('edDelivId').value = id;
+    document.getElementById('edBodyText').value = d.body_text ?? '';
+    document.getElementById('edError').classList.add('hidden');
+    const btn = document.getElementById('edSubmitBtn');
+    btn.disabled = false;
+    btn.textContent = 'Save';
+    document.getElementById('editDelivModal').classList.remove('hidden');
+}
+
+function closeEditDelivModal() {
+    document.getElementById('editDelivModal').classList.add('hidden');
+}
+
+async function submitEditDeliv() {
+    const id        = parseInt(document.getElementById('edDelivId').value);
+    const bodyText  = document.getElementById('edBodyText').value.trim();
+    const errEl     = document.getElementById('edError');
+    const submitBtn = document.getElementById('edSubmitBtn');
+
+    errEl.classList.add('hidden');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving…';
+
+    try {
+        const res = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}`, {
+            method: 'PATCH',
+            headers: {
+                'X-CSRF-TOKEN': CSRF,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ body_text: bodyText }),
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message);
+
+        const idx = deliverableData.findIndex(x => x.id === id);
+        if (idx !== -1) deliverableData[idx] = json.data;
+        renderDeliverableTable(deliverableData);
+
+        closeEditDelivModal();
+        showToast('Body text updated.', 'success');
+    } catch (e) {
+        errEl.textContent = 'Error: ' + e.message;
+        errEl.classList.remove('hidden');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save';
+    }
+}
+
+document.getElementById('editDelivModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditDelivModal();
+});
 
 // Tampilkan error di footer modal deliverable (non-blocking)
 function showDelivError(msg) {

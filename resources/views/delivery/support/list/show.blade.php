@@ -41,23 +41,74 @@
            class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
             Open Planning
         </a>
-        @if($support->onedrive_folder_url)
-        <a id="headerFolderBtn" href="{{ $support->onedrive_folder_url }}" target="_blank" rel="noopener"
-           class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-            </svg>
-            Open Folder
-        </a>
-        @else
-        <button type="button" id="headerFolderBtn" onclick="openOneDriveModal()"
-                class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
-            </svg>
-            Create Folder
-        </button>
-        @endif
+
+        {{-- Customer Deliverable Folder Dropdown --}}
+        <div class="relative" id="dlvDropdownContainer">
+            <button type="button" id="dlvDropdownBtn" onclick="toggleDeliverableDropdown()"
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-all duration-200">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                </svg>
+                Deliverable Folder
+                <svg id="dlvDropdownChevron" class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+
+            {{-- Dropdown Panel --}}
+            <div id="dlvDropdownMenu"
+                 class="hidden absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 z-40 overflow-hidden">
+
+                {{-- Loading --}}
+                <div id="dlvDdLoading" class="flex items-center gap-2 px-4 py-3 text-sm text-gray-400">
+                    <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                    Loading sub-folders…
+                </div>
+
+                {{-- Content --}}
+                <div id="dlvDdContent" class="hidden">
+                    {{-- Header --}}
+                    <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sub-folders</p>
+                        <p id="dlvDdCustomerName" class="text-xs text-gray-400 mt-0.5 truncate"></p>
+                    </div>
+
+                    {{-- Sub-folder list --}}
+                    <div id="dlvDdList" class="max-h-56 overflow-y-auto divide-y divide-gray-50">
+                        {{-- filled by JS --}}
+                    </div>
+
+                    {{-- Empty state (shown when no sub-folders) --}}
+                    <div id="dlvDdEmpty" class="hidden px-4 py-4 text-sm text-gray-400 text-center">
+                        <svg class="w-8 h-8 mx-auto mb-1 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                        </svg>
+                        No sub-folders yet
+                    </div>
+
+                    {{-- Create new --}}
+                    <div class="border-t border-gray-100">
+                        <button type="button"
+                                onclick="closeDeliverableDropdown(); openDeliverableModal()"
+                                class="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-emerald-700 hover:bg-emerald-50 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            Create New Sub-folder
+                        </button>
+                    </div>
+                </div>
+
+                {{-- Error state --}}
+                <div id="dlvDdError" class="hidden px-4 py-3 text-sm text-red-500">
+                    <span id="dlvDdErrorMsg">Failed to load sub-folders.</span>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -114,6 +165,16 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-500 mb-1">Total Mandays</label>
                             <p class="text-base text-gray-900" id="display-total_mandays">{{ $support->total_mandays ?? '0' }} days</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500 mb-1">Service Window</label>
+                            <p class="text-base text-gray-900" id="display-service_window">
+                                @if($support->service_window_start && $support->service_window_end)
+                                    {{ \Illuminate\Support\Str::substr($support->service_window_start, 0, 5) }} – {{ \Illuminate\Support\Str::substr($support->service_window_end, 0, 5) }}
+                                @else
+                                    N/A
+                                @endif
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -306,125 +367,76 @@
 {{-- ============================================================================ --}}
 {{-- ONEDRIVE MODAL --}}
 {{-- ============================================================================ --}}
-<div id="oneDriveModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+{{-- CUSTOMER DELIVERABLE FOLDER MODAL --}}
+{{-- ============================================================================ --}}
+<div id="deliverableModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen p-4">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeOneDriveModal()"></div>
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeDeliverableModal()"></div>
         <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full z-10 overflow-hidden">
 
-            {{-- State 1: Generate form --}}
-            <div id="odrStateGenerate">
-                <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
-                    <div class="flex items-center gap-2">
-                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
-                        </svg>
-                        <h3 class="text-base font-semibold text-gray-900">Create OneDrive Folder</h3>
-                    </div>
-                    <button onclick="closeOneDriveModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                    </button>
+            {{-- Header --}}
+            <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+                <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                    </svg>
+                    <h3 class="text-base font-semibold text-gray-900">Customer Deliverable Folder</h3>
                 </div>
-                <div class="px-6 py-5 space-y-4">
-                    <p class="text-sm text-gray-500">
-                        The folder will be created in the OneDrive account <strong class="text-gray-700">{{ config('services.microsoft_graph.sender_email') }}</strong>
-                        and accessible to anyone with the link (edit &amp; upload access).
-                    </p>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Folder Name <span class="font-normal text-gray-400">(optional)</span>
-                        </label>
-                        <input type="text" id="odrFolderName"
-                               value="{{ $support->name ?? 'Support-' . $support->id }}"
-                               class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        <p class="text-xs text-gray-400 mt-1">Name of the folder to be created in OneDrive.</p>
-                    </div>
-                    <div class="flex gap-2 pt-1">
-                        <button onclick="generateSupportFolder()" id="odrGenerateBtn"
-                            class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-all disabled:opacity-60 disabled:cursor-not-allowed">
-                            <svg id="odrGenerateIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
-                            </svg>
-                            <svg id="odrGenerateSpinner" class="hidden animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                            </svg>
-                            <span id="odrGenerateLabel">{{ $support->onedrive_folder_id ? 'Regenerate Link' : 'Generate Folder' }}</span>
-                        </button>
-                        <button type="button" id="odrDeleteBtnForm" onclick="deleteSupportFolder()"
-                            class="{{ $support->onedrive_folder_id ? '' : 'hidden' }} px-4 py-2.5 border border-red-200 text-sm text-red-600 rounded-lg hover:bg-red-50 transition-all inline-flex items-center gap-1.5">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                            </svg>
-                            Delete Folder
-                        </button>
-                        <button type="button" onclick="closeOneDriveModal()"
-                            class="px-4 py-2.5 border border-gray-300 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-all">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
+                <button onclick="closeDeliverableModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
             </div>
 
-            {{-- State 2: Success --}}
-            <div id="odrStateSuccess" class="hidden">
-                <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
-                    <div class="flex items-center gap-2">
-                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                        <h3 class="text-base font-semibold text-gray-900">OneDrive Folder Ready</h3>
-                    </div>
-                    <button onclick="closeOneDriveModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                    </button>
+            {{-- Body --}}
+            <div class="px-6 py-5 space-y-4">
+                {{-- Info path preview --}}
+                <div class="bg-gray-50 rounded-lg px-4 py-3 text-xs text-gray-500 font-mono leading-relaxed">
+                    <span class="text-gray-400">Delivery Support / Customer Deliverable /</span><br>
+                    <span class="text-emerald-700 font-semibold" id="dlvCustomerFolderPreview">
+                        {{ str_pad($support->client_id, 3, '0', STR_PAD_LEFT) }} {{ strtoupper($support->client->basicData->name_1 ?? 'CUSTOMER') }}
+                    </span><span class="text-gray-400"> /</span><br>
+                    <span class="text-blue-700 font-semibold" id="dlvSubfolderPreview">{{ $support->onedrive_deliverable_folder_id ? '(folder sudah ada)' : 'nama sub-folder...' }}</span>
                 </div>
-                <div class="px-6 py-5 space-y-4">
-                    <div class="flex justify-center">
-                        <div class="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
-                            <svg class="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                            </svg>
-                        </div>
-                    </div>
-                    <p class="text-sm text-gray-600 text-center">
-                        Folder created successfully. Share the link below with anyone who needs access.
-                    </p>
-                    {{-- Link row --}}
-                    <div class="flex gap-2">
-                        <input type="text" id="odrFolderUrl" readonly
-                               class="flex-1 px-3 py-2 text-xs border border-gray-300 rounded-lg bg-gray-50 text-gray-700 focus:outline-none cursor-text select-all">
-                        <button onclick="copyFolderLink()" id="odrCopyBtn" title="Copy link"
-                            class="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition-all">
-                            <svg id="odrCopyIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                            </svg>
-                            <svg id="odrCopiedIcon" class="hidden w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                            </svg>
-                        </button>
-                    </div>
-                    {{-- Action buttons --}}
-                    <div class="flex gap-2 pt-1">
-                        <a id="odrOpenLink" href="#" target="_blank" rel="noopener"
-                           class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                            </svg>
-                            Open Folder
-                        </a>
-                        <button onclick="deleteSupportFolder()"
-                            class="px-4 py-2.5 border border-red-200 text-sm text-red-600 rounded-lg hover:bg-red-50 transition-all inline-flex items-center gap-1.5">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                            </svg>
-                            Delete Folder
-                        </button>
-                    </div>
+
+                {{-- Input nama sub-folder --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Sub-Folder Name <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="dlvSubfolderName"
+                           placeholder="e.g. CONTRACT#001 ATS 2026"
+                           class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                           oninput="document.getElementById('dlvSubfolderPreview').textContent = this.value || 'nama sub-folder...'">
+                    <p class="text-xs text-gray-400 mt-1">Cannot contain: \ / : * ? " &lt; &gt; |</p>
                 </div>
+
+                @if($support->onedrive_deliverable_folder_url)
+                <div class="bg-emerald-50 rounded-lg p-3 text-xs text-emerald-700">
+                    <span class="font-semibold">Sub-folder sebelumnya sudah ada.</span>
+                    Membuat baru akan menggantikan referensi yang tersimpan.
+                </div>
+                @endif
+            </div>
+
+            {{-- Footer --}}
+            <div class="flex gap-2 px-6 pb-5">
+                <button onclick="generateDeliverableFolder()" id="dlvGenerateBtn"
+                    class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition-all disabled:opacity-60 disabled:cursor-not-allowed">
+                    <svg id="dlvGenerateIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                    </svg>
+                    <svg id="dlvGenerateSpinner" class="hidden animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                    <span id="dlvGenerateLabel">Generate Folder</span>
+                </button>
+                <button type="button" onclick="closeDeliverableModal()"
+                    class="px-4 py-2.5 border border-gray-300 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-all">
+                    Cancel
+                </button>
             </div>
 
         </div>
@@ -537,6 +549,27 @@
                         <input type="number" name="total_mandays" id="edit-total_mandays" min="0"
                                value="{{ $support->total_mandays }}"
                                class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Service Window
+                            <span class="ml-1 text-xs font-normal text-gray-400">(operational hours per day)</span>
+                        </label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Start Time</label>
+                                <input type="time" name="service_window_start" id="edit-service_window_start"
+                                       value="{{ $support->service_window_start ? \Illuminate\Support\Str::substr($support->service_window_start, 0, 5) : '' }}"
+                                       class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">End Time</label>
+                                <input type="time" name="service_window_end" id="edit-service_window_end"
+                                       value="{{ $support->service_window_end ? \Illuminate\Support\Str::substr($support->service_window_end, 0, 5) : '' }}"
+                                       class="block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm">
+                            </div>
+                        </div>
+                        <p id="edit-sw-error" class="mt-1 text-xs text-red-500 hidden">End time must be after start time.</p>
                     </div>
                 </div>
                 <div class="bg-gray-50 px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
@@ -779,6 +812,14 @@ function updateDisplayValues(section, data) {
                 typeEl.outerHTML = `<p class="text-gray-400" id="display-type">No type set</p>`;
             }
         }
+
+        // Update service window display
+        const swEl = document.getElementById('display-service_window');
+        if (swEl) {
+            const swStart = data.service_window_start || '';
+            const swEnd   = data.service_window_end   || '';
+            swEl.textContent = (swStart && swEnd) ? `${swStart} – ${swEnd}` : 'N/A';
+        }
     }
     else if (section === 'approval-info') {
         if (data.approval_date) {
@@ -833,6 +874,23 @@ document.addEventListener('DOMContentLoaded', function() {
         initCustomDropdowns();
     }
 
+    // Service window validation inside edit modal
+    const editSwStart = document.getElementById('edit-service_window_start');
+    const editSwEnd   = document.getElementById('edit-service_window_end');
+    const editSwError = document.getElementById('edit-sw-error');
+
+    function validateEditServiceWindow() {
+        if (editSwStart.value && editSwEnd.value && editSwEnd.value < editSwStart.value) {
+            editSwError.classList.remove('hidden');
+            editSwEnd.setCustomValidity('End time must be after start time.');
+        } else {
+            editSwError.classList.add('hidden');
+            editSwEnd.setCustomValidity('');
+        }
+    }
+    editSwStart.addEventListener('change', validateEditServiceWindow);
+    editSwEnd.addEventListener('change', validateEditServiceWindow);
+
     // Show flash messages as toasts
     @if(session('success'))
         showNotification('{{ session('success') }}', 'success');
@@ -855,124 +913,216 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// ── OneDrive Modal ────────────────────────────────────────────────────────
-let _odrHasFolder = {{ $support->onedrive_folder_id ? 'true' : 'false' }};
+// =========================================================================
+// CUSTOMER DELIVERABLE FOLDER — DROPDOWN
+// =========================================================================
 
-function openOneDriveModal() {
-    document.getElementById('oneDriveModal').classList.remove('hidden');
-    _showOdrGenerate();
-}
+let _dlvDropdownOpen   = false;
+let _dlvSubfoldersLoaded = false;
 
-function closeOneDriveModal() {
-    document.getElementById('oneDriveModal').classList.add('hidden');
-}
-
-function _showOdrGenerate() {
-    document.getElementById('odrStateGenerate').classList.remove('hidden');
-    document.getElementById('odrStateSuccess').classList.add('hidden');
-    const del = document.getElementById('odrDeleteBtnForm');
-    if (del) del.classList.toggle('hidden', !_odrHasFolder);
-}
-
-function _showOdrSuccess(url) {
-    document.getElementById('odrStateGenerate').classList.add('hidden');
-    document.getElementById('odrStateSuccess').classList.remove('hidden');
-    document.getElementById('odrFolderUrl').value = url;
-    document.getElementById('odrOpenLink').href   = url;
-    document.getElementById('odrCopyIcon').classList.remove('hidden');
-    document.getElementById('odrCopiedIcon').classList.add('hidden');
-    _odrHasFolder = true;
-    // Swap header button to "Open Folder"
-    const btn = document.getElementById('headerFolderBtn');
-    if (btn && btn.tagName === 'BUTTON') {
-        const a = document.createElement('a');
-        a.id = 'headerFolderBtn'; a.href = url; a.target = '_blank'; a.rel = 'noopener';
-        a.className = btn.className;
-        a.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg> Open Folder`;
-        btn.replaceWith(a);
+function toggleDeliverableDropdown() {
+    if (_dlvDropdownOpen) {
+        closeDeliverableDropdown();
+    } else {
+        openDeliverableDropdown();
     }
 }
 
-async function deleteSupportFolder() {
-    if (!confirm('Are you sure you want to delete this OneDrive folder? The folder and all its contents will be permanently deleted.')) return;
+function openDeliverableDropdown() {
+    _dlvDropdownOpen = true;
+    document.getElementById('dlvDropdownMenu').classList.remove('hidden');
+    document.getElementById('dlvDropdownChevron').style.transform = 'rotate(180deg)';
+    if (!_dlvSubfoldersLoaded) {
+        fetchDeliverableSubfolders();
+    }
+}
+
+function closeDeliverableDropdown() {
+    _dlvDropdownOpen = false;
+    document.getElementById('dlvDropdownMenu').classList.add('hidden');
+    document.getElementById('dlvDropdownChevron').style.transform = 'rotate(0deg)';
+}
+
+async function fetchDeliverableSubfolders() {
+    // Show loading, hide others
+    document.getElementById('dlvDdLoading').classList.remove('hidden');
+    document.getElementById('dlvDdContent').classList.add('hidden');
+    document.getElementById('dlvDdError').classList.add('hidden');
+
     try {
-        const res  = await fetch('{{ route('delivery.support.delete-folder', $support->id) }}', {
-            method:  'DELETE',
-            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+        const res  = await fetch('{{ route('delivery.support.deliverable-subfolders', $support->id) }}', {
+            headers: { 'Accept': 'application/json' },
         });
         const data = await res.json();
-        if (data.success) {
-            _odrHasFolder = false;
-            closeOneDriveModal();
-            // Revert header button to "Create Folder"
-            const el = document.getElementById('headerFolderBtn');
-            if (el) {
-                const btn = document.createElement('button');
-                btn.type = 'button'; btn.id = 'headerFolderBtn'; btn.onclick = openOneDriveModal;
-                btn.className = el.className;
-                btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg> Create Folder`;
-                el.replaceWith(btn);
-            }
-            showToast('Folder deleted successfully.', 'success');
-        } else {
-            showToast(data.message || 'Failed to delete folder.', 'error');
+
+        if (!res.ok || data.error) {
+            throw new Error(data.error || 'Server error');
         }
+
+        // Populate customer name
+        document.getElementById('dlvDdCustomerName').textContent = data.customer_folder ?? '';
+
+        // Populate list
+        const list = document.getElementById('dlvDdList');
+        const empty = document.getElementById('dlvDdEmpty');
+        list.innerHTML = '';
+
+        if (data.subfolders && data.subfolders.length > 0) {
+            empty.classList.add('hidden');
+            data.subfolders.forEach(folder => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center gap-1 px-3 py-2 hover:bg-emerald-50 group';
+                row.innerHTML = `
+                    <svg class="w-4 h-4 flex-shrink-0 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                    </svg>
+                    <span class="flex-1 min-w-0 text-sm text-gray-700 truncate px-1">${escapeHtml(folder.name)}</span>
+                    <button type="button"
+                            onclick="copyDeliverableLink('${escapeHtml(folder.id)}', this)"
+                            title="Copy shareable link (anyone with link can view &amp; upload)"
+                            class="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-100 transition-colors opacity-0 group-hover:opacity-100">
+                        <svg class="dlv-copy-icon w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                        </svg>
+                        <svg class="dlv-spin-icon hidden animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                        <svg class="dlv-check-icon hidden w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                        </svg>
+                    </button>`;
+                list.appendChild(row);
+            });
+        } else {
+            empty.classList.remove('hidden');
+        }
+
+        _dlvSubfoldersLoaded = true;
+        document.getElementById('dlvDdLoading').classList.add('hidden');
+        document.getElementById('dlvDdContent').classList.remove('hidden');
+
     } catch (err) {
-        showToast('Error: ' + err.message, 'error');
+        document.getElementById('dlvDdLoading').classList.add('hidden');
+        document.getElementById('dlvDdErrorMsg').textContent = 'Failed to load: ' + err.message;
+        document.getElementById('dlvDdError').classList.remove('hidden');
     }
 }
 
-async function generateSupportFolder() {
-    const btn     = document.getElementById('odrGenerateBtn');
-    const icon    = document.getElementById('odrGenerateIcon');
-    const spinner = document.getElementById('odrGenerateSpinner');
-    const label   = document.getElementById('odrGenerateLabel');
+function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function copyDeliverableLink(folderId, btn) {
+    const copyIcon  = btn.querySelector('.dlv-copy-icon');
+    const spinIcon  = btn.querySelector('.dlv-spin-icon');
+    const checkIcon = btn.querySelector('.dlv-check-icon');
 
     btn.disabled = true;
-    icon.classList.add('hidden');
-    spinner.classList.remove('hidden');
-    label.textContent = 'Creating folder…';
+    copyIcon.classList.add('hidden');
+    spinIcon.classList.remove('hidden');
 
     try {
-        const res  = await fetch('{{ route('delivery.support.generate-folder', $support->id) }}', {
+        const res  = await fetch('{{ route('delivery.support.deliverable-share-link', $support->id) }}', {
             method:  'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept':       'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
             },
-            body: JSON.stringify({ folder_name: document.getElementById('odrFolderName').value.trim() }),
+            body: JSON.stringify({ folder_id: folderId }),
         });
         const data = await res.json();
 
         if (data.success) {
-            _showOdrSuccess(data.folder_url);
-            showToast('OneDrive folder created successfully!', 'success');
+            await navigator.clipboard.writeText(data.url);
+            spinIcon.classList.add('hidden');
+            checkIcon.classList.remove('hidden');
+            showToast('Link copied! Anyone with this link can view and upload files.', 'success');
+            setTimeout(() => {
+                checkIcon.classList.add('hidden');
+                copyIcon.classList.remove('hidden');
+                btn.disabled = false;
+            }, 2000);
         } else {
-            showToast(data.message || 'Failed to create folder.', 'error');
-            label.textContent = 'Generate Folder';
+            throw new Error(data.message || 'Failed to get link');
+        }
+    } catch (err) {
+        spinIcon.classList.add('hidden');
+        copyIcon.classList.remove('hidden');
+        btn.disabled = false;
+        showToast('Failed to get link: ' + err.message, 'error');
+    }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    const container = document.getElementById('dlvDropdownContainer');
+    if (container && !container.contains(e.target)) {
+        closeDeliverableDropdown();
+    }
+});
+
+// ── Deliverable Modal ──────────────────────────────────────────────────────
+
+function openDeliverableModal() {
+    document.getElementById('deliverableModal').classList.remove('hidden');
+    const input = document.getElementById('dlvSubfolderName');
+    input.value = '';
+    document.getElementById('dlvSubfolderPreview').textContent = 'nama sub-folder...';
+    setTimeout(() => input.focus(), 100);
+}
+
+function closeDeliverableModal() {
+    document.getElementById('deliverableModal').classList.add('hidden');
+}
+
+async function generateDeliverableFolder() {
+    const name = document.getElementById('dlvSubfolderName').value.trim();
+    if (!name) {
+        showToast('Sub-folder name is required.', 'error');
+        document.getElementById('dlvSubfolderName').focus();
+        return;
+    }
+
+    const btn     = document.getElementById('dlvGenerateBtn');
+    const icon    = document.getElementById('dlvGenerateIcon');
+    const spinner = document.getElementById('dlvGenerateSpinner');
+    const label   = document.getElementById('dlvGenerateLabel');
+
+    btn.disabled = true;
+    icon.classList.add('hidden');
+    spinner.classList.remove('hidden');
+    label.textContent = 'Generating…';
+
+    try {
+        const res  = await fetch('{{ route('delivery.support.generate-deliverable-folder', $support->id) }}', {
+            method:  'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept':       'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({ subfolder_name: name }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            closeDeliverableModal();
+            showToast('Customer deliverable folder created!', 'success');
+            // Force reload sub-folder list on next dropdown open
+            _dlvSubfoldersLoaded = false;
+        } else {
+            showToast(data.message || 'Failed to generate deliverable folder.', 'error');
         }
     } catch (err) {
         showToast('Error: ' + err.message, 'error');
-        label.textContent = 'Generate Folder';
     } finally {
         btn.disabled = false;
         icon.classList.remove('hidden');
         spinner.classList.add('hidden');
+        label.textContent = 'Generate Folder';
     }
-}
-
-function copyFolderLink() {
-    const val = document.getElementById('odrFolderUrl').value;
-    navigator.clipboard.writeText(val).then(() => {
-        document.getElementById('odrCopyIcon').classList.add('hidden');
-        document.getElementById('odrCopiedIcon').classList.remove('hidden');
-        setTimeout(() => {
-            document.getElementById('odrCopyIcon').classList.remove('hidden');
-            document.getElementById('odrCopiedIcon').classList.add('hidden');
-        }, 2000);
-        showToast('Link copied to clipboard!', 'success');
-    });
 }
 
 </script>
