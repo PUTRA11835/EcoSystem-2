@@ -95,6 +95,8 @@
 {{-- Quill.js CDN --}}
 <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+@php $customDdVer = file_exists(public_path('js/custom-dropdown.js')) ? filemtime(public_path('js/custom-dropdown.js')) : time(); @endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 
 <div class="flex gap-4" style="height: calc(100vh - 106px); min-height: 500px;">
     {{-- Main Content: Conversation Thread --}}
@@ -473,7 +475,7 @@
                  onclick="toggleSidebarPanel('propertiesPanel', 'propertiesChevron')">
                 <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Properties</h4>
                 <div class="flex items-center gap-2">
-                    @if(in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true))
+                    @if(in_array($user->role->role_id, [\App\Enums\RoleId::ADMIN->value, \App\Enums\RoleId::HEAD_OF_SUPPORT->value, \App\Enums\RoleId::HELPDESK->value], true))
                     <button onclick="event.stopPropagation(); saveAllProperties()"
                             class="inline-flex items-center px-2.5 py-1 primary-gradient text-white text-[10px] font-semibold rounded-md hover:opacity-90 transition-all duration-200">
                         Save All
@@ -482,75 +484,127 @@
                     <i id="propertiesChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
                 </div>
             </div>
+            @php
+                $canEditProps  = in_array($user->role->role_id, [\App\Enums\RoleId::ADMIN->value, \App\Enums\RoleId::HEAD_OF_SUPPORT->value, \App\Enums\RoleId::HELPDESK->value], true);
+                $ddBtnCls      = 'custom-dd-btn w-full flex items-center justify-between gap-1 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white hover:border-gray-400 transition-all';
+                $roValCls      = 'text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 w-full block';
+                $statusLabels  = ['open'=>'Open','in_progress'=>'In Progress','hold'=>'Hold','wait_to_close'=>'Wait to Close','cancel'=>'Cancel','closed'=>'Closed','reply'=>'Reply'];
+                $jarviesLabels = ['in process'=>'In Process','author action'=>'Author Action','proposed solution'=>'Proposed Solution','sent in to SAP'=>'Sent in to SAP','sent it to support'=>'Sent it to Support','closed'=>'Closed'];
+            @endphp
             <div id="propertiesPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
                 {{-- Status --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Status</label>
-                    <div class="relative">
-                        <select id="detailStatus" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
-                            <option value="open" {{ $ticket->status == 'open' ? 'selected' : '' }}>Open</option>
-                            <option value="in_progress" {{ $ticket->status == 'in_progress' ? 'selected' : '' }}>In Progress</option>
-                            <option value="hold" {{ $ticket->status == 'hold' ? 'selected' : '' }}>Hold</option>
-                            <option value="wait_to_close" {{ $ticket->status == 'wait_to_close' ? 'selected' : '' }}>Wait to Close</option>
-                            <option value="cancel" {{ $ticket->status == 'cancel' ? 'selected' : '' }}>Cancel</option>
-                            <option value="closed" {{ $ticket->status == 'closed' ? 'selected' : '' }}>Closed</option>
-                            <option value="reply" {{ $ticket->status == 'reply' ? 'selected' : '' }}>Reply</option>
-                        </select>
-                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    @if($canEditProps)
+                    <div class="custom-dd relative w-full">
+                        <button type="button" class="{{ $ddBtnCls }}">
+                            <span class="custom-dd-label text-gray-700">{{ $statusLabels[$ticket->status] ?? ucfirst($ticket->status) }}</span>
+                            <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="detailStatus" value="{{ $ticket->status }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:150px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="open">Open</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="in_progress">In Progress</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="hold">Hold</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="wait_to_close">Wait to Close</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="cancel">Cancel</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="closed">Closed</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="reply">Reply</button>
+                        </div>
                     </div>
+                    @else
+                    <input type="hidden" id="detailStatus" value="{{ $ticket->status }}">
+                    <span class="{{ $roValCls }}">{{ $statusLabels[$ticket->status] ?? ucfirst($ticket->status) }}</span>
+                    @endif
                 </div>
                 {{-- Jarvies Status --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Jarvies Status</label>
-                    <div class="relative">
-                        <select id="detailJarviesStatus" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
-                            <option value="in process" {{ $ticket->jarvies_status == 'in process' ? 'selected' : '' }}>In Process</option>
-                            <option value="author action" {{ $ticket->jarvies_status == 'author action' ? 'selected' : '' }}>Author Action</option>
-                            <option value="proposed solution" {{ $ticket->jarvies_status == 'proposed solution' ? 'selected' : '' }}>Proposed Solution</option>
-                            <option value="sent in to SAP" {{ $ticket->jarvies_status == 'sent in to SAP' ? 'selected' : '' }}>Sent in to SAP</option>
-                            <option value="sent it to support" {{ $ticket->jarvies_status == 'sent it to support' ? 'selected' : '' }}>Sent it to Support</option>
-                            <option value="closed" {{ $ticket->jarvies_status == 'closed' ? 'selected' : '' }}>Closed</option>
-                        </select>
-                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    @if($canEditProps)
+                    <div class="custom-dd relative w-full">
+                        <button type="button" class="{{ $ddBtnCls }}">
+                            <span class="custom-dd-label text-gray-700">{{ $jarviesLabels[$ticket->jarvies_status] ?? ucfirst($ticket->jarvies_status ?? '—') }}</span>
+                            <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="detailJarviesStatus" value="{{ $ticket->jarvies_status }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:160px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="in process">In Process</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="author action">Author Action</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="proposed solution">Proposed Solution</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="sent in to SAP">Sent in to SAP</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="sent it to support">Sent it to Support</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="closed">Closed</button>
+                        </div>
                     </div>
+                    @else
+                    <input type="hidden" id="detailJarviesStatus" value="{{ $ticket->jarvies_status }}">
+                    <span class="{{ $roValCls }}">{{ $jarviesLabels[$ticket->jarvies_status] ?? ucfirst($ticket->jarvies_status ?? '—') }}</span>
+                    @endif
                 </div>
                 {{-- Priority --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Priority</label>
-                    <div class="relative">
-                        <select id="detailPriority" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
-                            <option value="Very High" {{ $ticket->ticket_priority == 'Very High' ? 'selected' : '' }}>Very High</option>
-                            <option value="High" {{ $ticket->ticket_priority == 'High' ? 'selected' : '' }}>High</option>
-                            <option value="Medium" {{ $ticket->ticket_priority == 'Medium' ? 'selected' : '' }}>Medium</option>
-                            <option value="Low" {{ $ticket->ticket_priority == 'Low' ? 'selected' : '' }}>Low</option>
-                        </select>
-                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    @if($canEditProps)
+                    <div class="custom-dd relative w-full">
+                        <button type="button" class="{{ $ddBtnCls }}">
+                            <span class="custom-dd-label text-gray-700">{{ $ticket->ticket_priority ?? '—' }}</span>
+                            <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="detailPriority" value="{{ $ticket->ticket_priority }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:130px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Very High">Very High</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="High">High</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Medium">Medium</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Low">Low</button>
+                        </div>
                     </div>
+                    @else
+                    <input type="hidden" id="detailPriority" value="{{ $ticket->ticket_priority }}">
+                    <span class="{{ $roValCls }}">{{ $ticket->ticket_priority ?? '—' }}</span>
+                    @endif
                 </div>
                 {{-- Scale --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Scale</label>
-                    <div class="relative">
-                        <select id="detailScale" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
-                            <option value="Simple" {{ ($ticket->scale == 'Simple' || !$ticket->scale) ? 'selected' : '' }}>Simple</option>
-                            <option value="Medium" {{ $ticket->scale == 'Medium' ? 'selected' : '' }}>Medium</option>
-                            <option value="Complex" {{ $ticket->scale == 'Complex' ? 'selected' : '' }}>Complex</option>
-                        </select>
-                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    @if($canEditProps)
+                    <div class="custom-dd relative w-full">
+                        <button type="button" class="{{ $ddBtnCls }}">
+                            <span class="custom-dd-label text-gray-700">{{ $ticket->scale ?? 'Simple' }}</span>
+                            <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="detailScale" value="{{ $ticket->scale ?? 'Simple' }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:120px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Simple">Simple</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Medium">Medium</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Complex">Complex</button>
+                        </div>
                     </div>
+                    @else
+                    <input type="hidden" id="detailScale" value="{{ $ticket->scale ?? 'Simple' }}">
+                    <span class="{{ $roValCls }}">{{ $ticket->scale ?? 'Simple' }}</span>
+                    @endif
                 </div>
                 {{-- Ticket Type --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Ticket Type</label>
-                    <div class="relative">
-                        <select id="detailType" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
-                            <option value="Incident" {{ ($ticket->ticket_type == 'Incident' || !$ticket->ticket_type) ? 'selected' : '' }}>Incident</option>
-                            <option value="Service Request" {{ $ticket->ticket_type == 'Service Request' ? 'selected' : '' }}>Service Request</option>
-                            <option value="Change Request" {{ $ticket->ticket_type == 'Change Request' ? 'selected' : '' }}>Change Request</option>
-                            <option value="Consult" {{ $ticket->ticket_type == 'Consult' ? 'selected' : '' }}>Consult</option>
-                        </select>
-                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    @if($canEditProps)
+                    <div class="custom-dd relative w-full">
+                        <button type="button" class="{{ $ddBtnCls }}">
+                            <span class="custom-dd-label text-gray-700">{{ $ticket->ticket_type ?? 'Incident' }}</span>
+                            <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="detailType" value="{{ $ticket->ticket_type ?? 'Incident' }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:150px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Incident">Incident</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Service Request">Service Request</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Change Request">Change Request</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Consult">Consult</button>
+                        </div>
                     </div>
+                    @else
+                    <input type="hidden" id="detailType" value="{{ $ticket->ticket_type ?? 'Incident' }}">
+                    <span class="{{ $roValCls }}">{{ $ticket->ticket_type ?? 'Incident' }}</span>
+                    @endif
                 </div>
                 {{-- Agent (PIC) --}}
                 <div>
@@ -658,12 +712,12 @@
                 </div>
                 @endif
                 {{-- Man Days (from approved customer mandays proposal) --}}
-                @if($approvedMandays !== null)
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Man Days</label>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ number_format((float)$approvedMandays, 1) }}</p>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                        {{ $approvedMandays !== null ? number_format((float)$approvedMandays, 1) : '—' }}
+                    </p>
                 </div>
-                @endif
                 {{-- Start Date --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Start Date</label>
@@ -911,7 +965,7 @@
                 <select id="deliverySupportSelect" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm primary-focus">
                     <option value="">Loading...</option>
                 </select>
-                <p class="mt-1 text-xs text-gray-500">Ticket will be added as an activity under this delivery support</p>
+                <p id="assignSupportHint" class="mt-1 text-xs text-gray-500">Ticket will be added as an activity under this delivery support.</p>
             </div>
         </div>
         <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
@@ -1044,17 +1098,17 @@
             <div id="resolutionRejectionInfo" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
             <div id="resolutionLoading" class="py-10 text-center">
                 <i class="fas fa-spinner fa-spin text-xl primary-text opacity-60 mb-2 block"></i>
-                <p class="text-xs text-gray-400">Loading internal data...</p>
+                <p class="text-xs text-gray-400">Loading resolution days data...</p>
             </div>
             <table id="resolutionTable" class="hidden w-full text-xs border-collapse">
                 <thead>
                     <tr class="bg-gray-50">
                         <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Name</th>
-                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Days — working days">MD</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Days — working days">Days</th>
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Additional Days proposed by PIC">Add.</th>
                         <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Approved Additional — extra days approved by Head">Appr. Add.</th>
-                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total MD = MD + Approved Additional">Total MD</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Days + Approved Additional">Total Days</th>
                     </tr>
                 </thead>
                 <tbody id="resolutionBody"></tbody>
@@ -1315,7 +1369,7 @@
         <div class="flex-1 overflow-y-auto p-6">
             <div id="headresolutionLoading" class="py-10 text-center">
                 <i class="fas fa-spinner fa-spin text-xl primary-text opacity-60 mb-2 block"></i>
-                <p class="text-xs text-gray-400">Loading internal proposal...</p>
+                <p class="text-xs text-gray-400">Loading resolution days proposal...</p>
             </div>
             <div id="headResolutionStatusBanner" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
             <div id="headResolutionContent" class="hidden">
@@ -1323,11 +1377,11 @@
                     <thead>
                         <tr class="bg-gray-50">
                             <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Name</th>
-                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-14" title="Days — working days">MD</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-14" title="Days — working days">Days</th>
                             <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Additional Days proposed by PIC">Add.</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
                             <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Enter approved additional for each employee">Approve Add.</th>
-                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total MD = MD + Approved Additional">Total MD</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Days + Approved Additional">Total Days</th>
                         </tr>
                     </thead>
                     <tbody id="headresolutionBody"></tbody>
@@ -1581,6 +1635,7 @@
     let renderedMessageIds = new Set();
 
     document.addEventListener('DOMContentLoaded', function() {
+        if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
         // Initialize Quill
         quillEditor = new Quill('#quillEditor', {
             theme: 'snow',
@@ -2786,37 +2841,33 @@
     }
 
     async function saveAllProperties() {
-        const status = document.getElementById('detailStatus').value;
+        const status       = document.getElementById('detailStatus').value;
         const jarviesStatus = document.getElementById('detailJarviesStatus').value;
-        const priority = document.getElementById('detailPriority').value;
-        const scale = document.getElementById('detailScale').value;
-        const type = document.getElementById('detailType').value;
+        const priority     = document.getElementById('detailPriority').value;
+        const scale        = document.getElementById('detailScale').value;
+        const type         = document.getElementById('detailType').value;
         try {
-            // Update status via dedicated endpoint
-            await fetch(`/api/tickets/${ticketId}/update-status`, {
-                method: 'PUT',
-                headers: getHeaders(),
-                credentials: 'same-origin',
-                body: JSON.stringify({ status: status })
-            });
+            const [, updateRes] = await Promise.all([
+                fetch(`/api/tickets/${ticketId}/update-status`, {
+                    method: 'PUT',
+                    headers: getHeaders(),
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ status }),
+                }),
+                fetch(`/api/tickets/${ticketId}`, {
+                    method: 'PUT',
+                    headers: getHeaders(),
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        jarvies_status: jarviesStatus,
+                        ticket_priority: priority,
+                        scale: scale || null,
+                        ticket_type: type || null,
+                    }),
+                }),
+            ]);
 
-            // Update all other properties via general update endpoint
-            const updateData = {
-                jarvies_status: jarviesStatus,
-                ticket_priority: priority,
-                scale: scale || null,
-                ticket_type: type || null,
-            };
-
-            const response = await fetch(`/api/tickets/${ticketId}`, {
-                method: 'PUT',
-                headers: getHeaders(),
-                credentials: 'same-origin',
-                body: JSON.stringify(updateData)
-            });
-
-            const result = await response.json();
-
+            const result = await updateRes.json();
             if (result.success) {
                 showNotification('All properties saved!', 'success');
                 setTimeout(() => location.reload(), 800);
@@ -3015,15 +3066,34 @@
         }
     }
 
+    function populateDeliverySupportSelect(select) {
+        select.innerHTML = '<option value="">-- Select Delivery Support --</option>';
+        deliverySupportList.forEach(support => {
+            const option = document.createElement('option');
+            option.value = support.id;
+            option.textContent = `${support.name} (${support.client_name || 'Unknown Client'})${support.type ? ', ' + support.type : ''}`;
+            select.appendChild(option);
+        });
+        if (assignedDsId) {
+            const match = [...select.options].find(o => Number(o.value) === assignedDsId);
+            if (match) select.value = match.value;
+        }
+    }
+
     async function loadDeliverySupports() {
         const select = document.getElementById('deliverySupportSelect');
         if (!select) return;
 
+        // Gunakan cache jika sudah pernah di-fetch
+        if (deliverySupportList.length > 0) {
+            populateDeliverySupportSelect(select);
+            return;
+        }
+
         select.innerHTML = '<option value="">Loading...</option>';
 
         try {
-            // Load delivery supports, optionally filtered by the same customer
-            const response = await fetch('/api/delivery/support/search?client_id=' + (ticketCustomerId || ''), {
+            const response = await fetch('/api/delivery/support/search', {
                 headers: getHeaders(),
                 credentials: 'same-origin'
             });
@@ -3032,27 +3102,11 @@
 
             if (data.success && data.data) {
                 deliverySupportList = data.data;
-                select.innerHTML = '<option value="">-- Select Delivery Support --</option>';
-
                 if (data.data.length === 0) {
                     select.innerHTML = '<option value="">No delivery support found</option>';
                     return;
                 }
-
-                data.data.forEach(support => {
-                    const option = document.createElement('option');
-                    option.value = support.id;
-                    option.textContent = `${support.name} (${support.client_name || 'Unknown Client'}), ${support.type}`;
-                    select.appendChild(option);
-                });
-
-                // Auto-select currently assigned DS
-                if (assignedDsId) {
-                    const matchingOption = [...select.options].find(o => Number(o.value) === assignedDsId);
-                    if (matchingOption) {
-                        select.value = matchingOption.value;
-                    }
-                }
+                populateDeliverySupportSelect(select);
             } else {
                 select.innerHTML = '<option value="">Failed to load</option>';
             }
@@ -3784,7 +3838,7 @@
                 infoEl.className = 'mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700';
                 infoEl.innerHTML = '<p class="font-semibold mb-1">Proposal Approved by Delivery Support Head</p>'
                     + (resolutionPicData?.approved_by_head ? '<p>Approved by: ' + resolutionPicData.approved_by_head + '</p>' : '')
-                    + '<p class="mt-1 text-green-600">You can still update the mandays and re-submit to Delivery Support Head.</p>';
+                    + '<p class="mt-1 text-green-600">You can still update the resolution days and re-submit to Delivery Support Head.</p>';
                 infoEl.classList.remove('hidden');
             } else if (status === 'pending_head') {
                 infoEl.className = 'mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-600';
@@ -3931,7 +3985,7 @@
         const validationErrors = resolutionPicValidate();
         if (validationErrors.length) {
             showNotification(
-                'Notes are required if Additional MD is filled: ' + validationErrors.join(', '),
+                'Notes are required if Additional Days is filled: ' + validationErrors.join(', '),
                 'error', 6000
             );
             return;
@@ -3964,7 +4018,7 @@
         const validationErrors = resolutionPicValidate();
         if (validationErrors.length) {
             showNotification(
-                    'Notes are required if Additional MD is filled: ' + validationErrors.join(', '),
+                    'Notes are required if Additional Days is filled: ' + validationErrors.join(', '),
                     'error', 6000
             );
             return;
@@ -4882,18 +4936,6 @@ function copyFolderLink() {
 }
 </script>
 
-{{-- Load custom-dd script + cache buster supaya production auto-invalidate setiap deploy. --}}
-@php
-    $customDdPath = public_path('js/custom-dropdown.js');
-    $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
-@endphp
-<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
-<script>
-    // Init custom-dd untuk Add Member dropdown setelah script di atas dimuat.
-    if (typeof initCustomDropdowns === 'function') {
-        initCustomDropdowns();
-    }
-</script>
 
 {{-- ==================== REUSABLE CONFIRM MODAL ==================== --}}
 <div id="confirmModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">

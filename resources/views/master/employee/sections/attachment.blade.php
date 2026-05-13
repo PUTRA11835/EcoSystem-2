@@ -147,7 +147,7 @@
      */
     async function loadAttachments() {
         try {
-            const response = await fetch(`/api/employees/${employeeId}/attachments`, {
+            const response = await fetch(`/api/employees/${_attachEmpId}/attachments`, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin'
             });
@@ -259,7 +259,7 @@
         formData.append('file', file);
 
         try {
-            const response = await fetch(`/api/employees/${employeeId}/attachments`, {
+            const response = await fetch(`/api/employees/${_attachEmpId}/attachments`, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -314,7 +314,7 @@
     async function confirmDeleteAttachment() {
         if (!deleteAttachmentId) return;
         try {
-            const response = await fetch(`/api/employees/${employeeId}/attachments/${deleteAttachmentId}`, {
+            const response = await fetch(`/api/employees/${_attachEmpId}/attachments/${deleteAttachmentId}`, {
                 method: 'DELETE',
                 headers: {
                     'Accept': 'application/json',
@@ -338,6 +338,10 @@
         }
     }
 
-    // Initial load
-    loadAttachments();
+    // Initial load — employeeId may not be defined yet (declared in parent script),
+    // use PHP-rendered value directly for the auto-call.
+    const _attachEmpId = {{ $employeeId ?? 0 }};
+    document.addEventListener('DOMContentLoaded', function () {
+        if (_attachEmpId) loadAttachments();
+    });
 </script>

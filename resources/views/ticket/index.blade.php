@@ -95,97 +95,6 @@
     </div>
 </div>
 
-<!-- Filters & Search (collapsible) -->
-<div class="mb-6">
-    <button onclick="toggleSection('filtersSection', 'filtersChevron')"
-            class="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors duration-150 select-none mb-2 group">
-        <svg id="filtersChevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
-             class="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-transform duration-200">
-            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-        </svg>
-        <span class="uppercase tracking-wide">Filters &amp; Search</span>
-    </button>
-    <div id="filtersSection" class="overflow-hidden transition-all duration-300" style="max-height: 300px;">
-        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div class="flex flex-col">
-                    <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter By</label>
-                    <div class="custom-dd relative" data-onchange="updateFilterOptions" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label text-gray-500">Select Type</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" id="filterTypeSelect" value="">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Type</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="jarvies_status">Jarvies Status</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="status">Status</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="ticket_type">Ticket Type</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="priority">Priority</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="flex flex-col">
-                    <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter Value</label>
-                    <div class="custom-dd relative" id="filterValueDdWrap" data-onchange="applyAdvancedFilters" data-fixed="true">
-                        <button type="button" id="filterValueBtn" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed" disabled>
-                            <span class="custom-dd-label text-gray-400">Select Type First</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" id="filterValueSelect" value="">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
-                            <button type="button" class="custom-dd-item filter-value-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="" data-value="">Select Value</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="sent it to support">Sent It To Support</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="in process">In Process</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="author action">Author Action</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="proposed solution">Proposed Solution</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="closed">Closed</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="sent in to SAP">Sent In To SAP</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="open">Open</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="in_progress">In Progress</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="hold">Hold</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="wait_to_close">Wait To Close</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="cancel">Cancel</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="closed">Closed</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="reply">Reply</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Incident">Incident</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Service Request">Service Request</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Change Request">Change Request</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Consult">Consult</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="priority" data-value="Very High">Very High</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="priority" data-value="High">High</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="priority" data-value="Medium">Medium</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="priority" data-value="Low">Low</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="flex flex-col md:col-span-2">
-                    <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Search Tickets</label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-400">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-                            </svg>
-                        </div>
-                        <input type="text" id="searchInput" placeholder="Search by ticket number, description, customer, PIC..."
-                            autocomplete="off"
-                            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white"
-                            onkeyup="searchTickets()">
-                    </div>
-                </div>
-            </div>
-            <div class="flex gap-2 justify-end mt-3 pt-3 border-t border-gray-100">
-                <button onclick="applyAdvancedFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                    Apply
-                </button>
-                <button onclick="resetFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-                    Reset
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Pagination -->
 <div class="flex items-center justify-between mb-4">
     <span class="text-sm text-gray-500">
@@ -239,7 +148,7 @@
                         </th>
                         {{-- CUSTOMER: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:160px;">
-                            <div class="custom-dd w-full" id="ddColFilterCustomer" data-fixed="true" data-onchange="applyColFilter" data-searchable="true">
+                            <div class="custom-dd relative w-full" id="ddColFilterCustomer" data-fixed="true" data-onchange="applyColFilter" data-searchable="true">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Customer</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
@@ -253,7 +162,7 @@
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">PIC</th>
                         {{-- PRIORITY: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:90px;">
-                            <div class="custom-dd w-full" id="ddColFilterPriority" data-fixed="true" data-onchange="applyColFilter">
+                            <div class="custom-dd relative w-full" id="ddColFilterPriority" data-fixed="true" data-onchange="applyColFilter">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Priority</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
@@ -270,7 +179,7 @@
                         </th>
                         {{-- SCALE: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:80px;">
-                            <div class="custom-dd w-full" id="ddColFilterScale" data-fixed="true" data-onchange="applyColFilter">
+                            <div class="custom-dd relative w-full" id="ddColFilterScale" data-fixed="true" data-onchange="applyColFilter">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Scale</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
@@ -278,16 +187,15 @@
                                 <input type="hidden" id="colFilterScale" value="">
                                 <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:120px;">
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="1">1</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="2">2</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="3">3</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="4">4</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Simple">Simple</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Medium">Medium</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Complex">Complex</button>
                                 </div>
                             </div>
                         </th>
                         {{-- STATUS: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
-                            <div class="custom-dd w-full" id="ddColFilterStatus" data-fixed="true" data-onchange="applyColFilter">
+                            <div class="custom-dd relative w-full" id="ddColFilterStatus" data-fixed="true" data-onchange="applyColFilter">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Status</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
@@ -307,7 +215,7 @@
                         </th>
                         {{-- JARVIES STATUS: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:150px;">
-                            <div class="custom-dd w-full" id="ddColFilterJarvies" data-fixed="true" data-onchange="applyColFilter">
+                            <div class="custom-dd relative w-full" id="ddColFilterJarvies" data-fixed="true" data-onchange="applyColFilter">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Jarvies Status</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
@@ -326,7 +234,7 @@
                         </th>
                         {{-- TYPE: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:130px;">
-                            <div class="custom-dd w-full" id="ddColFilterType" data-fixed="true" data-onchange="applyColFilter">
+                            <div class="custom-dd relative w-full" id="ddColFilterType" data-fixed="true" data-onchange="applyColFilter">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Type</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
@@ -451,13 +359,13 @@
 
 <style>
 /* Collapsible sections */
-#statsSection, #filtersSection {
+#statsSection {
     transition: max-height 0.25s ease, opacity 0.2s ease;
 }
-#statsSection[style*="max-height: 0"], #filtersSection[style*="max-height: 0"] {
+#statsSection[style*="max-height: 0"] {
     opacity: 0;
 }
-#statsChevron, #filtersChevron {
+#statsChevron {
     transition: transform 0.2s ease;
 }
 
@@ -803,6 +711,12 @@ thead th.th-sortable:hover { background: #f3f4f6; }
             'Consult':        'bg-teal-50 text-teal-600',
         };
 
+        const scaleColors = {
+            'Simple':  'bg-sky-50 text-sky-600',
+            'Medium':  'bg-amber-50 text-amber-600',
+            'Complex': 'bg-rose-50 text-rose-600',
+        };
+
         const sInfo = statusMap[ticket.status]          || { label: ticket.status          || '—', cls: 'bg-gray-100 text-gray-500' };
         const jInfo = jarviesMap[ticket.jarvies_status] || { label: ticket.jarvies_status  || '—', cls: 'bg-gray-100 text-gray-500' };
         const typeLabel = ticket.ticket_type || '—';
@@ -857,7 +771,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
             ${cell(`<span class="font-medium text-gray-900">${customerName}</span>${ticket.end_customer_name ? '<span class="block text-xs text-gray-400 mt-0.5">&#8627; ' + ticket.end_customer_name + '</span>' : ''}`)}
             ${cell(ticket.employee?.employee_name || '<span class="text-gray-400 text-xs">Unassigned</span>')}
             ${cell(badge(priorityLabel, priorityClass))}
-            ${dash()}
+            ${ticket.scale ? cell(badge(ticket.scale, scaleColors[ticket.scale] || 'bg-gray-100 text-gray-500')) : dash()}
             ${cell(badge(sInfo.label, sInfo.cls))}
             ${cell(ticket.jarvies_status ? badge(jInfo.label, jInfo.cls) : '<span class="text-gray-300">—</span>')}
             ${cell(ticket.ticket_type ? badge(typeLabel, typeCls) : '—')}
@@ -926,8 +840,6 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         applyAdvancedFilters();
     }
 
-    function searchTickets() { applyAdvancedFilters(); }
-
     function populateCustomerFilter() {
         const ddEl = document.getElementById('ddColFilterCustomer');
         if (!ddEl) return;
@@ -986,39 +898,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         if (dd) dd.classList.toggle('col-dd-active', value !== '');
     }
 
-    function updateFilterOptions() {
-        const filterType = document.getElementById('filterTypeSelect').value;
-        const btn   = document.getElementById('filterValueBtn');
-        const wrap  = document.getElementById('filterValueDdWrap');
-        const items = wrap ? wrap.querySelectorAll('.filter-value-item') : [];
-
-        items.forEach(item => {
-            const dataFor = item.dataset.for || '';
-            if (!filterType) {
-                item.classList.toggle('hidden', dataFor !== '');
-            } else {
-                item.classList.toggle('hidden', dataFor !== '' && dataFor !== filterType);
-            }
-        });
-
-        if (typeof setCustomDropdownValue === 'function') {
-            setCustomDropdownValue('filterValueSelect', '');
-        }
-        const labelEl = wrap?.querySelector('.custom-dd-label');
-        if (labelEl) {
-            labelEl.textContent = filterType ? 'Select Value' : 'Select Type First';
-            labelEl.classList.toggle('text-gray-500', !!filterType);
-            labelEl.classList.toggle('text-gray-400', !filterType);
-        }
-        if (btn) btn.disabled = !filterType;
-        if (typeof applyAdvancedFilters === 'function') applyAdvancedFilters();
-    }
-
     function applyAdvancedFilters() {
-        const filterType  = document.getElementById('filterTypeSelect').value;
-        const filterValue = document.getElementById('filterValueSelect').value;
-        const searchTerm  = document.getElementById('searchInput').value.toLowerCase();
-
         const colCustomer = (document.getElementById('colFilterCustomer')?.value || '').toLowerCase();
         const colPriority = document.getElementById('colFilterPriority')?.value || '';
         const colScale    = document.getElementById('colFilterScale')?.value    || '';
@@ -1027,19 +907,6 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         const colType     = document.getElementById('colFilterType')?.value     || '';
 
         filteredTickets = getViewBase().filter(ticket => {
-            const matchesSearch = !searchTerm ||
-                (ticket.ticket_number && ticket.ticket_number.toLowerCase().includes(searchTerm)) ||
-                (ticket.ticket_id && ticket.ticket_id.toString().includes(searchTerm)) ||
-                (ticket.description && ticket.description.toLowerCase().includes(searchTerm)) ||
-                (ticket.customer?.customer_name && ticket.customer.customer_name.toLowerCase().includes(searchTerm)) ||
-                (ticket.employee?.employee_name && ticket.employee.employee_name.toLowerCase().includes(searchTerm));
-
-            let matchesBarFilter = true;
-            if (filterType && filterValue) {
-                const fieldKey = filterType === 'priority' ? 'ticket_priority' : filterType;
-                matchesBarFilter = ticket[fieldKey] === filterValue;
-            }
-
             const matchesCard      = currentFilter === 'all' || ticket.jarvies_status === currentFilter;
             const matchColCustomer = !colCustomer || (ticket.customer?.customer_name || '').toLowerCase() === colCustomer;
             const matchColPriority = !colPriority || ticket.ticket_priority === colPriority;
@@ -1048,7 +915,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
             const matchColJarvies  = !colJarvies  || ticket.jarvies_status === colJarvies;
             const matchColType     = !colType     || ticket.ticket_type === colType;
 
-            return matchesSearch && matchesBarFilter && matchesCard
+            return matchesCard
                 && matchColCustomer && matchColPriority && matchColScale
                 && matchColStatus && matchColJarvies && matchColType;
         });
@@ -1058,30 +925,6 @@ thead th.th-sortable:hover { background: #f3f4f6; }
     }
 
     function resetFilters() {
-        document.getElementById('searchInput').value = '';
-        if (typeof setCustomDropdownValue === 'function') {
-            setCustomDropdownValue('filterTypeSelect', '');
-            setCustomDropdownValue('filterValueSelect', '');
-        } else {
-            document.getElementById('filterTypeSelect').value = '';
-            document.getElementById('filterValueSelect').value = '';
-        }
-        const wrap = document.getElementById('filterValueDdWrap');
-        if (wrap) {
-            wrap.querySelectorAll('.filter-value-item').forEach(item => {
-                item.classList.toggle('hidden', (item.dataset.for || '') !== '');
-            });
-            const labelEl = wrap.querySelector('.custom-dd-label');
-            if (labelEl) {
-                labelEl.textContent = 'Select Type First';
-                labelEl.classList.add('text-gray-400');
-                labelEl.classList.remove('text-gray-500');
-            }
-        }
-        const btn = document.getElementById('filterValueBtn');
-        if (btn) btn.disabled = true;
-
-        // Reset column filters
         const colFilterIds = ['colFilterCustomer','colFilterPriority','colFilterScale','colFilterStatus','colFilterJarvies','colFilterType'];
         const colDdIds     = ['ddColFilterCustomer','ddColFilterPriority','ddColFilterScale','ddColFilterStatus','ddColFilterJarvies','ddColFilterType'];
         if (typeof setCustomDropdownValue === 'function') {
@@ -1091,7 +934,6 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         }
         colDdIds.forEach(id => updateColFilterActive(id, ''));
 
-        // Reset sort
         currentTicketSort = { key: 'last_update', dir: 'desc' };
         updateTicketSortIcons();
 
@@ -1100,45 +942,27 @@ thead th.th-sortable:hover { background: #f3f4f6; }
     }
 
     // ── Column Filter Indicators & Customer Populate ──────────────────
-    const COL_FILTER_KEYS = ['customer', 'status', 'scale', 'jarvies_status', 'type'];
+    const COL_FILTER_MAP = {
+        customer:       'colFilterCustomer',
+        priority:       'colFilterPriority',
+        scale:          'colFilterScale',
+        status:         'colFilterStatus',
+        jarvies_status: 'colFilterJarvies',
+        type:           'colFilterType',
+    };
 
     function updateColFilterIndicators() {
-        COL_FILTER_KEYS.forEach(col => {
-            const val  = document.getElementById(`col-filter-${col}`)?.value || '';
+        Object.entries(COL_FILTER_MAP).forEach(([col, inputId]) => {
+            const val  = document.getElementById(inputId)?.value || '';
             const icon = document.getElementById(`col-filter-icon-${col}`);
             if (!icon) return;
-            if (val) {
-                icon.classList.remove('text-gray-300');
-                icon.classList.add('text-red-500');
-            } else {
-                icon.classList.remove('text-red-500');
-                icon.classList.add('text-gray-300');
-            }
-        });
-    }
-
-    function populateCustomerFilter() {
-        const panel = document.querySelector('#col-filter-customer')?.closest('.custom-dd')?.querySelector('.custom-dd-panel');
-        if (!panel) return;
-        const seen = new Set();
-        allTickets.forEach(t => {
-            const name = t.customer?.customer_name;
-            if (name) seen.add(name);
-        });
-        const sorted = [...seen].sort((a, b) => a.localeCompare(b));
-        panel.querySelectorAll('.custom-dd-item:not([data-value=""])').forEach(btn => btn.remove());
-        sorted.forEach(name => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 normal-case font-normal tracking-normal';
-            btn.dataset.value = name;
-            btn.textContent = name;
-            panel.appendChild(btn);
+            icon.classList.toggle('text-red-500', val !== '');
+            icon.classList.toggle('text-gray-300', val === '');
         });
     }
 
     // ── Column Sort ────────────────────────────────────────────────────
-    const TICKET_SORT_KEYS = ['last_update', 'date', 'customer', 'priority', 'scale', 'status', 'jarvies_status', 'type'];
+    const TICKET_SORT_KEYS = ['last_update', 'ticket_number', 'date', 'customer', 'priority', 'scale', 'status', 'jarvies_status', 'type'];
     const PRIORITY_RANK    = { 'Very High': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
     const SCALE_RANK       = { 'Complex': 3, 'Medium': 2, 'Simple': 1 };
 
@@ -1159,6 +983,9 @@ thead th.th-sortable:hover { background: #f3f4f6; }
             if (key === 'last_update') {
                 va = new Date(a.last_message_at || a.created_at).getTime();
                 vb = new Date(b.last_message_at || b.created_at).getTime();
+            } else if (key === 'ticket_number') {
+                va = a.ticket_id ?? 0;
+                vb = b.ticket_id ?? 0;
             } else if (key === 'date') {
                 va = new Date(a.created_at).getTime();
                 vb = new Date(b.created_at).getTime();
@@ -1276,7 +1103,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
     }
 
     // ==================== COLLAPSIBLE SECTIONS ====================
-    const _sectionOpen = { statsSection: true, filtersSection: true };
+    const _sectionOpen = { statsSection: true };
 
     function toggleSection(sectionId, chevronId) {
         const section = document.getElementById(sectionId);
