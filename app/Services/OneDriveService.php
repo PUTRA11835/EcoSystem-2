@@ -121,6 +121,56 @@ class OneDriveService
     }
 
     /**
+     * List immediate children (folders only) of a folder specified by its path.
+     * Returns an array of ['id' => ..., 'name' => ...] for each child folder.
+     */
+    public function listFolderChildrenByPath(string $folderPath): array
+    {
+        $token   = $this->getAccessToken();
+        $encoded = rawurlencode($folderPath);
+
+        $response = Http::withToken($token)->get(
+            "{$this->baseUrl}/users/{$this->userEmail}/drive/root:/{$encoded}:/children",
+            ['$select' => 'id,name,folder,webUrl', '$top' => 200]
+        );
+
+        if (!$response->successful()) {
+            Log::error('OneDrive listFolderChildrenByPath failed', [
+                'path'   => $folderPath,
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
+            throw new \RuntimeException('Failed to list OneDrive folder children: ' . $response->body());
+        }
+
+        return collect($response->json('value', []))
+            ->filter(fn($item) => isset($item['folder']))
+            ->map(fn($item) => ['id' => $item['id'], 'name' => $item['name'], 'webUrl' => $item['webUrl'] ?? null])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Find an existing folder by exact name inside a path, or create it if absent.
+     * Comparison is case-insensitive.
+     * Returns the folder's item ID.
+     */
+    public function findOrCreateFolderInPath(string $parentPath, string $folderName): string
+    {
+        $children = $this->listFolderChildrenByPath($parentPath);
+
+        $needle = mb_strtolower(trim($folderName));
+        foreach ($children as $child) {
+            if (mb_strtolower($child['name']) === $needle) {
+                return $child['id'];
+            }
+        }
+
+        // Not found — create it
+        return $this->createFolderInPath($folderName, $parentPath);
+    }
+
+    /**
      * Create a sub-folder inside a parent folder identified by its item ID.
      * Returns the new sub-folder's item ID.
      */
