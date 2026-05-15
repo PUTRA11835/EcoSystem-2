@@ -51,6 +51,16 @@
                 Create Ticket
             </button>
             @endif
+
+            @if(in_array($user->role->role_id, [\App\Enums\RoleId::ADMIN->value, \App\Enums\RoleId::HEAD_OF_SUPPORT->value, \App\Enums\RoleId::HELPDESK->value]))
+            <a href="{{ route('ticket.export') }}"
+               class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-green-600">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                Export Excel
+            </a>
+            @endif
         </div>
     </div>
 </div>
@@ -209,7 +219,19 @@
                                 </div>
                             </div>
                         </th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">PIC</th>
+                        {{-- PIC: column filter dropdown --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
+                            <div class="custom-dd relative w-full" id="ddColFilterPic" data-fixed="true" data-onchange="applyColFilter" data-searchable="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">PIC</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="colFilterPic" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                </div>
+                            </div>
+                        </th>
                         {{-- PRIORITY: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:90px;">
                             <div class="custom-dd relative w-full" id="ddColFilterPriority" data-fixed="true" data-onchange="applyColFilter">
@@ -633,8 +655,10 @@ thead th.th-sortable:hover { background: #f3f4f6; }
             if (data.success) {
                 allTickets = data.data.sort((a, b) => new Date(b.last_message_at || b.created_at) - new Date(a.last_message_at || a.created_at));
                 populateCustomerFilter();
+                populatePicFilter();
                 filteredTickets = getViewBase();
                 populateCustomerFilter();
+                populatePicFilter();
                 updateStats();
                 renderTickets();
             } else {
@@ -929,9 +953,44 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         else panel.appendChild(fragment);
     }
 
+    function populatePicFilter() {
+        const ddEl = document.getElementById('ddColFilterPic');
+        if (!ddEl) return;
+        const panel = ddEl._ddPanel || ddEl.querySelector('.custom-dd-panel');
+        if (!panel) return;
+
+        panel.querySelectorAll('.custom-dd-item').forEach(el => el.remove());
+
+        const seen = new Set();
+        const names = [];
+        allTickets.forEach(t => {
+            const name = t.employee?.employee_name;
+            if (name && !seen.has(name)) { seen.add(name); names.push(name); }
+        });
+        names.sort((a, b) => a.localeCompare(b));
+
+        const makeItem = (val, text) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50';
+            btn.dataset.value = val;
+            btn.textContent = text;
+            return btn;
+        };
+
+        const fragment = document.createDocumentFragment();
+        fragment.appendChild(makeItem('', 'All'));
+        names.forEach(name => fragment.appendChild(makeItem(name, name)));
+
+        const emptyEl = panel._ddEmpty || null;
+        if (emptyEl) panel.insertBefore(fragment, emptyEl);
+        else panel.appendChild(fragment);
+    }
+
     function applyColFilter() {
         const colDdMap = {
             'ddColFilterCustomer': 'colFilterCustomer',
+            'ddColFilterPic':      'colFilterPic',
             'ddColFilterPriority': 'colFilterPriority',
             'ddColFilterScale':    'colFilterScale',
             'ddColFilterStatus':   'colFilterStatus',
@@ -952,6 +1011,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
 
     function applyAdvancedFilters() {
         const colCustomer = (document.getElementById('colFilterCustomer')?.value || '').toLowerCase();
+        const colPic      = (document.getElementById('colFilterPic')?.value      || '').toLowerCase();
         const colPriority = document.getElementById('colFilterPriority')?.value || '';
         const colScale    = document.getElementById('colFilterScale')?.value    || '';
         const colStatus   = document.getElementById('colFilterStatus')?.value   || '';
@@ -970,6 +1030,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         filteredTickets = getViewBase().filter(ticket => {
             const matchesCard      = currentFilter === 'all' || ticket.jarvies_status === currentFilter;
             const matchColCustomer = !colCustomer || (ticket.customer?.customer_name || '').toLowerCase() === colCustomer;
+            const matchColPic      = !colPic      || (ticket.employee?.employee_name || '').toLowerCase() === colPic;
             const matchColPriority = !colPriority || ticket.ticket_priority === colPriority;
             const matchColScale    = !colScale    || String(ticket.scale ?? '') === colScale;
             const matchColStatus   = !colStatus   || ticket.status === colStatus;
@@ -990,7 +1051,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
             const matchDesc = !descKw || (ticket.description || '').toLowerCase().includes(descKw);
 
             return matchesCard
-                && matchColCustomer && matchColPriority && matchColScale
+                && matchColCustomer && matchColPic && matchColPriority && matchColScale
                 && matchColStatus && matchColJarvies && matchColType
                 && matchDate && matchDesc;
         });
@@ -1124,8 +1185,8 @@ thead th.th-sortable:hover { background: #f3f4f6; }
     });
 
     function resetFilters() {
-        const colFilterIds = ['colFilterCustomer','colFilterPriority','colFilterScale','colFilterStatus','colFilterJarvies','colFilterType'];
-        const colDdIds     = ['ddColFilterCustomer','ddColFilterPriority','ddColFilterScale','ddColFilterStatus','ddColFilterJarvies','ddColFilterType'];
+        const colFilterIds = ['colFilterCustomer','colFilterPic','colFilterPriority','colFilterScale','colFilterStatus','colFilterJarvies','colFilterType'];
+        const colDdIds     = ['ddColFilterCustomer','ddColFilterPic','ddColFilterPriority','ddColFilterScale','ddColFilterStatus','ddColFilterJarvies','ddColFilterType'];
         if (typeof setCustomDropdownValue === 'function') {
             colFilterIds.forEach(id => setCustomDropdownValue(id, ''));
         } else {
@@ -1150,6 +1211,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
     // ── Column Filter Indicators & Customer Populate ──────────────────
     const COL_FILTER_MAP = {
         customer:       'colFilterCustomer',
+        pic:            'colFilterPic',
         priority:       'colFilterPriority',
         scale:          'colFilterScale',
         status:         'colFilterStatus',

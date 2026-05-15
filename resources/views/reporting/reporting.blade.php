@@ -285,7 +285,7 @@
                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:90px;">Remain</th>
                         {{-- MD STATUS: sortable --}}
                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wide rpt-sortable transition-colors"
-                            style="min-width:100px;" onclick="rptSortBy('status')" title="Sort by MD Status">
+                            style="min-width:100px;" onclick="rptSortBy('status')" title="Sort by RD Status">
                             <div class="flex items-center justify-center gap-1">
                                 <span>MD Status</span>
                                 <span id="rpt-sort-icon-status" class="rpt-sort-icon text-gray-300 font-normal normal-case tracking-normal">⇅</span>

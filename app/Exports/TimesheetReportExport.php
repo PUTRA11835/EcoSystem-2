@@ -47,7 +47,7 @@ class TimesheetReportExport implements
 
     public function headings(): array
     {
-        return ['Tiket', 'Nama', 'Bulan', 'Tahun', 'Quota Mandays', 'Realisasi MD', 'Status'];
+        return ['Tiket', 'Nama', 'Bulan', 'Tahun', 'Quota RD', 'Realisasi RD', 'Status'];
     }
 
     public function styles(Worksheet $sheet): array

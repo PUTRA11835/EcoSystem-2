@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Exports\TicketExport;
 use App\Models\Customer;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
 
 class TicketController extends Controller
 {
@@ -287,6 +289,57 @@ class TicketController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    public function exportToExcel(Request $request)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            abort(401);
+        }
+
+        $roleId = $sessionUser['role']['id'];
+        $allowed = [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value, RoleId::HELPDESK->value];
+        if (!in_array($roleId, $allowed, true)) {
+            abort(403);
+        }
+
+        $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData'])
+            ->orderBy('ticket_id', 'asc')
+            ->get();
+
+        $ticketIds   = $tickets->pluck('ticket_id')->toArray();
+        $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
+
+        $customerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $ticketIds)
+            ->where('status', 'approved')
+            ->orderBy('version', 'desc')
+            ->get()
+            ->groupBy('ticket_id')
+            ->map(fn($g) => $g->first()->total_mandays);
+
+        $rows = $tickets->map(function ($ticket) use ($progressMap, $customerMandaysMap) {
+            return [
+                'ticket_number'          => $ticket->ticket_number,
+                'description'            => $ticket->description,
+                'created_at'             => $ticket->created_at,
+                'customer'               => ['customer_name' => $ticket->customer?->basicData?->name_1 ?? $ticket->customer?->email],
+                'end_customer_name'      => $ticket->endCustomer?->basicData?->name_1,
+                'employee'               => $ticket->employee ? ['employee_name' => $ticket->employee->basicData?->first_name ?? 'Unknown'] : null,
+                'ticket_priority'        => $ticket->ticket_priority,
+                'scale'                  => $ticket->scale,
+                'status'                 => $ticket->status,
+                'jarvies_status'         => $ticket->jarvies_status,
+                'ticket_type'            => $ticket->ticket_type,
+                'customer_mandays'       => $customerMandaysMap[$ticket->ticket_id] ?? null,
+                'all_consultant_progress'=> $progressMap[$ticket->ticket_id] ?? (float)($ticket->progress_percentage ?? 0),
+                'end_date'               => $ticket->end_date,
+            ];
+        });
+
+        $filename = 'TICKET SUPPORT ' . now()->timezone('Asia/Jakarta')->format('dmY') . '.xlsx';
+
+        return Excel::download(new TicketExport($rows), $filename);
     }
 
     public function store(Request $request)
