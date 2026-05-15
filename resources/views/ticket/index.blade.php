@@ -26,8 +26,8 @@
 
             @if($user->role->role_id === \App\Enums\RoleId::HELPDESK->value)
             <div class="inline-flex bg-gray-100 rounded-xl p-1">
-                <button onclick="toggleView('assigned')" id="btnViewAssigned" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
-                    <i class="fas fa-user-check text-xs mr-1"></i> Assigned
+                <button onclick="toggleView('all')" id="btnViewAllHd" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
+                    <i class="fas fa-list-check text-xs mr-1"></i> All Tickets
                 </button>
                 <button onclick="toggleView('unassigned')" id="btnViewUnassigned" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
                     <i class="fas fa-user-clock text-xs mr-1"></i> Unassigned
@@ -137,13 +137,59 @@
                                 <span id="sort-icon-ticket_number" class="sort-icon text-gray-300 font-normal normal-case tracking-normal">⇅</span>
                             </div>
                         </th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:260px;">Description</th>
-                        {{-- DATE: sortable --}}
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 th-sortable cursor-pointer transition-colors"
-                            style="min-width:100px;" onclick="sortTickets('date')" title="Sort by Date">
-                            <div class="flex items-center gap-1">
-                                <span>Date</span>
-                                <span id="sort-icon-date" class="sort-icon text-gray-300 font-normal normal-case tracking-normal">⇅</span>
+                        {{-- DESCRIPTION: keyword search filter --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:260px;">
+                            <button type="button" id="descFilterBtn" onclick="toggleDescFilter(event)"
+                                    class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Description</span>
+                                <svg id="descFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="descFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                            </button>
+                            <div id="descFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:260px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search description</label>
+                                <input type="text" id="descFilterInput" placeholder="Type keyword (case-insensitive)…"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                       oninput="onDescFilterInput()">
+                                <p class="text-[10px] text-gray-400 mt-1.5">Matches any ticket whose description contains this text.</p>
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearDescFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    <button type="button" onclick="closeDescFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- DATE: from-to range filter (also supports sort) --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
+                            <button type="button" id="dateFilterBtn" onclick="toggleDateFilter(event)"
+                                    class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Date</span>
+                                <svg id="dateFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="dateFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                            </button>
+                            <div id="dateFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:240px;">
+                                <div class="space-y-2">
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">From</label>
+                                        <input type="date" id="dateFilterFrom"
+                                               class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</label>
+                                        <input type="date" id="dateFilterTo"
+                                               class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                    </div>
+                                    <p id="dateFilterError" class="hidden text-xs text-red-500">"To" must be on/after "From".</p>
+                                </div>
+                                <div class="border-t border-gray-100 mt-3 pt-2">
+                                    <span class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sort</span>
+                                    <div class="flex gap-2">
+                                        <button type="button" onclick="setDateSort('asc')"  id="dateSortAsc"  class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↑ Oldest</button>
+                                        <button type="button" onclick="setDateSort('desc')" id="dateSortDesc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↓ Newest</button>
+                                    </div>
+                                </div>
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearDateFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    <button type="button" onclick="applyDateFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Apply</button>
+                                </div>
                             </div>
                         </th>
                         {{-- CUSTOMER: column filter dropdown --}}
@@ -386,8 +432,8 @@ thead th.th-sortable:hover { background: #f3f4f6; }
 /* View Toggle */
 #btnViewAll, #btnViewMy { background: transparent; color: #6b7280; }
 #btnViewAll.active, #btnViewMy.active { background: white; color: #111827; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-#btnViewAssigned, #btnViewUnassigned { background: transparent; color: #6b7280; }
-#btnViewAssigned.active, #btnViewUnassigned.active { background: #991b1b; color: white; box-shadow: 0 1px 3px rgba(153,27,27,0.3); }
+#btnViewAllHd, #btnViewUnassigned { background: transparent; color: #6b7280; }
+#btnViewAllHd.active, #btnViewUnassigned.active { background: #991b1b; color: white; box-shadow: 0 1px 3px rgba(153,27,27,0.3); }
 
 /* Table rows */
 #ticketsListBody tr { cursor: pointer; transition: background 0.15s; }
@@ -474,16 +520,15 @@ thead th.th-sortable:hover { background: #f3f4f6; }
     let currentEmployeeId = {{ $currentEmployeeId ?? 'null' }};
     const HELPDESK_ROLE   = {{ \App\Enums\RoleId::HELPDESK->value }};
     let currentView = userRole === {{ \App\Enums\RoleId::EMPLOYEE->value }} ? 'my'
-                    : userRole === HELPDESK_ROLE ? 'assigned'
+                    : userRole === HELPDESK_ROLE ? 'all'
                     : 'all';
     let sortField = null; // 'last_update' | 'ticket_number' | 'date'
     let sortDir   = null; // 'desc' | 'asc'
 
     function getViewBase() {
         if (userRole === HELPDESK_ROLE) {
-            return currentView === 'assigned'
-                ? allTickets.filter(t => t.employee_id !== null)
-                : allTickets.filter(t => t.employee_id === null);
+            if (currentView === 'unassigned') return allTickets.filter(t => t.employee_id === null);
+            return allTickets; // 'all' = semua tiket tanpa filter assigned/unassigned
         }
         return allTickets;
     }
@@ -549,10 +594,10 @@ thead th.th-sortable:hover { background: #f3f4f6; }
             }
         }
         if (userRole === HELPDESK_ROLE) {
-            const btnA = document.getElementById('btnViewAssigned');
+            const btnA = document.getElementById('btnViewAllHd');
             const btnU = document.getElementById('btnViewUnassigned');
             if (btnA && btnU) {
-                btnA.classList.toggle('active', currentView === 'assigned');
+                btnA.classList.toggle('active', currentView === 'all');
                 btnU.classList.toggle('active', currentView === 'unassigned');
             }
         }
@@ -906,6 +951,15 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         const colJarvies  = document.getElementById('colFilterJarvies')?.value  || '';
         const colType     = document.getElementById('colFilterType')?.value     || '';
 
+        // Date range filter (from-to inclusive, based on ticket.created_at in Asia/Jakarta)
+        const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
+        const dateTo   = document.getElementById('dateFilterTo')?.value   || '';
+        const fromMs = dateFrom ? new Date(dateFrom + 'T00:00:00+07:00').getTime() : null;
+        const toMs   = dateTo   ? new Date(dateTo   + 'T23:59:59+07:00').getTime() : null;
+
+        // Description keyword (case-insensitive substring)
+        const descKw = (document.getElementById('descFilterInput')?.value || '').trim().toLowerCase();
+
         filteredTickets = getViewBase().filter(ticket => {
             const matchesCard      = currentFilter === 'all' || ticket.jarvies_status === currentFilter;
             const matchColCustomer = !colCustomer || (ticket.customer?.customer_name || '').toLowerCase() === colCustomer;
@@ -915,14 +969,152 @@ thead th.th-sortable:hover { background: #f3f4f6; }
             const matchColJarvies  = !colJarvies  || ticket.jarvies_status === colJarvies;
             const matchColType     = !colType     || ticket.ticket_type === colType;
 
+            let matchDate = true;
+            if (fromMs !== null || toMs !== null) {
+                const created = ticket.created_at ? new Date(ticket.created_at).getTime() : NaN;
+                if (Number.isNaN(created)) {
+                    matchDate = false;
+                } else {
+                    if (fromMs !== null && created < fromMs) matchDate = false;
+                    if (toMs   !== null && created > toMs)   matchDate = false;
+                }
+            }
+
+            const matchDesc = !descKw || (ticket.description || '').toLowerCase().includes(descKw);
+
             return matchesCard
                 && matchColCustomer && matchColPriority && matchColScale
-                && matchColStatus && matchColJarvies && matchColType;
+                && matchColStatus && matchColJarvies && matchColType
+                && matchDate && matchDesc;
         });
         updateColFilterIndicators();
+        updateDateFilterIndicator();
+        updateDescFilterIndicator();
         currentPage = 1;
         renderTickets();
     }
+
+    // ── Date Range Filter ─────────────────────────────────────────────
+    function toggleDateFilter(ev) {
+        ev?.stopPropagation();
+        const panel = document.getElementById('dateFilterPanel');
+        const btn   = document.getElementById('dateFilterBtn');
+        const open  = !panel.classList.contains('hidden');
+        // close other popovers
+        closeDescFilter();
+        if (open) { panel.classList.add('hidden'); return; }
+        positionPanelUnder(btn, panel);
+        panel.classList.remove('hidden');
+        updateDateSortButtons();
+    }
+
+    function applyDateFilter() {
+        const from = document.getElementById('dateFilterFrom').value;
+        const to   = document.getElementById('dateFilterTo').value;
+        const errEl = document.getElementById('dateFilterError');
+        if (from && to && to < from) { errEl.classList.remove('hidden'); return; }
+        errEl.classList.add('hidden');
+        document.getElementById('dateFilterPanel').classList.add('hidden');
+        applyAdvancedFilters();
+    }
+
+    function clearDateFilter() {
+        document.getElementById('dateFilterFrom').value = '';
+        document.getElementById('dateFilterTo').value   = '';
+        document.getElementById('dateFilterError').classList.add('hidden');
+        applyAdvancedFilters();
+    }
+
+    function setDateSort(dir) {
+        currentTicketSort = { key: 'date', dir };
+        updateTicketSortIcons();
+        updateDateSortButtons();
+        renderTickets();
+    }
+
+    function updateDateSortButtons() {
+        const asc  = document.getElementById('dateSortAsc');
+        const desc = document.getElementById('dateSortDesc');
+        if (!asc || !desc) return;
+        const isDateSort = currentTicketSort.key === 'date';
+        const activeCls   = ['bg-red-700','text-white','border-red-700','hover:bg-red-800'];
+        const inactiveCls = ['border-gray-200','hover:bg-gray-50'];
+        [asc, desc].forEach(b => { activeCls.forEach(c => b.classList.remove(c)); inactiveCls.forEach(c => b.classList.add(c)); });
+        if (isDateSort && currentTicketSort.dir === 'asc')  { inactiveCls.forEach(c => asc.classList.remove(c));  activeCls.forEach(c => asc.classList.add(c));  }
+        if (isDateSort && currentTicketSort.dir === 'desc') { inactiveCls.forEach(c => desc.classList.remove(c)); activeCls.forEach(c => desc.classList.add(c)); }
+    }
+
+    function updateDateFilterIndicator() {
+        const from = document.getElementById('dateFilterFrom')?.value || '';
+        const to   = document.getElementById('dateFilterTo')?.value   || '';
+        const icon = document.getElementById('dateFilterIcon');
+        const active = !!(from || to);
+        if (icon) icon.classList.toggle('text-red-500', active);
+        if (icon) icon.classList.toggle('text-gray-300', !active);
+    }
+
+    // ── Description Keyword Filter (debounced) ─────────────────────────
+    let _descFilterTimer = null;
+    function toggleDescFilter(ev) {
+        ev?.stopPropagation();
+        const panel = document.getElementById('descFilterPanel');
+        const btn   = document.getElementById('descFilterBtn');
+        const open  = !panel.classList.contains('hidden');
+        // close other popovers
+        const dp = document.getElementById('dateFilterPanel');
+        if (dp) dp.classList.add('hidden');
+        if (open) { panel.classList.add('hidden'); return; }
+        positionPanelUnder(btn, panel);
+        panel.classList.remove('hidden');
+        document.getElementById('descFilterInput')?.focus();
+    }
+
+    function closeDescFilter() {
+        const panel = document.getElementById('descFilterPanel');
+        if (panel) panel.classList.add('hidden');
+    }
+
+    function onDescFilterInput() {
+        clearTimeout(_descFilterTimer);
+        _descFilterTimer = setTimeout(applyAdvancedFilters, 250);
+    }
+
+    function clearDescFilter() {
+        const input = document.getElementById('descFilterInput');
+        if (input) input.value = '';
+        applyAdvancedFilters();
+    }
+
+    function updateDescFilterIndicator() {
+        const kw   = (document.getElementById('descFilterInput')?.value || '').trim();
+        const icon = document.getElementById('descFilterIcon');
+        if (icon) icon.classList.toggle('text-red-500', kw !== '');
+        if (icon) icon.classList.toggle('text-gray-300', kw === '');
+    }
+
+    // Position floating panel right under the column header button (handles overflow:auto)
+    function positionPanelUnder(btn, panel) {
+        const rect = btn.getBoundingClientRect();
+        panel.style.position = 'fixed';
+        panel.style.top  = (rect.bottom + 4) + 'px';
+        panel.style.left = rect.left + 'px';
+    }
+
+    // Close popovers on outside click / Escape
+    document.addEventListener('click', (e) => {
+        const dp = document.getElementById('dateFilterPanel');
+        const db = document.getElementById('dateFilterBtn');
+        if (dp && !dp.classList.contains('hidden') && !dp.contains(e.target) && !db.contains(e.target)) dp.classList.add('hidden');
+        const xp = document.getElementById('descFilterPanel');
+        const xb = document.getElementById('descFilterBtn');
+        if (xp && !xp.classList.contains('hidden') && !xp.contains(e.target) && !xb.contains(e.target)) xp.classList.add('hidden');
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            document.getElementById('dateFilterPanel')?.classList.add('hidden');
+            document.getElementById('descFilterPanel')?.classList.add('hidden');
+        }
+    });
 
     function resetFilters() {
         const colFilterIds = ['colFilterCustomer','colFilterPriority','colFilterScale','colFilterStatus','colFilterJarvies','colFilterType'];
@@ -934,8 +1126,15 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         }
         colDdIds.forEach(id => updateColFilterActive(id, ''));
 
+        // Clear date range + description keyword
+        const dFrom = document.getElementById('dateFilterFrom');  if (dFrom) dFrom.value = '';
+        const dTo   = document.getElementById('dateFilterTo');    if (dTo)   dTo.value   = '';
+        const dErr  = document.getElementById('dateFilterError'); if (dErr)  dErr.classList.add('hidden');
+        const desc  = document.getElementById('descFilterInput'); if (desc)  desc.value  = '';
+
         currentTicketSort = { key: 'last_update', dir: 'desc' };
         updateTicketSortIcons();
+        updateDateSortButtons();
 
         currentFilter = 'all';
         filterTickets('all');
