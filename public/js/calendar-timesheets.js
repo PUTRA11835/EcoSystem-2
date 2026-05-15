@@ -2419,36 +2419,6 @@ if (confirmBulkDeleteModal) {
     });
 }
 
-// Approval modals click outside to close (for heads)
-const approveModal = document.getElementById('approveModal');
-if (approveModal) {
-    approveModal.addEventListener('click', function(e) {
-        if (e.target === this) closeApproveModal();
-    });
-}
-
-const bulkApproveModal = document.getElementById('bulkApproveModal');
-if (bulkApproveModal) {
-    bulkApproveModal.addEventListener('click', function(e) {
-        if (e.target === this) closeBulkApproveModal();
-    });
-}
-
-const bulkRejectModal = document.getElementById('bulkRejectModal');
-if (bulkRejectModal) {
-    bulkRejectModal.addEventListener('click', function(e) {
-        if (e.target === this) closeBulkRejectModal();
-    });
-}
-
-const rejectModal = document.getElementById('rejectModal');
-if (rejectModal) {
-    rejectModal.addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeRejectModal();
-        }
-    });
-}
 
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
