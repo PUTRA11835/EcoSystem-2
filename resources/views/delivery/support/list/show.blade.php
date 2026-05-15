@@ -381,11 +381,10 @@
                         <span class="text-xs text-gray-500">{{ $support->updates->count() ?? 0 }}</span>
                     </button>
                     <div class="border-t border-gray-100 mt-1 pt-1">
-                        <form action="{{ route('delivery.support.destroy', $support->id) }}" method="POST"
-                              onsubmit="return confirm('Are you sure you want to delete this support delivery?');">
+                        <form id="deleteSupportForm" action="{{ route('delivery.support.destroy', $support->id) }}" method="POST">
                             @csrf
                             @method('DELETE')
-                            <button type="submit"
+                            <button type="button" onclick="confirmDeleteSupport()"
                                     class="w-full flex items-center justify-between p-3 rounded-lg hover:bg-red-50 transition text-left text-red-600">
                                 <span class="text-sm font-medium">Delete Support</span>
                                 <i class="fas fa-trash text-sm"></i>
@@ -755,6 +754,19 @@ const csrfToken = '{{ csrf_token() }}';
 // Employee data for updating display
 const employeesData = @json($employees ?? []);
 const clientsData = @json($clients ?? []);
+
+// ============================================================================
+// DELETE SUPPORT (uses global showConfirm modal — no browser confirm())
+// ============================================================================
+async function confirmDeleteSupport() {
+    const ok = await showConfirm(
+        'Are you sure you want to delete this support delivery? This cannot be undone.',
+        'Delete Support Delivery',
+        'danger',
+        { okText: 'Delete' }
+    );
+    if (ok) document.getElementById('deleteSupportForm').submit();
+}
 
 // ============================================================================
 // MODAL FUNCTIONS

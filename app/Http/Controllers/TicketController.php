@@ -160,8 +160,13 @@ class TicketController extends Controller
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
 
-            // Helpdesk, RPMO, Head of Project, Head of Support: lihat semua ticket, atau filter unassigned jika ?unassigned=1
-            } elseif (in_array($sessionUser['role']['id'], array_merge(RoleId::HEAD_GROUP, RoleId::HELPDESK_GROUP), true)) {
+            // Helpdesk, RPMO, Head of Project, Head of Support, Support Manager:
+            // lihat semua ticket organisasi, atau filter unassigned jika ?unassigned=1
+            } elseif (in_array(
+                $sessionUser['role']['id'],
+                array_merge(RoleId::HEAD_GROUP, RoleId::HELPDESK_GROUP, [RoleId::SUPPORT_MANAGER->value]),
+                true
+            )) {
                 Log::info('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
@@ -170,28 +175,6 @@ class TicketController extends Controller
                     $query->whereNull('employee_id');
                 }
                 $tickets = $query->get();
-
-            // Delivery Support Manager (role 20): lihat hanya tiket dari delivery support yang mereka kelola
-            } elseif ($sessionUser['role']['id'] === RoleId::SUPPORT_MANAGER->value) {
-                $employeeId = DB::table('auth_users')
-                    ->where('id', $sessionUser['id'])
-                    ->value('employee_id');
-
-                Log::info('Support Manager viewing delivery tickets', ['employee_id' => $employeeId]);
-
-                $ticketIds = $employeeId
-                    ? DB::table('delivery_support_activities')
-                        ->join('delivery_support', 'delivery_support.id', '=', 'delivery_support_activities.delivery_support_id')
-                        ->where('delivery_support.support_manager_id', $employeeId)
-                        ->whereNotNull('delivery_support_activities.ticket_id')
-                        ->pluck('delivery_support_activities.ticket_id')
-                        ->unique()
-                    : collect();
-
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
-                    ->whereIn('ticket_id', $ticketIds)
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
-                    ->get();
 
             } else {
                 return response()->json([

@@ -39,9 +39,13 @@ class SupportManagerSeeder extends Seeder
         ];
 
         foreach ($managers as $sm) {
-            // Skip kalau ECI sudah ada (idempotent — aman dijalankan ulang)
-            if (DB::table('employee')->where('eci', $sm['eci'])->exists()) {
-                $this->command->info("• {$sm['eci']} — {$sm['first_name']} {$sm['last_name']} sudah ada, skip.");
+            // Idempotent — kalau employee sudah ada, masih lengkapi role assignment
+            // (kasus migrasi lama: employee dibuat tanpa baris employee_role_assignment
+            //  sehingga login gagal "no access to EcoSystem").
+            $existing = DB::table('employee')->where('eci', $sm['eci'])->first();
+            if ($existing) {
+                $this->ensureRoleAssignments((int) $existing->employee_id);
+                $this->command->info("• {$sm['eci']} — {$sm['first_name']} {$sm['last_name']} sudah ada, role assignments dipastikan lengkap.");
                 continue;
             }
 
@@ -108,6 +112,11 @@ class SupportManagerSeeder extends Seeder
                     ]);
                 }
 
+                // employee_role_assignment — wajib supaya login lolos cek
+                // 'User System Registered' (id=61). Tanpa ini, login dapat 403
+                // "Your account does not have access to EcoSystem".
+                $this->ensureRoleAssignments($employeeId);
+
                 DB::commit();
                 $this->command->info("✓ {$sm['eci']} — {$sm['first_name']} {$sm['last_name']} (Support Manager) created.");
 
@@ -118,5 +127,37 @@ class SupportManagerSeeder extends Seeder
         }
 
         $this->command->info('Selesai. Total Support Manager target: ' . count($managers));
+    }
+
+    /**
+     * Pastikan employee_role_assignment punya 2 baris: role utama (Support Manager)
+     * dan 'User System Registered' (id=61). Idempotent — skip yang sudah ada.
+     */
+    private function ensureRoleAssignments(int $employeeId): void
+    {
+        $now = Carbon::now();
+        $userSystemRoleId = (int) DB::table('employee_role')
+            ->where('name', 'User System Registered')
+            ->value('id');
+
+        $required = array_filter([
+            RoleId::SUPPORT_MANAGER->value,
+            $userSystemRoleId ?: null,
+        ]);
+
+        foreach ($required as $roleId) {
+            $exists = DB::table('employee_role_assignment')
+                ->where('employee_id', $employeeId)
+                ->where('role_id', $roleId)
+                ->exists();
+            if (!$exists) {
+                DB::table('employee_role_assignment')->insert([
+                    'employee_id' => $employeeId,
+                    'role_id'     => $roleId,
+                    'created_at'  => $now,
+                    'updated_at'  => $now,
+                ]);
+            }
+        }
     }
 }
