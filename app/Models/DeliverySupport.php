@@ -80,6 +80,21 @@ class DeliverySupport extends Model
         return $this->belongsTo(Employee::class, 'support_manager_id', 'employee_id');
     }
 
+    public function coPm()
+    {
+        return $this->belongsTo(Employee::class, 'co_pm_id', 'employee_id');
+    }
+
+    public function supportAdmin()
+    {
+        return $this->belongsTo(Employee::class, 'support_admin_id', 'employee_id');
+    }
+
+    public function sales()
+    {
+        return $this->belongsTo(Employee::class, 'sales_id', 'employee_id');
+    }
+
     public function createdBy()
     {
         return $this->belongsTo(Employee::class, 'created_by_id', 'employee_id');

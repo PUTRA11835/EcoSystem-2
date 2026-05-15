@@ -50,6 +50,10 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
         // View support details
         Route::get('/', [DeliverySupportController::class, 'show'])->name('show');
 
+        // Full edit page (mirror of create form, pre-filled)
+        Route::get('/edit', [DeliverySupportController::class, 'edit'])->name('edit');
+        Route::put('/', [DeliverySupportController::class, 'update'])->name('update');
+
         // Update support (section-based via AJAX)
         Route::patch('/field', [DeliverySupportController::class, 'updateField'])->name('update-field');
 

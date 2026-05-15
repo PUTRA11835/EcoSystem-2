@@ -202,6 +202,102 @@ class DeliverySupportController extends Controller
     }
 
     /**
+     * Show edit form (mirror of create, pre-filled).
+     */
+    public function edit(DeliverySupport $support)
+    {
+        $support->load([
+            'client.basicData',
+            'deliveryOwner.basicData',
+            'supportManager.basicData',
+            'coPm.basicData',
+            'supportAdmin.basicData',
+            'sales.basicData',
+        ]);
+
+        $clients   = Customer::with('basicData')->get();
+        $employees = Employee::with('basicData')->where('is_active', true)->get();
+
+        return view('delivery.support.list.edit', compact('support', 'clients', 'employees'));
+    }
+
+    /**
+     * Full update (PUT). Updates every field that the create form exposes.
+     * Type changes still gated to TICKET_MANAGER_GROUP (consistent with updateField).
+     */
+    public function update(Request $request, DeliverySupport $support)
+    {
+        $sessionUser = session('user');
+        $roleId = $sessionUser['role']['id'] ?? null;
+        $canEditType = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
+
+        $rules = [
+            'name'                 => 'required|string|max:255',
+            'client_id'            => 'required|exists:customer,customer_id',
+            'start_date'           => 'nullable|date',
+            'end_date'             => 'nullable|date|after_or_equal:start_date',
+            'resolution_estimated' => 'nullable|date',
+            'delivery_owner_id'    => 'nullable|exists:employee,employee_id',
+            'support_manager_id'   => 'nullable|exists:employee,employee_id',
+            'co_pm_id'             => 'nullable|exists:employee,employee_id',
+            'support_admin_id'     => 'nullable|exists:employee,employee_id',
+            'sales_id'             => 'nullable|exists:employee,employee_id',
+            'support_method'       => 'nullable|string|max:100',
+            'total_mandays'        => 'nullable|integer|min:0',
+            'approval_date'        => 'nullable|date',
+            'approval_name'        => 'nullable|string|max:255',
+            'service_window_start' => 'nullable|date_format:H:i',
+            'service_window_end'   => 'nullable|date_format:H:i|after_or_equal:service_window_start',
+        ];
+        if ($canEditType) {
+            $rules['type'] = 'required|in:AMS,MO,ATS,Project,Internal';
+        }
+
+        $validated = $request->validate($rules);
+
+        try {
+            $updateData = [
+                'name'                 => $validated['name'],
+                'client_id'            => $validated['client_id'],
+                'start_date'           => $validated['start_date']           ?? null,
+                'end_date'             => $validated['end_date']             ?? null,
+                'resolution_estimated' => $validated['resolution_estimated'] ?? null,
+                'delivery_owner_id'    => $validated['delivery_owner_id']    ?: null,
+                'support_manager_id'   => $validated['support_manager_id']   ?: null,
+                'co_pm_id'             => $validated['co_pm_id']             ?: null,
+                'support_admin_id'     => $validated['support_admin_id']     ?: null,
+                'sales_id'             => $validated['sales_id']             ?: null,
+                'support_method'       => $validated['support_method']       ?? null,
+                'total_mandays'        => $validated['total_mandays']        ?? null,
+                'approval_date'        => $validated['approval_date']        ?? null,
+                'approval_name'        => $validated['approval_name']        ?? null,
+                'service_window_start' => $validated['service_window_start'] ?? null,
+                'service_window_end'   => $validated['service_window_end']   ?? null,
+            ];
+            if ($canEditType) {
+                $updateData['type'] = $validated['type'];
+            }
+
+            $support->update($updateData);
+
+            return redirect()
+                ->route('delivery.support.show', $support)
+                ->with('success', 'Support delivery updated successfully');
+
+        } catch (\Exception $e) {
+            Log::error('Error updating support delivery', [
+                'support_id' => $support->id,
+                'error'      => $e->getMessage(),
+                'error_at'   => $e->getFile() . ':' . $e->getLine(),
+            ]);
+
+            return back()
+                ->withInput()
+                ->with('error', 'Failed to update support delivery');
+        }
+    }
+
+    /**
      * Show support delivery detail
      */
     public function show(DeliverySupport $support)
@@ -210,6 +306,9 @@ class DeliverySupportController extends Controller
             'client.basicData',
             'deliveryOwner.basicData',
             'supportManager.basicData',
+            'coPm.basicData',
+            'supportAdmin.basicData',
+            'sales.basicData',
             'phases' => function ($q) {
                 $q->orderBy('order_sequence');
             },
@@ -295,13 +394,19 @@ class DeliverySupportController extends Controller
 
                 case 'team-info':
                     $validated = validator($data, [
-                        'delivery_owner_id' => 'nullable|exists:employee,employee_id',
+                        'delivery_owner_id'  => 'nullable|exists:employee,employee_id',
                         'support_manager_id' => 'nullable|exists:employee,employee_id',
+                        'co_pm_id'           => 'nullable|exists:employee,employee_id',
+                        'support_admin_id'   => 'nullable|exists:employee,employee_id',
+                        'sales_id'           => 'nullable|exists:employee,employee_id',
                     ])->validate();
 
                     $support->update([
-                        'delivery_owner_id' => $validated['delivery_owner_id'] ?: null,
+                        'delivery_owner_id'  => $validated['delivery_owner_id']  ?: null,
                         'support_manager_id' => $validated['support_manager_id'] ?: null,
+                        'co_pm_id'           => $validated['co_pm_id']           ?: null,
+                        'support_admin_id'   => $validated['support_admin_id']   ?: null,
+                        'sales_id'           => $validated['sales_id']           ?: null,
                     ]);
                     break;
 

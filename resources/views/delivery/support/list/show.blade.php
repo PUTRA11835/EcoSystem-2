@@ -37,6 +37,13 @@
 
     {{-- Action Buttons --}}
     <div class="flex justify-end gap-3 mb-6">
+        <a href="{{ route('delivery.support.edit', $support->id) }}"
+           class="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            Edit Support
+        </a>
         <a href="{{ route('delivery.support.planning.index', $support->id) }}"
            class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
             Open Planning
@@ -319,6 +326,33 @@
                             <div>
                                 <p class="text-sm font-medium text-gray-900">Support Manager</p>
                                 <p class="text-xs text-gray-500" id="display-support_manager">{{ $support->supportManager->basicData->full_name ?? 'Not assigned' }}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-3" id="team-co-pm">
+                            <div class="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                                CP
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-900">Co PM</p>
+                                <p class="text-xs text-gray-500" id="display-co_pm">{{ $support->coPm->basicData->full_name ?? 'Not assigned' }}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-3" id="team-support-admin">
+                            <div class="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                                SA
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-900">Support Admin</p>
+                                <p class="text-xs text-gray-500" id="display-support_admin">{{ $support->supportAdmin->basicData->full_name ?? 'Not assigned' }}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-3" id="team-sales">
+                            <div class="w-8 h-8 bg-pink-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                                SL
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-900">Sales</p>
+                                <p class="text-xs text-gray-500" id="display-sales">{{ $support->sales->basicData->full_name ?? 'Not assigned' }}</p>
                             </div>
                         </div>
                     </div>
@@ -651,46 +685,53 @@
                 </div>
                 <div class="bg-white px-4 sm:px-6 py-4 sm:py-5 space-y-4">
                     @php
-                        $currentDoLabel = '';
-                        $currentSmLabel = '';
+                        $currentLabels = [
+                            'delivery_owner_id'  => '',
+                            'support_manager_id' => '',
+                            'co_pm_id'           => '',
+                            'support_admin_id'   => '',
+                            'sales_id'           => '',
+                        ];
                         foreach($employees ?? [] as $_e) {
                             $name = $_e->basicData->full_name ?? 'N/A';
-                            if ($support->delivery_owner_id  == $_e->employee_id) $currentDoLabel = $name;
-                            if ($support->support_manager_id == $_e->employee_id) $currentSmLabel = $name;
+                            if ($support->delivery_owner_id  == $_e->employee_id) $currentLabels['delivery_owner_id']  = $name;
+                            if ($support->support_manager_id == $_e->employee_id) $currentLabels['support_manager_id'] = $name;
+                            if ($support->co_pm_id           == $_e->employee_id) $currentLabels['co_pm_id']           = $name;
+                            if ($support->support_admin_id   == $_e->employee_id) $currentLabels['support_admin_id']   = $name;
+                            if ($support->sales_id           == $_e->employee_id) $currentLabels['sales_id']           = $name;
                         }
+
+                        $teamFields = [
+                            ['key' => 'delivery_owner_id',  'label' => 'Delivery Owner',  'value' => $support->delivery_owner_id],
+                            ['key' => 'support_manager_id', 'label' => 'Support Manager', 'value' => $support->support_manager_id],
+                            ['key' => 'co_pm_id',           'label' => 'Co PM',           'value' => $support->co_pm_id],
+                            ['key' => 'support_admin_id',   'label' => 'Support Admin',   'value' => $support->support_admin_id],
+                            ['key' => 'sales_id',           'label' => 'Sales',           'value' => $support->sales_id],
+                        ];
                     @endphp
+
+                    @foreach($teamFields as $tf)
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Delivery Owner</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ $tf['label'] }}</label>
                         <div class="custom-dd relative" data-fixed="true">
                             <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                                <span class="custom-dd-label {{ $currentDoLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $currentDoLabel ?: 'Not assigned' }}</span>
+                                <span class="custom-dd-label {{ $currentLabels[$tf['key']] ? 'text-gray-700' : 'text-gray-500' }}">{{ $currentLabels[$tf['key']] ?: 'Not assigned' }}</span>
                                 <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                             </button>
-                            <input type="hidden" name="delivery_owner_id" id="edit-delivery_owner_id" value="{{ $support->delivery_owner_id }}">
+                            <input type="hidden" name="{{ $tf['key'] }}" id="edit-{{ $tf['key'] }}" value="{{ $tf['value'] }}">
                             <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                                <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                    <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
+                                </div>
                                 <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Not assigned</button>
                                 @foreach($employees ?? [] as $employee)
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? 'N/A' }}</button>
                                 @endforeach
+                                <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
                             </div>
                         </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Support Manager</label>
-                        <div class="custom-dd relative" data-fixed="true">
-                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                                <span class="custom-dd-label {{ $currentSmLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $currentSmLabel ?: 'Not assigned' }}</span>
-                                <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                            </button>
-                            <input type="hidden" name="support_manager_id" id="edit-support_manager_id" value="{{ $support->support_manager_id }}">
-                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Not assigned</button>
-                                @foreach($employees ?? [] as $employee)
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? 'N/A' }}</button>
-                                @endforeach
-                            </div>
-                        </div>
-                    </div>
+                    @endforeach
                 </div>
                 <div class="bg-gray-50 px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
                     <button type="button" onclick="closeEditModal('team-info')"
@@ -831,25 +872,24 @@ function updateDisplayValues(section, data) {
         document.getElementById('display-approval_name').textContent = data.approval_name || 'N/A';
     }
     else if (section === 'team-info') {
-        // Update delivery owner
-        if (data.delivery_owner_id) {
-            const owner = employeesData.find(e => e.employee_id == data.delivery_owner_id);
-            if (owner) {
-                document.getElementById('display-delivery_owner').textContent = owner.basic_data?.full_name || 'Not assigned';
+        const teamMap = {
+            delivery_owner_id:  'display-delivery_owner',
+            support_manager_id: 'display-support_manager',
+            co_pm_id:           'display-co_pm',
+            support_admin_id:   'display-support_admin',
+            sales_id:           'display-sales',
+        };
+        Object.entries(teamMap).forEach(([field, displayId]) => {
+            const el = document.getElementById(displayId);
+            if (!el) return;
+            const empId = data[field];
+            if (empId) {
+                const emp = employeesData.find(e => e.employee_id == empId);
+                el.textContent = emp?.basic_data?.full_name || 'Not assigned';
+            } else {
+                el.textContent = 'Not assigned';
             }
-        } else {
-            document.getElementById('display-delivery_owner').textContent = 'Not assigned';
-        }
-
-        // Update support manager
-        if (data.support_manager_id) {
-            const manager = employeesData.find(e => e.employee_id == data.support_manager_id);
-            if (manager) {
-                document.getElementById('display-support_manager').textContent = manager.basic_data?.full_name || 'Not assigned';
-            }
-        } else {
-            document.getElementById('display-support_manager').textContent = 'Not assigned';
-        }
+        });
     }
 }
 
