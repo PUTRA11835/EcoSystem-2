@@ -36,9 +36,13 @@
             @endif
 
             @if($user->role->role_id === \App\Enums\RoleId::SUPPORT_MANAGER->value)
-            <div class="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700 font-medium">
-                <i class="fas fa-layer-group text-xs"></i>
-                <span>Delivery Support Tickets</span>
+            <div class="inline-flex bg-gray-100 rounded-xl p-1">
+                <button onclick="toggleView('all')" id="btnViewAllHd" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
+                    <i class="fas fa-list-check text-xs mr-1"></i> All Tickets
+                </button>
+                <button onclick="toggleView('unassigned')" id="btnViewUnassigned" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
+                    <i class="fas fa-user-clock text-xs mr-1"></i> Unassigned
+                </button>
             </div>
             @endif
 
@@ -538,17 +542,20 @@ thead th.th-sortable:hover { background: #f3f4f6; }
     let currentPage = 1;
     let totalItems = 0;
     let totalPages = 0;
-    let userRole          = {{ $user->role->role_id ?? 0 }};
-    let currentEmployeeId = {{ $currentEmployeeId ?? 'null' }};
-    const HELPDESK_ROLE   = {{ \App\Enums\RoleId::HELPDESK->value }};
+    let userRole              = {{ $user->role->role_id ?? 0 }};
+    let currentEmployeeId     = {{ $currentEmployeeId ?? 'null' }};
+    const HELPDESK_ROLE       = {{ \App\Enums\RoleId::HELPDESK->value }};
+    const SUPPORT_MANAGER_ROLE = {{ \App\Enums\RoleId::SUPPORT_MANAGER->value }};
+    // Roles that use the All/Unassigned toggle (see all org tickets)
+    const STAFF_TOGGLE_ROLES   = [HELPDESK_ROLE, SUPPORT_MANAGER_ROLE];
     let currentView = userRole === {{ \App\Enums\RoleId::EMPLOYEE->value }} ? 'my'
-                    : userRole === HELPDESK_ROLE ? 'all'
+                    : STAFF_TOGGLE_ROLES.includes(userRole) ? 'all'
                     : 'all';
     let sortField = null; // 'last_update' | 'ticket_number' | 'date'
     let sortDir   = null; // 'desc' | 'asc'
 
     function getViewBase() {
-        if (userRole === HELPDESK_ROLE) {
+        if (STAFF_TOGGLE_ROLES.includes(userRole)) {
             if (currentView === 'unassigned') return allTickets.filter(t => t.employee_id === null);
             return allTickets; // 'all' = semua tiket tanpa filter assigned/unassigned
         }
@@ -558,7 +565,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
         loadTickets();
-        if (userRole === 1 || userRole === 2 || userRole === HELPDESK_ROLE) updateViewToggle();
+        if (userRole === 1 || userRole === 2 || STAFF_TOGGLE_ROLES.includes(userRole)) updateViewToggle();
         startEmailPolling();
     });
 
@@ -594,8 +601,8 @@ thead th.th-sortable:hover { background: #f3f4f6; }
     function toggleView(view) {
         currentView = view;
         updateViewToggle();
-        if (userRole === HELPDESK_ROLE) {
-            // Helpdesk: all tickets already loaded — filter client-side, no re-fetch
+        if (STAFF_TOGGLE_ROLES.includes(userRole)) {
+            // Helpdesk / Support Manager: all tickets already loaded — filter client-side, no re-fetch
             currentFilter = 'all';
             currentPage   = 1;
             filteredTickets = getViewBase();
@@ -615,7 +622,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
                 btnMy.classList.toggle('active',  currentView !== 'all');
             }
         }
-        if (userRole === HELPDESK_ROLE) {
+        if (STAFF_TOGGLE_ROLES.includes(userRole)) {
             const btnA = document.getElementById('btnViewAllHd');
             const btnU = document.getElementById('btnViewUnassigned');
             if (btnA && btnU) {
