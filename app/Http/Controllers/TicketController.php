@@ -1612,10 +1612,23 @@ class TicketController extends Controller
 
         try {
             $ticket = Ticket::findOrFail($id);
-            
-            $ticket->update([
-                'status' => $request->status
-            ]);
+            $wasAlreadyClosed = in_array($ticket->status, ['closed'], true);
+
+            $ticket->update(['status' => $request->status]);
+
+            // Jika baru ditutup (bukan sudah closed sebelumnya), catat SLA close event
+            if ($request->status === 'closed' && !$wasAlreadyClosed) {
+                if ($request->has('jarvies_status')) {
+                    $ticket->update(['jarvies_status' => $request->jarvies_status]);
+                } elseif ($ticket->jarvies_status !== 'closed') {
+                    $ticket->update(['jarvies_status' => 'closed']);
+                }
+
+                $sla = \App\Models\TicketSla::with('policy')->where('ticket_id', $ticket->ticket_id)->first();
+                if ($sla && !$sla->isClosed()) {
+                    app(\App\Services\SlaService::class)->closeTicketSla($sla, $ticket, null, now());
+                }
+            }
 
             return response()->json([
                 'success' => true,
@@ -1626,7 +1639,7 @@ class TicketController extends Controller
                 'error' => $e->getMessage(),
                 'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update ticket status',
@@ -2674,5 +2687,24 @@ class TicketController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    // ─── Jarvies: customer menutup tiket ────────────────────────────────────
+    public function closeByCustomer(\Illuminate\Http\Request $request, int $id)
+    {
+        $ticket = Ticket::findOrFail($id);
+
+        if ($ticket->jarvies_status === 'closed' || $ticket->status === 'closed') {
+            return response()->json(['success' => false, 'message' => 'Ticket is already closed.'], 422);
+        }
+
+        $ticket->update(['jarvies_status' => 'closed', 'status' => 'closed']);
+
+        $sla = \App\Models\TicketSla::with('policy')->where('ticket_id', $ticket->ticket_id)->first();
+        if ($sla && !$sla->isClosed()) {
+            app(\App\Services\SlaService::class)->closeTicketSla($sla, $ticket, null, now());
+        }
+
+        return response()->json(['success' => true, 'message' => 'Ticket closed successfully.']);
     }
 }

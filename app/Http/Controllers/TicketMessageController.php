@@ -8,6 +8,7 @@ use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
+use App\Services\SlaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -110,6 +111,7 @@ class TicketMessageController extends Controller
         $validator = Validator::make($request->all(), [
             'message_body'            => 'nullable|string',
             'message_type'            => 'required|in:reply,internal_note',
+            'jarvies_status'          => 'nullable|string',
             'cc_emails'               => 'nullable',
             'attachments'             => 'nullable|array',
             'attachments.*'           => 'file|max:10240', // maks 10 MB per file
@@ -285,6 +287,10 @@ class TicketMessageController extends Controller
                 }
             }
 
+            // Rekam SLA event (non-blocking) — teruskan jarvies_status agar tersimpan di ticket_sla_events
+            $jarviesStatus = $request->input('jarvies_status');
+            app(SlaService::class)->recordMessageEvent($ticket, $message, 'employee', $jarviesStatus);
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -446,6 +452,9 @@ class TicketMessageController extends Controller
                 'skip_relay'   => $skipRelay,
                 'has_thread'   => !empty($ticket->email_thread_id),
             ]);
+
+            // Rekam SLA event (non-blocking)
+            app(SlaService::class)->recordMessageEvent($ticket, $message, 'customer');
 
             return response()->json([
                 'success' => true,

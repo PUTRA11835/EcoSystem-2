@@ -8,6 +8,7 @@ use App\Models\StagingAttachment;
 use App\Models\StagingTicket;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
+use App\Services\SlaService;
 use App\Services\StagingTicketService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -335,6 +336,9 @@ class StagingTicketController extends Controller
                 }
             }
 
+            // Attach SLA record
+            app(SlaService::class)->attachToTicket($ticket, $staging);
+
             // Kirim notifikasi balasan otomatis ke customer
             $this->sendApprovalNotification($staging, $ticket, $sessionUser, $firstMessage);
 
@@ -350,10 +354,12 @@ class StagingTicketController extends Controller
             ]);
         } catch (\LogicException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('StagingTicketController@approve: failed to approve', [
                 'staging_id' => $id,
                 'error'      => $e->getMessage(),
+                'class'      => get_class($e),
+                'file'       => $e->getFile() . ':' . $e->getLine(),
             ]);
             return response()->json([
                 'success' => false,
@@ -669,11 +675,9 @@ class StagingTicketController extends Controller
      */
     private function sendApprovalNotification(StagingTicket $staging, Ticket $ticket, array $sessionUser, ?TicketMessage $firstMessage = null): void
     {
-        // Pastikan PHP tidak timeout — Graph API bisa memakan 20-60 detik di server production
-        // (token fetch + attachment download + createReply + send = banyak HTTP round trips)
-        set_time_limit(180);
-
         try {
+            // Pastikan PHP tidak timeout — Graph API bisa memakan 20-60 detik di server production
+            set_time_limit(180);
             Log::info('StagingTicketController@sendApprovalNotification: mulai', [
                 'staging_id'         => $staging->id,
                 'ticket_id'          => $ticket->ticket_id,
@@ -970,7 +974,7 @@ class StagingTicketController extends Controller
                 'email_sent'     => $customerEmail !== null,
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('StagingTicketController@sendApprovalNotification: GAGAL', [
                 'staging_id' => $staging->id,
                 'ticket_id'  => $ticket->ticket_id,

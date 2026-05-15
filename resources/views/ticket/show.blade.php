@@ -285,14 +285,14 @@
                         Internal Note
                     </button>
                     <span id="attachCount" class="hidden text-xs text-blue-600 font-medium ml-2"></span>
-                    {{-- Send button dipisah ke pojok kanan --}}
+                    {{-- Send button → membuka modal Jarvies status dulu sebelum kirim --}}
                     @if($ticket->channel === 'email')
-                    <button onclick="sendReply('reply')" class="ml-auto inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
-                        Send via Email
+                    <button id="btnSendReply" onclick="openSendModal()" class="ml-auto inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
+                        <i class="fas fa-paper-plane mr-1.5 text-xs"></i> Send via Email
                     </button>
                     @else
-                    <button onclick="sendReply('reply')" class="ml-auto inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
-                        Send Reply
+                    <button id="btnSendReply" onclick="openSendModal()" class="ml-auto inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
+                        <i class="fas fa-paper-plane mr-1.5 text-xs"></i> Send Reply
                     </button>
                     @endif
                 </div>
@@ -847,6 +847,72 @@
 }
 .primary-text { color: var(--primary-color) !important; }
 </style>
+
+{{-- ── Send Reply — Modal Konfirmasi Jarvies Status ── --}}
+<div id="sendReplyModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div>
+                <h3 class="text-sm font-semibold text-gray-800">Konfirmasi Kirim</h3>
+                <p class="text-xs text-gray-400 mt-0.5">Pilih Jarvies Status sebelum mengirim</p>
+            </div>
+            <button onclick="closeSendModal()" class="text-gray-400 hover:text-gray-600 transition">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="px-5 py-5 space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-2">Jarvies Status</label>
+                <div class="grid grid-cols-1 gap-2" id="jarviesStatusOptions">
+                    @php
+                        $statusOptions = [
+                            ['value' => 'in process',         'label' => 'In Process',         'desc' => 'Sedang diproses helpdesk',            'color' => 'blue'],
+                            ['value' => 'author action',      'label' => 'Author Action',       'desc' => 'Menunggu tindakan dari customer',      'color' => 'yellow'],
+                            ['value' => 'proposed solution',  'label' => 'Proposed Solution',   'desc' => 'Solusi diusulkan, menunggu konfirmasi','color' => 'orange'],
+                            ['value' => 'sent in to SAP',     'label' => 'Sent in to SAP',      'desc' => 'Diteruskan ke tim SAP',               'color' => 'indigo'],
+                            ['value' => 'sent it to support', 'label' => 'Sent it to Support',  'desc' => 'Diteruskan ke support',               'color' => 'purple'],
+                        ];
+                        $colorMap = [
+                            'blue'   => ['border' => 'border-blue-300',   'bg' => 'bg-blue-50',   'text' => 'text-blue-700',   'ring' => 'ring-blue-400'],
+                            'yellow' => ['border' => 'border-yellow-300', 'bg' => 'bg-yellow-50', 'text' => 'text-yellow-700', 'ring' => 'ring-yellow-400'],
+                            'orange' => ['border' => 'border-orange-300', 'bg' => 'bg-orange-50', 'text' => 'text-orange-700', 'ring' => 'ring-orange-400'],
+                            'indigo' => ['border' => 'border-indigo-300', 'bg' => 'bg-indigo-50', 'text' => 'text-indigo-700', 'ring' => 'ring-indigo-400'],
+                            'purple' => ['border' => 'border-purple-300', 'bg' => 'bg-purple-50', 'text' => 'text-purple-700', 'ring' => 'ring-purple-400'],
+                        ];
+                    @endphp
+                    @foreach($statusOptions as $opt)
+                    @php $c = $colorMap[$opt['color']]; @endphp
+                    <label class="flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-all duration-150
+                        {{ $ticket->jarvies_status === $opt['value'] ? $c['border'].' '.$c['bg'] : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50' }}"
+                        id="srmLabel_{{ str_replace(' ', '_', $opt['value']) }}">
+                        <input type="radio" name="sendJarviesStatus" value="{{ $opt['value'] }}"
+                            class="accent-red-700"
+                            {{ $ticket->jarvies_status === $opt['value'] ? 'checked' : '' }}
+                            onchange="highlightSrmOption(this)">
+                        <div>
+                            <p class="text-xs font-semibold {{ $ticket->jarvies_status === $opt['value'] ? $c['text'] : 'text-gray-700' }}"
+                                id="srmLabelText_{{ str_replace(' ', '_', $opt['value']) }}">
+                                {{ $opt['label'] }}
+                            </p>
+                            <p class="text-xs text-gray-400 mt-0.5">{{ $opt['desc'] }}</p>
+                        </div>
+                    </label>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-2 px-5 pb-5">
+            <button onclick="closeSendModal()"
+                class="flex-1 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition">
+                Batal
+            </button>
+            <button onclick="confirmSendReply()"
+                class="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-700 hover:bg-red-800 rounded-xl transition">
+                <i class="fas fa-paper-plane mr-1.5 text-xs"></i> Kirim
+            </button>
+        </div>
+    </div>
+</div>
 
 {{-- Assign to Delivery Support Modal --}}
 @if(in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true))
@@ -2262,6 +2328,52 @@
         return html.trim();
     }
 
+    // ── Send Reply Modal ──────────────────────────────────────────────────────
+    function openSendModal() {
+        document.getElementById('sendReplyModal').classList.remove('hidden');
+    }
+    function closeSendModal() {
+        document.getElementById('sendReplyModal').classList.add('hidden');
+    }
+    function confirmSendReply() {
+        closeSendModal();
+        sendReply('reply');
+    }
+    function highlightSrmOption(radio) {
+        const colorMap = {
+            'in process':         { border: 'border-blue-300',   bg: 'bg-blue-50',   text: 'text-blue-700'   },
+            'author action':      { border: 'border-yellow-300', bg: 'bg-yellow-50', text: 'text-yellow-700' },
+            'proposed solution':  { border: 'border-orange-300', bg: 'bg-orange-50', text: 'text-orange-700' },
+            'sent in to SAP':     { border: 'border-indigo-300', bg: 'bg-indigo-50', text: 'text-indigo-700' },
+            'sent it to support': { border: 'border-purple-300', bg: 'bg-purple-50', text: 'text-purple-700' },
+        };
+        // Reset semua option
+        document.querySelectorAll('#jarviesStatusOptions label').forEach(lbl => {
+            lbl.className = lbl.className
+                .replace(/border-\w+-300/g, 'border-gray-200')
+                .replace(/bg-\w+-50/g, 'bg-white')
+                .replace(/hover:border-gray-300/, '')
+                .replace(/hover:bg-gray-50/, '');
+            lbl.classList.add('border-gray-200', 'hover:border-gray-300', 'hover:bg-gray-50');
+            const txt = lbl.querySelector('p:first-child');
+            if (txt) txt.className = txt.className.replace(/text-\w+-700/g, 'text-gray-700');
+        });
+        // Highlight yang dipilih
+        const c = colorMap[radio.value] ?? {};
+        const lbl = radio.closest('label');
+        if (lbl && c.border) {
+            lbl.classList.remove('border-gray-200', 'hover:border-gray-300', 'hover:bg-gray-50');
+            lbl.classList.add(c.border, c.bg);
+            const txt = lbl.querySelector('p:first-child');
+            if (txt) { txt.classList.remove('text-gray-700'); txt.classList.add(c.text); }
+        }
+    }
+
+    // Tutup modal jika klik backdrop
+    document.getElementById('sendReplyModal').addEventListener('click', function(e) {
+        if (e.target === this) closeSendModal();
+    });
+
     async function sendReply(messageType) {
         const rawHtml      = quillEditor.root.innerHTML;
         const htmlContent  = trimQuillHtml(rawHtml);
@@ -2275,9 +2387,14 @@
         }
 
         // Disable tombol kirim selama proses agar tidak double-submit
-        const sendBtn = document.querySelector('button[onclick="sendReply(\'reply\')"]');
+        const sendBtn = document.getElementById('btnSendReply');
         const noteBtn = document.querySelector('button[onclick="sendReply(\'internal_note\')"]');
-        if (sendBtn) { sendBtn.disabled = true; sendBtn.classList.add('opacity-60'); }
+        if (sendBtn) {
+            sendBtn.disabled = true;
+            sendBtn.dataset.originalHtml = sendBtn.innerHTML;
+            sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5 text-xs"></i> Sending...';
+            sendBtn.classList.add('opacity-75', 'cursor-not-allowed');
+        }
         if (noteBtn) { noteBtn.disabled = true; noteBtn.classList.add('opacity-60'); }
 
         try {
@@ -2296,6 +2413,8 @@
                 ? pendingMentions.filter(m => m.type === 'role').map(m => m.id)
                 : [];
 
+            const jarviesStatus = (document.querySelector('input[name="sendJarviesStatus"]:checked'))?.value ?? null;
+
             if (hasFiles) {
                 // Kirim sebagai multipart/form-data
                 // Jangan set Content-Type manual — browser otomatis tambahkan boundary yang benar
@@ -2303,6 +2422,7 @@
                 formData.append('message_body', htmlContent);
                 formData.append('message_type', messageType);
                 formData.append('cc_emails', JSON.stringify(ccEmails));
+                if (jarviesStatus && messageType === 'reply') formData.append('jarvies_status', jarviesStatus);
                 selectedFiles.forEach(file => formData.append('attachments[]', file));
                 mentionedEmployeeIds.forEach(id => formData.append('mentioned_employee_ids[]', id));
                 mentionedRoleIds.forEach(id => formData.append('mentioned_role_ids[]', id));
@@ -2314,6 +2434,7 @@
                     message_body: htmlContent,
                     message_type: messageType,
                     cc_emails: ccEmails,
+                    ...(jarviesStatus && messageType === 'reply' ? { jarvies_status: jarviesStatus } : {}),
                     mentioned_employee_ids: mentionedEmployeeIds,
                     mentioned_role_ids: mentionedRoleIds,
                     ...(replyToId && messageType === 'internal_note' ? { reply_to_id: replyToId } : {}),
@@ -2334,6 +2455,13 @@
                 resetAttachments();
                 pendingMentions = []; // reset mentions
                 cancelReply();        // clear reply context
+
+                // Sync nilai jarvies status ke sidebar agar tampil status terbaru
+                if (messageType === 'reply' && jarviesStatus) {
+                    const sidebarSel = document.getElementById('detailJarviesStatus');
+                    if (sidebarSel) sidebarSel.value = jarviesStatus;
+                }
+
                 await loadMessages();
                 showNotification(messageType === 'internal_note' ? 'Internal note added' : 'Reply sent', 'success');
             } else {
@@ -2344,7 +2472,11 @@
             console.error('[sendReply] EXCEPTION:', error.name, error.message);
             showNotification('Error: ' + error.message, 'error');
         } finally {
-            if (sendBtn) { sendBtn.disabled = false; sendBtn.classList.remove('opacity-60'); }
+            if (sendBtn) {
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = sendBtn.dataset.originalHtml ?? sendBtn.innerHTML;
+                sendBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+            }
             if (noteBtn) { noteBtn.disabled = false; noteBtn.classList.remove('opacity-60'); }
         }
     }
@@ -2651,11 +2783,14 @@
         const pic = document.getElementById('detailPIC').value;
         try {
             // Update status via dedicated endpoint
+            // Jika status closed, kirim juga jarvies_status agar SLA event tercatat dengan benar
+            const statusPayload = { status };
+            if (status === 'closed') statusPayload.jarvies_status = 'closed';
             await fetch(`/api/tickets/${ticketId}/update-status`, {
                 method: 'PUT',
                 headers: getHeaders(),
                 credentials: 'same-origin',
-                body: JSON.stringify({ status: status })
+                body: JSON.stringify(statusPayload)
             });
 
             // Update all other properties via general update endpoint

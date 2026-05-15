@@ -562,6 +562,18 @@ class EmailController extends Controller
                         }
                         $ticket->update($ticketCcUpdate);
 
+                        // Rekam SLA event untuk balasan customer via email (non-blocking)
+                        if ($customer) {
+                            try {
+                                app(\App\Services\SlaService::class)->recordMessageEvent($ticket, $message, 'customer');
+                            } catch (\Throwable $slaEx) {
+                                Log::warning('EmailController@processInbox: SLA event gagal', [
+                                    'ticket_id' => $ticket->ticket_id,
+                                    'error'     => $slaEx->getMessage(),
+                                ]);
+                            }
+                        }
+
                     } else {
                         // Dedup staging: skip jika sudah pernah masuk staging dengan internet_message_id ini
                         if ($internetMsgId && \App\Models\StagingTicket::where('email_message_id', $internetMsgId)->exists()) {
