@@ -316,6 +316,8 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/assign-pic', [TicketController::class, 'assignPic']);
         Route::put('/{id}', [TicketController::class, 'update']);
         Route::put('/{id}/update-status', [TicketController::class, 'updateTicketStatus']);
+        Route::post('/{id}/start-solution', [TicketController::class, 'startSolution']);
+        Route::patch('/{id}/messages/{messageId}/end-meeting', [TicketMessageController::class, 'endMeeting']);
         Route::put('/{id}/update-mandays', [TicketController::class, 'updateManDays']);
         Route::delete('/{id}', [TicketController::class, 'destroy']);
         Route::post('/{id}/send-to-customer', [TicketController::class, 'sendToCustomer']);

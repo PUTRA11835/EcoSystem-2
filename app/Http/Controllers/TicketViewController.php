@@ -173,6 +173,8 @@ class TicketViewController extends Controller
             $customerEmail = Customer::find($ticket->customer_id)?->email;
         }
 
+        $sla = \App\Models\TicketSla::where('ticket_id', $ticket->ticket_id)->first();
+
         return view('ticket.show', [
             'user'             => $user,
             'ticket'           => $ticket,
@@ -182,6 +184,7 @@ class TicketViewController extends Controller
             'deliverySupport'  => $deliverySupport,
             'approvedMandays'  => $approvedMandays,
             'customerEmail'    => $customerEmail,
+            'sla'              => $sla,
         ]);
     }
 }

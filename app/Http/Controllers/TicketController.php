@@ -2707,4 +2707,30 @@ class TicketController extends Controller
 
         return response()->json(['success' => true, 'message' => 'Ticket closed successfully.']);
     }
+
+    // ─── Start Solution: set solution_started_at once ────────────────────────
+    public function startSolution(\Illuminate\Http\Request $request, int $id)
+    {
+        $ticket = Ticket::findOrFail($id);
+
+        $sla = \App\Models\TicketSla::with('policy')->where('ticket_id', $ticket->ticket_id)->first();
+
+        if (!$sla) {
+            return response()->json(['success' => false, 'message' => 'No SLA record found for this ticket.'], 404);
+        }
+
+        if ($sla->solution_started_at) {
+            return response()->json(['success' => false, 'message' => 'Solution already started.'], 422);
+        }
+
+        $now = now();
+        $sla->update(['solution_started_at' => $now]);
+        $ticket->update(['status' => 'in_progress']);
+
+        return response()->json([
+            'success'             => true,
+            'message'             => 'Solution started.',
+            'solution_started_at' => $now->toIso8601String(),
+        ]);
+    }
 }

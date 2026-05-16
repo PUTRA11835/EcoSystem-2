@@ -121,7 +121,7 @@
                             'wait_to_close' => 'Wait to Close',
                         ];
                     @endphp
-                    <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
+                    <span id="ticketStatusBadge" class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
                         {{ $statusLabels[$ticket->status] ?? 'Open' }}
                     </span>
                     @if($ticket->ticket_type)
@@ -280,7 +280,27 @@
                 <input type="file" id="attachInput" multiple class="hidden"
                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar,.csv">
                 <div class="flex items-center mt-2 mb-1 gap-2">
-                    {{-- Internal Note dipindah ke kiri agar tidak bersebelahan dengan Send (mencegah salah klik) --}}
+                    @if($sla ?? null)
+                    @php $solutionStarted = $sla->solution_started_at !== null; @endphp
+                    <button id="btnStartSolution"
+                        onclick="handleStartSolution()"
+                        @if($solutionStarted) disabled @endif
+                        class="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200
+                            {{ $solutionStarted
+                                ? 'bg-green-100 text-green-700 border-green-300 cursor-not-allowed opacity-75'
+                                : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' }}">
+                        @if($solutionStarted)
+                            <i class="fas fa-check mr-1.5 text-xs"></i> Solution Started
+                        @else
+                            <i class="fas fa-play mr-1.5 text-xs"></i> Start Solution
+                        @endif
+                    </button>
+                    @endif
+                    {{-- Meeting --}}
+                    <button onclick="openMeetingModal()" class="inline-flex items-center px-3 py-1.5 bg-teal-50 text-teal-700 border border-teal-200 text-xs font-semibold rounded-lg hover:bg-teal-100 transition-all duration-200">
+                        <i class="fas fa-calendar-alt mr-1.5 text-xs"></i> Meeting
+                    </button>
+                    {{-- Internal Note --}}
                     <button onclick="sendReply('internal_note')" class="inline-flex items-center px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg hover:bg-amber-100 transition-all duration-200">
                         Internal Note
                     </button>
@@ -694,6 +714,7 @@
 .message-bubble.employee  { background: #f9fafb; border-radius: 12px 12px 12px 4px; }
 .message-bubble.internal-note       { background: #fef9c3; border: 1px dashed #f59e0b; border-radius: 4px 12px 12px 12px; }
 .message-bubble.internal-note.mine  { background: #fef3c7; border: 1px dashed #d97706; border-radius: 12px 4px 12px 12px; }
+.meeting-card { background: #f0fdfa; border: 1px solid #5eead4; border-radius: 12px; }
 
 /* Email HTML body rendering — scoped agar tidak bocor ke luar bubble */
 .email-html-body { word-break: break-word; }
@@ -866,18 +887,16 @@
                 <div class="grid grid-cols-1 gap-2" id="jarviesStatusOptions">
                     @php
                         $statusOptions = [
-                            ['value' => 'in process',         'label' => 'In Process',         'desc' => 'Sedang diproses helpdesk',            'color' => 'blue'],
-                            ['value' => 'author action',      'label' => 'Author Action',       'desc' => 'Menunggu tindakan dari customer',      'color' => 'yellow'],
-                            ['value' => 'proposed solution',  'label' => 'Proposed Solution',   'desc' => 'Solusi diusulkan, menunggu konfirmasi','color' => 'orange'],
-                            ['value' => 'sent in to SAP',     'label' => 'Sent in to SAP',      'desc' => 'Diteruskan ke tim SAP',               'color' => 'indigo'],
-                            ['value' => 'sent it to support', 'label' => 'Sent it to Support',  'desc' => 'Diteruskan ke support',               'color' => 'purple'],
+                            ['value' => 'in process',         'label' => 'In Process',         'desc' => 'Being processed by helpdesk',          'color' => 'blue'],
+                            ['value' => 'author action',      'label' => 'Author Action',       'desc' => 'Waiting for action from customer',     'color' => 'yellow'],
+                            ['value' => 'proposed solution',  'label' => 'Proposed Solution',   'desc' => 'Solution proposed, awaiting confirm',  'color' => 'orange'],
+                            ['value' => 'sent in to SAP',     'label' => 'Sent in to SAP',      'desc' => 'Escalated to SAP team',                'color' => 'indigo'],
                         ];
                         $colorMap = [
                             'blue'   => ['border' => 'border-blue-300',   'bg' => 'bg-blue-50',   'text' => 'text-blue-700',   'ring' => 'ring-blue-400'],
                             'yellow' => ['border' => 'border-yellow-300', 'bg' => 'bg-yellow-50', 'text' => 'text-yellow-700', 'ring' => 'ring-yellow-400'],
                             'orange' => ['border' => 'border-orange-300', 'bg' => 'bg-orange-50', 'text' => 'text-orange-700', 'ring' => 'ring-orange-400'],
                             'indigo' => ['border' => 'border-indigo-300', 'bg' => 'bg-indigo-50', 'text' => 'text-indigo-700', 'ring' => 'ring-indigo-400'],
-                            'purple' => ['border' => 'border-purple-300', 'bg' => 'bg-purple-50', 'text' => 'text-purple-700', 'ring' => 'ring-purple-400'],
                         ];
                     @endphp
                     @foreach($statusOptions as $opt)
@@ -909,6 +928,100 @@
             <button onclick="confirmSendReply()"
                 class="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-700 hover:bg-red-800 rounded-xl transition">
                 <i class="fas fa-paper-plane mr-1.5 text-xs"></i> Kirim
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- ── Meeting Modal ── --}}
+<div id="meetingModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div>
+                <h3 class="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-calendar-alt text-teal-600"></i> Schedule Meeting
+                </h3>
+                <p class="text-xs text-gray-400 mt-0.5">Meeting will stop the waiting timer</p>
+            </div>
+            <button onclick="closeMeetingModal()" class="text-gray-400 hover:text-gray-600 transition">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="px-5 py-4 space-y-3">
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Title <span class="text-red-500">*</span></label>
+                <input id="meetingTitle" type="text" placeholder="e.g. Solution discussion"
+                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-400">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Date <span class="text-red-500">*</span></label>
+                    <input id="meetingDate" type="date"
+                        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-400">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Time <span class="text-red-500">*</span></label>
+                    <input id="meetingTime" type="time"
+                        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-400">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Duration</label>
+                <select id="meetingDuration" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-400">
+                    <option value="30">30 minutes</option>
+                    <option value="60" selected>1 hour</option>
+                    <option value="90">1.5 hours</option>
+                    <option value="120">2 hours</option>
+                    <option value="180">3 hours</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Meeting Link</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-2.5 flex items-center text-gray-400 pointer-events-none">
+                        <i class="fas fa-link text-xs"></i>
+                    </span>
+                    <input id="meetingLink" type="url" placeholder="https://meet.google.com/..."
+                        class="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-400">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Agenda</label>
+                <textarea id="meetingAgenda" rows="2" placeholder="Meeting agenda (optional)"
+                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"></textarea>
+            </div>
+        </div>
+        <div class="flex gap-2 px-5 pb-5">
+            <button onclick="closeMeetingModal()"
+                class="flex-1 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition">
+                Cancel
+            </button>
+            <button id="btnSaveMeeting" onclick="sendMeeting()"
+                class="flex-1 px-4 py-2 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition">
+                <i class="fas fa-calendar-check mr-1.5 text-xs"></i> Save Meeting
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- Reusable Confirm Dialog --}}
+<div id="confirmDialog" class="hidden fixed inset-0 bg-black bg-opacity-40 z-[60] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl">
+        <div class="px-6 pt-6 pb-2 flex items-start gap-4">
+            <div id="confirmDialogIcon" class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg"></div>
+            <div>
+                <h3 id="confirmDialogTitle" class="text-base font-bold text-gray-900 mb-1"></h3>
+                <p id="confirmDialogMessage" class="text-sm text-gray-500 leading-relaxed"></p>
+            </div>
+        </div>
+        <div class="px-6 py-4 flex justify-end gap-3">
+            <button id="confirmDialogCancel"
+                class="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                Cancel
+            </button>
+            <button id="confirmDialogOk"
+                class="px-4 py-2 text-sm font-semibold text-white rounded-lg transition">
+                Confirm
             </button>
         </div>
     </div>
@@ -2081,8 +2194,78 @@
         );
     }
 
+    function parseMeetingData(body) {
+        if (!body) return null;
+        try {
+            const d = JSON.parse(body);
+            if (d && d._type === 'meeting') return d;
+        } catch (_) {}
+        return null;
+    }
+
+    function formatMeetingDuration(minutes) {
+        if (!minutes) return '';
+        const h = Math.floor(minutes / 60), m = minutes % 60;
+        if (h && m) return `${h}h ${m}min`;
+        if (h) return `${h} hour${h > 1 ? 's' : ''}`;
+        return `${m} min`;
+    }
+
     // ── Pilih konten pesan: HTML dari email atau plain text dari web ────────────
     function messageContent(msg) {
+        // Meeting card
+        if (msg.message_type === 'meeting') {
+            const d = parseMeetingData(msg.message_body);
+            if (d) {
+                const fmtDt = (iso) => iso ? new Date(iso).toLocaleString('en-GB', {
+                    timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit', hour12: false
+                }) + ' WIB' : '—';
+
+                const isEnded = !!d.ended_at;
+
+                // Actual duration if ended
+                let durationLine = '';
+                if (isEnded && d.scheduled_at && d.ended_at) {
+                    const diffMs  = new Date(d.ended_at) - new Date(d.scheduled_at);
+                    const diffMin = Math.round(diffMs / 60000);
+                    durationLine = `${fmtDt(d.scheduled_at)} – ${new Date(d.ended_at).toLocaleString('en-GB',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit',hour12:false})} WIB · ${formatMeetingDuration(diffMin)}`;
+                } else {
+                    durationLine = `${fmtDt(d.scheduled_at)} · ${formatMeetingDuration(d.duration_minutes)}`;
+                }
+
+                const statusBadge = isEnded
+                    ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5">
+                           <i class="fas fa-check-circle text-xs"></i> Ended
+                       </span>`
+                    : `<span class="inline-flex items-center gap-1 text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded px-2 py-0.5">
+                           <span class="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse inline-block"></span> Ongoing
+                       </span>`;
+
+                const endBtn = isEnded ? '' :
+                    `<button onclick="endMeeting(${msg.id})" data-msg-id="${msg.id}"
+                        class="end-meeting-btn inline-flex items-center gap-1 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded px-2 py-0.5 transition">
+                        <i class="fas fa-stop-circle text-xs"></i> End Meeting
+                     </button>`;
+
+                return `<div class="meeting-card p-3 min-w-[240px]" data-meeting-id="${msg.id}">
+                    <div class="flex items-center gap-2 mb-2">
+                        <i class="fas fa-calendar-alt text-teal-600 text-sm"></i>
+                        <span class="text-sm font-semibold text-teal-800">${escHtml(d.title ?? 'Meeting')}</span>
+                    </div>
+                    <div class="text-xs text-gray-500 space-y-1">
+                        <div><i class="fas fa-clock mr-1 text-teal-400"></i>${escHtml(durationLine)}</div>
+                        ${d.link ? `<div><i class="fas fa-link mr-1 text-teal-400"></i><a href="${escHtml(d.link)}" target="_blank" rel="noopener noreferrer" class="text-teal-600 hover:text-teal-800 underline underline-offset-2 break-all">${escHtml(d.link)}</a></div>` : ''}
+                        ${d.agenda ? `<div class="mt-1 text-gray-600 border-t border-teal-100 pt-1">${escHtml(d.agenda)}</div>` : ''}
+                    </div>
+                    <div class="flex items-center gap-2 mt-2.5 pt-2 border-t border-teal-100">
+                        ${statusBadge}
+                        ${endBtn}
+                    </div>
+                </div>`;
+            }
+        }
+
         // Email dengan HTML body → render HTML + linkify URL plain text yang tidak terbungkus <a>
         if (msg.channel === 'email' && msg.message_html) {
             return `<div class="message-content text-sm text-gray-700 email-html-body">${linkifyHtml(sanitizeEmailHtml(msg.message_html))}</div>`;
@@ -2140,6 +2323,22 @@
 
         const isEmailWithHtml = msg.channel === 'email' && !!msg.message_html;
         const attachmentsHtml = renderAttachments(msg.attachments, isEmailWithHtml);
+
+        // Meeting bubble
+        if (msg.message_type === 'meeting') {
+            return `
+            <div class="flex gap-3 flex-row-reverse" data-msg-id="${msg.id}" data-bubble-id="${msg.id}">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-teal-500 text-white text-xs font-bold">${initials}</div>
+                <div class="text-right">
+                    <div class="flex items-center gap-2 justify-end mb-1">
+                        <span class="text-[10px] bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded font-semibold leading-none">📅 Meeting</span>
+                        <span class="text-sm font-semibold text-gray-900">${senderName}</span>
+                        <span class="text-xs text-gray-400">${date}</span>
+                    </div>
+                    ${messageContent(msg)}
+                </div>
+            </div>`;
+        }
 
         if (isInternalNote) {
             const isMine = msg.sender_id && currentUserId && String(msg.sender_id) === String(currentUserId);
@@ -2328,6 +2527,220 @@
         return html.trim();
     }
 
+    // ── Reusable Confirm Dialog ───────────────────────────────────────────────
+    function showConfirmDialog({ title, message, confirmLabel = 'Confirm', variant = 'primary' } = {}) {
+        return new Promise(resolve => {
+            const dialog  = document.getElementById('confirmDialog');
+            const iconEl  = document.getElementById('confirmDialogIcon');
+            const titleEl = document.getElementById('confirmDialogTitle');
+            const msgEl   = document.getElementById('confirmDialogMessage');
+            const okBtn   = document.getElementById('confirmDialogOk');
+            const cancelBtn = document.getElementById('confirmDialogCancel');
+
+            const variants = {
+                primary: { btn: 'bg-blue-600 hover:bg-blue-700',   icon: 'bg-blue-100 text-blue-600',   fa: 'fa-circle-question' },
+                warning: { btn: 'bg-yellow-500 hover:bg-yellow-600', icon: 'bg-yellow-100 text-yellow-600', fa: 'fa-triangle-exclamation' },
+                danger:  { btn: 'bg-red-600 hover:bg-red-700',      icon: 'bg-red-100 text-red-600',     fa: 'fa-circle-exclamation' },
+            };
+            const v = variants[variant] ?? variants.primary;
+
+            titleEl.textContent   = title;
+            msgEl.textContent     = message;
+            okBtn.textContent     = confirmLabel;
+            okBtn.className       = `px-4 py-2 text-sm font-semibold text-white rounded-lg transition ${v.btn}`;
+            iconEl.className      = `flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg ${v.icon}`;
+            iconEl.innerHTML      = `<i class="fas ${v.fa}"></i>`;
+
+            dialog.classList.remove('hidden');
+
+            function cleanup(result) {
+                dialog.classList.add('hidden');
+                okBtn.removeEventListener('click', onOk);
+                cancelBtn.removeEventListener('click', onCancel);
+                resolve(result);
+            }
+            const onOk     = () => cleanup(true);
+            const onCancel = () => cleanup(false);
+            okBtn.addEventListener('click', onOk, { once: true });
+            cancelBtn.addEventListener('click', onCancel, { once: true });
+        });
+    }
+
+    // ── Start Solution ────────────────────────────────────────────────────────
+    async function handleStartSolution() {
+        const btn = document.getElementById('btnStartSolution');
+        if (!btn || btn.disabled) return;
+
+        const confirmed = await showConfirmDialog({
+            title: 'Start Solution',
+            message: 'Mark this ticket as "Solution Started"? This will begin the Resolution Time phase and cannot be undone.',
+            confirmLabel: 'Start Solution',
+            variant: 'primary',
+        });
+        if (!confirmed) return;
+
+        btn.disabled = true;
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5 text-xs"></i> Starting...';
+        btn.classList.add('opacity-75', 'cursor-not-allowed');
+
+        const res = await fetch(`/api/tickets/{{ $ticket->ticket_id }}/start-solution`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+            },
+        });
+
+        if (res.ok) {
+            // Tombol
+            btn.innerHTML = '<i class="fas fa-check mr-1.5 text-xs"></i> Solution Started';
+            btn.classList.remove('opacity-75', 'cursor-not-allowed', 'bg-blue-50', 'text-blue-700', 'border-blue-200', 'hover:bg-blue-100');
+            btn.classList.add('bg-green-100', 'text-green-700', 'border-green-300');
+
+            // Badge status di header tiket
+            const statusBadge = document.getElementById('ticketStatusBadge');
+            if (statusBadge) {
+                statusBadge.className = 'inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold bg-yellow-100 text-yellow-700';
+                statusBadge.textContent = 'In Progress';
+            }
+
+            // Select dropdown di panel detail
+            const detailStatus = document.getElementById('detailStatus');
+            if (detailStatus) {
+                detailStatus.value = 'in_progress';
+                detailStatus.dispatchEvent(new Event('change'));
+            }
+
+            // Sidebar ticket list — refresh agar badge status ikut berubah
+            loadSidebarTickets();
+
+            showNotification('Solution phase started', 'success');
+        } else {
+            let msg = 'Failed to start solution';
+            try { const d = await res.json(); msg = d.message ?? msg; } catch (_) {}
+            btn.disabled = false;
+            btn.innerHTML = orig;
+            btn.classList.remove('opacity-75', 'cursor-not-allowed');
+            showNotification(msg, 'error');
+        }
+    }
+
+    // ── Meeting Modal ─────────────────────────────────────────────────────────
+    function openMeetingModal() {
+        // Default date = today
+        const today = new Date().toISOString().split('T')[0];
+        const el = document.getElementById('meetingDate');
+        if (el && !el.value) el.value = today;
+        document.getElementById('meetingModal').classList.remove('hidden');
+    }
+    function closeMeetingModal() {
+        document.getElementById('meetingModal').classList.add('hidden');
+    }
+    async function sendMeeting() {
+        const title    = document.getElementById('meetingTitle').value.trim();
+        const date     = document.getElementById('meetingDate').value;
+        const time     = document.getElementById('meetingTime').value;
+        const duration = document.getElementById('meetingDuration').value;
+        const link     = document.getElementById('meetingLink').value.trim();
+        const agenda   = document.getElementById('meetingAgenda').value.trim();
+
+        if (!title || !date || !time) {
+            showNotification('Title, date and time are required', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('btnSaveMeeting');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5 text-xs"></i> Saving...';
+
+        const res = await fetch(`/api/tickets/${ticketId}/messages`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                message_type:      'meeting',
+                meeting_title:     title,
+                meeting_date:      date,
+                meeting_time:      time,
+                meeting_duration:  duration,
+                meeting_link:      link,
+                meeting_agenda:    agenda,
+            }),
+        });
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-calendar-check mr-1.5 text-xs"></i> Save Meeting';
+
+        if (res.ok) {
+            closeMeetingModal();
+            // Reset form
+            ['meetingTitle','meetingDate','meetingTime','meetingLink','meetingAgenda'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+            document.getElementById('meetingDuration').value = '60';
+            showNotification('Meeting scheduled', 'success');
+            loadMessages();
+        } else {
+            let msg = 'Failed to save meeting';
+            try { const d = await res.json(); msg = d.message ?? msg; } catch (_) {}
+            showNotification(msg, 'error');
+        }
+    }
+
+    document.getElementById('meetingModal').addEventListener('click', function(e) {
+        if (e.target === this) closeMeetingModal();
+    });
+
+    async function endMeeting(messageId) {
+        const confirmed = await showConfirmDialog({
+            title: 'End Meeting',
+            message: 'Mark this meeting as ended? Waiting time will stop at this point.',
+            confirmLabel: 'End Meeting',
+            variant: 'warning',
+        });
+        if (!confirmed) return;
+
+        const btn = document.querySelector(`[data-msg-id="${messageId}"].end-meeting-btn`);
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i>';
+        }
+
+        const res = await fetch(`/api/tickets/${ticketId}/messages/${messageId}/end-meeting`, {
+            method: 'PATCH',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+            },
+            credentials: 'same-origin',
+        });
+
+        if (res.ok) {
+            // Hapus dari renderedMessageIds agar loadMessages() render ulang bubble ini
+            renderedMessageIds.delete(messageId);
+            const existingBubble = document.querySelector(`[data-bubble-id="${messageId}"]`);
+            if (existingBubble) existingBubble.remove();
+
+            showNotification('Meeting ended', 'success');
+            await loadMessages();
+        } else {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-stop-circle text-xs"></i> End Meeting';
+            }
+            let msg = 'Failed to end meeting';
+            try { const d = await res.json(); msg = d.message ?? msg; } catch (_) {}
+            showNotification(msg, 'error');
+        }
+    }
+
     // ── Send Reply Modal ──────────────────────────────────────────────────────
     function openSendModal() {
         document.getElementById('sendReplyModal').classList.remove('hidden');
@@ -2345,7 +2758,6 @@
             'author action':      { border: 'border-yellow-300', bg: 'bg-yellow-50', text: 'text-yellow-700' },
             'proposed solution':  { border: 'border-orange-300', bg: 'bg-orange-50', text: 'text-orange-700' },
             'sent in to SAP':     { border: 'border-indigo-300', bg: 'bg-indigo-50', text: 'text-indigo-700' },
-            'sent it to support': { border: 'border-purple-300', bg: 'bg-purple-50', text: 'text-purple-700' },
         };
         // Reset semua option
         document.querySelectorAll('#jarviesStatusOptions label').forEach(lbl => {
@@ -2944,7 +3356,13 @@
     });
 
     async function deleteTicket() {
-        if (!confirm('Are you sure you want to delete this ticket?')) return;
+        const confirmed = await showConfirmDialog({
+            title: 'Delete Ticket',
+            message: 'Are you sure you want to delete this ticket? This action cannot be undone.',
+            confirmLabel: 'Delete',
+            variant: 'danger',
+        });
+        if (!confirmed) return;
         try {
             const response = await fetch(`/api/tickets/${ticketId}`, {
                 method: 'DELETE',
@@ -4785,7 +5203,13 @@ function _showOdrSuccess(url) {
     }
 }
 async function deleteTicketFolder() {
-    if (!confirm('Are you sure you want to delete this OneDrive folder? The folder and all its contents will be permanently deleted.')) return;
+    const confirmed = await showConfirmDialog({
+        title: 'Delete OneDrive Folder',
+        message: 'Are you sure you want to delete this folder? The folder and all its contents will be permanently deleted.',
+        confirmLabel: 'Delete',
+        variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
         const res  = await fetch('{{ route('ticket.delete-folder', $ticket->ticket_id) }}', {
             method:  'DELETE',

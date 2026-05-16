@@ -235,15 +235,22 @@ class SlaController extends Controller
                 ->get();
 
             // ─── State machine: hitung live dari pesan ────────────────────────
-            // Aturan bola:
-            //   Agent reply  → bola ke customer (atau SAP), waiting clock mulai dari timestamp ini
-            //   Agent burst  → bola sudah di customer: jangan hitung waiting, cukup reset pausedAt
-            //   Customer reply pertama (setelah agent) → waiting ends, session_start = sekarang
-            //   Customer burst (tanpa agent reply) → reset session_start (resolusi dari customer terbaru)
+            // Resolution Time dihitung dari sla_start_at (awal tiket) untuk semua agent reply.
+            // Meeting event: waiting berjalan selama meeting, berhenti saat End Meeting diklik.
+
+            $solutionStartedAt = $sla->solution_started_at ? Carbon::parse($sla->solution_started_at) : null;
+            $slaStartAt        = Carbon::parse($sla->sla_start_at);
+
+            // Jika ada pesan lebih awal dari sla_start_at, gunakan waktu pesan pertama sebagai baseline
+            $firstMsgAt = $msgs->first() ? Carbon::parse($msgs->first()->created_at) : null;
+            if ($firstMsgAt && $firstMsgAt->lt($slaStartAt)) {
+                $slaStartAt = $firstMsgAt;
+            }
+
+            $inResolutionPhase = false;
 
             $ballHolder       = 'helpdesk';
             $pausedAt         = null;
-            $sessionStart     = Carbon::parse($sla->first_responded_at ?? $sla->sla_start_at);
             $lastJarvisStatus = null;
             $totalWaiting     = 0.0;
 
@@ -261,7 +268,62 @@ class SlaController extends Controller
                 $eventAt = Carbon::parse($msg->created_at);
                 $preview = $this->buildPreview($msg, $attachmentMsgIds);
 
-                if ($msg->sender_type === 'customer') {
+                // Detect meeting message
+                $meetingData = null;
+                $decoded = json_decode($msg->message ?? '', true);
+                if (is_array($decoded) && ($decoded['_type'] ?? '') === 'meeting') {
+                    $meetingData = $decoded;
+                }
+
+                // Insert solution_started event at correct chronological position
+                if ($solutionStartedAt && !$inResolutionPhase && $eventAt->gte($solutionStartedAt)) {
+                    $inResolutionPhase = true;
+                    $events[] = [
+                        'event_type'       => 'solution_started',
+                        'event_at'         => $solutionStartedAt->format('d/m/Y H:i'),
+                        'waiting_hours'    => null,
+                        'response_hours'   => $slaService->calcHours($slaStartAt, $solutionStartedAt, $is24h),
+                        'resolution_hours' => $slaService->calcHours($slaStartAt, $solutionStartedAt, $is24h),
+                        'jarvis_status'    => null,
+                        'notes'            => 'Solution phase started',
+                        'message_preview'  => null,
+                    ];
+                }
+
+                if ($meetingData) {
+                    // Meeting = seperti agent reply: ball ke customer, waiting mulai dari meeting dibuat.
+                    // End Meeting = seperti customer reply: waiting berhenti, ball kembali ke helpdesk.
+                    $endedAt      = !empty($meetingData['ended_at']) ? Carbon::parse($meetingData['ended_at']) : null;
+                    $meetingEnded = $endedAt !== null;
+                    $waitingHours = null;
+
+                    if ($meetingEnded) {
+                        // Waiting dihitung dari waktu meeting dibuat sampai End Meeting diklik
+                        $waitingHours  = $slaService->calcHours($eventAt, $endedAt, $is24h);
+                        $totalWaiting += $waitingHours;
+                        $ballHolder    = 'helpdesk';
+                        $pausedAt      = null;
+                        $lastJarvisStatus = null;
+                    } else {
+                        // Meeting ongoing: ball ke customer, waiting mulai jalan dari sekarang
+                        $ballHolder = 'customer';
+                        $pausedAt   = $eventAt;
+                    }
+
+                    $events[] = [
+                        'event_type'       => 'meeting_scheduled',
+                        'event_at'         => $eventAt->format('d/m/Y H:i'),
+                        'waiting_hours'    => $waitingHours,
+                        'resolution_hours' => null,
+                        'jarvis_status'    => null,
+                        'meeting_ended'    => $meetingEnded,
+                        'notes'            => $meetingData['title'] ?? 'Meeting',
+                        'message_preview'  => isset($meetingData['agenda']) && $meetingData['agenda']
+                            ? mb_substr($meetingData['agenda'], 0, 100)
+                            : null,
+                    ];
+
+                } elseif ($msg->sender_type === 'customer') {
                     $waitingHours = null;
 
                     if (in_array($ballHolder, ['customer', 'sap'], true) && $pausedAt) {
@@ -272,9 +334,6 @@ class SlaController extends Controller
                         $pausedAt      = null;
                     }
 
-                    // Semua customer reply → reset session_start ke sini
-                    // (resolusi dihitung dari customer reply terakhir ke agent reply berikutnya)
-                    $sessionStart     = $eventAt;
                     $lastJarvisStatus = null;
 
                     $events[] = [
@@ -284,24 +343,24 @@ class SlaController extends Controller
                         'response_hours'   => null,
                         'resolution_hours' => null,
                         'jarvis_status'    => null,
-                        'notes'            => 'Customer membalas',
+                        'notes'            => 'Customer replied',
                         'message_preview'  => $preview,
                     ];
 
                 } else {
-                    $jarviesStatus   = $jarviesMap->get($msg->id) ?? 'in process';
-                    $resolutionHours = $slaService->calcHours($sessionStart, $eventAt, $is24h);
+                    // Agent reply
+                    $jarviesStatus = $jarviesMap->get($msg->id) ?? 'in process';
+
+                    // Keduanya selalu dihitung dari baseline (sla_start_at atau pesan pertama, mana yang lebih awal)
+                    $responseHours   = $slaService->calcHours($slaStartAt, $eventAt, $is24h);
+                    $resolutionHours = $slaService->calcHours($slaStartAt, $eventAt, $is24h);
 
                     if ($ballHolder !== 'helpdesk' && $pausedAt) {
-                        // Double-agent burst: bola sudah di customer
                         if ($jarviesStatus !== $lastJarvisStatus) {
-                            // Status BEDA → patokan waiting pindah ke pesan ini (status baru)
                             $pausedAt   = $eventAt;
                             $ballHolder = ($jarviesStatus === 'sent in to SAP') ? 'sap' : 'customer';
                         }
-                        // Status SAMA → pausedAt tetap (patokan dari chat pertama status ini)
                     } else {
-                        // Pertama sejak customer terakhir → bola ke customer, waiting mulai
                         $ballHolder = ($jarviesStatus === 'sent in to SAP') ? 'sap' : 'customer';
                         $pausedAt   = $eventAt;
                     }
@@ -312,13 +371,27 @@ class SlaController extends Controller
                         'event_type'       => 'agent_replied',
                         'event_at'         => $eventAt->format('d/m/Y H:i'),
                         'waiting_hours'    => null,
-                        'response_hours'   => null,
+                        'response_hours'   => $responseHours,
                         'resolution_hours' => $resolutionHours,
                         'jarvis_status'    => $jarviesStatus,
-                        'notes'            => 'Balasan helpdesk dikirim',
+                        'notes'            => 'Helpdesk reply sent',
                         'message_preview'  => $preview,
                     ];
                 }
+            }
+
+            // If solution_started_at is after all messages, append it now
+            if ($solutionStartedAt && !$inResolutionPhase) {
+                $events[] = [
+                    'event_type'       => 'solution_started',
+                    'event_at'         => $solutionStartedAt->format('d/m/Y H:i'),
+                    'waiting_hours'    => null,
+                    'response_hours'   => $slaService->calcHours($slaStartAt, $solutionStartedAt, $is24h),
+                    'resolution_hours' => $slaService->calcHours($slaStartAt, $solutionStartedAt, $is24h),
+                    'jarvis_status'    => null,
+                    'notes'            => 'Solution phase started',
+                    'message_preview'  => null,
+                ];
             }
 
             // ticket_closed tetap dari tabel (ada net_resolution_hours final)
@@ -367,9 +440,10 @@ class SlaController extends Controller
                     ],
                 ],
                 'summary'    => [
-                    'started_at'    => $sla->sla_start_at?->format('d/m/Y H:i'),
-                    'closed_at'     => $sla->resolved_at?->format('d/m/Y H:i'),
-                    'total_waiting' => round($liveWaiting, 2),
+                    'started_at'           => $sla->sla_start_at?->format('d/m/Y H:i'),
+                    'closed_at'            => $sla->resolved_at?->format('d/m/Y H:i'),
+                    'total_waiting'        => round($liveWaiting, 2),
+                    'solution_started_at'  => $sla->solution_started_at?->format('d/m/Y H:i'),
                 ],
                 'events'     => $events,
             ]);
