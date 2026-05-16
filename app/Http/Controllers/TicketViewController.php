@@ -31,7 +31,7 @@ class TicketViewController extends Controller
 
         // Create role object
         $user->role = new \stdClass();
-        $user->role->role_id = $sessionUser['role']['id'] ?? 0;
+        $user->role->role_id = (int) ($sessionUser['role']['id'] ?? 0);
         $user->role->role_name = $sessionUser['role']['name'] ?? 'Unknown';
 
         return $user;
@@ -99,7 +99,7 @@ class TicketViewController extends Controller
         }
 
         // Load ticket with all relationships
-        $ticket = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+        $ticket = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
             ->findOrFail($id);
 
         // Check if ticket is assigned to a delivery support

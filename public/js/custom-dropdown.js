@@ -10,12 +10,26 @@
  *   .custom-dd-panel — the dropdown panel (initially hidden)
  *   .custom-dd-item[data-value] — each option row
  *   input[type=hidden] — hidden input that holds the value (read via getElementById)
+ *
+ * Keyboard navigation:
+ *   ArrowDown / ArrowUp — highlight next/previous visible item (wraps around)
+ *   Enter               — select highlighted item (or the only visible result when searching)
+ *   Escape              — close dropdown
  */
 
 // Threshold item count untuk otomatis menampilkan search input.
 // Dropdown dengan ≤ jumlah ini tidak perlu search (mis. Type, Priority, Status).
 // Bisa di-override per dropdown via data-searchable="true|false".
 const _DD_SEARCH_THRESHOLD = 7;
+
+// Inject highlight CSS sekali saja — self-contained agar tidak perlu edit stylesheet.
+(function _injectDdStyles() {
+    if (document.getElementById('_dd_kb_style')) return;
+    const s = document.createElement('style');
+    s.id = '_dd_kb_style';
+    s.textContent = '.custom-dd-highlight { background: #fef2f2 !important; color: #111827 !important; font-weight: 500; outline: none; }';
+    document.head.appendChild(s);
+})();
 
 function initCustomDropdowns(root) {
     const scope = root || document;
@@ -32,6 +46,22 @@ function initCustomDropdowns(root) {
 
         // Store panel ref so _selectItem can find it even when detached (fixed mode)
         dd._ddPanel = panel;
+
+        // Wire up search input. Tiga kondisi yang trigger:
+        // 1. Hardcoded di HTML (`<input class="custom-dd-search">` sudah ada di markup)
+        //    — selalu wire up, tidak peduli threshold. Ini pattern yang dipakai untuk
+        //    panel yang programmer ingin selalu punya search regardless of item count.
+        // 2. data-searchable="true" eksplisit di .custom-dd
+        // 3. Auto-inject jika item count > _DD_SEARCH_THRESHOLD (dan tidak data-searchable="false")
+        const explicit           = dd.dataset.searchable;
+        const itemCount          = panel.querySelectorAll('.custom-dd-item').length;
+        const hasHardcodedSearch = !!panel.querySelector('.custom-dd-search');
+        const wantSearch = hasHardcodedSearch
+            || explicit === 'true'
+            || (explicit !== 'false' && itemCount > _DD_SEARCH_THRESHOLD);
+        if (wantSearch) {
+            _injectSearch(dd, panel);
+        }
 
         btn.addEventListener('click', e => {
             e.stopPropagation();
@@ -55,6 +85,49 @@ function initCustomDropdowns(root) {
                 // Auto-focus search input setelah panel render.
                 if (panel._ddSearch) {
                     requestAnimationFrame(() => panel._ddSearch.focus());
+                }
+            }
+        });
+
+        // Keyboard: button trigger — Enter/Space/ArrowDown buka panel;
+        // Arrow juga highlights item pertama/terakhir untuk dropdown tanpa search.
+        btn.addEventListener('keydown', e => {
+            const isOpen = !panel.classList.contains('hidden');
+
+            // Buka dropdown
+            if (!isOpen && (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                e.preventDefault();
+                btn.click();
+                // Untuk dropdown tanpa search: langsung highlight item pertama/terakhir
+                if (!panel._ddSearch) {
+                    requestAnimationFrame(() => {
+                        const items = _getVisibleItems(panel);
+                        if (!items.length) return;
+                        const idx = e.key === 'ArrowUp' ? items.length - 1 : 0;
+                        _highlightItem(panel, items[idx]);
+                    });
+                }
+                return;
+            }
+
+            // Navigasi saat panel terbuka (hanya dropdown tanpa search;
+            // yang ada search input ditangani di _injectSearch).
+            if (isOpen && !panel._ddSearch) {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    _navigateHighlight(panel, e.key === 'ArrowDown' ? 1 : -1);
+                    return;
+                }
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    _selectHighlightedOrFirst(panel, dd);
+                    return;
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    _closeAllDropdowns();
+                    btn.focus();
+                    return;
                 }
             }
         });
@@ -106,8 +179,9 @@ function _onScrollMaybeClose(e) {
             return;
         }
         // Update posisi panel mengikuti tombol
-        p.style.top  = `${r.bottom + 4}px`;
-        p.style.left = `${r.left}px`;
+        p.style.top   = `${r.bottom + 4}px`;
+        p.style.left  = `${r.left}px`;
+        p.style.width = `${r.width}px`;
         repositioned = true;
     });
     // Untuk panel mode non-fixed (panel masih di dalam .custom-dd) → tetap tutup
@@ -132,9 +206,13 @@ function _positionFixed(btn, panel) {
 
     // Set core fixed positioning properties.
     panel.style.position = 'fixed';
-    panel.style.left     = `${r.left}px`;
-    panel.style.width    = `${r.width}px`;
     panel.style.zIndex   = '9999';
+    // Match the panel width to the trigger button so it doesn't stretch to the
+    // viewport edge via the `right-0` Tailwind class (which means right:0 in
+    // fixed context = full-viewport width).
+    panel.style.width = `${r.width}px`;
+    panel.style.right = 'auto'; // override right-0 class
+    panel.style.left  = `${r.left}px`;
 
     // Estimasi tinggi panel hanya dari inline max-height (lebih reliable
     // daripada scrollHeight yang bisa 0 di edge case render). Default 280
@@ -178,12 +256,177 @@ function _positionFixed(btn, panel) {
     }
 }
 
+// Setup sticky search input di atas panel + real-time filter.
+// Dipanggil saat init untuk dropdown dengan item count > threshold
+// atau yang punya data-searchable="true".
+//
+// Mendukung dua mode:
+// 1. Hardcoded — jika di HTML panel sudah ada `<input class="custom-dd-search">`
+//    (mis. dibuat manual di Blade), fungsi ini cukup wire up event filter.
+// 2. Auto-inject — jika belum ada, fungsi ini buat sticky search bar di atas panel.
+function _injectSearch(dd, panel) {
+    if (panel._ddSearch) return; // already wired
+
+    // Cek apakah search input sudah di-hardcode di HTML
+    let input = panel.querySelector('.custom-dd-search');
+    let empty = panel.querySelector('.custom-dd-empty');
+
+    if (!input) {
+        // Auto-inject: buat sticky search bar
+        const placeholder = dd.dataset.searchPlaceholder || 'Search…';
+
+        const wrap = document.createElement('div');
+        wrap.className = 'custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2';
+        wrap.style.zIndex = '1';
+
+        input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = placeholder;
+        input.className = 'custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400';
+        input.setAttribute('autocomplete', 'off');
+        input.setAttribute('spellcheck', 'false');
+
+        wrap.appendChild(input);
+        panel.insertBefore(wrap, panel.firstChild);
+    }
+
+    if (!empty) {
+        // Empty-state placeholder ketika tidak ada item yang cocok
+        empty = document.createElement('div');
+        empty.className = 'custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center';
+        empty.textContent = 'No results';
+        panel.appendChild(empty);
+    }
+
+    // Cegah klik di search input meng-trigger document click handler
+    // (yang akan menutup dropdown via _closeAllDropdowns).
+    input.addEventListener('click',     e => e.stopPropagation());
+    input.addEventListener('mousedown', e => e.stopPropagation());
+
+    // Keyboard navigation dari search input
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            _closeAllDropdowns();
+            // Kembalikan fokus ke button trigger
+            const owner = panel._ddOwner || dd;
+            const btn   = owner.querySelector('.custom-dd-btn');
+            if (btn) btn.focus();
+            return;
+        }
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            _selectHighlightedOrFirst(panel, panel._ddOwner || dd);
+            return;
+        }
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            _navigateHighlight(panel, 1);
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            _navigateHighlight(panel, -1);
+            return;
+        }
+    });
+
+    // Real-time filter — match by item textContent
+    input.addEventListener('input', () => {
+        // Reset highlight saat query berubah agar posisi ulang dari awal
+        _clearHighlight(panel);
+        const q = input.value.trim().toLowerCase();
+        let visible = 0;
+        panel.querySelectorAll('.custom-dd-item').forEach(item => {
+            const val = item.dataset.value;
+            // Saat search aktif, sembunyikan placeholder option (data-value="")
+            if (val === '' && q !== '') {
+                item.style.display = 'none';
+                return;
+            }
+            const text  = item.textContent.toLowerCase();
+            const match = !q || text.includes(q);
+            item.style.display = match ? '' : 'none';
+            if (match && val !== '') visible++;
+        });
+        empty.classList.toggle('hidden', !q || visible > 0);
+    });
+
+    panel._ddSearch = input;
+    panel._ddEmpty  = empty;
+}
+
+// ──────────────────────────────────────────────
+// Keyboard navigation helpers
+// ──────────────────────────────────────────────
+
+// Kembalikan semua item yang saat ini terlihat (tidak hidden, bukan placeholder).
+function _getVisibleItems(panel) {
+    return Array.from(panel.querySelectorAll('.custom-dd-item')).filter(
+        i => i.dataset.value !== ''
+          && i.style.display !== 'none'
+          && !i.classList.contains('hidden')
+    );
+}
+
+// Highlight satu item, hapus highlight dari item sebelumnya, scroll ke item.
+function _highlightItem(panel, item) {
+    if (panel._ddHiItem) panel._ddHiItem.classList.remove('custom-dd-highlight');
+    panel._ddHiItem = item || null;
+    if (item) {
+        item.classList.add('custom-dd-highlight');
+        item.scrollIntoView({ block: 'nearest' });
+    }
+}
+
+// Hapus highlight tanpa memilih item manapun.
+function _clearHighlight(panel) {
+    if (panel._ddHiItem) {
+        panel._ddHiItem.classList.remove('custom-dd-highlight');
+        panel._ddHiItem = null;
+    }
+}
+
+// Geser highlight ke item berikutnya (dir=1) atau sebelumnya (dir=-1), dengan wrap-around.
+function _navigateHighlight(panel, dir) {
+    const items = _getVisibleItems(panel);
+    if (!items.length) return;
+    const cur = panel._ddHiItem;
+    let idx   = cur ? items.indexOf(cur) : -1;
+    idx = (idx + dir + items.length) % items.length;
+    _highlightItem(panel, items[idx]);
+}
+
+// Pilih item yang ter-highlight; jika tidak ada dan hanya satu hasil → pilih itu.
+function _selectHighlightedOrFirst(panel, dd) {
+    const hi = panel._ddHiItem;
+    if (hi && !hi.classList.contains('hidden') && hi.style.display !== 'none') {
+        const val        = hi.dataset.value;
+        const text       = hi.textContent.trim();
+        const owner      = panel._ddOwner || dd;
+        const onchangeFn = owner.dataset.onchange;
+        _selectItem(owner, val, text);
+        if (onchangeFn && typeof window[onchangeFn] === 'function') {
+            window[onchangeFn]();
+        }
+        return;
+    }
+    // Tidak ada yang di-highlight — auto-select jika hanya satu item visible
+    const items = _getVisibleItems(panel);
+    if (items.length === 1) {
+        items[0].click();
+    }
+}
+
+// ──────────────────────────────────────────────
+
 // Helper: bersihkan property fixed-mode dan restore max-height asli markup.
 function _clearFixedStyles(panel) {
     panel.style.position = '';
     panel.style.top      = '';
     panel.style.bottom   = '';
     panel.style.left     = '';
+    panel.style.right    = '';
     panel.style.width    = '';
     panel.style.zIndex   = '';
     // Restore max-height asli (yang dari markup `style="max-height:..."`).
@@ -196,6 +439,7 @@ function _clearFixedStyles(panel) {
 // Helper: reset search input + munculkan kembali semua item saat panel ditutup.
 // Tanpa ini, search filter sebelumnya akan tetap aktif saat panel dibuka lagi.
 function _resetSearchState(panel) {
+    _clearHighlight(panel);
     if (!panel._ddSearch) return;
     panel._ddSearch.value = '';
     panel.querySelectorAll('.custom-dd-item').forEach(item => {
@@ -203,6 +447,7 @@ function _resetSearchState(panel) {
         if (item.classList.contains('hidden')) return;
         item.style.display = '';
     });
+    if (panel._ddEmpty) panel._ddEmpty.classList.add('hidden');
 }
 
 // Helper: tutup satu panel (dipakai oleh _onScrollMaybeClose untuk panel non-fixed)

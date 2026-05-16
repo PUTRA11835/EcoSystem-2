@@ -112,6 +112,10 @@
                 <div class="w-4 h-4 bg-yellow-500 rounded"></div>
                 <span class="text-sm text-gray-600">Reminder</span>
             </div>
+            <div class="flex items-center gap-2 pl-4 border-l border-gray-200">
+                <div class="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
+                <span class="text-sm text-red-600 font-medium">Hari Libur Nasional</span>
+            </div>
         </div>
     </div>
 </div>

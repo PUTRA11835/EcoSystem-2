@@ -64,7 +64,29 @@
                     <tr class="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                         <th class="px-4 py-3 text-left" style="min-width:130px">Ticket No.</th>
                         <th class="px-4 py-3 text-left" style="min-width:150px">Customer</th>
-                        <th class="px-4 py-3 text-left" style="min-width:110px">Status</th>
+                        <th class="px-4 py-3 text-left" style="min-width:120px">
+                            <div class="relative inline-block" id="statusFilterWrap">
+                                <button type="button" onclick="toggleStatusFilter()"
+                                    class="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-gray-700 transition select-none">
+                                    <span>Status</span>
+                                    <span id="statusFilterDot" class="hidden w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span>
+                                    <svg id="statusFilterArrow" class="w-3 h-3 text-gray-400 transition-transform duration-150" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+                                    </svg>
+                                </button>
+                                <input type="hidden" id="filterStatus" value="">
+                                <div id="statusFilterPanel"
+                                    class="hidden fixed z-9999 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-37.5">
+                                    <div class="status-opt px-3 py-1.5 text-xs cursor-pointer hover:bg-gray-50 text-gray-500 font-medium" data-value="" onclick="setStatusFilter('')">All Status</div>
+                                    <div class="status-opt px-3 py-1.5 text-xs cursor-pointer hover:bg-yellow-50 text-yellow-700 font-medium" data-value="in_progress" onclick="setStatusFilter('in_progress')">In Progress</div>
+                                    <div class="status-opt px-3 py-1.5 text-xs cursor-pointer hover:bg-orange-50 text-orange-700 font-medium" data-value="hold" onclick="setStatusFilter('hold')">Hold</div>
+                                    <div class="status-opt px-3 py-1.5 text-xs cursor-pointer hover:bg-purple-50 text-purple-700 font-medium" data-value="reply" onclick="setStatusFilter('reply')">Reply</div>
+                                    <div class="status-opt px-3 py-1.5 text-xs cursor-pointer hover:bg-teal-50 text-teal-700 font-medium" data-value="wait_to_close" onclick="setStatusFilter('wait_to_close')">Wait Close</div>
+                                    <div class="status-opt px-3 py-1.5 text-xs cursor-pointer hover:bg-green-50 text-green-700 font-medium" data-value="closed" onclick="setStatusFilter('closed')">Closed</div>
+                                    <div class="status-opt px-3 py-1.5 text-xs cursor-pointer hover:bg-red-50 text-red-700 font-medium" data-value="cancel" onclick="setStatusFilter('cancel')">Cancelled</div>
+                                </div>
+                            </div>
+                        </th>
                         <th class="px-4 py-3 text-left" style="min-width:90px">Priority</th>
                         <th class="px-4 py-3 text-left cursor-pointer select-none hover:bg-gray-100 transition" style="min-width:120px" onclick="toggleSort('module')" id="th-module">
                             Module <span id="sort-icon-module" class="text-gray-400 text-xs ml-0.5">⇅</span>
@@ -149,6 +171,8 @@ const STATUS_BADGE = {
     hold:          { text: 'Hold',        cls: 'bg-orange-100 text-orange-700' },
     reply:         { text: 'Reply',       cls: 'bg-purple-100 text-purple-700' },
     wait_to_close: { text: 'Wait Close',  cls: 'bg-teal-100 text-teal-700' },
+    closed:        { text: 'Closed',      cls: 'bg-green-100 text-green-700' },
+    cancel:        { text: 'Cancelled',   cls: 'bg-red-100 text-red-700' },
 };
 
 const PRIORITY_CLS = {
@@ -194,7 +218,7 @@ async function loadTasks() {
             return;
         }
         myEmpId   = json.emp_id ?? null;
-        allTasks  = (json.data ?? []).filter(t => t.status === 'in_progress');
+        allTasks  = (json.data ?? []).filter(t => t.status !== 'open');
         myModules = json.my_modules ?? '-';
         updateCards(computeSummary(allTasks));
         filterTable();
@@ -205,14 +229,19 @@ async function loadTasks() {
 }
 
 function filterTable() {
-    const q = document.getElementById('searchTask').value.toLowerCase();
-    let filtered = q
-        ? allTasks.filter(t =>
+    const q            = document.getElementById('searchTask').value.toLowerCase();
+    const statusFilter = document.getElementById('filterStatus')?.value || '';
+    let filtered = [...allTasks];
+    if (q) {
+        filtered = filtered.filter(t =>
             (t.ticket_number ?? '').toLowerCase().includes(q) ||
             (t.subject ?? '').toLowerCase().includes(q) ||
             (t.customer_name ?? '').toLowerCase().includes(q) ||
-            (t.module ?? '').toLowerCase().includes(q))
-        : [...allTasks];
+            (t.module ?? '').toLowerCase().includes(q));
+    }
+    if (statusFilter) {
+        filtered = filtered.filter(t => t.status === statusFilter);
+    }
     if (sortState.col) filtered = applySortTo(filtered);
     renderTable(filtered);
 }
@@ -410,6 +439,41 @@ async function submitCpModal() {
 
 document.getElementById('cpModal').addEventListener('click', function(e) {
     if (e.target === this) closeCpModal();
+});
+
+// ── Status header filter ───────────────────────────────────────────
+function toggleStatusFilter() {
+    const panel = document.getElementById('statusFilterPanel');
+    const arrow = document.getElementById('statusFilterArrow');
+    const btn   = document.querySelector('#statusFilterWrap button');
+    const open  = !panel.classList.contains('hidden');
+    if (!open) {
+        const r = btn.getBoundingClientRect();
+        panel.style.top  = `${r.bottom + 4}px`;
+        panel.style.left = `${r.left}px`;
+    }
+    panel.classList.toggle('hidden', open);
+    arrow.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+function setStatusFilter(value) {
+    document.getElementById('filterStatus').value = value;
+    document.getElementById('statusFilterPanel').classList.add('hidden');
+    document.getElementById('statusFilterArrow').style.transform = '';
+    document.getElementById('statusFilterDot').classList.toggle('hidden', !value);
+    // Highlight active option
+    document.querySelectorAll('.status-opt').forEach(el => {
+        el.classList.toggle('bg-gray-100', el.dataset.value === value);
+        el.classList.toggle('font-bold', el.dataset.value === value);
+    });
+    filterTable();
+}
+
+document.addEventListener('click', function(e) {
+    if (!document.getElementById('statusFilterWrap')?.contains(e.target)) {
+        document.getElementById('statusFilterPanel')?.classList.add('hidden');
+        document.getElementById('statusFilterArrow').style.transform = '';
+    }
 });
 
 document.addEventListener('DOMContentLoaded', loadTasks);

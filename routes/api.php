@@ -189,6 +189,8 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [CustomerController::class, 'store']);
         Route::get('/search', [CustomerController::class, 'search']);
         Route::get('/statistics', [CustomerController::class, 'statistics']);
+        Route::get('/top-level', [CustomerController::class, 'topLevel']);
+        Route::get('/grouping-data', [CustomerController::class, 'getGroupingData']);
         Route::get('/{id}', [CustomerController::class, 'show']);
         Route::put('/{id}', [CustomerController::class, 'update']);
         Route::delete('/{id}', [CustomerController::class, 'destroy']);
@@ -311,7 +313,6 @@ Route::middleware(['web'])->group(function () {
         // Routes with {id} parameter last
         Route::get('/{id}', [TicketController::class, 'show']);
         Route::get('/{id}/mandays-history', [TicketController::class, 'getMandaysHistory']);
-        Route::get('/{id}/negotiation-history', [TicketController::class, 'getNegotiationHistory']);
         Route::post('/{id}/take', [TicketController::class, 'takeTicket']);
         Route::post('/{id}/assign-pic', [TicketController::class, 'assignPic']);
         Route::put('/{id}', [TicketController::class, 'update']);
@@ -319,10 +320,6 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/start-solution', [TicketController::class, 'startSolution']);
         Route::patch('/{id}/messages/{messageId}/end-meeting', [TicketMessageController::class, 'endMeeting']);
         Route::put('/{id}/update-mandays', [TicketController::class, 'updateManDays']);
-        Route::delete('/{id}', [TicketController::class, 'destroy']);
-        Route::post('/{id}/send-to-customer', [TicketController::class, 'sendToCustomer']);
-        Route::post('/{id}/customer-response', [TicketController::class, 'customerResponse']);
-        Route::post('/{id}/admin-response', [TicketController::class, 'adminResponse']);
         Route::post('/{id}/members', [TicketController::class, 'addMember']);
         Route::delete('/{id}/members/{employeeId}', [TicketController::class, 'removeMember']);
         Route::post('/{id}/update-members', [TicketController::class, 'updateMembers']);
@@ -334,6 +331,13 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{ticketId}/messages', [TicketMessageController::class, 'store']);
         Route::post('/{ticketId}/customer-reply', [TicketMessageController::class, 'customerReply']);
         Route::put('/{ticketId}/messages/mark-all-read', [TicketMessageController::class, 'markAllRead']);
+
+        // ==================== DELIVERABLE ROUTES ====================
+        Route::get('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'index']);
+        Route::post('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'store']);
+        Route::patch('/{id}/deliverables/{delivId}', [\App\Http\Controllers\TicketDeliverableController::class, 'update']);
+        Route::patch('/{id}/deliverables/{delivId}/send', [\App\Http\Controllers\TicketDeliverableController::class, 'send']);
+        Route::delete('/{id}/deliverables/{delivId}', [\App\Http\Controllers\TicketDeliverableController::class, 'destroy']);
 
         // Assign ticket to delivery support
         Route::get('/{id}/available-supports', [TicketController::class, 'getAvailableSupports']);
@@ -360,11 +364,11 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{ticketId}/mandays/hd-draft/approve', [MandaysController::class, 'approveCustomerMandays']);
         Route::post('/{ticketId}/mandays/hd-draft/cancel', [MandaysController::class, 'cancelCustomerMandays']);
 
-        // Internal Mandays — PIC + Head of Support
-        Route::get('/{ticketId}/mandays/internal', [MandaysController::class, 'getInternalProposal']);
-        Route::post('/{ticketId}/mandays/internal', [MandaysController::class, 'saveInternalProposal']);
-        Route::post('/{ticketId}/mandays/internal/submit', [MandaysController::class, 'submitInternalProposal']);
-        Route::post('/{ticketId}/mandays/internal/approve', [MandaysController::class, 'approveInternalProposal']);
+        // Resolution Days — PIC + Head of Support
+        Route::get('/{ticketId}/mandays/resolution', [MandaysController::class, 'getResolutionProposal']);
+        Route::post('/{ticketId}/mandays/resolution', [MandaysController::class, 'saveResolutionProposal']);
+        Route::post('/{ticketId}/mandays/resolution/submit', [MandaysController::class, 'submitResolutionProposal']);
+        Route::post('/{ticketId}/mandays/resolution/approve', [MandaysController::class, 'approveResolutionProposal']);
     });
 
     // ==================== DELIVERY SUPPORT API ROUTES ====================
@@ -417,6 +421,7 @@ Route::middleware(['web'])->group(function () {
         Route::put('/read-all',      [NotificationController::class, 'markAllRead']);
         Route::put('/{id}/read',     [NotificationController::class, 'markRead']);
         Route::delete('/bulk-delete', [NotificationController::class, 'bulkDelete']);
+        Route::delete('/{id}',       [NotificationController::class, 'deleteOne']);
     });
 
     // ==================== EMAIL ROUTES ====================
@@ -591,13 +596,4 @@ Route::middleware(['external.api_key'])->prefix('external')->group(function () {
     Route::get('/tickets', [TicketController::class, 'externalIndex']);
     Route::get('/tickets/create', [TicketController::class, 'storeExternalQuery']);
     Route::get('/tickets/{data}', [TicketController::class, 'storeExternal']);
-});
-
-// ==================== TEST ROUTE ====================
-Route::get('/test', function () {
-    return response()->json([
-        'success' => true,
-        'message' => 'API is working!',
-        'timestamp' => now()
-    ]);
 });

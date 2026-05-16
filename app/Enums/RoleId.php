@@ -19,7 +19,7 @@ enum RoleId: int
     case ADMIN           = 1;
     // DB name: Delivery Support User
     case EMPLOYEE        = 2;
-    // DB name: EC User (sebelumnya Internship)
+    // DB name: EC User
     case INTERNSHIP      = 3;
     // DB name: Delivery Project Head
     case HEAD_OF_PROJECT = 4;
@@ -64,9 +64,10 @@ enum RoleId: int
         self::RPMO->value,
     ];
 
-    /** Role yang bisa mengelola tiket (Admin + Helpdesk + RPMO) */
+    /** Role yang bisa mengelola tiket (Admin + Head of Support + Helpdesk + RPMO) */
     public const TICKET_MANAGER_GROUP = [
         self::ADMIN->value,
+        self::HEAD_OF_SUPPORT->value,
         self::HELPDESK->value,
         self::RPMO->value,
     ];

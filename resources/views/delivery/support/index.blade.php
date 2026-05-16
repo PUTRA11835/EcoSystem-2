@@ -80,25 +80,32 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div class="flex flex-col">
             <label class="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Filter By</label>
-            <div class="relative">
-                <select id="filterTypeSelect" onchange="updateFilterOptions()" class="w-full px-4 py-3 pr-9 border border-gray-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white transition-all hover:border-gray-400 appearance-none">
-                    <option value="">Select Type</option>
-                    <option value="jarvies_status">Jarvies Status</option>
-                    <option value="status">Status</option>
-                    <option value="type">Type</option>
-                    <option value="priority">Priority</option>
-                </select>
-                <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+            <div class="custom-dd relative w-full" id="ddFilterType" data-onchange="updateFilterOptions">
+                <button type="button" class="custom-dd-btn w-full flex items-center justify-between gap-2 px-4 py-3 border border-gray-300 rounded-xl text-sm font-medium bg-white hover:border-gray-400 transition-all">
+                    <span class="custom-dd-label text-gray-500">Select Type</span>
+                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <input type="hidden" id="filterTypeSelect" value="">
+                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:160px;">
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">Select Type</button>
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="jarvies_status">Jarvies Status</button>
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="status">Status</button>
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="type">Type</button>
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="priority">Priority</button>
+                </div>
             </div>
         </div>
 
         <div class="flex flex-col">
             <label class="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Filter Value</label>
-            <div class="relative">
-                <select id="filterValueSelect" disabled class="w-full px-4 py-3 pr-9 border border-gray-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white transition-all hover:border-gray-400 disabled:bg-gray-50 disabled:text-gray-400 appearance-none">
-                    <option value="">Select Type First</option>
-                </select>
-                <i class="fas fa-bars absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+            <div class="custom-dd relative w-full" id="ddFilterValue">
+                <button type="button" id="ddFilterValueBtn" class="custom-dd-btn w-full flex items-center justify-between gap-2 px-4 py-3 border border-gray-300 rounded-xl text-sm font-medium bg-gray-50 text-gray-400 cursor-not-allowed transition-all" disabled>
+                    <span class="custom-dd-label text-gray-400">Select Type First</span>
+                    <svg class="custom-dd-arrow w-4 h-4 text-gray-300 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <input type="hidden" id="filterValueSelect" value="">
+                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:160px;">
+                </div>
             </div>
         </div>
         
@@ -485,6 +492,9 @@
 }
 </style>
 
+@php $customDdVer = file_exists(public_path('js/custom-dropdown.js')) ? filemtime(public_path('js/custom-dropdown.js')) : 1; @endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
+
 <script>
     let allTickets = [];
     let filteredTickets = [];
@@ -499,6 +509,7 @@
     let currentView = (userRole === 2) ? 'my' : 'all';
 
     document.addEventListener('DOMContentLoaded', function() {
+        initCustomDropdowns();
         loadTickets();
 
         if (userRole === 2 || userRole === 1 || userRole === 5) {
@@ -1002,51 +1013,51 @@
 
     function updateFilterOptions() {
         const filterType = document.getElementById('filterTypeSelect').value;
-        const filterValue = document.getElementById('filterValueSelect');
-        
-        filterValue.disabled = false;
-        filterValue.innerHTML = '<option value="">Select value</option>';
-        
-        const options = {
-            'jarvies_status': [
-                'in process',
-                'author action',
-                'proposed solution',
-                'closed',
-                'sent in to SAP',
-                'sent it to support'
-            ],
-            'status': [
-                'open',
-                'in_progress',
-                'hold',
-                'cancel',
-                'closed',
-                'reply'
-            ],
-            'type': [
-                'AMS',
-                'MO',
-                'ATS',
-                'Project',
-                'Internal'
-            ],
-            'priority': [
-                'Low',
-                'Medium',
-                'High'
-            ]
+        const btn        = document.getElementById('ddFilterValueBtn');
+        const panel      = document.querySelector('#ddFilterValue .custom-dd-panel');
+
+        const optionsMap = {
+            'jarvies_status': ['in process', 'author action', 'proposed solution', 'closed', 'sent in to SAP', 'sent it to support'],
+            'status':         ['open', 'in_progress', 'hold', 'cancel', 'closed', 'reply'],
+            'type':           ['AMS', 'MO', 'ATS', 'Project', 'Internal'],
+            'priority':       ['Low', 'Medium', 'High'],
         };
-        
-        if (filterType && options[filterType]) {
-            options[filterType].forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt;
-                option.textContent = opt.charAt(0).toUpperCase() + opt.slice(1).replace(/_/g, ' ');
-                filterValue.appendChild(option);
+
+        // Reset value
+        setCustomDropdownValue('filterValueSelect', '');
+
+        if (filterType && optionsMap[filterType]) {
+            // Enable button
+            btn.disabled = false;
+            btn.className = 'custom-dd-btn w-full flex items-center justify-between gap-2 px-4 py-3 border border-gray-300 rounded-xl text-sm font-medium bg-white hover:border-gray-400 transition-all';
+
+            // Rebuild panel items
+            panel.innerHTML = '';
+            const placeholder = document.createElement('button');
+            placeholder.type = 'button';
+            placeholder.className = 'custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50';
+            placeholder.dataset.value = '';
+            placeholder.textContent = 'Select value';
+            panel.appendChild(placeholder);
+
+            optionsMap[filterType].forEach(opt => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50';
+                item.dataset.value = opt;
+                item.textContent = opt.charAt(0).toUpperCase() + opt.slice(1).replace(/_/g, ' ');
+                panel.appendChild(item);
             });
+
+            // Re-init the dd so new items are wired up
+            const ddEl = document.getElementById('ddFilterValue');
+            ddEl._ddInited = false;
+            initCustomDropdowns(ddEl.parentElement);
         } else {
-            filterValue.disabled = true;
+            // Disable button
+            btn.disabled = true;
+            btn.className = 'custom-dd-btn w-full flex items-center justify-between gap-2 px-4 py-3 border border-gray-300 rounded-xl text-sm font-medium bg-gray-50 text-gray-400 cursor-not-allowed transition-all';
+            panel.innerHTML = '';
         }
     }
 
@@ -1082,9 +1093,14 @@
 
     function resetFilters() {
         document.getElementById('searchInput').value = '';
-        document.getElementById('filterTypeSelect').value = '';
-        document.getElementById('filterValueSelect').value = '';
-        document.getElementById('filterValueSelect').disabled = true;
+        setCustomDropdownValue('filterTypeSelect', '');
+        // Reset & disable the filter value dd
+        const btn   = document.getElementById('ddFilterValueBtn');
+        const panel = document.querySelector('#ddFilterValue .custom-dd-panel');
+        setCustomDropdownValue('filterValueSelect', '');
+        btn.disabled = true;
+        btn.className = 'custom-dd-btn w-full flex items-center justify-between gap-2 px-4 py-3 border border-gray-300 rounded-xl text-sm font-medium bg-gray-50 text-gray-400 cursor-not-allowed transition-all';
+        panel.innerHTML = '';
         currentFilter = 'all';
         filterTickets('all');
     }

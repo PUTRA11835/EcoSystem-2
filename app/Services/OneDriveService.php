@@ -121,6 +121,117 @@ class OneDriveService
     }
 
     /**
+     * List immediate children (folders only) of a folder specified by its path.
+     * Returns an array of ['id' => ..., 'name' => ...] for each child folder.
+     */
+    public function listFolderChildrenByPath(string $folderPath): array
+    {
+        $token   = $this->getAccessToken();
+        $encoded = rawurlencode($folderPath);
+
+        $response = Http::withToken($token)->get(
+            "{$this->baseUrl}/users/{$this->userEmail}/drive/root:/{$encoded}:/children",
+            ['$select' => 'id,name,folder,webUrl', '$top' => 200]
+        );
+
+        if (!$response->successful()) {
+            Log::error('OneDrive listFolderChildrenByPath failed', [
+                'path'   => $folderPath,
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
+            throw new \RuntimeException('Failed to list OneDrive folder children: ' . $response->body());
+        }
+
+        return collect($response->json('value', []))
+            ->filter(fn($item) => isset($item['folder']))
+            ->map(fn($item) => ['id' => $item['id'], 'name' => $item['name'], 'webUrl' => $item['webUrl'] ?? null])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Find an existing folder by exact name inside a path, or create it if absent.
+     * Comparison is case-insensitive.
+     * Returns the folder's item ID.
+     */
+    public function findOrCreateFolderInPath(string $parentPath, string $folderName): string
+    {
+        $children = $this->listFolderChildrenByPath($parentPath);
+
+        $needle = mb_strtolower(trim($folderName));
+        foreach ($children as $child) {
+            if (mb_strtolower($child['name']) === $needle) {
+                return $child['id'];
+            }
+        }
+
+        // Not found — create it
+        return $this->createFolderInPath($folderName, $parentPath);
+    }
+
+    /**
+     * Create a sub-folder inside a parent folder identified by its item ID.
+     * Returns the new sub-folder's item ID.
+     */
+    public function createSubFolder(string $parentFolderId, string $folderName): string
+    {
+        $token = $this->getAccessToken();
+
+        $response = Http::withToken($token)->post(
+            "{$this->baseUrl}/users/{$this->userEmail}/drive/items/{$parentFolderId}/children",
+            [
+                'name'                              => $folderName,
+                'folder'                            => new \stdClass(),
+                '@microsoft.graph.conflictBehavior' => 'rename',
+            ]
+        );
+
+        if (!$response->successful()) {
+            Log::error('OneDrive createSubFolder failed', [
+                'parent_folder_id' => $parentFolderId,
+                'folder_name'      => $folderName,
+                'status'           => $response->status(),
+                'body'             => $response->body(),
+            ]);
+            throw new \RuntimeException('Failed to create OneDrive sub-folder: ' . $response->body());
+        }
+
+        return $response->json('id');
+    }
+
+    /**
+     * Upload a file into a OneDrive folder (identified by its item ID).
+     * Uses the simple PUT upload endpoint (supports files up to 4 MB).
+     * Returns an array with 'id', 'webUrl', and 'downloadUrl'.
+     */
+    public function uploadFile(string $folderId, string $fileName, string $fileContent, string $mimeType = 'application/octet-stream'): array
+    {
+        $token   = $this->getAccessToken();
+        $encoded = rawurlencode($fileName);
+
+        $response = Http::withToken($token)
+            ->withBody($fileContent, $mimeType)
+            ->put("{$this->baseUrl}/users/{$this->userEmail}/drive/items/{$folderId}:/{$encoded}:/content");
+
+        if (!$response->successful()) {
+            Log::error('OneDrive uploadFile failed', [
+                'folder_id' => $folderId,
+                'file_name' => $fileName,
+                'status'    => $response->status(),
+                'body'      => $response->body(),
+            ]);
+            throw new \RuntimeException('Failed to upload file to OneDrive: ' . $response->body());
+        }
+
+        return [
+            'id'          => $response->json('id'),
+            'webUrl'      => $response->json('webUrl'),
+            'downloadUrl' => $response->json('@microsoft.graph.downloadUrl'),
+        ];
+    }
+
+    /**
      * Create an anonymous share link for the given folder ID.
      * type='edit' grants upload + edit access to anyone with the link.
      * Returns the web URL of the share link.

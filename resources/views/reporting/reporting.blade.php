@@ -33,6 +33,15 @@
     }
     .rpt-loading-icon { animation: rptShimmer 1.4s ease-in-out infinite; }
 
+    /* ── Sort column headers ── */
+    thead th.rpt-sortable { user-select: none; cursor: pointer; }
+    thead th.rpt-sortable:hover { background: #f3f4f6; }
+    .rpt-sort-icon { font-style: normal; transition: color 0.15s; }
+    .rpt-sort-icon.active { color: #111827; }
+
+    /* ── Column filter dropdown active state ── */
+    .custom-dd.rpt-col-dd-active .custom-dd-arrow { color: #111827; }
+
 </style>
 @endpush
 
@@ -63,7 +72,7 @@
                 <span id="periodStatus" class="font-semibold"></span>
             </div>
             {{-- Export Excel --}}
-            <button onclick="exportExcel()"
+            <button id="btnExportExcel" onclick="exportExcel()"
                 class="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-all duration-200 shadow-sm">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -237,14 +246,67 @@
                 <thead id="rptTableHead">
                     <tr class="bg-gray-50 border-b border-gray-200">
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:160px;">Employee</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:110px;">Date</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:130px;">Ticket</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:130px;">Customer</th>
+                        {{-- DATE: sortable --}}
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide rpt-sortable transition-colors"
+                            style="min-width:110px;" onclick="rptSortBy('date')" title="Sort by Date">
+                            <div class="flex items-center gap-1">
+                                <span>Date</span>
+                                <span id="rpt-sort-icon-date" class="rpt-sort-icon text-gray-300 font-normal normal-case tracking-normal">⇅</span>
+                            </div>
+                        </th>
+                        {{-- TICKET: full-width column filter --}}
+                        <th class="p-0 text-left whitespace-nowrap" style="min-width:130px;">
+                            <div class="custom-dd relative w-full" id="rptTicketFilterDd" data-onchange="rptColFilterChanged" data-fixed="true" data-searchable="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wide whitespace-nowrap">Ticket</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="rptFilterTicket" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:180px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- CUSTOMER: full-width column filter --}}
+                        <th class="p-0 text-left whitespace-nowrap" style="min-width:130px;">
+                            <div class="custom-dd relative w-full" id="rptCustomerFilterDd" data-onchange="rptColFilterChanged" data-fixed="true" data-searchable="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wide whitespace-nowrap">Customer</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="rptFilterCustomer" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                </div>
+                            </div>
+                        </th>
                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:95px;">MD Input</th>
                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:90px;">Quota MD</th>
                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:90px;">Remain</th>
-                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:100px;">MD Status</th>
-                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wide" style="min-width:105px;">Approval</th>
+                        {{-- MD STATUS: sortable --}}
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wide rpt-sortable transition-colors"
+                            style="min-width:100px;" onclick="rptSortBy('status')" title="Sort by RD Status">
+                            <div class="flex items-center justify-center gap-1">
+                                <span>MD Status</span>
+                                <span id="rpt-sort-icon-status" class="rpt-sort-icon text-gray-300 font-normal normal-case tracking-normal">⇅</span>
+                            </div>
+                        </th>
+                        {{-- APPROVAL: full-width column filter --}}
+                        <th class="p-0 text-center whitespace-nowrap" style="min-width:105px;">
+                            <div class="custom-dd relative w-full" id="rptApprovalFilterDd" data-onchange="rptColFilterChanged" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-center gap-1.5 px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wide whitespace-nowrap">Approval</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="rptFilterApproval" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:140px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="approved">Approved</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="submitted">Submitted</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="draft">Draft</button>
+                                </div>
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody id="rptTableBody" class="divide-y divide-gray-100 bg-white">
@@ -283,6 +345,8 @@
 let rptAllData    = [];
 let rptFiltered   = [];
 let currentPeriod = null;
+let rptSortField  = null; // 'date' | 'status'
+let rptSortDir    = null; // 'desc' | 'asc'
 
 const MONTH_NAMES = ['January','February','March','April','May','June',
                      'July','August','September','October','November','December'];
@@ -389,7 +453,12 @@ function exportExcel() {
         showNotification('Period info not loaded yet. Please wait.', 'error');
         return;
     }
+    const btn = document.getElementById('btnExportExcel');
+    if (btn) { btn.disabled = true; btn.textContent = 'Exporting…'; }
     window.location.href = `/reporting/export-excel?year=${currentPeriod.year}&month=${currentPeriod.month}`;
+    setTimeout(() => {
+        if (btn) { btn.disabled = false; btn.textContent = 'Export Excel'; }
+    }, 3000);
 }
 @endif
 
@@ -437,6 +506,7 @@ async function loadReport() {
         if (!json.success) throw new Error(json.message || 'API error');
 
         rptAllData = json.data || [];
+        populateRptColumnFilters();
         applyRptFilter();
     } catch (e) {
         console.error(e);
@@ -463,16 +533,90 @@ async function loadReport() {
 }
 
 function applyRptFilter() {
-    const statusFilter = document.getElementById('rptFilterStatus').value;
-    const nameFilter   = (document.getElementById('rptFilterName').value || '').trim().toLowerCase();
+    const statusFilter   = document.getElementById('rptFilterStatus').value;
+    const nameFilter     = (document.getElementById('rptFilterName').value || '').trim().toLowerCase();
+    const ticketFilter   = document.getElementById('rptFilterTicket').value;
+    const customerFilter = document.getElementById('rptFilterCustomer').value;
+    const approvalFilter = document.getElementById('rptFilterApproval').value;
 
     rptFiltered = rptAllData.filter(r => {
-        const matchStatus = !statusFilter || r.status === statusFilter;
-        const matchName   = !nameFilter   || String(r.employee_name ?? '').toLowerCase().includes(nameFilter);
-        return matchStatus && matchName;
+        const matchStatus   = !statusFilter   || r.status === statusFilter;
+        const matchName     = !nameFilter     || String(r.employee_name ?? '').toLowerCase().includes(nameFilter);
+        const matchTicket   = !ticketFilter   || String(r.ticket_number || r.ticket_id || '') === ticketFilter;
+        const matchCustomer = !customerFilter || r.customer_name === customerFilter;
+        const matchApproval = !approvalFilter || r.timesheet_status === approvalFilter;
+        return matchStatus && matchName && matchTicket && matchCustomer && matchApproval;
     });
+
+    // Sync active state for column filter dropdowns
+    updateRptColActive('rptTicketFilterDd',   ticketFilter);
+    updateRptColActive('rptCustomerFilterDd', customerFilter);
+    updateRptColActive('rptApprovalFilterDd', approvalFilter);
+
     renderRptTable();
     updateRptCards();
+}
+
+function populateRptColumnFilters() {
+    const makePanelItem = (val, label) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50';
+        btn.dataset.value = val;
+        btn.textContent = label;
+        return btn;
+    };
+
+    const rebuildPanel = (ddId, items, currentVal) => {
+        const dd = document.getElementById(ddId);
+        if (!dd) return;
+        // Use stored panel ref — panel may be detached to body when data-fixed="true"
+        const panel = dd._ddPanel || dd.querySelector('.custom-dd-panel');
+        if (!panel) return;
+        // Remove existing items only, preserve injected search wrap + empty state
+        panel.querySelectorAll('.custom-dd-item').forEach(el => el.remove());
+        const frag = document.createDocumentFragment();
+        frag.appendChild(makePanelItem('', 'All'));
+        items.forEach(([val, label]) => frag.appendChild(makePanelItem(val, label)));
+        const emptyEl = panel._ddEmpty || null;
+        if (emptyEl) panel.insertBefore(frag, emptyEl);
+        else panel.appendChild(frag);
+        // If current value no longer exists in new data, reset it
+        if (currentVal && !items.some(([v]) => v === currentVal)) {
+            const hidden = dd.querySelector('input[type="hidden"]');
+            if (hidden) hidden.value = '';
+        }
+    };
+
+    const ticketHidden   = document.getElementById('rptFilterTicket');
+    const customerHidden = document.getElementById('rptFilterCustomer');
+
+    const tickets   = [...new Set(rptAllData.map(r => String(r.ticket_number || r.ticket_id || '')).filter(Boolean))].sort();
+    const customers = [...new Set(rptAllData.map(r => r.customer_name || '').filter(Boolean))].sort();
+
+    rebuildPanel('rptTicketFilterDd',   tickets.map(t => [t, '#' + t]),    ticketHidden?.value   || '');
+    rebuildPanel('rptCustomerFilterDd', customers.map(c => [c, c]),        customerHidden?.value || '');
+}
+
+window.rptColFilterChanged = applyRptFilter;
+
+function rptSortBy(field) {
+    if (rptSortField !== field) { rptSortField = field; rptSortDir = 'desc'; }
+    else if (rptSortDir === 'desc') { rptSortDir = 'asc'; }
+    else { rptSortField = null; rptSortDir = null; }
+    ['date', 'status'].forEach(f => {
+        const icon = document.getElementById('rpt-sort-icon-' + f);
+        if (!icon) return;
+        if (f !== rptSortField) { icon.textContent = '⇅'; icon.classList.remove('active'); return; }
+        icon.textContent = rptSortDir === 'desc' ? '↓' : '↑';
+        icon.classList.add('active');
+    });
+    renderRptTable();
+}
+
+function updateRptColActive(ddId, value) {
+    const dd = document.getElementById(ddId);
+    if (dd) dd.classList.toggle('rpt-col-dd-active', value !== '' && value != null);
 }
 
 function filterCardStatus(status) {
@@ -490,12 +634,30 @@ function resetReport() {
     if (typeof setCustomDropdownValue === 'function') {
         setCustomDropdownValue('rptMonth', String(p.month));
         setCustomDropdownValue('rptFilterStatus', '');
+        setCustomDropdownValue('rptFilterTicket', '');
+        setCustomDropdownValue('rptFilterCustomer', '');
+        setCustomDropdownValue('rptFilterApproval', '');
     } else {
         document.getElementById('rptMonth').value = p.month;
         document.getElementById('rptFilterStatus').value = '';
+        document.getElementById('rptFilterTicket').value = '';
+        document.getElementById('rptFilterCustomer').value = '';
+        document.getElementById('rptFilterApproval').value = '';
     }
     updateRptPeriodLabel();
     document.getElementById('rptFilterName').value = '';
+
+    // Reset sort
+    rptSortField = null;
+    rptSortDir   = null;
+    ['date', 'status'].forEach(f => {
+        const icon = document.getElementById('rpt-sort-icon-' + f);
+        if (icon) { icon.textContent = '⇅'; icon.classList.remove('active'); }
+    });
+
+    // Reset column filter active states
+    ['rptTicketFilterDd', 'rptCustomerFilterDd', 'rptApprovalFilterDd'].forEach(id => updateRptColActive(id, ''));
+
     rptAllData  = [];
     rptFiltered = [];
     renderRptTable();
@@ -550,8 +712,27 @@ function renderRptTable() {
         return `<span class="text-xs text-gray-400">${escRpt(s)}</span>`;
     };
 
+    // ── Sort ──────────────────────────────────────────────────────────────
+    const STATUS_ORDER = { 'Less': 1, 'Match': 2, 'Over': 3 };
+    let display = rptFiltered;
+    if (rptSortField && rptSortDir) {
+        display = [...rptFiltered].sort((a, b) => {
+            let va, vb;
+            if (rptSortField === 'date') {
+                va = a.date || '';
+                vb = b.date || '';
+            } else {
+                va = STATUS_ORDER[a.status] ?? 0;
+                vb = STATUS_ORDER[b.status] ?? 0;
+            }
+            if (va < vb) return rptSortDir === 'asc' ? -1 : 1;
+            if (va > vb) return rptSortDir === 'asc' ?  1 : -1;
+            return 0;
+        });
+    }
+
     // ── Flat list: one row per timesheet entry ─────────────────────────────
-    let rows = rptFiltered.map(row => {
+    let rows = display.map(row => {
         const initials = (row.employee_name || '?').trim().split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
         return `<tr class="hover:bg-gray-50/60 transition-colors">
         <td class="px-4 py-3">

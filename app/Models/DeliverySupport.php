@@ -22,6 +22,9 @@ class DeliverySupport extends Model
         'type',
         'delivery_owner_id',
         'support_manager_id',
+        'co_pm_id',
+        'support_admin_id',
+        'sales_id',
         'support_method',
         'total_mandays',
         'created_by_id',
@@ -29,6 +32,10 @@ class DeliverySupport extends Model
         'approval_name',
         'onedrive_folder_id',
         'onedrive_folder_url',
+        'onedrive_deliverable_folder_id',
+        'onedrive_deliverable_folder_url',
+        'service_window_start',
+        'service_window_end',
     ];
 
     protected $casts = [
@@ -71,6 +78,21 @@ class DeliverySupport extends Model
     public function supportManager()
     {
         return $this->belongsTo(Employee::class, 'support_manager_id', 'employee_id');
+    }
+
+    public function coPm()
+    {
+        return $this->belongsTo(Employee::class, 'co_pm_id', 'employee_id');
+    }
+
+    public function supportAdmin()
+    {
+        return $this->belongsTo(Employee::class, 'support_admin_id', 'employee_id');
+    }
+
+    public function sales()
+    {
+        return $this->belongsTo(Employee::class, 'sales_id', 'employee_id');
     }
 
     public function createdBy()

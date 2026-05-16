@@ -77,7 +77,6 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // ==================== DASHBOARD ROUTES ====================
     
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/dashboard/employee', [DashboardController::class, 'index'])->name('dashboardEmployee');
 
     // ==================== CALENDAR ====================
     Route::prefix('calendar')->name('calendar.')->group(function () {
@@ -103,6 +102,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         // Customer routes
         Route::prefix('customer')->name('customer.')->group(function () {
             Route::get('/', [CustomerController::class, 'index'])->name('index');
+            Route::get('/grouping', [CustomerController::class, 'grouping'])->name('grouping');
             Route::get('/{id}', [CustomerController::class, 'show'])->name('detail');
         });
     });
@@ -304,6 +304,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::prefix('ticket')->name('ticket.')->group(function () {
         Route::get('/', [TicketViewController::class, 'index'])->name('index');
         Route::get('/create', [TicketViewController::class, 'create'])->name('create');
+        Route::get('/export', [TicketController::class, 'exportToExcel'])->name('export');
         Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload');
         Route::get('/task', [TaskController::class, 'index'])->name('task');
         Route::get('/latest-update', [TicketController::class, 'latestUpdate'])->name('latest-update');

@@ -268,6 +268,7 @@ function renderTable(rows) {
             <td class="px-6 py-4 text-gray-500 font-mono text-xs">#${s.id}</td>
             <td class="px-6 py-4">
                 <p class="font-semibold text-gray-900 text-xs">${escHtml(senderDisplay)}</p>
+                ${s.end_customer_name ? `<p class="text-[10px] text-gray-400">&#8627; ${escHtml(s.end_customer_name)}</p>` : ''}
                 ${s.submitted_by_email ? `<p class="text-[10px] text-gray-400">${escHtml(s.submitted_by_email)}</p>` : ''}
             </td>
             <td class="px-6 py-4 text-gray-600 max-w-xs text-xs">${escHtml(short)}</td>
@@ -492,10 +493,9 @@ function fillModal(s) {
                     <select id="approveScale"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
                         <option value="">Select scale…</option>
-                        <option value="Small">Small</option>
+                        <option value="Simple">Simple</option>
                         <option value="Medium">Medium</option>
-                        <option value="Large">Large</option>
-                        <option value="Enterprise">Enterprise</option>
+                        <option value="Complex">Complex</option>
                     </select>
                     <p class="mt-1 text-[11px] text-gray-400">Optional</p>
                 </div>

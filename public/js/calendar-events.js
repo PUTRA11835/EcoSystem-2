@@ -4,6 +4,29 @@ let currentView = 'month';
 let selectedEventId = null;
 let events = [];
 
+// ── Indonesian National Holidays ──────────────────────────────────────────────
+// Cache per tahun: { 2025: [{date, localName, name}, ...], 2026: [...] }
+const holidayCache = {};
+let holidaysLoaded = false;
+
+async function loadHolidays(year) {
+    if (holidayCache[year]) return;
+    try {
+        const res = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/ID`);
+        if (!res.ok) throw new Error('Holiday API error');
+        holidayCache[year] = await res.json();
+    } catch {
+        holidayCache[year] = [];
+    }
+}
+
+function getHoliday(dateStr) {
+    const year = parseInt(dateStr.split('-')[0]);
+    const list = holidayCache[year] || [];
+    return list.find(h => h.date === dateStr) || null;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const eventTypeColors = {
     meeting: { bg: 'bg-blue-500', text: 'text-blue-700', bgLight: 'bg-blue-50', border: 'border-blue-200', gradient: 'from-blue-600 to-blue-700' },
     task: { bg: 'bg-green-500', text: 'text-green-700', bgLight: 'bg-green-50', border: 'border-green-200', gradient: 'from-green-600 to-green-700' },
@@ -35,18 +58,18 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 async function loadEvents() {
+    const year = currentDate.getFullYear();
+    await loadHolidays(year);
     try {
         const response = await fetch('/api/events');
         const data = await response.json();
-        
         if (data.success) {
             events = data.data;
-            renderCalendar();
         }
     } catch (error) {
         console.error('Error loading events:', error);
-        renderCalendar(); // Render empty calendar
     }
+    renderCalendar();
 }
 
 function renderCalendar() {
@@ -100,24 +123,41 @@ function renderMonthView() {
         } else if (dayCount <= daysInMonth) {
             // Current month days
             dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayCount).padStart(2, '0')}`;
-            
+
             const isToday = new Date().toDateString() === new Date(year, month, dayCount).toDateString();
-            const dayHeader = document.createElement('div');
-            dayHeader.className = `text-sm font-semibold mb-1 ${isToday ? 'text-red-800' : 'text-gray-700'}`;
-            
-            if (isToday) {
-                dayHeader.innerHTML = `<span class="inline-flex items-center justify-center w-7 h-7 bg-red-800 text-white rounded-full">${dayCount}</span>`;
-            } else {
-                dayHeader.textContent = dayCount;
+            const holiday = getHoliday(dateStr);
+
+            if (holiday) {
+                dayCell.classList.add('bg-red-50');
             }
-            
+
+            const dayHeader = document.createElement('div');
+            dayHeader.className = `text-sm font-semibold mb-1 flex items-center justify-between ${isToday ? 'text-red-800' : holiday ? 'text-red-600' : 'text-gray-700'}`;
+
+            const dateNumEl = document.createElement('span');
+            if (isToday) {
+                dateNumEl.innerHTML = `<span class="inline-flex items-center justify-center w-7 h-7 bg-red-800 text-white rounded-full">${dayCount}</span>`;
+            } else {
+                dateNumEl.textContent = dayCount;
+            }
+            dayHeader.appendChild(dateNumEl);
+
             dayCell.appendChild(dayHeader);
-            
+
+            // Holiday badge
+            if (holiday) {
+                const holidayBadge = document.createElement('div');
+                holidayBadge.className = 'text-[10px] font-medium text-red-600 bg-red-100 px-1.5 py-0.5 rounded mb-1 truncate';
+                holidayBadge.title = holiday.name;
+                holidayBadge.textContent = holiday.localName;
+                dayCell.appendChild(holidayBadge);
+            }
+
             // Add events for this day
             const dayEvents = events.filter(e => e.start_date === dateStr);
             const eventsContainer = document.createElement('div');
             eventsContainer.className = 'space-y-1';
-            
+
             dayEvents.forEach(event => {
                 const eventEl = document.createElement('div');
                 const colors = eventTypeColors[event.type];
@@ -129,7 +169,7 @@ function renderMonthView() {
                 };
                 eventsContainer.appendChild(eventEl);
             });
-            
+
             dayCell.appendChild(eventsContainer);
             dayCell.onclick = () => openEventModal(dateStr);
             
@@ -171,12 +211,15 @@ function renderWeekView() {
         const date = new Date(weekStart);
         date.setDate(weekStart.getDate() + i);
         const isToday = new Date().toDateString() === date.toDateString();
-        
+        const weekDateStr = date.toISOString().split('T')[0];
+        const weekHoliday = getHoliday(weekDateStr);
+
         const headerDiv = document.createElement('div');
-        headerDiv.className = `border-r border-b border-gray-200 bg-gray-50 p-2 text-center ${isToday ? 'bg-red-50' : ''}`;
+        headerDiv.className = `border-r border-b border-gray-200 p-2 text-center ${isToday ? 'bg-red-50' : weekHoliday ? 'bg-red-50' : 'bg-gray-50'}`;
         headerDiv.innerHTML = `
-            <div class="text-xs font-semibold text-gray-500">${dayNames[i]}</div>
-            <div class="text-lg font-bold ${isToday ? 'text-red-800' : 'text-gray-900'}">${date.getDate()}</div>
+            <div class="text-xs font-semibold ${weekHoliday ? 'text-red-500' : 'text-gray-500'}">${dayNames[i]}</div>
+            <div class="text-lg font-bold ${isToday ? 'text-red-800' : weekHoliday ? 'text-red-600' : 'text-gray-900'}">${date.getDate()}</div>
+            ${weekHoliday ? `<div class="text-[9px] text-red-500 font-medium truncate" title="${weekHoliday.name}">${weekHoliday.localName}</div>` : ''}
         `;
         weekHeaders.appendChild(headerDiv);
     }
@@ -236,14 +279,26 @@ function renderDayView() {
     
     const dayGrid = document.getElementById('dayGrid');
     dayGrid.innerHTML = '';
-    
+
     const dateStr = currentDate.toISOString().split('T')[0];
+    const dayHoliday = getHoliday(dateStr);
+
+    if (dayHoliday) {
+        const banner = document.createElement('div');
+        banner.className = 'flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-2 mb-4 text-sm font-medium';
+        banner.innerHTML = `<i class="fas fa-flag"></i> Hari Libur Nasional: <span class="font-bold">${dayHoliday.localName}</span><span class="text-red-400 text-xs ml-1">(${dayHoliday.name})</span>`;
+        dayGrid.appendChild(banner);
+    }
+
     const dayEvents = events.filter(e => e.start_date === dateStr).sort((a, b) => {
         return a.start_time.localeCompare(b.start_time);
     });
-    
+
     if (dayEvents.length === 0) {
-        dayGrid.innerHTML = '<p class="text-gray-500 text-center py-8">No events scheduled for this day</p>';
+        const empty = document.createElement('p');
+        empty.className = 'text-gray-500 text-center py-8';
+        empty.textContent = 'No events scheduled for this day';
+        dayGrid.appendChild(empty);
         return;
     }
     
@@ -271,7 +326,7 @@ function renderDayView() {
     });
 }
 
-function previousPeriod() {
+async function previousPeriod() {
     if (currentView === 'month') {
         currentDate.setMonth(currentDate.getMonth() - 1);
     } else if (currentView === 'week') {
@@ -279,10 +334,11 @@ function previousPeriod() {
     } else {
         currentDate.setDate(currentDate.getDate() - 1);
     }
+    await loadHolidays(currentDate.getFullYear());
     renderCalendar();
 }
 
-function nextPeriod() {
+async function nextPeriod() {
     if (currentView === 'month') {
         currentDate.setMonth(currentDate.getMonth() + 1);
     } else if (currentView === 'week') {
@@ -290,6 +346,7 @@ function nextPeriod() {
     } else {
         currentDate.setDate(currentDate.getDate() + 1);
     }
+    await loadHolidays(currentDate.getFullYear());
     renderCalendar();
 }
 

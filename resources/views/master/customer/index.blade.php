@@ -54,9 +54,17 @@
     <div class="mt-6">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
             <h3 class="text-lg font-semibold text-gray-900">Customer List</h3>
-            <button onclick="openCreateModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Create Customer
-            </button>
+            <div class="flex items-center gap-2">
+                <a href="{{ route('master.customer.grouping') }}" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+                    </svg>
+                    View Grouping
+                </a>
+                <button onclick="openCreateModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    Create Customer
+                </button>
+            </div>
         </div>
 
         <div class="overflow-x-auto border border-gray-200 rounded-lg">
@@ -77,6 +85,9 @@
                 </tbody>
             </table>
         </div>
+
+        <!-- Pagination -->
+        <div id="customerPagination" class="flex items-center justify-between mt-4 px-1 min-h-[36px]"></div>
     </div>
 </div>
 
@@ -147,6 +158,21 @@
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Contact Phone</label>
                             <input type="text" id="contactPhone" placeholder="Contact phone number" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                        </div>
+
+                        <div class="flex flex-col">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Parent Customer</label>
+                            <div class="custom-dd relative" id="ddParentCustomer" data-searchable="true" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-400">None (Top-level customer)</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="parentCustomerId" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50" data-value="">None (Top-level customer)</button>
+                                </div>
+                            </div>
+                            <span class="text-xs text-gray-400 mt-1">Leave empty if this is a top-level customer (e.g., Sinergi).</span>
                         </div>
                     </div>
 
@@ -301,6 +327,9 @@
 <script>
     let customers = [];
     let deleteCustomerId = null;
+    let currentPage = 1;
+    let paginationMeta = null;
+    const PER_PAGE = 15;
 
     // Toggle password visibility
     function togglePassword(fieldId) {
@@ -316,9 +345,9 @@
         }
     }
 
-    async function fetchCustomers(filters = {}) {
+    async function fetchCustomers(filters = {}, page = currentPage) {
         try {
-            const params = new URLSearchParams(filters);
+            const params = new URLSearchParams({ ...filters, page, per_page: PER_PAGE });
             const response = await fetch(`/api/customers?${params}`, {
                 method: 'GET',
                 headers: {
@@ -330,10 +359,12 @@
             });
 
             const data = await response.json();
-            
+
             if (data.success) {
                 customers = data.data;
+                paginationMeta = data.pagination;
                 renderTable(customers);
+                renderPagination();
             } else {
                 console.error('Failed to fetch customers:', data.message);
                 showNotification('Failed to fetch customers','error');
@@ -342,6 +373,64 @@
             console.error('Error fetching customers:', error);
             showNotification('An error occurred while fetching customers', 'error');
         }
+    }
+
+    function renderPagination() {
+        const el = document.getElementById('customerPagination');
+        if (!el || !paginationMeta) return;
+
+        const { total, per_page, current_page, last_page, from, to } = paginationMeta;
+
+        if (last_page <= 1) {
+            el.innerHTML = `<span class="text-xs text-gray-500">Showing ${total} customer${total !== 1 ? 's' : ''}</span>`;
+            return;
+        }
+
+        // Build page buttons (max 5 around current)
+        const pages = [];
+        const delta = 2;
+        for (let i = Math.max(1, current_page - delta); i <= Math.min(last_page, current_page + delta); i++) {
+            pages.push(i);
+        }
+        if (pages[0] > 1) {
+            pages.unshift('...');
+            pages.unshift(1);
+        }
+        if (pages[pages.length - 1] < last_page) {
+            pages.push('...');
+            pages.push(last_page);
+        }
+
+        const btn = (label, page, disabled = false, active = false) => {
+            const base = 'inline-flex items-center justify-center w-8 h-8 text-xs font-medium rounded-lg border transition-all';
+            const cls = active
+                ? `${base} primary-gradient text-white border-transparent`
+                : disabled
+                    ? `${base} bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed`
+                    : `${base} bg-white text-gray-600 border-gray-300 hover:bg-gray-50`;
+            const click = (!disabled && !active) ? `onclick="goToPage(${page})"` : '';
+            return `<button type="button" ${click} class="${cls}" ${disabled ? 'disabled' : ''}>${label}</button>`;
+        };
+
+        const pageButtons = pages.map(p =>
+            p === '...'
+                ? `<span class="text-xs text-gray-400 px-1">…</span>`
+                : btn(p, p, false, p === current_page)
+        ).join('');
+
+        el.innerHTML = `
+            <span class="text-xs text-gray-500">Showing ${from}–${to} of ${total} customers</span>
+            <div class="flex items-center gap-1">
+                ${btn('&lsaquo;', current_page - 1, current_page === 1)}
+                ${pageButtons}
+                ${btn('&rsaquo;', current_page + 1, current_page === last_page)}
+            </div>
+        `;
+    }
+
+    function goToPage(page) {
+        currentPage = page;
+        fetchCustomers(getCurrentFilters());
     }
 
     // Fungsi untuk navigasi ke halaman detail saat baris diklik
@@ -375,11 +464,14 @@
 
         tbody.innerHTML = data.map(cust => {
             const statusInfo = getStatusInfo(cust);
-            
+            const parentTag = cust.parent_name
+                ? `<span class="block text-xs text-gray-400 mt-0.5">&#8627; ${cust.parent_name}</span>`
+                : '';
+
             return `
             <tr class="customer-row" onclick="navigateToDetail(${cust.id}, event)">
                 <td class="px-4 py-3.5 text-sm"><strong class="font-semibold text-gray-900">${cust.email || '-'}</strong></td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${cust.name_1 || '-'}</td>
+                <td class="px-4 py-3.5 text-sm text-gray-600">${cust.name_1 || '-'}${parentTag}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${cust.customer_group || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${cust.customer_category || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${cust.industry_sector || '-'}</td>
@@ -416,18 +508,67 @@
         document.getElementById('modalTitle').textContent = 'Create Customer';
         document.getElementById('customerForm').reset();
         document.getElementById('customerId').value = '';
-        
+
         // Set default values
         document.getElementById('country').value = 'Indonesia';
         document.getElementById('language').value = 'Indonesian';
-        
+
+        // Reset parent customer dropdown
+        if (typeof setCustomDropdownValue === 'function') {
+            setCustomDropdownValue('parentCustomerId', '');
+        } else {
+            document.getElementById('parentCustomerId').value = '';
+        }
+
         // Auto-generate search term when company name changes
         document.getElementById('companyName').addEventListener('input', function() {
             document.getElementById('searchTerm').value = this.value.toUpperCase();
         });
-        
+
+        loadTopLevelCustomers();
+
         document.getElementById('customerModal').classList.remove('hidden');
         document.getElementById('customerModal').classList.add('flex');
+    }
+
+    async function loadTopLevelCustomers() {
+        try {
+            const res = await fetch('/api/customers/top-level', {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (!data.success) return;
+
+            const dd = document.getElementById('ddParentCustomer');
+            if (!dd) return;
+            const panel = dd._ddPanel || dd.querySelector('.custom-dd-panel');
+            if (!panel) return;
+
+            // Remove old dynamic items, keep search wrap + empty state
+            panel.querySelectorAll('.custom-dd-item').forEach(el => el.remove());
+
+            // Build items: "None" first, then top-level customers
+            const none = document.createElement('button');
+            none.type = 'button';
+            none.className = 'custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50';
+            none.dataset.value = '';
+            none.textContent = 'None (Top-level customer)';
+
+            const insertBefore = panel._ddEmpty || null;
+            panel.insertBefore(none, insertBefore);
+
+            data.data.forEach(c => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50';
+                btn.dataset.value = c.id;
+                btn.textContent = c.name;
+                panel.insertBefore(btn, insertBefore);
+            });
+        } catch (e) {
+            console.error('Failed to load top-level customers', e);
+        }
     }
 
     function closeModal() {
@@ -462,6 +603,7 @@
             credit_limit_type: document.getElementById('creditLimitType').value,
             contact_name: document.getElementById('contactName').value,
             contact_phone: document.getElementById('contactPhone').value,
+            parent_customer_id: document.getElementById('parentCustomerId').value || null,
             role: 3 // Default customer role
         };
 
@@ -537,13 +679,17 @@
         }
     }
 
-    function applyFilters() {
-        const filters = {
+    function getCurrentFilters() {
+        return {
             status: document.getElementById('filterStatus').value,
             customer: document.getElementById('filterCustomer').value,
             customer_group: document.getElementById('filterCustomerGroup').value,
         };
-        fetchCustomers(filters);
+    }
+
+    function applyFilters() {
+        currentPage = 1;
+        fetchCustomers(getCurrentFilters());
     }
 
     let _customerSearchTimer;
@@ -553,8 +699,6 @@
     }
 
     function resetFilters() {
-        // Pakai setCustomDropdownValue supaya label trigger ikut reset ke "All Status",
-        // bukan cuma hidden input. Fallback ke set .value langsung kalau helper belum ada.
         if (typeof setCustomDropdownValue === 'function') {
             setCustomDropdownValue('filterStatus', '');
         } else {
@@ -562,7 +706,8 @@
         }
         document.getElementById('filterCustomer').value = '';
         document.getElementById('filterCustomerGroup').value = '';
-        fetchCustomers();
+        currentPage = 1;
+        fetchCustomers({});
     }
 
 
@@ -581,8 +726,6 @@
 
     // Initialize on page load
     document.addEventListener('DOMContentLoaded', function() {
-        // Init custom-dd untuk filter Status. Guard typeof biar halaman tidak
-        // crash kalau custom-dropdown.js gagal di-load (lihat fix activity-log).
         if (typeof initCustomDropdowns === 'function') {
             initCustomDropdowns();
         }

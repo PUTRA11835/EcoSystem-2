@@ -113,7 +113,7 @@ class StagingTicketController extends Controller
             $query->where('customer_id', $request->customer_id);
         }
 
-        $query->with(['customer.basicData', 'validator.basicData'])
+        $query->with(['customer.basicData', 'endCustomer.basicData', 'validator.basicData'])
               ->orderBy('created_at', 'desc');
 
         $perPage = max(1, min((int) $request->get('per_page', 20), 100));
@@ -155,7 +155,7 @@ class StagingTicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $staging = StagingTicket::with(['customer.basicData', 'validator.basicData', 'ticket', 'attachments'])
+        $staging = StagingTicket::with(['customer.basicData', 'endCustomer.basicData', 'validator.basicData', 'ticket', 'attachments'])
             ->findOrFail($id);
 
         return response()->json(['success' => true, 'data' => $this->formatStaging($staging)]);
@@ -227,6 +227,7 @@ class StagingTicketController extends Controller
             'submitted_by_email'   => 'nullable|email|max:255',
             'cc_emails'            => 'nullable|string',    // JSON string dari JARVIES
             'customer_id'          => 'required|integer',
+            'end_customer_id'      => 'nullable|integer',
             'contact_id'           => 'nullable|integer',
             'name'                 => 'nullable|string|max:255',
             'no_hp'                => 'nullable|string|max:255',
@@ -1213,6 +1214,12 @@ class StagingTicketController extends Controller
             $customerName = $bd ? trim(($bd->title ?? '') . ' ' . ($bd->name_1 ?? '')) : null;
         }
 
+        $endCustomerName = null;
+        if ($s->end_customer_id && $s->relationLoaded('endCustomer') && $s->endCustomer) {
+            $bd = $s->endCustomer->basicData;
+            $endCustomerName = $bd ? trim(($bd->title ?? '') . ' ' . ($bd->name_1 ?? '')) : null;
+        }
+
         $validatorName = null;
         if ($s->validator) {
             $bd = $s->validator->basicData;
@@ -1236,6 +1243,8 @@ class StagingTicketController extends Controller
             'id'                  => $s->id,
             'customer_id'         => $s->customer_id,
             'customer_name'       => $customerName,
+            'end_customer_id'     => $s->end_customer_id,
+            'end_customer_name'   => $endCustomerName,
             'submitted_by_email'  => $s->submitted_by_email,
             'sender_name'         => $s->sender_name,
             'cc_emails'           => $s->cc_emails,

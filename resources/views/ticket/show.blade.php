@@ -1,4 +1,4 @@
-@extends('dashboard')
+﻿@extends('dashboard')
 @section('content-class', 'p-4')
 @section('title', 'Ticket ' . $ticket->ticket_number)
 @section('page-title', 'Support Ticket')
@@ -34,7 +34,7 @@
 
 {{-- Override sidebar with ticket inbox --}}
 @section('sidebar-nav')
-{{-- Resize handle – draggable right edge --}}
+{{-- Resize handle — draggable right edge --}}
 <div id="sidebarResizeHandle"
      style="position:absolute;top:0;right:0;width:5px;height:100%;cursor:col-resize;z-index:200;background:transparent;"
      onmousedown="sidebarResizeStart(event)"></div>
@@ -95,6 +95,8 @@
 {{-- Quill.js CDN --}}
 <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+@php $customDdVer = file_exists(public_path('js/custom-dropdown.js')) ? filemtime(public_path('js/custom-dropdown.js')) : time(); @endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 
 <div class="flex gap-4" style="height: calc(100vh - 106px); min-height: 500px;">
     {{-- Main Content: Conversation Thread --}}
@@ -267,8 +269,8 @@
                     <div class="bg-white border border-gray-300 rounded-lg overflow-hidden">
                         <div id="quillEditor" style="min-height: 80px;"></div>
                     </div>
-                    {{-- @mention autocomplete dropdown --}}
-                    <div id="mentionDropdown" class="hidden absolute z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-72 max-h-48 overflow-y-auto" style="bottom: calc(100% + 4px); left: 0;">
+                    {{-- @mention autocomplete dropdown — fixed so it's never clipped by overflow parents --}}
+                    <div id="mentionDropdown" class="hidden fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl overflow-y-auto" style="max-height:192px;">
                         <div id="mentionList" class="py-1"></div>
                     </div>
                 </div>
@@ -324,7 +326,7 @@
     {{-- Right Sidebar --}}
     @php
         $mandaysStatus   = $ticket->mandays_proposal_status   ?? 'none';
-        $internalStatus  = $ticket->internal_mandays_status    ?? 'none';
+        $resolutionStatus  = $ticket->resolution_days_status    ?? 'none';
         $isPic           = $user->role->role_id === \App\Enums\RoleId::EMPLOYEE->value;
         $isHelpdesk      = in_array($user->role->role_id, \App\Enums\RoleId::HELPDESK_GROUP, true);
         $isHead          = $user->role->role_id === \App\Enums\RoleId::HEAD_OF_SUPPORT->value;
@@ -336,7 +338,7 @@
             'approved'        => ['bg-green-100 text-green-700', 'Approved'],
             'canceled'        => ['bg-red-100 text-red-700',     'Canceled'],
         ];
-        $internalBadge   = [
+        $resolutionBadge   = [
             'none'         => ['bg-gray-100 text-gray-500',   'None'],
             'draft'        => ['bg-yellow-100 text-yellow-700','Draft'],
             'pending_head' => ['bg-blue-100 text-blue-700',   'Pending Head'],
@@ -344,34 +346,31 @@
             'rejected'     => ['bg-red-100 text-red-700',     'Rejected'],
         ];
         [$mBadgeClass, $mBadgeLabel]  = $mandaysBadge[$mandaysStatus]  ?? ['bg-gray-100 text-gray-500', $mandaysStatus];
-        [$iBadgeClass, $iBadgeLabel]   = $internalBadge[$internalStatus] ?? ['bg-gray-100 text-gray-500', $internalStatus];
+        [$iBadgeClass, $iBadgeLabel]   = $resolutionBadge[$resolutionStatus] ?? ['bg-gray-100 text-gray-500', $resolutionStatus];
         $picMandaysLabel = match($mandaysStatus) {
             'none'  => 'Propose Mandays',
             default => 'Update Proposal',
         };
-        $picInternalLabel = match($internalStatus) {
-            'none'  => 'Propose Internal Mandays',
-            default => 'Update Internal Mandays',
+        $picResolutionLabel = match($resolutionStatus) {
+            'none'  => 'Propose Resolution Days',
+            default => 'Update Resolution Days',
         };
         $ticketAssigned    = $ticket->employee_id !== null;
         $canTakeTicket     = $user->role->role_id === \App\Enums\RoleId::EMPLOYEE->value
                              && !$ticketAssigned;
-        $canAssignPic      = !$ticketAssigned && in_array($user->role->role_id, array_merge(
-                                 [\App\Enums\RoleId::ADMIN->value, \App\Enums\RoleId::HEAD_OF_SUPPORT->value],
-                                 \App\Enums\RoleId::HELPDESK_GROUP
-                             ), true);
+        $canAssignPic      = in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true);
         // Mandays buttons only visible when ticket has a PIC
         $isPicMandays      = $isPic && $ticketAssigned;
         $isHelpdeskMandays = $isHelpdesk && $ticketAssigned;
-        $isHeadMandays          = $isHead && $ticketAssigned && in_array($internalStatus, ['pending_head', 'approved', 'rejected', 'draft']);
+        $isHeadMandays          = $isHead && $ticketAssigned && in_array($resolutionStatus, ['pending_head', 'approved', 'rejected', 'draft']);
         $isHeadCustomerMandays  = $isHead && $ticketAssigned && in_array($mandaysStatus, ['pic_draft', 'pending_helpdesk', 'sent_to_chat', 'approved', 'canceled']);
         $hasMandaysSection = $isPicMandays || $isHelpdeskMandays || $isHeadMandays || $isHeadCustomerMandays
                            || $canTakeTicket || $canAssignPic || in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true);
     @endphp
 
-    <div id="rightSidePanel" class="hidden xl:flex xl:flex-col w-72 gap-3 flex-shrink-0 overflow-y-auto" style="transition: width 0.25s ease, opacity 0.25s ease;">
+    <div id="rightSidePanel" class="hidden xl:flex xl:flex-col w-64 gap-3 flex-shrink-0 overflow-y-auto" style="transition: width 0.25s ease, opacity 0.25s ease;">
 
-        {{-- ── Mandays Panel ── --}}
+        {{-- â"€â"€ Mandays Panel â"€â"€ --}}
         @if($hasMandaysSection)
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
             <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
@@ -380,7 +379,7 @@
                 <i id="mandaysChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
             </div>
             <div id="mandaysPanel" class="px-4 pb-4 pt-3 space-y-4 border-t border-gray-100">
-                {{-- PIC: Customer Mandays & Internal Mandays --}}
+                {{-- PIC: Customer Mandays & Resolution Days --}}
                 @if($isPicMandays)
                 <div>
                     <div class="flex items-center justify-between mb-1.5">
@@ -393,11 +392,11 @@
                 </div>
                 <div class="pt-1 border-t border-gray-100">
                     <div class="flex items-center justify-between mb-1.5">
-                        <label class="text-xs font-semibold text-gray-500">Internal Mandays</label>
-                        <span id="internalBadge" class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $iBadgeClass }}">{{ $iBadgeLabel }}</span>
+                        <label class="text-xs font-semibold text-gray-500">Resolution Days</label>
+                        <span id="resolutionBadge" class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $iBadgeClass }}">{{ $iBadgeLabel }}</span>
                     </div>
-                    <button onclick="openInternalMandaysModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                        {{ $picInternalLabel }}
+                    <button onclick="openResolutionDaysModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                        {{ $picResolutionLabel }}
                     </button>
                 </div>
                 @endif
@@ -431,15 +430,15 @@
                     </button>
                 </div>
                 @endif
-                {{-- Delivery Support Head: Internal Mandays --}}
+                {{-- Delivery Support Head: Resolution Days --}}
                 @if($isHeadMandays)
                 <div {{ $isHeadCustomerMandays ? 'class="pt-1 border-t border-gray-100"' : '' }}>
                     <div class="flex items-center justify-between mb-1.5">
-                        <label class="text-xs font-semibold text-gray-500">Internal Mandays</label>
+                        <label class="text-xs font-semibold text-gray-500">Resolution Days</label>
                         <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $iBadgeClass }}">{{ $iBadgeLabel }}</span>
                     </div>
-                    <button onclick="openHeadInternalModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                        Review Internal Proposal
+                    <button onclick="openHeadResolutionModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                        Review Resolution Days
                     </button>
                 </div>
                 @endif
@@ -451,11 +450,11 @@
                     </button>
                 </div>
                 @endif
-                {{-- Assign PIC (Admin / Helpdesk / Delivery Support Head) --}}
+                {{-- Assign / Change PIC (TICKET_MANAGER_GROUP) --}}
                 @if($canAssignPic)
                 <div>
                     <button onclick="openAssignPicModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                        Assign PIC
+                        {{ $ticketAssigned ? 'Change PIC' : 'Assign PIC' }}
                     </button>
                 </div>
                 @endif
@@ -471,13 +470,32 @@
         </div>
         @endif
 
-        {{-- ── Properties Panel ── --}}
+        {{-- â"€â"€ Deliverable Panel â"€â"€ --}}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
+            <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+                 onclick="toggleSidebarPanel('deliverablePanel', 'deliverableChevron')">
+                <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Deliverable</h4>
+                <i id="deliverableChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
+            </div>
+            <div id="deliverablePanel" class="px-4 pb-4 pt-1 border-t border-gray-100">
+                <button onclick="openDeliverableModal()"
+                    class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    View Documents
+                    <span id="delivBadgeCount" class="hidden ml-1 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none"></span>
+                </button>
+            </div>
+        </div>
+
+        {{-- â"€â"€ Properties Panel â"€â"€ --}}
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
             <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
                  onclick="toggleSidebarPanel('propertiesPanel', 'propertiesChevron')">
                 <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Properties</h4>
                 <div class="flex items-center gap-2">
-                    @if(in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true))
+                    @if(in_array($user->role->role_id, [\App\Enums\RoleId::ADMIN->value, \App\Enums\RoleId::HEAD_OF_SUPPORT->value, \App\Enums\RoleId::HELPDESK->value], true))
                     <button onclick="event.stopPropagation(); saveAllProperties()"
                             class="inline-flex items-center px-2.5 py-1 primary-gradient text-white text-[10px] font-semibold rounded-md hover:opacity-90 transition-all duration-200">
                         Save All
@@ -486,86 +504,138 @@
                     <i id="propertiesChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
                 </div>
             </div>
+            @php
+                $canEditProps  = in_array($user->role->role_id, [\App\Enums\RoleId::ADMIN->value, \App\Enums\RoleId::HEAD_OF_SUPPORT->value, \App\Enums\RoleId::HELPDESK->value], true);
+                $ddBtnCls      = 'custom-dd-btn w-full flex items-center justify-between gap-1 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white hover:border-gray-400 transition-all';
+                $roValCls      = 'text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 w-full block';
+                $statusLabels  = ['open'=>'Open','in_progress'=>'In Progress','hold'=>'Hold','wait_to_close'=>'Wait to Close','cancel'=>'Cancel','closed'=>'Closed','reply'=>'Reply'];
+                $jarviesLabels = ['in process'=>'In Process','author action'=>'Author Action','proposed solution'=>'Proposed Solution','sent in to SAP'=>'Sent in to SAP','sent it to support'=>'Sent it to Support','closed'=>'Closed'];
+            @endphp
             <div id="propertiesPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
                 {{-- Status --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Status</label>
-                    <div class="relative">
-                        <select id="detailStatus" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
-                            <option value="open" {{ $ticket->status == 'open' ? 'selected' : '' }}>Open</option>
-                            <option value="in_progress" {{ $ticket->status == 'in_progress' ? 'selected' : '' }}>In Progress</option>
-                            <option value="hold" {{ $ticket->status == 'hold' ? 'selected' : '' }}>Hold</option>
-                            <option value="wait_to_close" {{ $ticket->status == 'wait_to_close' ? 'selected' : '' }}>Wait to Close</option>
-                            <option value="cancel" {{ $ticket->status == 'cancel' ? 'selected' : '' }}>Cancel</option>
-                            <option value="closed" {{ $ticket->status == 'closed' ? 'selected' : '' }}>Closed</option>
-                            <option value="reply" {{ $ticket->status == 'reply' ? 'selected' : '' }}>Reply</option>
-                        </select>
-                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    @if($canEditProps)
+                    <div class="custom-dd relative w-full">
+                        <button type="button" class="{{ $ddBtnCls }}">
+                            <span class="custom-dd-label text-gray-700">{{ $statusLabels[$ticket->status] ?? ucfirst($ticket->status) }}</span>
+                            <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="detailStatus" value="{{ $ticket->status }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:150px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="open">Open</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="in_progress">In Progress</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="hold">Hold</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="wait_to_close">Wait to Close</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="cancel">Cancel</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="closed">Closed</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="reply">Reply</button>
+                        </div>
                     </div>
+                    @else
+                    <input type="hidden" id="detailStatus" value="{{ $ticket->status }}">
+                    <span class="{{ $roValCls }}">{{ $statusLabels[$ticket->status] ?? ucfirst($ticket->status) }}</span>
+                    @endif
                 </div>
                 {{-- Jarvies Status --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Jarvies Status</label>
-                    <div class="relative">
-                        <select id="detailJarviesStatus" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
-                            <option value="in process" {{ $ticket->jarvies_status == 'in process' ? 'selected' : '' }}>In Process</option>
-                            <option value="author action" {{ $ticket->jarvies_status == 'author action' ? 'selected' : '' }}>Author Action</option>
-                            <option value="proposed solution" {{ $ticket->jarvies_status == 'proposed solution' ? 'selected' : '' }}>Proposed Solution</option>
-                            <option value="sent in to SAP" {{ $ticket->jarvies_status == 'sent in to SAP' ? 'selected' : '' }}>Sent in to SAP</option>
-                            <option value="sent it to support" {{ $ticket->jarvies_status == 'sent it to support' ? 'selected' : '' }}>Sent it to Support</option>
-                            <option value="closed" {{ $ticket->jarvies_status == 'closed' ? 'selected' : '' }}>Closed</option>
-                        </select>
-                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    @if($canEditProps)
+                    <div class="custom-dd relative w-full">
+                        <button type="button" class="{{ $ddBtnCls }}">
+                            <span class="custom-dd-label text-gray-700">{{ $jarviesLabels[$ticket->jarvies_status] ?? ucfirst($ticket->jarvies_status ?? '—') }}</span>
+                            <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="detailJarviesStatus" value="{{ $ticket->jarvies_status }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:160px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="in process">In Process</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="author action">Author Action</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="proposed solution">Proposed Solution</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="sent in to SAP">Sent in to SAP</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="sent it to support">Sent it to Support</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="closed">Closed</button>
+                        </div>
                     </div>
+                    @else
+                    <input type="hidden" id="detailJarviesStatus" value="{{ $ticket->jarvies_status }}">
+                    <span class="{{ $roValCls }}">{{ $jarviesLabels[$ticket->jarvies_status] ?? ucfirst($ticket->jarvies_status ?? '—') }}</span>
+                    @endif
                 </div>
                 {{-- Priority --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Priority</label>
-                    <div class="relative">
-                        <select id="detailPriority" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
-                            <option value="Very High" {{ $ticket->ticket_priority == 'Very High' ? 'selected' : '' }}>Very High</option>
-                            <option value="High" {{ $ticket->ticket_priority == 'High' ? 'selected' : '' }}>High</option>
-                            <option value="Medium" {{ $ticket->ticket_priority == 'Medium' ? 'selected' : '' }}>Medium</option>
-                            <option value="Low" {{ $ticket->ticket_priority == 'Low' ? 'selected' : '' }}>Low</option>
-                        </select>
-                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    @if($canEditProps)
+                    <div class="custom-dd relative w-full">
+                        <button type="button" class="{{ $ddBtnCls }}">
+                            <span class="custom-dd-label text-gray-700">{{ $ticket->ticket_priority ?? '—' }}</span>
+                            <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="detailPriority" value="{{ $ticket->ticket_priority }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:130px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Very High">Very High</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="High">High</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Medium">Medium</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Low">Low</button>
+                        </div>
                     </div>
+                    @else
+                    <input type="hidden" id="detailPriority" value="{{ $ticket->ticket_priority }}">
+                    <span class="{{ $roValCls }}">{{ $ticket->ticket_priority ?? '—' }}</span>
+                    @endif
                 </div>
                 {{-- Scale --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Scale</label>
-                    <div class="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs bg-gray-50 text-gray-500">
-                        {{ $ticket->scale ?? '—' }}
+                    @if($canEditProps)
+                    <div class="custom-dd relative w-full">
+                        <button type="button" class="{{ $ddBtnCls }}">
+                            <span class="custom-dd-label text-gray-700">{{ $ticket->scale ?? 'Simple' }}</span>
+                            <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="detailScale" value="{{ $ticket->scale ?? 'Simple' }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:120px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Simple">Simple</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Medium">Medium</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Complex">Complex</button>
+                        </div>
                     </div>
+                    @else
+                    <input type="hidden" id="detailScale" value="{{ $ticket->scale ?? 'Simple' }}">
+                    <span class="{{ $roValCls }}">{{ $ticket->scale ?? 'Simple' }}</span>
+                    @endif
                 </div>
                 {{-- Ticket Type --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Ticket Type</label>
-                    <div class="relative">
-                        <select id="detailType" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
-                            <option value="" {{ !$ticket->ticket_type ? 'selected' : '' }}>-- Select Type --</option>
-                            <option value="Incident" {{ $ticket->ticket_type == 'Incident' ? 'selected' : '' }}>Incident</option>
-                            <option value="Service Request" {{ $ticket->ticket_type == 'Service Request' ? 'selected' : '' }}>Service Request</option>
-                            <option value="Change Request" {{ $ticket->ticket_type == 'Change Request' ? 'selected' : '' }}>Change Request</option>
-                            <option value="Consult" {{ $ticket->ticket_type == 'Consult' ? 'selected' : '' }}>Consult</option>
-                        </select>
-                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    @if($canEditProps)
+                    <div class="custom-dd relative w-full">
+                        <button type="button" class="{{ $ddBtnCls }}">
+                            <span class="custom-dd-label text-gray-700">{{ $ticket->ticket_type ?? 'Incident' }}</span>
+                            <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="detailType" value="{{ $ticket->ticket_type ?? 'Incident' }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:150px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Incident">Incident</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Service Request">Service Request</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Change Request">Change Request</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Consult">Consult</button>
+                        </div>
                     </div>
+                    @else
+                    <input type="hidden" id="detailType" value="{{ $ticket->ticket_type ?? 'Incident' }}">
+                    <span class="{{ $roValCls }}">{{ $ticket->ticket_type ?? 'Incident' }}</span>
+                    @endif
                 </div>
                 {{-- Agent (PIC) --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Agent (PIC)</label>
-                    <div class="relative">
-                        <select id="detailPIC" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
-                            <option value="" {{ !$ticket->employee_id ? 'selected' : '' }}>-- Unassigned --</option>
-                            @foreach($consultants as $consultant)
-                                <option value="{{ $consultant['employee_id'] }}" {{ $ticket->employee_id == $consultant['employee_id'] ? 'selected' : '' }}>
-                                    {{ $consultant['name'] }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
-                    </div>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                        @if($ticket->employee && $ticket->employee->basicData)
+                            {{ trim($ticket->employee->basicData->first_name . ' ' . ($ticket->employee->basicData->last_name ?? '')) }}
+                        @else
+                            <span class="text-gray-400 italic">— Unassigned —</span>
+                        @endif
+                    </p>
                 </div>
                 {{-- Team Members --}}
                 @php
@@ -593,19 +663,22 @@
                     </div>
                     @if($canManageMembers)
                     <div class="flex gap-1.5">
-                        <div class="relative flex-1 min-w-0">
-                            <select id="addMemberSelect"
-                                    class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white primary-focus appearance-none">
-                                <option value="">-- Add member --</option>
+                        <div id="addMemberDd" class="custom-dd relative flex-1 min-w-0" data-fixed="true" data-searchable="true">
+                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white primary-focus text-left">
+                                <span class="custom-dd-label text-gray-500 truncate">-- Add member --</span>
+                                <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform duration-200 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <input type="hidden" id="addMemberSelect" value="">
+                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:320px;">
+                                <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Add member --</button>
                                 @foreach($employees as $emp)
                                     @if(!in_array($emp['employee_id'], $currentMemberIds) && $emp['employee_id'] != $ticket->employee_id)
-                                        <option value="{{ $emp['employee_id'] }}">{{ $emp['name'] }}</option>
+                                        <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $emp['employee_id'] }}">{{ $emp['name'] }}</button>
                                     @endif
                                 @endforeach
-                            </select>
-                            <i class="fas fa-bars absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                            </div>
                         </div>
-                        <button type="button" onclick="addMemberBtn()"
+                        <button type="button" id="addMemberBtnEl" onclick="addMemberBtn()"
                                 class="px-2.5 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-all flex-shrink-0"
                                 title="Add member">
                             <i class="fas fa-user-plus text-[10px]"></i>
@@ -618,6 +691,14 @@
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Customer</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->customer?->basicData?->name_1 ?? 'N/A' }}</p>
                 </div>
+                @if($ticket->end_customer_id)
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">For End Customer</label>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-blue-50 rounded-lg border border-blue-200">
+                        &#8627; {{ $ticket->endCustomer?->basicData?->name_1 ?? 'N/A' }}
+                    </p>
+                </div>
+                @endif
                 {{-- Additional Info --}}
                 @if($ticket->name || $ticket->no_hp || $ticket->module || $ticket->client)
                 <div class="pt-3 border-t border-gray-200">
@@ -791,20 +872,38 @@
 .msg-channel-email { background: #dbeafe; color: #1d4ed8; }
 .msg-channel-web   { background: #f0fdf4; color: #15803d; }
 
+/* Status delivery indicator (WhatsApp-style) — hanya untuk reply helpdesk */
+.msg-status-row {
+    display: flex; justify-content: flex-end;
+    margin-top: 6px; padding-top: 4px;
+    border-top: 1px solid rgba(0,0,0,0.04);
+}
+.msg-status {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; color: #9ca3af; user-select: none; cursor: default;
+    line-height: 1;
+}
+.msg-status.read { color: #2563eb; font-weight: 600; }
+.msg-status .check-pair {
+    display: inline-flex; align-items: center; flex-shrink: 0;
+}
+.msg-status .check-pair svg { width: 12px; height: 12px; }
+.msg-status .check-pair svg + svg { margin-left: -7px; }
+
 /* Message content */
 .message-content p { margin-bottom: 0.25rem; }
 .message-content p:last-child { margin-bottom: 0; }
 .message-content ul, .message-content ol { padding-left: 1.5rem; margin-bottom: 0.5rem; }
 .message-content blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; }
 
-/* ─── Sidebar resize handle hover glow ─── */
+/* â"€â"€â"€ Sidebar resize handle hover glow â"€â"€â"€ */
 #sidebarResizeHandle:hover,
 #sidebarResizeHandle.resizing {
     background: rgba(255,255,255,0.35) !important;
     transition: background 0.15s;
 }
 
-/* ─── Sidebar ticket items ─── */
+/* â"€â"€â"€ Sidebar ticket items â"€â"€â"€ */
 .sidebar-ticket-item {
     display: block;
     padding: 8px 10px 8px 12px;
@@ -830,7 +929,7 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
-/* ─── Ticket card badge pills (bottom row) ─── */
+/* â"€â"€â"€ Ticket card badge pills (bottom row) â"€â"€â"€ */
 .sb-badge {
     display: inline-flex; align-items: center;
     font-size: 9px; font-weight: 700; line-height: 1;
@@ -855,12 +954,12 @@
 .sb-status-cancel       { background:#fee2e2; color:#b91c1c; }
 .sb-status-default      { background:#f3f4f6; color:#6b7280; }
 
-/* ─── Internal note reply button (hidden until hover on group) ─── */
+/* â"€â"€â"€ Internal note reply button (hidden until hover on group) â"€â"€â"€ */
 .note-reply-btn {
     transition: opacity 0.15s;
 }
 
-/* ─── Primary theme helpers (mandays modals) ─── */
+/* â"€â"€â"€ Primary theme helpers (mandays modals) â"€â"€â"€ */
 .primary-focus:focus {
     outline: none;
     border-color: var(--primary-color) !important;
@@ -1045,7 +1144,7 @@
                 <select id="deliverySupportSelect" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm primary-focus">
                     <option value="">Loading...</option>
                 </select>
-                <p class="mt-1 text-xs text-gray-500">Ticket will be added as an activity under this delivery support</p>
+                <p id="assignSupportHint" class="mt-1 text-xs text-gray-500">Ticket will be added as an activity under this delivery support.</p>
             </div>
         </div>
         <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
@@ -1125,7 +1224,7 @@
             {{-- Matrix table --}}
             <div class="border border-gray-200 rounded-lg overflow-hidden">
                 <div class="px-3 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                    <span class="text-xs font-semibold text-gray-600">Activity × Module Matrix</span>
+                    <span class="text-xs font-semibold text-gray-600">Activity &times; Module Matrix</span>
                     <span class="text-[10px] text-gray-400">Enter mandays per cell</span>
                 </div>
                 <div id="picMandaysTableWrap" class="overflow-x-auto">
@@ -1163,52 +1262,52 @@
     </div>
 </div>
 
-{{-- PIC: Internal Mandays Modal --}}
-<div id="picInternalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+{{-- PIC: Resolution Days Modal --}}
+<div id="picResolutionModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
-                <h3 class="text-lg font-bold text-gray-900">Internal Mandays Proposal</h3>
+                <h3 class="text-lg font-bold text-gray-900">Resolution Days Proposal</h3>
             </div>
-            <button onclick="closePicInternalModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+            <button onclick="closePicResolutionModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
         <div class="flex-1 overflow-y-auto p-6">
-            <div id="internalRejectionInfo" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
-            <div id="internalLoading" class="py-10 text-center">
+            <div id="resolutionRejectionInfo" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
+            <div id="resolutionLoading" class="py-10 text-center">
                 <i class="fas fa-spinner fa-spin text-xl primary-text opacity-60 mb-2 block"></i>
-                <p class="text-xs text-gray-400">Loading internal data...</p>
+                <p class="text-xs text-gray-400">Loading resolution days data...</p>
             </div>
-            <table id="internalTable" class="hidden w-full text-xs border-collapse">
+            <table id="resolutionTable" class="hidden w-full text-xs border-collapse">
                 <thead>
                     <tr class="bg-gray-50">
                         <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Name</th>
-                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Mandays — working days">MD</th>
-                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Additional Mandays proposed by PIC">Add.</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Days — working days">Days</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Additional Days proposed by PIC">Add.</th>
                         <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Approved Additional — extra days approved by Head">Appr. Add.</th>
-                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total MD = MD + Approved Additional">Total MD</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Days + Approved Additional">Total Days</th>
                     </tr>
                 </thead>
-                <tbody id="internalBody"></tbody>
+                <tbody id="resolutionBody"></tbody>
                 <tfoot>
                     <tr class="bg-gray-50 font-bold">
                         <td colspan="5" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
-                        <td class="px-3 py-2 border border-gray-200 text-center" id="internalFooterTotal">0</td>
+                        <td class="px-3 py-2 border border-gray-200 text-center" id="resolutionFooterTotal">0</td>
                     </tr>
                 </tfoot>
             </table>
             <div class="mt-4">
                 <label class="text-xs font-semibold text-gray-600">Notes for Delivery Support Head</label>
-                <textarea id="internalNotes" rows="2" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-xs primary-focus" placeholder="Optional notes..."></textarea>
+                <textarea id="resolutionNotes" rows="2" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-xs primary-focus" placeholder="Optional notes..."></textarea>
             </div>
         </div>
         <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
-            <div class="text-xs text-gray-500">Total: <strong id="internalTotalDisplay">0</strong> mandays</div>
+            <div class="text-xs text-gray-500">Total: <strong id="resolutionTotalDisplay">0</strong> days</div>
             <div class="flex gap-2">
-                <button id="internalBtnSave" onclick="internalPicSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save</button>
-                <button id="internalBtnSubmit" onclick="internalPicSubmit()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Submit to Head</button>
+                <button id="resolutionBtnSave" onclick="resolutionPicSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save</button>
+                <button id="resolutionBtnSubmit" onclick="resolutionPicSubmit()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Submit to Head</button>
             </div>
         </div>
     </div>
@@ -1415,7 +1514,7 @@
         </div>
         <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
             <button onclick="closeMandaysVersionDetail()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-                ← Back to List
+                &larr; Back to List
             </button>
             {{-- Only PIC: button to open edit modal if this version is still a draft --}}
             @if($isPicMandays)
@@ -1433,52 +1532,52 @@
     </div>
 </div>
 
-{{-- Delivery Support Head: Internal Mandays Modal --}}
+{{-- Delivery Support Head: Resolution Days Modal --}}
 @if(isset($isHead) && $isHead)
-<div id="headInternalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="headResolutionModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
-                <h3 class="text-lg font-bold text-gray-900">Review Internal Mandays</h3>
-                <p class="text-xs text-gray-500 mt-0.5">Status: <span id="headInternalStatusLabel">—</span></p>
+                <h3 class="text-lg font-bold text-gray-900">Review Resolution Days</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Status: <span id="headResolutionStatusLabel">—</span></p>
             </div>
-            <button onclick="closeHeadInternalModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+            <button onclick="closeHeadResolutionModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
         <div class="flex-1 overflow-y-auto p-6">
-            <div id="headInternalLoading" class="py-10 text-center">
+            <div id="headresolutionLoading" class="py-10 text-center">
                 <i class="fas fa-spinner fa-spin text-xl primary-text opacity-60 mb-2 block"></i>
-                <p class="text-xs text-gray-400">Loading internal proposal...</p>
+                <p class="text-xs text-gray-400">Loading resolution days proposal...</p>
             </div>
-            <div id="headInternalStatusBanner" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
-            <div id="headInternalContent" class="hidden">
+            <div id="headResolutionStatusBanner" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
+            <div id="headResolutionContent" class="hidden">
                 <table class="w-full text-xs border-collapse mb-4">
                     <thead>
                         <tr class="bg-gray-50">
                             <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Name</th>
-                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-14" title="Mandays — working days">MD</th>
-                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Additional Mandays proposed by PIC">Add.</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-14" title="Days — working days">Days</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Additional Days proposed by PIC">Add.</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
                             <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Enter approved additional for each employee">Approve Add.</th>
-                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total MD = MD + Approved Additional">Total MD</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Days + Approved Additional">Total Days</th>
                         </tr>
                     </thead>
-                    <tbody id="headInternalBody"></tbody>
+                    <tbody id="headresolutionBody"></tbody>
                     <tfoot>
                         <tr class="bg-gray-50 font-bold">
                             <td colspan="5" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
-                            <td class="px-3 py-2 border border-gray-200 text-center" id="headInternalTotal">0</td>
+                            <td class="px-3 py-2 border border-gray-200 text-center" id="headResolutionTotal">0</td>
                         </tr>
                     </tfoot>
                 </table>
                 <div id="headProposedBy" class="text-xs text-gray-500 mb-1"></div>
-                <div id="headInternalNoteWrap" class="hidden p-3 bg-gray-50 rounded-lg text-xs text-gray-600 mb-3"></div>
+                <div id="headResolutionNoteWrap" class="hidden p-3 bg-gray-50 rounded-lg text-xs text-gray-600 mb-3"></div>
             </div>
         </div>
-        <div id="headInternalFooter" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between flex-shrink-0">
-            <p class="text-xs text-gray-400">Edit the "Approve Add." column then save to approve additional mandays.</p>
-            <button id="headBtnApprove" onclick="headInternalApprove()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+        <div id="headResolutionFooter" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between flex-shrink-0">
+            <p class="text-xs text-gray-400">Edit the "Approve Add." column then save to approve additional days.</p>
+            <button id="headBtnApprove" onclick="headResolutionApprove()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
                 Save Approval
             </button>
@@ -1546,7 +1645,7 @@
     const assignedDsType = @json(isset($deliverySupport) && $deliverySupport ? $deliverySupport->type : null);
     let quillEditor     = null;
 
-    // ── Reply-to state (WhatsApp-style internal note reply) ───────────────────
+    // â"€â"€ Reply-to state (WhatsApp-style internal note reply) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     let replyToId = null;
 
     function setReplyTo(msgId, senderName, msgText) {
@@ -1571,7 +1670,7 @@
         }
     }
 
-    // ── Right panel toggle ────────────────────────────────────────────────────
+    // â"€â"€ Right panel toggle â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     function toggleRightPanel() {
         const panel        = document.getElementById('rightSidePanel');
         const iconCollapse = document.getElementById('rightPanelIconCollapse');
@@ -1585,7 +1684,7 @@
         if (iconExpand)   iconExpand.classList.toggle('hidden', isExpanded);
     }
 
-    // ── Compose area collapse toggle ─────────────────────────────────────────
+    // â"€â"€ Compose area collapse toggle â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     function toggleReplyBox() {
         const inner    = document.getElementById('replyComposeInner');
         const iconDown = document.getElementById('replyToggleIconDown');
@@ -1598,7 +1697,7 @@
         if (iconUp)   iconUp.classList.toggle('hidden', !isExpanded);
     }
 
-    // ── CC state ─────────────────────────────────────────────────────────────
+    // â"€â"€ CC state â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     let ccEmails = @json(
         collect($ticket->cc_emails ?? [])
             ->map(fn($c) => is_array($c) ? ($c['address'] ?? '') : (string)$c)
@@ -1695,7 +1794,7 @@
         if (changed) renderCcTags();
     }
 
-    // ── @mention state ───────────────────────────────────────────────────────
+    // â"€â"€ @mention state â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     let pendingMentions   = [];   // [{ type:'employee'|'role', id, display }]
     let mentionQuery      = null; // null = not in mention mode
     let mentionStartIndex = -1;   // character index where '@' was typed
@@ -1711,10 +1810,11 @@
     let sidebarView        = 'all';
     let deliverySupportList = [];
     // Set berisi ID pesan yang sudah dirender ke DOM.
-    // Digunakan agar polling tidak me-render ulang pesan lama → gambar tidak flicker.
+    // Digunakan agar polling tidak me-render ulang pesan lama &rarr; gambar tidak flicker.
     let renderedMessageIds = new Set();
 
     document.addEventListener('DOMContentLoaded', function() {
+        if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
         // Initialize Quill
         quillEditor = new Quill('#quillEditor', {
             theme: 'snow',
@@ -1807,7 +1907,7 @@
             toolbar.appendChild(attachGroup);
         }
 
-        // ── @mention: detect @ in quill text-change ──────────────────────────
+        // â"€â"€ @mention: detect @ in quill text-change â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         quillEditor.on('text-change', function (delta, oldDelta, source) {
             // Only react to direct user input — ignore API-triggered changes (e.g. from insertMention)
             if (source !== 'user') return;
@@ -1835,7 +1935,7 @@
             mentionFetchTimer = setTimeout(() => fetchMentionables(query), 200);
         });
 
-        // ── Auto-link: detect URL saat user ketik spasi/enter setelah URL ──────
+        // â"€â"€ Auto-link: detect URL saat user ketik spasi/enter setelah URL â"€â"€â"€â"€â"€â"€
         // Ketika user mengetik spasi atau Enter setelah URL, format teks sebagai hyperlink biru.
         // Gunakan posisi dari delta.ops (bukan getSelection) agar lebih reliable.
         // setTimeout untuk menghindari masalah re-entrancy Quill.
@@ -1928,6 +2028,18 @@
             });
         });
 
+        // Position relative to the quill editor using fixed coords (avoids overflow clipping)
+        const editorEl = document.getElementById('quillEditor');
+        if (editorEl) {
+            const rect = editorEl.getBoundingClientRect();
+            dropdown.style.left  = rect.left + 'px';
+            dropdown.style.width = rect.width + 'px';
+            // Appear above the editor; clamp max-height so it never goes off screen
+            const spaceAbove = rect.top - 8;
+            dropdown.style.maxHeight = Math.min(192, spaceAbove) + 'px';
+            dropdown.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+            dropdown.style.top = 'auto';
+        }
         dropdown.classList.remove('hidden');
     }
 
@@ -2075,8 +2187,8 @@
         }
     }
 
-    // ── Render attachment list (gambar inline, file sebagai link download) ──────
-    // isEmailWithHtml: true jika pesan email sudah punya message_html →
+    // â"€â"€ Render attachment list (gambar inline, file sebagai link download) â"€â"€â"€â"€â"€â"€
+    // isEmailWithHtml: true jika pesan email sudah punya message_html &rarr;
     //   inline images sudah ditampilkan di dalam HTML body, jadi tidak perlu ditampilkan ulang sebagai thumbnail
     function renderAttachments(attachments, isEmailWithHtml = false) {
         if (!attachments || attachments.length === 0) return '';
@@ -2112,7 +2224,7 @@
                 const size  = formatFileSize(file.file_size);
                 const isImg = file.mime_type?.startsWith('image/');
                 html += `<div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 max-w-xs">
-                    <span class="text-lg flex-shrink-0">${icon}</span>
+                    ${icon}
                     <div class="flex-1 min-w-0">
                         <p class="text-xs font-medium text-gray-700 truncate">${escHtml(file.file_name)}</p>
                         ${size ? `<p class="text-[10px] text-gray-400">${size}</p>` : ''}
@@ -2130,13 +2242,17 @@
         return html;
     }
 
-    function attachmentIcon(type, mime) {
-        if (mime?.startsWith('image/'))        return '🖼️';
-        if (type === 'pdf')                    return '📄';
-        if (type === 'document')               return '📝';
-        if (type === 'spreadsheet')            return '📊';
-        if (type === 'archive')                return '🗜️';
-        return '📎';
+    // SVG icons (not emoji) — production server kadang tidak set Content-Type charset=utf-8
+    // sehingga emoji UTF-8 ter-render mojibake (e.g. "ÖŸ"). SVG aman dari masalah charset
+    // dan font emoji OS yang berbeda-beda.
+    function attachmentIcon(type, mime, sizeClass = 'w-5 h-5') {
+        const cls = `${sizeClass} flex-shrink-0`;
+        if (mime?.startsWith('image/')) return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-purple-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>`;
+        if (type === 'pdf')             return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>`;
+        if (type === 'document')        return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/><path d="M3 8a2 2 0 012-2v10h8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>`;
+        if (type === 'spreadsheet')     return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm10 1H7v3h6V5zm-6 4v3h2V9H7zm0 4v2h2v-2H7zm4 0v2h2v-2h-2zm0-1v-3h2v3h-2z" clip-rule="evenodd"/></svg>`;
+        if (type === 'archive')         return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm5 1a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm0 3a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm0 3a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm0 3a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clip-rule="evenodd"/></svg>`;
     }
 
     function formatFileSize(bytes) {
@@ -2151,7 +2267,7 @@
         return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    // ── Linkify: buat URL plain text jadi <a> yang bisa diklik ─────────────────
+    // â"€â"€ Linkify: buat URL plain text jadi <a> yang bisa diklik â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     // Inline style dipakai langsung agar tidak kalah oleh CSS cascade (Tailwind, dsb).
     const _linkStyle = 'color:#2563eb;text-decoration:underline;word-break:break-all;';
 
@@ -2194,79 +2310,9 @@
         );
     }
 
-    function parseMeetingData(body) {
-        if (!body) return null;
-        try {
-            const d = JSON.parse(body);
-            if (d && d._type === 'meeting') return d;
-        } catch (_) {}
-        return null;
-    }
-
-    function formatMeetingDuration(minutes) {
-        if (!minutes) return '';
-        const h = Math.floor(minutes / 60), m = minutes % 60;
-        if (h && m) return `${h}h ${m}min`;
-        if (h) return `${h} hour${h > 1 ? 's' : ''}`;
-        return `${m} min`;
-    }
-
-    // ── Pilih konten pesan: HTML dari email atau plain text dari web ────────────
+mer    // â"€â"€ Pilih konten pesan: HTML dari email atau plain text dari web â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     function messageContent(msg) {
-        // Meeting card
-        if (msg.message_type === 'meeting') {
-            const d = parseMeetingData(msg.message_body);
-            if (d) {
-                const fmtDt = (iso) => iso ? new Date(iso).toLocaleString('en-GB', {
-                    timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric',
-                    hour: '2-digit', minute: '2-digit', hour12: false
-                }) + ' WIB' : '—';
-
-                const isEnded = !!d.ended_at;
-
-                // Actual duration if ended
-                let durationLine = '';
-                if (isEnded && d.scheduled_at && d.ended_at) {
-                    const diffMs  = new Date(d.ended_at) - new Date(d.scheduled_at);
-                    const diffMin = Math.round(diffMs / 60000);
-                    durationLine = `${fmtDt(d.scheduled_at)} – ${new Date(d.ended_at).toLocaleString('en-GB',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit',hour12:false})} WIB · ${formatMeetingDuration(diffMin)}`;
-                } else {
-                    durationLine = `${fmtDt(d.scheduled_at)} · ${formatMeetingDuration(d.duration_minutes)}`;
-                }
-
-                const statusBadge = isEnded
-                    ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5">
-                           <i class="fas fa-check-circle text-xs"></i> Ended
-                       </span>`
-                    : `<span class="inline-flex items-center gap-1 text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded px-2 py-0.5">
-                           <span class="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse inline-block"></span> Ongoing
-                       </span>`;
-
-                const endBtn = isEnded ? '' :
-                    `<button onclick="endMeeting(${msg.id})" data-msg-id="${msg.id}"
-                        class="end-meeting-btn inline-flex items-center gap-1 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded px-2 py-0.5 transition">
-                        <i class="fas fa-stop-circle text-xs"></i> End Meeting
-                     </button>`;
-
-                return `<div class="meeting-card p-3 min-w-[240px]" data-meeting-id="${msg.id}">
-                    <div class="flex items-center gap-2 mb-2">
-                        <i class="fas fa-calendar-alt text-teal-600 text-sm"></i>
-                        <span class="text-sm font-semibold text-teal-800">${escHtml(d.title ?? 'Meeting')}</span>
-                    </div>
-                    <div class="text-xs text-gray-500 space-y-1">
-                        <div><i class="fas fa-clock mr-1 text-teal-400"></i>${escHtml(durationLine)}</div>
-                        ${d.link ? `<div><i class="fas fa-link mr-1 text-teal-400"></i><a href="${escHtml(d.link)}" target="_blank" rel="noopener noreferrer" class="text-teal-600 hover:text-teal-800 underline underline-offset-2 break-all">${escHtml(d.link)}</a></div>` : ''}
-                        ${d.agenda ? `<div class="mt-1 text-gray-600 border-t border-teal-100 pt-1">${escHtml(d.agenda)}</div>` : ''}
-                    </div>
-                    <div class="flex items-center gap-2 mt-2.5 pt-2 border-t border-teal-100">
-                        ${statusBadge}
-                        ${endBtn}
-                    </div>
-                </div>`;
-            }
-        }
-
-        // Email dengan HTML body → render HTML + linkify URL plain text yang tidak terbungkus <a>
+        // Email dengan HTML body &rarr; render HTML + linkify URL plain text yang tidak terbungkus <a>
         if (msg.channel === 'email' && msg.message_html) {
             return `<div class="message-content text-sm text-gray-700 email-html-body">${linkifyHtml(sanitizeEmailHtml(msg.message_html))}</div>`;
         }
@@ -2284,17 +2330,76 @@
             return `<div class="message-content text-sm text-gray-700">${linkifyText(highlighted)}</div>`;
         }
 
-        // Employee reply dengan message_html → render HTML + linkify URL plain text
+        // Employee reply dengan message_html &rarr; render HTML + linkify URL plain text
         if (msg.sender_type === 'employee' && msg.message_html) {
             return `<div class="message-content text-sm text-gray-700 email-html-body">${linkifyHtml(sanitizeEmailHtml(msg.message_html))}</div>`;
         }
 
-        // Web reply atau customer message → escape + linkify (XSS safe)
+        // Web reply atau customer message &rarr; escape + linkify (XSS safe)
         if (!msg.message_body) return '';
-        return `<div class="message-content text-sm text-gray-700">${linkifyText(msg.message_body)}</div>`;
+        return `<div class="message-content text-sm text-gray-700 whitespace-pre-wrap">${linkifyText(msg.message_body)}</div>`;
+    }
+
+    // Status delivery icon: single check (sent) dan double check (delivered/read)
+    const ICON_CHECK_SINGLE = `<span class="check-pair"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg></span>`;
+    const ICON_CHECK_DOUBLE = `<span class="check-pair"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg></span>`;
+
+    /**
+     * Status indikator delivery untuk reply helpdesk &rarr; customer.
+     * - Sent (&#10003; abu-abu)            : pesan tersimpan ke DB (default web)
+     * - Sent via email (&#10003;&#10003; abu-abu) : email berhasil dikirim ke inbox customer
+     * - Read (&#10003;&#10003; biru)              : customer sudah baca pesan di Jarvies
+     *
+     * Tidak ditampilkan untuk: pesan customer (sender_type='customer'),
+     * internal note, atau system message — indikator hanya relevan saat
+     * helpdesk perlu tahu apakah pesannya sampai dan dibaca customer.
+     */
+    function statusIndicator(msg) {
+        if (msg.sender_type !== 'employee') return '';
+        if (msg.message_type === 'internal_note') return '';
+
+        // Format read_at sebagai tooltip "Read at 06 May 2026, 14:25 (WIB)"
+        let readAtTip = '';
+        if (msg.read_at) {
+            try {
+                const t = new Date(msg.read_at).toLocaleString('en-GB', {
+                    timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit', hour12: false
+                }) + ' (WIB)';
+                readAtTip = `Read at ${t}`;
+            } catch (e) { readAtTip = 'Read by customer'; }
+        } else {
+            readAtTip = 'Read by customer';
+        }
+
+        if (msg.is_read_by_customer) {
+            return `<div class="msg-status read" title="${readAtTip}">${ICON_CHECK_DOUBLE}<span>Read</span></div>`;
+        }
+
+        if (msg.channel === 'email' && msg.email_message_id) {
+            return `<div class="msg-status" title="Delivered to customer email">${ICON_CHECK_DOUBLE}<span>Sent via email</span></div>`;
+        }
+
+        return `<div class="msg-status" title="Saved to ticket">${ICON_CHECK_SINGLE}<span>Sent</span></div>`;
     }
 
     function createMessageBubble(msg) {
+        // System messages (status changes, audit log) &rarr; centered pill, no bubble.
+        // Real system messages are never email-channel — they're web/null from server-side events.
+        // CC email replies from unregistered senders get stored as sender_type='system' by
+        // processInbox(), but they are real human messages and must render as chat bubbles.
+        const isSystem = (msg.sender_type === 'system' && msg.channel !== 'email')
+                      || /^Status change to "/i.test(msg.message_body || msg.message || '');
+        if (isSystem) {
+            const date = new Date(msg.created_at).toLocaleString('en-GB', {
+                timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', hour12: false
+            }) + ' (WIB)';
+            return `<div class="flex justify-center my-2">
+                <span class="text-xs text-gray-500 bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-full" title="${date}">${escHtml(msg.message_body || msg.message || '')}</span>
+            </div>`;
+        }
+
         const isEmployee     = msg.sender_type === 'employee';
         const isInternalNote = msg.message_type === 'internal_note';
         const senderName     = msg.sender_name || (isEmployee ? 'Employee' : 'Customer');
@@ -2309,7 +2414,7 @@
             : `<span class="msg-channel-badge msg-channel-web"><svg style="width:9px;height:9px;display:inline" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clip-rule="evenodd"/></svg> Web</span>`;
 
         // CC badge — hanya tampil kalau ada CC
-        // Normalisasi: API mungkin kembalikan array atau JSON string (data lama) → selalu array
+        // Normalisasi: API mungkin kembalikan array atau JSON string (data lama) &rarr; selalu array
         const rawCc  = msg.cc_emails;
         const ccList = Array.isArray(rawCc) ? rawCc
                      : (typeof rawCc === 'string' && rawCc ? ((() => { try { return JSON.parse(rawCc); } catch(e) { return []; } })()) : []);
@@ -2345,7 +2450,7 @@
             const avatarBgNote = isMine ? 'bg-amber-400' : 'bg-amber-200';
             const avatarTextNote = isMine ? 'text-white' : 'text-amber-800';
             const bubbleExtra = isMine ? 'mine' : '';
-            const noteBadge = `<span class="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-semibold leading-none">📝 Internal Note</span>`;
+            const noteBadge = `<span class="inline-flex items-center gap-1 text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-semibold leading-none"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z"/><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd"/></svg>Internal Note</span>`;
 
             // Quoted context if this is a reply to another note
             const replyQuote = msg.reply_to_preview
@@ -2403,6 +2508,10 @@
         const avatarBg   = isEmployee ? 'bg-blue-500' : 'bg-gray-400';
         const bubbleClass = isEmployee ? 'employee' : 'customer';
 
+        // Status delivery indicator (hanya untuk reply helpdesk &rarr; customer)
+        const statusHtml    = statusIndicator(msg);
+        const statusSection = statusHtml ? `<div class="msg-status-row">${statusHtml}</div>` : '';
+
         return `
             <div class="flex gap-3 ${isEmployee ? 'flex-row-reverse' : ''}">
                 <div class="w-8 h-8 ${avatarBg} rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">${initials}</div>
@@ -2418,6 +2527,7 @@
                     <div class="message-bubble ${bubbleClass} p-3 inline-block text-left">
                         ${messageContent(msg)}
                         ${attachmentsHtml}
+                        ${statusSection}
                     </div>
                 </div>
             </div>`;
@@ -2479,20 +2589,20 @@
 
         preview.innerHTML = selectedFiles.map((file, idx) => {
             const size = formatFileSize(file.size);
-            const icon = file.type.startsWith('image/') ? '🖼️'
-                       : file.type === 'application/pdf' ? '📄'
-                       : /\.(doc|docx)$/i.test(file.name) ? '📝'
-                       : /\.(xls|xlsx|csv)$/i.test(file.name) ? '📊'
-                       : /\.(zip|rar)$/i.test(file.name) ? '🗜️'
-                       : '📎';
+            const fileType = file.type.startsWith('image/')        ? 'image'
+                           : file.type === 'application/pdf'       ? 'pdf'
+                           : /\.(doc|docx)$/i.test(file.name)      ? 'document'
+                           : /\.(xls|xlsx|csv)$/i.test(file.name)  ? 'spreadsheet'
+                           : /\.(zip|rar)$/i.test(file.name)       ? 'archive' : 'generic';
+            const icon = attachmentIcon(fileType, file.type, 'w-4 h-4');
             return `<div class="flex items-center gap-1.5 bg-gray-100 border border-gray-200 rounded-lg px-2.5 py-1.5" style="max-width:200px">
-                <span class="text-sm flex-shrink-0">${icon}</span>
+                ${icon}
                 <div class="flex-1 min-w-0">
                     <p class="text-xs font-medium text-gray-700 truncate" title="${escHtml(file.name)}">${escHtml(file.name)}</p>
                     ${size ? `<p class="text-[10px] text-gray-400">${size}</p>` : ''}
                 </div>
                 <button type="button" onclick="removeAttachment(${idx})" title="Remove"
-                        class="flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors text-xs leading-none">✕</button>
+                        class="flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors text-xs leading-none">&#10005;</button>
             </div>`;
         }).join('');
     }
@@ -3120,27 +3230,48 @@
                 </div>`).join('');
         }
 
-        // Rebuild dropdown: show only employees not already in members and not the PIC
-        const sel = document.getElementById('addMemberSelect');
-        if (sel) {
-            sel.innerHTML = '<option value="">-- Add member --</option>';
+        // Rebuild custom-dd panel items: show only employees not already in members
+        // and not the PIC. Preserve search input wrapper + empty-state element.
+        const ddPanel = document.querySelector('#addMemberDd .custom-dd-panel');
+        const hidden  = document.getElementById('addMemberSelect');
+        if (ddPanel) {
+            const searchWrap = ddPanel.querySelector('.custom-dd-search-wrap');
+            const emptyEl    = ddPanel.querySelector('.custom-dd-empty');
+
+            // Build new items HTML (placeholder + filtered employees)
+            const escAttr = (s) => String(s).replace(/"/g, '&quot;');
+            const escTxt  = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const itemCls = 'custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors';
+            let itemsHtml = `<button type="button" class="${itemCls}" data-value="">-- Add member --</button>`;
             allEmployees.forEach(emp => {
                 if (!memberIds.has(emp.employee_id) && emp.employee_id != {{ $ticket->employee_id ?? 'null' }}) {
-                    const opt = document.createElement('option');
-                    opt.value = emp.employee_id;
-                    opt.textContent = emp.name;
-                    sel.appendChild(opt);
+                    itemsHtml += `<button type="button" class="${itemCls}" data-value="${escAttr(emp.employee_id)}">${escTxt(emp.name)}</button>`;
                 }
             });
+
+            // Replace items, preserve search + empty-state refs (panel-level click delegation
+            // di custom-dropdown.js tetap menangkap item baru tanpa re-init).
+            ddPanel.innerHTML = '';
+            if (searchWrap) ddPanel.appendChild(searchWrap);
+            ddPanel.insertAdjacentHTML('beforeend', itemsHtml);
+            if (emptyEl) ddPanel.appendChild(emptyEl);
+
+            // Reset selection state
+            if (hidden) hidden.value = '';
+            const label = document.querySelector('#addMemberDd .custom-dd-label');
+            if (label) {
+                label.textContent = '-- Add member --';
+                label.className   = 'custom-dd-label text-gray-500 truncate';
+            }
         }
     }
 
     async function addMemberBtn() {
-        const sel   = document.getElementById('addMemberSelect');
-        const empId = sel?.value;
+        const hidden = document.getElementById('addMemberSelect');
+        const empId  = hidden?.value;
         if (!empId) { showNotification('Please select a member to add.', 'error'); return; }
 
-        const btn = sel.nextElementSibling;
+        const btn = document.getElementById('addMemberBtnEl');
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-[10px]"></i>'; }
 
         try {
@@ -3188,40 +3319,33 @@
     }
 
     async function saveAllProperties() {
-        const status = document.getElementById('detailStatus').value;
+        const status       = document.getElementById('detailStatus').value;
         const jarviesStatus = document.getElementById('detailJarviesStatus').value;
-        const priority = document.getElementById('detailPriority').value;
-        const type = document.getElementById('detailType').value;
-        const pic = document.getElementById('detailPIC').value;
+        const priority     = document.getElementById('detailPriority').value;
+        const scale        = document.getElementById('detailScale').value;
+        const type         = document.getElementById('detailType').value;
         try {
-            // Update status via dedicated endpoint
-            // Jika status closed, kirim juga jarvies_status agar SLA event tercatat dengan benar
-            const statusPayload = { status };
-            if (status === 'closed') statusPayload.jarvies_status = 'closed';
-            await fetch(`/api/tickets/${ticketId}/update-status`, {
-                method: 'PUT',
-                headers: getHeaders(),
-                credentials: 'same-origin',
-                body: JSON.stringify(statusPayload)
-            });
+            const [, updateRes] = await Promise.all([
+                fetch(`/api/tickets/${ticketId}/update-status`, {
+                    method: 'PUT',
+                    headers: getHeaders(),
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ status }),
+                }),
+                fetch(`/api/tickets/${ticketId}`, {
+                    method: 'PUT',
+                    headers: getHeaders(),
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        jarvies_status: jarviesStatus,
+                        ticket_priority: priority,
+                        scale: scale || null,
+                        ticket_type: type || null,
+                    }),
+                }),
+            ]);
 
-            // Update all other properties via general update endpoint
-            const updateData = {
-                jarvies_status: jarviesStatus,
-                ticket_priority: priority,
-                ticket_type: type || null,
-                employee_id: pic || null,
-            };
-
-            const response = await fetch(`/api/tickets/${ticketId}`, {
-                method: 'PUT',
-                headers: getHeaders(),
-                credentials: 'same-origin',
-                body: JSON.stringify(updateData)
-            });
-
-            const result = await response.json();
-
+            const result = await updateRes.json();
             if (result.success) {
                 showNotification('All properties saved!', 'success');
                 setTimeout(() => location.reload(), 800);
@@ -3426,15 +3550,34 @@
         }
     }
 
+    function populateDeliverySupportSelect(select) {
+        select.innerHTML = '<option value="">-- Select Delivery Support --</option>';
+        deliverySupportList.forEach(support => {
+            const option = document.createElement('option');
+            option.value = support.id;
+            option.textContent = `${support.name} (${support.client_name || 'Unknown Client'})${support.type ? ', ' + support.type : ''}`;
+            select.appendChild(option);
+        });
+        if (assignedDsId) {
+            const match = [...select.options].find(o => Number(o.value) === assignedDsId);
+            if (match) select.value = match.value;
+        }
+    }
+
     async function loadDeliverySupports() {
         const select = document.getElementById('deliverySupportSelect');
         if (!select) return;
 
+        // Gunakan cache jika sudah pernah di-fetch
+        if (deliverySupportList.length > 0) {
+            populateDeliverySupportSelect(select);
+            return;
+        }
+
         select.innerHTML = '<option value="">Loading...</option>';
 
         try {
-            // Load delivery supports, optionally filtered by the same customer
-            const response = await fetch('/api/delivery/support/search?client_id=' + (ticketCustomerId || ''), {
+            const response = await fetch('/api/delivery/support/search', {
                 headers: getHeaders(),
                 credentials: 'same-origin'
             });
@@ -3443,27 +3586,11 @@
 
             if (data.success && data.data) {
                 deliverySupportList = data.data;
-                select.innerHTML = '<option value="">-- Select Delivery Support --</option>';
-
                 if (data.data.length === 0) {
                     select.innerHTML = '<option value="">No delivery support found</option>';
                     return;
                 }
-
-                data.data.forEach(support => {
-                    const option = document.createElement('option');
-                    option.value = support.id;
-                    option.textContent = `${support.name} (${support.client_name || 'Unknown Client'}), ${support.type}`;
-                    select.appendChild(option);
-                });
-
-                // Auto-select currently assigned DS
-                if (assignedDsId) {
-                    const matchingOption = [...select.options].find(o => Number(o.value) === assignedDsId);
-                    if (matchingOption) {
-                        select.value = matchingOption.value;
-                    }
-                }
+                populateDeliverySupportSelect(select);
             } else {
                 select.innerHTML = '<option value="">Failed to load</option>';
             }
@@ -3564,9 +3691,9 @@
     let picMandaysModules  = [];
     let picDraftData       = null;
     let picReadOnly        = false;
-    let internalPicData    = null;
-    let internalPicPeople  = [];
-    let internalPicReadOnly= false;
+    let resolutionPicData    = null;
+    let resolutionPicPeople  = [];
+    let resolutionPicReadOnly= false;
 
     // Version list state
     let mandaysHistoryData      = [];
@@ -3649,13 +3776,13 @@
             const statusLabel = MANDAYS_STATUS_LABELS[v.status] || v.status;
             const desc = v.description
                 ? escHtml(v.description)
-                : '<span class="text-gray-300">—</span>';
+                : '<span class="text-gray-300">&mdash;</span>';
             const note = v.proposal_notes
-                ? `<span class="text-gray-500" title="${escHtml(v.proposal_notes)}">${escHtml(v.proposal_notes.substring(0, 40))}${v.proposal_notes.length > 40 ? '…' : ''}</span>`
-                : '<span class="text-gray-300">—</span>';
+                ? `<span class="text-gray-500" title="${escHtml(v.proposal_notes)}">${escHtml(v.proposal_notes.substring(0, 40))}${v.proposal_notes.length > 40 ? '&hellip;' : ''}</span>`
+                : '<span class="text-gray-300">&mdash;</span>';
             const lastUpdate = v.last_update
                 ? new Date(v.last_update).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12: false })
-                : '—';
+                : '&mdash;';
             html += `<tr class="hover:bg-gray-50 cursor-pointer transition-colors" onclick="openMandaysVersionDetail(${v.id})">
                 <td class="px-3 py-2.5 border border-gray-100 text-center font-bold text-gray-700 whitespace-nowrap">v${v.version}</td>
                 <td class="px-3 py-2.5 border border-gray-100 text-gray-800 whitespace-nowrap">${desc}</td>
@@ -3788,7 +3915,7 @@
             bodyHtml += `<tr><td class="px-2 py-1.5 border border-gray-200 text-xs font-medium text-gray-700 whitespace-nowrap">${escHtml(act)}</td>`;
             modules.forEach(m => {
                 const val = modMap[m] ?? '';
-                bodyHtml += `<td class="px-2 py-1.5 border border-gray-200 text-xs text-center bg-gray-50">${val !== '' ? val : '—'}</td>`;
+                bodyHtml += `<td class="px-2 py-1.5 border border-gray-200 text-xs text-center bg-gray-50">${val !== '' ? val : '&mdash;'}</td>`;
             });
             bodyHtml += '</tr>';
         });
@@ -3938,7 +4065,7 @@
         modules.forEach(m => {
             const mEsc = m.replace(/"/g, '&quot;');
             const removeBtn = !picReadOnly
-                ? `<button onclick="picRemoveModuleCol('${mEsc}')" class="ml-1 text-red-300 hover:text-red-600 font-bold leading-none" title="Remove column">×</button>`
+                ? `<button onclick="picRemoveModuleCol('${mEsc}')" class="ml-1 text-red-300 hover:text-red-600 font-bold leading-none" title="Remove column">&times;</button>`
                 : '';
             headHtml += `<th class="px-2 py-2 text-center text-xs font-semibold text-gray-600 border border-gray-200 whitespace-nowrap">${m}${removeBtn}</th>`;
         });
@@ -3956,7 +4083,7 @@
         activities.forEach(act => {
             const actEsc = act.replace(/"/g, '&quot;');
             const removeRowBtn = !picReadOnly
-                ? `<button onclick="picRemoveActivityRow('${actEsc}')" class="ml-1 text-red-300 hover:text-red-600 font-bold leading-none" title="Remove row">×</button>`
+                ? `<button onclick="picRemoveActivityRow('${actEsc}')" class="ml-1 text-red-300 hover:text-red-600 font-bold leading-none" title="Remove row">&times;</button>`
                 : '';
             bodyHtml += `<tr data-activity="${act}">`;
             bodyHtml += `<td class="px-2 py-1.5 border border-gray-200 text-xs font-medium text-gray-700 whitespace-nowrap">${act}${removeRowBtn}</td>`;
@@ -4156,57 +4283,61 @@
     }
 
 
-    // ==================== PIC: INTERNAL MANDAYS ====================
-    async function openInternalMandaysModal() {
-        document.getElementById('picInternalModal').classList.remove('hidden');
-        document.getElementById('picInternalModal').classList.add('flex');
-        await internalPicLoad();
+    // ==================== PIC: RESOLUTION DAYS ====================
+    async function openResolutionDaysModal() {
+        document.getElementById('picResolutionModal').classList.remove('hidden');
+        document.getElementById('picResolutionModal').classList.add('flex');
+        await resolutionPicLoad();
     }
-    function closePicInternalModal() {
-        document.getElementById('picInternalModal').classList.add('hidden');
-        document.getElementById('picInternalModal').classList.remove('flex');
+    function closePicResolutionModal() {
+        document.getElementById('picResolutionModal').classList.add('hidden');
+        document.getElementById('picResolutionModal').classList.remove('flex');
     }
 
-    async function internalPicLoad() {
-        document.getElementById('internalLoading').classList.remove('hidden');
-        document.getElementById('internalTable').classList.add('hidden');
-        document.getElementById('internalRejectionInfo').classList.add('hidden');
+    async function resolutionPicLoad() {
+        document.getElementById('resolutionLoading').classList.remove('hidden');
+        document.getElementById('resolutionTable').classList.add('hidden');
+        document.getElementById('resolutionRejectionInfo').classList.add('hidden');
 
         try {
-            const res    = await fetch(MANDAYS_API('internal'), { headers: getHeaders(), credentials: 'same-origin' });
+            const res    = await fetch(MANDAYS_API('resolution'), { headers: getHeaders(), credentials: 'same-origin' });
             const data   = await res.json();
-            internalPicData    = data.data;
-            internalPicPeople  = data.people || [];
-            const status       = data.internal_mandays_status || 'none';
+            if (!data.success) {
+                showNotification(data.message || 'Failed to load resolution days', 'error');
+                return;
+            }
+            resolutionPicData    = data.data;
+            resolutionPicPeople  = data.people || [];
+            const status       = data.resolution_days_status || 'none';
 
-            internalPicReadOnly = false; // consultant can always edit
+            resolutionPicReadOnly = false; // consultant can always edit
 
-            document.getElementById('internalNotes').value = internalPicData?.notes || '';
-            document.getElementById('internalNotes').readOnly = false;
-            document.getElementById('internalNotes').classList.remove('bg-gray-50');
+            document.getElementById('resolutionNotes').value = resolutionPicData?.notes || '';
+            document.getElementById('resolutionNotes').readOnly = false;
+            document.getElementById('resolutionNotes').classList.remove('bg-gray-50');
 
             // Show info banner based on status
-            const infoEl = document.getElementById('internalRejectionInfo');
+            const infoEl = document.getElementById('resolutionRejectionInfo');
             if (status === 'approved') {
                 infoEl.className = 'mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700';
                 infoEl.innerHTML = '<p class="font-semibold mb-1">Proposal Approved by Delivery Support Head</p>'
-                    + (internalPicData?.approved_by_head ? '<p>Approved by: ' + internalPicData.approved_by_head + '</p>' : '')
-                    + '<p class="mt-1 text-green-600">You can still update the mandays and re-submit to Delivery Support Head.</p>';
+                    + (resolutionPicData?.approved_by_head ? '<p>Approved by: ' + resolutionPicData.approved_by_head + '</p>' : '')
+                    + '<p class="mt-1 text-green-600">You can still update the resolution days and re-submit to Delivery Support Head.</p>';
                 infoEl.classList.remove('hidden');
             } else if (status === 'pending_head') {
                 infoEl.className = 'mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-600';
                 infoEl.innerHTML = '<p class="font-semibold">Submitted — awaiting Delivery Support Head review. You can still update and re-submit.</p>';
                 infoEl.classList.remove('hidden');
-            } else if (status === 'rejected' && internalPicData?.rejection_reason) {
+            } else if (status === 'rejected' && resolutionPicData?.rejection_reason) {
                 infoEl.className = 'mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700';
                 infoEl.innerHTML = '<p class="font-semibold mb-1">Revision Required by Delivery Support Head</p>'
-                    + '<p>' + internalPicData.rejection_reason + '</p>';
+                    + '<p>' + resolutionPicData.rejection_reason + '</p>';
                 infoEl.classList.remove('hidden');
             }
 
             // Build valueMap from existing details only — start from 0 if none
             const valueMap = {};
-            (internalPicData?.details || []).forEach(d => {
+            (resolutionPicData?.details || []).forEach(d => {
                 valueMap[d.employee_id] = {
                     mandays:             (valueMap[d.employee_id]?.mandays || 0) + d.mandays,
                     additional_mandays:  (valueMap[d.employee_id]?.additional_mandays || 0) + (d.additional_mandays || 0),
@@ -4215,18 +4346,18 @@
                 };
             });
 
-            internalPicRenderRows(valueMap);
+            resolutionPicRenderRows(valueMap);
         } catch(e) {
             console.error(e);
-            showNotification('Failed to load internal mandays', 'error');
+            showNotification('Failed to load resolution days', 'error');
         } finally {
-            document.getElementById('internalLoading').classList.add('hidden');
+            document.getElementById('resolutionLoading').classList.add('hidden');
         }
     }
 
-    function internalPicRenderRows(valueMap) {
+    function resolutionPicRenderRows(valueMap) {
         let html = '';
-        internalPicPeople.forEach(person => {
+        resolutionPicPeople.forEach(person => {
             const existing = valueMap[person.employee_id] || {};
             const md  = existing.mandays || 0;
             const add = existing.additional_mandays || 0;
@@ -4241,13 +4372,13 @@
                     <input type="number" min="0" step="0.5"
                         class="internal-md-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-gray-100 bg-white"
                         data-employee="${person.employee_id}" value="${mdVal}"
-                        oninput="internalUpdateRowTotal(this)">
+                        oninput="resolutionUpdateRowTotal(this)">
                 </td>
                 <td class="border border-gray-200 p-0">
                     <input type="number" min="0" step="0.5"
                         class="internal-add-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-gray-100 bg-white"
                         data-employee="${person.employee_id}" value="${addVal}"
-                        oninput="internalUpdateRowTotal(this)">
+                        oninput="resolutionUpdateRowTotal(this)">
                 </td>
                 <td class="border border-gray-200 p-0">
                     <input type="text"
@@ -4260,18 +4391,18 @@
                 <td class="px-2 py-1.5 border border-gray-200 text-xs text-center font-semibold bg-gray-50" data-emp-total="${person.employee_id}">${totalMd > 0 ? totalMd.toFixed(1) : '—'}</td>
             </tr>`;
         });
-        document.getElementById('internalBody').innerHTML = html;
-        document.getElementById('internalTable').classList.remove('hidden');
+        document.getElementById('resolutionBody').innerHTML = html;
+        document.getElementById('resolutionTable').classList.remove('hidden');
         internalUpdateTotal();
     }
 
-    function internalUpdateRowTotal(inp) {
+    function resolutionUpdateRowTotal(inp) {
         const row = inp.closest('tr');
         const mdVal  = parseFloat(row.querySelector('.internal-md-cell')?.value)  || 0;
         const addVal = parseFloat(row.querySelector('.internal-add-cell')?.value) || 0;
         // For PIC view, approved_additional comes from existing data (not editable here)
         const empId = inp.dataset.employee;
-        const existingApproved = (internalPicData?.details || []).find(d => d.employee_id == empId)?.approved_additional || 0;
+        const existingApproved = (resolutionPicData?.details || []).find(d => d.employee_id == empId)?.approved_additional || 0;
         const totalMd = mdVal + existingApproved;
         const totalCell = row.querySelector(`[data-emp-total="${empId}"]`);
         if (totalCell) totalCell.textContent = totalMd > 0 ? totalMd.toFixed(1) : '—';
@@ -4284,12 +4415,12 @@
             const v = parseFloat(cell.textContent) || 0;
             total += v;
         });
-        document.getElementById('internalTotalDisplay').textContent = total.toFixed(1);
-        const footer = document.getElementById('internalFooterTotal');
+        document.getElementById('resolutionTotalDisplay').textContent = total.toFixed(1);
+        const footer = document.getElementById('resolutionFooterTotal');
         if (footer) footer.textContent = total.toFixed(1);
     }
 
-    function internalPicGetPayload() {
+    function resolutionPicGetPayload() {
         const details = [];
         document.querySelectorAll('.internal-md-cell').forEach(inp => {
             const row   = inp.closest('tr');
@@ -4301,7 +4432,7 @@
                 details.push({ employee_id: empId, mandays: md, additional_mandays: add, notes });
             }
         });
-        return { details, notes: document.getElementById('internalNotes').value };
+        return { details, notes: document.getElementById('resolutionNotes').value };
     }
 
     // Hapus highlight merah pada notes cell saat user mulai mengetik
@@ -4313,7 +4444,7 @@
 
     // Validasi: jika Additional MD diisi maka Notes wajib diisi
     // Mengembalikan array nama employee yang melanggar aturan (kosong = valid)
-    function internalPicValidate() {
+    function resolutionPicValidate() {
         const errors = [];
         document.querySelectorAll('.internal-add-cell').forEach(inp => {
             const row    = inp.closest('tr');
@@ -4334,65 +4465,69 @@
         return errors;
     }
 
-    async function internalPicSaveDraft() {
-        const validationErrors = internalPicValidate();
+    async function resolutionPicSaveDraft() {
+        const validationErrors = resolutionPicValidate();
         if (validationErrors.length) {
             showNotification(
-                'Notes wajib diisi jika Additional MD diisi: ' + validationErrors.join(', '),
+                'Notes are required if Additional Days is filled: ' + validationErrors.join(', '),
                 'error', 6000
             );
             return;
         }
-        const btn = document.getElementById('internalBtnSave');
+        const btn = document.getElementById('resolutionBtnSave');
         btn.disabled = true; btn.textContent = 'Saving...';
         try {
-            const res = await fetch(MANDAYS_API('internal'), {
+            const res = await fetch(MANDAYS_API('resolution'), {
                 method: 'POST', headers: getHeaders(), credentials: 'same-origin',
-                body: JSON.stringify(internalPicGetPayload()),
+                body: JSON.stringify(resolutionPicGetPayload()),
             });
             const data = await res.json();
             if (data.success) {
-                showNotification('Internal draft saved!', 'success');
-                internalUpdateSidebarBadge(data.internal_mandays_status);
-                internalPicData = data.data;
+                if (data.data_changed === false) {
+                    showNotification('No changes detected — approval status unchanged.', 'info');
+                } else {
+                    showNotification('Draft saved. Submit to Head Support for approval.', 'success');
+                }
+                resolutionUpdateSidebarBadge(data.resolution_days_status);
+                resolutionPicData = data.data;
             } else {
                 showNotification(data.message || 'Failed', 'error');
             }
         } catch(e) { showNotification('Error: ' + e.message, 'error'); }
-        finally { btn.disabled = false; btn.textContent = 'Save Draft'; }
+        finally { btn.disabled = false; btn.textContent = 'Save'; }
     }
 
-    async function internalPicSubmit() {
+    async function resolutionPicSubmit() {
         // Validasi sebelum submit
-        const validationErrors = internalPicValidate();
+        const validationErrors = resolutionPicValidate();
         if (validationErrors.length) {
             showNotification(
-                'Notes wajib diisi jika Additional MD diisi: ' + validationErrors.join(', '),
-                'error', 6000
+                    'Notes are required if Additional Days is filled: ' + validationErrors.join(', '),
+                    'error', 6000
             );
             return;
         }
         // Save first then submit
-        const btn = document.getElementById('internalBtnSubmit');
+        const btn = document.getElementById('resolutionBtnSubmit');
         btn.disabled = true; btn.textContent = 'Submitting...';
         try {
             // Save
-            const saveRes = await fetch(MANDAYS_API('internal'), {
+            const saveRes = await fetch(MANDAYS_API('resolution'), {
                 method: 'POST', headers: getHeaders(), credentials: 'same-origin',
-                body: JSON.stringify(internalPicGetPayload()),
+                body: JSON.stringify(resolutionPicGetPayload()),
             });
             const saveData = await saveRes.json();
             if (!saveData.success) { showNotification(saveData.message || 'Save failed', 'error'); return; }
 
             // Submit
-            const subRes = await fetch(MANDAYS_API('internal/submit'), {
+            const subRes = await fetch(MANDAYS_API('resolution/submit'), {
                 method: 'POST', headers: getHeaders(), credentials: 'same-origin',
             });
             const subData = await subRes.json();
             if (subData.success) {
                 showNotification('Submitted to Delivery Support Head!', 'success');
-                internalUpdateSidebarBadge(subData.internal_mandays_status);
-                closePicInternalModal();
+                resolutionUpdateSidebarBadge(subData.resolution_days_status);
+                closePicResolutionModal();
             } else {
                 showNotification(subData.message || 'Submit failed', 'error');
             }
@@ -4400,7 +4535,7 @@
         finally { btn.disabled = false; btn.textContent = 'Submit to Head'; }
     }
 
-    function internalUpdateSidebarBadge(status) {
+    function resolutionUpdateSidebarBadge(status) {
         const badges = {
             'none':        ['bg-gray-100 text-gray-500',   'None'],
             'draft':       ['bg-yellow-100 text-yellow-700','Draft'],
@@ -4408,7 +4543,7 @@
             'approved':    ['bg-green-100 text-green-700', 'Approved'],
             'rejected':    ['bg-red-100 text-red-700',     'Rejected'],
         };
-        const el = document.getElementById('internalBadge');
+        const el = document.getElementById('resolutionBadge');
         if (el && badges[status]) {
             el.className = `inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${badges[status][0]}`;
             el.textContent = badges[status][1];
@@ -4467,7 +4602,7 @@
             const isCanceled         = status === 'canceled';
 
             if (isCanceled) {
-                let cancelHtml = `<span class="text-gray-600 text-base mt-0.5">✕</span>
+                let cancelHtml = `<span class="text-gray-600 text-base mt-0.5">&#10005;</span>
                     <div><p class="font-semibold text-gray-800">Proposal Canceled by Helpdesk</p>`;
                 if (proposal.cancel_notes) {
                     cancelHtml += `<p class="text-xs font-normal text-gray-600 mt-0.5">${proposal.cancel_notes.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`;
@@ -4483,7 +4618,7 @@
                 const ts = proposal.customer_response_at
                     ? new Date(proposal.customer_response_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12: false }) + ' WIB'
                     : '';
-                banner.innerHTML = `<span class="text-green-700 text-base mt-0.5">✓</span>
+                banner.innerHTML = `<span class="text-green-700 text-base mt-0.5">&#10003;</span>
                     <div><p class="font-semibold text-green-800">Approved by Customer</p>
                     ${ts ? `<p class="text-xs font-normal text-green-700 mt-0.5">${ts}</p>` : ''}</div>`;
                 banner.classList.remove('hidden');
@@ -4492,7 +4627,7 @@
                 const ts = proposal.customer_response_at
                     ? new Date(proposal.customer_response_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12: false }) + ' WIB'
                     : '';
-                banner.innerHTML = `<span class="text-red-700 text-base mt-0.5">✕</span>
+                banner.innerHTML = `<span class="text-red-700 text-base mt-0.5">&#10005;</span>
                     <div><p class="font-semibold text-red-800">Rejected by Customer</p>
                     ${ts ? `<p class="text-xs font-normal text-red-700 mt-0.5">${ts}</p>` : ''}</div>`;
                 banner.classList.remove('hidden');
@@ -4547,7 +4682,7 @@
                 document.getElementById('hdBtnSendToChat')?.classList.remove('hidden');
                 document.getElementById('hdBtnCancel')?.classList.remove('hidden');
                 // Show info banner: must send to chat before approving
-                banner.innerHTML = `<span class="text-blue-600 text-base mt-0.5">ℹ</span>
+                banner.innerHTML = `<i class="fas fa-info-circle text-blue-500 text-sm mt-0.5 flex-shrink-0"></i>
                     <div><p class="font-semibold text-blue-800">Send to Customer First</p>
                     <p class="text-xs font-normal text-blue-700 mt-0.5">You must send this proposal to the customer chat before it can be approved.</p></div>`;
                 banner.classList.remove('hidden');
@@ -4699,6 +4834,7 @@
             if (data.success) {
                 showNotification('Customer mandays approved!', 'success');
                 closeHdMandaysModal();
+                setTimeout(() => location.reload(), 800);
             } else showNotification(data.message || 'Failed', 'error');
         } catch(e) { showNotification('Error: '+e.message,'error'); }
     }
@@ -4746,20 +4882,20 @@
     }
 
 
-    // ==================== HEAD OF SUPPORT: INTERNAL MANDAYS ====================
-    async function openHeadInternalModal() {
-        const modal = document.getElementById('headInternalModal');
+    // ==================== HEAD OF SUPPORT: RESOLUTION DAYS ====================
+    async function openHeadResolutionModal() {
+        const modal = document.getElementById('headResolutionModal');
         if (!modal) return;
         modal.classList.remove('hidden'); modal.classList.add('flex');
-        document.getElementById('headInternalLoading').classList.remove('hidden');
-        document.getElementById('headInternalContent').classList.add('hidden');
-        document.getElementById('headInternalStatusBanner').classList.add('hidden');
+        document.getElementById('headresolutionLoading').classList.remove('hidden');
+        document.getElementById('headResolutionContent').classList.add('hidden');
+        document.getElementById('headResolutionStatusBanner').classList.add('hidden');
 
         try {
-            const res  = await fetch(MANDAYS_API('internal'), { headers: getHeaders(), credentials: 'same-origin' });
+            const res  = await fetch(MANDAYS_API('resolution'), { headers: getHeaders(), credentials: 'same-origin' });
             const data = await res.json();
             const proposal = data.data;
-            const status   = data.internal_mandays_status || 'none';
+            const status   = data.resolution_days_status || 'none';
 
             const headStatusLabels = {
                 'none':         'None',
@@ -4768,11 +4904,11 @@
                 'approved':     'Approved',
                 'rejected':     'Needs Revision',
             };
-            document.getElementById('headInternalStatusLabel').textContent = headStatusLabels[status] || status;
+            document.getElementById('headResolutionStatusLabel').textContent = headStatusLabels[status] || status;
 
             if (!proposal) {
-                document.getElementById('headInternalContent').innerHTML = '<p class="text-sm text-gray-400 text-center py-4">No proposal submitted yet.</p>';
-                document.getElementById('headInternalContent').classList.remove('hidden');
+                document.getElementById('headResolutionContent').innerHTML = '<p class="text-sm text-gray-400 text-center py-4">No proposal submitted yet.</p>';
+                document.getElementById('headResolutionContent').classList.remove('hidden');
                 document.getElementById('headBtnApprove').classList.add('hidden');
                 return;
             }
@@ -4810,20 +4946,20 @@
                     <td class="px-2 py-1.5 border border-gray-200 text-xs text-center font-semibold bg-gray-50" data-head-total="${eid}">${rowTotal > 0 ? rowTotal.toFixed(1) : '—'}</td>
                 </tr>`;
             });
-            document.getElementById('headInternalBody').innerHTML = bodyHtml;
-            document.getElementById('headInternalTotal').textContent = grandTotal.toFixed(1);
+            document.getElementById('headresolutionBody').innerHTML = bodyHtml;
+            document.getElementById('headResolutionTotal').textContent = grandTotal.toFixed(1);
 
             if (proposal.proposed_by) {
                 document.getElementById('headProposedBy').textContent = 'Proposed by: ' + proposal.proposed_by;
             }
             if (proposal.notes) {
-                const nw = document.getElementById('headInternalNoteWrap');
+                const nw = document.getElementById('headResolutionNoteWrap');
                 nw.textContent = 'Notes: ' + proposal.notes;
                 nw.classList.remove('hidden');
             }
 
             // Status info banner
-            const bannerEl = document.getElementById('headInternalStatusBanner');
+            const bannerEl = document.getElementById('headResolutionStatusBanner');
             if (status === 'approved') {
                 bannerEl.className = 'mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700';
                 bannerEl.innerHTML = '<p class="font-semibold">Saved — Proposal Approved</p>'
@@ -4842,17 +4978,17 @@
             // Always show Save button when proposal exists (editable at any status)
             document.getElementById('headBtnApprove').classList.remove('hidden');
 
-            document.getElementById('headInternalContent').classList.remove('hidden');
+            document.getElementById('headResolutionContent').classList.remove('hidden');
         } catch(e) {
             console.error(e);
             showNotification('Failed to load internal proposal', 'error');
         } finally {
-            document.getElementById('headInternalLoading').classList.add('hidden');
+            document.getElementById('headresolutionLoading').classList.add('hidden');
         }
     }
 
-    function closeHeadInternalModal() {
-        const modal = document.getElementById('headInternalModal');
+    function closeHeadResolutionModal() {
+        const modal = document.getElementById('headResolutionModal');
         if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
     }
 
@@ -4867,10 +5003,10 @@
         // Update grand total
         let grand = 0;
         document.querySelectorAll('[data-head-total]').forEach(c => grand += parseFloat(c.textContent) || 0);
-        document.getElementById('headInternalTotal').textContent = grand.toFixed(1);
+        document.getElementById('headResolutionTotal').textContent = grand.toFixed(1);
     }
 
-    async function headInternalApprove() {
+    async function headResolutionApprove() {
         const btn = document.getElementById('headBtnApprove');
         btn.disabled = true; btn.textContent = 'Saving...';
         try {
@@ -4882,15 +5018,16 @@
                 });
             });
 
-            const res  = await fetch(MANDAYS_API('internal/approve'), {
+            const res  = await fetch(MANDAYS_API('resolution/approve'), {
                 method: 'POST', headers: getHeaders(), credentials: 'same-origin',
                 body: JSON.stringify({ approved_details: approvedDetails }),
             });
             const data = await res.json();
             if (data.success) {
-                showNotification('Internal mandays saved!', 'success');
-                internalUpdateSidebarBadge?.(data.internal_mandays_status);
-                closeHeadInternalModal();
+                showNotification('Resolution days saved!', 'success');
+                resolutionUpdateSidebarBadge?.(data.resolution_days_status);
+                closeHeadResolutionModal();
+                setTimeout(() => location.reload(), 800);
             } else showNotification(data.message || 'Failed', 'error');
         } catch(e) { showNotification('Error: '+e.message,'error'); }
         finally { btn.disabled = false; btn.textContent = 'Save'; }
@@ -5168,7 +5305,7 @@
 </div>
 
 <script>
-// ── OneDrive Modal (Ticket) ────────────────────────────────────────────────
+// â"€â"€ OneDrive Modal (Ticket) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 let _odrHasFolder = {{ $ticket->onedrive_folder_id ? 'true' : 'false' }};
 
 function openOneDriveModal() {
@@ -5289,4 +5426,547 @@ function copyFolderLink() {
 }
 </script>
 
+
+{{-- ==================== REUSABLE CONFIRM MODAL ==================== --}}
+<div id="confirmModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4">
+        <div class="px-6 pt-6 pb-3">
+            <div class="flex items-start gap-3">
+                <div id="confirmIconWrap" class="w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5"></div>
+                <div>
+                    <h3 id="confirmTitle" class="text-sm font-bold text-gray-900 mb-1">Confirm</h3>
+                    <p id="confirmMessage" class="text-sm text-gray-600 leading-relaxed"></p>
+                </div>
+            </div>
+        </div>
+        <div class="px-6 pb-5 pt-2 flex gap-2 justify-end">
+            <button id="confirmCancelBtn"
+                class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition font-medium">
+                Cancel
+            </button>
+            <button id="confirmOkBtn"
+                class="px-4 py-2 text-sm font-semibold text-white rounded-lg transition">
+                OK
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- ==================== DELIVERABLE MODAL ==================== --}}
+<div id="deliverableModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 flex flex-col" style="max-height:90vh">
+        {{-- Header --}}
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+            <div>
+                <h3 class="text-base font-bold text-gray-900">Deliverable Documents</h3>
+                <p class="text-xs text-gray-400 mt-0.5">{{ $ticket->ticket_number }} — {{ Str::limit($ticket->description, 50) }}</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="openNewDocModal()"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold rounded-lg transition">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    New Document
+                </button>
+                <button onclick="closeDeliverableModal()"
+                    class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        {{-- Table --}}
+        <div class="overflow-auto flex-1 px-2">
+            <table class="w-full text-xs border-collapse" id="deliverableTable">
+                <thead class="sticky top-0 bg-white z-10">
+                    <tr class="border-b border-gray-200">
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Upload Date</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Time</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" style="min-width:90px">Doc Type</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide" style="min-width:200px">Body Text</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide" style="min-width:160px">File Name</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="deliverableBody">
+                    <tr>
+                        <td colspan="7" class="text-center py-10 text-gray-400">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="px-6 py-3 border-t border-gray-100 text-[10px] text-gray-400 shrink-0" id="deliverableFooter"></div>
+    </div>
+</div>
+
+{{-- ==================== NEW DOCUMENT MODAL ==================== --}}
+<div id="newDocModal" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+            <h3 class="text-sm font-bold text-gray-900">New Document</h3>
+            <button onclick="closeNewDocModal()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="px-5 py-4 space-y-4">
+            {{-- Doc Type --}}
+            <div>
+                <label class="text-xs font-semibold text-gray-600 mb-1 block">Doc Type <span class="text-red-500">*</span></label>
+                <select id="ndDocType" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 focus:outline-none">
+                    <option value="">-- Select --</option>
+                    @foreach(['IR','RCA','CR Form','FSD','TD','UAT','MOM','BAST','Other'] as $dt)
+                    <option value="{{ $dt }}">{{ $dt }}</option>
+                    @endforeach
+                </select>
+            </div>
+            {{-- Body Text --}}
+            <div>
+                <label class="text-xs font-semibold text-gray-600 mb-1 block">Body Text</label>
+                <textarea id="ndBodyText" rows="3" placeholder="Short description..."
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-red-400 focus:outline-none"></textarea>
+            </div>
+            {{-- File --}}
+            <div>
+                <label class="text-xs font-semibold text-gray-600 mb-1 block">File
+                    @if(!$ticket->onedrive_folder_id)
+                    <span class="ml-1 text-orange-500 font-normal">(generate folder first)</span>
+                    @endif
+                </label>
+                <div class="flex items-center gap-2">
+                    <label class="flex-1 cursor-pointer flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                        <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                        </svg>
+                        <span id="ndFileName" class="text-xs text-gray-400 truncate">Choose file...</span>
+                        <input type="file" id="ndFile" class="hidden" onchange="updateFileName()">
+                    </label>
+                    <button onclick="document.getElementById('ndFile').value=''; document.getElementById('ndFileName').textContent='Choose file...'"
+                        class="px-2 py-2 text-gray-400 hover:text-red-500 transition" title="Clear">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            {{-- Error --}}
+            <p id="ndError" class="hidden text-xs text-red-600 font-medium"></p>
+        </div>
+        <div class="px-5 pb-5 flex gap-2">
+            <button onclick="submitNewDoc()" id="ndSubmitBtn"
+                class="flex-1 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold py-2.5 rounded-lg transition">
+                Save Document
+            </button>
+            <button onclick="closeNewDocModal()"
+                class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- ==================== EDIT DELIVERABLE MODAL ==================== --}}
+<div id="editDelivModal" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+            <h3 class="text-sm font-bold text-gray-900">Edit Body Text</h3>
+            <button onclick="closeEditDelivModal()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="px-5 py-4 space-y-4">
+            <input type="hidden" id="edDelivId">
+            <div>
+                <label class="text-xs font-semibold text-gray-600 mb-1 block">Body Text</label>
+                <textarea id="edBodyText" rows="5" placeholder="Short description..."
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-red-400 focus:outline-none"></textarea>
+            </div>
+            <p id="edError" class="hidden text-xs text-red-600 font-medium"></p>
+        </div>
+        <div class="px-5 pb-5 flex gap-2">
+            <button onclick="submitEditDeliv()" id="edSubmitBtn"
+                class="flex-1 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold py-2.5 rounded-lg transition">
+                Save
+            </button>
+            <button onclick="closeEditDelivModal()"
+                class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==================== REUSABLE CONFIRM HELPER ====================
+/**
+ * Tampilkan modal konfirmasi custom (mengganti browser confirm()).
+ * @param {string} message   - Isi pesan konfirmasi
+ * @param {string} title     - Judul modal (default: 'Confirm')
+ * @param {string} variant   - 'danger' (tombol merah) | 'primary' (tombol biru) | default abu-abu
+ * @returns {Promise<boolean>}
+ */
+function showConfirm(message, title = 'Confirm', variant = 'default') {
+    return new Promise(resolve => {
+        const modal     = document.getElementById('confirmModal');
+        const titleEl   = document.getElementById('confirmTitle');
+        const msgEl     = document.getElementById('confirmMessage');
+        const okBtn     = document.getElementById('confirmOkBtn');
+        const cancelBtn = document.getElementById('confirmCancelBtn');
+        const iconWrap  = document.getElementById('confirmIconWrap');
+
+        titleEl.textContent = title;
+        msgEl.textContent   = message;
+
+        // Icon & warna tombol sesuai variant
+        if (variant === 'danger') {
+            iconWrap.className = 'w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-red-100';
+            iconWrap.innerHTML = `<svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>`;
+            okBtn.className = 'px-4 py-2 text-sm font-semibold text-white bg-red-700 hover:bg-red-800 rounded-lg transition';
+        } else if (variant === 'primary') {
+            iconWrap.className = 'w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-blue-100';
+            iconWrap.innerHTML = `<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 110 20A10 10 0 0112 2z"/></svg>`;
+            okBtn.className = 'px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition';
+        } else {
+            iconWrap.className = 'w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-gray-100';
+            iconWrap.innerHTML = `<svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M12 2a10 10 0 110 20A10 10 0 0112 2z"/></svg>`;
+            okBtn.className = 'px-4 py-2 text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800 rounded-lg transition';
+        }
+
+        modal.classList.remove('hidden');
+
+        function cleanup() {
+            modal.classList.add('hidden');
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+            modal.removeEventListener('click', onBackdrop);
+        }
+        function onOk()      { cleanup(); resolve(true); }
+        function onCancel()  { cleanup(); resolve(false); }
+        function onBackdrop(e) { if (e.target === modal) onCancel(); }
+
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        modal.addEventListener('click', onBackdrop);
+    });
+}
+
+// ==================== DELIVERABLE JS ====================
+const DELIV_TICKET_ID = {{ $ticket->ticket_id }};
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.content ?? '{{ csrf_token() }}';
+let deliverableData = [];
+
+const DOC_TYPE_ROWS = ['IR', 'RCA', 'CR Form', 'FSD', 'TD', 'UAT', 'MOM', 'BAST', 'Other'];
+
+async function openDeliverableModal() {
+    document.getElementById('deliverableModal').classList.remove('hidden');
+    await loadDeliverables();
+}
+
+function closeDeliverableModal() {
+    document.getElementById('deliverableModal').classList.add('hidden');
+}
+
+async function loadDeliverables() {
+    document.getElementById('deliverableBody').innerHTML =
+        `<tr><td colspan="7" class="text-center py-10 text-gray-400">Loading...</td></tr>`;
+
+    try {
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables`, {
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message);
+        deliverableData = json.data ?? [];
+        renderDeliverableTable(deliverableData);
+
+        // Update badge
+        const badge = document.getElementById('delivBadgeCount');
+        if (deliverableData.length > 0) {
+            badge.textContent = deliverableData.length;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+
+        const footer = document.getElementById('deliverableFooter');
+        if (!json.has_folder) {
+            footer.innerHTML = '<span class="text-orange-500">âš  No OneDrive folder — generate folder first to enable file upload.</span>';
+        } else {
+            footer.innerHTML = json.folder_url
+                ? `<a href="${json.folder_url}" target="_blank" rel="noopener" class="text-blue-500 hover:underline">ðŸ"— Open OneDrive Folder</a>`
+                : '';
+        }
+    } catch (e) {
+        document.getElementById('deliverableBody').innerHTML =
+            `<tr><td colspan="7" class="text-center py-8 text-red-500 text-xs">Failed to load: ${e.message}</td></tr>`;
+    }
+}
+
+function renderDeliverableTable(data) {
+    if (!data || data.length === 0) {
+        document.getElementById('deliverableBody').innerHTML =
+            `<tr><td colspan="7" class="text-center py-14 text-gray-400">
+                <svg class="w-9 h-9 mx-auto mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                No documents yet. Click <strong>+ New Document</strong> to add one.
+            </td></tr>`;
+        return;
+    }
+
+    const rows = data.map(d => {
+        const statusCls = d.status === 'Sended'
+            ? 'bg-green-100 text-green-700'
+            : 'bg-orange-100 text-orange-700';
+
+        const fileCell = d.file_name
+            ? (d.file_url
+                ? `<a href="${escHtmlD(d.file_url)}" target="_blank" rel="noopener" class="text-blue-600 hover:underline truncate max-w-[160px] block">${escHtmlD(d.file_name)}</a>`
+                : `<span class="text-gray-600 truncate max-w-[160px] block">${escHtmlD(d.file_name)}</span>`)
+            : '<span class="text-gray-300">—</span>';
+
+        const editBtn = d.status !== 'Sended'
+            ? `<button onclick="editDeliverable(${d.id})"
+                class="text-[10px] text-amber-600 hover:text-amber-800 font-semibold border border-amber-200 px-1.5 py-0.5 rounded hover:bg-amber-50 transition">
+                Edit</button>`
+            : '';
+
+        const sendBtn = d.status !== 'Sended'
+            ? `<button onclick="sendDeliverable(${d.id})"
+                class="text-[10px] text-blue-600 hover:text-blue-800 font-semibold border border-blue-200 px-1.5 py-0.5 rounded hover:bg-blue-50 transition ml-1">
+                Send to Customer</button>`
+            : '';
+
+        const delBtn = `<button onclick="deleteDeliverable(${d.id})"
+            class="text-[10px] text-red-500 hover:text-red-700 font-semibold border border-red-200 px-1.5 py-0.5 rounded hover:bg-red-50 transition ml-1">
+            Delete</button>`;
+
+        return `<tr class="border-b border-gray-100 hover:bg-gray-50/60">
+            <td class="px-3 py-2 text-gray-600 whitespace-nowrap">${escHtmlD(d.upload_date ?? '—')}</td>
+            <td class="px-3 py-2 text-gray-600 whitespace-nowrap">${escHtmlD(d.upload_time ?? '—')}</td>
+            <td class="px-3 py-2">
+                <span class="inline-block bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-semibold px-1.5 py-0.5 rounded">${escHtmlD(d.doc_type)}</span>
+            </td>
+            <td class="px-3 py-2 text-gray-700 max-w-[220px]">
+                <span class="line-clamp-2">${d.body_text ? escHtmlD(d.body_text) : '<span class="text-gray-300">—</span>'}</span>
+            </td>
+            <td class="px-3 py-2">${fileCell}</td>
+            <td class="px-3 py-2 whitespace-nowrap">
+                <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ${statusCls}">${escHtmlD(d.status)}</span>
+            </td>
+            <td class="px-3 py-2 whitespace-nowrap">${editBtn}${sendBtn}${delBtn}</td>
+        </tr>`;
+    });
+
+    document.getElementById('deliverableBody').innerHTML = rows.join('');
+}
+
+function escHtmlD(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// â"€â"€ New Document modal â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+function openNewDocModal() {
+    document.getElementById('ndDocType').value = '';
+    document.getElementById('ndBodyText').value = '';
+    document.getElementById('ndFile').value = '';
+    document.getElementById('ndFileName').textContent = 'Choose file...';
+    document.getElementById('ndError').classList.add('hidden');
+    document.getElementById('ndSubmitBtn').disabled = false;
+    document.getElementById('newDocModal').classList.remove('hidden');
+}
+
+function closeNewDocModal() {
+    document.getElementById('newDocModal').classList.add('hidden');
+}
+
+function updateFileName() {
+    const f = document.getElementById('ndFile').files[0];
+    document.getElementById('ndFileName').textContent = f ? f.name : 'Choose file...';
+}
+
+async function submitNewDoc() {
+    const docType  = document.getElementById('ndDocType').value.trim();
+    const bodyText = document.getElementById('ndBodyText').value.trim();
+    const file     = document.getElementById('ndFile').files[0];
+    const errEl    = document.getElementById('ndError');
+
+    errEl.classList.add('hidden');
+
+    if (!docType) { errEl.textContent = 'Please select a Doc Type.'; errEl.classList.remove('hidden'); return; }
+
+    const submitBtn = document.getElementById('ndSubmitBtn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving…';
+
+    try {
+        const form = new FormData();
+        form.append('doc_type',  docType);
+        if (bodyText) form.append('body_text', bodyText);
+        if (file)     form.append('file', file);
+
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            credentials: 'same-origin',
+            body: form,
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message);
+
+        closeNewDocModal();
+        await loadDeliverables();
+        showToast('Document saved successfully.', 'success');
+    } catch (e) {
+        errEl.textContent = 'Error: ' + e.message;
+        errEl.classList.remove('hidden');
+        showToast('Upload failed: ' + e.message, 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save Document';
+    }
+}
+
+async function sendDeliverable(id) {
+    if (!await showConfirm('Mark this document as "Sended to Customer"?', 'Send to Customer')) return;
+    try {
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/send`, {
+            method: 'PATCH',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            credentials: 'same-origin',
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message);
+        await loadDeliverables();
+        showToast('Document sent to customer.', 'success');
+    } catch (e) {
+        showDelivError(e.message);
+        showToast('Failed to send: ' + e.message, 'error');
+    }
+}
+
+async function deleteDeliverable(id) {
+    if (!await showConfirm('Delete this deliverable document? This cannot be undone.', 'Delete Document', 'danger')) return;
+    try {
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            credentials: 'same-origin',
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message);
+        await loadDeliverables();
+        showToast('Document deleted.', 'success');
+    } catch (e) {
+        showDelivError(e.message);
+        showToast('Failed to delete: ' + e.message, 'error');
+    }
+}
+
+// ── Edit body text ─────────────────────────────────────────────────
+function editDeliverable(id) {
+    const d = deliverableData.find(x => x.id === id);
+    if (!d) return;
+    document.getElementById('edDelivId').value = id;
+    document.getElementById('edBodyText').value = d.body_text ?? '';
+    document.getElementById('edError').classList.add('hidden');
+    const btn = document.getElementById('edSubmitBtn');
+    btn.disabled = false;
+    btn.textContent = 'Save';
+    document.getElementById('editDelivModal').classList.remove('hidden');
+}
+
+function closeEditDelivModal() {
+    document.getElementById('editDelivModal').classList.add('hidden');
+}
+
+async function submitEditDeliv() {
+    const id        = parseInt(document.getElementById('edDelivId').value);
+    const bodyText  = document.getElementById('edBodyText').value.trim();
+    const errEl     = document.getElementById('edError');
+    const submitBtn = document.getElementById('edSubmitBtn');
+
+    errEl.classList.add('hidden');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving…';
+
+    try {
+        const res = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}`, {
+            method: 'PATCH',
+            headers: {
+                'X-CSRF-TOKEN': CSRF,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ body_text: bodyText }),
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message);
+
+        const idx = deliverableData.findIndex(x => x.id === id);
+        if (idx !== -1) deliverableData[idx] = json.data;
+        renderDeliverableTable(deliverableData);
+
+        closeEditDelivModal();
+        showToast('Body text updated.', 'success');
+    } catch (e) {
+        errEl.textContent = 'Error: ' + e.message;
+        errEl.classList.remove('hidden');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save';
+    }
+}
+
+document.getElementById('editDelivModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditDelivModal();
+});
+
+// Tampilkan error di footer modal deliverable (non-blocking)
+function showDelivError(msg) {
+    const el = document.getElementById('deliverableFooter');
+    if (!el) return;
+    el.innerHTML = `<span class="text-red-600 font-medium">âš  ${msg}</span>`;
+    setTimeout(() => { if (el.querySelector('.text-red-600')) el.innerHTML = ''; }, 5000);
+}
+
+// Close deliverable modal on backdrop click
+document.getElementById('deliverableModal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeliverableModal();
+});
+document.getElementById('newDocModal').addEventListener('click', function(e) {
+    if (e.target === this) closeNewDocModal();
+});
+
+// Load badge on page load
+(async () => {
+    try {
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables`, {
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (json.success && (json.data ?? []).length > 0) {
+            const badge = document.getElementById('delivBadgeCount');
+            badge.textContent = json.data.length;
+            badge.classList.remove('hidden');
+        }
+    } catch {}
+})();
+</script>
+
 @endsection
+
+
+

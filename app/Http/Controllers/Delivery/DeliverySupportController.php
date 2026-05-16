@@ -134,10 +134,15 @@ class DeliverySupportController extends Controller
             'resolution_estimated' => 'nullable|date',
             'delivery_owner_id' => 'nullable|exists:employee,employee_id',
             'support_manager_id' => 'nullable|exists:employee,employee_id',
+            'co_pm_id' => 'nullable|exists:employee,employee_id',
+            'support_admin_id' => 'nullable|exists:employee,employee_id',
+            'sales_id' => 'nullable|exists:employee,employee_id',
             'support_method' => 'nullable|string|max:100',
             'total_mandays' => 'nullable|integer|min:0',
             'approval_date' => 'nullable|date',
             'approval_name' => 'nullable|string|max:255',
+            'service_window_start' => 'nullable|date_format:H:i',
+            'service_window_end' => 'nullable|date_format:H:i|after_or_equal:service_window_start',
         ]);
 
         DB::beginTransaction();
@@ -156,10 +161,15 @@ class DeliverySupportController extends Controller
                 'resolution_estimated' => $validated['resolution_estimated'] ?? null,
                 'delivery_owner_id' => $validated['delivery_owner_id'] ?? null,
                 'support_manager_id' => $validated['support_manager_id'] ?? null,
+                'co_pm_id' => $validated['co_pm_id'] ?? null,
+                'support_admin_id' => $validated['support_admin_id'] ?? null,
+                'sales_id' => $validated['sales_id'] ?? null,
                 'support_method' => $validated['support_method'] ?? null,
                 'total_mandays' => $validated['total_mandays'] ?? null,
                 'approval_date' => $validated['approval_date'] ?? null,
                 'approval_name' => $validated['approval_name'] ?? null,
+                'service_window_start' => $validated['service_window_start'] ?? null,
+                'service_window_end' => $validated['service_window_end'] ?? null,
                 'created_by_id' => session('user.id'),
             ]);
 
@@ -192,6 +202,102 @@ class DeliverySupportController extends Controller
     }
 
     /**
+     * Show edit form (mirror of create, pre-filled).
+     */
+    public function edit(DeliverySupport $support)
+    {
+        $support->load([
+            'client.basicData',
+            'deliveryOwner.basicData',
+            'supportManager.basicData',
+            'coPm.basicData',
+            'supportAdmin.basicData',
+            'sales.basicData',
+        ]);
+
+        $clients   = Customer::with('basicData')->get();
+        $employees = Employee::with('basicData')->where('is_active', true)->get();
+
+        return view('delivery.support.list.edit', compact('support', 'clients', 'employees'));
+    }
+
+    /**
+     * Full update (PUT). Updates every field that the create form exposes.
+     * Type changes still gated to TICKET_MANAGER_GROUP (consistent with updateField).
+     */
+    public function update(Request $request, DeliverySupport $support)
+    {
+        $sessionUser = session('user');
+        $roleId = $sessionUser['role']['id'] ?? null;
+        $canEditType = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
+
+        $rules = [
+            'name'                 => 'required|string|max:255',
+            'client_id'            => 'required|exists:customer,customer_id',
+            'start_date'           => 'nullable|date',
+            'end_date'             => 'nullable|date|after_or_equal:start_date',
+            'resolution_estimated' => 'nullable|date',
+            'delivery_owner_id'    => 'nullable|exists:employee,employee_id',
+            'support_manager_id'   => 'nullable|exists:employee,employee_id',
+            'co_pm_id'             => 'nullable|exists:employee,employee_id',
+            'support_admin_id'     => 'nullable|exists:employee,employee_id',
+            'sales_id'             => 'nullable|exists:employee,employee_id',
+            'support_method'       => 'nullable|string|max:100',
+            'total_mandays'        => 'nullable|integer|min:0',
+            'approval_date'        => 'nullable|date',
+            'approval_name'        => 'nullable|string|max:255',
+            'service_window_start' => 'nullable|date_format:H:i',
+            'service_window_end'   => 'nullable|date_format:H:i|after_or_equal:service_window_start',
+        ];
+        if ($canEditType) {
+            $rules['type'] = 'required|in:AMS,MO,ATS,Project,Internal';
+        }
+
+        $validated = $request->validate($rules);
+
+        try {
+            $updateData = [
+                'name'                 => $validated['name'],
+                'client_id'            => $validated['client_id'],
+                'start_date'           => $validated['start_date']           ?? null,
+                'end_date'             => $validated['end_date']             ?? null,
+                'resolution_estimated' => $validated['resolution_estimated'] ?? null,
+                'delivery_owner_id'    => $validated['delivery_owner_id']    ?: null,
+                'support_manager_id'   => $validated['support_manager_id']   ?: null,
+                'co_pm_id'             => $validated['co_pm_id']             ?: null,
+                'support_admin_id'     => $validated['support_admin_id']     ?: null,
+                'sales_id'             => $validated['sales_id']             ?: null,
+                'support_method'       => $validated['support_method']       ?? null,
+                'total_mandays'        => $validated['total_mandays']        ?? null,
+                'approval_date'        => $validated['approval_date']        ?? null,
+                'approval_name'        => $validated['approval_name']        ?? null,
+                'service_window_start' => $validated['service_window_start'] ?? null,
+                'service_window_end'   => $validated['service_window_end']   ?? null,
+            ];
+            if ($canEditType) {
+                $updateData['type'] = $validated['type'];
+            }
+
+            $support->update($updateData);
+
+            return redirect()
+                ->route('delivery.support.show', $support)
+                ->with('success', 'Support delivery updated successfully');
+
+        } catch (\Exception $e) {
+            Log::error('Error updating support delivery', [
+                'support_id' => $support->id,
+                'error'      => $e->getMessage(),
+                'error_at'   => $e->getFile() . ':' . $e->getLine(),
+            ]);
+
+            return back()
+                ->withInput()
+                ->with('error', 'Failed to update support delivery');
+        }
+    }
+
+    /**
      * Show support delivery detail
      */
     public function show(DeliverySupport $support)
@@ -200,6 +306,9 @@ class DeliverySupportController extends Controller
             'client.basicData',
             'deliveryOwner.basicData',
             'supportManager.basicData',
+            'coPm.basicData',
+            'supportAdmin.basicData',
+            'sales.basicData',
             'phases' => function ($q) {
                 $q->orderBy('order_sequence');
             },
@@ -244,6 +353,8 @@ class DeliverySupportController extends Controller
                         'end_date' => 'nullable|date|after_or_equal:start_date',
                         'resolution_estimated' => 'nullable|date',
                         'total_mandays' => 'nullable|integer|min:0',
+                        'service_window_start' => 'nullable|date_format:H:i',
+                        'service_window_end' => 'nullable|date_format:H:i|after_or_equal:service_window_start',
                     ];
                     if ($canEditType) {
                         $rules['type'] = 'nullable|in:AMS,MO,ATS,Project,Internal';
@@ -259,6 +370,8 @@ class DeliverySupportController extends Controller
                         'end_date' => $validated['end_date'] ?? null,
                         'resolution_estimated' => $validated['resolution_estimated'] ?? null,
                         'total_mandays' => $validated['total_mandays'] ?? null,
+                        'service_window_start' => $validated['service_window_start'] ?? null,
+                        'service_window_end' => $validated['service_window_end'] ?? null,
                     ];
                     if ($canEditType) {
                         $updateData['type'] = $validated['type'] ?? null;
@@ -281,13 +394,19 @@ class DeliverySupportController extends Controller
 
                 case 'team-info':
                     $validated = validator($data, [
-                        'delivery_owner_id' => 'nullable|exists:employee,employee_id',
+                        'delivery_owner_id'  => 'nullable|exists:employee,employee_id',
                         'support_manager_id' => 'nullable|exists:employee,employee_id',
+                        'co_pm_id'           => 'nullable|exists:employee,employee_id',
+                        'support_admin_id'   => 'nullable|exists:employee,employee_id',
+                        'sales_id'           => 'nullable|exists:employee,employee_id',
                     ])->validate();
 
                     $support->update([
-                        'delivery_owner_id' => $validated['delivery_owner_id'] ?: null,
+                        'delivery_owner_id'  => $validated['delivery_owner_id']  ?: null,
                         'support_manager_id' => $validated['support_manager_id'] ?: null,
+                        'co_pm_id'           => $validated['co_pm_id']           ?: null,
+                        'support_admin_id'   => $validated['support_admin_id']   ?: null,
+                        'sales_id'           => $validated['sales_id']           ?: null,
                     ]);
                     break;
 
@@ -781,5 +900,142 @@ class DeliverySupportController extends Controller
             ]);
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Generate a Customer Deliverable sub-folder inside:
+     *   Delivery Support/Customer Deliverable/{padded_id} {CUSTOMER_NAME}/{subfolder_name}
+     *
+     * Logic:
+     *  1. Build customer folder name from client_id + basicData.name_1
+     *  2. Find or create the customer folder inside the root "Customer Deliverable" path
+     *  3. Create the sub-folder (user-supplied name) inside the customer folder
+     *  4. Generate anonymous share link for the sub-folder
+     *  5. Save IDs/URL to delivery_support
+     */
+    public function generateCustomerDeliverableFolder(Request $request, DeliverySupport $support)
+    {
+        $request->validate([
+            'subfolder_name' => ['required', 'string', 'max:255', 'not_regex:~[\\\\/:*?"<>|]~'],
+        ], [
+            'subfolder_name.required'  => 'Sub-folder name is required.',
+            'subfolder_name.not_regex' => 'Sub-folder name cannot contain: \\ / : * ? " < > |',
+        ]);
+
+        $support->load('client.basicData');
+
+        $client = $support->client;
+        if (!$client || !$client->basicData) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Client data not found. Please assign a client to this support first.',
+            ], 422);
+        }
+
+        // "001 PERTAMINA" — padded client_id + uppercase name
+        $customerFolderName = str_pad($support->client_id, 3, '0', STR_PAD_LEFT)
+            . ' ' . strtoupper($client->basicData->name_1);
+
+        $rootPath    = config('services.microsoft_graph.customer_deliverable_path', 'Delivery Support/Customer Deliverable');
+        $subfolderName = trim($request->input('subfolder_name'));
+
+        try {
+            $oneDrive = new OneDriveService();
+
+            // Step 1: find or create the customer folder
+            $customerFolderId = $oneDrive->findOrCreateFolderInPath($rootPath, $customerFolderName);
+
+            // Step 2: create the sub-folder inside the customer folder
+            $subFolderId = $oneDrive->createSubFolder($customerFolderId, $subfolderName);
+
+            // Step 3: generate anonymous share link for the sub-folder
+            $shareUrl = $oneDrive->createAnonymousLink($subFolderId);
+
+            // Step 4: persist
+            $support->update([
+                'onedrive_deliverable_folder_id'  => $subFolderId,
+                'onedrive_deliverable_folder_url' => $shareUrl,
+            ]);
+
+            return response()->json([
+                'success'         => true,
+                'message'         => 'Customer deliverable folder created successfully.',
+                'folder_url'      => $shareUrl,
+                'customer_folder' => $customerFolderName,
+                'subfolder'       => $subfolderName,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('OneDrive generateCustomerDeliverableFolder failed', [
+                'support_id'      => $support->id,
+                'customer_folder' => $customerFolderName ?? null,
+                'subfolder'       => $subfolderName,
+                'error'           => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate folder: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Return list of sub-folders inside the customer's deliverable folder from OneDrive.
+     */
+    public function getDeliverableSubfolders(DeliverySupport $support)
+    {
+        $support->load('client.basicData');
+        $client = $support->client;
+
+        if (!$client || !$client->basicData) {
+            return response()->json(['subfolders' => []]);
+        }
+
+        $customerFolderName = str_pad($support->client_id, 3, '0', STR_PAD_LEFT)
+            . ' ' . strtoupper($client->basicData->name_1);
+        $rootPath           = config('services.microsoft_graph.customer_deliverable_path', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE');
+        $customerFolderPath = $rootPath . '/' . $customerFolderName;
+
+        try {
+            $oneDrive   = new OneDriveService();
+            $subfolders = $oneDrive->listFolderChildrenByPath($customerFolderPath);
+            return response()->json(['subfolders' => $subfolders, 'customer_folder' => $customerFolderName]);
+        } catch (\Throwable $e) {
+            return response()->json(['subfolders' => [], 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Generate (or re-use existing) anonymous share link for a given OneDrive folder ID.
+     * Link type 'edit' = anyone with link can view, upload, and edit.
+     */
+    public function getDeliverableShareLink(Request $request, DeliverySupport $support)
+    {
+        $request->validate(['folder_id' => ['required', 'string', 'max:500']]);
+
+        try {
+            $oneDrive = new OneDriveService();
+            $url      = $oneDrive->createAnonymousLink($request->input('folder_id'), 'edit');
+            return response()->json(['success' => true, 'url' => $url]);
+        } catch (\Throwable $e) {
+            Log::error('getDeliverableShareLink failed', [
+                'support_id' => $support->id,
+                'folder_id'  => $request->input('folder_id'),
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Clear the stored Customer Deliverable folder reference (does NOT delete from OneDrive).
+     */
+    public function deleteCustomerDeliverableFolder(Request $request, DeliverySupport $support)
+    {
+        $support->update([
+            'onedrive_deliverable_folder_id'  => null,
+            'onedrive_deliverable_folder_url' => null,
+        ]);
+        return response()->json(['success' => true]);
     }
 }

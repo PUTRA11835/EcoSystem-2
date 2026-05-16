@@ -16,6 +16,7 @@ class Ticket extends Model
     protected $fillable = [
         'ticket_number',
         'customer_id',
+        'end_customer_id',
         'employee_id',
         'description',
         'start_date',
@@ -45,7 +46,7 @@ class Ticket extends Model
         'submitted_by_name',
         // Mandays status
         'mandays_proposal_status',
-        'internal_mandays_status',
+        'resolution_days_status',
         // CC recipients (disalin dari staging saat approve)
         'cc_emails',
         // Progress tracking
@@ -56,6 +57,7 @@ class Ticket extends Model
         // OneDrive
         'onedrive_folder_id',
         'onedrive_folder_url',
+        'onedrive_deliverable_folder_id',
     ];
 
     protected $casts = [
@@ -72,10 +74,14 @@ class Ticket extends Model
         'cc_emails'                    => 'array',
     ];
 
-    // Relasi ke Customer
     public function customer()
     {
         return $this->belongsTo(Customer::class, 'customer_id', 'customer_id');
+    }
+
+    public function endCustomer()
+    {
+        return $this->belongsTo(Customer::class, 'end_customer_id', 'customer_id');
     }
 
     // Relasi ke Employee (PIC - Person In Charge)

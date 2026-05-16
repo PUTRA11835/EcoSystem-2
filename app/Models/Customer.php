@@ -27,6 +27,7 @@ class Customer extends Authenticatable
         'customer_code',
         'email',
         'is_active',
+        'parent_customer_id',
     ];
 
     /**
@@ -146,10 +147,6 @@ class Customer extends Authenticatable
     }
 
     /**
-<<<<<<< HEAD
-     * Get all attachments for the customer (one-to-many)
-     * 
-=======
      * Get the credential for the customer (one-to-one)
      *
      * @return HasOne
@@ -162,13 +159,34 @@ class Customer extends Authenticatable
     /**
      * Get all attachments for the customer (one-to-many)
      *
->>>>>>> master
      * @return HasMany
      */
     public function attachments(): HasMany
     {
         return $this->hasMany(CustomerAttachment::class, 'customer_id', 'customer_id')
             ->orderBy('created_at', 'desc');
+    }
+
+    // ==================== HIERARCHY RELATIONSHIPS ====================
+
+    public function parentCustomer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class, 'parent_customer_id', 'customer_id');
+    }
+
+    public function endCustomers(): HasMany
+    {
+        return $this->hasMany(Customer::class, 'parent_customer_id', 'customer_id');
+    }
+
+    public function isEndCustomer(): bool
+    {
+        return $this->parent_customer_id !== null;
+    }
+
+    public function isParentCustomer(): bool
+    {
+        return $this->parent_customer_id === null;
     }
 
     /**
@@ -232,9 +250,14 @@ class Customer extends Authenticatable
 
     // ==================== SCOPES ====================
 
+    public function scopeTopLevel($query)
+    {
+        return $query->whereNull('parent_customer_id');
+    }
+
     /**
      * Scope: Get active customers only (can login)
-     * 
+     *
      * @param \Illuminate\Database\Eloquent\Builder $query
      * @return \Illuminate\Database\Eloquent\Builder
      */
@@ -654,6 +677,7 @@ class Customer extends Authenticatable
                 'customer_code' => $customerCode,
                 'email' => $customerData['email'],
                 'is_active' => $customerData['is_active'] ?? true,
+                'parent_customer_id' => $customerData['parent_customer_id'] ?? null,
             ]);
 
             // Create basic data (tanpa customer_code karena sudah pindah ke tabel customer)
@@ -767,7 +791,7 @@ class Customer extends Authenticatable
      */
     public static function getPaginated(int $perPage = 15, array $filters = [])
     {
-        $query = self::with(['basicData']);
+        $query = self::with(['basicData', 'parentCustomer.basicData'])->withCount('endCustomers');
 
         // Apply filters
         if (!empty($filters['search'])) {

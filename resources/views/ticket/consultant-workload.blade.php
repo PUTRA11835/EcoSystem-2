@@ -4,62 +4,147 @@
 @section('page-subtitle', 'Monitor workload and ticket progress for each consultant')
 
 @section('content')
-<div class="flex flex-col gap-4">
+<div class="bg-white rounded-xl p-6 shadow-sm">
 
-    {{-- Filter Bar --}}
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div class="flex items-center gap-2 flex-wrap">
-            <select id="filterMonth" onchange="loadWorkload()"
-                class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent">
-                @for ($m = 1; $m <= 12; $m++)
-                    <option value="{{ $m }}" {{ $m == now()->month ? 'selected' : '' }}>
-                    {{ \Carbon\Carbon::create()->month($m)->format('F') }}
-                    </option>
-                    @endfor
-            </select>
-            <select id="filterYear" onchange="loadWorkload()"
-                class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent">
-                @for ($y = now()->year - 1; $y <= now()->year + 1; $y++)
-                    <option value="{{ $y }}" {{ $y == now()->year ? 'selected' : '' }}>{{ $y }}</option>
-                    @endfor
-            </select>
-            <input id="searchConsultant" type="text" placeholder="Search name / ECI / module..."
-                oninput="filterTable()"
-                class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent w-52">
+    {{-- Page Header --}}
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 pb-4 border-b-2 border-gray-100">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-900">Consultant Workload</h2>
+            <p class="text-sm text-gray-500 mt-0.5">Monitor workload and ticket progress for each consultant</p>
         </div>
-        <div class="flex items-center gap-3 text-sm text-gray-500">
-            <button onclick="expandAll()" class="text-xs text-blue-600 hover:underline">Expand All</button>
-            <button onclick="collapseAll()" class="text-xs text-blue-600 hover:underline">Collapse All</button>
+        <div class="flex items-center gap-2">
+            <button onclick="expandAll()"
+                class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all duration-200">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+                Expand All
+            </button>
+            <button onclick="collapseAll()"
+                class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all duration-200">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+                </svg>
+                Collapse All
+            </button>
         </div>
     </div>
 
     {{-- Summary Cards --}}
-    <div class="grid grid-cols-5 gap-3">
-        <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
-            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Consultants</p>
-            <p class="text-2xl font-bold text-gray-900" id="cardTotal">—</p>
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <div class="flex items-start justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Consultants</p>
+                    <p class="text-3xl font-bold text-gray-900 mt-1.5" id="cardTotal">—</p>
+                </div>
+                <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">Total active consultants</p>
         </div>
-        <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
-            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Busy</p>
-            <p class="text-2xl font-bold text-red-600" id="cardBusy">—</p>
+        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <div class="flex items-start justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Busy</p>
+                    <p class="text-3xl font-bold text-red-600 mt-1.5" id="cardBusy">—</p>
+                </div>
+                <div class="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">Workload ≥ 70%</p>
         </div>
-        <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
-            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Moderate</p>
-            <p class="text-2xl font-bold text-yellow-600" id="cardModerate">—</p>
+        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <div class="flex items-start justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Moderate</p>
+                    <p class="text-3xl font-bold text-yellow-600 mt-1.5" id="cardModerate">—</p>
+                </div>
+                <div class="w-10 h-10 bg-yellow-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">Workload 40–70%</p>
         </div>
-        <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
-            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Light</p>
-            <p class="text-2xl font-bold text-green-600" id="cardLight">—</p>
+        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <div class="flex items-start justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Light</p>
+                    <p class="text-3xl font-bold text-green-600 mt-1.5" id="cardLight">—</p>
+                </div>
+                <div class="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">Workload &lt; 40%</p>
         </div>
-        <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
-            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Active Tickets</p>
-            <p class="text-2xl font-bold text-gray-900" id="cardTickets">—</p>
+        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <div class="flex items-start justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Active Tickets</p>
+                    <p class="text-3xl font-bold text-gray-900 mt-1.5" id="cardTickets">—</p>
+                </div>
+                <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">In-progress tickets</p>
         </div>
     </div>
 
+    {{-- Filter Bar --}}
+    <div class="bg-gray-50 rounded-lg border border-gray-200 p-4 mb-5">
+        <div class="flex items-center gap-2 mb-3">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
+            </svg>
+            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filters</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Month</label>
+                <select id="filterMonth" onchange="loadWorkload()"
+                    class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white hover:border-gray-400 focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all">
+                    @for ($m = 1; $m <= 12; $m++)
+                        <option value="{{ $m }}" {{ $m == now()->month ? 'selected' : '' }}>
+                            {{ \Carbon\Carbon::create()->month($m)->format('F') }}
+                        </option>
+                    @endfor
+                </select>
+            </div>
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Year</label>
+                <select id="filterYear" onchange="loadWorkload()"
+                    class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white hover:border-gray-400 focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all">
+                    @for ($y = now()->year - 1; $y <= now()->year + 1; $y++)
+                        <option value="{{ $y }}" {{ $y == now()->year ? 'selected' : '' }}>{{ $y }}</option>
+                    @endfor
+                </select>
+            </div>
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Search</label>
+                <input id="searchConsultant" type="text" placeholder="Name / ECI / module..."
+                    oninput="filterTable()"
+                    class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white hover:border-gray-400 focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all">
+            </div>
+        </div>
+    </div>
 
     {{-- Table --}}
-    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div class="rounded-xl border border-gray-200 overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-sm" id="workloadTable">
                 <thead>
@@ -69,11 +154,17 @@
                         <th class="px-4 py-3 text-left" style="min-width:170px">
                             <div class="flex items-center gap-1.5">
                                 <span>Module</span>
-                                <select id="filterModule" onchange="filterTable()"
-                                    onclick="event.stopPropagation()"
-                                    class="normal-case font-normal tracking-normal text-xs bg-transparent border-0 text-gray-400 cursor-pointer hover:text-gray-600 focus:outline-none focus:text-gray-700 pr-1 pl-0 py-0 appearance-none">
-                                    <option value="">▾</option>
-                                </select>
+                                <div class="custom-dd relative" id="moduleFilterDd" data-onchange="moduleFilterChanged" data-fixed="true">
+                                    <button type="button" class="custom-dd-btn flex items-center normal-case font-normal tracking-normal text-xs text-gray-400 hover:text-gray-600 cursor-pointer bg-transparent border-0 p-0 focus:outline-none">
+                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+                                    <input type="hidden" id="filterModule" value="">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:160px;">
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                    </div>
+                                </div>
                             </div>
                         </th>
                         <th class="px-4 py-3 text-center cursor-pointer select-none hover:bg-gray-100 transition"
@@ -85,7 +176,7 @@
                         <th class="px-4 py-3 text-right cursor-pointer select-none hover:bg-gray-100 transition"
                             onclick="sortBy('total_days')" title="Sort">
                             <div class="flex items-center justify-end gap-1">
-                                Alloc MD <span id="sort-icon-total_days" class="text-gray-300">⇅</span>
+                                Alloc Days <span id="sort-icon-total_days" class="text-gray-300">⇅</span>
                             </div>
                         </th>
                         <th class="px-4 py-3 text-right cursor-pointer select-none hover:bg-gray-100 transition"
@@ -149,7 +240,7 @@
                 class="mt-2 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 resize-none"></textarea>
         </div>
         <div class="flex gap-2">
-            <button onclick="submitProgress()"
+            <button id="btnSubmitProgress" onclick="submitProgress()"
                 class="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2.5 rounded-lg transition">Save</button>
             <button onclick="closeProgressModal()"
                 class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">Cancel</button>
@@ -260,17 +351,26 @@
                 c.modules.split(', ').forEach(m => modules.add(m.trim()));
             }
         });
-        const sel = document.getElementById('filterModule');
-        const current = sel.value;
-        sel.innerHTML = '<option value="">▾</option>';
+        const hidden = document.getElementById('filterModule');
+        const current = hidden.value;
+        const dd = document.getElementById('moduleFilterDd');
+        const panel = dd.querySelector('.custom-dd-panel');
+
+        panel.innerHTML = '<button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>';
         [...modules].sort().forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m;
-            opt.textContent = m;
-            if (m === current) opt.selected = true;
-            sel.appendChild(opt);
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50';
+            btn.dataset.value = m;
+            btn.textContent = m;
+            panel.appendChild(btn);
         });
+
+        // Restore selection if still valid
+        hidden.value = (current && modules.has(current)) ? current : '';
     }
+
+    window.moduleFilterChanged = filterTable;
 
     function filterTable() {
         const q = document.getElementById('searchConsultant').value.toLowerCase();
@@ -427,7 +527,7 @@
                 ${ticketCount}
             </span>
         </td>
-        <td class="px-4 py-3 text-right font-semibold text-gray-800 tabular-nums">${totalAllocMdMain.toFixed(2)} md</td>
+        <td class="px-4 py-3 text-right font-semibold text-gray-800 tabular-nums">${totalAllocMdMain.toFixed(2)} days</td>
         <td class="px-4 py-3 text-right font-semibold text-orange-600 tabular-nums">
             ${wDays} d
             <span class="ml-1 text-xs font-bold bg-orange-100 text-orange-700 rounded px-1 py-0.5">↑${Math.ceil(wDays)} d</span>
@@ -477,8 +577,8 @@
                         <th class="px-3 py-2.5 text-left w-20">Role</th>
                         <th class="px-3 py-2.5 text-left w-28">Status</th>
                         <th class="px-3 py-2.5 text-left w-20">Priority</th>
-                        <th class="px-3 py-2.5 text-right w-24">Alloc MD</th>
-                        <th class="px-3 py-2.5 text-right w-24">Add. MD</th>
+                        <th class="px-3 py-2.5 text-right w-24">Alloc Days</th>
+                        <th class="px-3 py-2.5 text-right w-24">Add. Days</th>
                         <th class="px-3 py-2.5 text-right w-36">Remain</th>
                         <th class="px-3 py-2.5 text-left w-48">Progress</th>
                     </tr>
@@ -490,10 +590,10 @@
                             Total (${visibleTickets.length} ticket${visibleTickets.length > 1 ? 's' : ''})
                         </td>
                         <td class="px-3 py-2.5 text-right text-xs font-bold text-gray-700">
-                            ${totalAllocMdMain.toFixed(1)} md
+                            ${totalAllocMdMain.toFixed(1)} days
                         </td>
                         <td class="px-3 py-2.5 text-right text-xs font-bold text-indigo-600">
-                            ${totalAddMdMain.toFixed(1)} md
+                            ${totalAddMdMain.toFixed(1)} days
                         </td>
                         <td class="px-3 py-2.5 text-right text-xs font-bold text-orange-600">
                             ${totalRemainMain.toFixed(2)} d
@@ -553,10 +653,10 @@
         <td class="px-3 py-2.5">
             <span class="px-1.5 py-0.5 rounded text-xs font-medium ${prCls}">${t.ticket_priority ?? '—'}</span>
         </td>
-        <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${ticketAllocMd > 0 ? ticketAllocMd.toFixed(2) + ' md' : '—'}</td>
+        <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${ticketAllocMd > 0 ? ticketAllocMd.toFixed(2) + ' days' : '—'}</td>
         <td class="px-3 py-2.5 text-right text-xs text-gray-500">
             ${ticketAddMd > 0
-                ? `<span class="text-indigo-600 font-semibold">${ticketAddMd.toFixed(2)} md</span>`
+                ? `<span class="text-indigo-600 font-semibold">${ticketAddMd.toFixed(2)} days</span>`
                 : '<span class="text-gray-300">—</span>'}
         </td>
         <td class="px-3 py-2.5 text-right">${remainCell}</td>
@@ -628,6 +728,8 @@
         const ticketId = document.getElementById('progressTicketId').value;
         const pct = document.getElementById('progressSlider').value;
         const note = document.getElementById('progressNote').value;
+        const btn = document.getElementById('btnSubmitProgress');
+        btn.disabled = true; btn.textContent = 'Saving…';
         try {
             const res = await fetch(`/api/consultant-workload/tickets/${ticketId}/progress`, {
                 method: 'PATCH',
@@ -644,9 +746,13 @@
             if (json.success) {
                 closeProgressModal();
                 loadWorkload();
-            } else alert('Failed: ' + (json.message ?? 'Error'));
+            } else {
+                showNotification(json.message ?? 'Failed to save progress.', 'error');
+                btn.disabled = false; btn.textContent = 'Save';
+            }
         } catch (e) {
-            alert('Error: ' + e.message);
+            showNotification('Error: ' + e.message, 'error');
+            btn.disabled = false; btn.textContent = 'Save';
         }
     }
 
@@ -654,6 +760,10 @@
         if (e.target === this) closeProgressModal();
     });
 
-    document.addEventListener('DOMContentLoaded', loadWorkload);
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
+        loadWorkload();
+    });
 </script>
+<script src="/js/custom-dropdown.js?v={{ filemtime(public_path('js/custom-dropdown.js')) }}"></script>
 @endsection
