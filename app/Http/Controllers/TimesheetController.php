@@ -417,6 +417,7 @@ class TimesheetController extends Controller
                     'end_time'             => $t->end_time,
                     'duration_minutes'     => $t->duration_minutes,
                     'description'          => $t->description,
+                    'notes'                => $t->notes,
                     'activity_type'        => $t->activity_type,
                     'status'               => $t->status,
                     'rejection_reason'     => $t->rejection_reason,
@@ -453,20 +454,38 @@ class TimesheetController extends Controller
     public function show($id)
     {
         try {
-            // Load employee and activity relationships
-            $timesheet = Timesheet::with(['employee', 'activity'])->findOrFail($id);
+            $timesheet   = Timesheet::with(['employee', 'activity'])->findOrFail($id);
+            $sessionUser = session('user');
+            $roleId      = $sessionUser['role']['id'] ?? 0;
+            $sessionEmpId = $sessionUser['id'] ?? null;
+
+            // Admins, Head of Support, Head of Project, and Helpdesk can view any timesheet.
+            // All other roles may only view their own.
+            $privileged = in_array($roleId, [
+                RoleId::ADMIN->value,
+                RoleId::HEAD_OF_SUPPORT->value,
+                RoleId::HEAD_OF_PROJECT->value,
+                RoleId::HELPDESK->value,
+            ], true);
+
+            if (!$privileged && (int) $timesheet->employee_id !== (int) $sessionEmpId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You are not authorised to view this timesheet.',
+                ], 403);
+            }
 
             return response()->json([
                 'success' => true,
-                'data' => $timesheet,
-                'message' => 'Timesheet retrieved successfully'
+                'data'    => $timesheet,
+                'message' => 'Timesheet retrieved successfully',
             ]);
         } catch (\Exception $e) {
             Log::error('Error retrieving timesheet: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
-                'message' => 'Timesheet not found'
+                'message' => 'Timesheet not found',
             ], 404);
         }
     }
@@ -482,10 +501,11 @@ class TimesheetController extends Controller
             // Base validation
             $rules = [
                 'employee_id' => 'required|exists:employee,employee_id',
-                'date' => 'required|date',
+                'date' => 'required|date|before_or_equal:today',
                 'start_time' => 'required',
                 'end_time' => 'required|after:start_time',
                 'description' => 'required|string',
+                'notes' => 'nullable|string',
                 'activity_type' => 'required|in:development,meeting,documentation,testing,support,training,other',
                 'is_billable' => 'sometimes|boolean',
                 'presence' => 'nullable|string',
@@ -608,18 +628,19 @@ class TimesheetController extends Controller
                 ], 403);
             }
 
-            if ($timesheet->status === 'approved') {
+            if (in_array($timesheet->status, ['approved', 'submitted'])) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cannot update approved timesheet'
+                    'message' => 'Cannot update an approved or submitted timesheet.',
                 ], 403);
             }
 
             $rules = [
-                'date' => 'required|date',
+                'date' => 'required|date|before_or_equal:today',
                 'start_time' => 'required',
                 'end_time' => 'required|after:start_time',
                 'description' => 'required|string',
+                'notes' => 'nullable|string',
                 'activity_type' => 'required|in:development,meeting,documentation,testing,support,training,other',
                 'is_billable' => 'sometimes|boolean',
                 'presence' => 'nullable|string',
@@ -757,7 +778,7 @@ class TimesheetController extends Controller
                 ], 400);
             }
 
-            // For support timesheets, block submit when remaining MD quota is exhausted
+            // For support timesheets, enforce mandays quota hard-stop
             if ($timesheet->ticket_id) {
                 $empId    = $timesheet->employee_id;
                 $ticketId = $timesheet->ticket_id;
@@ -767,28 +788,36 @@ class TimesheetController extends Controller
                     ->orderBy('approved_at', 'desc')
                     ->first();
 
-                $quotaDetail = $latestApproved
-                    ? ConsultantMandaysDetail::where('consultant_mandays_id', $latestApproved->id)
-                        ->where('employee_id', $empId)
-                        ->first()
-                    : null;
+                if (!$latestApproved) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Cannot submit: no approved mandays proposal found for this ticket. Contact your Head.',
+                    ], 422);
+                }
 
-                if ($quotaDetail) {
-                    $quota = round((float) $quotaDetail->mandays + (float) ($quotaDetail->approved_additional ?? 0), 2);
+                $quotaDetail = ConsultantMandaysDetail::where('consultant_mandays_id', $latestApproved->id)
+                    ->where('employee_id', $empId)
+                    ->first();
 
-                    $consumed  = (float) Timesheet::where('ticket_id', $ticketId)
-                        ->where('employee_id', $empId)
-                        ->whereIn('status', ['draft', 'submitted', 'approved'])
-                        ->sum('md_consumed');
+                if (!$quotaDetail) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Cannot submit: you are not listed in the approved mandays proposal for this ticket. Contact your Head.',
+                    ], 422);
+                }
 
-                    $remaining = round($quota - $consumed, 2);
+                $quota    = round((float) $quotaDetail->mandays + (float) ($quotaDetail->approved_additional ?? 0), 2);
+                $consumed = (float) Timesheet::where('ticket_id', $ticketId)
+                    ->where('employee_id', $empId)
+                    ->whereIn('status', ['draft', 'submitted', 'approved'])
+                    ->sum('md_consumed');
+                $remaining = round($quota - $consumed, 2);
 
-                    if ($remaining < 0) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => "Cannot submit: quota exceeded. Remaining MD is {$remaining}. Contact your Head to increase the quota.",
-                        ], 422);
-                    }
+                if ($remaining < 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Cannot submit: quota exceeded. Remaining MD is {$remaining}. Contact your Head to increase the quota.",
+                    ], 422);
                 }
             }
 

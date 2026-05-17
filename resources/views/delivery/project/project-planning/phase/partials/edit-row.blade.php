@@ -13,7 +13,7 @@
                 </span>
                 <input type="text" name="activities[{{ $uniqueId }}][notes]" value="{{ $item->notes ?? '' }}" 
                        class="mt-1 w-auto text-sm rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500" 
-                       placeholder="Nama group...">
+                       placeholder="Group name...">
             </div>
         </td>
         @for($i = 0; $i < 5; $i++)

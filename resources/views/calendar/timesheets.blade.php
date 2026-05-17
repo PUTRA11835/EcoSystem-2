@@ -296,6 +296,7 @@
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:55px;">Month</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:55px;">Year</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Name</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Status</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Ticket</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:180px;">Description</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Customer</th>
@@ -303,7 +304,6 @@
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:180px;">Activity</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:90px;">MD Consumed</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:70px;">On Site</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Status</th>
                     </tr>
                     @else
                     <tr>
@@ -344,73 +344,108 @@
 @if($isApprovalMode || $isHoSMode)
 <!-- Rejection Reason Modal -->
 <div id="rejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
-    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
-        <div class="p-6">
-            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
-                <i class="fas fa-times text-red-600 text-xl"></i>
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-red-600">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-900">Reject Timesheet</h3>
+                    <p class="text-xs text-gray-500">Please provide a reason for rejection</p>
+                </div>
             </div>
-            <h3 class="text-lg font-bold text-gray-900 text-center mb-2">Reject Timesheet</h3>
-            <p class="text-sm text-gray-600 text-center mb-4">Please provide a reason for rejection</p>
+            <button onclick="closeRejectModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all text-sm">✕</button>
+        </div>
+        <div class="px-6 py-5">
             <input type="hidden" id="rejectTimesheetId">
-            <textarea id="rejectionReason" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent resize-none mb-4" placeholder="Enter rejection reason..."></textarea>
-            <div class="flex gap-3">
-                <button onclick="closeRejectModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
-                <button onclick="confirmReject()" class="flex-1 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-all">Reject</button>
-            </div>
+            <textarea id="rejectionReason" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent resize-none" placeholder="Enter rejection reason..."></textarea>
+        </div>
+        <div class="flex gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+            <button onclick="confirmReject()" class="flex-1 px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-all">Reject</button>
         </div>
     </div>
 </div>
 
 <!-- Approval Confirmation Modal (single) -->
 <div id="approveModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
-    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
-        <div class="p-6">
-            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-green-100 rounded-full">
-                <i class="fas fa-check text-green-600 text-xl"></i>
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-green-600">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-900">Approve Timesheet</h3>
+                    <p class="text-xs text-gray-500">Confirm approval for this entry</p>
+                </div>
             </div>
-            <h3 class="text-lg font-bold text-gray-900 text-center mb-2">Approve Timesheet</h3>
-            <p class="text-sm text-gray-600 text-center mb-6">Are you sure you want to approve this timesheet entry?</p>
-            <input type="hidden" id="approveTimesheetId">
-            <div class="flex gap-3">
-                <button onclick="closeApproveModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
-                <button onclick="switchToRejectModal()" class="flex-1 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-all">Reject</button>
-                <button onclick="confirmApprove()" class="flex-1 px-4 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all">Approve</button>
-            </div>
+            <button onclick="closeApproveModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all text-sm">✕</button>
+        </div>
+        <div class="px-6 py-5">
+            <p class="text-sm text-gray-600">Are you sure you want to approve this timesheet entry?</p>
+        </div>
+        <input type="hidden" id="approveTimesheetId">
+        <div class="flex gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+            <button onclick="switchToRejectModal()" class="flex-1 px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-all">Reject</button>
+            <button onclick="confirmApprove()" class="flex-1 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all">Approve</button>
         </div>
     </div>
 </div>
 
 <!-- Bulk Approve Modal -->
 <div id="bulkApproveModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
-    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
-        <div class="p-6">
-            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-green-100 rounded-full">
-                <i class="fas fa-check text-green-600 text-xl"></i>
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-green-600">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-900">Approve Selected Timesheets</h3>
+                    <p class="text-xs text-gray-500">Bulk approval action</p>
+                </div>
             </div>
-            <h3 class="text-lg font-bold text-gray-900 text-center mb-2">Approve Selected Timesheets</h3>
-            <p class="text-sm text-gray-600 text-center mb-6">Approve <span id="bulkApproveCount" class="font-bold text-green-600">0</span> selected timesheet(s)?</p>
-            <div class="flex gap-3">
-                <button onclick="closeBulkApproveModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
-                <button onclick="confirmBulkApprove()" class="flex-1 px-4 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all">Approve All</button>
-            </div>
+            <button onclick="closeBulkApproveModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all text-sm">✕</button>
+        </div>
+        <div class="px-6 py-5">
+            <p class="text-sm text-gray-600">Approve <span id="bulkApproveCount" class="font-bold text-green-600">0</span> selected timesheet(s)?</p>
+        </div>
+        <div class="flex gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+            <button onclick="confirmBulkApprove()" class="flex-1 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all">Approve All</button>
         </div>
     </div>
 </div>
 
 <!-- Bulk Reject Modal -->
 <div id="bulkRejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
-    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
-        <div class="p-6">
-            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
-                <i class="fas fa-times text-red-600 text-xl"></i>
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-red-600">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-900">Reject Selected Timesheets</h3>
+                    <p class="text-xs text-gray-500">Bulk rejection action</p>
+                </div>
             </div>
-            <h3 class="text-lg font-bold text-gray-900 text-center mb-2">Reject Selected Timesheets</h3>
-            <p class="text-sm text-gray-600 text-center mb-4">Reject <span id="bulkRejectCount" class="font-bold text-red-600">0</span> selected timesheet(s).</p>
-            <textarea id="bulkRejectionReason" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent resize-none mb-4" placeholder="Enter rejection reason for all selected..."></textarea>
-            <div class="flex gap-3">
-                <button onclick="closeBulkRejectModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
-                <button onclick="confirmBulkReject()" class="flex-1 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-all">Reject All</button>
-            </div>
+            <button onclick="closeBulkRejectModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all text-sm">✕</button>
+        </div>
+        <div class="px-6 py-5">
+            <p class="text-sm text-gray-600 mb-4">Reject <span id="bulkRejectCount" class="font-bold text-red-600">0</span> selected timesheet(s).</p>
+            <textarea id="bulkRejectionReason" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent resize-none" placeholder="Enter rejection reason for all selected..."></textarea>
+        </div>
+        <div class="flex gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+            <button onclick="confirmBulkReject()" class="flex-1 px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-all">Reject All</button>
         </div>
     </div>
 </div>
@@ -523,7 +558,7 @@
                             {{-- Start time --}}
                             <div id="timesheetStartTimeField" class="flex items-center gap-1 flex-1">
                                 {{-- Start Hour --}}
-                                <div class="custom-dd flex-1" data-fixed="true" data-onchange="tsUpdateStartTime">
+                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateStartTime">
                                     <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
                                         <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">08</span>
                                         <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -537,7 +572,7 @@
                                 </div>
                                 <span class="text-sm font-bold text-gray-400 flex-shrink-0">:</span>
                                 {{-- Start Minute --}}
-                                <div class="custom-dd flex-1" data-fixed="true" data-onchange="tsUpdateStartTime">
+                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateStartTime">
                                     <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
                                         <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">00</span>
                                         <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -554,7 +589,7 @@
                             {{-- End time --}}
                             <div id="timesheetEndTimeField" class="flex items-center gap-1 flex-1">
                                 {{-- End Hour --}}
-                                <div class="custom-dd flex-1" data-fixed="true" data-onchange="tsUpdateEndTime">
+                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateEndTime">
                                     <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
                                         <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">17</span>
                                         <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -568,7 +603,7 @@
                                 </div>
                                 <span class="text-sm font-bold text-gray-400 flex-shrink-0">:</span>
                                 {{-- End Minute --}}
-                                <div class="custom-dd flex-1" data-fixed="true" data-onchange="tsUpdateEndTime">
+                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateEndTime">
                                     <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
                                         <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">00</span>
                                         <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -634,7 +669,7 @@
         {{-- Footer --}}
         <div class="flex items-center justify-between px-6 py-4 border-t border-gray-100 flex-shrink-0 bg-gray-50/40">
             <p class="text-xs text-gray-400"><span class="text-red-500">*</span> Required fields</p>
-            <button type="submit" form="timesheetForm"
+            <button type="submit" form="timesheetForm" id="btnSaveTimesheet"
                 class="px-6 py-2 text-sm font-semibold text-white primary-gradient hover:opacity-90 transition-all shadow-sm rounded-lg">
                 Save Timesheet
             </button>
@@ -946,7 +981,6 @@ async function loadLateAccessHistory() {
                     <p class="text-sm font-semibold text-gray-900">${r.period_label}</p>
                     <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold shrink-0 ${r.status_color}">${r.status_label}</span>
                 </div>
-                <p class="text-xs text-gray-500">${r.period_start} – ${r.period_end}</p>
                 ${r.notes ? `<p class="text-xs text-gray-600 mt-1.5 bg-gray-50 rounded px-2 py-1">${r.notes}</p>` : ''}
                 ${r.status === 'pending_head' ? `<p class="text-xs text-yellow-600 mt-1.5"><i class="fas fa-hourglass-half mr-1"></i>Waiting for Head approval.</p>` : ''}
                 ${r.status === 'pending_rpmo' ? `<p class="text-xs text-blue-600 mt-1.5"><i class="fas fa-hourglass-half mr-1"></i>Approved by Head. Waiting for RPMO.</p>` : ''}

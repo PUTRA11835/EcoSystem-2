@@ -86,8 +86,10 @@ class AdminBackupController extends Controller
             if (!is_dir($dir)) mkdir($dir, 0755, true);
             $filepath  = $dir . DIRECTORY_SEPARATOR . $filename;
 
+            // Build command — redirect stderr to a temp file to capture errors.
+            // escapeshellarg() is used on all platforms; on Windows it wraps with
+            // double-quotes which mysqldump accepts for the -p argument.
             $passArg = $pass !== '' ? '-p' . escapeshellarg($pass) : '';
-            // Build command — redirect stderr to a temp file to capture errors
             $errFile = $filepath . '.err';
             if (PHP_OS_FAMILY === 'Windows') {
                 $cmd = sprintf(
@@ -96,7 +98,7 @@ class AdminBackupController extends Controller
                     escapeshellarg($host),
                     $port,
                     escapeshellarg($user),
-                    $pass !== '' ? '-p' . $pass : '',
+                    $passArg,
                     escapeshellarg($dbName),
                     $filepath,
                     $errFile
@@ -108,7 +110,7 @@ class AdminBackupController extends Controller
                     escapeshellarg($host),
                     $port,
                     escapeshellarg($user),
-                    $pass !== '' ? '-p' . escapeshellarg($pass) : '',
+                    $passArg,
                     escapeshellarg($dbName),
                     escapeshellarg($filepath),
                     escapeshellarg($errFile)

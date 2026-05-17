@@ -478,89 +478,102 @@ class EmailController extends Controller
                             continue;
                         }
 
-                        // Tambah pesan ke tiket yang sudah ada
-                        // cc_emails: kirim PHP array (bukan JSON string) karena TicketMessage
-                        // model punya 'array' cast — mengirim JSON string akan double-encode
-                        $message = TicketMessage::create([
-                            'ticket_id'           => $ticket->ticket_id,
-                            'sender_type'         => $customer ? 'customer' : 'system',
-                            'sender_id'           => $customer?->customer_id,
-                            'sender_email'        => $fromEmail,
-                            'sender_name'         => $fromName,
-                            'message'             => $bodyPlain,
-                            'message_html'        => $bodyHtml,
-                            'is_internal_note'    => false,
-                            'channel'             => 'email',
-                            'email_message_id'    => $internetMsgId,
-                            'email_in_reply_to'   => null,
-                            'cc_emails'           => !empty($ccEmails) ? $ccEmails : null,
-                            'is_read_by_customer' => true,
-                            'is_read_by_agent'    => false,
-                        ]);
-
-                        // Gunakan waktu asli email (bukan waktu scheduler) untuk created_at.
-                        // PENTING: $receivedAt adalah Carbon UTC. Harus di-convert ke app timezone
-                        // (Asia/Jakarta) sebelum disimpan sebagai string via raw DB::table(),
-                        // karena Eloquent membaca string DB tanpa konversi UTC→WIB.
-                        if ($receivedAt) {
-                            $appTz     = config('app.timezone', 'Asia/Jakarta');
-                            $localTime = $receivedAt->copy()->setTimezone($appTz)->toDateTimeString();
-                            \DB::table('ticket_message')->where('id', $message->id)->update([
-                                'created_at' => $localTime,
-                                'updated_at' => $localTime,
+                        // Atomic insert: message + attachments + cid replacement + ticket update
+                        // dibungkus transaction supaya polling client (Jarvies/EcoSystem) tidak
+                        // melihat row baru sampai message_html sudah selesai di-replace dari
+                        // cid:xxx ke proxy URL. Tanpa ini, polling yang fire selama Graph API
+                        // attachment download (~1-3 detik) akan render gambar dengan src="cid:xxx"
+                        // yang broken di browser, dan karena polling bersifat incremental append-only,
+                        // tampilan rusak itu menetap sampai user manual refresh halaman.
+                        \DB::transaction(function () use (
+                            $ticket, $customer, $fromEmail, $fromName,
+                            $bodyPlain, $bodyHtml, $internetMsgId, $ccEmails,
+                            $receivedAt, $hasAttachments, $sender, $graphMsgId, $conversationId
+                        ) {
+                            // Tambah pesan ke tiket yang sudah ada
+                            // cc_emails: kirim PHP array (bukan JSON string) karena TicketMessage
+                            // model punya 'array' cast — mengirim JSON string akan double-encode
+                            $message = TicketMessage::create([
+                                'ticket_id'           => $ticket->ticket_id,
+                                'sender_type'         => $customer ? 'customer' : 'system',
+                                'sender_id'           => $customer?->customer_id,
+                                'sender_email'        => $fromEmail,
+                                'sender_name'         => $fromName,
+                                'message'             => $bodyPlain,
+                                'message_html'        => $bodyHtml,
+                                'is_internal_note'    => false,
+                                'channel'             => 'email',
+                                'email_message_id'    => $internetMsgId,
+                                'email_in_reply_to'   => null,
+                                'cc_emails'           => !empty($ccEmails) ? $ccEmails : null,
+                                'is_read_by_customer' => true,
+                                'is_read_by_agent'    => false,
                             ]);
-                            $message->created_at = $receivedAt->copy()->setTimezone($appTz);
-                            $message->updated_at = $receivedAt->copy()->setTimezone($appTz);
-                        }
 
-                        // Ambil metadata attachment & ganti referensi cid: di message_html.
-                        // Cek dua kondisi: hasAttachments flag ATAU ada cid: references di body
-                        // (beberapa email client melaporkan hasAttachments=false meski ada inline image).
-                        if ($hasAttachments || str_contains($bodyHtml, 'cid:')) {
-                            $cidMap = $this->storeEmailAttachments($sender, $graphMsgId, $message, $ticket->ticket_id);
-                            if (!empty($cidMap) && $message->message_html) {
-                                $message->update([
-                                    'message_html' => $this->replaceCidReferences($message->message_html, $cidMap),
+                            // Gunakan waktu asli email (bukan waktu scheduler) untuk created_at.
+                            // PENTING: $receivedAt adalah Carbon UTC. Harus di-convert ke app timezone
+                            // (Asia/Jakarta) sebelum disimpan sebagai string via raw DB::table(),
+                            // karena Eloquent membaca string DB tanpa konversi UTC→WIB.
+                            if ($receivedAt) {
+                                $appTz     = config('app.timezone', 'Asia/Jakarta');
+                                $localTime = $receivedAt->copy()->setTimezone($appTz)->toDateTimeString();
+                                \DB::table('ticket_message')->where('id', $message->id)->update([
+                                    'created_at' => $localTime,
+                                    'updated_at' => $localTime,
                                 ]);
+                                $message->created_at = $receivedAt->copy()->setTimezone($appTz);
+                                $message->updated_at = $receivedAt->copy()->setTimezone($appTz);
                             }
-                        }
 
-                        // Merge CC dari reply customer ke ticket.cc_emails — agar helpdesk
-                        // reply form otomatis show CC terbaru. Normalize ke format {address,name},
-                        // dedup by address (case-insensitive), exclude helpdesk sendiri.
-                        $ticketCcUpdate = [
-                            'last_customer_reply_at' => now(),
-                            'last_message_at'        => now(),
-                        ];
+                            // Ambil metadata attachment & ganti referensi cid: di message_html.
+                            // Cek dua kondisi: hasAttachments flag ATAU ada cid: references di body
+                            // (beberapa email client melaporkan hasAttachments=false meski ada inline image).
+                            if ($hasAttachments || str_contains($bodyHtml, 'cid:')) {
+                                $cidMap = $this->storeEmailAttachments($sender, $graphMsgId, $message, $ticket->ticket_id);
+                                if (!empty($cidMap) && $message->message_html) {
+                                    $message->update([
+                                        'message_html' => $this->replaceCidReferences($message->message_html, $cidMap),
+                                    ]);
+                                }
+                            }
 
-                        // Sync email_thread_id ke convId email customer reply. Jika convId
-                        // berubah (misal Exchange split thread karena subject di-patch),
-                        // ticket selalu reference thread aktif terakhir. Jarvies/EcoSystem
-                        // reply berikutnya akan createReply pada pesan di thread yang sama.
-                        if ($conversationId && $conversationId !== $ticket->email_thread_id) {
-                            $ticketCcUpdate['email_thread_id'] = $conversationId;
-                        }
-                        if (!empty($ccEmails)) {
-                            $existing = collect($ticket->cc_emails ?? [])
-                                ->map(fn ($c) => is_array($c)
-                                    ? ['address' => strtolower($c['address'] ?? ''), 'name' => $c['name'] ?? null]
-                                    : ['address' => strtolower((string) $c), 'name' => null])
-                                ->filter(fn ($c) => !empty($c['address']));
-                            $incoming = collect($ccEmails)
-                                ->map(fn ($c) => [
-                                    'address' => strtolower($c['address'] ?? ''),
-                                    'name'    => $c['name'] ?? null,
-                                ])
-                                ->filter(fn ($c) => !empty($c['address']));
-                            $senderLower = strtolower((string) $sender);
-                            $merged = $existing->concat($incoming)
-                                ->reject(fn ($c) => $c['address'] === $senderLower)
-                                ->unique('address')
-                                ->values()
-                                ->all();
-                            $ticketCcUpdate['cc_emails'] = $merged;
-                        }
-                        $ticket->update($ticketCcUpdate);
+                            // Merge CC dari reply customer ke ticket.cc_emails — agar helpdesk
+                            // reply form otomatis show CC terbaru. Normalize ke format {address,name},
+                            // dedup by address (case-insensitive), exclude helpdesk sendiri.
+                            $ticketCcUpdate = [
+                                'last_customer_reply_at' => now(),
+                                'last_message_at'        => now(),
+                            ];
+
+                            // Sync email_thread_id ke convId email customer reply. Jika convId
+                            // berubah (misal Exchange split thread karena subject di-patch),
+                            // ticket selalu reference thread aktif terakhir. Jarvies/EcoSystem
+                            // reply berikutnya akan createReply pada pesan di thread yang sama.
+                            if ($conversationId && $conversationId !== $ticket->email_thread_id) {
+                                $ticketCcUpdate['email_thread_id'] = $conversationId;
+                            }
+                            if (!empty($ccEmails)) {
+                                $existing = collect($ticket->cc_emails ?? [])
+                                    ->map(fn ($c) => is_array($c)
+                                        ? ['address' => strtolower($c['address'] ?? ''), 'name' => $c['name'] ?? null]
+                                        : ['address' => strtolower((string) $c), 'name' => null])
+                                    ->filter(fn ($c) => !empty($c['address']));
+                                $incoming = collect($ccEmails)
+                                    ->map(fn ($c) => [
+                                        'address' => strtolower($c['address'] ?? ''),
+                                        'name'    => $c['name'] ?? null,
+                                    ])
+                                    ->filter(fn ($c) => !empty($c['address']));
+                                $senderLower = strtolower((string) $sender);
+                                $merged = $existing->concat($incoming)
+                                    ->reject(fn ($c) => $c['address'] === $senderLower)
+                                    ->unique('address')
+                                    ->values()
+                                    ->all();
+                                $ticketCcUpdate['cc_emails'] = $merged;
+                            }
+                            $ticket->update($ticketCcUpdate);
+                        });
 
                     } else {
                         // Dedup staging: skip jika sudah pernah masuk staging dengan internet_message_id ini
@@ -1451,14 +1464,22 @@ class EmailController extends Controller
         // ── Ambil internetMessageId dari draft sebelum dikirim ────────────────
         // internetMessageId diperlukan oleh Jarvies sebagai In-Reply-To header
         // agar balasan customer masuk ke thread yang sama di Gmail/Outlook.
+        //
+        // CATATAN PENTING — conversationId post-patch:
+        // Jika subject di-patch (kasus $noRePrefix=true, contoh "Ticket #XXXX: ..."),
+        // Exchange akan assign conversationId BARU saat draft dikirim. convId yang
+        // didapat dari createReply (sebelum patch) jadi STALE. Kita harus selalu
+        // ambil convId terbaru, bukan hanya saat null — kalau tidak, ticket.email_thread_id
+        // akan tetap menunjuk ke thread lama ("[Pending Validation]") dan reply
+        // berikutnya dari Jarvies akan threading ke thread yang salah.
         $internetMessageId = null;
         try {
             $draftInfo = $this->graphGet("/users/{$sender}/messages/{$draftId}", [
                 '$select' => 'internetMessageId,conversationId',
             ]);
             $internetMessageId = $draftInfo['internetMessageId'] ?? null;
-            if (!$conversationId) {
-                $conversationId = $draftInfo['conversationId'] ?? null;
+            if (!empty($draftInfo['conversationId'])) {
+                $conversationId = $draftInfo['conversationId'];
             }
             if (!$internetMessageId) {
                 Log::warning('EmailController@sendTicketReply: internetMessageId null dari draft', [
@@ -1489,12 +1510,19 @@ class EmailController extends Controller
                 try {
                     $searchResult = $this->graphGet("/users/{$sender}/mailFolders/SentItems/messages", [
                         '$orderby' => 'sentDateTime desc',
-                        '$select'  => 'id,internetMessageId',
+                        '$select'  => 'id,internetMessageId,conversationId',
                         '$top'     => 20,
                     ]);
                     foreach ($searchResult['value'] ?? [] as $msg) {
                         if (($msg['internetMessageId'] ?? '') === $internetMessageId) {
                             $sentMessageId = $msg['id'];
+                            // convId final dari Sent Items — ini yang authoritative.
+                            // Setelah subject patch, Exchange bisa assign convId baru saat
+                            // draft dikirim. Update ke convId final agar caller (yang
+                            // menyimpan ke ticket.email_thread_id) ref ke thread aktif.
+                            if (!empty($msg['conversationId'])) {
+                                $conversationId = $msg['conversationId'];
+                            }
                             break 2;
                         }
                     }

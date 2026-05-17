@@ -24,6 +24,7 @@ const SUPPORT_THEAD_HTML = `<tr>
     <th class="${TH}" style="min-width:55px;">Month</th>
     <th class="${TH}" style="min-width:55px;">Year</th>
     <th class="${TH}" style="min-width:130px;">Name</th>
+    <th class="${TH}" style="min-width:100px;">Status</th>
     <th class="${TH}" style="min-width:130px;">Ticket</th>
     <th class="${TH}" style="min-width:180px;">Description</th>
     <th class="${TH}" style="min-width:120px;">Customer</th>
@@ -31,7 +32,6 @@ const SUPPORT_THEAD_HTML = `<tr>
     <th class="${TH}" style="min-width:180px;">Activity</th>
     <th class="${TH}" style="min-width:90px;">MD Consumed</th>
     <th class="${TH}" style="min-width:70px;">On Site</th>
-    <th class="${TH}" style="min-width:100px;">Status</th>
 </tr>`;
 let currentFilters = {
     start_date: null,
@@ -761,23 +761,19 @@ async function loadTicketsForDropdown() {
             const data = await response.json();
 
             if (panel && data.success && data.data) {
-                const activeTickets = data.data.filter(t =>
-                    t.status !== 'closed' &&
-                    t.status !== 'cancel' &&
-                    t.jarvies_status !== 'closed'
-                );
-                myTicketsCache = activeTickets;
+                const allTickets = data.data;
+                myTicketsCache = allTickets;
 
-                if (activeTickets.length === 0) {
-                    panel.innerHTML = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 cursor-default" data-value="">No active tickets assigned to you</button>';
+                if (allTickets.length === 0) {
+                    panel.innerHTML = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 cursor-default" data-value="">No tickets assigned to you</button>';
                     return;
                 }
 
                 // Sort by ticket_id descending (newest first)
-                activeTickets.sort((a, b) => b.ticket_id - a.ticket_id);
+                allTickets.sort((a, b) => b.ticket_id - a.ticket_id);
 
                 let html = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50" data-value="">Select a Ticket</button>';
-                activeTickets.forEach(ticket => {
+                allTickets.forEach(ticket => {
                     const ticketLabel  = ticket.ticket_number || `#${ticket.ticket_id}`;
                     const customerCode = ticket.customer?.customer_code || ticket.customer?.customer_name || '';
                     const description  = ticket.description || '';
@@ -1304,6 +1300,7 @@ function renderTimesheetRows() {
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">' + bln + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">' + thn + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-800 font-medium">' + nam + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap">' + statusCell + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs font-semibold text-purple-700"><i class="fas fa-ticket-alt mr-1 opacity-60"></i>' + tkt + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-600 max-w-[180px]" title="' + escapeHtml(ts.ticket_description || '') + '">' + tdesc + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700">' + cust + '</td>'
@@ -1311,7 +1308,6 @@ function renderTimesheetRows() {
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700 max-w-[180px]" title="' + escapeHtml(ts.description || '') + '">' + akt + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">' + mdc + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-bold text-green-700">' + ons + '</td>'
-                + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap">' + statusCell + '</td>'
                 + '</tr>';
         }
         tbody.innerHTML = rows;
@@ -1689,6 +1685,8 @@ function editTimesheet(id) {
     if (timesheetId) timesheetId.value = timesheet.id;
     if (timesheetDate) timesheetDate.value = timesheet.date;
     if (timesheetDescription) timesheetDescription.value = timesheet.description || '';
+    const timesheetNotes = document.getElementById('timesheetNotes');
+    if (timesheetNotes) timesheetNotes.value = timesheet.notes || '';
 
     // Set time pickers using helper function
     setTimePicker('Start', timesheet.start_time);
@@ -1802,7 +1800,7 @@ async function openSubmitModal(id) {
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
     const timesheet = timesheets.find(t => String(t.id) === String(id));
 
-    // For support timesheets, check remaining MD quota before allowing submit
+    // For support timesheets, enforce mandays quota before allowing submit
     if (timesheet?.ticket_id) {
         try {
             const res  = await fetch(`/api/timesheets/remaining-md?ticket_id=${timesheet.ticket_id}`, {
@@ -1810,18 +1808,26 @@ async function openSubmitModal(id) {
                 credentials: 'same-origin'
             });
             const data = await res.json();
-            if (data?.success && data.data?.remaining !== null) {
-                const remaining = Number(data.data.remaining);
-                if (remaining < 0) {
+            if (data?.success) {
+                const remaining = data.data?.remaining;
+                if (remaining === null || remaining === undefined) {
                     showNotification(
-                        `Cannot submit: quota exceeded (remaining MD: ${remaining.toFixed(2)}). Save as draft only until quota is increased.`,
+                        'Cannot submit: no approved mandays proposal found for this ticket. Contact your Head.',
+                        'error'
+                    );
+                    return;
+                }
+                const rem = Number(remaining);
+                if (rem < 0) {
+                    showNotification(
+                        `Cannot submit: quota exceeded (remaining MD: ${rem.toFixed(2)}). Save as draft only until quota is increased.`,
                         'error'
                     );
                     return;
                 }
             }
         } catch (e) {
-            // Network error — proceed, backend will validate
+            // Network error — backend will validate
         }
     }
 
@@ -2020,8 +2026,10 @@ async function openBulkSubmitModal() {
                     credentials: 'same-origin'
                 });
                 const data = await res.json();
-                if (data?.success && data.data?.remaining !== null) {
-                    remainingByTicket[ticketId] = Number(data.data.remaining);
+                if (data?.success) {
+                    const rem = data.data?.remaining;
+                    // null means no approved proposal — store -Infinity so it is treated as over-quota
+                    remainingByTicket[ticketId] = (rem !== null && rem !== undefined) ? Number(rem) : -Infinity;
                 }
             } catch (e) {}
         }));
@@ -2147,7 +2155,10 @@ function showRejectionReason(id) {
 
 async function handleFormSubmit(e) {
     e.preventDefault();
-    
+
+    const saveBtn = document.getElementById('btnSaveTimesheet');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+
     const timesheetId = document.getElementById('timesheetId');
     
     const userMeta = document.querySelector('meta[name="user-data"]');
@@ -2190,6 +2201,7 @@ async function handleFormSubmit(e) {
         start_time: startTime,
         end_time: endTime,
         description: document.getElementById('timesheetDescription')?.value,
+        notes: document.getElementById('timesheetNotes')?.value || null,
     };
     
     // Type-specific data
@@ -2247,10 +2259,12 @@ async function handleFormSubmit(e) {
             await loadStatistics();
         } else {
             showNotification('Failed to save timesheet: ' + (data.message || 'Unknown error'), 'error');
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Timesheet'; }
         }
     } catch (error) {
         console.error('Error:', error);
         showNotification('An error occurred while saving timesheet', 'error');
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Timesheet'; }
     }
 }
 
@@ -2405,36 +2419,6 @@ if (confirmBulkDeleteModal) {
     });
 }
 
-// Approval modals click outside to close (for heads)
-const approveModal = document.getElementById('approveModal');
-if (approveModal) {
-    approveModal.addEventListener('click', function(e) {
-        if (e.target === this) closeApproveModal();
-    });
-}
-
-const bulkApproveModal = document.getElementById('bulkApproveModal');
-if (bulkApproveModal) {
-    bulkApproveModal.addEventListener('click', function(e) {
-        if (e.target === this) closeBulkApproveModal();
-    });
-}
-
-const bulkRejectModal = document.getElementById('bulkRejectModal');
-if (bulkRejectModal) {
-    bulkRejectModal.addEventListener('click', function(e) {
-        if (e.target === this) closeBulkRejectModal();
-    });
-}
-
-const rejectModal = document.getElementById('rejectModal');
-if (rejectModal) {
-    rejectModal.addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeRejectModal();
-        }
-    });
-}
 
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {

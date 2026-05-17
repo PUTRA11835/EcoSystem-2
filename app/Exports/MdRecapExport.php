@@ -28,7 +28,7 @@ class MdRecapExport implements FromCollection, WithHeadings, WithStyles, ShouldA
     {
         return $this->rows->map(fn($r) => [
             'name'    => $r['name'],
-            'date'    => $r['date'],
+            'entries' => $r['entries'],
             'mode'    => $r['mode'],
             'mandays' => $r['mandays'],
         ]);
@@ -36,7 +36,7 @@ class MdRecapExport implements FromCollection, WithHeadings, WithStyles, ShouldA
 
     public function headings(): array
     {
-        return ['Name', 'Date', 'Mode', 'Mandays'];
+        return ['Name', 'Entries', 'Mode', 'Mandays'];
     }
 
     public function styles(Worksheet $sheet): array

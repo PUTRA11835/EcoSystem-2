@@ -11,7 +11,13 @@
       "Bash(find /c/EcoSystem-2-main -type f -name *.vue)",
       "Bash(grep -r \"Approve & Create\" /c/EcoSystem-2-main --include=*.php --include=*.blade.php --include=*.js)",
       "Bash(grep -l \"ticket_message\\\\|TicketMessage\" /c/EcoSystem-2-main/database/migrations/*.php)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(grep -i 'view\\\\|compact\\\\|$delivery')",
+      "Bash(Get-ChildItem -Path \"c:\\\\EcoSystem-2\\\\resources\\\\views\\\\\" -Recurse -Directory | Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\EcoSystem-2\\\\resources\\\\views\\\\\" -Directory | ForEach-Object { $_.Name })",
+      "Bash(findstr /R /S /C:\"select\" resources\\\\views\\\\*.blade.php)",
+      "Bash(php -l app/Exports/TicketExport.php)",
+      "Bash(php -l app/Http/Controllers/TicketController.php)"
     ]
   }
 }

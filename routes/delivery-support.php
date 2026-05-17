@@ -50,13 +50,25 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
         // View support details
         Route::get('/', [DeliverySupportController::class, 'show'])->name('show');
 
+        // Full edit page (mirror of create form, pre-filled)
+        Route::get('/edit', [DeliverySupportController::class, 'edit'])->name('edit');
+        Route::put('/', [DeliverySupportController::class, 'update'])->name('update');
+
         // Update support (section-based via AJAX)
         Route::patch('/field', [DeliverySupportController::class, 'updateField'])->name('update-field');
 
-        // Generate OneDrive folder
+        // Generate OneDrive folder (general support folder)
         Route::post('/generate-folder', [DeliverySupportController::class, 'generateFolder'])->name('generate-folder');
         // Delete OneDrive folder
         Route::delete('/folder', [DeliverySupportController::class, 'deleteFolder'])->name('delete-folder');
+
+        // Generate Customer Deliverable sub-folder (Delivery Support/Customer Deliverable/{customer}/{subfolder})
+        Route::post('/generate-deliverable-folder', [DeliverySupportController::class, 'generateCustomerDeliverableFolder'])->name('generate-deliverable-folder');
+        Route::delete('/deliverable-folder', [DeliverySupportController::class, 'deleteCustomerDeliverableFolder'])->name('delete-deliverable-folder');
+        // List sub-folders inside the customer deliverable folder
+        Route::get('/deliverable-subfolders', [DeliverySupportController::class, 'getDeliverableSubfolders'])->name('deliverable-subfolders');
+        // Generate anonymous share link for a specific sub-folder
+        Route::post('/deliverable-share-link', [DeliverySupportController::class, 'getDeliverableShareLink'])->name('deliverable-share-link');
 
         // Delete support
         Route::delete('/', [DeliverySupportController::class, 'destroy'])->name('destroy');

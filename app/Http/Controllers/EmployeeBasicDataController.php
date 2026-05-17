@@ -110,27 +110,44 @@ class EmployeeBasicDataController extends Controller
      */
     public function store(Request $request, $employeeId)
     {
+        // API routes skip ConvertEmptyStringsToNull middleware — convert all
+        // nullable field empty strings to null so nullable|in:, nullable|date,
+        // and nullable|string rules pass correctly.
+        $nullableFields = [
+            'title', 'nick_name', 'gender', 'religion', 'last_name',
+            'search_term_1', 'search_term_2', 'marital_status',
+            'birth_date', 'birth_place', 'since_date',
+            'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup',
+            'position', 'division', 'department', 'direct_supervision',
+            'manager', 'authorization_group',
+        ];
+        foreach ($nullableFields as $field) {
+            if ($request->input($field) === '') {
+                $request->merge([$field => null]);
+            }
+        }
+
         $validator = Validator::make($request->all(), [
             // Identitas Pribadi
             'title' => 'nullable|string|max:10',
             'nick_name' => 'nullable|string|max:100',
-            'gender' => 'nullable|in:Male,Female',
-            'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Confucian',
+            'gender' => 'nullable|string|max:10',
+            'religion' => 'nullable|string|max:50',
             'first_name' => 'required|string|max:255',
             'last_name' => 'nullable|string|max:255',
             'search_term_1' => 'nullable|string|max:255',
             'search_term_2' => 'nullable|string|max:255',
-            'marital_status' => 'nullable|in:Single,Married,Divorced,Widow/Widower',
+            'marital_status' => 'nullable|string|max:50',
             'birth_date' => 'nullable|date',
             'birth_place' => 'nullable|string|max:255',
             'since_date' => 'nullable|date',
-            
+
             // Informasi Pencatatan
             'created_by' => 'nullable|string|max:255',
             'created_on' => 'nullable|date',
             'last_changed_by' => 'nullable|string|max:255',
             'last_changed_on' => 'nullable|date',
-            
+
             // Informasi Kepegawaian
             'personnel_area' => 'nullable|string|max:100',
             'personnel_subarea' => 'nullable|string|max:100',
@@ -142,17 +159,23 @@ class EmployeeBasicDataController extends Controller
             'direct_supervision' => 'nullable|string|max:255',
             'manager' => 'nullable|string|max:255',
             'authorization_group' => 'nullable|string|max:100',
-            
+
             // Status Administrasi
             'block' => 'nullable|boolean',
             'deletion_flag' => 'nullable|boolean',
+        ], [
+            'first_name.required' => 'First Name is required.',
+            'first_name.max'      => 'First Name may not exceed 255 characters.',
+            'religion.in'         => 'Religion value is not valid.',
+            'birth_date.date'     => 'Birth Date must be a valid date.',
+            'since_date.date'     => 'Since Date must be a valid date.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Employee basic information is invalid.',
-                'errors' => $validator->errors()
+                'message' => 'Please correct the following errors:',
+                'errors'  => $validator->errors(),
             ], 422);
         }
 
@@ -243,8 +266,22 @@ class EmployeeBasicDataController extends Controller
                 ], 404);
             }
 
+            $nullableFields = [
+                'title', 'nick_name', 'gender', 'religion', 'last_name',
+                'search_term_1', 'search_term_2', 'marital_status',
+                'birth_date', 'birth_place', 'since_date',
+                'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup',
+                'position', 'division', 'department', 'direct_supervision',
+                'manager', 'authorization_group',
+            ];
+            foreach ($nullableFields as $field) {
+                if ($request->input($field) === '') {
+                    $request->merge([$field => null]);
+                }
+            }
+
             // Validate only provided fields
-            $validator = Validator::make($request->all(), [
+            $validator = Validator::make($partialInput, [
                 'title' => 'nullable|string|max:10',
                 'nick_name' => 'nullable|string|max:100',
                 'gender' => 'nullable|in:Male,Female',
@@ -253,7 +290,7 @@ class EmployeeBasicDataController extends Controller
                 'last_name' => 'nullable|string|max:255',
                 'search_term_1' => 'nullable|string|max:255',
                 'search_term_2' => 'nullable|string|max:255',
-                'marital_status' => 'nullable|in:Single,Married,Divorced,Widow/Widower',
+                'marital_status' => 'nullable|string|max:50',
                 'birth_date' => 'nullable|date',
                 'birth_place' => 'nullable|string|max:255',
                 'since_date' => 'nullable|date',
@@ -269,13 +306,17 @@ class EmployeeBasicDataController extends Controller
                 'authorization_group' => 'nullable|string|max:100',
                 'block' => 'nullable|boolean',
                 'deletion_flag' => 'nullable|boolean',
+            ], [
+                'religion.in'       => 'Religion value is not valid.',
+                'birth_date.date'   => 'Birth Date must be a valid date.',
+                'since_date.date'   => 'Since Date must be a valid date.',
             ]);
 
             if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Employee basic information is invalid.',
-                    'errors' => $validator->errors()
+                    'message' => 'Please correct the following errors:',
+                    'errors'  => $validator->errors(),
                 ], 422);
             }
 

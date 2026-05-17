@@ -112,7 +112,7 @@ class Notification extends Model {
 - **Pemicu:** PIC submit proposal internal consultant mandays untuk review head
 - **Penerima:** Semua employee dengan role Head of Support atau Head of Project yang aktif
 - **Controller:** `MandaysController`
-- **Preview:** `"Ticket #{number} — Internal mandays proposal submitted for your review"`
+- **Preview:** `"Ticket #{number} — Resolution Days proposal submitted for your review"`
 
 ### 11. `customer_mandays_canceled`
 - **Pemicu:** Helpdesk membatalkan proposal customer mandays

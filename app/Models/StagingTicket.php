@@ -11,6 +11,7 @@ class StagingTicket extends Model
 
     protected $fillable = [
         'customer_id',
+        'end_customer_id',
         'description',
         'body',
         'ticket_priority',
@@ -87,6 +88,11 @@ class StagingTicket extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class, 'customer_id', 'customer_id');
+    }
+
+    public function endCustomer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class, 'end_customer_id', 'customer_id');
     }
 
     public function validator(): BelongsTo
