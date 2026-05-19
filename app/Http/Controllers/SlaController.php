@@ -516,6 +516,9 @@ class SlaController extends Controller
     {
         if (!$this->assertAdmin()) return response()->json(['success' => false], 403);
 
+        // Auto-sync tiket yang belum punya SLA record (transparan, tidak perlu command manual)
+        app(SlaService::class)->ensureTicketsHaveSla();
+
         try {
             $query = TicketSla::with([
                 'ticket.customer.basicData',

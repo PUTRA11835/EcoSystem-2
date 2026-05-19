@@ -60,16 +60,23 @@ class SlaService
     }
 
     // ─── 1. Attach SLA saat staging divalidasi ───────────────────────────────
+    // $staging boleh null jika tiket dibuat langsung (tanpa email/staging).
+    // Dalam kasus itu, ticket.created_at dipakai sebagai sla_start_at.
 
-    public function attachToTicket(Ticket $ticket, StagingTicket $staging): void
+    public function attachToTicket(Ticket $ticket, ?StagingTicket $staging = null): void
     {
         try {
             if (empty($ticket->ticket_type)) return;
             if ($ticket->sla()->exists()) return;
 
             $scale    = $ticket->scale ?: 'Simple';
-            $priority = $ticket->ticket_priority;
+            $priority = $ticket->ticket_priority ?: 'Medium';
             $custId   = $ticket->customer_id;
+
+            if (!$priority) {
+                Log::info('SlaService: ticket tidak memiliki priority, skip', ['ticket_id' => $ticket->ticket_id]);
+                return;
+            }
 
             $policy = SlaPolicy::where('is_active', true)
                 ->where('priority', $priority)
@@ -83,6 +90,15 @@ class SlaService
                 ->first();
 
             if (!$policy) {
+                // Fallback ke global policy jika tidak ada policy spesifik customer
+                $policy = SlaPolicy::where('is_active', true)
+                    ->where('priority', $priority)
+                    ->where('scale', $scale)
+                    ->whereNull('customer_id')
+                    ->first();
+            }
+
+            if (!$policy) {
                 Log::info('SlaService: tidak ada policy', [
                     'ticket_id' => $ticket->ticket_id,
                     'priority'  => $priority,
@@ -91,16 +107,26 @@ class SlaService
                 return;
             }
 
-            $is24h      = (bool) $policy->is_24_hours;
-            $slaMode    = in_array($ticket->ticket_type, self::FULL_SLA_TYPES, true) ? 'full' : 'response_only';
-            $slaStart   = Carbon::parse($staging->created_at);
-            $validated  = Carbon::parse($ticket->created_at);
+            $is24h     = (bool) $policy->is_24_hours;
+            $slaMode   = in_array($ticket->ticket_type, self::FULL_SLA_TYPES, true) ? 'full' : 'response_only';
+            $stagingId = $staging?->id;
+
+            // sla_start_at: staging.created_at jika ada, fallback ke ticket.created_at
+            $slaStart  = $staging
+                ? Carbon::parse($staging->created_at)
+                : Carbon::parse($ticket->created_at);
+            $validated = Carbon::parse($ticket->created_at);
+
+            // Pastikan sla_start_at tidak lebih besar dari ticket.created_at
+            if ($slaStart->gt($validated)) {
+                $slaStart = $validated->copy();
+            }
 
             $validHours = $this->calcHours($slaStart, $validated, $is24h);
             $respStatus = $validHours <= (float) $policy->response_hours ? 'met' : 'breached';
 
             $ticket->sla()->create([
-                'staging_ticket_id'         => $staging->id,
+                'staging_ticket_id'         => $stagingId,
                 'sla_policy_id'             => $policy->id,
                 'sla_mode'                  => $slaMode,
                 'sla_start_at'              => $slaStart,
@@ -120,11 +146,11 @@ class SlaService
                 'session_start_at'          => $validated,
             ]);
 
-            $this->insertEvent($ticket->ticket_id, $staging->id, null, 'email_received', $slaStart, [
+            $this->insertEvent($ticket->ticket_id, $stagingId, null, 'email_received', $slaStart, [
                 'response_hours' => 0,
                 'notes'          => 'Request masuk',
             ]);
-            $this->insertEvent($ticket->ticket_id, $staging->id, null, 'ticket_validated', $validated, [
+            $this->insertEvent($ticket->ticket_id, $stagingId, null, 'ticket_validated', $validated, [
                 'response_hours' => $validHours,
                 'notes'          => 'Ticket created',
             ]);
@@ -325,6 +351,176 @@ class SlaService
                 'error'     => $e->getMessage(),
             ]);
         }
+    }
+
+    // ─── Auto-sync: pastikan semua tiket punya SLA record ────────────────────
+    // Dipanggil otomatis saat report diakses. Cepat jika semua sudah tersync
+    // (hanya satu COUNT query). Lambat hanya saat pertama kali atau database baru.
+
+    public function ensureTicketsHaveSla(): void
+    {
+        try {
+            // Ambil ticket_id yang belum punya SLA record (satu query)
+            $ticketIdsWithSla = DB::table('ticket_sla')
+                ->whereNotNull('ticket_id')
+                ->pluck('ticket_id');
+
+            $unsyncedTickets = Ticket::whereNotIn('ticket_id', $ticketIdsWithSla)
+                ->whereNotNull('ticket_type')
+                ->whereNotNull('ticket_priority')
+                ->orderBy('ticket_id')
+                ->get();
+
+            if ($unsyncedTickets->isEmpty()) return;
+
+            Log::info('SlaService@ensureTicketsHaveSla: syncing ' . $unsyncedTickets->count() . ' ticket(s)');
+
+            // Load staging tickets sekaligus
+            $stagingMap = StagingTicket::whereNotNull('ticket_id')
+                ->whereIn('ticket_id', $unsyncedTickets->pluck('ticket_id'))
+                ->get()
+                ->keyBy('ticket_id');
+
+            foreach ($unsyncedTickets as $ticket) {
+                $staging = $stagingMap->get($ticket->ticket_id);
+                $this->attachToTicket($ticket, $staging);
+            }
+
+            // Backfill events dari ticket_message untuk tiket yang baru disync
+            $newSlaTicketIds = $unsyncedTickets->pluck('ticket_id')->all();
+            $this->backfillEventsForTickets($newSlaTicketIds);
+
+            // Auto-close SLA untuk tiket yang sudah closed
+            $this->autoCloseSlaForClosedTickets($newSlaTicketIds);
+
+        } catch (\Throwable $e) {
+            // Jangan crash report — log saja, tetap lanjut tampilkan data yang ada
+            Log::error('SlaService@ensureTicketsHaveSla', ['error' => $e->getMessage()]);
+        }
+    }
+
+    // Backfill SLA events dari ticket_message untuk ticket_id tertentu
+    private function backfillEventsForTickets(array $ticketIds): void
+    {
+        if (empty($ticketIds)) return;
+
+        $slaRows = DB::table('ticket_sla')
+            ->join('sla_policies', 'sla_policies.id', '=', 'ticket_sla.sla_policy_id')
+            ->whereIn('ticket_sla.ticket_id', $ticketIds)
+            ->get([
+                'ticket_sla.ticket_id',
+                'ticket_sla.staging_ticket_id',
+                'ticket_sla.sla_start_at',
+                'ticket_sla.ball_holder',
+                'ticket_sla.sla_paused_at',
+                'ticket_sla.session_start_at',
+                'ticket_sla.first_responded_at',
+                'sla_policies.is_24_hours',
+            ]);
+
+        if ($slaRows->isEmpty()) return;
+
+        $slaMap = $slaRows->keyBy('ticket_id');
+
+        $messages = DB::table('ticket_message')
+            ->whereIn('ticket_id', $ticketIds)
+            ->where('is_internal_note', 0)
+            ->whereNotExists(function ($q) {
+                $q->from('ticket_sla_events as e')
+                    ->whereColumn('e.message_id', 'ticket_message.id');
+            })
+            ->orderBy('ticket_id')
+            ->orderBy('created_at')
+            ->get(['id', 'ticket_id', 'sender_type', 'created_at']);
+
+        foreach ($messages->groupBy('ticket_id') as $ticketId => $msgs) {
+            $sla = $slaMap->get($ticketId);
+            if (!$sla) continue;
+
+            $is24h        = (bool) ($sla->is_24_hours ?? true);
+            $ballHolder   = $sla->ball_holder ?? 'helpdesk';
+            $pausedAt     = $sla->sla_paused_at ? Carbon::parse($sla->sla_paused_at) : null;
+            $sessionStart = $sla->session_start_at
+                ? Carbon::parse($sla->session_start_at)
+                : Carbon::parse($sla->first_responded_at ?? $sla->sla_start_at);
+
+            $totalWaitingDelta = 0;
+
+            foreach ($msgs as $msg) {
+                $eventAt = Carbon::parse($msg->created_at);
+
+                if ($msg->sender_type === 'customer') {
+                    $waitingHours = null;
+                    if (in_array($ballHolder, ['customer', 'sap'], true) && $pausedAt) {
+                        $waitingHours       = $this->calcHours($pausedAt, $eventAt, $is24h);
+                        $totalWaitingDelta += $waitingHours;
+                        $ballHolder         = 'helpdesk';
+                        $pausedAt           = null;
+                        $sessionStart       = $eventAt;
+                    }
+
+                    DB::table('ticket_sla_events')->insert([
+                        'ticket_id'         => $ticketId,
+                        'staging_ticket_id' => $sla->staging_ticket_id,
+                        'message_id'        => $msg->id,
+                        'event_type'        => 'customer_replied',
+                        'jarvis_status'     => null,
+                        'event_at'          => $msg->created_at,
+                        'waiting_hours'     => $waitingHours,
+                        'resolution_hours'  => null,
+                        'notes'             => 'Customer membalas',
+                        'triggered_by_type' => 'system',
+                        'created_at'        => now(),
+                    ]);
+                } elseif ($msg->sender_type !== 'system') {
+                    $resolutionHours = $this->calcHours($sessionStart, $eventAt, $is24h);
+
+                    DB::table('ticket_sla_events')->insert([
+                        'ticket_id'         => $ticketId,
+                        'staging_ticket_id' => $sla->staging_ticket_id,
+                        'message_id'        => $msg->id,
+                        'event_type'        => 'agent_replied',
+                        'jarvis_status'     => 'in process',
+                        'event_at'          => $msg->created_at,
+                        'waiting_hours'     => null,
+                        'resolution_hours'  => $resolutionHours,
+                        'notes'             => 'Balasan helpdesk dikirim',
+                        'triggered_by_type' => 'system',
+                        'created_at'        => now(),
+                    ]);
+                }
+            }
+
+            if ($totalWaitingDelta > 0) {
+                DB::table('ticket_sla')
+                    ->where('ticket_id', $ticketId)
+                    ->increment('total_waiting_hours', $totalWaitingDelta, [
+                        'ball_holder'   => $ballHolder,
+                        'sla_paused_at' => $pausedAt,
+                    ]);
+            } else {
+                DB::table('ticket_sla')->where('ticket_id', $ticketId)->update([
+                    'ball_holder'   => $ballHolder,
+                    'sla_paused_at' => $pausedAt,
+                ]);
+            }
+        }
+    }
+
+    // Auto-close SLA untuk tiket yang sudah closed tapi resolution_status masih pending
+    private function autoCloseSlaForClosedTickets(array $ticketIds): void
+    {
+        $closedStatuses = ['closed', 'done', 'resolved'];
+
+        TicketSla::with(['ticket', 'policy'])
+            ->whereIn('ticket_id', $ticketIds)
+            ->whereIn('resolution_status', ['pending', 'paused'])
+            ->each(function (TicketSla $sla) use ($closedStatuses) {
+                $ticket = $sla->ticket;
+                if (!$ticket || !in_array($ticket->status, $closedStatuses, true)) return;
+
+                $this->closeTicketSla($sla, $ticket, null, Carbon::parse($ticket->updated_at));
+            });
     }
 
     // ─── Helper: status jarvis terakhir yang dikirim agent ───────────────────
