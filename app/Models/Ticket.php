@@ -147,7 +147,7 @@ class Ticket extends Model
             'cancel' => 'Cancelled',
             'closed' => 'Closed',
             'reply' => 'Reply',
-            'wait_to_close' => 'Wait to Close',
+            'wait_to_close' => 'Waiting Confirmation',
             default => 'Unknown'
         };
     }

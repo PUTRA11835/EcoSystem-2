@@ -118,7 +118,7 @@
                         $statusLabels = [
                             'open' => 'Open', 'in_progress' => 'In Progress', 'hold' => 'Hold',
                             'cancel' => 'Cancel', 'closed' => 'Closed', 'reply' => 'Reply',
-                            'wait_to_close' => 'Wait to Close',
+                            'wait_to_close' => 'Waiting Confirmation',
                         ];
                     @endphp
                     <span id="ticketStatusBadge" class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
@@ -495,7 +495,7 @@
                             <option value="open" {{ $ticket->status == 'open' ? 'selected' : '' }}>Open</option>
                             <option value="in_progress" {{ $ticket->status == 'in_progress' ? 'selected' : '' }}>In Progress</option>
                             <option value="hold" {{ $ticket->status == 'hold' ? 'selected' : '' }}>Hold</option>
-                            <option value="wait_to_close" {{ $ticket->status == 'wait_to_close' ? 'selected' : '' }}>Wait to Close</option>
+                            <option value="wait_to_close" {{ $ticket->status == 'wait_to_close' ? 'selected' : '' }}>Waiting Confirmation</option>
                             <option value="cancel" {{ $ticket->status == 'cancel' ? 'selected' : '' }}>Cancel</option>
                             <option value="closed" {{ $ticket->status == 'closed' ? 'selected' : '' }}>Closed</option>
                             <option value="reply" {{ $ticket->status == 'reply' ? 'selected' : '' }}>Reply</option>
@@ -509,7 +509,7 @@
                     <div class="relative">
                         <select id="detailJarviesStatus" {{ in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true) ? '' : 'disabled' }} class="w-full px-2.5 py-1.5 pr-7 border border-gray-300 rounded-lg text-xs bg-white appearance-none">
                             <option value="in process" {{ $ticket->jarvies_status == 'in process' ? 'selected' : '' }}>In Process</option>
-                            <option value="author action" {{ $ticket->jarvies_status == 'author action' ? 'selected' : '' }}>Author Action</option>
+                            <option value="author action" {{ $ticket->jarvies_status == 'author action' ? 'selected' : '' }}>waiting on Customer</option>
                             <option value="proposed solution" {{ $ticket->jarvies_status == 'proposed solution' ? 'selected' : '' }}>Proposed Solution</option>
                             <option value="sent in to SAP" {{ $ticket->jarvies_status == 'sent in to SAP' ? 'selected' : '' }}>Sent in to SAP</option>
                             <option value="sent it to support" {{ $ticket->jarvies_status == 'sent it to support' ? 'selected' : '' }}>Sent it to Support</option>
@@ -867,6 +867,12 @@
     box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15) !important;
 }
 .primary-text { color: var(--primary-color) !important; }
+/* Hide native number input spinners */
+#meetingHour::-webkit-inner-spin-button,
+#meetingHour::-webkit-outer-spin-button,
+#meetingMinute::-webkit-inner-spin-button,
+#meetingMinute::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+#meetingHour, #meetingMinute { -moz-appearance: textfield; }
 </style>
 
 {{-- ── Send Reply — Modal Konfirmasi Jarvies Status ── --}}
@@ -888,7 +894,7 @@
                     @php
                         $statusOptions = [
                             ['value' => 'in process',         'label' => 'In Process',         'desc' => 'Being processed by helpdesk',          'color' => 'blue'],
-                            ['value' => 'author action',      'label' => 'Author Action',       'desc' => 'Waiting for action from customer',     'color' => 'yellow'],
+                            ['value' => 'author action',      'label' => 'waiting on Customer',       'desc' => 'Waiting for action from customer',     'color' => 'yellow'],
                             ['value' => 'proposed solution',  'label' => 'Proposed Solution',   'desc' => 'Solution proposed, awaiting confirm',  'color' => 'orange'],
                             ['value' => 'sent in to SAP',     'label' => 'Sent in to SAP',      'desc' => 'Escalated to SAP team',                'color' => 'indigo'],
                         ];
@@ -961,8 +967,31 @@
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">Time <span class="text-red-500">*</span></label>
-                    <input id="meetingTime" type="time"
-                        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-400">
+                    <div class="flex items-center gap-1">
+                        <div class="relative flex-1">
+                            <input id="meetingHour" type="number" min="0" max="23" placeholder="HH"
+                                class="w-full px-2 py-2 border border-gray-200 rounded-lg text-xs text-center font-mono focus:outline-none focus:ring-2 focus:ring-teal-400 appearance-none"
+                                oninput="clampTimeInput(this,0,23)">
+                            <div class="absolute right-0 inset-y-0 flex flex-col border-l border-gray-200">
+                                <button type="button" onclick="stepTime('meetingHour',1,23)"
+                                    class="flex-1 px-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-tr-lg transition text-[10px] leading-none">▲</button>
+                                <button type="button" onclick="stepTime('meetingHour',-1,23)"
+                                    class="flex-1 px-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-br-lg transition text-[10px] leading-none border-t border-gray-200">▼</button>
+                            </div>
+                        </div>
+                        <span class="text-gray-500 font-bold text-sm">:</span>
+                        <div class="relative flex-1">
+                            <input id="meetingMinute" type="number" min="0" max="59" placeholder="MM"
+                                class="w-full px-2 py-2 border border-gray-200 rounded-lg text-xs text-center font-mono focus:outline-none focus:ring-2 focus:ring-teal-400 appearance-none"
+                                oninput="clampTimeInput(this,0,59)">
+                            <div class="absolute right-0 inset-y-0 flex flex-col border-l border-gray-200">
+                                <button type="button" onclick="stepTime('meetingMinute',5,59)"
+                                    class="flex-1 px-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-tr-lg transition text-[10px] leading-none">▲</button>
+                                <button type="button" onclick="stepTime('meetingMinute',-5,59)"
+                                    class="flex-1 px-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-br-lg transition text-[10px] leading-none border-t border-gray-200">▼</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div>
@@ -2629,11 +2658,34 @@
 
     // ── Meeting Modal ─────────────────────────────────────────────────────────
     function openMeetingModal() {
-        // Default date = today
-        const today = new Date().toISOString().split('T')[0];
-        const el = document.getElementById('meetingDate');
+        const now   = new Date();
+        const today = now.toISOString().split('T')[0];
+        const el    = document.getElementById('meetingDate');
         if (el && !el.value) el.value = today;
+
+        const hourEl = document.getElementById('meetingHour');
+        const minEl  = document.getElementById('meetingMinute');
+        if (hourEl && !hourEl.value) hourEl.value = String(now.getHours()).padStart(2, '0');
+        if (minEl  && !minEl.value)  minEl.value  = String(Math.round(now.getMinutes() / 5) * 5 % 60).padStart(2, '0');
+
         document.getElementById('meetingModal').classList.remove('hidden');
+    }
+
+    function clampTimeInput(el, min, max) {
+        let v = parseInt(el.value, 10);
+        if (isNaN(v)) return;
+        if (v < min) el.value = String(min).padStart(2, '0');
+        else if (v > max) el.value = String(max).padStart(2, '0');
+        else el.value = String(v).padStart(2, '0');
+    }
+
+    function stepTime(id, step, max) {
+        const el  = document.getElementById(id);
+        const min = 0;
+        let v = parseInt(el.value, 10);
+        if (isNaN(v)) v = 0;
+        v = ((v + step) % (max + 1) + (max + 1)) % (max + 1);
+        el.value = String(v).padStart(2, '0');
     }
     function closeMeetingModal() {
         document.getElementById('meetingModal').classList.add('hidden');
@@ -2641,7 +2693,9 @@
     async function sendMeeting() {
         const title    = document.getElementById('meetingTitle').value.trim();
         const date     = document.getElementById('meetingDate').value;
-        const time     = document.getElementById('meetingTime').value;
+        const hour     = document.getElementById('meetingHour').value.padStart(2, '0');
+        const minute   = document.getElementById('meetingMinute').value.padStart(2, '0');
+        const time     = (hour && minute) ? `${hour}:${minute}` : '';
         const duration = document.getElementById('meetingDuration').value;
         const link     = document.getElementById('meetingLink').value.trim();
         const agenda   = document.getElementById('meetingAgenda').value.trim();
@@ -2680,7 +2734,7 @@
         if (res.ok) {
             closeMeetingModal();
             // Reset form
-            ['meetingTitle','meetingDate','meetingTime','meetingLink','meetingAgenda'].forEach(id => {
+            ['meetingTitle','meetingDate','meetingHour','meetingMinute','meetingLink','meetingAgenda'].forEach(id => {
                 document.getElementById(id).value = '';
             });
             document.getElementById('meetingDuration').value = '60';
@@ -2960,7 +3014,7 @@
             'open':          ['Open',           'sb-status-open'],
             'in_progress':   ['In Progress',    'sb-status-in_progress'],
             'closed':        ['Closed',         'sb-status-closed'],
-            'wait_to_close': ['Wait Close',     'sb-status-wait_to_close'],
+            'wait_to_close': ['Waiting Confirmation', 'sb-status-wait_to_close'],
             'hold':          ['Hold',           'sb-status-hold'],
             'reply':         ['Reply',          'sb-status-reply'],
             'cancel':        ['Canceled',       'sb-status-cancel'],

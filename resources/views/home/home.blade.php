@@ -20,7 +20,7 @@
                 ['label' => 'Cancel',         'key' => 'cancel',        'color' => 'text-red-400'],
                 ['label' => 'Closed',         'key' => 'closed',        'color' => 'text-green-600'],
                 ['label' => 'Reply',          'key' => 'reply',         'color' => 'text-indigo-600'],
-                ['label' => 'Wait to Close',  'key' => 'wait_to_close', 'color' => 'text-orange-500'],
+                ['label' => 'Waiting Confirmation',  'key' => 'wait_to_close', 'color' => 'text-orange-500'],
             ];
         @endphp
         @foreach($statCards as $card)
@@ -211,7 +211,7 @@
                 ['label' => 'Cancel',         'key' => 'cancel',        'color' => 'text-red-400'],
                 ['label' => 'Closed',         'key' => 'closed',        'color' => 'text-green-600'],
                 ['label' => 'Reply',          'key' => 'reply',         'color' => 'text-indigo-600'],
-                ['label' => 'Wait to Close',  'key' => 'wait_to_close', 'color' => 'text-orange-500'],
+                ['label' => 'Waiting Confirmation',  'key' => 'wait_to_close', 'color' => 'text-orange-500'],
             ];
         @endphp
         @foreach($statCards as $card)

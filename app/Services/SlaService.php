@@ -16,8 +16,8 @@ class SlaService
     private const FULL_SLA_TYPES = ['Incident', 'Service Request'];
 
     // Jarvis status → efek SLA
-    private const STOP_STATUSES = ['author action', 'proposed solution', 'sent in to SAP', 'wait to close'];
-    private const RUN_STATUSES  = ['in process', 'sent it to support'];
+    private const STOP_STATUSES = ['author action', 'proposed solution', 'sent in to SAP', 'wait to close', 'in process'];
+    private const RUN_STATUSES  = ['sent it to support'];
     private const END_STATUSES  = ['closed'];
 
     private const BALL_HOLDER_MAP = [
@@ -25,6 +25,7 @@ class SlaService
         'proposed solution' => 'customer',
         'wait to close'     => 'customer',
         'sent in to SAP'    => 'sap',
+        'in process'        => 'customer',
     ];
 
     // ─── Business hours helper ────────────────────────────────────────────────
@@ -182,7 +183,7 @@ class SlaService
             if ($senderType === 'customer') {
                 $this->handleCustomerBurst($sla, $ticket, $message, $eventAt);
             } else {
-                $this->handleEmployeeBurst($sla, $ticket, $message, $eventAt, $jarviesStatus ?? 'in process');
+                $this->handleEmployeeBurst($sla, $ticket, $message, $eventAt, $jarviesStatus ?? 'sent it to support');
             }
 
         } catch (\Exception $e) {
@@ -559,7 +560,7 @@ class SlaService
             'proposed solution'  => 'Solusi diusulkan, menunggu konfirmasi customer',
             'sent in to SAP'     => 'Diteruskan ke SAP',
             'wait to close'      => 'Menunggu persetujuan penutupan',
-            'in process'         => 'Helpdesk sedang mengerjakan',
+            'in process'         => 'Customer sedang mengerjakan / konfirmasi',
             'sent it to support' => 'Diteruskan ke support',
             default              => 'Helpdesk reply',
         };

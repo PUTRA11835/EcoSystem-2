@@ -76,7 +76,7 @@
                 <p class="text-2xl font-bold text-gray-900" id="processCount">0</p>
             </div>
             <div id="filterAuthorAction" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('author action')">
-                <p class="text-xs font-medium text-gray-500 mb-1">Author Action</p>
+                <p class="text-xs font-medium text-gray-500 mb-1">waiting on Customer</p>
                 <p class="text-2xl font-bold text-gray-900" id="authorCount">0</p>
             </div>
             <div id="filterProposed" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('proposed solution')">
@@ -148,7 +148,7 @@
                             {{-- jarvies_status --}}
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="sent it to support">Sent It To Support</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="in process">In Process</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="author action">Author Action</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="author action">waiting on Customer</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="proposed solution">Proposed Solution</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="closed">Closed</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="sent in to SAP">Sent In To SAP</button>
@@ -156,7 +156,7 @@
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="open">Open</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="in_progress">In Progress</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="hold">Hold</button>
-                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="wait_to_close">Wait To Close</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="wait_to_close">Waiting Confirmation</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="cancel">Cancel</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="closed">Closed</button>
                             <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="reply">Reply</button>
@@ -661,7 +661,7 @@
             'open':          { label: 'Open',          cls: 'bg-blue-50 text-blue-700' },
             'in_progress':   { label: 'In Progress',   cls: 'bg-yellow-50 text-yellow-700' },
             'hold':          { label: 'Hold',           cls: 'bg-orange-50 text-orange-700' },
-            'wait_to_close': { label: 'Wait to Close', cls: 'bg-teal-50 text-teal-700' },
+            'wait_to_close': { label: 'Waiting Confirmation', cls: 'bg-teal-50 text-teal-700' },
             'cancel':        { label: 'Cancel',         cls: 'bg-gray-100 text-gray-500' },
             'closed':        { label: 'Closed',         cls: 'bg-green-50 text-green-700' },
             'reply':         { label: 'Reply',          cls: 'bg-purple-50 text-purple-700' },
@@ -669,7 +669,7 @@
         const jarviesMap = {
             'sent it to support': { label: 'To Support',        cls: 'bg-cyan-50 text-cyan-600' },
             'in process':         { label: 'In Process',        cls: 'bg-blue-50 text-blue-600' },
-            'author action':      { label: 'Author Action',     cls: 'bg-amber-50 text-amber-600' },
+            'author action':      { label: 'waiting on Customer',     cls: 'bg-amber-50 text-amber-600' },
             'proposed solution':  { label: 'Proposed Solution', cls: 'bg-purple-50 text-purple-600' },
             'sent in to SAP':     { label: 'Sent to SAP',       cls: 'bg-indigo-50 text-indigo-600' },
             'closed':             { label: 'Closed',            cls: 'bg-green-50 text-green-700' },
