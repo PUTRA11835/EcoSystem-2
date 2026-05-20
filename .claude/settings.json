@@ -17,7 +17,8 @@
       "PowerShell(Get-ChildItem -Path \"c:\\\\EcoSystem-2\\\\resources\\\\views\\\\\" -Directory | ForEach-Object { $_.Name })",
       "Bash(findstr /R /S /C:\"select\" resources\\\\views\\\\*.blade.php)",
       "Bash(php -l app/Exports/TicketExport.php)",
-      "Bash(php -l app/Http/Controllers/TicketController.php)"
+      "Bash(php -l app/Http/Controllers/TicketController.php)",
+      "Bash(php -l database/seeders/UserSystemRolesSeeder.php)"
     ]
   }
 }
