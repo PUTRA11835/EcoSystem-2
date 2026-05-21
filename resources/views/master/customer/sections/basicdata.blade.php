@@ -20,6 +20,15 @@
                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent uppercase">
             </div>
 
+            <!-- Email Domain (filter inbox emails for ticket validation by sender domain) -->
+            <div class="col-span-2">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Email Domain</label>
+                <input type="text" id="customerDomain" value="{{ $customer->domain ?? '' }}"
+                    placeholder="@company.com"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <span class="text-xs text-gray-400 mt-1 block">Inbox emails whose sender ends with this domain will be routed to this customer's staging tickets.</span>
+            </div>
+
             <!-- Title -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Title</label>

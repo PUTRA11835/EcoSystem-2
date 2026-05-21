@@ -132,6 +132,11 @@
         // Skip select yang sudah berada di dalam wrapper custom-dd manual,
         // atau di dalam wrapper yang sudah kita generate
         if (sel.closest('.custom-dd, .se-wrap')) return true;
+        // Skip select milik Quill: toolbar picker (mis. ql-header, ql-color)
+        // dikelola Quill sendiri untuk diubah menjadi .ql-picker UI. Kalau kita
+        // enhance, hasilnya double widget yang menumpuk di bawah picker Quill.
+        if (sel.className && typeof sel.className === 'string' && /\bql-/.test(sel.className)) return true;
+        if (sel.closest('.ql-toolbar, .ql-container, .ql-editor')) return true;
         return false;
     }
 
@@ -200,6 +205,69 @@
         }
     }
 
+    // ── Search injection (opt-in: data-searchable="true" pada <select>) ─────────
+    function injectSearch(sel, panel) {
+        if (panel._seSearch) return;
+
+        const searchWrap = document.createElement('div');
+        searchWrap.style.cssText = 'position:sticky;top:0;background:#fff;border-bottom:1px solid #f3f4f6;padding:0.375rem 0.5rem;z-index:1;';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = sel.dataset.searchPlaceholder || 'Search...';
+        input.style.cssText = 'width:100%;padding:0.375rem 0.625rem;font-size:0.8125rem;border:1px solid #e5e7eb;border-radius:0.375rem;outline:none;box-sizing:border-box;';
+        input.addEventListener('focus', () => { input.style.borderColor = '#991b1b'; input.style.boxShadow = '0 0 0 2px rgba(153,27,27,0.1)'; });
+        input.addEventListener('blur',  () => { input.style.borderColor = '#e5e7eb'; input.style.boxShadow = ''; });
+
+        searchWrap.appendChild(input);
+        panel.insertBefore(searchWrap, panel.firstChild);
+
+        const empty = document.createElement('div');
+        empty.style.cssText = 'display:none;padding:0.75rem 1rem;font-size:0.875rem;color:#9ca3af;text-align:center;';
+        empty.textContent = 'No results';
+        panel.appendChild(empty);
+
+        // Cegah klik/mousedown search input menutup panel
+        input.addEventListener('click',     e => e.stopPropagation());
+        input.addEventListener('mousedown', e => e.stopPropagation());
+
+        // Real-time filter
+        input.addEventListener('input', () => {
+            const q = input.value.trim().toLowerCase();
+            let visible = 0;
+            panel.querySelectorAll('.se-item').forEach(item => {
+                const idx = Number(item.dataset.index);
+                const opt = sel.options[idx];
+                if (!opt) return;
+                if (opt.value === '' && q !== '') { item.style.display = 'none'; return; }
+                const match = !q || item.textContent.toLowerCase().includes(q);
+                item.style.display = match ? '' : 'none';
+                if (match && opt.value !== '') visible++;
+            });
+            empty.style.display = (q && visible === 0) ? '' : 'none';
+        });
+
+        // Keyboard: Escape tutup, Enter pilih satu-satunya hasil
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Escape') { e.preventDefault(); closeOpen(); return; }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const visible = Array.from(panel.querySelectorAll('.se-item')).filter(i => i.style.display !== 'none');
+                if (visible.length === 1) visible[0].click();
+            }
+        });
+
+        panel._seSearch = input;
+        panel._seEmpty  = empty;
+    }
+
+    function resetSearch(panel) {
+        if (!panel._seSearch) return;
+        panel._seSearch.value = '';
+        panel.querySelectorAll('.se-item').forEach(i => { i.style.display = ''; });
+        if (panel._seEmpty) panel._seEmpty.style.display = 'none';
+    }
+
     let openWrap = null;
     function closeOpen() {
         if (!openWrap) return;
@@ -208,11 +276,14 @@
         if (btn) btn.setAttribute('aria-expanded', 'false');
         // Kalau panel di-detach ke body (mode fixed), kembalikan ke wrapper
         const panel = openWrap._sePanel;
-        if (panel && panel._seDetached) {
-            openWrap.appendChild(panel);
-            panel.classList.remove('is-fixed');
-            panel.style.cssText = '';
-            panel._seDetached = false;
+        if (panel) {
+            resetSearch(panel);
+            if (panel._seDetached) {
+                openWrap.appendChild(panel);
+                panel.classList.remove('is-fixed');
+                panel.style.cssText = '';
+                panel._seDetached = false;
+            }
         }
         openWrap = null;
     }
@@ -259,6 +330,11 @@
             document.body.appendChild(panel);
             panel._seDetached = true;
             positionFixedPanel(btn, panel);
+        }
+
+        // Auto-focus search input bila ada
+        if (panel._seSearch) {
+            requestAnimationFrame(() => panel._seSearch.focus());
         }
 
         // Scroll active item into view
@@ -325,6 +401,11 @@
 
         // Render awal
         renderItems(sel, panel, label);
+
+        // Inject search bila diminta
+        if (sel.dataset.searchable === 'true') {
+            injectSearch(sel, panel);
+        }
 
         // Open/close lewat tombol
         btn.addEventListener('click', (e) => {

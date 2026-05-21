@@ -96,7 +96,7 @@ class OneDriveService
     public function createFolderInPath(string $folderName, string $parentPath): string
     {
         $token = $this->getAccessToken();
-        $encodedParent = rawurlencode($parentPath);
+        $encodedParent = implode('/', array_map('rawurlencode', explode('/', $parentPath)));
 
         $response = Http::withToken($token)->post(
             "{$this->baseUrl}/users/{$this->userEmail}/drive/root:/{$encodedParent}:/children",
@@ -127,7 +127,7 @@ class OneDriveService
     public function listFolderChildrenByPath(string $folderPath): array
     {
         $token   = $this->getAccessToken();
-        $encoded = rawurlencode($folderPath);
+        $encoded = implode('/', array_map('rawurlencode', explode('/', $folderPath)));
 
         $response = Http::withToken($token)->get(
             "{$this->baseUrl}/users/{$this->userEmail}/drive/root:/{$encoded}:/children",

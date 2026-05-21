@@ -26,6 +26,7 @@ class Customer extends Authenticatable
     protected $fillable = [
         'customer_code',
         'email',
+        'domain',
         'is_active',
         'parent_customer_id',
     ];
@@ -419,6 +420,32 @@ class Customer extends Authenticatable
     // ==================== HELPER METHODS ====================
 
     /**
+     * Normalize a domain string for storage / matching.
+     * Lowercases, trims, and ensures leading "@" so stored form is always
+     * "@example.co.id" regardless of how the user typed it. Empty/whitespace
+     * input returns null so the column stays nullable.
+     */
+    public static function normalizeDomain(?string $raw): ?string
+    {
+        if ($raw === null) return null;
+        $trimmed = trim(strtolower($raw));
+        if ($trimmed === '') return null;
+        return str_starts_with($trimmed, '@') ? $trimmed : '@' . $trimmed;
+    }
+
+    /**
+     * Extract the domain portion (including "@") from an email address,
+     * lowercased. Returns null if the input has no "@" or is empty.
+     */
+    public static function extractEmailDomain(?string $email): ?string
+    {
+        if (!$email) return null;
+        $lower = strtolower(trim($email));
+        $at    = strrpos($lower, '@');
+        return $at === false ? null : substr($lower, $at);
+    }
+
+    /**
      * Konversi nama perusahaan ke kode inisial tepat 4 karakter.
      * Menggunakan pendekatan round-robin: ambil 1 karakter dari tiap kata per putaran
      * hingga terkumpul 4 karakter. Jika kurang, pad dengan 'X'.
@@ -676,6 +703,7 @@ class Customer extends Authenticatable
             $customer = self::create([
                 'customer_code' => $customerCode,
                 'email' => $customerData['email'],
+                'domain' => self::normalizeDomain($customerData['domain'] ?? null),
                 'is_active' => $customerData['is_active'] ?? true,
                 'parent_customer_id' => $customerData['parent_customer_id'] ?? null,
             ]);

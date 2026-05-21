@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'Phase Management - ' . $project->name)
 @section('page-title', 'Phase Management')
-@section('page-subtitle', $project->name ?? 'Kelola fase proyek')
+@section('page-subtitle', $project->name ?? 'Manage project phases')
 
 {{-- ✅ ADD SWEETALERT2 CDN --}}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css">

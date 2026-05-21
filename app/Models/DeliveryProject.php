@@ -20,8 +20,10 @@ class DeliveryProject extends Model
      */
     protected $fillable = [
         'client_id',
-        'pic',
+        'project_owner',
         'project_type',
+        'high_level_risk',
+        'io_number',
         'name',
         'description',
         'category',
@@ -38,10 +40,14 @@ class DeliveryProject extends Model
         'ae_email',
         'delivery_owner_id',
         'delivery_manager_id',
-        'project_owner_id',
+        'project_manager_id',
         'co_pm_id',
         'project_admin_id',
         'sales_id',
+        'revenue',
+        'plan_cost',
+        'gross_profit',
+        'gross_profit_percentage',
         'delivery_method',
         'warranty_period',
         'total_mandays',
@@ -99,7 +105,7 @@ class DeliveryProject extends Model
     public function teamMembers()
     {
         return $this->belongsToMany(Employee::class, 'delivery_project_employee', 'delivery_projects_id', 'employee_id', 'id', 'employee_id')
-                    ->withPivot('assignment', 'start_date', 'end_date')
+                    ->withPivot('module', 'role', 'employee_type', 'vendor_name', 'start_date', 'end_date')
                     ->withTimestamps();
     }
 

@@ -1,7 +1,7 @@
 @extends('dashboard')
-@section('title', 'Detail Proyek')
-@section('page-title', 'Detail Proyek')
-@section('page-subtitle', 'Lihat informasi lengkap proyek')
+@section('title', 'Project Detail')
+@section('page-title', 'Project Detail')
+@section('page-subtitle', 'View complete project information')
 {{-- ✅ LOAD GANTT LIBRARIES --}}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.css">
@@ -257,6 +257,9 @@
         <button onclick="scrollToSection('delivery')" data-section="delivery" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Delivery Info
         </button>
+        <button onclick="scrollToSection('financial')" data-section="financial" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
+            Financial
+        </button>
         <button onclick="scrollToSection('team')" data-section="team" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Team
         </button>
@@ -341,25 +344,67 @@
                     <tbody class="divide-y divide-gray-200">
                         <tr class="hover:bg-blue-50">
                             <td class="px-4 py-3 w-1/3 text-sm font-medium text-gray-900">Customer</td>
-                            <td class="px-4 py-3 text-sm text-gray-900 font-medium">{{ $project->client->basicData->name_1 ?? 'N/A' }}</td>
-                        </tr>
-                        <tr class="hover:bg-blue-50">
-                            <td class="px-4 py-3 text-sm font-medium text-gray-900">PIC / Project Manager</td>
                             <td class="px-4 py-3 text-sm text-gray-900">
-                                <form id="picUpdateForm" action="{{ route('projects.updateField', $project->id) }}" method="POST">
+                                @php $clientLabel = $project->client->basicData->name_1 ?? ''; @endphp
+                                <form id="clientUpdateForm" action="{{ route('projects.updateField', $project->id) }}" method="POST">
                                     @csrf @method('PATCH')
-                                    <input type="hidden" name="field" value="pic">
-                                    <div class="custom-dd relative" data-onchange="submitPicForm" data-fixed="true">
+                                    <input type="hidden" name="field" value="client_id">
+                                    <div class="custom-dd relative" data-onchange="submitClientForm" data-fixed="true">
                                         <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                                            <span class="custom-dd-label {{ $project->pic ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->pic ?: '-- Select Project Manager --' }}</span>
+                                            <span class="custom-dd-label {{ $clientLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $clientLabel ?: '-- Select Client --' }}</span>
                                             <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                                         </button>
-                                        <input type="hidden" name="value" id="picValue" value="{{ $project->pic }}">
+                                        <input type="hidden" name="value" id="clientIdValue" value="{{ $project->client_id }}">
                                         <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
-                                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Project Manager --</button>
-                                            @foreach($projectManagers as $pm)
-                                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pm->basicData->full_name ?? '-' }}">{{ $pm->basicData->full_name ?? '-' }}</button>
+                                            <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search client…" autocomplete="off" spellcheck="false">
+                                            </div>
+                                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Client --</button>
+                                            @foreach($clients as $client)
+                                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $client->customer_id }}">{{ $client->basicData->name_1 ?? $client->email ?? 'Unknown' }}</button>
                                             @endforeach
+                                            <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+                                        </div>
+                                    </div>
+                                </form>
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-blue-50">
+                            <td class="px-4 py-3 text-sm font-medium text-gray-900">Project Name</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">
+                                <form action="{{ route('projects.updateField', $project->id) }}" method="POST">
+                                    @csrf @method('PATCH')
+                                    <input type="hidden" name="field" value="name">
+                                    <input type="text" name="value"
+                                        class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                                        placeholder="Enter project name"
+                                        value="{{ $project->name ?? '' }}"
+                                        onchange="this.form.submit()">
+                                    <p class="mt-1 text-xs text-gray-500">Press Tab or click outside to save changes</p>
+                                </form>
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-blue-50">
+                            <td class="px-4 py-3 text-sm font-medium text-gray-900">Project Owner</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">
+                                <form id="projectOwnerUpdateForm" action="{{ route('projects.updateField', $project->id) }}" method="POST">
+                                    @csrf @method('PATCH')
+                                    <input type="hidden" name="field" value="project_owner">
+                                    <div class="custom-dd relative" data-onchange="submitProjectOwnerForm" data-fixed="true">
+                                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                                            <span class="custom-dd-label {{ $project->project_owner ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->project_owner ?: '-- Select Project Owner --' }}</span>
+                                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                        </button>
+                                        <input type="hidden" name="value" id="projectOwnerValue" value="{{ $project->project_owner }}">
+                                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                                            <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
+                                            </div>
+                                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Project Owner --</button>
+                                            @foreach($employees as $employee)
+                                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->basicData->full_name ?? '-' }}">{{ $employee->basicData->full_name ?? '-' }}</button>
+                                            @endforeach
+                                            <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
                                         </div>
                                     </div>
                                 </form>
@@ -367,7 +412,47 @@
                         </tr>
                         <tr class="hover:bg-blue-50">
                             <td class="px-4 py-3 text-sm font-medium text-gray-900">Project Type</td>
-                            <td class="px-4 py-3 text-sm text-gray-900 font-medium">{{ $project->project_type }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">
+                                <form id="projectTypeUpdateForm" action="{{ route('projects.updateField', $project->id) }}" method="POST">
+                                    @csrf @method('PATCH')
+                                    <input type="hidden" name="field" value="project_type">
+                                    <div class="custom-dd relative" data-onchange="submitProjectTypeForm" data-fixed="true">
+                                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                                            <span class="custom-dd-label {{ $project->project_type ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->project_type ?: '-- Select Type --' }}</span>
+                                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                        </button>
+                                        <input type="hidden" name="value" id="projectTypeValue" value="{{ $project->project_type }}">
+                                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
+                                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Type --</button>
+                                            @foreach(['Implementation','Roll Out','Migration','Upgrade','WRICEF'] as $pt)
+                                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pt }}">{{ $pt }}</button>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                </form>
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-blue-50">
+                            <td class="px-4 py-3 text-sm font-medium text-gray-900">High Level Risk</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">
+                                <form id="highLevelRiskUpdateForm" action="{{ route('projects.updateField', $project->id) }}" method="POST">
+                                    @csrf @method('PATCH')
+                                    <input type="hidden" name="field" value="high_level_risk">
+                                    <div class="custom-dd relative" data-onchange="submitHighLevelRiskForm" data-fixed="true">
+                                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                                            <span class="custom-dd-label {{ $project->high_level_risk ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->high_level_risk ?: '-- Select Risk Level --' }}</span>
+                                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                        </button>
+                                        <input type="hidden" name="value" id="highLevelRiskValue" value="{{ $project->high_level_risk }}">
+                                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
+                                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Risk Level --</button>
+                                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Low">Low</button>
+                                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Moderate">Moderate</button>
+                                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="High">High</button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </td>
                         </tr>
                         <tr class="hover:bg-blue-50">
                             <td class="px-4 py-3 text-sm font-medium text-gray-900">Category</td>
@@ -410,6 +495,21 @@
                                     {{ $project->phase ?? 'N/A' }}
                                 </span>
                                 <p class="mt-1 text-xs text-amber-600">*Auto-filled from Project Planning</p>
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-blue-50">
+                            <td class="px-4 py-3 text-sm font-medium text-gray-900">IO/Number Order</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">
+                                <form action="{{ route('projects.updateField', $project->id) }}" method="POST">
+                                    @csrf @method('PATCH')
+                                    <input type="hidden" name="field" value="io_number">
+                                    <input type="text" name="value"
+                                        class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                                        placeholder="e.g. IO-2026-001"
+                                        value="{{ $project->io_number ?? '' }}"
+                                        onchange="this.form.submit()">
+                                    <p class="mt-1 text-xs text-gray-500">Press Tab or click outside to save changes</p>
+                                </form>
                             </td>
                         </tr>
                         <tr class="hover:bg-blue-50">
@@ -484,6 +584,18 @@
                            class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                 </div>
                 <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">AE Phone</label>
+                    <input type="text" name="ae_phone" value="{{ $project->ae_phone }}"
+                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                           placeholder="e.g. +6281234567890">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">AE Email</label>
+                    <input type="email" name="ae_email" value="{{ $project->ae_email }}"
+                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                           placeholder="e.g. ae@example.com">
+                </div>
+                <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Delivery Owner</label>
                     @php
                         $doLabel = '';
@@ -523,6 +635,102 @@
                         </div>
                     </div>
                 </div>
+                @php
+                    $pmLabel = ''; $coPmLabel = ''; $paLabel = ''; $salesLabel = '';
+                    foreach($employees as $e) {
+                        if ($project->project_manager_id == $e->employee_id) $pmLabel = $e->basicData->full_name ?? '-';
+                        if ($project->co_pm_id == $e->employee_id) $coPmLabel = $e->basicData->full_name ?? '-';
+                        if ($project->project_admin_id == $e->employee_id) $paLabel = $e->basicData->full_name ?? '-';
+                        if ($project->sales_id == $e->employee_id) $salesLabel = $e->basicData->full_name ?? '-';
+                    }
+                @endphp
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Project Manager</label>
+                    <div class="custom-dd relative" data-fixed="true">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label {{ $pmLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $pmLabel ?: '-- Select --' }}</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" name="project_manager_id" value="{{ $project->project_manager_id }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                            <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
+                            </div>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select --</button>
+                            @foreach($employees as $employee)
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? '-' }}</button>
+                            @endforeach
+                            <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Co PM</label>
+                    <div class="custom-dd relative" data-fixed="true">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label {{ $coPmLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $coPmLabel ?: '-- Select --' }}</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" name="co_pm_id" value="{{ $project->co_pm_id }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                            <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
+                            </div>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select --</button>
+                            @foreach($employees as $employee)
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? '-' }}</button>
+                            @endforeach
+                            <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Project Admin</label>
+                    <div class="custom-dd relative" data-fixed="true">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label {{ $paLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $paLabel ?: '-- Select --' }}</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" name="project_admin_id" value="{{ $project->project_admin_id }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                            <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
+                            </div>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select --</button>
+                            @foreach($employees as $employee)
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? '-' }}</button>
+                            @endforeach
+                            <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Sales</label>
+                    <div class="custom-dd relative" data-fixed="true">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label {{ $salesLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $salesLabel ?: '-- Select --' }}</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" name="sales_id" value="{{ $project->sales_id }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                            <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
+                            </div>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select --</button>
+                            @foreach($employees as $employee)
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? '-' }}</button>
+                            @endforeach
+                            <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Warranty Period <span class="text-gray-400 font-normal">(months)</span></label>
+                    <input type="number" name="warranty_period" value="{{ $project->warranty_period }}"
+                           min="0"
+                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                           placeholder="e.g. 12">
+                </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Delivery Method</label>
                     <div class="custom-dd relative" data-fixed="true">
@@ -554,6 +762,59 @@
     </div>
 </section>
 
+{{-- Financial Data Section --}}
+<section id="financial" class="mb-6 card-hover section-animate">
+    <div class="bg-white shadow-md rounded-lg">
+        <div class="p-6 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-700">Financial Data</h2>
+        </div>
+        <form action="{{ route('projects.updateFinancialInfo', $project->id) }}" method="POST" class="p-6">
+            @csrf @method('PATCH')
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Revenue</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp</span>
+                        <input type="number" name="revenue" value="{{ $project->revenue }}"
+                               min="0" step="0.01"
+                               class="block w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                               placeholder="0">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Plan Cost</label>
+                    <input type="number" name="plan_cost" value="{{ $project->plan_cost }}"
+                           min="0" step="0.01"
+                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                           placeholder="0">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Gross Profit</label>
+                    <input type="number" name="gross_profit" value="{{ $project->gross_profit }}"
+                           min="0" step="0.01"
+                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                           placeholder="0">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">% Gross Profit</label>
+                    <div class="relative">
+                        <input type="number" name="gross_profit_percentage" value="{{ $project->gross_profit_percentage }}"
+                               min="0" max="100" step="0.01"
+                               class="block w-full pr-8 pl-3 py-2.5 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                               placeholder="0">
+                        <span class="absolute inset-y-0 right-0 flex items-center pr-3 text-sm text-gray-500 pointer-events-none">%</span>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 text-right">
+                <button type="submit" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    Update Financial Data
+                </button>
+            </div>
+        </form>
+    </div>
+</section>
+
 {{-- Team Section WITH CHECKBOX SELECTION --}}
 <section id="team" class="mb-6 card-hover section-animate">
     <div class="bg-white shadow-md rounded-lg">
@@ -575,7 +836,8 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Module</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assignment</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee Type</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
                             </tr>
                         </thead>
@@ -588,7 +850,9 @@
                                                data-name="{{ $member->basicData->full_name ?? '-' }}"
                                                data-position="{{ $member->basicData->position ?? '-' }}"
                                                data-module="{{ $member->pivot->module ?? '' }}"
-                                               data-assignment="{{ $member->pivot->assignment ?? '' }}"
+                                               data-role="{{ $member->pivot->role ?? '' }}"
+                                               data-employee-type="{{ $member->pivot->employee_type ?? 'Internal' }}"
+                                               data-vendor-name="{{ $member->pivot->vendor_name ?? '' }}"
                                                data-start-date="{{ $member->pivot->start_date ?? '' }}"
                                                data-end-date="{{ $member->pivot->end_date ?? '' }}"
                                                onchange="handleRowSelection('team')">
@@ -596,7 +860,13 @@
                                     <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $member->basicData->full_name ?? '-' }}</td>
                                     <td class="px-6 py-4 text-sm text-gray-500">{{ $member->basicData->position ?? '-' }}</td>
                                     <td class="px-6 py-4 text-sm text-gray-500">{{ $member->pivot->module ?? '-' }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-500">{{ $member->pivot->assignment }}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-500">{{ $member->pivot->role ?? '-' }}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-500">
+                                        {{ $member->pivot->employee_type ?? 'Internal' }}
+                                        @if(($member->pivot->employee_type ?? '') === 'Vendor' && $member->pivot->vendor_name)
+                                            <span class="text-gray-400">({{ $member->pivot->vendor_name }})</span>
+                                        @endif
+                                    </td>
                                     <td class="px-6 py-4 text-sm text-gray-500">
                                         {{ $member->pivot->start_date ? \Carbon\Carbon::parse($member->pivot->start_date)->format('d M Y') : '-' }}
                                         -
@@ -618,51 +888,82 @@
 <section id="documents" class="mb-6 card-hover section-animate">
     <div class="bg-white shadow-md rounded-lg">
         <div class="p-6 border-b border-gray-200 flex justify-between items-center">
-            <h2 class="text-lg font-semibold text-gray-700">Project Documents</h2>
-            <button onclick="openModal('documentModal')" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Add Document
+            <div>
+                <h2 class="text-lg font-semibold text-gray-700">Project Documents</h2>
+                @if(!$project->onedrive_folder_id)
+                    <p class="text-xs text-amber-600 mt-0.5">Please create an OneDrive folder before uploading documents.</p>
+                @endif
+            </div>
+            <button onclick="openUploadDocumentModal()"
+                    class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                </svg>
+                Upload Document
             </button>
         </div>
         <div class="p-6">
-            @if($project->documents->isNotEmpty())
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200" id="documentsTable">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left">
-                                    <input type="checkbox" id="selectAllDocuments" class="row-checkbox" onchange="toggleSelectAll('document')">
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Document Name</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Link</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            @foreach($project->documents as $document)
-                                <tr class="hover:bg-gray-50 document-row" data-document-id="{{ $document->id }}">
-                                    <td class="px-6 py-4">
-                                        <input type="checkbox" class="row-checkbox document-checkbox" 
-                                               data-id="{{ $document->id }}" 
-                                               data-name="{{ $document->document_name }}"
-                                               data-link="{{ $document->link_document }}"
-                                               data-type="{{ $document->document_type }}"
-                                               onchange="handleRowSelection('document')">
-                                    </td>
-                                    <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $document->document_name }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-500">
-                                        <a href="{{ $document->link_document }}" target="_blank" class="primary-link">
-                                            {{ Str::limit($document->link_document, 30) }}
+            {{-- Empty state: shown when no documents --}}
+            <div class="text-center py-12 {{ $project->documents->isNotEmpty() ? 'hidden' : '' }}" id="documentsEmptyState">
+                <svg class="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <p class="text-sm text-gray-500">No documents have been uploaded yet.</p>
+            </div>
+            {{-- Table: always rendered, hidden when no documents --}}
+            <div class="overflow-x-auto {{ $project->documents->isEmpty() ? 'hidden' : '' }}" id="documentsTableWrap">
+                <table class="min-w-full divide-y divide-gray-200" id="documentsTable">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left">
+                                <input type="checkbox" id="selectAllDocuments" class="row-checkbox" onchange="toggleSelectAll('document')">
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Document Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200" id="documentsTableBody">
+                        @foreach($project->documents as $document)
+                            <tr class="hover:bg-gray-50 document-row" data-document-id="{{ $document->id }}">
+                                <td class="px-6 py-4">
+                                    <input type="checkbox" class="row-checkbox document-checkbox"
+                                           data-id="{{ $document->id }}"
+                                           data-name="{{ $document->document_name }}"
+                                           data-type="{{ $document->document_type }}"
+                                           onchange="handleRowSelection('document')">
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center gap-2">
+                                        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                        </svg>
+                                        <span class="text-sm font-medium text-gray-900">{{ $document->document_name }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        {{ $document->document_type }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4">
+                                    @if($document->link_document)
+                                        <a href="{{ $document->link_document }}" target="_blank" rel="noopener"
+                                           class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-all">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                                            </svg>
+                                            Open File
                                         </a>
-                                    </td>
-                                    <td class="px-6 py-4 text-sm text-gray-500">{{ $document->document_type }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @else
-                <p class="text-sm text-gray-500 text-center py-8">No documents uploaded yet.</p>
-            @endif
+                                    @else
+                                        <span class="text-xs text-gray-400">-</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </section>
@@ -1007,7 +1308,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Consultant</label>
-                            <select name="employee_id" id="employee_id" required
+                            <select name="employee_id" id="employee_id" required data-searchable="true"
                                     class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                                 <option value="">-- Select Employee --</option>
                                 @foreach($consultants as $employee)
@@ -1027,24 +1328,34 @@
                                    placeholder="e.g. FI, CO, MM">
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-900 mb-1">Assignment</label>
-                            <select name="assignment" required
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Role</label>
+                            <select name="role" required
                                     class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                                 <option value="">-- Select Role --</option>
-                                <option value="Project Manager">Project Manager</option>
-                                <option value="Co Project Manager">Co Project Manager</option>
-                                <option value="FI Team Lead">FI Team Lead</option>
-                                <option value="FI Team Member">FI Team Member</option>
-                                <option value="CO Team Lead">CO Team Lead</option>
-                                <option value="CO Team Member">CO Team Member</option>
-                                <option value="MM Team Lead">MM Team Lead</option>
-                                <option value="MM Team Member">MM Team Member</option>
+                                <option value="Member">Member</option>
+                                <option value="Head">Head</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">WhatsApp</label>
                             <input type="text" id="whatsapp_number" readonly
                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm bg-white text-gray-900">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Employee Type</label>
+                            <select name="employee_type" id="employee_type" required
+                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                                    onchange="toggleVendorName('vendor_name_wrap', this.value)">
+                                <option value="Internal">Internal</option>
+                                <option value="External">External</option>
+                                <option value="Vendor">Vendor</option>
+                            </select>
+                        </div>
+                        <div id="vendor_name_wrap" style="display:none;">
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Vendor Name</label>
+                            <input type="text" name="vendor_name" id="vendor_name"
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                                   placeholder="Nama vendor">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Start Date</label>
@@ -1099,24 +1410,34 @@
                                    placeholder="e.g. FI, CO, MM">
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-900 mb-1">Assignment</label>
-                            <select name="assignment" id="edit_assignment" required
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Role</label>
+                            <select name="role" id="edit_role" required
                                     class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                                 <option value="">-- Select Role --</option>
-                                <option value="Project Manager">Project Manager</option>
-                                <option value="Co Project Manager">Co Project Manager</option>
-                                <option value="FI Team Lead">FI Team Lead</option>
-                                <option value="FI Team Member">FI Team Member</option>
-                                <option value="CO Team Lead">CO Team Lead</option>
-                                <option value="CO Team Member">CO Team Member</option>
-                                <option value="MM Team Lead">MM Team Lead</option>
-                                <option value="MM Team Member">MM Team Member</option>
+                                <option value="Member">Member</option>
+                                <option value="Head">Head</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Position</label>
                             <input type="text" id="edit_position" readonly
                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm bg-gray-100 text-gray-700">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Employee Type</label>
+                            <select name="employee_type" id="edit_employee_type" required
+                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                                    onchange="toggleVendorName('edit_vendor_name_wrap', this.value)">
+                                <option value="Internal">Internal</option>
+                                <option value="External">External</option>
+                                <option value="Vendor">Vendor</option>
+                            </select>
+                        </div>
+                        <div id="edit_vendor_name_wrap" style="display:none;">
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Vendor Name</label>
+                            <input type="text" name="vendor_name" id="edit_vendor_name"
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                                   placeholder="Nama vendor">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Start Date</label>
@@ -1145,55 +1466,105 @@
     </div>
 </div>
 
-{{-- Document Modal --}}
+{{-- Upload Document Modal --}}
 <div id="documentModal" class="fixed inset-0 z-50 hidden">
     <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeModal('documentModal')"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="modal-content bg-white rounded-lg shadow-xl max-w-lg w-full">
-            <div class="p-6 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900">Add Document</h3>
+        <div class="inline-block bg-white rounded-lg text-left overflow-hidden shadow-xl w-full max-w-lg">
+            {{-- Header --}}
+            <div class="primary-gradient px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-white">Upload Document</h3>
+                    <button type="button" onclick="closeModal('documentModal')" class="text-white/80 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
             </div>
-            <form action="{{ route('project.documents.store', $project->id) }}" method="POST">
-                @csrf
-                <div class="modal-body p-6">
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Document Name</label>
-                            <input type="text" name="document_name" required
-                                   class="block w-full border-gray-300 rounded-md shadow-sm text-sm"
-                                   placeholder="e.g., Contract Document">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Link Document</label>
-                            <input type="url" name="link_document" required
-                                   class="block w-full border-gray-300 rounded-md shadow-sm text-sm"
-                                   placeholder="https://...">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                            <select name="document_type" required
-                                    class="block w-full border-gray-300 rounded-md shadow-sm text-sm">
-                                <option value="">-- Select Type --</option>
-                                <option value="BAST/BAPP">BAST/BAPP</option>
-                                <option value="Contract">Contract</option>
-                                <option value="Justification">Justification</option>
-                                <option value="PR/PO">PR/PO</option>
-                                <option value="Others">Others</option>
-                            </select>
-                        </div>
+            {{-- Body --}}
+            <div class="px-6 py-5 space-y-4">
+                {{-- Destination breadcrumb --}}
+                <div class="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
+                    <p class="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-1.5">Tujuan Upload</p>
+                    <div class="flex items-center gap-1.5 flex-wrap text-sm font-medium text-blue-800">
+                        <span>DELIVERY PROJECT</span>
+                        <svg class="w-3.5 h-3.5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                        <span>{{ strtoupper($project->client->basicData->name_1 ?? 'CUSTOMER') }}</span>
+                        <svg class="w-3.5 h-3.5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                        <span>{{ $project->name }}</span>
                     </div>
                 </div>
-                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
-                    <button type="button" onclick="closeModal('documentModal')"
-                            class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-                        Cancel
-                    </button>
-                    <button type="submit"
-                            class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                        Add Document
-                    </button>
+                {{-- File drop zone --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                        File <span class="text-red-500">*</span>
+                        <span class="text-xs font-normal text-gray-400 ml-1">Maks. 4 MB</span>
+                    </label>
+                    <div id="docDropZone"
+                         class="border-2 border-dashed border-gray-300 rounded-lg py-7 px-4 text-center cursor-pointer hover:border-red-300 hover:bg-red-50/30 transition-all duration-200"
+                         onclick="document.getElementById('docFileInput').click()"
+                         ondragover="event.preventDefault();this.classList.add('border-red-400','bg-red-50/40')"
+                         ondragleave="this.classList.remove('border-red-400','bg-red-50/40')"
+                         ondrop="handleDocFileDrop(event)">
+                        <svg class="w-9 h-9 text-gray-300 mx-auto mb-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                        </svg>
+                        <p class="text-sm font-medium text-gray-500" id="docDropLabel">Click or drag &amp; drop file here</p>
+                        <input type="file" id="docFileInput" class="hidden" onchange="onDocFileSelected(this, 'docDropLabel')">
+                    </div>
                 </div>
-            </form>
+                {{-- Name --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Document Name
+                        <span class="text-xs font-normal text-gray-400 ml-1">(optional — default: file name)</span>
+                    </label>
+                    <input type="text" id="doc_name"
+                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm"
+                           placeholder="Leave empty to use the file name">
+                </div>
+                {{-- Type --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Document Type <span class="text-red-500">*</span></label>
+                    <select id="doc_type" class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm"
+                            onchange="toggleOthersInput(this.value, 'doc_others_wrap')">
+                        <option value="">-- Select Type --</option>
+                        <option value="BAST/BAPP">BAST/BAPP</option>
+                        <option value="Contract">Contract</option>
+                        <option value="PR/PO">PR/PO</option>
+                        <option value="Others">Others</option>
+                    </select>
+                    <div id="doc_others_wrap" class="hidden mt-2 pl-3 border-l-2 border-red-200">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Specify document type <span class="text-red-500">*</span></label>
+                        <input type="text" id="doc_others_text"
+                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm"
+                               placeholder="e.g. MOM, SOW, Timeline...">
+                    </div>
+                </div>
+                {{-- Progress indicator --}}
+                <div id="docUploadProgress" class="hidden">
+                    <div class="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-4 py-2.5">
+                        <svg class="animate-spin w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                        <span id="docUploadLabel">Mengupload ke OneDrive...</span>
+                    </div>
+                </div>
+            </div>
+            {{-- Footer --}}
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+                <button type="button" onclick="closeModal('documentModal')"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all">
+                    Batal
+                </button>
+                <button type="button" id="docUploadBtn" onclick="submitDocumentUpload()"
+                        class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                    </svg>
+                    Upload
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -1213,23 +1584,25 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Highlight Issue</label>
                             <textarea name="highlight_issue" rows="3" required
-                                      class="block w-full border-gray-300 rounded-md shadow-sm text-sm"></textarea>
+                                      class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm"
+                                      placeholder="Describe the issue found..."></textarea>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Action</label>
                             <textarea name="action" rows="3" required
-                                      class="block w-full border-gray-300 rounded-md shadow-sm text-sm"></textarea>
+                                      class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm"
+                                      placeholder="Action taken or planned..."></textarea>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
                                 <input type="date" name="due_date" required
-                                       class="block w-full border-gray-300 rounded-md shadow-sm text-sm">
+                                       class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
                                 <select name="status" required
-                                        class="block w-full border-gray-300 rounded-md shadow-sm text-sm">
+                                        class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                                     <option value="To Be Discussed">To Be Discussed</option>
                                     <option value="To Be Confirmed">To Be Confirmed</option>
                                     <option value="Open">Open</option>
@@ -1239,7 +1612,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Complexity</label>
                                 <select name="complexity" required
-                                        class="block w-full border-gray-300 rounded-md shadow-sm text-sm">
+                                        class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                                     <option value="Low">Low</option>
                                     <option value="Medium">Medium</option>
                                     <option value="High">High</option>
@@ -1267,47 +1640,86 @@
 <div id="editDocumentModal" class="fixed inset-0 z-50 hidden">
     <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeModal('editDocumentModal')"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="modal-content bg-white rounded-lg shadow-xl max-w-lg w-full">
-            <div class="p-6 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900">Edit Document</h3>
+        <div class="inline-block bg-white rounded-lg text-left overflow-hidden shadow-xl w-full max-w-lg">
+            {{-- Header --}}
+            <div class="primary-gradient px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-white">Edit Dokumen</h3>
+                    <button type="button" onclick="closeModal('editDocumentModal')" class="text-white/80 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
             </div>
             <form id="editDocumentForm">
-                @csrf
-                @method('PATCH')
                 <input type="hidden" id="edit_document_id">
-                <div class="modal-body p-6">
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Document Name</label>
-                            <input type="text" id="edit_document_name" required
-                                   class="block w-full border-gray-300 rounded-md shadow-sm text-sm">
+                <div class="px-6 py-5 space-y-4">
+                    {{-- Name --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Document Name <span class="text-red-500">*</span></label>
+                        <input type="text" id="edit_document_name" required
+                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm">
+                    </div>
+                    {{-- Type --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Document Type <span class="text-red-500">*</span></label>
+                        <select id="edit_document_type" required
+                                class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm"
+                                onchange="toggleOthersInput(this.value, 'edit_doc_others_wrap')">
+                            <option value="BAST/BAPP">BAST/BAPP</option>
+                            <option value="Contract">Contract</option>
+                            <option value="PR/PO">PR/PO</option>
+                            <option value="Others">Others</option>
+                        </select>
+                        <div id="edit_doc_others_wrap" class="hidden mt-2 pl-3 border-l-2 border-red-200">
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Specify document type <span class="text-red-500">*</span></label>
+                            <input type="text" id="edit_doc_others_text"
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm"
+                                   placeholder="e.g. MOM, SOW, Timeline...">
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Link Document</label>
-                            <input type="url" id="edit_document_link" required
-                                   class="block w-full border-gray-300 rounded-md shadow-sm text-sm">
+                    </div>
+                    {{-- Replace file (optional) --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                            Replace File
+                            <span class="text-xs font-normal text-gray-400 ml-1">(optional — leave empty to keep the current file)</span>
+                        </label>
+                        <div id="editDocDropZone"
+                             class="border-2 border-dashed border-gray-300 rounded-lg py-5 px-4 text-center cursor-pointer hover:border-red-300 hover:bg-red-50/30 transition-all duration-200"
+                             onclick="document.getElementById('edit_doc_file').click()"
+                             ondragover="event.preventDefault();this.classList.add('border-red-400','bg-red-50/40')"
+                             ondragleave="this.classList.remove('border-red-400','bg-red-50/40')"
+                             ondrop="handleEditDocFileDrop(event)">
+                            <svg class="w-7 h-7 text-gray-300 mx-auto mb-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                            </svg>
+                            <p class="text-sm text-gray-400" id="editDocDropLabel">Click or drag &amp; drop replacement file</p>
+                            <p class="text-xs text-gray-300 mt-0.5">Maks. 4 MB</p>
+                            <input type="file" id="edit_doc_file" class="hidden" onchange="onDocFileSelected(this, 'editDocDropLabel')">
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                            <select id="edit_document_type" required
-                                    class="block w-full border-gray-300 rounded-md shadow-sm text-sm">
-                                <option value="BAST/BAPP">BAST/BAPP</option>
-                                <option value="Contract">Contract</option>
-                                <option value="Justification">Justification</option>
-                                <option value="PR/PO">PR/PO</option>
-                                <option value="Others">Others</option>
-                            </select>
+                    </div>
+                    {{-- Save progress --}}
+                    <div id="editDocSaveProgress" class="hidden">
+                        <div class="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-4 py-2.5">
+                            <svg class="animate-spin w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                            </svg>
+                            <span>Saving changes...</span>
                         </div>
                     </div>
                 </div>
-                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                {{-- Footer --}}
+                <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
                     <button type="button" onclick="closeModal('editDocumentModal')"
-                            class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-                        Cancel
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all">
+                        Batal
                     </button>
-                    <button type="submit"
-                            class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                        Update Document
+                    <button type="submit" id="editDocSaveBtn"
+                            class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Simpan
                     </button>
                 </div>
             </form>
@@ -1331,23 +1743,25 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Highlight Issue</label>
                         <textarea id="edit_highlight_issue" rows="3" required
-                                  class="block w-full border-gray-300 rounded-md shadow-sm text-sm"></textarea>
+                                  class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm"
+                                  placeholder="Describe the issue..."></textarea>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Action</label>
                         <textarea id="edit_action" rows="3" required
-                                  class="block w-full border-gray-300 rounded-md shadow-sm text-sm"></textarea>
+                                  class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm"
+                                  placeholder="Describe the action taken..."></textarea>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
                             <input type="date" id="edit_due_date" required
-                                   class="block w-full border-gray-300 rounded-md shadow-sm text-sm">
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
                             <select id="edit_status" required
-                                    class="block w-full border-gray-300 rounded-md shadow-sm text-sm">
+                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                                 <option value="To Be Discussed">To Be Discussed</option>
                                 <option value="To Be Confirmed">To Be Confirmed</option>
                                 <option value="Open">Open</option>
@@ -1357,7 +1771,7 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Complexity</label>
                             <select id="edit_complexity" required
-                                    class="block w-full border-gray-300 rounded-md shadow-sm text-sm">
+                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm">
                                 <option value="Low">Low</option>
                                 <option value="Medium">Medium</option>
                                 <option value="High">High</option>
@@ -1376,6 +1790,80 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+{{-- No OneDrive Folder Warning Modal --}}
+<div id="noFolderWarningModal" class="hidden fixed inset-0 z-[60] overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeNoFolderWarning()"></div>
+        <div class="relative bg-white rounded-xl shadow-2xl max-w-sm w-full z-10 overflow-hidden">
+            <div class="p-6">
+                <div class="flex items-start gap-4">
+                    <div class="flex-shrink-0 w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                        <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-semibold text-gray-900 mb-1">OneDrive Folder Not Created Yet</h3>
+                        <p class="text-sm text-gray-500">
+                            Documents will be saved to OneDrive. Please create a project folder first to enable uploads.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="px-6 pb-6 flex justify-end gap-2">
+                <button onclick="closeNoFolderWarning()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all">
+                    Batal
+                </button>
+                <button onclick="closeNoFolderWarning(); openOneDriveModal();"
+                        class="px-4 py-2 text-sm font-semibold text-white primary-gradient rounded-lg hover:opacity-90 transition-all inline-flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                    </svg>
+                    Buat Folder Sekarang
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Delete Folder Confirmation Modal --}}
+<div id="deleteFolderConfirmModal" class="hidden fixed inset-0 z-[60] overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeDeleteFolderModal()"></div>
+        <div class="relative bg-white rounded-xl shadow-2xl max-w-sm w-full z-10 overflow-hidden">
+            <div class="p-6">
+                <div class="flex items-start gap-4">
+                    <div class="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                        <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-semibold text-gray-900 mb-1">Delete OneDrive Folder?</h3>
+                        <p class="text-sm text-gray-500">
+                            The folder and <strong>all its contents</strong> will be permanently deleted from OneDrive and cannot be recovered.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="px-6 pb-6 flex justify-end gap-2">
+                <button onclick="closeDeleteFolderModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all">
+                    Cancel
+                </button>
+                <button id="confirmDeleteFolderBtn"
+                        class="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-all inline-flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                    Hapus Folder
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -1404,16 +1892,28 @@
                 <div class="px-6 py-5 space-y-4">
                     <p class="text-sm text-gray-500">
                         The folder will be created in the OneDrive account <strong class="text-gray-700">{{ config('services.microsoft_graph.sender_email') }}</strong>
-                        and accessible to anyone with the link (edit &amp; upload access).
+                        with the following structure:
                     </p>
+                    {{-- Path Preview --}}
+                    <div class="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 text-sm">
+                        <p class="text-xs font-medium text-blue-500 uppercase mb-1">Folder Location</p>
+                        <div class="flex items-center gap-1 flex-wrap text-blue-800 font-medium">
+                            <span>DELIVERY PROJECT</span>
+                            <svg class="w-3.5 h-3.5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                            <span>{{ strtoupper($project->client->basicData->name_1 ?? 'CUSTOMER') }}</span>
+                            <svg class="w-3.5 h-3.5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                            <span id="odrPathFolderName" class="text-blue-900">{{ $project->name ?? 'Project-' . $project->id }}</span>
+                        </div>
+                    </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Folder Name <span class="font-normal text-gray-400">(optional)</span>
+                            Project Folder Name <span class="font-normal text-gray-400">(optional)</span>
                         </label>
                         <input type="text" id="odrFolderName"
                                value="{{ $project->name ?? 'Project-' . $project->id }}"
+                               oninput="document.getElementById('odrPathFolderName').textContent = this.value || '{{ $project->name ?? 'Project-' . $project->id }}'"
                                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        <p class="text-xs text-gray-400 mt-1">Name of the folder to be created in OneDrive.</p>
+                        <p class="text-xs text-gray-400 mt-1">Subfolder name to be created inside the customer folder.</p>
                     </div>
                     <div class="flex gap-2 pt-1">
                         <button onclick="generateProjectFolder()" id="odrGenerateBtn"
@@ -2040,10 +2540,28 @@ async function executeBulkDelete() {
 // EDIT MODAL FUNCTIONS
 // ============================================
 function openEditDocumentModal(checkbox) {
-    document.getElementById('edit_document_id').value = checkbox.dataset.id;
+    document.getElementById('edit_document_id').value   = checkbox.dataset.id;
     document.getElementById('edit_document_name').value = checkbox.dataset.name;
-    document.getElementById('edit_document_link').value = checkbox.dataset.link;
-    document.getElementById('edit_document_type').value = checkbox.dataset.type;
+
+    // Populate type — handle "Others: xxx" values stored in DB
+    const rawType    = checkbox.dataset.type || '';
+    const knownTypes = ['BAST/BAPP', 'Contract', 'PR/PO', 'Others'];
+    const selectEl   = document.getElementById('edit_document_type');
+    if (knownTypes.includes(rawType)) {
+        selectEl.value = rawType;
+        document.getElementById('edit_doc_others_text').value = '';
+    } else {
+        selectEl.value = 'Others';
+        document.getElementById('edit_doc_others_text').value = rawType;
+    }
+    toggleOthersInput(selectEl.value, 'edit_doc_others_wrap');
+
+    // Reset file input & drop zone label
+    const fileInput = document.getElementById('edit_doc_file');
+    if (fileInput) fileInput.value = '';
+    const label = document.getElementById('editDocDropLabel');
+    if (label) { label.textContent = 'Click or drag & drop replacement file'; label.className = 'text-sm text-gray-400'; }
+
     openModal('editDocumentModal');
 }
 
@@ -2057,26 +2575,57 @@ function openEditIssueModal(checkbox) {
     openModal('editIssueModal');
 }
 
+function toggleOthersInput(value, wrapId) {
+    const wrap = document.getElementById(wrapId);
+    if (!wrap) return;
+    const show = value === 'Others';
+    wrap.classList.toggle('hidden', !show);
+    const input = wrap.querySelector('input');
+    if (input) input.required = show;
+}
+
+function toggleVendorName(wrapId, type) {
+    const wrap = document.getElementById(wrapId);
+    if (!wrap) return;
+    const show = type === 'Vendor';
+    wrap.style.display = show ? '' : 'none';
+    const input = wrap.querySelector('input[name="vendor_name"]');
+    if (input) input.required = show;
+}
+
 function openEditTeamMemberModal(checkbox) {
-    const employeeId = checkbox.dataset.id;
+    const employeeId   = checkbox.dataset.id;
     const employeeName = checkbox.dataset.name;
-    const position = checkbox.dataset.position;
-    const module = checkbox.dataset.module;
-    const assignment = checkbox.dataset.assignment;
-    const startDate = checkbox.dataset.startDate;
-    const endDate = checkbox.dataset.endDate;
+    const position     = checkbox.dataset.position;
+    const module       = checkbox.dataset.module;
+    const role         = checkbox.dataset.role;
+    const employeeType = checkbox.dataset.employeeType || 'Internal';
+    const vendorName   = checkbox.dataset.vendorName || '';
+    const startDate    = checkbox.dataset.startDate;
+    const endDate      = checkbox.dataset.endDate;
 
     // Set form action URL
     document.getElementById('editTeamMemberForm').action = `/projects/{{ $project->id }}/team-members/${employeeId}`;
 
     // Populate form fields
-    document.getElementById('edit_employee_id').value = employeeId;
+    document.getElementById('edit_employee_id').value   = employeeId;
     document.getElementById('edit_employee_name').value = employeeName;
-    document.getElementById('edit_position').value = position;
-    document.getElementById('edit_module').value = module || '';
-    document.getElementById('edit_assignment').value = assignment || '';
-    document.getElementById('edit_start_date').value = startDate || '';
-    document.getElementById('edit_end_date').value = endDate || '';
+    document.getElementById('edit_position').value      = position;
+    document.getElementById('edit_module').value        = module || '';
+    document.getElementById('edit_role').value          = role || '';
+    document.getElementById('edit_employee_type').value = employeeType;
+    document.getElementById('edit_vendor_name').value   = vendorName;
+    document.getElementById('edit_start_date').value    = startDate || '';
+    document.getElementById('edit_end_date').value      = endDate || '';
+
+    // Tampilkan/sembunyikan vendor name field sesuai tipe
+    toggleVendorName('edit_vendor_name_wrap', employeeType);
+
+    // Sinkronkan tampilan select-enhance untuk edit_role & edit_employee_type
+    ['edit_role', 'edit_employee_type'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
 
     openModal('editTeamModal');
 }
@@ -2097,10 +2646,12 @@ document.getElementById('editTeamMemberForm')?.addEventListener('submit', async 
             },
             body: JSON.stringify({
                 _method: 'PUT',
-                module: formData.get('module'),
-                assignment: formData.get('assignment'),
-                start_date: formData.get('start_date'),
-                end_date: formData.get('end_date')
+                module:        formData.get('module'),
+                role:          formData.get('role'),
+                employee_type: formData.get('employee_type'),
+                vendor_name:   formData.get('vendor_name'),
+                start_date:    formData.get('start_date'),
+                end_date:      formData.get('end_date')
             })
         });
 
@@ -2124,34 +2675,87 @@ document.getElementById('editTeamMemberForm')?.addEventListener('submit', async 
 document.getElementById('editDocumentForm')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     const documentId = document.getElementById('edit_document_id').value;
-    
-    const formData = {
-        document_name: document.getElementById('edit_document_name').value,
-        link_document: document.getElementById('edit_document_link').value,
-        document_type: document.getElementById('edit_document_type').value,
-    };
-    
+    const saveBtn    = document.getElementById('editDocSaveBtn');
+    const progress   = document.getElementById('editDocSaveProgress');
+    const fileInput  = document.getElementById('edit_doc_file');
+
+    saveBtn.disabled = true;
+    progress.classList.remove('hidden');
+
+    // Use FormData + POST with _method=PATCH so Laravel accepts file uploads
+    const fd = new FormData();
+    fd.append('_token', '{{ csrf_token() }}');
+    fd.append('_method', 'PATCH');
+    const _editTypeSelect = document.getElementById('edit_document_type');
+    const _editOthersText = document.getElementById('edit_doc_others_text');
+    const _editDocType    = _editTypeSelect.value === 'Others'
+        ? (_editOthersText.value.trim() || 'Others')
+        : _editTypeSelect.value;
+
+    if (_editTypeSelect.value === 'Others' && !_editOthersText.value.trim()) {
+        showNotification('Please specify the document type for Others.', 'error');
+        _editOthersText.focus();
+        saveBtn.disabled = false;
+        progress.classList.add('hidden');
+        return;
+    }
+
+    fd.append('document_name', document.getElementById('edit_document_name').value);
+    fd.append('document_type', _editDocType);
+    if (fileInput && fileInput.files[0]) {
+        const maxSize = 4 * 1024 * 1024;
+        if (fileInput.files[0].size > maxSize) {
+            showNotification('Ukuran file maksimal 4 MB.', 'error');
+            saveBtn.disabled = false;
+            progress.classList.add('hidden');
+            return;
+        }
+        fd.append('file', fileInput.files[0]);
+    }
+
     try {
         const response = await fetch(`/project/documents/${documentId}`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                'Accept': 'application/json',
-            },
-            body: JSON.stringify(formData)
+            method: 'POST',
+            headers: { 'Accept': 'application/json' },
+            body: fd,
         });
-        
-        if (response.ok) {
-            showNotification('Document updated successfully!', 'success');
+
+        const data = await response.json();
+
+        if (data.success) {
+            showNotification(data.message || 'Document updated successfully!', 'success');
             closeModal('editDocumentModal');
             clearAllSelections();
-            setTimeout(() => location.reload(), 1000);
+
+            // Update row in-place
+            const row = document.querySelector(`[data-document-id="${documentId}"]`);
+            if (row) {
+                const cb = row.querySelector('.document-checkbox');
+                if (cb) {
+                    cb.dataset.name = data.document.document_name;
+                    cb.dataset.type = data.document.document_type;
+                }
+                const nameEl = row.querySelector('td:nth-child(2) span');
+                if (nameEl) nameEl.textContent = data.document.document_name;
+                const typeEl = row.querySelector('td:nth-child(3) span');
+                if (typeEl) typeEl.textContent = data.document.document_type;
+                const actionTd = row.querySelector('td:nth-child(4)');
+                if (actionTd && data.document.link_document) {
+                    actionTd.innerHTML = `<a href="${data.document.link_document}" target="_blank" rel="noopener"
+                        class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-all">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                        </svg>Open File</a>`;
+                }
+            }
         } else {
-            throw new Error('Update failed');
+            showNotification(data.message || 'Gagal memperbarui dokumen.', 'error');
         }
     } catch (error) {
-        showNotification('Failed to update document', 'error');
+        showNotification('Terjadi kesalahan. Coba lagi.', 'error');
+    } finally {
+        saveBtn.disabled = false;
+        progress.classList.add('hidden');
     }
 });
 
@@ -2279,7 +2883,7 @@ async function executeProjectDelete(projectId) {
 // Close modal on ESC key
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        const modals = ['teamModal', 'documentModal', 'issueModal', 'deleteModal', 'editDocumentModal', 'editIssueModal'];
+        const modals = ['teamModal', 'editTeamModal', 'documentModal', 'issueModal', 'deleteModal', 'editDocumentModal', 'editIssueModal', 'deleteFolderConfirmModal', 'noFolderWarningModal'];
         modals.forEach(modalId => closeModal(modalId));
     }
 });
@@ -2318,18 +2922,197 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Auto-submit handlers untuk PIC & Status — dipanggil custom-dd via
-// data-onchange setiap kali user pilih opsi (custom-dd tidak fire event
-// 'change' di hidden input).
-function submitPicForm() {
-    const f = document.getElementById('picUpdateForm');
+// Auto-submit handlers — dipanggil custom-dd via data-onchange setiap kali
+// user pilih opsi (custom-dd tidak fire event 'change' di hidden input).
+function submitProjectOwnerForm() {
+    const f = document.getElementById('projectOwnerUpdateForm');
+    if (f) f.submit();
+}
+function submitHighLevelRiskForm() {
+    const f = document.getElementById('highLevelRiskUpdateForm');
     if (f) f.submit();
 }
 function submitStatusForm() {
     const f = document.getElementById('statusUpdateForm');
     if (f) f.submit();
 }
+function submitClientForm() {
+    const f = document.getElementById('clientUpdateForm');
+    if (f) f.submit();
+}
+function submitProjectTypeForm() {
+    const f = document.getElementById('projectTypeUpdateForm');
+    if (f) f.submit();
+}
 
+
+// ── Upload Document ───────────────────────────────────────────────────────
+function closeNoFolderWarning() {
+    document.getElementById('noFolderWarningModal').classList.add('hidden');
+}
+
+function openUploadDocumentModal() {
+    if (!_odrHasFolder) {
+        document.getElementById('noFolderWarningModal').classList.remove('hidden');
+        return;
+    }
+    // Reset modal state
+    const _dl = document.getElementById('docDropLabel');
+    document.getElementById('docFileInput').value = '';
+    if (_dl) { _dl.textContent = 'Click or drag & drop file here'; _dl.className = 'text-sm font-medium text-gray-500'; }
+    document.getElementById('doc_name').value = '';
+    document.getElementById('doc_type').value = '';
+    document.getElementById('doc_others_text').value = '';
+    document.getElementById('doc_others_wrap').classList.add('hidden');
+    document.getElementById('docUploadProgress').classList.add('hidden');
+    document.getElementById('docUploadBtn').disabled = false;
+    openModal('documentModal');
+}
+
+function onDocFileSelected(input, labelId) {
+    const label = document.getElementById(labelId || 'docDropLabel');
+    if (input.files && input.files[0] && label) {
+        label.textContent = input.files[0].name;
+        label.classList.add('text-gray-700', 'font-medium');
+        label.classList.remove('text-gray-400', 'text-gray-500');
+    }
+}
+
+function _assignFileToDrop(file, inputId, labelId) {
+    const input = document.getElementById(inputId);
+    if (!input || !file) return;
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    onDocFileSelected(input, labelId);
+}
+
+function handleDocFileDrop(event) {
+    event.preventDefault();
+    document.getElementById('docDropZone').classList.remove('border-red-400', 'bg-red-50/40');
+    _assignFileToDrop(event.dataTransfer.files[0], 'docFileInput', 'docDropLabel');
+}
+
+function handleEditDocFileDrop(event) {
+    event.preventDefault();
+    document.getElementById('editDocDropZone').classList.remove('border-red-400', 'bg-red-50/40');
+    _assignFileToDrop(event.dataTransfer.files[0], 'edit_doc_file', 'editDocDropLabel');
+}
+
+async function submitDocumentUpload() {
+    const fileInput  = document.getElementById('docFileInput');
+    const typeSelect = document.getElementById('doc_type');
+    const othersText = document.getElementById('doc_others_text');
+    const docType    = typeSelect.value === 'Others'
+        ? (othersText.value.trim() || '')
+        : typeSelect.value;
+
+    if (!fileInput.files || !fileInput.files[0]) {
+        showNotification('Please select a file first.', 'error');
+        return;
+    }
+    if (!typeSelect.value) {
+        showNotification('Please select a document type.', 'error');
+        return;
+    }
+    if (typeSelect.value === 'Others' && !othersText.value.trim()) {
+        showNotification('Please specify the document type for Others.', 'error');
+        othersText.focus();
+        return;
+    }
+
+    const file    = fileInput.files[0];
+    const maxSize = 4 * 1024 * 1024; // 4 MB
+    if (file.size > maxSize) {
+        showNotification('Ukuran file maksimal 4 MB.', 'error');
+        return;
+    }
+
+    const btn     = document.getElementById('docUploadBtn');
+    const progress = document.getElementById('docUploadProgress');
+    const label   = document.getElementById('docUploadLabel');
+
+    btn.disabled = true;
+    progress.classList.remove('hidden');
+    label.textContent = 'Mengupload ke OneDrive...';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('document_name', document.getElementById('doc_name').value.trim());
+    formData.append('document_type', docType);
+    formData.append('_token', '{{ csrf_token() }}');
+
+    try {
+        const response = await fetch('{{ route('project.documents.upload', $project->id) }}', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json' },
+            body: formData,
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showNotification('Document uploaded successfully!', 'success');
+            closeModal('documentModal');
+
+            // Hide empty state, show table
+            const emptyState = document.getElementById('documentsEmptyState');
+            if (emptyState) emptyState.classList.add('hidden');
+            const tableWrap = document.getElementById('documentsTableWrap');
+            if (tableWrap) tableWrap.classList.remove('hidden');
+
+            // Append new row to table
+            const tbody = document.getElementById('documentsTableBody');
+
+            const doc = data.document;
+            const tr  = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50 document-row';
+            tr.setAttribute('data-document-id', doc.id);
+            tr.innerHTML = `
+                <td class="px-6 py-4">
+                    <input type="checkbox" class="row-checkbox document-checkbox"
+                           data-id="${doc.id}"
+                           data-name="${doc.document_name}"
+                           data-type="${doc.document_type}"
+                           onchange="handleRowSelection('document')">
+                </td>
+                <td class="px-6 py-4">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <span class="text-sm font-medium text-gray-900">${doc.document_name}</span>
+                    </div>
+                </td>
+                <td class="px-6 py-4">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        ${doc.document_type}
+                    </span>
+                </td>
+                <td class="px-6 py-4">
+                    ${doc.link_document
+                        ? `<a href="${doc.link_document}" target="_blank" rel="noopener"
+                               class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-all">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                                </svg>
+                                Open File</a>`
+                        : `<span class="text-xs text-gray-400">-</span>`
+                    }
+                </td>`;
+            tbody.appendChild(tr);
+        } else {
+            showNotification(data.message || 'Gagal mengupload dokumen.', 'error');
+            btn.disabled = false;
+        }
+    } catch (err) {
+        console.error('Upload error:', err);
+        showNotification('Terjadi kesalahan saat upload.', 'error');
+        btn.disabled = false;
+    } finally {
+        progress.classList.add('hidden');
+    }
+}
 
 // ── OneDrive Modal ────────────────────────────────────────────────────────
 let _odrHasFolder = {{ $project->onedrive_folder_id ? 'true' : 'false' }};
@@ -2369,8 +3152,19 @@ function _showOdrSuccess(url) {
     }
 }
 
-async function deleteProjectFolder() {
-    if (!confirm('Are you sure you want to delete this OneDrive folder? The folder and all its contents will be permanently deleted.')) return;
+function openDeleteFolderModal() {
+    document.getElementById('deleteFolderConfirmModal').classList.remove('hidden');
+    document.getElementById('confirmDeleteFolderBtn').onclick = confirmDeleteFolder;
+}
+
+function closeDeleteFolderModal() {
+    document.getElementById('deleteFolderConfirmModal').classList.add('hidden');
+}
+
+async function confirmDeleteFolder() {
+    const btn = document.getElementById('confirmDeleteFolderBtn');
+    btn.disabled = true;
+    btn.innerHTML = `<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Deleting...`;
     try {
         const res  = await fetch('{{ route('projects.deleteFolder', $project->id) }}', {
             method:  'DELETE',
@@ -2379,15 +3173,15 @@ async function deleteProjectFolder() {
         const data = await res.json();
         if (data.success) {
             _odrHasFolder = false;
+            closeDeleteFolderModal();
             closeOneDriveModal();
-            // Revert header button to "Create Folder"
             const el = document.getElementById('headerFolderBtn');
             if (el) {
-                const btn = document.createElement('button');
-                btn.type = 'button'; btn.id = 'headerFolderBtn'; btn.onclick = openOneDriveModal;
-                btn.className = el.className;
-                btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg> Create Folder`;
-                el.replaceWith(btn);
+                const newBtn = document.createElement('button');
+                newBtn.type = 'button'; newBtn.id = 'headerFolderBtn'; newBtn.onclick = openOneDriveModal;
+                newBtn.className = el.className;
+                newBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg> Create Folder`;
+                el.replaceWith(newBtn);
             }
             showToast('Folder deleted successfully.', 'success');
         } else {
@@ -2395,7 +3189,14 @@ async function deleteProjectFolder() {
         }
     } catch (err) {
         showToast('Error: ' + err.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg> Hapus Folder`;
     }
+}
+
+function deleteProjectFolder() {
+    openDeleteFolderModal();
 }
 
 async function generateProjectFolder() {

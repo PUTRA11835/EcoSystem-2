@@ -199,6 +199,33 @@
         }
         @endif
         
+        /* ── Global Form Input Reset ─────────────────────────────────────────
+           Tailwind v4 preflight sets border-width:0 and no padding on all
+           elements. Restore a consistent, comfortable appearance site-wide.
+           Using :where() keeps specificity at (0,0,0) so any Tailwind utility
+           class or inline style can still override without needing !important. */
+        :where(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"])),
+        :where(select),
+        :where(textarea) {
+            border-width: 1px;
+            border-style: solid;
+            padding: 0.5rem 0.75rem;   /* py-2 px-3 — comfortable touch target */
+            line-height: 1.5rem;
+            border-radius: 0.375rem;   /* rounded-md */
+        }
+        :where(textarea) {
+            padding: 0.625rem 0.75rem; /* slightly taller for multiline */
+            line-height: 1.625rem;
+        }
+
+        /* primary-focus — consistent focus ring matching brand colour */
+        .primary-focus:focus,
+        .primary-focus:focus-visible {
+            outline: none;
+            border-color: rgb(var(--primary-rgb));
+            box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15);
+        }
+
         /* Card hover effect */
         .card-hover {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

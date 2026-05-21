@@ -30,36 +30,35 @@ class DeliveryProjectController extends Controller
             return $client->basicData->name_1 ?? '';
         });
         $clientPicMap = $clients->pluck('pic', 'customer_id');
-        $employees = Employee::with('basicData')->get();
+        $employees = Employee::with(['basicData', 'addresses' => fn($q) => $q->where('is_primary', true)])->get()->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
 
-        // Get only Project Managers for PIC dropdown
-        $projectManagers = Employee::with('basicData')
-            ->whereHas('basicData', function($query) {
-                $query->where('position', 'Project Manager');
-            })
-            ->get();
-
-        return view('delivery.project.projects.create', compact('clients', 'clientPicMap', 'employees', 'projectManagers'));
+        return view('delivery.project.projects.create', compact('clients', 'clientPicMap', 'employees'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
             'client_id' => 'required|exists:customer,customer_id',
-            'pic' => 'required|string|max:255',
+            'project_owner' => 'required|string|max:255',
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'project_type' => 'required|string|max:255',
+            'high_level_risk' => 'nullable|in:Low,Moderate,High',
+            'io_number' => 'nullable|string|max:255',
             'ae_type' => 'nullable|in:Internal,External',
             'ae_name' => 'nullable|string',
             'ae_phone' => 'nullable|string',
             'ae_email' => 'nullable|email',
             'delivery_owner_id' => 'nullable|exists:employee,employee_id',
             'delivery_manager_id' => 'nullable|exists:employee,employee_id',
-            'project_owner_id' => 'nullable|exists:employee,employee_id',
+            'project_manager_id' => 'nullable|exists:employee,employee_id',
             'co_pm_id' => 'nullable|exists:employee,employee_id',
             'project_admin_id' => 'nullable|exists:employee,employee_id',
             'sales_id' => 'nullable|exists:employee,employee_id',
+            'revenue' => 'nullable|numeric|min:0',
+            'plan_cost' => 'nullable|numeric|min:0',
+            'gross_profit' => 'nullable|numeric|min:0',
+            'gross_profit_percentage' => 'nullable|numeric|min:0|max:100',
             'delivery_method' => 'nullable|in:Onsite,Hybrid,WFH',
             'warranty_period' => 'nullable|integer|min:0',
             'total_mandays' => 'nullable|integer|min:0',
@@ -71,20 +70,23 @@ class DeliveryProjectController extends Controller
 
         $projectData = [
             'client_id' => $request->client_id,
-            'pic' => $request->pic,
+            'project_owner' => $request->project_owner,
             'name' => $request->name,
             'description' => $request->description,
             'project_type' => $request->project_type,
+            'high_level_risk' => $request->high_level_risk,
+            'io_number' => $request->io_number,
             'category' => 'Open',
-            'phase' => null, // Will be calculated from planning phases
+            'phase' => null,
             'status' => 'Monitoring',
-            'created_by_id' => null, // ECOSYSTEM tidak menggunakan tabel users
+            'created_by_id' => null,
         ];
 
         $projectData = array_merge($projectData, $request->only([
             'ae_type', 'ae_name', 'ae_phone', 'ae_email',
             'delivery_owner_id', 'delivery_manager_id',
-            'project_owner_id', 'co_pm_id', 'project_admin_id', 'sales_id',
+            'project_manager_id', 'co_pm_id', 'project_admin_id', 'sales_id',
+            'revenue', 'plan_cost', 'gross_profit', 'gross_profit_percentage',
             'delivery_method', 'warranty_period', 'total_mandays'
         ]));
 
@@ -164,17 +166,13 @@ class DeliveryProjectController extends Controller
             ]);
         }
 
-        $employees = Employee::with(['basicData', 'addresses'])->get();
+        $employees = Employee::with(['basicData', 'addresses'])->get()->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
+
+        $clients = Customer::with('basicData')->get()->sortBy(fn($c) => strtolower($c->basicData->name_1 ?? ''))->values();
 
         $consultants = Employee::with(['basicData', 'addresses'])
             ->whereHas('basicData', function($query) {
                 $query->where('position', 'Consultant');
-            })
-            ->get();
-
-        $projectManagers = Employee::with('basicData')
-            ->whereHas('basicData', function($query) {
-                $query->where('position', 'Project Manager');
             })
             ->get();
 
@@ -215,8 +213,8 @@ class DeliveryProjectController extends Controller
         return view('delivery.project.projects.show', compact(
             'project',
             'employees',
+            'clients',
             'consultants',
-            'projectManagers',
             'hasPlanning',
             'phases',
             'deliveryActivities',
@@ -236,24 +234,49 @@ class DeliveryProjectController extends Controller
             $rules['value'] = ['required', Rule::in(['On Track', 'Monitoring', 'At Risk'])];
         } elseif ($field === 'phase') {
             $rules['value'] = ['required', Rule::in(['Prepare', 'Explore', 'Realize', 'Deploy'])];
-        } elseif ($field === 'pic') {
+        } elseif ($field === 'project_owner') {
+            $rules['value'] = 'nullable|string|max:255';
+        } elseif ($field === 'high_level_risk') {
+            $rules['value'] = ['nullable', Rule::in(['Low', 'Moderate', 'High'])];
+        } elseif ($field === 'io_number') {
             $rules['value'] = 'nullable|string|max:255';
         } elseif ($field === 'description') {
             $rules['value'] = 'nullable|string|max:5000';
+        } elseif ($field === 'name') {
+            $rules['value'] = 'required|string|max:255';
+        } elseif ($field === 'project_type') {
+            $rules['value'] = ['nullable', Rule::in(['Implementation', 'Roll Out', 'Migration', 'Upgrade', 'WRICEF'])];
+        } elseif ($field === 'client_id') {
+            $rules['value'] = 'nullable|exists:customer,customer_id';
         } else {
             $rules['value'] = 'nullable|string|max:255';
         }
         
         $request->validate($rules);
 
-        if ($field === 'pic') {
-            $project->update(['pic' => $value]);
-            return back()->with('success', 'PIC updated successfully.');
+        if ($field === 'project_owner') {
+            $project->update(['project_owner' => $value]);
+            return back()->with('success', 'Project Owner updated successfully.');
         }
 
         if ($field === 'description') {
             $project->update(['description' => $value]);
             return back()->with('success', 'Description updated successfully.');
+        }
+
+        if ($field === 'name') {
+            $project->update(['name' => $value]);
+            return back()->with('success', 'Project Name updated successfully.');
+        }
+
+        if ($field === 'client_id') {
+            $project->update(['client_id' => $value ?: null]);
+            return back()->with('success', 'Customer updated successfully.');
+        }
+
+        if ($field === 'project_type') {
+            $project->update(['project_type' => $value ?: null]);
+            return back()->with('success', 'Project Type updated successfully.');
         }
 
         $project->$field = $value;
@@ -272,7 +295,7 @@ class DeliveryProjectController extends Controller
             'ae_email' => 'nullable|email',
             'delivery_owner_id' => 'nullable|exists:employee,employee_id',
             'delivery_manager_id' => 'nullable|exists:employee,employee_id',
-            'project_owner_id' => 'nullable|exists:employee,employee_id',
+            'project_manager_id' => 'nullable|exists:employee,employee_id',
             'co_pm_id' => 'nullable|exists:employee,employee_id',
             'project_admin_id' => 'nullable|exists:employee,employee_id',
             'sales_id' => 'nullable|exists:employee,employee_id',
@@ -286,6 +309,20 @@ class DeliveryProjectController extends Controller
         $project->update($validatedData);
 
         return back()->with('success', 'Delivery information updated successfully.');
+    }
+
+    public function updateFinancialInfo(Request $request, DeliveryProject $project)
+    {
+        $validatedData = $request->validate([
+            'revenue' => 'nullable|numeric|min:0',
+            'plan_cost' => 'nullable|numeric|min:0',
+            'gross_profit' => 'nullable|numeric|min:0',
+            'gross_profit_percentage' => 'nullable|numeric|min:0|max:100',
+        ]);
+
+        $project->update($validatedData);
+
+        return back()->with('success', 'Financial information updated successfully.');
     }
 
     public function updateLocationInfo(Request $request, DeliveryProject $project)
@@ -316,7 +353,7 @@ class DeliveryProjectController extends Controller
         $request->validate([
             'document_name' => 'required|string|max:255',
             'link_document' => 'required|url',
-            'document_type' => 'required|in:BAST/BAPP,Contract,Justification,PR/PO,Others',
+            'document_type' => 'required|string|max:100',
         ]);
 
         $document = $project->documents()->create($request->only(['document_name', 'link_document', 'document_type']));
@@ -336,21 +373,51 @@ class DeliveryProjectController extends Controller
     {
         $request->validate([
             'document_name' => 'required|string|max:255',
-            'link_document' => 'required|url',
-            'document_type' => 'required|in:BAST/BAPP,Contract,Justification,PR/PO,Others',
+            'document_type' => 'required|string|max:100',
+            'file'          => 'nullable|file|max:4096',
+        ], [
+            'file.max' => 'Ukuran file maksimal 4 MB.',
         ]);
 
-        $document->update($request->only(['document_name', 'link_document', 'document_type']));
+        $updateData = $request->only(['document_name', 'document_type']);
 
-        if ($request->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Document updated successfully',
-                'document' => $document
-            ]);
+        if ($request->hasFile('file')) {
+            $project = DeliveryProject::find($document->delivery_projects_id);
+
+            if (!$project || !$project->onedrive_folder_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'OneDrive folder belum dibuat untuk project ini.',
+                ], 422);
+            }
+
+            $oneDrive     = new OneDriveService();
+            $file         = $request->file('file');
+            $originalName = $file->getClientOriginalName();
+
+            $result   = $oneDrive->uploadFile(
+                $project->onedrive_folder_id,
+                $originalName,
+                file_get_contents($file->getRealPath()),
+                $file->getMimeType() ?: 'application/octet-stream'
+            );
+
+            $updateData['link_document'] = $oneDrive->createAnonymousLink($result['id'], 'view');
         }
 
-        return back()->with('success', 'Document updated successfully.');
+        $document->update($updateData);
+        $document->refresh();
+
+        return response()->json([
+            'success'  => true,
+            'message'  => 'Dokumen berhasil diperbarui.',
+            'document' => [
+                'id'            => $document->id,
+                'document_name' => $document->document_name,
+                'document_type' => $document->document_type,
+                'link_document' => $document->link_document,
+            ],
+        ]);
     }
 
     public function destroyDocument(Document $document)
@@ -389,33 +456,37 @@ class DeliveryProjectController extends Controller
     public function storeTeamMember(Request $request, DeliveryProject $project)
     {
         $request->validate([
-            'employee_id' => 'required|exists:employee,employee_id',
-            'module' => 'nullable|string|max:50',
-            'assignment' => 'required|string',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'employee_id'   => 'required|exists:employee,employee_id',
+            'module'        => 'nullable|string|max:50',
+            'role'          => 'required|in:Member,Head',
+            'employee_type' => 'required|in:Internal,External,Vendor',
+            'vendor_name'   => 'nullable|required_if:employee_type,Vendor|string|max:255',
+            'start_date'    => 'nullable|date',
+            'end_date'      => 'nullable|date|after_or_equal:start_date',
         ]);
 
         $exists = $project->teamMembers()
             ->wherePivot('employee_id', $request->employee_id)
-            ->wherePivot('assignment', $request->assignment)
+            ->wherePivot('role', $request->role)
             ->exists();
 
         if ($exists) {
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'This employee already has the same assignment in this project.'
+                    'message' => 'Employee ini sudah memiliki role yang sama di project ini.'
                 ], 422);
             }
-            return back()->withErrors(['error' => 'This employee already has the same assignment in this project.']);
+            return back()->withErrors(['error' => 'Employee ini sudah memiliki role yang sama di project ini.']);
         }
 
         $project->teamMembers()->attach($request->employee_id, [
-            'module' => $request->module,
-            'assignment' => $request->assignment,
-            'start_date' => $request->start_date,
-            'end_date' => $request->end_date,
+            'module'        => $request->module,
+            'role'          => $request->role,
+            'employee_type' => $request->employee_type,
+            'vendor_name'   => $request->employee_type === 'Vendor' ? $request->vendor_name : null,
+            'start_date'    => $request->start_date,
+            'end_date'      => $request->end_date,
         ]);
 
         if ($request->expectsJson()) {
@@ -445,17 +516,21 @@ class DeliveryProjectController extends Controller
     public function updateTeamMember(Request $request, DeliveryProject $project, $employeeId)
     {
         $request->validate([
-            'module' => 'nullable|string|max:50',
-            'assignment' => 'required|string',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'module'        => 'nullable|string|max:50',
+            'role'          => 'required|in:Member,Head',
+            'employee_type' => 'required|in:Internal,External,Vendor',
+            'vendor_name'   => 'nullable|required_if:employee_type,Vendor|string|max:255',
+            'start_date'    => 'nullable|date',
+            'end_date'      => 'nullable|date|after_or_equal:start_date',
         ]);
 
         $project->teamMembers()->updateExistingPivot($employeeId, [
-            'module' => $request->module,
-            'assignment' => $request->assignment,
-            'start_date' => $request->start_date,
-            'end_date' => $request->end_date,
+            'module'        => $request->module,
+            'role'          => $request->role,
+            'employee_type' => $request->employee_type,
+            'vendor_name'   => $request->employee_type === 'Vendor' ? $request->vendor_name : null,
+            'start_date'    => $request->start_date,
+            'end_date'      => $request->end_date,
         ]);
 
         if ($request->expectsJson()) {
@@ -765,6 +840,7 @@ class DeliveryProjectController extends Controller
 
     /**
      * Generate (or re-generate) an OneDrive folder + anonymous edit link for a project.
+     * Struktur hierarki: DELIVERY PROJECT / {Customer} / {ProjectFolder}
      * Idempotent: if a folder already exists, only the share link is recreated.
      */
     public function generateFolder(Request $request, DeliveryProject $project)
@@ -784,8 +860,16 @@ class DeliveryProjectController extends Controller
                 $shareUrl = $oneDrive->createAnonymousLink($project->onedrive_folder_id);
                 $project->update(['onedrive_folder_url' => $shareUrl]);
             } else {
-                // First time — create folder then share link
-                $folderId = $oneDrive->createFolder($folderName);
+                // Hierarki: DELIVERY PROJECT > Customer > Project Folder
+                $project->load('client.basicData');
+                $deliveryProjectPath = env('ONEDRIVE_DELIVERY_PROJECT_PATH', 'DELIVERY PROJECT');
+                $customerName        = strtoupper(trim($project->client->basicData->name_1 ?? 'UNKNOWN'));
+
+                // Find or create customer folder inside DELIVERY PROJECT
+                $customerFolderId = $oneDrive->findOrCreateFolderInPath($deliveryProjectPath, $customerName);
+
+                // Create project sub-folder inside customer folder
+                $folderId = $oneDrive->createSubFolder($customerFolderId, $folderName);
                 $shareUrl = $oneDrive->createAnonymousLink($folderId);
                 $project->update([
                     'onedrive_folder_id'  => $folderId,
@@ -794,9 +878,9 @@ class DeliveryProjectController extends Controller
             }
 
             return response()->json([
-                'success'    => true,
-                'message'    => 'OneDrive folder ready.',
-                'folder_url' => $shareUrl,
+                'success'     => true,
+                'message'     => 'OneDrive folder ready.',
+                'folder_url'  => $shareUrl,
             ]);
 
         } catch (\Exception $e) {
@@ -807,6 +891,72 @@ class DeliveryProjectController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to generate OneDrive folder: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Upload a file to the project's OneDrive folder and save metadata to DB.
+     */
+    public function uploadDocument(Request $request, DeliveryProject $project)
+    {
+        if (!$project->onedrive_folder_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'OneDrive folder belum dibuat. Silakan buat folder terlebih dahulu.',
+            ], 422);
+        }
+
+        $request->validate([
+            'file'          => 'required|file|max:4096',
+            'document_name' => 'nullable|string|max:255',
+            'document_type' => 'required|string|max:100',
+        ], [
+            'file.max' => 'Ukuran file maksimal 4 MB.',
+        ]);
+
+        $file         = $request->file('file');
+        $originalName = $file->getClientOriginalName();
+        $docName      = $request->input('document_name') ?: $originalName;
+
+        try {
+            $oneDrive = new OneDriveService();
+
+            $result   = $oneDrive->uploadFile(
+                $project->onedrive_folder_id,
+                $originalName,
+                file_get_contents($file->getRealPath()),
+                $file->getMimeType() ?: 'application/octet-stream'
+            );
+
+            // Create anonymous view link for the uploaded file
+            $shareUrl = $oneDrive->createAnonymousLink($result['id'], 'view');
+
+            $document = $project->documents()->create([
+                'document_name' => $docName,
+                'link_document' => $shareUrl,
+                'document_type' => $request->document_type,
+            ]);
+
+            return response()->json([
+                'success'  => true,
+                'message'  => 'Dokumen berhasil diupload.',
+                'document' => [
+                    'id'            => $document->id,
+                    'document_name' => $document->document_name,
+                    'link_document' => $document->link_document,
+                    'document_type' => $document->document_type,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Document upload to OneDrive failed', [
+                'project_id' => $project->id,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Upload gagal: ' . $e->getMessage(),
             ], 500);
         }
     }

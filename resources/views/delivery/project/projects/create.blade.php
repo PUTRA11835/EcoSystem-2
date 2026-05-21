@@ -10,9 +10,8 @@
 
 @section('content')
 @php
-$clients          = ($clients ?? collect())->sortBy(fn($c) => strtolower($c->basicData->name_1 ?? $c->email ?? 'zzz'))->values();
-$projectManagers  = ($projectManagers ?? collect())->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
-$employees        = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
+$clients   = ($clients ?? collect())->sortBy(fn($c) => strtolower($c->basicData->name_1 ?? $c->email ?? 'zzz'))->values();
+$employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
 @endphp
 <form action="{{ route('projects.store') }}" method="POST">
     @csrf
@@ -50,21 +49,21 @@ $employees        = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->b
                 </div>
             </div>
             <div>
-                <label class="block font-medium text-sm text-gray-700">PIC / Project Manager <span class="text-red-500">*</span></label>
+                <label class="block font-medium text-sm text-gray-700">Project Owner <span class="text-red-500">*</span></label>
                 <div class="custom-dd relative mt-1" data-fixed="true">
-                    @php $oldPic = old('pic'); @endphp
+                    @php $oldProjectOwner = old('project_owner'); @endphp
                     <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label {{ $oldPic ? 'text-gray-700' : 'text-gray-500' }}">{{ $oldPic ?: '-- Select Project Manager --' }}</span>
+                        <span class="custom-dd-label {{ $oldProjectOwner ? 'text-gray-700' : 'text-gray-500' }}">{{ $oldProjectOwner ?: '-- Select Project Owner --' }}</span>
                         <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
-                    <input type="hidden" name="pic" id="pic" value="{{ $oldPic }}" required>
+                    <input type="hidden" name="project_owner" id="project_owner" value="{{ $oldProjectOwner }}" required>
                     <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
                         <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
-                            <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search project manager…" autocomplete="off" spellcheck="false">
+                            <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
                         </div>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Project Manager --</button>
-                        @foreach($projectManagers as $pm)
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pm->basicData->full_name ?? '-' }}">{{ $pm->basicData->full_name ?? '-' }}</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Project Owner --</button>
+                        @foreach($employees as $employee)
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->basicData->full_name ?? '-' }}">{{ $employee->basicData->full_name ?? '-' }}</button>
                         @endforeach
                         <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
                     </div>
@@ -83,6 +82,24 @@ $employees        = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->b
                         @foreach(['Implementation','Roll Out','Migration','Upgrade','WRICEF'] as $pt)
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pt }}">{{ $pt }}</button>
                         @endforeach
+                    </div>
+                </div>
+            </div>
+            <!-- High Level Risk -->
+            <div>
+                <label class="block font-medium text-sm text-gray-700">High Level Risk</label>
+                <div class="custom-dd relative mt-1" data-fixed="true">
+                    @php $oldRisk = old('high_level_risk'); @endphp
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label {{ $oldRisk ? 'text-gray-700' : 'text-gray-500' }}">{{ $oldRisk ?: '-- Select Risk Level --' }}</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" name="high_level_risk" id="high_level_risk" value="{{ $oldRisk }}">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Risk Level --</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Low">Low</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Moderate">Moderate</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="High">High</button>
                     </div>
                 </div>
             </div>
@@ -107,6 +124,15 @@ $employees        = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->b
                        value="{{ old('phase') }}"
                        readonly>
                 <p class="mt-1 text-xs text-gray-500">Auto-filled from Delivery Project Planning.</p>
+            </div>
+            <div class="md:col-span-2">
+                <label for="io_number" class="block font-medium text-sm text-gray-700">IO/Number Order</label>
+                <input type="text"
+                       name="io_number"
+                       id="io_number"
+                       class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
+                       value="{{ old('io_number') }}"
+                       placeholder="e.g. IO-2026-001">
             </div>
             <div class="md:col-span-2">
                 <label for="name" class="block font-medium text-sm text-gray-700">Project Name <span class="text-red-500">*</span></label>
@@ -189,32 +215,37 @@ $employees        = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->b
                     </div>
                     
                     <div id="ae_name_container">
-                        <label for="ae_name" class="block text-sm font-medium text-gray-700 mb-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
                             Account Executive Name
                         </label>
-                        {{-- AE Employee select dibiarkan native: display:block↔none-nya
-                             di-handle toggleAEFields(), dan name attribute-nya bisa
-                             swap antara 'ae_employee_id' ↔ 'ae_name' tergantung
-                             AE Type (Internal/External). Konversi ke custom-dd
-                             akan rumit & berisiko. data-no-enhance opt-out dari
-                             auto-wrap supaya tetap native. Styling ringan via
-                             appearance-none + chevron background image. --}}
-                        <select name="ae_employee_id" id="ae_employee_select"
-                                data-no-enhance
-                                class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm text-sm px-4 py-2.5 pr-10 appearance-none bg-white hover:border-gray-400 transition-all"
-                                style="display: none; background-image: url(&quot;data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E&quot;); background-repeat: no-repeat; background-position: right 0.625rem center; background-size: 1rem;"
-                                onchange="fillAEInfo()">
-                            <option value="">-- Select Employee --</option>
-                            @foreach($employees as $employee)
-                                <option value="{{ $employee->employee_id }}"
-                                        data-phone=""
-                                        data-email="">
-                                    {{ $employee->basicData->full_name ?? '-' }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <input type="text" name="ae_name" id="ae_name_input" 
-                               value="{{ old('ae_name') }}"
+                        @php
+                            $oldAeNameVal = old('ae_name');
+                            $isInternal   = (old('ae_type') === 'Internal');
+                        @endphp
+                        {{-- Custom-dd dengan search untuk AE Internal --}}
+                        <div id="ae_employee_dd_wrapper" style="{{ $isInternal ? '' : 'display:none;' }}">
+                            <div class="custom-dd relative mt-1" data-fixed="true" data-onchange="fillAEContactInfo">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label {{ ($isInternal && $oldAeNameVal) ? 'text-gray-700' : 'text-gray-500' }}">{{ ($isInternal && $oldAeNameVal) ? $oldAeNameVal : '-- Select Employee --' }}</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" name="{{ $isInternal ? 'ae_name' : '' }}" id="ae_employee_hidden" value="{{ $isInternal ? $oldAeNameVal : '' }}">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                                    <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                        <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
+                                    </div>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Employee --</button>
+                                    @foreach($employees as $employee)
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->basicData->full_name ?? '-' }}">{{ $employee->basicData->full_name ?? '-' }}</button>
+                                    @endforeach
+                                    <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+                                </div>
+                            </div>
+                        </div>
+                        {{-- Text input untuk AE External / default --}}
+                        <input type="text" name="{{ !$isInternal ? 'ae_name' : '' }}" id="ae_name_input"
+                               value="{{ !$isInternal ? $oldAeNameVal : '' }}"
+                               style="{{ $isInternal ? 'display:none;' : '' }}"
                                class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                     </div>
                     
@@ -234,6 +265,51 @@ $employees        = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->b
                         <input type="email" name="ae_email" id="ae_email" 
                                value="{{ old('ae_email') }}"
                                class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
+                    </div>
+                </div>
+            </div>
+
+            {{-- Financial Data Section --}}
+            <div class="border-t border-gray-200 pt-6 mb-6">
+                <h4 class="text-lg font-medium text-gray-900 mb-4">Financial Data</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label for="revenue" class="block text-sm font-medium text-gray-700 mb-1">Revenue</label>
+                        <div class="relative mt-1">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp</span>
+                            <input type="number" name="revenue" id="revenue"
+                                   value="{{ old('revenue') }}"
+                                   min="0" step="0.01"
+                                   class="block w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg shadow-sm primary-focus text-sm"
+                                   placeholder="0">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="plan_cost" class="block text-sm font-medium text-gray-700 mb-1">Plan Cost</label>
+                        <input type="number" name="plan_cost" id="plan_cost"
+                               value="{{ old('plan_cost') }}"
+                               min="0" step="0.01"
+                               class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
+                               placeholder="0">
+                    </div>
+                    <div>
+                        <label for="gross_profit" class="block text-sm font-medium text-gray-700 mb-1">Gross Profit</label>
+                        <input type="number" name="gross_profit" id="gross_profit"
+                               value="{{ old('gross_profit') }}"
+                               min="0" step="0.01"
+                               class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
+                               placeholder="0">
+                    </div>
+                    <div>
+                        <label for="gross_profit_percentage" class="block text-sm font-medium text-gray-700 mb-1">% Gross Profit</label>
+                        <div class="relative mt-1">
+                            <input type="number" name="gross_profit_percentage" id="gross_profit_percentage"
+                                   value="{{ old('gross_profit_percentage') }}"
+                                   min="0" max="100" step="0.01"
+                                   class="block w-full pr-8 pl-3 py-2.5 border border-gray-300 rounded-lg shadow-sm primary-focus text-sm"
+                                   placeholder="0">
+                            <span class="absolute inset-y-0 right-0 flex items-center pr-3 text-sm text-gray-500 pointer-events-none">%</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -350,20 +426,20 @@ $employees        = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->b
         </div>
         <div class="p-6">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {{-- Project Owner --}}
+                {{-- Project Manager --}}
                 @php
-                    $oldPoId = old('project_owner_id');
-                    $oldPoLabel = '';
-                    foreach($employees as $e) { if ($oldPoId == $e->employee_id) { $oldPoLabel = $e->basicData->full_name ?? '-'; break; } }
+                    $oldPmId = old('project_manager_id');
+                    $oldPmLabel = '';
+                    foreach($employees as $e) { if ($oldPmId == $e->employee_id) { $oldPmLabel = $e->basicData->full_name ?? '-'; break; } }
                 @endphp
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Project Owner</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Project Manager</label>
                     <div class="custom-dd relative mt-1" data-fixed="true">
                         <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $oldPoLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $oldPoLabel ?: '-- Select Employee --' }}</span>
+                            <span class="custom-dd-label {{ $oldPmLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $oldPmLabel ?: '-- Select Employee --' }}</span>
                             <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                         </button>
-                        <input type="hidden" name="project_owner_id" id="project_owner_id" value="{{ $oldPoId }}">
+                        <input type="hidden" name="project_manager_id" id="project_manager_id" value="{{ $oldPmId }}">
                         <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
                             <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
                                 <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
@@ -703,62 +779,50 @@ const indonesiaCities = {
     'Papua Barat Daya' :['Sorong', 'Sorong Selatan', 'Raja Ampat', 'Maybrat', 'Tambrauw'],
 };
 
-// Toggle AE fields based on type (Internal/External)
-function toggleAEFields() {
-    const aeType = document.getElementById('ae_type').value;
-    const aeEmployeeSelect = document.getElementById('ae_employee_select');
-    const aeNameInput = document.getElementById('ae_name_input');
-    const aePhone = document.getElementById('ae_phone');
-    const aeEmail = document.getElementById('ae_email');
-    
-    if (aeType === 'Internal') {
-        aeEmployeeSelect.style.display = 'block';
-        aeEmployeeSelect.name = 'ae_name';
-        aeNameInput.style.display = 'none';
-        aeNameInput.name = '';
-        aePhone.readOnly = false;
-        aeEmail.readOnly = false;
-    } else if (aeType === 'External') {
-        aeEmployeeSelect.style.display = 'none';
-        aeEmployeeSelect.name = '';
-        aeNameInput.style.display = 'block';
-        aeNameInput.name = 'ae_name';
-        aePhone.readOnly = false;
-        aeEmail.readOnly = false;
-    } else {
-        aeEmployeeSelect.style.display = 'none';
-        aeNameInput.style.display = 'block';
-        aeNameInput.name = 'ae_name';
-        aePhone.readOnly = false;
-        aeEmail.readOnly = false;
-    }
-}
+// Contact map: full_name → { phone, email } — di-generate dari data employee
+const aeEmployeeContacts = {
+@foreach($employees as $employee)
+@php
+    $addr  = $employee->addresses->first();
+    $phone = $addr?->cell_phone ?: ($addr?->telephone ?? '');
+    $email = $addr?->email_work ?: ($addr?->email_personal ?? '');
+    $name  = addslashes($employee->basicData->full_name ?? '-');
+@endphp
+    "{{ $name }}": { phone: "{{ $phone }}", email: "{{ $email }}" },
+@endforeach
+};
 
-// Fill AE info when Internal employee selected.
-// PENTING: readOnly hanya di-set true KALAU benar-benar ada data (phone/email
-// dari data attribute). Markup <option> sekarang hardcode data-phone=""
-// data-email="" — jadi tanpa guard ini, input phone & email selalu jadi
-// readonly + kosong sehingga user tidak bisa ketik manual.
-function fillAEInfo() {
-    const select = document.getElementById('ae_employee_select');
-    const selectedOption = select.options[select.selectedIndex];
+// Auto-fill phone & email saat employee AE Internal dipilih
+function fillAEContactInfo() {
+    const name    = document.getElementById('ae_employee_hidden').value;
+    const contact = aeEmployeeContacts[name] || {};
     const phoneEl = document.getElementById('ae_phone');
     const emailEl = document.getElementById('ae_email');
+    if (contact.phone) phoneEl.value = contact.phone;
+    if (contact.email) emailEl.value = contact.email;
+}
 
-    if (selectedOption && selectedOption.value) {
-        const phone = selectedOption.dataset.phone || '';
-        const email = selectedOption.dataset.email || '';
-        phoneEl.value    = phone;
-        emailEl.value    = email;
-        // Hanya kunci field jika data tersedia → user tetap bisa ketik manual
-        // saat data atribut kosong.
-        phoneEl.readOnly = phone !== '';
-        emailEl.readOnly = email !== '';
+// Toggle AE fields based on type (Internal/External)
+function toggleAEFields() {
+    const aeType      = document.getElementById('ae_type').value;
+    const ddWrapper   = document.getElementById('ae_employee_dd_wrapper');
+    const aeHidden    = document.getElementById('ae_employee_hidden');
+    const aeTextInput = document.getElementById('ae_name_input');
+
+    if (aeType === 'Internal') {
+        ddWrapper.style.display   = 'block';
+        aeHidden.name             = 'ae_name';
+        aeTextInput.style.display = 'none';
+        aeTextInput.name          = '';
+        // Re-init custom-dd in case it was hidden during init
+        if (typeof initCustomDropdowns === 'function') {
+            initCustomDropdowns(ddWrapper);
+        }
     } else {
-        phoneEl.value    = '';
-        emailEl.value    = '';
-        phoneEl.readOnly = false;
-        emailEl.readOnly = false;
+        ddWrapper.style.display   = 'none';
+        aeHidden.name             = '';
+        aeTextInput.style.display = 'block';
+        aeTextInput.name          = 'ae_name';
     }
 }
 

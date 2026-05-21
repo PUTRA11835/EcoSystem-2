@@ -274,6 +274,7 @@ class CustomerController extends Controller
         $validator = Validator::make($request->all(), [
             'customer_code' => ['required', 'string', 'max:4', 'regex:/^[A-Za-z0-9]{1,4}$/', 'unique:customer,customer_code'],
             'email'         => 'nullable|email|unique:customer,email|max:255',
+            'domain'        => 'nullable|string|max:255',
             'name_1'        => 'required|string|max:255',
             'contact_phone' => 'nullable|string|max:50',
         ], [
@@ -298,6 +299,7 @@ class CustomerController extends Controller
             $customerData = [
                 'customer_code'      => strtoupper($request->customer_code),
                 'email'              => $request->email ?: null,
+                'domain'             => $request->domain ?: null,
                 'is_active'          => 1,
                 'parent_customer_id' => $request->parent_customer_id ?: null,
             ];
@@ -399,6 +401,7 @@ class CustomerController extends Controller
         $validator = Validator::make($request->all(), [
             'customer_code' => ['sometimes', 'required', 'string', 'max:4', 'regex:/^[A-Za-z0-9]{1,4}$/', 'unique:customer,customer_code,' . $id . ',customer_id'],
             'email'         => 'nullable|email|max:255|unique:customer,email,' . $id . ',customer_id',
+            'domain'        => 'nullable|string|max:255',
             'name_1'        => 'required|string|max:255',
         ], [
             'customer_code.max'   => 'Customer code must be at most 4 characters.',
@@ -428,6 +431,9 @@ class CustomerController extends Controller
 
             // Update customer (email is optional company contact email)
             $updateData = ['email' => $request->email ?: null];
+            if ($request->has('domain')) {
+                $updateData['domain'] = Customer::normalizeDomain($request->domain);
+            }
             if ($request->filled('customer_code')) {
                 $updateData['customer_code'] = strtoupper($request->customer_code);
             }

@@ -458,7 +458,16 @@ class EmailController extends Controller
                         'ticket_found'   => $ticket?->ticket_id,
                     ]);
 
-                    // Cari customer: cek customer.email dulu, fallback ke auth_users.email
+                    // Cari customer dengan urutan prioritas:
+                    //   1. customer.email exact match (company email langsung)
+                    //   2. auth_users.email exact match (login account terdaftar)
+                    //   3. customer.domain match (semua email dengan domain yang sama)
+                    //
+                    // Match #3 menangani kasus customer company dengan banyak karyawan: alih-alih
+                    // mendaftarkan setiap email karyawan sebagai contact person, admin cukup mengisi
+                    // field `domain` di master customer (mis. "@apta.co.id") agar SEMUA email dari
+                    // domain tsb (charli@apta.co.id, akbar@apta.co.id, dll) otomatis dikenali
+                    // sebagai milik customer ybs dan masuk ke staging ticket validation.
                     $customer = Customer::where('email', $fromEmail)->first();
                     if (!$customer && $fromEmail) {
                         $authCustomerId = \DB::table('auth_users')
@@ -467,6 +476,25 @@ class EmailController extends Controller
                             ->value('customer_id');
                         if ($authCustomerId) {
                             $customer = Customer::find($authCustomerId);
+                        }
+                    }
+                    if (!$customer && $fromEmail) {
+                        $emailDomain = Customer::extractEmailDomain($fromEmail); // mis. "@apta.co.id"
+                        if ($emailDomain) {
+                            // Prefer top-level customer (parent_customer_id null) jika ada
+                            // subsidiary yang share domain yang sama (parent + child).
+                            $customer = Customer::whereRaw('LOWER(domain) = ?', [$emailDomain])
+                                ->where('is_active', true)
+                                ->orderByRaw('parent_customer_id IS NULL DESC')
+                                ->orderBy('customer_id', 'asc')
+                                ->first();
+                            if ($customer) {
+                                Log::info('EmailController@processInbox: customer matched by domain', [
+                                    'from'        => $fromEmail,
+                                    'domain'      => $emailDomain,
+                                    'customer_id' => $customer->customer_id,
+                                ]);
+                            }
                         }
                     }
 
@@ -1194,12 +1222,31 @@ class EmailController extends Controller
         ?string $threadId = null, // M365 conversationId — fallback jika inReplyTo tidak ditemukan
         bool $forceNewDraft = false, // true = skip createReply, buat draft baru dengan In-Reply-To eksplisit
                                      // Gunakan saat subject sengaja diubah agar Gmail tetap thread dengan benar
-        array $rawAttachments = []   // [{name, mime, bytes}] untuk forward attachment dari email asal
+        array $rawAttachments = [], // [{name, mime, bytes}] untuk forward attachment dari email asal
+        array $additionalToEmails = [] // alamat tambahan untuk toRecipients selain $toEmail
     ): array {
         $sender         = config('services.microsoft_graph.sender_email');
         $replySubject   = (!$noRePrefix && stripos($subject, 're:') !== 0) ? 'Re: ' . $subject : $subject;
         $draftId        = null;
         $conversationId = null;
+
+        // ── Bangun daftar toRecipients (primary + additional, dedup, exclude self) ──
+        // Format: [['emailAddress' => ['address' => 'foo@bar']], ...]
+        // Primary $toEmail SELALU di posisi pertama agar Reply/Reply-All di mail client
+        // memprioritaskan customer. Additional address ditambah jika valid & belum ada.
+        $senderLower    = strtolower((string) $sender);
+        $toRecipients   = [['emailAddress' => ['address' => $toEmail]]];
+        $seenToLower    = [strtolower(trim($toEmail))];
+        foreach ($additionalToEmails as $addr) {
+            $cleaned = is_string($addr) ? trim($addr) : '';
+            if ($cleaned === '') continue;
+            $cleanedLower = strtolower($cleaned);
+            if (in_array($cleanedLower, $seenToLower, true)) continue;
+            if ($cleanedLower === $senderLower) continue;  // jangan kirim ke helpdesk sendiri
+            if (!filter_var($cleaned, FILTER_VALIDATE_EMAIL)) continue;
+            $toRecipients[] = ['emailAddress' => ['address' => $cleaned]];
+            $seenToLower[]  = $cleanedLower;
+        }
 
         // Normalisasi ccList → format Graph API: [{emailAddress: {address, name}}]
         $ccRecipients = [];
@@ -1224,6 +1271,17 @@ class EmailController extends Controller
         ini_set('pcre.backtrack_limit', $prevPcreLimit);
         $cleanBody    = $extracted['html'];
         $inlineImages = $extracted['inlineImages'];
+
+        // ── Convert <img src="/storage/..."> ke CID inline attachment ─────────
+        // Email clients tidak bisa load URL relatif, dan APP_URL public sering tidak
+        // reachable dari Gmail/Outlook (server private, symlink /storage hilang, proxy
+        // butuh session). CID inline membuat email self-contained — gambar selalu tampil
+        // tanpa bergantung pada accessibility server.
+        // Sumber URL ini biasanya dari processAttachmentsForMessage() yang menyimpan
+        // inline image dari Graph ke /storage/ticket-inline-images/{ticketId}/.
+        $storageExtracted = $this->extractLocalStorageImages($cleanBody);
+        $cleanBody        = $storageExtracted['html'];
+        $inlineImages     = array_merge($inlineImages, $storageExtracted['inlineImages']);
 
         // ── Coba buat reply draft dari pesan asli (untuk threading yang benar) ──
         //
@@ -1298,7 +1356,7 @@ class EmailController extends Controller
                     $patchData = [
                         'subject'      => $replySubject,
                         'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
-                        'toRecipients' => [['emailAddress' => ['address' => $toEmail]]],
+                        'toRecipients' => $toRecipients,
                         'ccRecipients' => $ccRecipients,
                     ];
                     if ($noRePrefix) {
@@ -1342,7 +1400,7 @@ class EmailController extends Controller
                     $patchData = [
                         'subject'      => $replySubject,
                         'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
-                        'toRecipients' => [['emailAddress' => ['address' => $toEmail]]],
+                        'toRecipients' => $toRecipients,
                         'ccRecipients' => $ccRecipients,
                     ];
                     if ($noRePrefix) {
@@ -1384,7 +1442,7 @@ class EmailController extends Controller
             $newMsgPayload = [
                 'subject'                => $replySubject,
                 'body'                   => ['contentType' => 'HTML', 'content' => $cleanBody],
-                'toRecipients'           => [['emailAddress' => ['address' => $toEmail]]],
+                'toRecipients'           => $toRecipients,
                 'internetMessageHeaders' => $headers,
             ];
             if (!empty($ccRecipients)) {
@@ -1588,6 +1646,93 @@ class EmailController extends Controller
      * @param  string $html
      * @return array{html: string, inlineImages: list<array{cid:string, mime:string, content:string, name:string}>}
      */
+    /**
+     * Convert <img src="/storage/..."> references (relative OR absolute with app.url host)
+     * to inline CID attachments. Email clients can't load relative URLs, dan public APP_URL
+     * sering tidak reachable dari Gmail/Outlook (server private, symlink /storage hilang,
+     * proxy require session). Embedding sebagai CID membuat email self-contained.
+     *
+     * Composes dengan extractBase64Images() — keduanya menghasilkan format
+     * {cid, mime, content, name} yang sama untuk loop CID-attach di sendTicketReply().
+     *
+     * @return array{html: string, inlineImages: array}
+     */
+    private function extractLocalStorageImages(string $html): array
+    {
+        $inlineImages = [];
+
+        // Match liberal: any optional scheme://host[:port] before /storage/<path>.
+        // File existence check below acts as the safeguard against false positives.
+        // [^/"\s] = chars that aren't path-separator, quote, or whitespace (covers any host:port).
+        // ([^"]+) captures full path-including-query — strip query/fragment in callback.
+        $pattern    = '~<img\b([^>]*?)\s+src="(?:https?://[^/"\s]+)?/storage/([^"]+)"([^>]*?)>~i';
+        $matchCount = 0;
+
+        $modifiedHtml = preg_replace_callback(
+            $pattern,
+            function ($matches) use (&$inlineImages, &$matchCount) {
+                $matchCount++;
+                $before   = $matches[1];
+                // Strip query string / fragment before resolving file path on disk
+                $rawPath  = preg_replace('~[?#].*$~', '', $matches[2]);
+                $filePath = urldecode($rawPath);
+                $after    = $matches[3];
+
+                try {
+                    if (!Storage::disk('public')->exists($filePath)) {
+                        Log::info('EmailController@extractLocalStorageImages: file tidak ada di public disk, URL dibiarkan', [
+                            'file_path' => $filePath,
+                        ]);
+                        return $matches[0];
+                    }
+                    $content = Storage::disk('public')->get($filePath);
+                    $mime    = Storage::disk('public')->mimeType($filePath) ?: 'image/png';
+                    if (!str_starts_with($mime, 'image/')) {
+                        return $matches[0];
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('EmailController@extractLocalStorageImages: gagal baca file', [
+                        'file_path' => $filePath,
+                        'error'     => $e->getMessage(),
+                    ]);
+                    return $matches[0];
+                }
+
+                $ext  = strtolower(pathinfo($filePath, PATHINFO_EXTENSION) ?: 'png');
+                $cid  = 'img-' . Str::uuid() . '@ecosys';
+                $name = basename($filePath) ?: ('image.' . $ext);
+
+                $inlineImages[] = [
+                    'cid'     => $cid,
+                    'mime'    => $mime,
+                    'content' => base64_encode($content),
+                    'name'    => $name,
+                ];
+
+                Log::info('EmailController@extractLocalStorageImages: gambar dikonversi ke CID', [
+                    'file_path' => $filePath,
+                    'cid'       => $cid,
+                    'size'      => strlen($content),
+                ]);
+
+                return '<img' . $before . ' src="cid:' . $cid . '"' . $after . '>';
+            },
+            $html
+        );
+
+        Log::info('EmailController@extractLocalStorageImages: selesai scan body', [
+            'regex_matches'        => $matchCount,
+            'converted_to_cid'     => count($inlineImages),
+            'body_has_storage_url' => str_contains($html, '/storage/'),
+            'body_has_img_tag'     => str_contains(strtolower($html), '<img'),
+        ]);
+
+        return [
+            'html'         => $modifiedHtml ?? $html,
+            'inlineImages' => $inlineImages,
+        ];
+    }
+
     private function extractBase64Images(string $html): array
     {
         $inlineImages = [];

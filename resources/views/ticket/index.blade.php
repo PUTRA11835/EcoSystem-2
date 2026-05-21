@@ -35,7 +35,7 @@
             </div>
             @endif
 
-            @if($user->role->role_id === \App\Enums\RoleId::SUPPORT_MANAGER->value)
+            @if(in_array($user->role->role_id, [\App\Enums\RoleId::SUPPORT_MANAGER->value, \App\Enums\RoleId::HEAD_OF_SUPPORT->value]))
             <div class="inline-flex bg-gray-100 rounded-xl p-1">
                 <button onclick="toggleView('all')" id="btnViewAllHd" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
                     <i class="fas fa-list-check text-xs mr-1"></i> All Tickets
@@ -143,12 +143,30 @@
                                 <span id="sort-icon-last_update" class="sort-icon text-gray-300 font-normal normal-case tracking-normal">⇅</span>
                             </div>
                         </th>
-                        {{-- TIKET: sortable --}}
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 sticky bg-gray-50 z-20 th-sortable cursor-pointer transition-colors"
-                            style="min-width:120px;left:110px;" onclick="sortTickets('ticket_number')" title="Sort by Ticket Number">
-                            <div class="flex items-center gap-1">
-                                <span>Tiket</span>
-                                <span id="sort-icon-ticket_number" class="sort-icon text-gray-300 font-normal normal-case tracking-normal">⇅</span>
+                        {{-- TIKET: sortable + keyword search --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky z-20" style="min-width:120px;left:110px;">
+                            <div class="flex items-center">
+                                <button type="button" onclick="sortTickets('ticket_number')" title="Sort by Ticket Number"
+                                        class="flex items-center gap-1 px-3 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide cursor-pointer hover:bg-gray-100 transition-colors th-sortable whitespace-nowrap">
+                                    <span>Tiket</span>
+                                    <span id="sort-icon-ticket_number" class="sort-icon text-gray-300 font-normal normal-case tracking-normal">⇅</span>
+                                </button>
+                                <button type="button" id="ticketFilterBtn" onclick="toggleTicketFilter(event)"
+                                        class="flex items-center px-2 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors border-l border-gray-200"
+                                        title="Search ticket number">
+                                    <svg id="ticketFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                                </button>
+                            </div>
+                            <div id="ticketFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search ticket number</label>
+                                <input type="text" id="ticketFilterInput" placeholder="e.g. 26050015…"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                       oninput="onTicketFilterInput()">
+                                <p class="text-[10px] text-gray-400 mt-1.5">Matches any ticket whose number contains this text.</p>
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearTicketFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    <button type="button" onclick="closeTicketFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
+                                </div>
                             </div>
                         </th>
                         {{-- DESCRIPTION: keyword search filter --}}
@@ -544,10 +562,11 @@ thead th.th-sortable:hover { background: #f3f4f6; }
     let totalPages = 0;
     let userRole              = {{ $user->role->role_id ?? 0 }};
     let currentEmployeeId     = {{ $currentEmployeeId ?? 'null' }};
-    const HELPDESK_ROLE       = {{ \App\Enums\RoleId::HELPDESK->value }};
+    const HELPDESK_ROLE        = {{ \App\Enums\RoleId::HELPDESK->value }};
     const SUPPORT_MANAGER_ROLE = {{ \App\Enums\RoleId::SUPPORT_MANAGER->value }};
+    const HEAD_OF_SUPPORT_ROLE = {{ \App\Enums\RoleId::HEAD_OF_SUPPORT->value }};
     // Roles that use the All/Unassigned toggle (see all org tickets)
-    const STAFF_TOGGLE_ROLES   = [HELPDESK_ROLE, SUPPORT_MANAGER_ROLE];
+    const STAFF_TOGGLE_ROLES   = [HELPDESK_ROLE, SUPPORT_MANAGER_ROLE, HEAD_OF_SUPPORT_ROLE];
     let currentView = userRole === {{ \App\Enums\RoleId::EMPLOYEE->value }} ? 'my'
                     : STAFF_TOGGLE_ROLES.includes(userRole) ? 'all'
                     : 'all';
@@ -1025,7 +1044,8 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         const toMs   = dateTo   ? new Date(dateTo   + 'T23:59:59+07:00').getTime() : null;
 
         // Description keyword (case-insensitive substring)
-        const descKw = (document.getElementById('descFilterInput')?.value || '').trim().toLowerCase();
+        const descKw   = (document.getElementById('descFilterInput')?.value  || '').trim().toLowerCase();
+        const ticketKw = (document.getElementById('ticketFilterInput')?.value || '').trim().toLowerCase();
 
         filteredTickets = getViewBase().filter(ticket => {
             const matchesCard      = currentFilter === 'all' || ticket.jarvies_status === currentFilter;
@@ -1048,16 +1068,18 @@ thead th.th-sortable:hover { background: #f3f4f6; }
                 }
             }
 
-            const matchDesc = !descKw || (ticket.description || '').toLowerCase().includes(descKw);
+            const matchDesc   = !descKw   || (ticket.description   || '').toLowerCase().includes(descKw);
+            const matchTicket = !ticketKw || (ticket.ticket_number || '').toLowerCase().includes(ticketKw);
 
             return matchesCard
                 && matchColCustomer && matchColPic && matchColPriority && matchColScale
                 && matchColStatus && matchColJarvies && matchColType
-                && matchDate && matchDesc;
+                && matchDate && matchDesc && matchTicket;
         });
         updateColFilterIndicators();
         updateDateFilterIndicator();
         updateDescFilterIndicator();
+        updateTicketFilterIndicator();
         currentPage = 1;
         renderTickets();
     }
@@ -1070,6 +1092,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         const open  = !panel.classList.contains('hidden');
         // close other popovers
         closeDescFilter();
+        closeTicketFilter();
         if (open) { panel.classList.add('hidden'); return; }
         positionPanelUnder(btn, panel);
         panel.classList.remove('hidden');
@@ -1129,8 +1152,8 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         const btn   = document.getElementById('descFilterBtn');
         const open  = !panel.classList.contains('hidden');
         // close other popovers
-        const dp = document.getElementById('dateFilterPanel');
-        if (dp) dp.classList.add('hidden');
+        document.getElementById('dateFilterPanel')?.classList.add('hidden');
+        document.getElementById('ticketFilterPanel')?.classList.add('hidden');
         if (open) { panel.classList.add('hidden'); return; }
         positionPanelUnder(btn, panel);
         panel.classList.remove('hidden');
@@ -1160,6 +1183,43 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         if (icon) icon.classList.toggle('text-gray-300', kw === '');
     }
 
+    // ── Ticket Number Keyword Filter (debounced) ──────────────────────────
+    let _ticketFilterTimer = null;
+    function toggleTicketFilter(ev) {
+        ev?.stopPropagation();
+        const panel = document.getElementById('ticketFilterPanel');
+        const btn   = document.getElementById('ticketFilterBtn');
+        const open  = !panel.classList.contains('hidden');
+        document.getElementById('dateFilterPanel')?.classList.add('hidden');
+        document.getElementById('descFilterPanel')?.classList.add('hidden');
+        if (open) { panel.classList.add('hidden'); return; }
+        positionPanelUnder(btn, panel);
+        panel.classList.remove('hidden');
+        document.getElementById('ticketFilterInput')?.focus();
+    }
+
+    function closeTicketFilter() {
+        document.getElementById('ticketFilterPanel')?.classList.add('hidden');
+    }
+
+    function onTicketFilterInput() {
+        clearTimeout(_ticketFilterTimer);
+        _ticketFilterTimer = setTimeout(applyAdvancedFilters, 250);
+    }
+
+    function clearTicketFilter() {
+        const input = document.getElementById('ticketFilterInput');
+        if (input) input.value = '';
+        applyAdvancedFilters();
+    }
+
+    function updateTicketFilterIndicator() {
+        const kw   = (document.getElementById('ticketFilterInput')?.value || '').trim();
+        const icon = document.getElementById('ticketFilterIcon');
+        if (icon) icon.classList.toggle('text-red-500', kw !== '');
+        if (icon) icon.classList.toggle('text-gray-300', kw === '');
+    }
+
     // Position floating panel right under the column header button (handles overflow:auto)
     function positionPanelUnder(btn, panel) {
         const rect = btn.getBoundingClientRect();
@@ -1176,11 +1236,15 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         const xp = document.getElementById('descFilterPanel');
         const xb = document.getElementById('descFilterBtn');
         if (xp && !xp.classList.contains('hidden') && !xp.contains(e.target) && !xb.contains(e.target)) xp.classList.add('hidden');
+        const tp = document.getElementById('ticketFilterPanel');
+        const tb = document.getElementById('ticketFilterBtn');
+        if (tp && !tp.classList.contains('hidden') && !tp.contains(e.target) && !tb.contains(e.target)) tp.classList.add('hidden');
     });
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             document.getElementById('dateFilterPanel')?.classList.add('hidden');
             document.getElementById('descFilterPanel')?.classList.add('hidden');
+            document.getElementById('ticketFilterPanel')?.classList.add('hidden');
         }
     });
 
@@ -1198,7 +1262,8 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         const dFrom = document.getElementById('dateFilterFrom');  if (dFrom) dFrom.value = '';
         const dTo   = document.getElementById('dateFilterTo');    if (dTo)   dTo.value   = '';
         const dErr  = document.getElementById('dateFilterError'); if (dErr)  dErr.classList.add('hidden');
-        const desc  = document.getElementById('descFilterInput'); if (desc)  desc.value  = '';
+        const desc   = document.getElementById('descFilterInput');   if (desc)   desc.value   = '';
+        const ticketF = document.getElementById('ticketFilterInput'); if (ticketF) ticketF.value = '';
 
         currentTicketSort = { key: 'last_update', dir: 'desc' };
         updateTicketSortIcons();
