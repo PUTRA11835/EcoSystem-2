@@ -280,22 +280,6 @@
                 <input type="file" id="attachInput" multiple class="hidden"
                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar,.csv">
                 <div class="flex items-center mt-2 mb-1 gap-2">
-                    @if($sla ?? null)
-                    @php $solutionStarted = $sla->solution_started_at !== null; @endphp
-                    <button id="btnStartSolution"
-                        onclick="handleStartSolution()"
-                        @if($solutionStarted) disabled @endif
-                        class="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200
-                            {{ $solutionStarted
-                                ? 'bg-green-100 text-green-700 border-green-300 cursor-not-allowed opacity-75'
-                                : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' }}">
-                        @if($solutionStarted)
-                            <i class="fas fa-check mr-1.5 text-xs"></i> Solution Started
-                        @else
-                            <i class="fas fa-play mr-1.5 text-xs"></i> Start Solution
-                        @endif
-                    </button>
-                    @endif
                     {{-- Meeting --}}
                     <button onclick="openMeetingModal()" class="inline-flex items-center px-3 py-1.5 bg-teal-50 text-teal-700 border border-teal-200 text-xs font-semibold rounded-lg hover:bg-teal-100 transition-all duration-200">
                         <i class="fas fa-calendar-alt mr-1.5 text-xs"></i> Meeting
@@ -2593,67 +2577,6 @@
             okBtn.addEventListener('click', onOk, { once: true });
             cancelBtn.addEventListener('click', onCancel, { once: true });
         });
-    }
-
-    // ── Start Solution ────────────────────────────────────────────────────────
-    async function handleStartSolution() {
-        const btn = document.getElementById('btnStartSolution');
-        if (!btn || btn.disabled) return;
-
-        const confirmed = await showConfirmDialog({
-            title: 'Start Solution',
-            message: 'Mark this ticket as "Solution Started"? This will begin the Resolution Time phase and cannot be undone.',
-            confirmLabel: 'Start Solution',
-            variant: 'primary',
-        });
-        if (!confirmed) return;
-
-        btn.disabled = true;
-        const orig = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5 text-xs"></i> Starting...';
-        btn.classList.add('opacity-75', 'cursor-not-allowed');
-
-        const res = await fetch(`/api/tickets/{{ $ticket->ticket_id }}/start-solution`, {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
-            },
-        });
-
-        if (res.ok) {
-            // Tombol
-            btn.innerHTML = '<i class="fas fa-check mr-1.5 text-xs"></i> Solution Started';
-            btn.classList.remove('opacity-75', 'cursor-not-allowed', 'bg-blue-50', 'text-blue-700', 'border-blue-200', 'hover:bg-blue-100');
-            btn.classList.add('bg-green-100', 'text-green-700', 'border-green-300');
-
-            // Badge status di header tiket
-            const statusBadge = document.getElementById('ticketStatusBadge');
-            if (statusBadge) {
-                statusBadge.className = 'inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold bg-yellow-100 text-yellow-700';
-                statusBadge.textContent = 'In Progress';
-            }
-
-            // Select dropdown di panel detail
-            const detailStatus = document.getElementById('detailStatus');
-            if (detailStatus) {
-                detailStatus.value = 'in_progress';
-                detailStatus.dispatchEvent(new Event('change'));
-            }
-
-            // Sidebar ticket list — refresh agar badge status ikut berubah
-            loadSidebarTickets();
-
-            showNotification('Solution phase started', 'success');
-        } else {
-            let msg = 'Failed to start solution';
-            try { const d = await res.json(); msg = d.message ?? msg; } catch (_) {}
-            btn.disabled = false;
-            btn.innerHTML = orig;
-            btn.classList.remove('opacity-75', 'cursor-not-allowed');
-            showNotification(msg, 'error');
-        }
     }
 
     // ── Meeting Modal ─────────────────────────────────────────────────────────

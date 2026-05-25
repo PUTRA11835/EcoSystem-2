@@ -200,7 +200,6 @@
                         <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Response</th>
                         <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Resolution Time</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Event</th>
-                        <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Jarvis Status</th>
                         <th class="px-4 py-3 text-center font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Mode</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Ball</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Message</th>
@@ -254,7 +253,6 @@ const EVENT_ICONS = {
     'agent_replied':         { icon: 'fa-paper-plane',   color: 'text-purple-500' },
     'resolution_sent':       { icon: 'fa-paper-plane',   color: 'text-purple-500' },
     'customer_replied':      { icon: 'fa-reply',         color: 'text-orange-500' },
-    'solution_started':      { icon: 'fa-play-circle',   color: 'text-indigo-600' },
     'meeting_scheduled':     { icon: 'fa-calendar-alt',  color: 'text-teal-600' },
     'escalated_to_sap':      { icon: 'fa-share',         color: 'text-indigo-500' },
     'escalated_to_support':  { icon: 'fa-share-alt',     color: 'text-pink-500' },
@@ -268,7 +266,6 @@ const EVENT_LABELS = {
     'agent_replied':         'Helpdesk Reply',
     'resolution_sent':       'Helpdesk Reply',
     'customer_replied':      'Customer Reply',
-    'solution_started':      'Start Solution',
     'meeting_scheduled':     'Meeting Scheduled',
     'escalated_to_sap':      'Escalated to SAP',
     'escalated_to_support':  'Escalated to Support',
@@ -277,29 +274,21 @@ const EVENT_LABELS = {
     'ticket_closed':         'Ticket Closed',
 };
 
-// Mode badge: Start / Run / Stop
-const MODE_STOP_STATUSES = new Set(['author action', 'proposed solution', 'sent in to SAP', 'wait to close', 'closed']);
-function modeBadge(eventType, jarvisStatus, extra) {
-    if (eventType === 'solution_started') {
-        return `<span class="px-1.5 py-0.5 rounded text-xs font-semibold border bg-indigo-50 text-indigo-700 border-indigo-200">Start</span>`;
-    }
+// Mode badge: Waiting / Active
+function modeBadge(eventType, extra) {
     if (eventType === 'meeting_scheduled') {
-        if (extra?.meeting_ended) {
-            return `<span class="px-1.5 py-0.5 rounded text-xs font-semibold border bg-teal-50 text-teal-700 border-teal-200">Stop</span>`;
-        }
-        return `<span class="px-1.5 py-0.5 rounded text-xs font-semibold border bg-orange-50 text-orange-600 border-orange-200">Run</span>`;
+        return extra?.meeting_ended
+            ? `<span class="px-1.5 py-0.5 rounded text-xs font-semibold border bg-green-50 text-green-700 border-green-200">Active</span>`
+            : `<span class="px-1.5 py-0.5 rounded text-xs font-semibold border bg-amber-50 text-amber-700 border-amber-200">Waiting</span>`;
     }
     if (eventType === 'ticket_closed') {
-        return `<span class="px-1.5 py-0.5 rounded text-xs font-semibold border bg-gray-100 text-gray-600 border-gray-200">Stop</span>`;
+        return `<span class="px-1.5 py-0.5 rounded text-xs font-semibold border bg-gray-100 text-gray-600 border-gray-200">Closed</span>`;
     }
     if (eventType === 'agent_replied') {
-        if (MODE_STOP_STATUSES.has(jarvisStatus)) {
-            return `<span class="px-1.5 py-0.5 rounded text-xs font-semibold border bg-amber-50 text-amber-700 border-amber-200">Stop</span>`;
-        }
-        return `<span class="px-1.5 py-0.5 rounded text-xs font-semibold border bg-green-50 text-green-700 border-green-200">Run</span>`;
+        return `<span class="px-1.5 py-0.5 rounded text-xs font-semibold border bg-amber-50 text-amber-700 border-amber-200">Waiting</span>`;
     }
     if (eventType === 'customer_replied') {
-        return `<span class="px-1.5 py-0.5 rounded text-xs font-semibold border bg-green-50 text-green-700 border-green-200">Run</span>`;
+        return `<span class="px-1.5 py-0.5 rounded text-xs font-semibold border bg-green-50 text-green-700 border-green-200">Active</span>`;
     }
     return '<span class="text-gray-300">—</span>';
 }
@@ -309,26 +298,10 @@ function fmtHours(h) {
     return parseFloat(h).toFixed(2) + ' hrs';
 }
 
-const JARVIS_BADGE = {
-    'in process':         'bg-blue-50 text-blue-700 border-blue-200',
-    'sent it to support': 'bg-cyan-50 text-cyan-700 border-cyan-200',
-    'author action':      'bg-yellow-50 text-yellow-700 border-yellow-200',
-    'proposed solution':  'bg-orange-50 text-orange-700 border-orange-200',
-    'sent in to SAP':     'bg-indigo-50 text-indigo-700 border-indigo-200',
-    'wait to close':      'bg-purple-50 text-purple-700 border-purple-200',
-    'closed':             'bg-gray-100 text-gray-600 border-gray-200',
-};
 const BALL_BADGE = {
     'helpdesk': { cls: 'bg-green-50 text-green-700 border-green-200',    label: '▶ Helpdesk' },
     'customer': { cls: 'bg-yellow-50 text-yellow-700 border-yellow-200', label: '⏸ Customer' },
-    'sap':      { cls: 'bg-indigo-50 text-indigo-700 border-indigo-200', label: '⏸ SAP' },
 };
-
-function jarvisBadge(status) {
-    if (!status) return '<span class="text-gray-300">—</span>';
-    const cls = JARVIS_BADGE[status] ?? 'bg-gray-50 text-gray-600 border-gray-200';
-    return `<span class="px-1.5 py-0.5 rounded text-xs font-medium border ${cls}">${status}</span>`;
-}
 
 function ballBadge(holder) {
     if (!holder) return '<span class="text-gray-300">—</span>';
@@ -531,7 +504,7 @@ async function refreshLogModal() {
 }
 
 async function loadLogEvents(ticketId) {
-    document.getElementById('logTableBody').innerHTML = `<tr><td colspan="10" class="px-4 py-6 text-center text-gray-400">
+    document.getElementById('logTableBody').innerHTML = `<tr><td colspan="9" class="px-4 py-6 text-center text-gray-400">
         <i class="fas fa-spinner fa-spin mr-2"></i>Loading log...
     </td></tr>`;
     document.getElementById('logSummaryResponse').textContent   = '—';
@@ -555,13 +528,12 @@ async function loadLogEvents(ticketId) {
 
         const events = json.events ?? [];
         if (!events.length) {
-            document.getElementById('logTableBody').innerHTML = `<tr><td colspan="10" class="px-4 py-6 text-center text-gray-400">No events yet</td></tr>`;
+            document.getElementById('logTableBody').innerHTML = `<tr><td colspan="9" class="px-4 py-6 text-center text-gray-400">No events yet</td></tr>`;
             return;
         }
 
         // Derive ball_holder state by walking events in order
         let currentBall = 'helpdesk';
-        let lastAgentJarvisStatus = null;
 
         document.getElementById('logTableBody').innerHTML = events.map(e => {
             const ei    = EVENT_ICONS[e.event_type] ?? { icon: 'fa-dot-circle', color: 'text-gray-400' };
@@ -572,15 +544,13 @@ async function loadLogEvents(ticketId) {
             if (e.event_type === 'customer_replied') {
                 currentBall = 'helpdesk';
             } else if (e.event_type === 'agent_replied') {
-                lastAgentJarvisStatus = e.jarvis_status;
-                currentBall = (e.jarvis_status === 'sent in to SAP') ? 'sap' : 'customer';
+                currentBall = 'customer';
             } else if (e.event_type === 'ticket_closed') {
                 currentBall = 'helpdesk';
             } else if (e.event_type === 'meeting_scheduled') {
                 if (e.meeting_ended) currentBall = 'helpdesk';
-                // ongoing meeting: ball tetap di current state (customer/sap)
+                else currentBall = 'customer';
             }
-            // solution_started does not change ball holder
 
             let msgCell = '<span class="text-gray-300">—</span>';
             if (e.message_preview) {
@@ -595,14 +565,11 @@ async function loadLogEvents(ticketId) {
 
             const showBall = ['agent_replied', 'customer_replied', 'ticket_closed'].includes(e.event_type)
                 || (e.event_type === 'meeting_scheduled' && e.meeting_ended);
-            const isSolutionRow = e.event_type === 'solution_started';
-            const isMeetingRow  = e.event_type === 'meeting_scheduled';
+            const isMeetingRow = e.event_type === 'meeting_scheduled';
 
-            const rowCls = isSolutionRow
-                ? 'bg-indigo-50 border-l-4 border-indigo-400'
-                : isMeetingRow
-                    ? 'bg-teal-50 border-l-4 border-teal-400'
-                    : 'hover:bg-gray-50';
+            const rowCls = isMeetingRow
+                ? 'bg-teal-50 border-l-4 border-teal-400'
+                : 'hover:bg-gray-50';
 
             return `<tr class="${rowCls}">
                 <td class="px-4 py-2.5 text-gray-600 whitespace-nowrap">${date ?? '—'}</td>
@@ -619,22 +586,17 @@ async function loadLogEvents(ticketId) {
                 <td class="px-4 py-2.5 whitespace-nowrap">
                     <span class="inline-flex items-center gap-1.5">
                         <i class="fas ${ei.icon} text-xs ${ei.color}"></i>
-                        <span class="text-gray-700 font-medium${isSolutionRow ? ' text-indigo-700' : isMeetingRow ? ' text-teal-700' : ''}">${label}</span>
+                        <span class="text-gray-700 font-medium${isMeetingRow ? ' text-teal-700' : ''}">${label}</span>
                     </span>
                 </td>
-                <td class="px-4 py-2.5 whitespace-nowrap">${
-                    e.event_type === 'customer_replied'
-                        ? jarvisBadge('in process')
-                        : jarvisBadge(e.jarvis_status)
-                }</td>
-                <td class="px-4 py-2.5 text-center whitespace-nowrap">${modeBadge(e.event_type, e.jarvis_status, e)}</td>
+                <td class="px-4 py-2.5 text-center whitespace-nowrap">${modeBadge(e.event_type, e)}</td>
                 <td class="px-4 py-2.5 whitespace-nowrap">${showBall ? ballBadge(currentBall) : '<span class="text-gray-300">—</span>'}</td>
                 <td class="px-4 py-2.5 max-w-[220px]">${msgCell}</td>
             </tr>`;
         }).join('');
 
     } catch (err) {
-        document.getElementById('logTableBody').innerHTML = `<tr><td colspan="10" class="px-4 py-6 text-center text-red-400">${err.message}</td></tr>`;
+        document.getElementById('logTableBody').innerHTML = `<tr><td colspan="9" class="px-4 py-6 text-center text-red-400">${err.message}</td></tr>`;
     }
 }
 

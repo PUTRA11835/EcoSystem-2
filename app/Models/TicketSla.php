@@ -28,7 +28,6 @@ class TicketSla extends Model
         'ball_holder',
         'sla_paused_at',
         'session_start_at',
-        'solution_started_at',
     ];
 
     protected $casts = [
@@ -39,7 +38,6 @@ class TicketSla extends Model
         'resolved_at'                => 'datetime',
         'sla_paused_at'              => 'datetime',
         'session_start_at'           => 'datetime',
-        'solution_started_at'        => 'datetime',
         'validation_duration_hours'  => 'decimal:2',
         'total_waiting_hours'        => 'decimal:2',
         'net_resolution_hours'       => 'decimal:2',

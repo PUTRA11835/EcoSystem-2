@@ -317,10 +317,8 @@ class TicketMessageController extends Controller
                 }
             }
 
-            // Rekam SLA event (non-blocking) — teruskan jarvies_status agar tersimpan di ticket_sla_events
-            $jarviesStatus = $request->input('jarvies_status');
             if (!$isMeeting) {
-                app(SlaService::class)->recordMessageEvent($ticket, $message, 'employee', $jarviesStatus);
+                app(SlaService::class)->recordMessageEvent($ticket, $message, 'employee');
             }
 
             return response()->json([

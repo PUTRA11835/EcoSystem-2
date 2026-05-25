@@ -214,18 +214,11 @@ class SlaController extends Controller
 
             $msgIds = $msgs->pluck('id')->all();
 
-            // jarvis_status per message_id (lookup saja, bukan kalkulasi)
-            $jarviesMap = DB::table('ticket_sla_events')
-                ->where('ticket_id', $id)
-                ->where('event_type', 'agent_replied')
-                ->whereIn('message_id', $msgIds)
-                ->pluck('jarvis_status', 'message_id');
-
             // attachment flag per message_id
             $attachmentMsgIds = DB::table('ticket_attachment')
                 ->whereIn('message_id', $msgIds)
                 ->pluck('message_id')
-                ->flip(); // flip untuk O(1) lookup
+                ->flip();
 
             // system events (email_received, ticket_validated, ticket_closed) — tetap dari tabel
             $systemEvents = DB::table('ticket_sla_events')
@@ -238,21 +231,14 @@ class SlaController extends Controller
             // Resolution Time dihitung dari sla_start_at (awal tiket) untuk semua agent reply.
             // Meeting event: waiting berjalan selama meeting, berhenti saat End Meeting diklik.
 
-            $solutionStartedAt = $sla->solution_started_at ? Carbon::parse($sla->solution_started_at) : null;
-            $slaStartAt        = Carbon::parse($sla->sla_start_at);
+            $slaStartAt     = Carbon::parse($sla->sla_start_at);
+            $validatedAt    = $sla->first_responded_at
+                ? Carbon::parse($sla->first_responded_at)
+                : $slaStartAt;
 
-            // Jika ada pesan lebih awal dari sla_start_at, gunakan waktu pesan pertama sebagai baseline
-            $firstMsgAt = $msgs->first() ? Carbon::parse($msgs->first()->created_at) : null;
-            if ($firstMsgAt && $firstMsgAt->lt($slaStartAt)) {
-                $slaStartAt = $firstMsgAt;
-            }
-
-            $inResolutionPhase = false;
-
-            $ballHolder       = 'helpdesk';
-            $pausedAt         = null;
-            $lastJarvisStatus = null;
-            $totalWaiting     = 0.0;
+            $ballHolder   = 'helpdesk';
+            $pausedAt     = null;
+            $totalWaiting = 0.0;
 
             $events = [];
 
@@ -275,21 +261,6 @@ class SlaController extends Controller
                     $meetingData = $decoded;
                 }
 
-                // Insert solution_started event at correct chronological position
-                if ($solutionStartedAt && !$inResolutionPhase && $eventAt->gte($solutionStartedAt)) {
-                    $inResolutionPhase = true;
-                    $events[] = [
-                        'event_type'       => 'solution_started',
-                        'event_at'         => $solutionStartedAt->format('d/m/Y H:i'),
-                        'waiting_hours'    => null,
-                        'response_hours'   => $slaService->calcHours($slaStartAt, $solutionStartedAt, $is24h),
-                        'resolution_hours' => $slaService->calcHours($slaStartAt, $solutionStartedAt, $is24h),
-                        'jarvis_status'    => null,
-                        'notes'            => 'Solution phase started',
-                        'message_preview'  => null,
-                    ];
-                }
-
                 if ($meetingData) {
                     // Meeting = seperti agent reply: ball ke customer, waiting mulai dari meeting dibuat.
                     // End Meeting = seperti customer reply: waiting berhenti, ball kembali ke helpdesk.
@@ -303,7 +274,6 @@ class SlaController extends Controller
                         $totalWaiting += $waitingHours;
                         $ballHolder    = 'helpdesk';
                         $pausedAt      = null;
-                        $lastJarvisStatus = null;
                     } else {
                         // Meeting ongoing: ball ke customer, waiting mulai jalan dari sekarang
                         $ballHolder = 'customer';
@@ -326,15 +296,12 @@ class SlaController extends Controller
                 } elseif ($msg->sender_type === 'customer') {
                     $waitingHours = null;
 
-                    if (in_array($ballHolder, ['customer', 'sap'], true) && $pausedAt) {
-                        // Customer pertama setelah agent reply → hitung waiting dari pausedAt
+                    if ($ballHolder === 'customer' && $pausedAt) {
                         $waitingHours  = $slaService->calcHours($pausedAt, $eventAt, $is24h);
                         $totalWaiting += $waitingHours;
                         $ballHolder    = 'helpdesk';
                         $pausedAt      = null;
                     }
-
-                    $lastJarvisStatus = null;
 
                     $events[] = [
                         'event_type'       => 'customer_replied',
@@ -342,30 +309,17 @@ class SlaController extends Controller
                         'waiting_hours'    => $waitingHours,
                         'response_hours'   => null,
                         'resolution_hours' => null,
-                        'jarvis_status'    => null,
                         'notes'            => 'Customer replied',
                         'message_preview'  => $preview,
                     ];
 
                 } else {
-                    // Agent reply
-                    $jarviesStatus = $jarviesMap->get($msg->id) ?? 'in process';
-
-                    // Keduanya selalu dihitung dari baseline (sla_start_at atau pesan pertama, mana yang lebih awal)
+                    // Agent reply — bola selalu ke customer, waiting start dari reply terbaru
                     $responseHours   = $slaService->calcHours($slaStartAt, $eventAt, $is24h);
-                    $resolutionHours = $slaService->calcHours($slaStartAt, $eventAt, $is24h);
+                    $resolutionHours = $slaService->calcHours($validatedAt, $eventAt, $is24h);
 
-                    if ($ballHolder !== 'helpdesk' && $pausedAt) {
-                        if ($jarviesStatus !== $lastJarvisStatus) {
-                            $pausedAt   = $eventAt;
-                            $ballHolder = ($jarviesStatus === 'sent in to SAP') ? 'sap' : 'customer';
-                        }
-                    } else {
-                        $ballHolder = ($jarviesStatus === 'sent in to SAP') ? 'sap' : 'customer';
-                        $pausedAt   = $eventAt;
-                    }
-
-                    $lastJarvisStatus = $jarviesStatus;
+                    $ballHolder = 'customer';
+                    $pausedAt   = $eventAt;
 
                     $events[] = [
                         'event_type'       => 'agent_replied',
@@ -373,25 +327,10 @@ class SlaController extends Controller
                         'waiting_hours'    => null,
                         'response_hours'   => $responseHours,
                         'resolution_hours' => $resolutionHours,
-                        'jarvis_status'    => $jarviesStatus,
                         'notes'            => 'Helpdesk reply sent',
                         'message_preview'  => $preview,
                     ];
                 }
-            }
-
-            // If solution_started_at is after all messages, append it now
-            if ($solutionStartedAt && !$inResolutionPhase) {
-                $events[] = [
-                    'event_type'       => 'solution_started',
-                    'event_at'         => $solutionStartedAt->format('d/m/Y H:i'),
-                    'waiting_hours'    => null,
-                    'response_hours'   => $slaService->calcHours($slaStartAt, $solutionStartedAt, $is24h),
-                    'resolution_hours' => $slaService->calcHours($slaStartAt, $solutionStartedAt, $is24h),
-                    'jarvis_status'    => null,
-                    'notes'            => 'Solution phase started',
-                    'message_preview'  => null,
-                ];
             }
 
             // ticket_closed tetap dari tabel (ada net_resolution_hours final)
@@ -440,10 +379,10 @@ class SlaController extends Controller
                     ],
                 ],
                 'summary'    => [
-                    'started_at'           => $sla->sla_start_at?->format('d/m/Y H:i'),
-                    'closed_at'            => $sla->resolved_at?->format('d/m/Y H:i'),
-                    'total_waiting'        => round($liveWaiting, 2),
-                    'solution_started_at'  => $sla->solution_started_at?->format('d/m/Y H:i'),
+                    'started_at'      => $sla->sla_start_at?->format('d/m/Y H:i'),
+                    'validated_at'    => $sla->first_responded_at?->format('d/m/Y H:i'),
+                    'closed_at'       => $sla->resolved_at?->format('d/m/Y H:i'),
+                    'total_waiting'   => round($liveWaiting, 2),
                 ],
                 'events'     => $events,
             ]);
@@ -461,7 +400,6 @@ class SlaController extends Controller
             'waiting_hours'    => $se->waiting_hours    ? (float) $se->waiting_hours    : null,
             'response_hours'   => $se->response_hours   ? (float) $se->response_hours   : null,
             'resolution_hours' => $se->resolution_hours ? (float) $se->resolution_hours : null,
-            'jarvis_status'    => $se->jarvis_status,
             'notes'            => $se->notes,
             'message_preview'  => null,
         ];
