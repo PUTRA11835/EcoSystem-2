@@ -90,7 +90,7 @@
                 <p class="text-2xl font-bold text-gray-900" id="processCount">0</p>
             </div>
             <div id="filterAuthorAction" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('author action')">
-                <p class="text-xs font-medium text-gray-500 mb-1">Author Action</p>
+                <p class="text-xs font-medium text-gray-500 mb-1">waiting on Customer</p>
                 <p class="text-2xl font-bold text-gray-900" id="authorCount">0</p>
             </div>
             <div id="filterProposed" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('proposed solution')">
@@ -104,6 +104,111 @@
             <div id="filterClosed" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('closed')">
                 <p class="text-xs font-medium text-gray-500 mb-1">Closed</p>
                 <p class="text-2xl font-bold text-gray-900" id="closedCount">0</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters & Search (collapsible) -->
+<div class="mb-6">
+    <button onclick="toggleSection('filtersSection', 'filtersChevron')"
+            class="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors duration-150 select-none mb-2 group">
+        <svg id="filtersChevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
+             class="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-transform duration-200">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+        <span class="uppercase tracking-wide">Filters &amp; Search</span>
+    </button>
+    <div id="filtersSection" class="overflow-hidden transition-all duration-300" style="max-height: 300px;">
+        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                {{-- Filter By: pakai custom-dd manual (sama dengan Employee/Customer)
+                     supaya tampilan & animasi konsisten. data-onchange memanggil
+                     updateFilterOptions yang menampilkan opsi sesuai tipe terpilih. --}}
+                <div class="flex flex-col">
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter By</label>
+                    {{-- data-fixed="true" → panel di-detach ke body dengan position
+                         fixed agar tidak terpotong oleh #filtersSection (overflow-hidden). --}}
+                    <div class="custom-dd relative" data-onchange="updateFilterOptions" data-fixed="true">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select Type</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="filterTypeSelect" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Type</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="jarvies_status">Jarvies Status</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="status">Status</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="ticket_type">Ticket Type</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="priority">Priority</button>
+                        </div>
+                    </div>
+                </div>
+                {{-- Filter Value: opsi dinamis. Semua kemungkinan item DI-PRE-RENDER
+                     dengan atribut data-for="<filterType>" dan disembunyikan via
+                     class .filter-value-item.hidden. updateFilterOptions() hanya
+                     toggle visibility — semua handler sudah ter-bind sekali oleh
+                     initCustomDropdowns, tidak perlu re-init saat ganti tipe. --}}
+                <div class="flex flex-col">
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Filter Value</label>
+                    <div class="custom-dd relative" id="filterValueDdWrap" data-onchange="applyAdvancedFilters" data-fixed="true">
+                        <button type="button" id="filterValueBtn" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed" disabled>
+                            <span class="custom-dd-label text-gray-400">Select Type First</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="filterValueSelect" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
+                            <button type="button" class="custom-dd-item filter-value-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="" data-value="">Select Value</button>
+                            {{-- jarvies_status --}}
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="sent it to support">Sent It To Support</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="in process">In Process</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="author action">waiting on Customer</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="proposed solution">Proposed Solution</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="closed">Closed</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="jarvies_status" data-value="sent in to SAP">Sent In To SAP</button>
+                            {{-- status --}}
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="open">Open</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="in_progress">In Progress</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="hold">Hold</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="wait_to_close">Waiting Confirmation</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="cancel">Cancel</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="closed">Closed</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="status" data-value="reply">Reply</button>
+                            {{-- ticket_type --}}
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Incident">Incident</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Service Request">Service Request</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Change Request">Change Request</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="ticket_type" data-value="Consult">Consult</button>
+                            {{-- priority --}}
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="priority" data-value="Very High">Very High</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="priority" data-value="High">High</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="priority" data-value="Medium">Medium</button>
+                            <button type="button" class="custom-dd-item filter-value-item hidden w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-for="priority" data-value="Low">Low</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-col md:col-span-2">
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Search Tickets</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-400">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                            </svg>
+                        </div>
+                        <input type="text" id="searchInput" placeholder="Search by ticket number, description, customer, PIC..."
+                            autocomplete="off"
+                            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white"
+                            onkeyup="searchTickets()">
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-2 justify-end mt-3 pt-3 border-t border-gray-100">
+                <button onclick="applyAdvancedFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    Apply
+                </button>
+                <button onclick="resetFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                    Reset
+                </button>
             </div>
         </div>
     </div>
@@ -786,7 +891,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
             'open':          { label: 'Open',          cls: 'bg-blue-50 text-blue-700' },
             'in_progress':   { label: 'In Progress',   cls: 'bg-yellow-50 text-yellow-700' },
             'hold':          { label: 'Hold',           cls: 'bg-orange-50 text-orange-700' },
-            'wait_to_close': { label: 'Wait to Close', cls: 'bg-teal-50 text-teal-700' },
+            'wait_to_close': { label: 'Waiting Confirmation', cls: 'bg-teal-50 text-teal-700' },
             'cancel':        { label: 'Cancel',         cls: 'bg-gray-100 text-gray-500' },
             'closed':        { label: 'Closed',         cls: 'bg-green-50 text-green-700' },
             'reply':         { label: 'Reply',          cls: 'bg-purple-50 text-purple-700' },
@@ -794,7 +899,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         const jarviesMap = {
             'sent it to support': { label: 'To Support',        cls: 'bg-cyan-50 text-cyan-600' },
             'in process':         { label: 'In Process',        cls: 'bg-blue-50 text-blue-600' },
-            'author action':      { label: 'Author Action',     cls: 'bg-amber-50 text-amber-600' },
+            'author action':      { label: 'waiting on Customer',     cls: 'bg-amber-50 text-amber-600' },
             'proposed solution':  { label: 'Proposed Solution', cls: 'bg-purple-50 text-purple-600' },
             'sent in to SAP':     { label: 'Sent to SAP',       cls: 'bg-indigo-50 text-indigo-600' },
             'closed':             { label: 'Closed',            cls: 'bg-green-50 text-green-700' },

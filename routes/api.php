@@ -35,6 +35,7 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AdminSessionController;
 use App\Http\Controllers\AdminJobController;
 use App\Http\Controllers\AdminBackupController;
+use App\Http\Controllers\SlaController;
 
 // ==================== HEALTH CHECK (public, no auth) ====================
 Route::get('/health', function () {
@@ -306,6 +307,9 @@ Route::middleware(['web'])->group(function () {
         Route::post('/confirm-assignment/{confirmationId}', [TicketController::class, 'confirmAssignment']);
         Route::post('/member-change-requests/{changeRequestId}/{action}', [TicketController::class, 'processMemberChangeRequest']);
 
+        // SLA per tiket
+        Route::get('/{id}/sla', [SlaController::class, 'getTicketSla']);
+
         // Routes with {id} parameter last
         Route::get('/{id}', [TicketController::class, 'show']);
         Route::get('/{id}/mandays-history', [TicketController::class, 'getMandaysHistory']);
@@ -313,6 +317,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/assign-pic', [TicketController::class, 'assignPic']);
         Route::put('/{id}', [TicketController::class, 'update']);
         Route::put('/{id}/update-status', [TicketController::class, 'updateTicketStatus']);
+        Route::patch('/{id}/messages/{messageId}/end-meeting', [TicketMessageController::class, 'endMeeting']);
         Route::put('/{id}/update-mandays', [TicketController::class, 'updateManDays']);
         Route::post('/{id}/members', [TicketController::class, 'addMember']);
         Route::delete('/{id}/members/{employeeId}', [TicketController::class, 'removeMember']);
@@ -475,6 +480,15 @@ Route::middleware(['web'])->group(function () {
         Route::post('/import/employees', [AdminBackupController::class, 'importEmployees']);
         Route::post('/import/customers', [AdminBackupController::class, 'importCustomers']);
 
+        // SLA Policies
+        Route::get('/sla/policies', [SlaController::class, 'getPolicies']);
+        Route::post('/sla/policies', [SlaController::class, 'storePolicy']);
+        Route::put('/sla/policies/{id}', [SlaController::class, 'updatePolicy']);
+        Route::delete('/sla/policies/{id}', [SlaController::class, 'destroyPolicy']);
+
+        // SLA Report
+        Route::get('/sla/report', [SlaController::class, 'getReport']);
+
         // Failed Job Monitor
         Route::get('/failed-jobs', [AdminJobController::class, 'index']);
         Route::get('/failed-jobs/{uuid}', [AdminJobController::class, 'show']);
@@ -570,6 +584,9 @@ Route::middleware(['jarvies.api_key'])->prefix('jarvies')->group(function () {
     Route::get('/tickets/{ticketId}/mandays', [MandaysController::class, 'customerMandaysForJarvies']);
     Route::post('/tickets/{ticketId}/mandays/approve', [MandaysController::class, 'customerApproveMandays']);
     Route::post('/tickets/{ticketId}/mandays/reject', [MandaysController::class, 'customerRejectMandays']);
+
+    // --- Customer close ticket ---
+    Route::post('/tickets/{id}/close', [TicketController::class, 'closeByCustomer']);
 });
 
 // ==================== EXTERNAL TICKET API ====================

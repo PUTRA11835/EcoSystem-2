@@ -44,7 +44,7 @@ class ActivityStageController extends Controller
         }
 
         $stages = $planning->stages()
-            ->with(['activities' => function($query) {
+            ->with(['activities' => function ($query) {
                 $query->orderBy('order_sequence');
             }])
             ->orderBy('order_sequence')
@@ -167,7 +167,7 @@ class ActivityStageController extends Controller
                     'status' => $stage->status,
                     'color' => $stage->color,
                     'order_sequence' => $stage->order_sequence,
-                    'activities_count' => $activitiesCount, 
+                    'activities_count' => $activitiesCount,
                     'group_name' => $stage->group?->name,
                     'has_activities' => $activitiesCount > 0,
                 ]
@@ -177,7 +177,7 @@ class ActivityStageController extends Controller
                 'stage_id' => $stage->id,
                 'error' => $e->getMessage()
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Stage not found'
@@ -225,7 +225,7 @@ class ActivityStageController extends Controller
                 if ($request->has('actual_end_date')) {
                     $stage->actual_end_date = $this->parseDate($validated['actual_end_date']);
                 }
-                
+
                 if (isset($validated['progress'])) {
                     $stage->progress = $validated['progress'];
                 }
@@ -253,8 +253,10 @@ class ActivityStageController extends Controller
                     $stage->status = $validated['status'];
                 }
 
-                if ($stage->planned_end_date && Carbon::now()->gt($stage->planned_end_date) && 
-                    $stage->status != 'completed') {
+                if (
+                    $stage->planned_end_date && Carbon::now()->gt($stage->planned_end_date) &&
+                    $stage->status != 'completed'
+                ) {
                     $stage->status = 'delayed';
                 }
 
@@ -376,11 +378,11 @@ class ActivityStageController extends Controller
             return DB::transaction(function () use ($validated, $planning) {
                 foreach ($validated['stages'] as $stageData) {
                     $stage = ActivityStage::find($stageData['id']);
-                    
+
                     if ($stage->planning_id !== $planning->id) {
                         throw new \Exception('Invalid stage ID');
                     }
-                    
+
                     $stage->order_sequence = $stageData['sequence'];
                     $stage->saveQuietly();
                 }

@@ -153,7 +153,7 @@ class Ticket extends Model
             'cancel' => 'Cancelled',
             'closed' => 'Closed',
             'reply' => 'Reply',
-            'wait_to_close' => 'Wait to Close',
+            'wait_to_close' => 'Waiting Confirmation',
             default => 'Unknown'
         };
     }
@@ -176,6 +176,11 @@ class Ticket extends Model
             ->orderBy('created_at', 'asc');
     }
 
+    public function sla()
+    {
+        return $this->hasOne(\App\Models\TicketSla::class, 'ticket_id', 'ticket_id');
+    }
+
     // Relasi ke Delivery Support melalui activities
     public function deliverySupportActivities()
     {
@@ -188,5 +193,36 @@ class Ticket extends Model
         return DeliverySupport::whereHas('activities', function ($query) {
             $query->where('ticket_id', $this->ticket_id);
         });
+    }
+
+    // ─── SLA ────────────────────────────────────────────────────────────────
+
+    // Semua tipe tiket mendapat SLA minimal (Response Time)
+    // Incident & Service Request → full SLA (Response + Resolution)
+    // CR / Konsultasi / lainnya  → response_only
+    private const SLA_FULL_TYPES = ['Incident', 'Service Request'];
+
+    /**
+     * Semua tiket eligible SLA. Perbedaan hanya pada mode-nya.
+     */
+    public function isSlaEligible(): bool
+    {
+        return !empty($this->ticket_type);
+    }
+
+    /**
+     * 'full'          → Response + Resolution SLA
+     * 'response_only' → Response Time saja
+     */
+    public function getSlaMode(): string
+    {
+        return in_array($this->ticket_type, self::SLA_FULL_TYPES, true)
+            ? 'full'
+            : 'response_only';
+    }
+
+    public static function slaFullTypes(): array
+    {
+        return self::SLA_FULL_TYPES;
     }
 }

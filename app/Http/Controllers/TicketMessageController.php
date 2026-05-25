@@ -8,6 +8,7 @@ use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
+use App\Services\SlaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -59,7 +60,7 @@ class TicketMessageController extends Controller
                     'sender_email'        => $message->sender_email,
                     'message_body'        => $message->message,
                     'message_html'        => $message->message_html,
-                    'message_type'        => $message->is_internal_note ? 'internal_note' : 'reply',
+                    'message_type'        => self::resolveMessageType($message),
                     'reply_to_id'         => $message->reply_to_id,
                     'reply_to_preview'    => $replyToPreview,
                     'channel'             => $message->channel ?? 'web',
@@ -112,6 +113,8 @@ class TicketMessageController extends Controller
             'message_body'            => 'nullable|string',
             'message_type'            => 'required|in:reply,internal_note',
             'to_emails'               => 'nullable',
+            'message_type'            => 'required|in:reply,internal_note,meeting',
+            'jarvies_status'          => 'nullable|string',
             'cc_emails'               => 'nullable',
             'attachments'             => 'nullable|array',
             'attachments.*'           => 'file|max:10240', // maks 10 MB per file
@@ -130,9 +133,9 @@ class TicketMessageController extends Controller
             ], 422);
         }
 
-        // Perlu minimal pesan atau file
+        // Perlu minimal pesan atau file (meeting punya struktur sendiri di message_body)
         $hasFiles = $request->hasFile('attachments') && count($request->file('attachments')) > 0;
-        if (empty(trim(strip_tags($request->input('message_body', '')))) && !$hasFiles) {
+        if ($request->message_type !== 'meeting' && empty(trim(strip_tags($request->input('message_body', '')))) && !$hasFiles) {
             return response()->json([
                 'success' => false,
                 'message' => 'A message body or at least one attachment is required.'
@@ -159,8 +162,11 @@ class TicketMessageController extends Controller
             // For internal notes, use the employee's real name so mentions are attributed correctly.
             // For public replies, always show "Helpdesk Support" for consistency (email sent from M365 shared inbox).
             $isInternalNote = $request->message_type === 'internal_note';
+            $isMeeting      = $request->message_type === 'meeting';
 
-            $senderName = $isInternalNote ? ($sessionUser['name'] ?? 'Helpdesk Support') : 'Helpdesk Support';
+            $senderName = ($isInternalNote || $isMeeting)
+                ? ($sessionUser['name'] ?? 'Helpdesk Support')
+                : 'Helpdesk Support';
 
             // Ambil nick_name dari session, fallback ke first_name dari DB
             $nickName = $sessionUser['nick_name'] ?? null;
@@ -176,7 +182,7 @@ class TicketMessageController extends Controller
 
             // Tambahkan tanda tangan "-NickName" di akhir pesan untuk employee
             $messageBody = $request->message_body ?? '';
-            if ($nickName && $request->message_type !== 'internal_note') {
+            if ($nickName && !$isInternalNote && !$isMeeting) {
                 $nick = htmlspecialchars($nickName, ENT_QUOTES, 'UTF-8');
                 $messageBody .= '<p style="margin-top:4px;color:#6b7280;font-style:italic;">-' . $nick . '</p>';
             }
@@ -265,6 +271,33 @@ class TicketMessageController extends Controller
 
                 $ticket->update(['last_agent_reply_at' => now(), 'last_message_at' => now()]);
 
+            } elseif ($isMeeting) {
+                // Meeting — disimpan sebagai pesan biasa (non-internal) dengan JSON payload
+                $meetingLink = $request->input('meeting_link', '');
+                $meetingJson = json_encode(array_filter([
+                    '_type'            => 'meeting',
+                    'title'            => $request->input('meeting_title', 'Meeting'),
+                    'scheduled_at'     => $request->input('meeting_date') . ' ' . $request->input('meeting_time'),
+                    'duration_minutes' => (int) $request->input('meeting_duration', 60),
+                    'link'             => $meetingLink ?: null,
+                    'agenda'           => $request->input('meeting_agenda', ''),
+                ], fn($v) => $v !== null));
+
+                $message = TicketMessage::create([
+                    'ticket_id'           => $ticketId,
+                    'sender_type'         => $senderType,
+                    'sender_id'           => $senderId,
+                    'sender_name'         => $senderName,
+                    'message'             => $meetingJson,
+                    'message_html'        => null,
+                    'is_internal_note'    => false,
+                    'channel'             => 'web',
+                    'is_read_by_customer' => false,
+                    'is_read_by_agent'    => true,
+                ]);
+
+                $ticket->update(['last_message_at' => now()]);
+
             } else {
                 // Internal note — tidak pernah dikirim ke email
                 $mentionedEmployeeIds = $request->input('mentioned_employee_ids', []);
@@ -310,6 +343,10 @@ class TicketMessageController extends Controller
                 }
             }
 
+            if (!$isMeeting) {
+                app(SlaService::class)->recordMessageEvent($ticket, $message, 'employee');
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -319,7 +356,7 @@ class TicketMessageController extends Controller
                     'sender_name' => $message->sender_name,
                     'message_body'=> $message->message,
                     'channel'     => $message->channel,
-                    'message_type'=> $message->is_internal_note ? 'internal_note' : 'reply',
+                    'message_type'=> self::resolveMessageType($message),
                     'created_at'  => $message->created_at,
                 ],
                 'message' => 'Message sent successfully'
@@ -471,6 +508,9 @@ class TicketMessageController extends Controller
                 'skip_relay'   => $skipRelay,
                 'has_thread'   => !empty($ticket->email_thread_id),
             ]);
+
+            // Rekam SLA event (non-blocking)
+            app(SlaService::class)->recordMessageEvent($ticket, $message, 'customer');
 
             return response()->json([
                 'success' => true,
@@ -971,5 +1011,33 @@ class TicketMessageController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    public function endMeeting(\Illuminate\Http\Request $request, $ticketId, $messageId)
+    {
+        $message = \App\Models\TicketMessage::where('ticket_id', $ticketId)
+            ->where('id', $messageId)
+            ->firstOrFail();
+
+        $data = json_decode($message->message, true);
+        if (!is_array($data) || ($data['_type'] ?? '') !== 'meeting') {
+            return response()->json(['success' => false, 'message' => 'Not a meeting message.'], 422);
+        }
+        if (!empty($data['ended_at'])) {
+            return response()->json(['success' => false, 'message' => 'Meeting already ended.'], 422);
+        }
+
+        $data['ended_at'] = now()->format('Y-m-d H:i:s');
+        $message->update(['message' => json_encode($data)]);
+
+        return response()->json(['success' => true, 'ended_at' => $data['ended_at']]);
+    }
+
+    public static function resolveMessageType(\App\Models\TicketMessage $message): string
+    {
+        if ($message->is_internal_note) return 'internal_note';
+        $decoded = json_decode($message->message, true);
+        if (is_array($decoded) && ($decoded['_type'] ?? '') === 'meeting') return 'meeting';
+        return 'reply';
     }
 }
