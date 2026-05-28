@@ -26,8 +26,8 @@ class PeriodService
     public function getDomainForRole(int $roleId): ?string
     {
         return match($roleId) {
-            RoleId::EMPLOYEE_PROJECT->value, RoleId::HEAD_OF_PROJECT->value => self::DOMAIN_PROJECT,
-            RoleId::EMPLOYEE->value,         RoleId::HEAD_OF_SUPPORT->value => self::DOMAIN_SUPPORT,
+            RoleId::DELIVERY_PROJECT_USER->value, RoleId::DELIVERY_PROJECT_HEAD->value => self::DOMAIN_PROJECT,
+            RoleId::DELIVERY_SUPPORT_USER->value,         RoleId::DELIVERY_SUPPORT_HEAD->value => self::DOMAIN_SUPPORT,
             default => null,
         };
     }

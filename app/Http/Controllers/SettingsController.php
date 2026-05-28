@@ -20,7 +20,7 @@ class SettingsController extends Controller
             // Get user preferences from session or default
             $userPreferences = session('user_preferences', [
                 'theme' => 'light',
-                'primary_color' => '#c62828',
+                'primary_color' => '#991b1b',
                 'sidebar_style' => 'gradient',
                 'font_size' => 'medium',
                 'compact_mode' => false,
@@ -110,7 +110,7 @@ class SettingsController extends Controller
             // Reset to default preferences
             $defaultPreferences = [
                 'theme' => 'light',
-                'primary_color' => '#c62828',
+                'primary_color' => '#991b1b',
                 'sidebar_style' => 'gradient',
                 'font_size' => 'medium',
                 'compact_mode' => false,

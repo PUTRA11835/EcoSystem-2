@@ -51,18 +51,19 @@ class DashboardController extends Controller
             ];
 
             // Extra data for Delivery Support Head dashboard
-            if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::HEAD_OF_SUPPORT->value) {
+            if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::DELIVERY_SUPPORT_HEAD->value) {
                 $base = DB::table('ticket')->whereNull('deleted_at');
 
                 $dashboardData['ticket_stats'] = [
-                    'total'          => (clone $base)->count(),
-                    'open'           => (clone $base)->where('status', 'open')->count(),
-                    'in_progress'    => (clone $base)->where('status', 'in_progress')->count(),
-                    'hold'           => (clone $base)->where('status', 'hold')->count(),
-                    'cancel'         => (clone $base)->where('status', 'cancel')->count(),
-                    'closed'         => (clone $base)->where('status', 'closed')->count(),
-                    'reply'          => (clone $base)->where('status', 'reply')->count(),
-                    'wait_to_close'  => (clone $base)->where('status', 'wait_to_close')->count(),
+                    'total'                   => (clone $base)->count(),
+                    'open'                    => (clone $base)->where('status', 'open')->count(),
+                    'inprocess'               => (clone $base)->where('status', 'inprocess')->count(),
+                    'waiting_on_customer'     => (clone $base)->where('status', 'waiting_on_customer')->count(),
+                    'waiting_on_3rd_party'    => (clone $base)->where('status', 'waiting_on_3rd_party')->count(),
+                    'waiting_to_confirmation' => (clone $base)->where('status', 'waiting_to_confirmation')->count(),
+                    'hold'                    => (clone $base)->where('status', 'hold')->count(),
+                    'cancelled'               => (clone $base)->where('status', 'cancelled')->count(),
+                    'closed'                  => (clone $base)->where('status', 'closed')->count(),
                 ];
 
                 // Chart: all tickets created in last 30 days
@@ -89,11 +90,11 @@ class DashboardController extends Controller
                     ->whereNull('t.deleted_at')
                     ->leftJoin('customer as c', 't.customer_id', '=', 'c.customer_id')
                     ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
-                    ->leftJoin('employee as e', 't.employee_id', '=', 'e.employee_id')
+                    ->leftJoin('employee as e', 't.ticket_lead_id', '=', 'e.employee_id')
                     ->leftJoin('employee_basic_data as ebd', 'e.employee_id', '=', 'ebd.employee_id')
                     ->select(
                         't.ticket_id', 't.ticket_number', 't.description',
-                        't.status', 't.jarvies_status', 't.created_at',
+                        't.status', 't.created_at',
                         'cbd.name_1 as customer_name',
                         DB::raw("COALESCE(TRIM(CONCAT(COALESCE(ebd.first_name,''),' ',COALESCE(ebd.last_name,''))), 'Unassigned') as pic_name")
                     )
@@ -104,8 +105,8 @@ class DashboardController extends Controller
                 // Team load: top 5 employees by open ticket count
                 $dashboardData['team_load'] = DB::table('ticket as t')
                     ->whereNull('t.deleted_at')
-                    ->whereNotIn('t.status', ['closed', 'cancel'])
-                    ->join('employee as e', 't.employee_id', '=', 'e.employee_id')
+                    ->whereNotIn('t.status', ['closed', 'cancelled'])
+                    ->join('employee as e', 't.ticket_lead_id', '=', 'e.employee_id')
                     ->leftJoin('employee_basic_data as ebd', 'e.employee_id', '=', 'ebd.employee_id')
                     ->select('e.employee_id', DB::raw("TRIM(CONCAT(COALESCE(ebd.first_name,''),' ',COALESCE(ebd.last_name,''))) as name"), DB::raw('COUNT(*) as open_count'))
                     ->groupBy('e.employee_id', 'ebd.first_name', 'ebd.last_name')
@@ -115,25 +116,26 @@ class DashboardController extends Controller
             }
 
             // Extra data for Employee dashboard
-            if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::EMPLOYEE->value) {
+            if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::DELIVERY_SUPPORT_USER->value) {
                 $employeeId = $user['id'];
 
                 // Collect ticket IDs where this employee is PIC or member
-                $picIds    = DB::table('ticket')->where('employee_id', $employeeId)->pluck('ticket_id');
+                $picIds    = DB::table('ticket')->where('ticket_lead_id', $employeeId)->pluck('ticket_id');
                 $memberIds = DB::table('ticket_member')->where('employee_id', $employeeId)->pluck('ticket_id');
                 $ticketIds = $picIds->merge($memberIds)->unique()->values();
 
                 $base = DB::table('ticket')->whereIn('ticket_id', $ticketIds);
 
                 $dashboardData['ticket_stats'] = [
-                    'total'          => (clone $base)->count(),
-                    'open'           => (clone $base)->where('status', 'open')->count(),
-                    'in_progress'    => (clone $base)->where('status', 'in_progress')->count(),
-                    'hold'           => (clone $base)->where('status', 'hold')->count(),
-                    'cancel'         => (clone $base)->where('status', 'cancel')->count(),
-                    'closed'         => (clone $base)->where('status', 'closed')->count(),
-                    'reply'          => (clone $base)->where('status', 'reply')->count(),
-                    'wait_to_close'  => (clone $base)->where('status', 'wait_to_close')->count(),
+                    'total'                   => (clone $base)->count(),
+                    'open'                    => (clone $base)->where('status', 'open')->count(),
+                    'inprocess'               => (clone $base)->where('status', 'inprocess')->count(),
+                    'waiting_on_customer'     => (clone $base)->where('status', 'waiting_on_customer')->count(),
+                    'waiting_on_3rd_party'    => (clone $base)->where('status', 'waiting_on_3rd_party')->count(),
+                    'waiting_to_confirmation' => (clone $base)->where('status', 'waiting_to_confirmation')->count(),
+                    'hold'                    => (clone $base)->where('status', 'hold')->count(),
+                    'cancelled'               => (clone $base)->where('status', 'cancelled')->count(),
+                    'closed'                  => (clone $base)->where('status', 'closed')->count(),
                 ];
 
                 // Chart: tickets created in last 30 days grouped by date
@@ -162,7 +164,7 @@ class DashboardController extends Controller
                     ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
                     ->select(
                         't.ticket_id', 't.ticket_number', 't.description',
-                        't.status', 't.jarvies_status', 't.created_at',
+                        't.status', 't.created_at',
                         'cbd.name_1 as customer_name'
                     )
                     ->orderBy('t.created_at', 'desc')
@@ -189,9 +191,7 @@ class DashboardController extends Controller
                 'ip_address' => $request->ip(),
             ]);
 
-            return redirect()->route('login')->withErrors([
-                'message' => 'An error occurred. Please login again.'
-            ]);
+            abort(500, 'Dashboard error: ' . $e->getMessage());
         }
     }
 }

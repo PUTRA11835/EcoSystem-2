@@ -44,7 +44,10 @@ class NotificationController extends Controller
 
         $employeeId = $sessionUser['id'];
 
+        $messageTypes = ['ticket_reply', 'ticket_internal_note'];
+
         $notifications = Notification::where('employee_id', $employeeId)
+            ->whereNotIn('type', $messageTypes)
             ->orderBy('created_at', 'desc')
             ->limit(20)
             ->get()
@@ -61,6 +64,7 @@ class NotificationController extends Controller
             ]);
 
         $unreadCount = Notification::where('employee_id', $employeeId)
+            ->whereNotIn('type', $messageTypes)
             ->where('is_read', false)
             ->count();
 
@@ -82,11 +86,33 @@ class NotificationController extends Controller
             return response()->json(['success' => false, 'count' => 0], 401);
         }
 
-        $count = Notification::where('employee_id', $sessionUser['id'])
+        $employeeId   = $sessionUser['id'];
+        $messageTypes = ['ticket_reply', 'ticket_internal_note'];
+
+        // Badge count excludes chat/message types (those only trigger sound, not bell)
+        $count = Notification::where('employee_id', $employeeId)
+            ->whereNotIn('type', $messageTypes)
             ->where('is_read', false)
             ->count();
 
-        return response()->json(['success' => true, 'count' => $count]);
+        // Sound-only count for message notifications — auto-mark as read after returning
+        $messageCount = Notification::where('employee_id', $employeeId)
+            ->whereIn('type', $messageTypes)
+            ->where('is_read', false)
+            ->count();
+
+        if ($messageCount > 0) {
+            Notification::where('employee_id', $employeeId)
+                ->whereIn('type', $messageTypes)
+                ->where('is_read', false)
+                ->update(['is_read' => true, 'read_at' => now()]);
+        }
+
+        return response()->json([
+            'success'             => true,
+            'count'               => $count,
+            'message_sound_count' => $messageCount,
+        ]);
     }
 
     /**

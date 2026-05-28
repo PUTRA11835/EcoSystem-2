@@ -32,6 +32,8 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AdminSessionController;
 use App\Http\Controllers\AdminJobController;
 use App\Http\Controllers\AdminBackupController;
+use App\Http\Controllers\AdminNotificationSoundController;
+use App\Http\Controllers\TicketMigrationController;
 use App\Http\Middleware\CheckAuthToken;
 
 // ==================== PUBLIC ROUTES ====================
@@ -160,6 +162,12 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/export/tickets',   [AdminBackupController::class, 'exportTickets'])->name('export.tickets');
         Route::get('/import/template/employees', [AdminBackupController::class, 'templateEmployees'])->name('import.template.employees');
         Route::get('/import/template/customers', [AdminBackupController::class, 'templateCustomers'])->name('import.template.customers');
+        Route::post('/import/employees', [AdminBackupController::class, 'importEmployees'])->name('import.employees');
+        Route::post('/import/customers', [AdminBackupController::class, 'importCustomers'])->name('import.customers');
+        Route::get('/export/tickets/zip', [TicketMigrationController::class, 'exportZip'])->name('export.tickets.zip');
+        Route::get('/sounds', [AdminNotificationSoundController::class, 'index'])->name('sounds');
+        Route::post('/sounds', [AdminNotificationSoundController::class, 'store'])->name('sounds.store');
+        Route::delete('/sounds/{id}', [AdminNotificationSoundController::class, 'destroy'])->name('sounds.destroy');
     });
 
     // ==================== SETTINGS ====================

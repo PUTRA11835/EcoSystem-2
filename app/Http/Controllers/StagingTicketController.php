@@ -42,8 +42,8 @@ class StagingTicketController extends Controller
             'role' => (object) ['role_id' => $sessionUser['role']['id'] ?? 0],
         ];
 
-        // Hanya admin (1) dan helpdesk (6,7) yang boleh akses
-        if (!in_array($user->role->role_id, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
+        // Admin, Helpdesk, dan Head of Support yang boleh akses
+        if (!in_array($user->role->role_id, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
             abort(403, 'Unauthorized');
         }
 
@@ -51,7 +51,7 @@ class StagingTicketController extends Controller
     }
 
     /**
-     * Rejected staging tickets page for admin/helpdesk.
+     * Rejected staging tickets page for admin/helpdesk/head-of-support.
      */
     public function viewRejected(Request $request)
     {
@@ -60,7 +60,7 @@ class StagingTicketController extends Controller
             'role' => (object) ['role_id' => $sessionUser['role']['id'] ?? 0],
         ];
 
-        if (!in_array($user->role->role_id, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
+        if (!in_array($user->role->role_id, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
             abort(403, 'Unauthorized');
         }
 
@@ -94,7 +94,7 @@ class StagingTicketController extends Controller
             'ip'          => $request->ip(),
         ]);
 
-        if (in_array($roleId, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value, RoleId::INTERNSHIP->value], RoleId::HELPDESK_GROUP), true)) {
+        if (in_array($roleId, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value, RoleId::EC_USER->value], RoleId::STAGING_GROUP), true)) {
             $query = StagingTicket::query();
         } else {
             Log::warning('StagingTicketController@index: forbidden — role not allowed', [
@@ -293,7 +293,7 @@ class StagingTicketController extends Controller
         }
 
         $roleId = $sessionUser['role']['id'];
-        if (!in_array($roleId, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
+        if (!in_array($roleId, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -377,7 +377,7 @@ class StagingTicketController extends Controller
         }
 
         $roleId = $sessionUser['role']['id'];
-        if (!in_array($roleId, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
+        if (!in_array($roleId, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -637,7 +637,7 @@ class StagingTicketController extends Controller
     public function statistics()
     {
         $sessionUser = session('user');
-        if (!$sessionUser || !in_array($sessionUser['role']['id'], array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
+        if (!$sessionUser || !in_array($sessionUser['role']['id'], array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 

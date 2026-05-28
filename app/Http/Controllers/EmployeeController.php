@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Enums\RoleId;
 use App\Models\Employee;
 use App\Models\EmployeeBasicData;
 
@@ -450,26 +451,29 @@ class EmployeeController extends Controller
         DB::beginTransaction();
 
         try {
-            // Create employee (password disimpan di auth_users, bukan di tabel employee)
-            $defaultRoleId = $request->role ?? 2;
+            // Create employee — default primary role: EC User (3)
             $employeeId = DB::table('employee')->insertGetId([
                 'eci'       => $request->eci,
-                'role_id'   => $defaultRoleId,
+                'role_id'   => RoleId::EC_USER->value,
                 'is_active' => 1,
             ]);
 
-            // Insert default role into pivot table
-            DB::table('employee_role_assignment')->insertOrIgnore([
-                'employee_id' => $employeeId,
-                'role_id'     => $defaultRoleId,
-                'created_at'  => now(),
-                'updated_at'  => now(),
-            ]);
+            // Assign: User System Registered + EC User (keduanya wajib untuk bisa login)
+            $userSystemRegisteredId = DB::table('employee_role')->where('name', 'User System Registered')->value('id');
+            $now = now();
+            foreach (array_filter([$userSystemRegisteredId, RoleId::EC_USER->value]) as $roleId) {
+                DB::table('employee_role_assignment')->insertOrIgnore([
+                    'employee_id' => $employeeId,
+                    'role_id'     => $roleId,
+                    'created_at'  => $now,
+                    'updated_at'  => $now,
+                ]);
+            }
 
             Log::info('Employee record created', [
                 'employee_id' => $employeeId,
                 'eci' => $request->eci,
-                'role_id' => $request->role ?? 2
+                'role_id' => RoleId::EC_USER->value
             ]);
 
             // Create basic data
@@ -575,6 +579,77 @@ class EmployeeController extends Controller
                 'success' => false,
                 'message' => 'Failed to create employee'
             ], 500);
+        }
+    }
+
+    /**
+     * GET /api/employees/{id}/header
+     * Returns fields shown in the profile header card for AJAX refresh.
+     */
+    public function headerData($id)
+    {
+        try {
+            $row = DB::table('employee as e')
+                ->leftJoin('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
+                ->leftJoin('employee_address as ea', function ($j) {
+                    $j->on('e.employee_id', '=', 'ea.employee_id')
+                      ->where('ea.is_primary', 1);
+                })
+                ->where('e.employee_id', $id)
+                ->select(
+                    'e.eci', 'e.is_active',
+                    'eb.first_name', 'eb.last_name', 'eb.position',
+                    'eb.department', 'eb.division', 'eb.since_date',
+                    'eb.block', 'eb.deletion_flag',
+                    'ea.email_personal', 'ea.cell_phone', 'ea.telephone'
+                )
+                ->first();
+
+            if (!$row) {
+                return response()->json(['success' => false, 'message' => 'Employee not found'], 404);
+            }
+
+            $firstName = $row->first_name ?? '';
+            $lastName  = $row->last_name  ?? '';
+            $initials  = strtoupper(substr($firstName, 0, 1) . substr($lastName, 0, 1)) ?: 'NA';
+
+            if (!empty($row->deletion_flag)) {
+                $statusClass = 'bg-red-100 text-red-800';
+                $statusLabel = 'Flagged for Deletion';
+            } elseif (!empty($row->block)) {
+                $statusClass = 'bg-yellow-100 text-yellow-800';
+                $statusLabel = 'Blocked';
+            } elseif ($row->is_active) {
+                $statusClass = 'bg-green-100 text-green-800';
+                $statusLabel = 'Active';
+            } else {
+                $statusClass = 'bg-gray-100 text-gray-800';
+                $statusLabel = 'Inactive';
+            }
+
+            $sinceDate = $row->since_date
+                ? \Carbon\Carbon::parse($row->since_date)->format('d M Y')
+                : '';
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'initials'       => $initials,
+                    'full_name'      => trim("$firstName $lastName") ?: 'N/A',
+                    'position'       => $row->position        ?? '',
+                    'eci'            => $row->eci             ?? '',
+                    'email_personal' => $row->email_personal  ?? '',
+                    'phone'          => $row->cell_phone ?? $row->telephone ?? '',
+                    'department'     => $row->department      ?? '',
+                    'division'       => $row->division        ?? '',
+                    'since_date'     => $sinceDate,
+                    'status_label'   => $statusLabel,
+                    'status_class'   => $statusClass,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Employee headerData error', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to load header data'], 500);
         }
     }
 

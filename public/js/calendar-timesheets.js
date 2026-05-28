@@ -1659,6 +1659,8 @@ function closeTimesheetModal() {
     const modal = document.getElementById('timesheetModal');
     if (modal) modal.classList.add('hidden');
     document.body.style.overflow = 'auto';
+    const saveBtn = document.getElementById('btnSaveTimesheet');
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Timesheet'; }
 }
 
 function editTimesheet(id) {
@@ -2175,6 +2177,7 @@ async function handleFormSubmit(e) {
     
     if (!employeeId) {
         showNotification('Session error: gagal mendapatkan data user. Silakan refresh halaman.', 'error');
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Timesheet'; }
         return;
     }
     

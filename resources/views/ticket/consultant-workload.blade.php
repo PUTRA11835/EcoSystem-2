@@ -257,26 +257,14 @@
     };
 
     const STATUS_BADGE = {
-        open: {
-            text: 'Open',
-            cls: 'bg-blue-100 text-blue-700'
-        },
-        in_progress: {
-            text: 'In Progress',
-            cls: 'bg-yellow-100 text-yellow-700'
-        },
-        hold: {
-            text: 'Hold',
-            cls: 'bg-orange-100 text-orange-700'
-        },
-        reply: {
-            text: 'Reply',
-            cls: 'bg-purple-100 text-purple-700'
-        },
-        wait_to_close: {
-            text: 'Wait Close',
-            cls: 'bg-teal-100 text-teal-700'
-        },
+        open:                    { text: 'Open',                    cls: 'bg-blue-100 text-blue-700' },
+        inprocess:               { text: 'Inprocess',               cls: 'bg-yellow-100 text-yellow-700' },
+        waiting_on_customer:     { text: 'Waiting Customer',        cls: 'bg-amber-100 text-amber-700' },
+        waiting_on_3rd_party:    { text: 'Waiting 3rd Party',       cls: 'bg-indigo-100 text-indigo-700' },
+        waiting_to_confirmation: { text: 'Waiting Confirmation',    cls: 'bg-teal-100 text-teal-700' },
+        hold:                    { text: 'Hold',                    cls: 'bg-orange-100 text-orange-700' },
+        cancelled:               { text: 'Cancelled',               cls: 'bg-gray-100 text-gray-500' },
+        closed:                  { text: 'Closed',                  cls: 'bg-green-100 text-green-700' },
     };
 
     const PRIORITY_CLS = {
@@ -403,7 +391,7 @@
     }
 
     function calcInProgress(c) {
-        const tickets = c.tickets.filter(t => t.status === 'in_progress');
+        const tickets = c.tickets.filter(t => t.status === 'inprocess');
         let allocMd = 0,
             effectiveMd = 0,
             remainMd = 0;
@@ -488,7 +476,7 @@
     }
 
     function consultantRows(c) {
-        const visibleTickets = c.tickets.filter(t => t.status === 'in_progress');
+        const visibleTickets = c.tickets.filter(t => t.status === 'inprocess');
 
         // Recalculate main row values from visible tickets (ticket-level alloc/add/remain)
         let totalAllocMdMain = 0,
@@ -616,9 +604,9 @@
             cls: 'bg-gray-100 text-gray-600'
         };
         const prCls = PRIORITY_CLS[t.ticket_priority] ?? 'bg-gray-100 text-gray-600';
-        const isPic = t.role_in_ticket === 'pic';
-        const roleCls = isPic ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-sky-100 text-sky-700 border border-sky-200';
-        const roleLabel = isPic ? 'PIC' : 'Member';
+        const isTicketLead = t.role_in_ticket === 'pic';
+        const roleCls = isTicketLead ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-sky-100 text-sky-700 border border-sky-200';
+        const roleLabel = isTicketLead ? 'Ticket Lead' : 'Member';
 
         const ticketAllocMd = ticketTotalMd(t);
         const ticketAddMd = ticketTotalAddMd(t);

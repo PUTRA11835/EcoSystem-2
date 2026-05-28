@@ -72,7 +72,7 @@ class ReportingController extends Controller
             $employeeId    = (int) ($sessionUser['id'] ?? 0);
 
             // Only RPMO can close globally via the new system
-            if ($currentRoleId !== RoleId::RPMO->value) {
+            if ($currentRoleId !== RoleId::DELIVERY_RPMO_HEAD->value) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Period closing is now managed from the Period Management page (RPMO only).',
@@ -131,7 +131,7 @@ class ReportingController extends Controller
                     DB::raw('COALESCE(timesheets.md_consumed, 0) as md_consumed')
                 );
 
-            if ($currentRoleId !== RoleId::ADMIN->value && $currentRoleId !== RoleId::HEAD_OF_SUPPORT->value) {
+            if ($currentRoleId !== RoleId::EC_ADMINISTRATOR->value && $currentRoleId !== RoleId::DELIVERY_SUPPORT_HEAD->value) {
                 $query->where('timesheets.employee_id', $currentEmployeeId);
             }
 
@@ -238,7 +238,7 @@ class ReportingController extends Controller
             $currentEmployeeId = $sessionUser['id'] ?? null;
             $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
 
-            if (!in_array($currentRoleId, [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value])) {
+            if (!in_array($currentRoleId, [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
                 abort(403, 'Access denied. Only Admins and Head of Support can export reports.');
             }
 
@@ -366,7 +366,7 @@ class ReportingController extends Controller
         if (!$sessionUser) return redirect()->route('login');
 
         $roleId = (int) ($sessionUser['role']['id'] ?? 0);
-        if (!in_array($roleId, [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value])) {
+        if (!in_array($roleId, [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
             abort(403, 'Access denied. Only Admins and Head of Support can view the MD recap.');
         }
 
@@ -381,7 +381,7 @@ class ReportingController extends Controller
             $sessionUser   = session('user');
             $currentRoleId = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
 
-            if (!in_array($currentRoleId, [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value])) {
+            if (!in_array($currentRoleId, [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
                 return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
             }
 
@@ -434,7 +434,7 @@ class ReportingController extends Controller
             $sessionUser   = session('user');
             $currentRoleId = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
 
-            if (!in_array($currentRoleId, [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value])) {
+            if (!in_array($currentRoleId, [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
                 abort(403, 'Access denied. Only Admins and Head of Support can export the MD recap.');
             }
 

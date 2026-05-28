@@ -13,7 +13,7 @@
         </div>
 
         <div class="flex items-center gap-3">
-            @if($user->role->role_id === \App\Enums\RoleId::EMPLOYEE->value)
+            @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value)
             <div class="inline-flex bg-gray-100 rounded-xl p-1">
                 <button onclick="toggleView('my')" id="btnViewMy" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
                     My Tickets
@@ -24,7 +24,7 @@
             </div>
             @endif
 
-            @if($user->role->role_id === \App\Enums\RoleId::HELPDESK->value)
+            @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_HELPDESK->value)
             <div class="inline-flex bg-gray-100 rounded-xl p-1">
                 <button onclick="toggleView('all')" id="btnViewAllHd" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
                     <i class="fas fa-list-check text-xs mr-1"></i> All Tickets
@@ -35,24 +35,24 @@
             </div>
             @endif
 
-            @if($user->role->role_id === \App\Enums\RoleId::SUPPORT_MANAGER->value)
+            @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value)
             <div class="inline-flex bg-gray-100 rounded-xl p-1">
-                <button onclick="toggleView('all')" id="btnViewAllHd" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
-                    <i class="fas fa-list-check text-xs mr-1"></i> All Tickets
+                <button onclick="toggleView('all')" id="btnViewAllSm" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
+                    <i class="fas fa-list-check text-xs mr-1"></i> All Ticket
                 </button>
-                <button onclick="toggleView('unassigned')" id="btnViewUnassigned" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
-                    <i class="fas fa-user-clock text-xs mr-1"></i> Unassigned
+                <button onclick="toggleView('my')" id="btnViewMySm" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200">
+                    <i class="fas fa-user text-xs mr-1"></i> My Ticket
                 </button>
             </div>
             @endif
 
-            @if($user->role->role_id === \App\Enums\RoleId::ADMIN->value)
+            @if($user->role->role_id === \App\Enums\RoleId::EC_ADMINISTRATOR->value)
             <button onclick="openCreateTicketModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Create Ticket
             </button>
             @endif
 
-            @if(in_array($user->role->role_id, [\App\Enums\RoleId::ADMIN->value, \App\Enums\RoleId::HEAD_OF_SUPPORT->value, \App\Enums\RoleId::HELPDESK->value]))
+            @if(in_array($user->role->role_id, [\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value, \App\Enums\RoleId::DELIVERY_HELPDESK->value]))
             <a href="{{ route('ticket.export') }}"
                class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-green-600">
@@ -81,25 +81,25 @@
                 <p class="text-xs font-medium text-gray-500 mb-1">Total</p>
                 <p class="text-2xl font-bold text-gray-900" id="totalCount">0</p>
             </div>
-            <div id="filterSupport" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('sent it to support')">
-                <p class="text-xs font-medium text-gray-500 mb-1">Sent to Support</p>
-                <p class="text-2xl font-bold text-gray-900" id="supportCount">0</p>
+            <div id="filterOpen" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('open')">
+                <p class="text-xs font-medium text-gray-500 mb-1">Open</p>
+                <p class="text-2xl font-bold text-gray-900" id="openCount">0</p>
             </div>
-            <div id="filterInProcess" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('in process')">
-                <p class="text-xs font-medium text-gray-500 mb-1">In Process</p>
-                <p class="text-2xl font-bold text-gray-900" id="processCount">0</p>
+            <div id="filterInprocess" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('inprocess')">
+                <p class="text-xs font-medium text-gray-500 mb-1">Inprocess</p>
+                <p class="text-2xl font-bold text-gray-900" id="inprocessCount">0</p>
             </div>
-            <div id="filterAuthorAction" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('author action')">
-                <p class="text-xs font-medium text-gray-500 mb-1">Author Action</p>
-                <p class="text-2xl font-bold text-gray-900" id="authorCount">0</p>
+            <div id="filterWaitingCustomer" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('waiting_on_customer')">
+                <p class="text-xs font-medium text-gray-500 mb-1">Waiting Customer</p>
+                <p class="text-2xl font-bold text-gray-900" id="waitingCustomerCount">0</p>
             </div>
-            <div id="filterProposed" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('proposed solution')">
-                <p class="text-xs font-medium text-gray-500 mb-1">Proposed</p>
-                <p class="text-2xl font-bold text-gray-900" id="proposedCount">0</p>
+            <div id="filterWaiting3rd" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('waiting_on_3rd_party')">
+                <p class="text-xs font-medium text-gray-500 mb-1">Waiting 3rd Party</p>
+                <p class="text-2xl font-bold text-gray-900" id="waiting3rdCount">0</p>
             </div>
-            <div id="filterSAP" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('sent in to SAP')">
-                <p class="text-xs font-medium text-gray-500 mb-1">Sent to SAP</p>
-                <p class="text-2xl font-bold text-gray-900" id="sapCount">0</p>
+            <div id="filterWaitingConfirm" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('waiting_to_confirmation')">
+                <p class="text-xs font-medium text-gray-500 mb-1">Waiting Confirm</p>
+                <p class="text-2xl font-bold text-gray-900" id="waitingConfirmCount">0</p>
             </div>
             <div id="filterClosed" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('closed')">
                 <p class="text-xs font-medium text-gray-500 mb-1">Closed</p>
@@ -219,11 +219,11 @@
                                 </div>
                             </div>
                         </th>
-                        {{-- PIC: column filter dropdown --}}
+                        {{-- Ticket Lead: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
                             <div class="custom-dd relative w-full" id="ddColFilterPic" data-fixed="true" data-onchange="applyColFilter" data-searchable="true">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                    <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">PIC</span>
+                                    <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Ticket Lead</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                                 </button>
                                 <input type="hidden" id="colFilterPic" value="">
@@ -273,33 +273,15 @@
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                                 </button>
                                 <input type="hidden" id="colFilterStatus" value="">
-                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:160px;">
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="open">Open</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="in_progress">In Progress</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="hold">Hold</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="wait_to_close">Wait to Close</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="cancel">Cancel</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="closed">Closed</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="reply">Reply</button>
-                                </div>
-                            </div>
-                        </th>
-                        {{-- JARVIES STATUS: column filter dropdown --}}
-                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:150px;">
-                            <div class="custom-dd relative w-full" id="ddColFilterJarvies" data-fixed="true" data-onchange="applyColFilter">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                    <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Jarvies Status</span>
-                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
-                                </button>
-                                <input type="hidden" id="colFilterJarvies" value="">
                                 <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:200px;">
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="sent it to support">To Support</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="in process">In Process</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="author action">Author Action</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="proposed solution">Proposed Solution</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="sent in to SAP">Sent to SAP</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="open">Open</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="inprocess">Inprocess</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="waiting_on_customer">Waiting on Customer</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="waiting_on_3rd_party">Waiting on 3rd Party</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="waiting_to_confirmation">Waiting to Confirmation</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="hold">Hold</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="cancelled">Cancelled</button>
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="closed">Closed</button>
                                 </div>
                             </div>
@@ -359,7 +341,7 @@
 </div>
 
 <!-- Create Ticket Modal (Admin) -->
-@if($user->role->role_id === \App\Enums\RoleId::ADMIN->value)
+@if($user->role->role_id === \App\Enums\RoleId::EC_ADMINISTRATOR->value)
 <div id="createTicketModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-hidden">
     <div class="h-full flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl">
@@ -460,6 +442,8 @@ thead th.th-sortable:hover { background: #f3f4f6; }
 #btnViewAll.active, #btnViewMy.active { background: white; color: #111827; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 #btnViewAllHd, #btnViewUnassigned { background: transparent; color: #6b7280; }
 #btnViewAllHd.active, #btnViewUnassigned.active { background: #991b1b; color: white; box-shadow: 0 1px 3px rgba(153,27,27,0.3); }
+#btnViewAllSm, #btnViewMySm { background: transparent; color: #6b7280; }
+#btnViewAllSm.active, #btnViewMySm.active { background: #991b1b; color: white; box-shadow: 0 1px 3px rgba(153,27,27,0.3); }
 
 /* Table rows */
 #ticketsListBody tr { cursor: pointer; transition: background 0.15s; }
@@ -542,30 +526,32 @@ thead th.th-sortable:hover { background: #f3f4f6; }
     let currentPage = 1;
     let totalItems = 0;
     let totalPages = 0;
-    let userRole              = {{ $user->role->role_id ?? 0 }};
-    let currentEmployeeId     = {{ $currentEmployeeId ?? 'null' }};
-    const HELPDESK_ROLE       = {{ \App\Enums\RoleId::HELPDESK->value }};
-    const SUPPORT_MANAGER_ROLE = {{ \App\Enums\RoleId::SUPPORT_MANAGER->value }};
-    // Roles that use the All/Unassigned toggle (see all org tickets)
-    const STAFF_TOGGLE_ROLES   = [HELPDESK_ROLE, SUPPORT_MANAGER_ROLE];
-    let currentView = userRole === {{ \App\Enums\RoleId::EMPLOYEE->value }} ? 'my'
-                    : STAFF_TOGGLE_ROLES.includes(userRole) ? 'all'
-                    : 'all';
+    let userRole                      = {{ $user->role->role_id ?? 0 }};
+    let currentEmployeeId             = {{ $currentEmployeeId ?? 'null' }};
+    const EC_ADMINISTRATOR_ROLE       = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
+    const DELIVERY_SUPPORT_USER_ROLE  = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};
+    const EC_USER_ROLE                = {{ \App\Enums\RoleId::EC_USER->value }};
+    const HELPDESK_ROLE               = {{ \App\Enums\RoleId::DELIVERY_HELPDESK->value }};
+    const SUPPORT_MANAGER_ROLE        = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value }};
+    // Roles that use the All/Unassigned toggle (Helpdesk only)
+    const STAFF_TOGGLE_ROLES          = [HELPDESK_ROLE];
+    let currentView = (userRole === DELIVERY_SUPPORT_USER_ROLE || userRole === SUPPORT_MANAGER_ROLE) ? 'my' : 'all';
     let sortField = null; // 'last_update' | 'ticket_number' | 'date'
     let sortDir   = null; // 'desc' | 'asc'
 
     function getViewBase() {
         if (STAFF_TOGGLE_ROLES.includes(userRole)) {
-            if (currentView === 'unassigned') return allTickets.filter(t => t.employee_id === null);
+            if (currentView === 'unassigned') return allTickets.filter(t => t.ticket_lead_id === null);
             return allTickets; // 'all' = semua tiket tanpa filter assigned/unassigned
         }
+        // Support Manager: server already returns the correct set per currentView
         return allTickets;
     }
 
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
         loadTickets();
-        if (userRole === 1 || userRole === 2 || STAFF_TOGGLE_ROLES.includes(userRole)) updateViewToggle();
+        if (userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE || STAFF_TOGGLE_ROLES.includes(userRole) || userRole === SUPPORT_MANAGER_ROLE) updateViewToggle();
         startEmailPolling();
     });
 
@@ -602,19 +588,20 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         currentView = view;
         updateViewToggle();
         if (STAFF_TOGGLE_ROLES.includes(userRole)) {
-            // Helpdesk / Support Manager: all tickets already loaded — filter client-side, no re-fetch
+            // Helpdesk: all tickets already loaded — filter client-side for unassigned, no re-fetch
             currentFilter = 'all';
             currentPage   = 1;
             filteredTickets = getViewBase();
             updateStats();
             renderTickets();
         } else {
+            // Support Manager and others: re-fetch from server
             loadTickets();
         }
     }
 
     function updateViewToggle() {
-        if (userRole === 1 || userRole === 2) {
+        if (userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE) {
             const btnAll = document.getElementById('btnViewAll');
             const btnMy  = document.getElementById('btnViewMy');
             if (btnAll && btnMy) {
@@ -630,6 +617,14 @@ thead th.th-sortable:hover { background: #f3f4f6; }
                 btnU.classList.toggle('active', currentView === 'unassigned');
             }
         }
+        if (userRole === SUPPORT_MANAGER_ROLE) {
+            const btnA = document.getElementById('btnViewAllSm');
+            const btnM = document.getElementById('btnViewMySm');
+            if (btnA && btnM) {
+                btnA.classList.toggle('active', currentView === 'all');
+                btnM.classList.toggle('active', currentView === 'my');
+            }
+        }
     }
 
     async function loadTickets() {
@@ -639,8 +634,9 @@ thead th.th-sortable:hover { background: #f3f4f6; }
             document.getElementById('emptyState').classList.add('hidden');
 
             let endpoint = '/api/tickets';
-            if (userRole === 3) endpoint = '/api/tickets/my';
-            else if ((userRole === 1 || userRole === 2) && currentView === 'my') endpoint = '/api/tickets/my';
+            if (userRole === EC_USER_ROLE) endpoint = '/api/tickets/my';
+            else if ((userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE) && currentView === 'my') endpoint = '/api/tickets/my';
+            else if (userRole === SUPPORT_MANAGER_ROLE && currentView === 'my') endpoint = '/api/tickets/my';
 
             const response = await fetch(endpoint, {
                 headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -676,13 +672,13 @@ thead th.th-sortable:hover { background: #f3f4f6; }
 
     function updateStats() {
         const base = getViewBase();
-        document.getElementById('totalCount').textContent    = base.length;
-        document.getElementById('supportCount').textContent  = base.filter(t => t.jarvies_status === 'sent it to support').length;
-        document.getElementById('processCount').textContent  = base.filter(t => t.jarvies_status === 'in process').length;
-        document.getElementById('authorCount').textContent   = base.filter(t => t.jarvies_status === 'author action').length;
-        document.getElementById('proposedCount').textContent = base.filter(t => t.jarvies_status === 'proposed solution').length;
-        document.getElementById('sapCount').textContent      = base.filter(t => t.jarvies_status === 'sent in to SAP').length;
-        document.getElementById('closedCount').textContent   = base.filter(t => t.jarvies_status === 'closed').length;
+        document.getElementById('totalCount').textContent          = base.length;
+        document.getElementById('openCount').textContent           = base.filter(t => t.status === 'open').length;
+        document.getElementById('inprocessCount').textContent      = base.filter(t => t.status === 'inprocess').length;
+        document.getElementById('waitingCustomerCount').textContent = base.filter(t => t.status === 'waiting_on_customer').length;
+        document.getElementById('waiting3rdCount').textContent     = base.filter(t => t.status === 'waiting_on_3rd_party').length;
+        document.getElementById('waitingConfirmCount').textContent  = base.filter(t => t.status === 'waiting_to_confirmation').length;
+        document.getElementById('closedCount').textContent         = base.filter(t => t.status === 'closed').length;
     }
 
     function renderTickets() {
@@ -764,21 +760,14 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         const priorityLabel = ticket.ticket_priority || '—';
 
         const statusMap = {
-            'open':          { label: 'Open',          cls: 'bg-blue-50 text-blue-700' },
-            'in_progress':   { label: 'In Progress',   cls: 'bg-yellow-50 text-yellow-700' },
-            'hold':          { label: 'Hold',           cls: 'bg-orange-50 text-orange-700' },
-            'wait_to_close': { label: 'Wait to Close', cls: 'bg-teal-50 text-teal-700' },
-            'cancel':        { label: 'Cancel',         cls: 'bg-gray-100 text-gray-500' },
-            'closed':        { label: 'Closed',         cls: 'bg-green-50 text-green-700' },
-            'reply':         { label: 'Reply',          cls: 'bg-purple-50 text-purple-700' },
-        };
-        const jarviesMap = {
-            'sent it to support': { label: 'To Support',        cls: 'bg-cyan-50 text-cyan-600' },
-            'in process':         { label: 'In Process',        cls: 'bg-blue-50 text-blue-600' },
-            'author action':      { label: 'Author Action',     cls: 'bg-amber-50 text-amber-600' },
-            'proposed solution':  { label: 'Proposed Solution', cls: 'bg-purple-50 text-purple-600' },
-            'sent in to SAP':     { label: 'Sent to SAP',       cls: 'bg-indigo-50 text-indigo-600' },
-            'closed':             { label: 'Closed',            cls: 'bg-green-50 text-green-700' },
+            'open':                    { label: 'Open',                    cls: 'bg-blue-50 text-blue-700' },
+            'inprocess':               { label: 'Inprocess',               cls: 'bg-yellow-50 text-yellow-700' },
+            'waiting_on_customer':     { label: 'Waiting on Customer',     cls: 'bg-amber-50 text-amber-700' },
+            'waiting_on_3rd_party':    { label: 'Waiting on 3rd Party',    cls: 'bg-indigo-50 text-indigo-700' },
+            'waiting_to_confirmation': { label: 'Waiting to Confirmation', cls: 'bg-teal-50 text-teal-700' },
+            'hold':                    { label: 'Hold',                    cls: 'bg-orange-50 text-orange-700' },
+            'cancelled':               { label: 'Cancelled',               cls: 'bg-gray-100 text-gray-500' },
+            'closed':                  { label: 'Closed',                  cls: 'bg-green-50 text-green-700' },
         };
         const typeColors = {
             'Incident':       'bg-red-50 text-red-600',
@@ -793,8 +782,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
             'Complex': 'bg-rose-50 text-rose-600',
         };
 
-        const sInfo = statusMap[ticket.status]          || { label: ticket.status          || '—', cls: 'bg-gray-100 text-gray-500' };
-        const jInfo = jarviesMap[ticket.jarvies_status] || { label: ticket.jarvies_status  || '—', cls: 'bg-gray-100 text-gray-500' };
+        const sInfo = statusMap[ticket.status] || { label: ticket.status || '—', cls: 'bg-gray-100 text-gray-500' };
         const typeLabel = ticket.ticket_type || '—';
         const typeCls   = typeColors[ticket.ticket_type] || 'bg-gray-100 text-gray-500';
 
@@ -849,7 +837,6 @@ thead th.th-sortable:hover { background: #f3f4f6; }
             ${cell(badge(priorityLabel, priorityClass))}
             ${ticket.scale ? cell(badge(ticket.scale, scaleColors[ticket.scale] || 'bg-gray-100 text-gray-500')) : dash()}
             ${cell(badge(sInfo.label, sInfo.cls))}
-            ${cell(ticket.jarvies_status ? badge(jInfo.label, jInfo.cls) : '<span class="text-gray-300">—</span>')}
             ${cell(ticket.ticket_type ? badge(typeLabel, typeCls) : '—')}
             ${dash()}
             ${cell(mandays !== '—' ? `<span class="font-medium">${mandays}</span>` : '—')}
@@ -892,25 +879,28 @@ thead th.th-sortable:hover { background: #f3f4f6; }
 
     function filterTickets(status) {
         currentFilter = status;
-        ['filterAll', 'filterSupport', 'filterInProcess', 'filterAuthorAction', 'filterProposed', 'filterSAP', 'filterClosed'].forEach(id => {
+        ['filterAll', 'filterOpen', 'filterInprocess', 'filterWaitingCustomer', 'filterWaiting3rd', 'filterWaitingConfirm', 'filterClosed'].forEach(id => {
             const el = document.getElementById(id);
+            if (!el) return;
             el.classList.remove('border-red-600', 'shadow-md', 'border-2');
             el.classList.add('border-gray-200', 'border');
         });
 
         const filterMap = {
-            'all':                'filterAll',
-            'sent it to support': 'filterSupport',
-            'in process':         'filterInProcess',
-            'author action':      'filterAuthorAction',
-            'proposed solution':  'filterProposed',
-            'sent in to SAP':     'filterSAP',
-            'closed':             'filterClosed',
+            'all':                    'filterAll',
+            'open':                   'filterOpen',
+            'inprocess':              'filterInprocess',
+            'waiting_on_customer':    'filterWaitingCustomer',
+            'waiting_on_3rd_party':   'filterWaiting3rd',
+            'waiting_to_confirmation':'filterWaitingConfirm',
+            'closed':                 'filterClosed',
         };
         if (filterMap[status]) {
             const el = document.getElementById(filterMap[status]);
-            el.classList.remove('border-gray-200', 'border');
-            el.classList.add('border-red-600', 'shadow-md', 'border-2');
+            if (el) {
+                el.classList.remove('border-gray-200', 'border');
+                el.classList.add('border-red-600', 'shadow-md', 'border-2');
+            }
         }
 
         applyAdvancedFilters();
@@ -994,7 +984,6 @@ thead th.th-sortable:hover { background: #f3f4f6; }
             'ddColFilterPriority': 'colFilterPriority',
             'ddColFilterScale':    'colFilterScale',
             'ddColFilterStatus':   'colFilterStatus',
-            'ddColFilterJarvies':  'colFilterJarvies',
             'ddColFilterType':     'colFilterType',
         };
         Object.entries(colDdMap).forEach(([ddId, inputId]) => {
@@ -1015,7 +1004,6 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         const colPriority = document.getElementById('colFilterPriority')?.value || '';
         const colScale    = document.getElementById('colFilterScale')?.value    || '';
         const colStatus   = document.getElementById('colFilterStatus')?.value   || '';
-        const colJarvies  = document.getElementById('colFilterJarvies')?.value  || '';
         const colType     = document.getElementById('colFilterType')?.value     || '';
 
         // Date range filter (from-to inclusive, based on ticket.created_at in Asia/Jakarta)
@@ -1028,13 +1016,12 @@ thead th.th-sortable:hover { background: #f3f4f6; }
         const descKw = (document.getElementById('descFilterInput')?.value || '').trim().toLowerCase();
 
         filteredTickets = getViewBase().filter(ticket => {
-            const matchesCard      = currentFilter === 'all' || ticket.jarvies_status === currentFilter;
+            const matchesCard      = currentFilter === 'all' || ticket.status === currentFilter;
             const matchColCustomer = !colCustomer || (ticket.customer?.customer_name || '').toLowerCase() === colCustomer;
             const matchColPic      = !colPic      || (ticket.employee?.employee_name || '').toLowerCase() === colPic;
             const matchColPriority = !colPriority || ticket.ticket_priority === colPriority;
             const matchColScale    = !colScale    || String(ticket.scale ?? '') === colScale;
             const matchColStatus   = !colStatus   || ticket.status === colStatus;
-            const matchColJarvies  = !colJarvies  || ticket.jarvies_status === colJarvies;
             const matchColType     = !colType     || ticket.ticket_type === colType;
 
             let matchDate = true;
@@ -1052,7 +1039,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
 
             return matchesCard
                 && matchColCustomer && matchColPic && matchColPriority && matchColScale
-                && matchColStatus && matchColJarvies && matchColType
+                && matchColStatus && matchColType
                 && matchDate && matchDesc;
         });
         updateColFilterIndicators();
@@ -1185,8 +1172,8 @@ thead th.th-sortable:hover { background: #f3f4f6; }
     });
 
     function resetFilters() {
-        const colFilterIds = ['colFilterCustomer','colFilterPic','colFilterPriority','colFilterScale','colFilterStatus','colFilterJarvies','colFilterType'];
-        const colDdIds     = ['ddColFilterCustomer','ddColFilterPic','ddColFilterPriority','ddColFilterScale','ddColFilterStatus','ddColFilterJarvies','ddColFilterType'];
+        const colFilterIds = ['colFilterCustomer','colFilterPic','colFilterPriority','colFilterScale','colFilterStatus','colFilterType'];
+        const colDdIds     = ['ddColFilterCustomer','ddColFilterPic','ddColFilterPriority','ddColFilterScale','ddColFilterStatus','ddColFilterType'];
         if (typeof setCustomDropdownValue === 'function') {
             colFilterIds.forEach(id => setCustomDropdownValue(id, ''));
         } else {
@@ -1210,13 +1197,12 @@ thead th.th-sortable:hover { background: #f3f4f6; }
 
     // ── Column Filter Indicators & Customer Populate ──────────────────
     const COL_FILTER_MAP = {
-        customer:       'colFilterCustomer',
-        pic:            'colFilterPic',
-        priority:       'colFilterPriority',
-        scale:          'colFilterScale',
-        status:         'colFilterStatus',
-        jarvies_status: 'colFilterJarvies',
-        type:           'colFilterType',
+        customer: 'colFilterCustomer',
+        pic:      'colFilterPic',
+        priority: 'colFilterPriority',
+        scale:    'colFilterScale',
+        status:   'colFilterStatus',
+        type:     'colFilterType',
     };
 
     function updateColFilterIndicators() {
@@ -1230,7 +1216,7 @@ thead th.th-sortable:hover { background: #f3f4f6; }
     }
 
     // ── Column Sort ────────────────────────────────────────────────────
-    const TICKET_SORT_KEYS = ['last_update', 'ticket_number', 'date', 'customer', 'priority', 'scale', 'status', 'jarvies_status', 'type'];
+    const TICKET_SORT_KEYS = ['last_update', 'ticket_number', 'date', 'customer', 'priority', 'scale', 'status', 'type'];
     const PRIORITY_RANK    = { 'Very High': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
     const SCALE_RANK       = { 'Complex': 3, 'Medium': 2, 'Simple': 1 };
 
@@ -1270,10 +1256,6 @@ thead th.th-sortable:hover { background: #f3f4f6; }
             } else if (key === 'status') {
                 va = (a.status || '').toLowerCase();
                 vb = (b.status || '').toLowerCase();
-                return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-            } else if (key === 'jarvies_status') {
-                va = (a.jarvies_status || '').toLowerCase();
-                vb = (b.jarvies_status || '').toLowerCase();
                 return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
             } else if (key === 'type') {
                 va = (a.ticket_type || '').toLowerCase();

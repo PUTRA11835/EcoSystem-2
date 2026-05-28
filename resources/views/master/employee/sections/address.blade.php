@@ -585,6 +585,7 @@
             if (data.success) {
                 showNotification(isUpdate ? 'Address updated successfully!' : 'Address created successfully!', 'success');
                 loadAddresses();
+                if (typeof window.refreshHeader === 'function') window.refreshHeader({{ $employeeId }});
                 if (isUpdate) {
                     loadAddressToForm(addressId);
                 } else {
@@ -709,6 +710,7 @@
                 closeConfirmDeleteAddress();
                 loadAddresses();
                 clearAddressForm();
+                if (typeof window.refreshHeader === 'function') window.refreshHeader({{ $employeeId }});
             } else {
                 showNotification('Failed to delete address: ' + (data.message || 'Unknown error'), 'error');
             }

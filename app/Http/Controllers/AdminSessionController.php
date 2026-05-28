@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -10,7 +11,7 @@ class AdminSessionController extends Controller
 {
     private function assertAdmin(): bool
     {
-        return (int) session('user.role.id') === 1;
+        return (int) session('user.role.id') === RoleId::EC_ADMINISTRATOR->value;
     }
 
     public function index(Request $request)

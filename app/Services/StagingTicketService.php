@@ -242,7 +242,6 @@ class StagingTicketService
                 'ticket_type'     => $ticketType,
                 'scale'           => $finalScale,
                 'status'          => 'open',
-                'jarvies_status'  => 'sent it to support',
                 'channel'         => $staging->channel,
                 'email_thread_id' => $staging->email_thread_id,
                 'cc_emails'       => $ccEmails,              // checklist G

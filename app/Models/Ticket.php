@@ -17,14 +17,14 @@ class Ticket extends Model
         'ticket_number',
         'customer_id',
         'end_customer_id',
-        'employee_id',
+        'ticket_lead_id',
+        'pic',
         'description',
         'start_date',
         'end_date',
         'ticket_priority',
         'ticket_type',
         'scale',
-        'jarvies_status',
         'status',
         'wait_close',
         'folder',
@@ -84,10 +84,10 @@ class Ticket extends Model
         return $this->belongsTo(Customer::class, 'end_customer_id', 'customer_id');
     }
 
-    // Relasi ke Employee (PIC - Person In Charge)
-    public function employee()
+    // Relasi ke Employee (Ticket Lead)
+    public function ticketLead()
     {
-        return $this->belongsTo(Employee::class, 'employee_id', 'employee_id');
+        return $this->belongsTo(Employee::class, 'ticket_lead_id', 'employee_id');
     }
 
     public function ticketMembers()
@@ -109,6 +109,7 @@ class Ticket extends Model
 
 
     // Relasi Many-to-Many ke Employee (Support Members/Pendamping)
+    /** Active members only — digunakan di semua logika bisnis dan tampilan ticket list */
     public function members()
     {
         return $this->belongsToMany(
@@ -118,7 +119,20 @@ class Ticket extends Model
             'employee_id',
             'ticket_id',
             'employee_id'
-        )->withTimestamps();
+        )->withTimestamps()->withPivot('is_active')->wherePivot('is_active', true);
+    }
+
+    /** Semua members (aktif + nonaktif) — digunakan untuk manajemen member di ticket detail */
+    public function allMembers()
+    {
+        return $this->belongsToMany(
+            Employee::class,
+            'ticket_member',
+            'ticket_id',
+            'employee_id',
+            'ticket_id',
+            'employee_id'
+        )->withTimestamps()->withPivot('is_active');
     }
 
     // Scope untuk filter berdasarkan status
@@ -129,7 +143,7 @@ class Ticket extends Model
 
     public function scopeInProgress($query)
     {
-        return $query->where('status', 'in_progress');
+        return $query->where('status', 'inprocess');
     }
 
     public function scopeClosed($query)
@@ -147,14 +161,15 @@ class Ticket extends Model
     public function getStatusLabelAttribute()
     {
         return match ($this->status) {
-            'open' => 'Open',
-            'in_progress' => 'In Progress',
-            'hold' => 'Hold',
-            'cancel' => 'Cancelled',
-            'closed' => 'Closed',
-            'reply' => 'Reply',
-            'wait_to_close' => 'Wait to Close',
-            default => 'Unknown'
+            'open'                    => 'Open',
+            'inprocess'               => 'Inprocess',
+            'waiting_on_customer'     => 'Waiting on Customer',
+            'waiting_on_3rd_party'    => 'Waiting on 3rd Party',
+            'waiting_to_confirmation' => 'Waiting to Confirmation',
+            'hold'                    => 'Hold',
+            'cancelled'               => 'Cancelled',
+            'closed'                  => 'Closed',
+            default                   => ucfirst($this->status ?? 'Unknown'),
         };
     }
 

@@ -31,10 +31,13 @@ use App\Http\Controllers\EmailController;
 use App\Http\Controllers\StagingTicketController;
 use App\Http\Controllers\MandaysController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AdminSessionController;
 use App\Http\Controllers\AdminJobController;
 use App\Http\Controllers\AdminBackupController;
+use App\Http\Controllers\AdminNotificationSoundController;
+use App\Http\Controllers\TicketMigrationController;
 
 // ==================== HEALTH CHECK (public, no auth) ====================
 Route::get('/health', function () {
@@ -86,6 +89,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/roles', [EmployeeController::class, 'getRoles']);
         Route::get('/mentionable', [EmployeeController::class, 'getMentionable']);
         Route::get('/{id}', [EmployeeController::class, 'getDetail']);
+        Route::get('/{id}/header', [EmployeeController::class, 'headerData']);
         Route::put('/{id}', [EmployeeController::class, 'update']);
         Route::delete('/{id}', [EmployeeController::class, 'destroy']);
         Route::patch('/{id}/change-password', [EmployeeController::class, 'changePassword']);
@@ -191,6 +195,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/top-level', [CustomerController::class, 'topLevel']);
         Route::get('/grouping-data', [CustomerController::class, 'getGroupingData']);
         Route::get('/{id}', [CustomerController::class, 'show']);
+        Route::get('/{id}/header', [CustomerController::class, 'headerData']);
         Route::put('/{id}', [CustomerController::class, 'update']);
         Route::delete('/{id}', [CustomerController::class, 'destroy']);
         Route::post('/{id}/soft-delete', [CustomerController::class, 'softDelete']);
@@ -298,7 +303,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/statistics', [TicketController::class, 'statistics']);
         Route::get('/pending-confirmations', [TicketController::class, 'pendingConfirmations']);
         Route::get('/pending-member-changes', [TicketController::class, 'pendingMemberChanges']);
-        Route::get('/available-pics', [TicketController::class, 'getAvailablePics']);
+        Route::get('/available-ticket-leads', [TicketController::class, 'getAvailableTicketLeads']);
         Route::post('/', [TicketController::class, 'store']);
 
         // Routes with specific names
@@ -310,7 +315,8 @@ Route::middleware(['web'])->group(function () {
         Route::get('/{id}', [TicketController::class, 'show']);
         Route::get('/{id}/mandays-history', [TicketController::class, 'getMandaysHistory']);
         Route::post('/{id}/take', [TicketController::class, 'takeTicket']);
-        Route::post('/{id}/assign-pic', [TicketController::class, 'assignPic']);
+        Route::post('/{id}/assign-ticket-lead', [TicketController::class, 'assignTicketLead']);
+        Route::patch('/{id}/pic', [TicketController::class, 'updatePic']);
         Route::put('/{id}', [TicketController::class, 'update']);
         Route::put('/{id}/update-status', [TicketController::class, 'updateTicketStatus']);
         Route::put('/{id}/update-mandays', [TicketController::class, 'updateManDays']);
@@ -418,6 +424,14 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/{id}',       [NotificationController::class, 'deleteOne']);
     });
 
+    // ==================== WEB PUSH ROUTES ====================
+    Route::prefix('push')->group(function () {
+        Route::get('/vapid-public-key', [PushSubscriptionController::class, 'vapidPublicKey']);
+        Route::post('/subscribe',       [PushSubscriptionController::class, 'subscribe']);
+        Route::delete('/unsubscribe',   [PushSubscriptionController::class, 'unsubscribe']);
+        Route::post('/test',            [PushSubscriptionController::class, 'test']);
+    });
+
     // ==================== EMAIL ROUTES ====================
     Route::prefix('email')->group(function () {
         Route::get('/inbox', [EmailController::class, 'inbox']);
@@ -474,6 +488,8 @@ Route::middleware(['web'])->group(function () {
         // Import
         Route::post('/import/employees', [AdminBackupController::class, 'importEmployees']);
         Route::post('/import/customers', [AdminBackupController::class, 'importCustomers']);
+        Route::post('/import/tickets/zip', [TicketMigrationController::class, 'importZip']);
+        Route::post('/import/tickets/from-api', [TicketMigrationController::class, 'importFromApi']);
 
         // Failed Job Monitor
         Route::get('/failed-jobs', [AdminJobController::class, 'index']);
@@ -483,6 +499,9 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/failed-jobs/{uuid}', [AdminJobController::class, 'destroy']);
         Route::delete('/failed-jobs', [AdminJobController::class, 'clearAll']);
     });
+
+    // Notification sounds list (accessible to all authenticated users)
+    Route::get('/notification-sounds', [AdminNotificationSoundController::class, 'list']);
 
     }); // end auth.session protected group
 });

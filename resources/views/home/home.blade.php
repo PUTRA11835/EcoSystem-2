@@ -4,8 +4,8 @@
 @section('page-title', 'Dashboard')
 
 @section('content')
-@if(($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) == 2)
-{{-- ===================== ROLE 2 — DELIVERY SUPPORT USER DASHBOARD ===================== --}}
+@if(($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) == \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value)
+{{-- ===================== DELIVERY SUPPORT USER DASHBOARD ===================== --}}
 <div class="space-y-6">
 
     {{-- Ticket Status Stats --}}
@@ -13,14 +13,15 @@
         @php
             $stats = $data['ticket_stats'] ?? [];
             $statCards = [
-                ['label' => 'Total',          'key' => 'total',         'color' => 'text-gray-900'],
-                ['label' => 'Open',           'key' => 'open',          'color' => 'text-blue-600'],
-                ['label' => 'In Progress',    'key' => 'in_progress',   'color' => 'text-purple-600'],
-                ['label' => 'Hold',           'key' => 'hold',          'color' => 'text-amber-500'],
-                ['label' => 'Cancel',         'key' => 'cancel',        'color' => 'text-red-400'],
-                ['label' => 'Closed',         'key' => 'closed',        'color' => 'text-green-600'],
-                ['label' => 'Reply',          'key' => 'reply',         'color' => 'text-indigo-600'],
-                ['label' => 'Wait to Close',  'key' => 'wait_to_close', 'color' => 'text-orange-500'],
+                ['label' => 'Total',            'key' => 'total',                   'color' => 'text-gray-900'],
+                ['label' => 'Open',             'key' => 'open',                    'color' => 'text-blue-600'],
+                ['label' => 'Inprocess',        'key' => 'inprocess',               'color' => 'text-yellow-600'],
+                ['label' => 'Wait Customer',    'key' => 'waiting_on_customer',     'color' => 'text-amber-500'],
+                ['label' => 'Wait 3rd Party',   'key' => 'waiting_on_3rd_party',    'color' => 'text-indigo-600'],
+                ['label' => 'Wait Confirm',     'key' => 'waiting_to_confirmation', 'color' => 'text-teal-600'],
+                ['label' => 'Hold',             'key' => 'hold',                    'color' => 'text-orange-500'],
+                ['label' => 'Cancelled',        'key' => 'cancelled',               'color' => 'text-red-400'],
+                ['label' => 'Closed',           'key' => 'closed',                  'color' => 'text-green-600'],
             ];
         @endphp
         @foreach($statCards as $card)
@@ -71,24 +72,26 @@
                 @foreach($recentTickets->take(5) as $ticket)
                 @php
                     $statusColors = [
-                        'open'          => 'bg-blue-100 text-blue-700',
-                        'in_progress'   => 'bg-purple-100 text-purple-700',
-                        'closed'        => 'bg-green-100 text-green-700',
-                        'wait_to_close' => 'bg-orange-100 text-orange-700',
-                        'hold'          => 'bg-gray-100 text-gray-600',
-                        'reply'         => 'bg-yellow-100 text-yellow-700',
-                        'cancel'        => 'bg-red-100 text-red-600',
+                        'open'                    => 'bg-blue-100 text-blue-700',
+                        'inprocess'               => 'bg-yellow-100 text-yellow-700',
+                        'waiting_on_customer'     => 'bg-amber-100 text-amber-700',
+                        'waiting_on_3rd_party'    => 'bg-indigo-100 text-indigo-700',
+                        'waiting_to_confirmation' => 'bg-teal-100 text-teal-700',
+                        'hold'                    => 'bg-orange-100 text-orange-700',
+                        'cancelled'               => 'bg-gray-100 text-gray-500',
+                        'closed'                  => 'bg-green-100 text-green-700',
                     ];
                     $statusClass = $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600';
                     $statusLabel = match($ticket->status) {
-                        'open'          => 'Open',
-                        'in_progress'   => 'In Process',
-                        'closed'        => 'Closed',
-                        'wait_to_close' => 'Pending',
-                        'hold'          => 'Hold',
-                        'reply'         => 'Reply',
-                        'cancel'        => 'Cancelled',
-                        default         => ucfirst($ticket->jarvies_status ?? $ticket->status),
+                        'open'                    => 'Open',
+                        'inprocess'               => 'Inprocess',
+                        'waiting_on_customer'     => 'Waiting Customer',
+                        'waiting_on_3rd_party'    => 'Waiting 3rd Party',
+                        'waiting_to_confirmation' => 'Waiting Confirm',
+                        'hold'                    => 'Hold',
+                        'cancelled'               => 'Cancelled',
+                        'closed'                  => 'Closed',
+                        default                   => ucfirst($ticket->status),
                     };
                 @endphp
                 <a href="{{ route('ticket.show', $ticket->ticket_id) }}"
@@ -195,8 +198,8 @@
 </script>
 @endpush
 
-@elseif(($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) == 5)
-{{-- ===================== ROLE 5 — DELIVERY SUPPORT HEAD DASHBOARD ===================== --}}
+@elseif(($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) == \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value)
+{{-- ===================== DELIVERY SUPPORT HEAD DASHBOARD ===================== --}}
 <div class="space-y-6">
 
     {{-- Ticket Status Stats --}}
@@ -204,14 +207,15 @@
         @php
             $stats = $data['ticket_stats'] ?? [];
             $statCards = [
-                ['label' => 'Total',          'key' => 'total',         'color' => 'text-gray-900'],
-                ['label' => 'Open',           'key' => 'open',          'color' => 'text-blue-600'],
-                ['label' => 'In Progress',    'key' => 'in_progress',   'color' => 'text-purple-600'],
-                ['label' => 'Hold',           'key' => 'hold',          'color' => 'text-amber-500'],
-                ['label' => 'Cancel',         'key' => 'cancel',        'color' => 'text-red-400'],
-                ['label' => 'Closed',         'key' => 'closed',        'color' => 'text-green-600'],
-                ['label' => 'Reply',          'key' => 'reply',         'color' => 'text-indigo-600'],
-                ['label' => 'Wait to Close',  'key' => 'wait_to_close', 'color' => 'text-orange-500'],
+                ['label' => 'Total',            'key' => 'total',                   'color' => 'text-gray-900'],
+                ['label' => 'Open',             'key' => 'open',                    'color' => 'text-blue-600'],
+                ['label' => 'Inprocess',        'key' => 'inprocess',               'color' => 'text-yellow-600'],
+                ['label' => 'Wait Customer',    'key' => 'waiting_on_customer',     'color' => 'text-amber-500'],
+                ['label' => 'Wait 3rd Party',   'key' => 'waiting_on_3rd_party',    'color' => 'text-indigo-600'],
+                ['label' => 'Wait Confirm',     'key' => 'waiting_to_confirmation', 'color' => 'text-teal-600'],
+                ['label' => 'Hold',             'key' => 'hold',                    'color' => 'text-orange-500'],
+                ['label' => 'Cancelled',        'key' => 'cancelled',               'color' => 'text-red-400'],
+                ['label' => 'Closed',           'key' => 'closed',                  'color' => 'text-green-600'],
             ];
         @endphp
         @foreach($statCards as $card)
@@ -350,13 +354,14 @@
         @else
         @php
             $statusColors = [
-                'open'          => 'bg-blue-100 text-blue-700',
-                'in_progress'   => 'bg-purple-100 text-purple-700',
-                'closed'        => 'bg-green-100 text-green-700',
-                'wait_to_close' => 'bg-orange-100 text-orange-700',
-                'hold'          => 'bg-gray-100 text-gray-600',
-                'reply'         => 'bg-yellow-100 text-yellow-700',
-                'cancel'        => 'bg-red-100 text-red-600',
+                'open'                    => 'bg-blue-100 text-blue-700',
+                'inprocess'               => 'bg-yellow-100 text-yellow-700',
+                'waiting_on_customer'     => 'bg-amber-100 text-amber-700',
+                'waiting_on_3rd_party'    => 'bg-indigo-100 text-indigo-700',
+                'waiting_to_confirmation' => 'bg-teal-100 text-teal-700',
+                'hold'                    => 'bg-orange-100 text-orange-700',
+                'cancelled'               => 'bg-gray-100 text-gray-500',
+                'closed'                  => 'bg-green-100 text-green-700',
             ];
         @endphp
         {{-- Table Header --}}
@@ -373,14 +378,15 @@
             @php
                 $sCls = $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600';
                 $sLabel = match($ticket->status) {
-                    'open'          => 'Open',
-                    'in_progress'   => 'In Process',
-                    'closed'        => 'Closed',
-                    'wait_to_close' => 'Pending',
-                    'hold'          => 'Hold',
-                    'reply'         => 'Reply',
-                    'cancel'        => 'Cancelled',
-                    default         => ucfirst($ticket->jarvies_status ?? $ticket->status),
+                    'open'                    => 'Open',
+                    'inprocess'               => 'Inprocess',
+                    'waiting_on_customer'     => 'Waiting Customer',
+                    'waiting_on_3rd_party'    => 'Waiting 3rd Party',
+                    'waiting_to_confirmation' => 'Waiting Confirm',
+                    'hold'                    => 'Hold',
+                    'cancelled'               => 'Cancelled',
+                    'closed'                  => 'Closed',
+                    default                   => ucfirst($ticket->status),
                 };
             @endphp
             <a href="{{ route('ticket.show', $ticket->ticket_id) }}"
@@ -727,13 +733,14 @@
         @else
         @php
             $statusColors = [
-                'open'          => 'bg-blue-100 text-blue-700',
-                'in_progress'   => 'bg-purple-100 text-purple-700',
-                'closed'        => 'bg-green-100 text-green-700',
-                'wait_to_close' => 'bg-orange-100 text-orange-700',
-                'hold'          => 'bg-gray-100 text-gray-600',
-                'reply'         => 'bg-yellow-100 text-yellow-700',
-                'cancel'        => 'bg-red-100 text-red-600',
+                'open'                    => 'bg-blue-100 text-blue-700',
+                'inprocess'               => 'bg-yellow-100 text-yellow-700',
+                'waiting_on_customer'     => 'bg-amber-100 text-amber-700',
+                'waiting_on_3rd_party'    => 'bg-indigo-100 text-indigo-700',
+                'waiting_to_confirmation' => 'bg-teal-100 text-teal-700',
+                'hold'                    => 'bg-orange-100 text-orange-700',
+                'cancelled'               => 'bg-gray-100 text-gray-500',
+                'closed'                  => 'bg-green-100 text-green-700',
             ];
         @endphp
         <div class="divide-y divide-gray-50">
@@ -741,14 +748,15 @@
             @php
                 $sCls = $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600';
                 $sLabel = match($ticket->status) {
-                    'open'          => 'Open',
-                    'in_progress'   => 'In Process',
-                    'closed'        => 'Closed',
-                    'wait_to_close' => 'Pending',
-                    'hold'          => 'Hold',
-                    'reply'         => 'Reply',
-                    'cancel'        => 'Cancelled',
-                    default         => ucfirst($ticket->jarvies_status ?? $ticket->status),
+                    'open'                    => 'Open',
+                    'inprocess'               => 'Inprocess',
+                    'waiting_on_customer'     => 'Waiting Customer',
+                    'waiting_on_3rd_party'    => 'Waiting 3rd Party',
+                    'waiting_to_confirmation' => 'Waiting Confirm',
+                    'hold'                    => 'Hold',
+                    'cancelled'               => 'Cancelled',
+                    'closed'                  => 'Closed',
+                    default                   => ucfirst($ticket->status),
                 };
             @endphp
             <a href="{{ route('ticket.show', $ticket->ticket_id) }}"

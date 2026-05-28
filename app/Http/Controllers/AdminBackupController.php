@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -11,7 +12,7 @@ class AdminBackupController extends Controller
 {
     private function assertAdmin(): bool
     {
-        return (int) session('user.role.id') === 1;
+        return (int) session('user.role.id') === RoleId::EC_ADMINISTRATOR->value;
     }
 
     private function backupDisk()
@@ -194,15 +195,20 @@ class AdminBackupController extends Controller
         $rows = DB::table('employee as e')
             ->leftJoin('employee_basic_data as b', 'e.employee_id', '=', 'b.employee_id')
             ->leftJoin('employee_role as r', 'e.role_id', '=', 'r.id')
+            ->leftJoin('employee_identification as ei', function ($join) {
+                $join->on('ei.employee_id', '=', 'e.employee_id')
+                     ->where('ei.identification_type', 'KTP');
+            })
             ->select(
-                'e.employee_id', 'e.eci', 'e.is_active',
-                'r.name as role_name',
-                'b.title', 'b.first_name', 'b.last_name', 'b.nick_name', 'b.gender',
-                'b.birth_date', 'b.birth_place', 'b.marital_status', 'b.religion',
+                'e.eci', 'r.name as role_name', 'e.is_active',
+                'b.title', 'b.nick_name', 'b.gender', 'b.religion',
+                'b.first_name', 'b.last_name',
+                'b.marital_status', 'b.birth_date', 'b.birth_place',
+                'b.personnel_area', 'b.personnel_subarea',
+                'b.employee_group', 'b.employee_subgroup',
                 'b.position', 'b.division', 'b.department',
-                'b.personnel_area', 'b.employee_group', 'b.employee_subgroup',
                 'b.since_date',
-                'e.created_at'
+                'ei.identification_number as nik'
             )
             ->orderBy('e.employee_id')
             ->get();
@@ -216,24 +222,27 @@ class AdminBackupController extends Controller
 
         $callback = function () use ($rows) {
             $handle = fopen('php://output', 'w');
-            // UTF-8 BOM for Excel
             fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
             fputcsv($handle, [
-                'Employee ID', 'ECI', 'Status', 'Role',
-                'Title', 'First Name', 'Last Name', 'Nick Name', 'Gender',
-                'Birth Date', 'Birth Place', 'Marital Status', 'Religion',
-                'Position', 'Division', 'Department',
-                'Personnel Area', 'Employee Group', 'Employee Subgroup',
-                'Since Date', 'Created At',
+                'ECI', 'role', 'status',
+                'title', 'nick_name', 'gender', 'religion',
+                'first_name', 'last_name',
+                'marital_status', 'birth_date', 'birth_place',
+                'personnel_area', 'personnel_subarea',
+                'employee_group', 'employee_subgroup',
+                'position', 'division', 'department',
+                'since_date', 'nik',
             ]);
             foreach ($rows as $r) {
                 fputcsv($handle, [
-                    $r->employee_id, $r->eci, $r->is_active ? 'Active' : 'Inactive', $r->role_name,
-                    $r->title, $r->first_name, $r->last_name, $r->nick_name, $r->gender,
-                    $r->birth_date, $r->birth_place, $r->marital_status, $r->religion,
+                    $r->eci, $r->role_name, $r->is_active ? 'Active' : 'Inactive',
+                    $r->title, $r->nick_name, $r->gender, $r->religion,
+                    $r->first_name, $r->last_name,
+                    $r->marital_status, $r->birth_date, $r->birth_place,
+                    $r->personnel_area, $r->personnel_subarea,
+                    $r->employee_group, $r->employee_subgroup,
                     $r->position, $r->division, $r->department,
-                    $r->personnel_area, $r->employee_group, $r->employee_subgroup,
-                    $r->since_date, $r->created_at,
+                    $r->since_date, $r->nik,
                 ]);
             }
             fclose($handle);
@@ -259,7 +268,7 @@ class AdminBackupController extends Controller
         $query = DB::table('ticket as t')
             ->leftJoin('customer as c',              't.customer_id',   '=', 'c.customer_id')
             ->leftJoin('customer_basic_data as cbd', 'c.customer_id',   '=', 'cbd.customer_id')
-            ->leftJoin('employee as e',              't.employee_id',   '=', 'e.employee_id')
+            ->leftJoin('employee as e',              't.ticket_lead_id',   '=', 'e.employee_id')
             ->leftJoin('employee_basic_data as b',   'e.employee_id',   '=', 'b.employee_id')
             ->whereNull('t.deleted_at')
             ->whereYear('t.created_at', $year);
@@ -390,19 +399,27 @@ class AdminBackupController extends Controller
         $callback = function () {
             $handle = fopen('php://output', 'w');
             fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            // Header columns — snake_case, compatible with both full names and Excel-truncated variants
             fputcsv($handle, [
-                'ECI', 'Status', 'Role',
-                'Title', 'First Name', 'Last Name', 'Nick Name', 'Gender',
-                'Birth Date', 'Birth Place', 'Marital Status', 'Religion',
-                'Position', 'Division', 'Department',
-                'Personnel Area', 'Employee Group', 'Employee Subgroup', 'Since Date',
+                'ECI', 'role', 'status',
+                'title', 'nick_name', 'gender', 'religion',
+                'first_name', 'last_name',
+                'marital_status', 'birth_date', 'birth_place',
+                'personnel_area', 'personnel_subarea',
+                'employee_group', 'employee_subgroup',
+                'position', 'division', 'department',
+                'since_date', 'nik',
             ]);
+            // Example row
             fputcsv($handle, [
-                'ECI001', 'Active', 'Employee',
-                'Mr.', 'John', 'Doe', 'John', 'Male',
-                '1990-01-15', 'Jakarta', 'Single', 'Islam',
+                'ECI001', 'Delivery Support User', 'Active',
+                'Mr.', 'John', 'Male', 'Islam',
+                'John', 'Doe',
+                'Single', '1990-01-15', 'Jakarta',
+                'Area A', 'Sub Area A',
+                'Group 1', 'Subgroup 1',
                 'Consultant', 'IT', 'Support',
-                'Area A', 'Group 1', 'Subgroup 1', '2023-01-01',
+                '2023-01-01', '3201010101900001',
             ]);
             fclose($handle);
         };
@@ -446,7 +463,7 @@ class AdminBackupController extends Controller
     {
         if (!$this->assertAdmin()) return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
 
-        $request->validate(['file' => 'required|file|mimes:csv,txt|max:10240']);
+        $request->validate(['file' => 'required|file|mimes:csv,txt,xlsx|max:20480']);
 
         $handle = fopen($request->file('file')->getRealPath(), 'r');
 
@@ -460,12 +477,57 @@ class AdminBackupController extends Controller
             return response()->json(['success' => false, 'message' => 'File CSV kosong atau tidak valid'], 422);
         }
 
-        $headerMap = array_flip(array_map('trim', $rawHeaders));
+        // Alias map: canonical field => accepted header variants (handles full names,
+        // snake_case, Excel-truncated variants, and old friendly-name format)
+        $aliasMap = [
+            'eci'               => ['eci', 'ECI'],
+            'role'              => ['role', 'Role'],
+            'status'            => ['status', 'Status'],
+            'title'             => ['tit', 'title', 'Title'],
+            'nick_name'         => ['nick_nam', 'nick_name', 'Nick Name'],
+            'gender'            => ['gender', 'Gender'],
+            'religion'          => ['religio', 'religion', 'Religion'],
+            'first_name'        => ['first_name', 'First Name'],
+            'last_name'         => ['last_name', 'Last Name'],
+            'marital_status'    => ['marital_statu', 'marital_status', 'Marital Status'],
+            'birth_date'        => ['birth_da', 'birth_date', 'Birth Date'],
+            'birth_place'       => ['birth_pla', 'birth_place', 'Birth Place'],
+            'personnel_area'    => ['personnel_are', 'personnel_area', 'Personnel Area'],
+            'personnel_subarea' => ['personnel_subare', 'personnel_subarea', 'Personnel Subarea', 'Personnel Sub Area'],
+            'employee_group'    => ['employee_grou', 'employee_group', 'Employee Group'],
+            'employee_subgroup' => ['employee_subgrou', 'employee_subgroup', 'Employee Subgroup'],
+            'position'          => ['position', 'Position'],
+            'division'          => ['division', 'Division'],
+            'department'        => ['department', 'Department'],
+            'since_date'        => ['since_date', 'Since Date'],
+            'nik'               => ['nik', 'NIK', 'nik (identification_type)', 'NIK (identification_type)'],
+        ];
 
-        if (!isset($headerMap['ECI'])) {
-            fclose($handle);
-            return response()->json(['success' => false, 'message' => 'Kolom "ECI" wajib ada di CSV'], 422);
+        // Build colIndex: canonical_field => column index in CSV
+        $colIndex = [];
+        foreach ($aliasMap as $field => $aliases) {
+            foreach ($rawHeaders as $i => $header) {
+                $h = strtolower(trim($header));
+                foreach ($aliases as $alias) {
+                    if (strtolower(trim($alias)) === $h) {
+                        $colIndex[$field] = $i;
+                        break 2;
+                    }
+                }
+            }
         }
+
+        if (!isset($colIndex['eci'])) {
+            fclose($handle);
+            return response()->json(['success' => false, 'message' => 'Kolom "ECI" wajib ada di file'], 422);
+        }
+
+        $row = []; // referenced in closure
+        $get = function (string $field) use ($colIndex, &$row): ?string {
+            if (!isset($colIndex[$field])) return null;
+            $val = trim($row[$colIndex[$field]] ?? '');
+            return $val !== '' ? $val : null;
+        };
 
         $roles    = DB::table('employee_role')->pluck('id', 'name');
         $imported = 0;
@@ -473,48 +535,45 @@ class AdminBackupController extends Controller
         $errors   = [];
         $rowNum   = 1;
 
-        $get = function (string $col, array $row) use ($headerMap): ?string {
-            if (!isset($headerMap[$col])) return null;
-            $val = trim($row[$headerMap[$col]] ?? '');
-            return $val !== '' ? $val : null;
-        };
-
         while (($row = fgetcsv($handle)) !== false) {
             $rowNum++;
             if (count($row) === 1 && trim($row[0]) === '') continue;
 
-            $eci = $get('ECI', $row);
+            $eci = $get('eci');
             if (!$eci) { $errors[] = "Baris {$rowNum}: ECI wajib diisi"; continue; }
 
-            $roleName = $get('Role', $row);
+            $roleName = $get('role');
             $roleId   = $roleName ? ($roles[$roleName] ?? null) : null;
             if ($roleName && !$roleId) {
-                $errors[] = "Baris {$rowNum}: Role '{$roleName}' tidak ditemukan — baris dilewati";
+                $errors[] = "Baris {$rowNum}: Role '{$roleName}' tidak ditemukan";
                 continue;
             }
 
-            $isActive = $get('Status', $row) !== null
-                ? (strtolower($get('Status', $row)) === 'active' ? 1 : 0)
+            $isActive = $get('status') !== null
+                ? (strtolower($get('status')) === 'active' ? 1 : 0)
                 : 1;
 
             $basicData = array_filter([
-                'title'             => $get('Title', $row),
-                'first_name'        => $get('First Name', $row),
-                'last_name'         => $get('Last Name', $row),
-                'nick_name'         => $get('Nick Name', $row),
-                'gender'            => $get('Gender', $row),
-                'birth_date'        => $get('Birth Date', $row),
-                'birth_place'       => $get('Birth Place', $row),
-                'marital_status'    => $get('Marital Status', $row),
-                'religion'          => $get('Religion', $row),
-                'position'          => $get('Position', $row),
-                'division'          => $get('Division', $row),
-                'department'        => $get('Department', $row),
-                'personnel_area'    => $get('Personnel Area', $row),
-                'employee_group'    => $get('Employee Group', $row),
-                'employee_subgroup' => $get('Employee Subgroup', $row),
-                'since_date'        => $get('Since Date', $row),
+                'title'              => $get('title'),
+                'first_name'         => $get('first_name'),
+                'last_name'          => $get('last_name'),
+                'nick_name'          => $get('nick_name'),
+                'gender'             => $get('gender'),
+                'religion'           => $get('religion'),
+                'birth_date'         => $get('birth_date'),
+                'birth_place'        => $get('birth_place'),
+                'marital_status'     => $get('marital_status'),
+                'personnel_area'     => $get('personnel_area'),
+                'personnel_subarea'  => $get('personnel_subarea'),
+                'employee_group'     => $get('employee_group'),
+                'employee_subgroup'  => $get('employee_subgroup'),
+                'position'           => $get('position'),
+                'division'           => $get('division'),
+                'department'         => $get('department'),
+                'since_date'         => $get('since_date'),
             ], fn($v) => $v !== null);
+
+            $nik = $get('nik');
 
             try {
                 $existing = DB::table('employee')->where('eci', $eci)->first();
@@ -526,8 +585,7 @@ class AdminBackupController extends Controller
 
                     if ($basicData) {
                         $basicData['updated_at'] = now();
-                        $exists = DB::table('employee_basic_data')->where('employee_id', $existing->employee_id)->exists();
-                        if ($exists) {
+                        if (DB::table('employee_basic_data')->where('employee_id', $existing->employee_id)->exists()) {
                             DB::table('employee_basic_data')->where('employee_id', $existing->employee_id)->update($basicData);
                         } else {
                             $basicData['employee_id'] = $existing->employee_id;
@@ -535,6 +593,11 @@ class AdminBackupController extends Controller
                             DB::table('employee_basic_data')->insert($basicData);
                         }
                     }
+
+                    if ($nik) {
+                        $this->upsertNik($existing->employee_id, $nik);
+                    }
+
                     $updated++;
                 } else {
                     if (!$roleId) {
@@ -544,18 +607,27 @@ class AdminBackupController extends Controller
                     $employeeId = DB::table('employee')->insertGetId([
                         'role_id'    => $roleId,
                         'eci'        => $eci,
+                        'password'   => bcrypt($eci), // default password = ECI
                         'is_active'  => $isActive,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
-                    $basicData['employee_id'] = $employeeId;
-                    $basicData['created_at']  = now();
-                    $basicData['updated_at']  = now();
-                    DB::table('employee_basic_data')->insert($basicData);
+
+                    if ($basicData) {
+                        $basicData['employee_id'] = $employeeId;
+                        $basicData['created_at']  = now();
+                        $basicData['updated_at']  = now();
+                        DB::table('employee_basic_data')->insert($basicData);
+                    }
+
+                    if ($nik) {
+                        $this->upsertNik($employeeId, $nik);
+                    }
+
                     $imported++;
                 }
             } catch (\Exception $e) {
-                $errors[] = "Baris {$rowNum}: " . $e->getMessage();
+                $errors[] = "Baris {$rowNum} ({$eci}): " . $e->getMessage();
             }
         }
 
@@ -573,6 +645,28 @@ class AdminBackupController extends Controller
             'updated'  => $updated,
             'errors'   => $errors,
         ]);
+    }
+
+    private function upsertNik(int $employeeId, string $nik): void
+    {
+        $existing = DB::table('employee_identification')
+            ->where('employee_id', $employeeId)
+            ->where('identification_type', 'KTP')
+            ->first();
+
+        if ($existing) {
+            DB::table('employee_identification')
+                ->where('identification_id', $existing->identification_id)
+                ->update(['identification_number' => $nik, 'updated_at' => now()]);
+        } else {
+            DB::table('employee_identification')->insert([
+                'employee_id'           => $employeeId,
+                'identification_type'   => 'KTP',
+                'identification_number' => $nik,
+                'created_at'            => now(),
+                'updated_at'            => now(),
+            ]);
+        }
     }
 
     // ── Import Customer ───────────────────────────────────────────────────────

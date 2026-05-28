@@ -103,7 +103,180 @@
 
     </div>
 
-    {{-- ── Row 2: Employee + Customer (Export & Import) ── --}}
+    {{-- ── Row 2: Ticket Migration (full ZIP with history & attachments) ── --}}
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+        <div class="px-5 pt-5 pb-4 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+                    <i class="fas fa-archive text-red-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-800">Ticket Migration (Full ZIP)</h3>
+                    <p class="text-xs text-gray-400">Export/import tiket beserta chat history, lampiran, dan semua metadata</p>
+                </div>
+            </div>
+        </div>
+        <div class="p-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            {{-- Export --}}
+            <div class="flex flex-col gap-3">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Export ZIP</p>
+                <div class="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 space-y-1">
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-red-400"></i> Semua data tiket (status, prioritas, PIC, customer)</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-red-400"></i> Chat history lengkap (pesan publik & internal note)</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-red-400"></i> File lampiran (gambar, dokumen) disertakan dalam ZIP</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-red-400"></i> Timestamp asli, member, metadata CC &amp; mention</p>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Tahun</label>
+                        <select id="migYear" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300">
+                            <option value="0">Semua Tahun</option>
+                            @for($y = date('Y'); $y >= 2024; $y--)
+                                <option value="{{ $y }}" {{ $y == date('Y') ? 'selected' : '' }}>{{ $y }}</option>
+                            @endfor
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Bulan</label>
+                        <select id="migMonth" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300">
+                            <option value="0">Semua Bulan</option>
+                            <option value="1">Januari</option><option value="2">Februari</option>
+                            <option value="3">Maret</option><option value="4">April</option>
+                            <option value="5">Mei</option><option value="6">Juni</option>
+                            <option value="7">Juli</option><option value="8">Agustus</option>
+                            <option value="9">September</option><option value="10">Oktober</option>
+                            <option value="11">November</option><option value="12">Desember</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
+                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                    Proses ekspor bisa memakan waktu beberapa menit tergantung jumlah tiket dan ukuran lampiran.
+                </div>
+                <button id="btnExportZip"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition">
+                    <i class="fas fa-file-archive text-xs"></i> Download ZIP
+                </button>
+            </div>
+
+            {{-- Import --}}
+            <div class="flex flex-col gap-3">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import ZIP</p>
+                <div class="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 space-y-1">
+                    <p class="flex items-center gap-2"><i class="fas fa-info-circle text-blue-400"></i> Upload file ZIP hasil export di atas</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-info-circle text-blue-400"></i> Tiket yang sudah ada (ticket_number sama) akan diperbarui</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-info-circle text-blue-400"></i> Pesan yang sudah ada tidak akan digandakan</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-info-circle text-blue-400"></i> File lampiran akan dipulihkan ke storage</p>
+                </div>
+                <div id="migDropzone"
+                    class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-red-400 hover:bg-red-50 transition-colors"
+                    onclick="document.getElementById('migFileInput').click()"
+                    ondragover="event.preventDefault();this.classList.add('border-red-400','bg-red-50')"
+                    ondragleave="this.classList.remove('border-red-400','bg-red-50')"
+                    ondrop="handleMigDrop(event)">
+                    <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-1"></i>
+                    <p class="text-xs text-gray-400">Drop ZIP di sini atau <span class="text-red-600 font-medium">pilih file</span></p>
+                    <p id="migFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
+                </div>
+                <input type="file" id="migFileInput" accept=".zip" class="hidden" onchange="onMigFileSelect(event)">
+                <button id="btnImportZip" onclick="runMigImport()"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-100 text-red-700 text-sm font-medium hover:bg-red-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled>
+                    <i class="fas fa-upload text-xs"></i> Import ZIP
+                </button>
+                <div id="migResult" class="hidden"></div>
+            </div>
+
+        </div>
+    </div>
+
+    {{-- ── Row 3: Import dari Sistem Lama (API pull) ── --}}
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+        <div class="px-5 pt-5 pb-4 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                    <i class="fas fa-cloud-download-alt text-indigo-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-800">Import Tiket dari Sistem Lama (API)</h3>
+                    <p class="text-xs text-gray-400">Tarik data tiket + chat history langsung dari API sistem lama</p>
+                </div>
+            </div>
+        </div>
+        <div class="p-5 flex flex-col gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {{-- Left: config --}}
+                <div class="flex flex-col gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">URL Pattern Endpoint API <span class="text-red-500">*</span></label>
+                        <input type="text" id="apiUrlPattern" placeholder="https://domain.com/sap/zapi?sap-client=100&pgmna=ZJAR009&P_OBJID={ticket_number}"
+                            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 font-mono">
+                        <p class="text-xs text-gray-400 mt-1">Ganti <code class="bg-gray-100 px-1 rounded">domain.com</code> dengan domain sistem lama. <code class="bg-gray-100 px-1 rounded">{ticket_number}</code> akan diganti otomatis per tiket.</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Status Default Tiket yang Diimport</label>
+                        <select id="apiDefaultStatus" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                            <option value="closed">Closed</option>
+                            <option value="open">Open</option>
+                            <option value="inprocess">In Process</option>
+                            <option value="waiting_to_confirmation">Waiting to Confirmation</option>
+                        </select>
+                    </div>
+                    <div class="bg-indigo-50 rounded-xl p-3 text-xs text-indigo-700 space-y-1">
+                        <p class="font-semibold mb-1">Yang akan diimport:</p>
+                        <p class="flex items-center gap-2"><i class="fas fa-check text-indigo-400"></i> Metadata tiket: nama, divisi, modul, no HP, email, prioritas</p>
+                        <p class="flex items-center gap-2"><i class="fas fa-check text-indigo-400"></i> Chat history lengkap dengan timestamp asli</p>
+                        <p class="flex items-center gap-2"><i class="fas fa-check text-indigo-400"></i> Deteksi otomatis pesan dari customer vs support team</p>
+                    </div>
+                </div>
+                {{-- Right: CSV upload --}}
+                <div class="flex flex-col gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">CSV Daftar Nomor Tiket <span class="text-red-500">*</span></label>
+                        <div id="apiDropzone"
+                            class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-colors"
+                            onclick="document.getElementById('apiFileInput').click()"
+                            ondragover="event.preventDefault();this.classList.add('border-indigo-400','bg-indigo-50')"
+                            ondragleave="this.classList.remove('border-indigo-400','bg-indigo-50')"
+                            ondrop="handleApiDrop(event)">
+                            <i class="fas fa-file-csv text-gray-300 text-2xl mb-1"></i>
+                            <p class="text-xs text-gray-400">Drop CSV di sini atau <span class="text-indigo-600 font-medium">pilih file</span></p>
+                            <p class="text-xs text-gray-300 mt-0.5">Satu kolom berisi nomor tiket, satu baris satu nomor</p>
+                            <p id="apiFileName" class="text-xs text-gray-500 mt-1 hidden font-medium"></p>
+                        </div>
+                        <input type="file" id="apiFileInput" accept=".csv,.txt" class="hidden" onchange="onApiFileSelect(event)">
+                    </div>
+                    <div class="bg-gray-50 rounded-xl p-3 text-xs text-gray-500">
+                        <p class="font-semibold text-gray-600 mb-1">Format CSV:</p>
+                        <pre class="font-mono text-gray-500">ticket_number
+100000123
+100000124
+100000125</pre>
+                    </div>
+                    <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
+                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                        Proses bisa memakan waktu — ±1–3 detik per tiket tergantung kecepatan koneksi ke API lama.
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button id="btnApiImport" onclick="runApiImport()"
+                    class="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled>
+                    <i class="fas fa-cloud-download-alt text-xs"></i> Mulai Import dari API
+                </button>
+                <span id="apiProgress" class="hidden text-xs text-indigo-600 flex items-center gap-1">
+                    <svg class="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                    Sedang menarik data dari API...
+                </span>
+            </div>
+            <div id="apiResult" class="hidden"></div>
+        </div>
+    </div>
+
+    {{-- ── Row 4: Employee + Customer (Export & Import) ── --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
         {{-- Employee Card --}}
@@ -457,13 +630,186 @@ async function deleteBackup(filename) {
     }
 }
 
-// ── Ticket Export ─────────────────────────────────────────────────────────────
+// ── Ticket Export (CSV) ───────────────────────────────────────────────────────
 
 document.getElementById('btnExportTickets').addEventListener('click', () => {
     const year  = document.getElementById('ticketYear').value;
     const month = document.getElementById('ticketMonth').value;
     window.location.href = `/admin/export/tickets?year=${year}&month=${month}`;
 });
+
+// ── Ticket Migration (ZIP) ────────────────────────────────────────────────────
+
+document.getElementById('btnExportZip').addEventListener('click', () => {
+    const year  = document.getElementById('migYear').value;
+    const month = document.getElementById('migMonth').value;
+    window.location.href = `/admin/export/tickets/zip?year=${year}&month=${month}`;
+});
+
+let _migFile = null;
+
+function onMigFileSelect(e) {
+    const file = e.target.files[0];
+    if (file) setMigFile(file);
+}
+
+function handleMigDrop(e) {
+    e.preventDefault();
+    document.getElementById('migDropzone').classList.remove('border-red-400', 'bg-red-50');
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.zip')) {
+        setMigFile(file);
+    } else {
+        showToast('Hanya file ZIP yang diterima', 'error');
+    }
+}
+
+function setMigFile(file) {
+    _migFile = file;
+    const nameEl = document.getElementById('migFileName');
+    nameEl.textContent = file.name + ' (' + formatBytes(file.size) + ')';
+    nameEl.classList.remove('hidden');
+    document.getElementById('btnImportZip').disabled = false;
+    const result = document.getElementById('migResult');
+    result.classList.add('hidden');
+    result.innerHTML = '';
+}
+
+async function runMigImport() {
+    if (!_migFile) return;
+
+    const btn    = document.getElementById('btnImportZip');
+    const result = document.getElementById('migResult');
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> Importing...';
+
+    const form = new FormData();
+    form.append('file', _migFile);
+
+    try {
+        const res  = await fetch('/api/admin/import/tickets/zip', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'X-CSRF-TOKEN': CSRF },
+            body: form,
+        });
+        const json = await res.json();
+
+        result.classList.remove('hidden');
+        if (json.success) {
+            result.innerHTML = `
+                <div class="bg-green-50 border border-green-200 rounded-xl p-3">
+                    <p class="text-xs font-semibold text-green-700 mb-2"><i class="fas fa-check-circle mr-1"></i>${htmlEsc(json.message)}</p>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600">
+                        <span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.imported} tiket baru</span>
+                        <span class="flex items-center gap-1"><i class="fas fa-sync text-blue-500"></i> ${json.updated} diperbarui</span>
+                        <span class="flex items-center gap-1"><i class="fas fa-comment text-indigo-500"></i> ${json.messages} pesan</span>
+                        <span class="flex items-center gap-1"><i class="fas fa-file text-orange-500"></i> ${json.files} file</span>
+                    </div>
+                    ${json.errors && json.errors.length ? `<button onclick="openErrorModal(${JSON.stringify(json.errors).replace(/"/g,'&quot;')})" class="mt-2 text-xs text-orange-500 hover:underline flex items-center gap-1"><i class="fas fa-exclamation-triangle"></i> ${json.errors.length} error</button>` : ''}
+                </div>`;
+        } else {
+            result.innerHTML = `
+                <div class="bg-red-50 border border-red-200 rounded-xl p-3">
+                    <p class="text-xs font-semibold text-red-700"><i class="fas fa-times-circle mr-1"></i>${htmlEsc(json.message)}</p>
+                </div>`;
+        }
+    } catch (e) {
+        showToast('Import gagal: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-upload text-xs"></i> Import ZIP';
+    }
+}
+
+// ── Import dari API Sistem Lama ───────────────────────────────────────────────
+
+let _apiFile = null;
+
+function onApiFileSelect(e) {
+    const file = e.target.files[0];
+    if (file) setApiFile(file);
+}
+
+function handleApiDrop(e) {
+    e.preventDefault();
+    document.getElementById('apiDropzone').classList.remove('border-indigo-400', 'bg-indigo-50');
+    const file = e.dataTransfer.files[0];
+    if (file && (file.name.endsWith('.csv') || file.name.endsWith('.txt'))) {
+        setApiFile(file);
+    } else {
+        showToast('Hanya file CSV yang diterima', 'error');
+    }
+}
+
+function setApiFile(file) {
+    _apiFile = file;
+    const nameEl = document.getElementById('apiFileName');
+    nameEl.textContent = file.name + ' (' + formatBytes(file.size) + ')';
+    nameEl.classList.remove('hidden');
+    updateApiImportBtn();
+    document.getElementById('apiResult').classList.add('hidden');
+}
+
+function updateApiImportBtn() {
+    const url = document.getElementById('apiUrlPattern').value.trim();
+    document.getElementById('btnApiImport').disabled = !(_apiFile && url.includes('{ticket_number}'));
+}
+
+document.getElementById('apiUrlPattern').addEventListener('input', updateApiImportBtn);
+
+async function runApiImport() {
+    const url = document.getElementById('apiUrlPattern').value.trim();
+    if (!_apiFile || !url.includes('{ticket_number}')) return;
+
+    const btn      = document.getElementById('btnApiImport');
+    const progress = document.getElementById('apiProgress');
+    const result   = document.getElementById('apiResult');
+
+    btn.disabled = true;
+    progress.classList.remove('hidden');
+    result.classList.add('hidden');
+
+    const form = new FormData();
+    form.append('file',           _apiFile);
+    form.append('url_pattern',    url);
+    form.append('default_status', document.getElementById('apiDefaultStatus').value);
+
+    try {
+        const res  = await fetch('/api/admin/import/tickets/from-api', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'X-CSRF-TOKEN': CSRF },
+            body: form,
+        });
+        const json = await res.json();
+
+        result.classList.remove('hidden');
+        if (json.success) {
+            result.innerHTML = `
+                <div class="bg-green-50 border border-green-200 rounded-xl p-3">
+                    <p class="text-xs font-semibold text-green-700 mb-2"><i class="fas fa-check-circle mr-1"></i>${htmlEsc(json.message)}</p>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 text-xs text-gray-600">
+                        <span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.imported} tiket baru</span>
+                        <span class="flex items-center gap-1"><i class="fas fa-sync text-blue-500"></i> ${json.updated} diperbarui</span>
+                        <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped} dilewati</span>
+                        <span class="flex items-center gap-1"><i class="fas fa-comment text-indigo-500"></i> ${json.messages} pesan</span>
+                    </div>
+                    ${json.errors && json.errors.length ? `<button onclick="openErrorModal(${JSON.stringify(json.errors).replace(/"/g,'&quot;')})" class="mt-2 text-xs text-orange-500 hover:underline flex items-center gap-1"><i class="fas fa-exclamation-triangle"></i> ${json.errors.length} error — lihat detail</button>` : ''}
+                </div>`;
+        } else {
+            result.innerHTML = `
+                <div class="bg-red-50 border border-red-200 rounded-xl p-3">
+                    <p class="text-xs font-semibold text-red-700"><i class="fas fa-times-circle mr-1"></i>${htmlEsc(json.message)}</p>
+                </div>`;
+        }
+    } catch (e) {
+        showToast('Import gagal: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        progress.classList.add('hidden');
+    }
+}
 
 // ── Util ──────────────────────────────────────────────────────────────────────
 

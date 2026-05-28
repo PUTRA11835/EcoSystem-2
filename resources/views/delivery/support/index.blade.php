@@ -12,7 +12,7 @@
         
         <!-- View Toggle -->
         @php $viewRoleId = session('user')['role']['id'] ?? 0; @endphp
-        @if($viewRoleId == 2)
+        @if($viewRoleId == \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value)
         <div class="inline-flex bg-gray-100 rounded-xl p-1.5 shadow-sm">
             <button onclick="toggleView('my')" id="btnViewMy" class="px-6 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200">
                 My Tickets
@@ -42,28 +42,28 @@
         <p class="text-2xl font-bold text-gray-900" id="totalCount">0</p>
     </div>
 
-    <!-- In Process -->
-    <div id="filterInProcess" class="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('in process')">
-        <p class="text-xs font-medium text-gray-500 mb-1">In Process</p>
-        <p class="text-2xl font-bold text-gray-900" id="processCount">0</p>
+    <!-- Open -->
+    <div id="filterOpen" class="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('open')">
+        <p class="text-xs font-medium text-gray-500 mb-1">Open</p>
+        <p class="text-2xl font-bold text-gray-900" id="openCount">0</p>
     </div>
 
-    <!-- Author Action -->
-    <div id="filterAuthorAction" class="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('author action')">
-        <p class="text-xs font-medium text-gray-500 mb-1">Author Action</p>
-        <p class="text-2xl font-bold text-gray-900" id="authorCount">0</p>
+    <!-- Inprocess -->
+    <div id="filterInprocess" class="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('inprocess')">
+        <p class="text-xs font-medium text-gray-500 mb-1">Inprocess</p>
+        <p class="text-2xl font-bold text-gray-900" id="inprocessCount">0</p>
     </div>
 
-    <!-- Proposed Solution -->
-    <div id="filterProposed" class="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('proposed solution')">
-        <p class="text-xs font-medium text-gray-500 mb-1">Proposed</p>
-        <p class="text-2xl font-bold text-gray-900" id="proposedCount">0</p>
+    <!-- Waiting -->
+    <div id="filterWaiting" class="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('waiting')">
+        <p class="text-xs font-medium text-gray-500 mb-1">Waiting</p>
+        <p class="text-2xl font-bold text-gray-900" id="waitingCount">0</p>
     </div>
 
-    <!-- Sent to SAP -->
-    <div id="filterSAP" class="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('sent in to SAP')">
-        <p class="text-xs font-medium text-gray-500 mb-1">Sent to SAP</p>
-        <p class="text-2xl font-bold text-gray-900" id="sapCount">0</p>
+    <!-- Hold -->
+    <div id="filterHold" class="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('hold')">
+        <p class="text-xs font-medium text-gray-500 mb-1">Hold</p>
+        <p class="text-2xl font-bold text-gray-900" id="holdCount">0</p>
     </div>
 
     <!-- Closed -->
@@ -88,7 +88,6 @@
                 <input type="hidden" id="filterTypeSelect" value="">
                 <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:160px;">
                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">Select Type</button>
-                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="jarvies_status">Jarvies Status</button>
                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="status">Status</button>
                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="type">Type</button>
                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="priority">Priority</button>
@@ -505,14 +504,18 @@
     let totalPages = 0;
     let userRole = {{ session('user')['role']['id'] ?? 0 }};
     let userId = {{ session('user')['id'] ?? 0 }};
-    // Role 2 defaults to 'my'; role 1/5 defaults to 'all'
-    let currentView = (userRole === 2) ? 'my' : 'all';
+    const EC_ADMINISTRATOR_ROLE      = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
+    const DELIVERY_SUPPORT_USER_ROLE = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};
+    const EC_USER_ROLE               = {{ \App\Enums\RoleId::EC_USER->value }};
+    const DELIVERY_SUPPORT_HEAD_ROLE = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value }};
+    // Delivery Support User defaults to 'my'; EC Administrator/Delivery Support Head defaults to 'all'
+    let currentView = (userRole === DELIVERY_SUPPORT_USER_ROLE) ? 'my' : 'all';
 
     document.addEventListener('DOMContentLoaded', function() {
         initCustomDropdowns();
         loadTickets();
 
-        if (userRole === 2 || userRole === 1 || userRole === 5) {
+        if (userRole === DELIVERY_SUPPORT_USER_ROLE || userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_HEAD_ROLE) {
             updateViewToggle();
         }
     });
@@ -528,10 +531,10 @@
         const btnMy       = document.getElementById('btnViewMy');
         const btnUnassign = document.getElementById('btnViewUnassign');
 
-        if (userRole === 2) {
+        if (userRole === DELIVERY_SUPPORT_USER_ROLE) {
             if (btnMy)       btnMy.classList.toggle('active',       currentView === 'my');
             if (btnUnassign) btnUnassign.classList.toggle('active', currentView === 'unassign');
-        } else if (userRole === 1 || userRole === 5) {
+        } else if (userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_HEAD_ROLE) {
             if (btnAll)      btnAll.classList.toggle('active',      currentView === 'all');
             if (btnUnassign) btnUnassign.classList.toggle('active', currentView === 'unassign');
         }
@@ -542,18 +545,18 @@
             document.getElementById('loadingState').classList.remove('hidden');
             document.getElementById('ticketsContainer').classList.add('hidden');
             document.getElementById('emptyState').classList.add('hidden');
-            
+
             // Determine endpoint based on role and current view
             let endpoint = '/api/tickets';
 
-            if (userRole === 3) {
+            if (userRole === EC_USER_ROLE) {
                 // EC User — only their own tickets
                 endpoint = '/api/tickets/my';
-            } else if (userRole === 2) {
+            } else if (userRole === DELIVERY_SUPPORT_USER_ROLE) {
                 // Delivery Support User: "My Tickets" or "Unassign" (unassigned = /api/tickets, backend already filters)
                 endpoint = (currentView === 'my') ? '/api/tickets/my' : '/api/tickets';
-            } else if ((userRole === 1 || userRole === 5) && currentView === 'unassign') {
-                // Admin / Head of Support viewing only unassigned tickets
+            } else if ((userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_HEAD_ROLE) && currentView === 'unassign') {
+                // EC Administrator / Delivery Support Head viewing only unassigned tickets
                 endpoint = '/api/tickets?unassigned=1';
             }
             // Other views / roles use /api/tickets (all tickets)
@@ -596,19 +599,19 @@
     }
 
     function updateStats() {
-        const total = allTickets.length;
-        const inProcess = allTickets.filter(t => t.jarvies_status === 'in process').length;
-        const authorAction = allTickets.filter(t => t.jarvies_status === 'author action').length;
-        const proposed = allTickets.filter(t => t.jarvies_status === 'proposed solution').length;
-        const sentSAP = allTickets.filter(t => t.jarvies_status === 'sent in to SAP').length;
-        const closed = allTickets.filter(t => t.jarvies_status === 'closed').length;
+        const total     = allTickets.length;
+        const open      = allTickets.filter(t => t.status === 'open').length;
+        const inprocess = allTickets.filter(t => t.status === 'inprocess').length;
+        const waiting   = allTickets.filter(t => ['waiting_on_customer','waiting_on_3rd_party','waiting_to_confirmation'].includes(t.status)).length;
+        const hold      = allTickets.filter(t => t.status === 'hold').length;
+        const closed    = allTickets.filter(t => t.status === 'closed').length;
 
-        document.getElementById('totalCount').textContent = total;
-        document.getElementById('processCount').textContent = inProcess;
-        document.getElementById('authorCount').textContent = authorAction;
-        document.getElementById('proposedCount').textContent = proposed;
-        document.getElementById('sapCount').textContent = sentSAP;
-        document.getElementById('closedCount').textContent = closed;
+        document.getElementById('totalCount').textContent    = total;
+        document.getElementById('openCount').textContent     = open;
+        document.getElementById('inprocessCount').textContent = inprocess;
+        document.getElementById('waitingCount').textContent  = waiting;
+        document.getElementById('holdCount').textContent     = hold;
+        document.getElementById('closedCount').textContent   = closed;
     }
 
     function renderTickets() {
@@ -721,10 +724,10 @@
         let statusBadge = '';
         if (isOverdue) {
             statusBadge = '<span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-200">Overdue</span>';
-        } else if (ticket.jarvies_status === 'in process') {
+        } else if (ticket.status === 'inprocess') {
             statusBadge = '<span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-medium bg-pink-50 text-pink-700 border border-pink-200">First response due</span>';
-        } else if (ticket.jarvies_status === 'author action') {
-            statusBadge = '<span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-medium bg-pink-50 text-pink-700 border border-pink-200">Agent responded</span>';
+        } else if (ticket.status === 'waiting_on_customer') {
+            statusBadge = '<span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-medium bg-pink-50 text-pink-700 border border-pink-200">Waiting on customer</span>';
         }
         
         // Priority indicator
@@ -741,14 +744,16 @@
         
         // Status
         const statusMap = {
-            'open': 'Open',
-            'in_progress': 'In Progress',
-            'hold': 'Hold',
-            'cancel': 'Cancel',
-            'closed': 'Closed',
-            'reply': 'Reply'
+            'open':                    'Open',
+            'inprocess':               'Inprocess',
+            'waiting_on_customer':     'Waiting on Customer',
+            'waiting_on_3rd_party':    'Waiting on 3rd Party',
+            'waiting_to_confirmation': 'Waiting to Confirmation',
+            'hold':                    'Hold',
+            'cancelled':               'Cancelled',
+            'closed':                  'Closed',
         };
-        const statusLabel = statusMap[ticket.status] || 'Open';
+        const statusLabel = statusMap[ticket.status] || ucfirst(ticket.status || 'Open');
         
         return `
             <div class="group bg-white border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all duration-200 cursor-pointer" onclick="viewTicketDetail(${ticket.ticket_id})">
@@ -873,35 +878,40 @@
 
     function filterTickets(status) {
         currentFilter = status;
-        
+
         // Reset all filter styles
-        ['filterAll', 'filterInProcess', 'filterAuthorAction', 'filterProposed', 'filterSAP', 'filterClosed'].forEach(id => {
+        ['filterAll', 'filterOpen', 'filterInprocess', 'filterWaiting', 'filterHold', 'filterClosed'].forEach(id => {
             const el = document.getElementById(id);
+            if (!el) return;
             el.classList.remove('border-red-600', 'shadow-md');
             el.classList.add('border-gray-200');
         });
-        
+
         // Apply active filter style (red border)
         const filterMap = {
-            'all': 'filterAll',
-            'in process': 'filterInProcess',
-            'author action': 'filterAuthorAction',
-            'proposed solution': 'filterProposed',
-            'sent in to SAP': 'filterSAP',
-            'closed': 'filterClosed'
+            'all':      'filterAll',
+            'open':     'filterOpen',
+            'inprocess':'filterInprocess',
+            'waiting':  'filterWaiting',
+            'hold':     'filterHold',
+            'closed':   'filterClosed',
         };
-        
+
         if (filterMap[status]) {
             const filterElement = document.getElementById(filterMap[status]);
-            filterElement.classList.remove('border-gray-200');
-            filterElement.classList.add('border-red-600', 'shadow-md');
+            if (filterElement) {
+                filterElement.classList.remove('border-gray-200');
+                filterElement.classList.add('border-red-600', 'shadow-md');
+            }
         }
 
         // Apply filter
         if (status === 'all') {
             filteredTickets = allTickets;
+        } else if (status === 'waiting') {
+            filteredTickets = allTickets.filter(t => ['waiting_on_customer','waiting_on_3rd_party','waiting_to_confirmation'].includes(t.status));
         } else {
-            filteredTickets = allTickets.filter(ticket => ticket.jarvies_status === status);
+            filteredTickets = allTickets.filter(ticket => ticket.status === status);
         }
 
         currentPage = 1;
@@ -949,7 +959,7 @@
             </div>
 
             <!-- Response (if employee assigned) -->
-            ${ticket.employee_id ? `
+            ${ticket.ticket_lead_id ? `
                 <div class="flex gap-3">
                     <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                         <span class="text-xs font-bold text-white">${employeeName.substring(0, 1)}</span>
@@ -960,7 +970,7 @@
                             <span class="text-xs text-gray-500">replied</span>
                         </div>
                         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <p class="text-sm text-gray-700 mb-2">Status: ${ticket.jarvies_status}</p>
+                            <p class="text-sm text-gray-700 mb-2">Status: ${statusMap[ticket.status] || ticket.status}</p>
                             <p class="text-sm text-gray-900">This ticket has been assigned and is being processed.</p>
                         </div>
                     </div>
@@ -970,14 +980,16 @@
         
         // Set properties
         const statusLabels = {
-            'open': 'Open',
-            'in_progress': 'In Progress',
-            'hold': 'Hold',
-            'cancel': 'Cancel',
-            'closed': 'Closed',
-            'reply': 'Reply'
+            'open':                    'Open',
+            'inprocess':               'Inprocess',
+            'waiting_on_customer':     'Waiting on Customer',
+            'waiting_on_3rd_party':    'Waiting on 3rd Party',
+            'waiting_to_confirmation': 'Waiting to Confirmation',
+            'hold':                    'Hold',
+            'cancelled':               'Cancelled',
+            'closed':                  'Closed',
         };
-        document.getElementById('detailStatus').innerHTML = `<option>${statusLabels[ticket.status] || 'Open'}</option>`;
+        document.getElementById('detailStatus').innerHTML = `<option>${statusLabels[ticket.status] || ticket.status || 'Open'}</option>`;
         document.getElementById('detailPriority').innerHTML = `<option>${ticket.ticket_priority || 'Medium'}</option>`;
         document.getElementById('detailGroup').innerHTML = `<option>Customer Support</option>`;
         document.getElementById('detailAgent').innerHTML = `<option>${ticket.employee?.employee_name || 'Unassigned'}</option>`;
@@ -1017,10 +1029,9 @@
         const panel      = document.querySelector('#ddFilterValue .custom-dd-panel');
 
         const optionsMap = {
-            'jarvies_status': ['in process', 'author action', 'proposed solution', 'closed', 'sent in to SAP', 'sent it to support'],
-            'status':         ['open', 'in_progress', 'hold', 'cancel', 'closed', 'reply'],
-            'type':           ['AMS', 'MO', 'ATS', 'Project', 'Internal'],
-            'priority':       ['Low', 'Medium', 'High'],
+            'status':   ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold', 'cancelled', 'closed'],
+            'type':     ['AMS', 'MO', 'ATS', 'Project', 'Internal'],
+            'priority': ['Low', 'Medium', 'High'],
         };
 
         // Reset value
@@ -1081,7 +1092,11 @@
             // Apply status filter from stats cards
             let matchesStatusFilter = true;
             if (currentFilter !== 'all') {
-                matchesStatusFilter = ticket.jarvies_status === currentFilter;
+                if (currentFilter === 'waiting') {
+                    matchesStatusFilter = ['waiting_on_customer','waiting_on_3rd_party','waiting_to_confirmation'].includes(ticket.status);
+                } else {
+                    matchesStatusFilter = ticket.status === currentFilter;
+                }
             }
 
             return matchesSearch && matchesFilter && matchesStatusFilter;

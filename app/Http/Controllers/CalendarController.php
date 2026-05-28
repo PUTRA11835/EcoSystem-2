@@ -36,9 +36,9 @@ class CalendarController extends Controller
         $employeeId = $user['id'] ?? null;
 
         $isHead  = in_array($roleId, RoleId::HEAD_GROUP, true)
-                || $roleId === RoleId::RPMO->value
-                || $roleId === RoleId::ADMIN->value;
-        $isAdmin = $roleId === RoleId::ADMIN->value;
+                || $roleId === RoleId::DELIVERY_RPMO_HEAD->value
+                || $roleId === RoleId::EC_ADMINISTRATOR->value;
+        $isAdmin = $roleId === RoleId::EC_ADMINISTRATOR->value;
 
         // ── Collect ALL role IDs (primary + pivot assignments) ────────────────
         $allRoleIds = collect([$roleId])->filter();
@@ -52,9 +52,9 @@ class CalendarController extends Controller
         // ── Map each role to the timesheet type(s) it allows ─────────────────
         // Heads and RPMO are locked to their approval domain regardless of extra roles.
         $headLock = match($roleId) {
-            RoleId::HEAD_OF_SUPPORT->value => 'support',
-            RoleId::HEAD_OF_PROJECT->value => 'project',
-            RoleId::RPMO->value            => 'office',
+            RoleId::DELIVERY_SUPPORT_HEAD->value => 'support',
+            RoleId::DELIVERY_PROJECT_HEAD->value => 'project',
+            RoleId::DELIVERY_RPMO_HEAD->value            => 'office',
             default                        => null,
         };
 
@@ -65,12 +65,12 @@ class CalendarController extends Controller
         } else {
             // Regular users: compute allowed types from ALL assigned roles
             $typeMap = [
-                RoleId::EMPLOYEE->value         => 'support',
-                RoleId::INTERNSHIP->value       => 'office',
-                RoleId::EMPLOYEE_PROJECT->value => 'project',
+                RoleId::DELIVERY_SUPPORT_USER->value         => 'support',
+                RoleId::EC_USER->value       => 'office',
+                RoleId::DELIVERY_PROJECT_USER->value => 'project',
                 // Admin and Helpdesk get all types
-                RoleId::ADMIN->value            => '*',
-                RoleId::HELPDESK->value         => '*',
+                RoleId::EC_ADMINISTRATOR->value            => '*',
+                RoleId::DELIVERY_HELPDESK->value         => '*',
             ];
 
             $computed    = [];

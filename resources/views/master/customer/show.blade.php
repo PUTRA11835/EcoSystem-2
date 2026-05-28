@@ -20,7 +20,7 @@
     <!-- Customer Profile Card -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div class="flex items-start gap-6">
-            <div class="w-32 h-32 rounded-full bg-gradient-to-br from-red-800 to-red-950 text-white flex items-center justify-center font-bold text-4xl flex-shrink-0">
+            <div id="headerInitials" class="w-32 h-32 rounded-full bg-gradient-to-br from-red-800 to-red-950 text-white flex items-center justify-center font-bold text-4xl flex-shrink-0">
                 @php
                     $name1 = $customer->basicData->name_1 ?? 'N';
                     $initials = strtoupper(substr($name1, 0, 1));
@@ -34,15 +34,13 @@
             <div class="flex-1">
                 <div class="flex items-start justify-between mb-4">
                     <div>
-                        <h1 class="text-3xl font-bold text-gray-900">{{ $customer->basicData->name_1 ?? 'N/A' }}</h1>
-                        @if(isset($customer->basicData->name_2) && $customer->basicData->name_2)
-                        <p class="text-lg text-gray-600 mt-1">{{ $customer->basicData->name_2 }}</p>
-                        @endif
+                        <h1 id="headerName1" class="text-3xl font-bold text-gray-900">{{ $customer->basicData->name_1 ?? 'N/A' }}</h1>
+                        <p id="headerName2" class="text-lg text-gray-600 mt-1 {{ ($customer->basicData->name_2 ?? '') ? '' : 'hidden' }}">{{ $customer->basicData->name_2 ?? '' }}</p>
                     </div>
                     @php
                         $statusClass = 'bg-gray-100 text-gray-800';
                         $statusLabel = 'Unknown';
-                        
+
                         if (isset($customer->basicData->deletion_flag) && $customer->basicData->deletion_flag) {
                             $statusClass = 'bg-red-100 text-red-800';
                             $statusLabel = 'Flagged for Deletion';
@@ -57,35 +55,35 @@
                             $statusLabel = 'Inactive';
                         }
                     @endphp
-                    <span class="inline-block px-4 py-2 text-sm font-semibold rounded-full {{ $statusClass }}">
+                    <span id="headerStatusBadge" class="inline-block px-4 py-2 text-sm font-semibold rounded-full {{ $statusClass }}">
                         {{ $statusLabel }}
                     </span>
                 </div>
-                
+
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
                         <p class="text-gray-500">Customer Code</p>
-                        <p class="font-semibold text-gray-900">{{ $customer->customer_code ?? 'N/A' }}</p>
+                        <p id="headerCustomerCode" class="font-semibold text-gray-900">{{ $customer->customer_code ?? 'N/A' }}</p>
                     </div>
                     <div>
                         <p class="text-gray-500">Email</p>
-                        <p class="font-semibold text-gray-900">{{ $customer->email ?? 'N/A' }}</p>
+                        <p id="headerEmail" class="font-semibold text-gray-900">{{ $customer->email ?? 'N/A' }}</p>
                     </div>
                     <div>
                         <p class="text-gray-500">Phone</p>
-                        <p class="font-semibold text-gray-900">{{ $customer->basicData->telephone ?? $customer->basicData->cell_phone ?? 'N/A' }}</p>
+                        <p id="headerPhone" class="font-semibold text-gray-900">{{ $customer->basicData->telephone ?? $customer->basicData->cell_phone ?? 'N/A' }}</p>
                     </div>
                     <div>
                         <p class="text-gray-500">Customer Group</p>
-                        <p class="font-semibold text-gray-900">{{ $customer->basicData->customer_group ?? 'N/A' }}</p>
+                        <p id="headerCustomerGroup" class="font-semibold text-gray-900">{{ $customer->basicData->customer_group ?? 'N/A' }}</p>
                     </div>
                     <div>
                         <p class="text-gray-500">Customer Category</p>
-                        <p class="font-semibold text-gray-900">{{ $customer->basicData->customer_category ?? 'N/A' }}</p>
+                        <p id="headerCustomerCategory" class="font-semibold text-gray-900">{{ $customer->basicData->customer_category ?? 'N/A' }}</p>
                     </div>
                     <div>
                         <p class="text-gray-500">Industry Sector</p>
-                        <p class="font-semibold text-gray-900">{{ $customer->basicData->industry_sector ?? 'N/A' }}</p>
+                        <p id="headerIndustrySector" class="font-semibold text-gray-900">{{ $customer->basicData->industry_sector ?? 'N/A' }}</p>
                     </div>
                 </div>
             </div>
@@ -240,6 +238,35 @@
         }
     }
 
+    // Refresh the header card from server without full page reload
+    window.refreshHeader = async function(id) {
+        try {
+            const res = await fetch(`/api/customers/${id}/header`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            const result = await res.json();
+            if (!result.success) return;
+            const d = result.data;
+            document.getElementById('headerInitials').textContent     = d.initials || 'N';
+            document.getElementById('headerName1').textContent        = d.name_1 || 'N/A';
+            const name2El = document.getElementById('headerName2');
+            name2El.textContent = d.name_2 || '';
+            name2El.classList.toggle('hidden', !d.name_2);
+            const badge = document.getElementById('headerStatusBadge');
+            badge.textContent = d.status_label;
+            badge.className   = 'inline-block px-4 py-2 text-sm font-semibold rounded-full ' + d.status_class;
+            document.getElementById('headerCustomerCode').textContent     = d.customer_code     || 'N/A';
+            document.getElementById('headerEmail').textContent            = d.email             || 'N/A';
+            document.getElementById('headerPhone').textContent            = d.phone             || 'N/A';
+            document.getElementById('headerCustomerGroup').textContent    = d.customer_group    || 'N/A';
+            document.getElementById('headerCustomerCategory').textContent = d.customer_category || 'N/A';
+            document.getElementById('headerIndustrySector').textContent   = d.industry_sector   || 'N/A';
+        } catch (e) {
+            console.error('refreshHeader error', e);
+        }
+    };
+
     // Load customer basic data
     async function loadCustomerBasicData(customerId) {
         try {
@@ -346,6 +373,7 @@
             if (data.success) {
                 showNotification('Basic data saved successfully!', 'success');
                 loadCustomerBasicData(customerId);
+                refreshHeader(customerId);
             } else {
                 showNotification('Failed to save: ' + (data.message || 'Unknown error'), 'error');
                 if (data.errors) {

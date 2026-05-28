@@ -10,7 +10,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  *
  * Field yang dikembalikan sesuai kolom di tabel web:
  *   last_update, ticket_number, date, customer, pic,
- *   priority, scale (man_days), status, jarvies_status, type.
+ *   priority, scale (man_days), status, type.
  */
 class TicketListResource extends JsonResource
 {
@@ -58,8 +58,6 @@ class TicketListResource extends JsonResource
 
             'status'         => $this->status_label,
             'status_raw'     => $this->status,
-
-            'jarvies_status' => $this->jarvies_status,
 
             'type'           => $this->ticket_type,
         ];

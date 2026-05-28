@@ -84,150 +84,160 @@
 
         {{-- ── APPEARANCE TAB ── --}}
         <div id="tab-appearance" class="settings-content p-6">
+            <div class="space-y-5">
 
-            {{-- Theme Mode --}}
-            <div class="mb-8">
-                <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1">Theme Mode</h3>
-                <p class="text-xs text-gray-400 mb-4">Choose how the interface looks</p>
-                <div class="grid grid-cols-3 gap-4 max-w-xl">
-                    <div onclick="selectTheme('light')" class="theme-option cursor-pointer border-2 rounded-xl p-5 flex flex-col items-center gap-3 transition-all hover:border-red-800 {{ $preferences['theme'] === 'light' ? 'border-red-800 bg-red-50' : 'border-gray-200' }}">
-                        <div class="w-14 h-14 rounded-lg bg-gradient-to-br from-gray-100 to-white border border-gray-200 flex items-center justify-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                {{-- Theme Mode --}}
+                <div class="border border-gray-200 rounded-xl p-5">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-8 h-8 bg-yellow-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
                             </svg>
                         </div>
-                        <div class="text-center">
-                            <div class="text-sm font-semibold text-gray-900">Light</div>
-                            <div class="text-xs text-gray-400">Bright & clean</div>
+                        <div>
+                            <div class="text-sm font-semibold text-gray-800">Theme Mode</div>
+                            <div class="text-xs text-gray-400">Choose how the interface looks</div>
                         </div>
                     </div>
-                    <div onclick="selectTheme('dark')" class="theme-option cursor-pointer border-2 rounded-xl p-5 flex flex-col items-center gap-3 transition-all hover:border-red-800 {{ $preferences['theme'] === 'dark' ? 'border-red-800 bg-red-50' : 'border-gray-200' }}">
-                        <div class="w-14 h-14 rounded-lg bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 text-blue-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
-                            </svg>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-sm font-semibold text-gray-900">Dark</div>
-                            <div class="text-xs text-gray-400">Easy on eyes</div>
-                        </div>
-                    </div>
-                    <div onclick="selectTheme('auto')" class="theme-option cursor-pointer border-2 rounded-xl p-5 flex flex-col items-center gap-3 transition-all hover:border-red-800 {{ $preferences['theme'] === 'auto' ? 'border-red-800 bg-red-50' : 'border-gray-200' }}">
-                        <div class="w-14 h-14 rounded-lg bg-gradient-to-r from-gray-800 to-gray-100 flex items-center justify-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 text-gray-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0H3" />
-                            </svg>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-sm font-semibold text-gray-900">Auto</div>
-                            <div class="text-xs text-gray-400">System default</div>
-                        </div>
+                    <div class="grid grid-cols-3 gap-3">
+                        <button type="button" onclick="selectTheme('light')"
+                            class="theme-option group flex flex-col items-center gap-2 p-3 border-2 rounded-xl transition-all hover:border-red-800 {{ $preferences['theme'] === 'light' ? 'border-red-800 bg-red-50' : 'border-gray-200' }}">
+                            <div class="w-full h-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+                                </svg>
+                            </div>
+                            <span class="text-xs font-semibold {{ $preferences['theme'] === 'light' ? 'text-red-800' : 'text-gray-600' }}">Light</span>
+                        </button>
+                        <button type="button" onclick="selectTheme('dark')"
+                            class="theme-option group flex flex-col items-center gap-2 p-3 border-2 rounded-xl transition-all hover:border-red-800 {{ $preferences['theme'] === 'dark' ? 'border-red-800 bg-red-50' : 'border-gray-200' }}">
+                            <div class="w-full h-9 rounded-lg bg-gray-900 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                                </svg>
+                            </div>
+                            <span class="text-xs font-semibold {{ $preferences['theme'] === 'dark' ? 'text-red-800' : 'text-gray-600' }}">Dark</span>
+                        </button>
+                        <button type="button" onclick="selectTheme('auto')"
+                            class="theme-option group flex flex-col items-center gap-2 p-3 border-2 rounded-xl transition-all hover:border-red-800 {{ $preferences['theme'] === 'auto' ? 'border-red-800 bg-red-50' : 'border-gray-200' }}">
+                            <div class="w-full h-9 rounded-lg bg-gradient-to-r from-gray-900 to-white flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0H3" />
+                                </svg>
+                            </div>
+                            <span class="text-xs font-semibold {{ $preferences['theme'] === 'auto' ? 'text-red-800' : 'text-gray-600' }}">System</span>
+                        </button>
                     </div>
                 </div>
-            </div>
 
-            <div class="border-t border-gray-100 mb-8"></div>
-
-            {{-- Primary Color --}}
-            <div class="mb-8">
-                <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1">Primary Color</h3>
-                <p class="text-xs text-gray-400 mb-4">Select an accent color for the interface</p>
-                <div class="flex flex-wrap gap-3">
+                {{-- Accent Color --}}
+                <div class="border border-gray-200 rounded-xl p-5">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background-color: {{ ($preferences['primary_color'] ?? '#c62828') }}22">
+                            <div class="w-4 h-4 rounded-full" style="background-color: {{ $preferences['primary_color'] ?? '#c62828' }}"></div>
+                        </div>
+                        <div>
+                            <div class="text-sm font-semibold text-gray-800">Accent Color</div>
+                            <div class="text-xs text-gray-400">Buttons, active states &amp; highlights</div>
+                        </div>
+                    </div>
                     @php
                         $colors = [
-                            '#c62828' => 'ring-red-800',
-                            '#1976d2' => 'ring-blue-700',
-                            '#388e3c' => 'ring-green-700',
-                            '#f57c00' => 'ring-orange-700',
-                            '#7b1fa2' => 'ring-purple-700',
-                            '#0097a7' => 'ring-cyan-700',
-                            '#5d4037' => 'ring-yellow-900',
-                            '#455a64' => 'ring-gray-700',
+                            '#c62828' => ['Red',    'ring-red-700'],
+                            '#1976d2' => ['Blue',   'ring-blue-600'],
+                            '#388e3c' => ['Green',  'ring-green-600'],
+                            '#f57c00' => ['Orange', 'ring-orange-600'],
+                            '#7b1fa2' => ['Purple', 'ring-purple-700'],
+                            '#0097a7' => ['Teal',   'ring-cyan-600'],
+                            '#5d4037' => ['Brown',  'ring-yellow-900'],
+                            '#455a64' => ['Slate',  'ring-gray-600'],
                         ];
                     @endphp
-                    @foreach($colors as $hex => $ring)
-                    <div onclick="selectColor('{{ $hex }}')" class="color-option cursor-pointer group">
-                        <div class="w-10 h-10 rounded-lg flex items-center justify-center hover:scale-110 transition-transform {{ $preferences['primary_color'] === $hex ? 'ring-4 ring-offset-2 '.$ring : '' }}"
-                            style="background-color: {{ $hex }}">
-                            @if($preferences['primary_color'] === $hex)
-                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                            </svg>
-                            @endif
-                        </div>
-                    </div>
-                    @endforeach
-                </div>
-            </div>
-
-            <div class="border-t border-gray-100 mb-8"></div>
-
-            {{-- Sidebar Style --}}
-            <div class="mb-8">
-                <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1">Sidebar Style</h3>
-                <p class="text-xs text-gray-400 mb-4">Choose the sidebar background style</p>
-                <div class="grid grid-cols-2 gap-4 max-w-md">
-                    <div onclick="selectSidebarStyle('gradient')" class="cursor-pointer border-2 rounded-xl p-4 transition-all hover:border-red-800 {{ $preferences['sidebar_style'] === 'gradient' ? 'border-red-800 bg-red-50' : 'border-gray-200' }}">
-                        <div class="flex items-center gap-4">
-                            <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-red-800 to-red-950 flex-shrink-0"></div>
-                            <div>
-                                <div class="text-sm font-semibold text-gray-900">Gradient</div>
-                                <div class="text-xs text-gray-400">Modern feel</div>
+                    <div class="flex flex-wrap gap-3">
+                        @foreach($colors as $hex => [$label, $ring])
+                        <button type="button" onclick="selectColor('{{ $hex }}')" title="{{ $label }}"
+                            class="color-option group flex flex-col items-center gap-1.5">
+                            <div class="w-9 h-9 rounded-xl flex items-center justify-center transition-transform hover:scale-110 {{ $preferences['primary_color'] === $hex ? 'ring-3 ring-offset-2 '.$ring : '' }}"
+                                style="background-color: {{ $hex }}">
+                                @if($preferences['primary_color'] === $hex)
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                </svg>
+                                @endif
                             </div>
+                            <span class="text-xs text-gray-400 leading-none">{{ $label }}</span>
+                        </button>
+                        @endforeach
+                    </div>
+                </div>
+
+                {{-- Sidebar + Font Size --}}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                    {{-- Sidebar Style --}}
+                    <div class="border border-gray-200 rounded-xl p-5">
+                        <div class="text-sm font-semibold text-gray-800 mb-0.5">Sidebar Style</div>
+                        <div class="text-xs text-gray-400 mb-3">Background of the left navigation</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button type="button" onclick="selectSidebarStyle('gradient')"
+                                class="flex flex-col items-center gap-1.5 p-2 border-2 rounded-xl transition-all hover:border-red-800 {{ $preferences['sidebar_style'] === 'gradient' ? 'border-red-800 bg-red-50' : 'border-gray-200' }}">
+                                <div class="w-full h-8 rounded-md bg-gradient-to-br from-red-800 to-red-950"></div>
+                                <span class="text-xs font-medium {{ $preferences['sidebar_style'] === 'gradient' ? 'text-red-800' : 'text-gray-600' }}">Gradient</span>
+                            </button>
+                            <button type="button" onclick="selectSidebarStyle('solid')"
+                                class="flex flex-col items-center gap-1.5 p-2 border-2 rounded-xl transition-all hover:border-red-800 {{ $preferences['sidebar_style'] === 'solid' ? 'border-red-800 bg-red-50' : 'border-gray-200' }}">
+                                <div class="w-full h-8 rounded-md bg-red-800"></div>
+                                <span class="text-xs font-medium {{ $preferences['sidebar_style'] === 'solid' ? 'text-red-800' : 'text-gray-600' }}">Solid</span>
+                            </button>
                         </div>
                     </div>
-                    <div onclick="selectSidebarStyle('solid')" class="cursor-pointer border-2 rounded-xl p-4 transition-all hover:border-red-800 {{ $preferences['sidebar_style'] === 'solid' ? 'border-red-800 bg-red-50' : 'border-gray-200' }}">
-                        <div class="flex items-center gap-4">
-                            <div class="w-12 h-12 rounded-lg bg-red-800 flex-shrink-0"></div>
+
+                    {{-- Font Size --}}
+                    <div class="border border-gray-200 rounded-xl p-5">
+                        <div class="text-sm font-semibold text-gray-800 mb-0.5">Font Size</div>
+                        <div class="text-xs text-gray-400 mb-3">Text size across the interface</div>
+                        <div class="grid grid-cols-3 gap-2">
+                            @foreach(['small' => ['Aa','Small','text-sm'], 'medium' => ['Aa','Medium','text-base'], 'large' => ['Aa','Large','text-lg']] as $size => [$sample, $label, $class])
+                            <button type="button" onclick="selectFontSize('{{ $size }}')"
+                                class="flex flex-col items-center gap-1 p-2.5 border-2 rounded-xl transition-all hover:border-red-800 {{ $preferences['font_size'] === $size ? 'border-red-800 bg-red-50' : 'border-gray-200' }}">
+                                <span class="{{ $class }} font-bold {{ $preferences['font_size'] === $size ? 'text-red-800' : 'text-gray-700' }}">{{ $sample }}</span>
+                                <span class="text-xs {{ $preferences['font_size'] === $size ? 'text-red-700' : 'text-gray-400' }}">{{ $label }}</span>
+                            </button>
+                            @endforeach
+                        </div>
+                    </div>
+
+                </div>
+
+                {{-- Display Options --}}
+                <div class="border border-gray-200 rounded-xl overflow-hidden">
+                    <div class="px-5 py-3 bg-gray-50 border-b border-gray-200">
+                        <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Display Options</div>
+                    </div>
+                    <div class="divide-y divide-gray-100">
+                        <div class="flex items-center justify-between px-5 py-4">
                             <div>
-                                <div class="text-sm font-semibold text-gray-900">Solid</div>
-                                <div class="text-xs text-gray-400">Clean & minimal</div>
+                                <div class="text-sm font-semibold text-gray-900">Compact Mode</div>
+                                <div class="text-xs text-gray-400 mt-0.5">Reduce spacing and padding throughout the UI</div>
                             </div>
+                            <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-4">
+                                <input type="checkbox" id="compactMode" class="sr-only peer" {{ $preferences['compact_mode'] ? 'checked' : '' }}>
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-800"></div>
+                            </label>
+                        </div>
+                        <div class="flex items-center justify-between px-5 py-4">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-900">Show Animations</div>
+                                <div class="text-xs text-gray-400 mt-0.5">Enable smooth transitions and motion effects</div>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-4">
+                                <input type="checkbox" id="showAnimations" class="sr-only peer" {{ $preferences['show_animations'] ? 'checked' : '' }}>
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-800"></div>
+                            </label>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="border-t border-gray-100 mb-8"></div>
-
-            {{-- Font Size --}}
-            <div class="mb-8">
-                <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1">Font Size</h3>
-                <p class="text-xs text-gray-400 mb-4">Adjust text size across the interface</p>
-                <div class="grid grid-cols-3 gap-4 max-w-sm">
-                    @foreach(['small' => ['Aa','Small','text-sm'], 'medium' => ['Aa','Medium','text-base'], 'large' => ['Aa','Large','text-lg']] as $size => [$sample, $label, $class])
-                    <div onclick="selectFontSize('{{ $size }}')" class="cursor-pointer border-2 rounded-xl p-4 text-center transition-all hover:border-red-800 {{ $preferences['font_size'] === $size ? 'border-red-800 bg-red-50' : 'border-gray-200' }}">
-                        <div class="{{ $class }} font-bold text-gray-700 mb-1">{{ $sample }}</div>
-                        <div class="text-xs text-gray-500">{{ $label }}</div>
-                    </div>
-                    @endforeach
-                </div>
-            </div>
-
-            <div class="border-t border-gray-100 mb-6"></div>
-
-            {{-- Toggles --}}
-            <div class="space-y-3 max-w-lg">
-                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
-                    <div>
-                        <div class="text-sm font-semibold text-gray-900">Compact Mode</div>
-                        <div class="text-xs text-gray-400 mt-0.5">Reduce spacing and padding throughout the UI</div>
-                    </div>
-                    <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-4">
-                        <input type="checkbox" id="compactMode" class="sr-only peer" {{ $preferences['compact_mode'] ? 'checked' : '' }}>
-                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-800"></div>
-                    </label>
-                </div>
-                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
-                    <div>
-                        <div class="text-sm font-semibold text-gray-900">Show Animations</div>
-                        <div class="text-xs text-gray-400 mt-0.5">Enable smooth transitions and motion effects</div>
-                    </div>
-                    <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-4">
-                        <input type="checkbox" id="showAnimations" class="sr-only peer" {{ $preferences['show_animations'] ? 'checked' : '' }}>
-                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-800"></div>
-                    </label>
-                </div>
             </div>
         </div>
 
@@ -352,6 +362,79 @@
                         <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-800"></div>
                     </label>
                 </div>
+            </div>
+
+            {{-- Notification Sound Picker --}}
+            <div class="mt-6">
+                <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1">Notification Sound</h3>
+                <p class="text-xs text-gray-400 mb-4">Choose a different sound for each notification type</p>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+                    {{-- New Ticket / Alert --}}
+                    <div class="border border-gray-200 rounded-xl p-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-7 h-7 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <i class="fas fa-bell text-red-700 text-xs"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs font-semibold text-gray-700">New Ticket / Alert</div>
+                                <div class="text-xs text-gray-400">Badge notification &amp; new ticket</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="se-wrap flex-1" id="soundWrapTicket">
+                                <button type="button" class="se-btn" onclick="_soundDDToggle('soundWrapTicket')">
+                                    <span class="se-label is-placeholder" id="soundLabelTicket">Loading sounds…</span>
+                                    <svg class="se-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <div class="sound-dd-panel" id="soundPanelTicket" role="listbox"></div>
+                            </div>
+                            <button type="button"
+                                onclick="previewSound(document.getElementById('soundWrapTicket').dataset.value)"
+                                class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-all flex-shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"/></svg>
+                                Preview
+                            </button>
+                        </div>
+                    </div>
+
+                    {{-- Chat / Message --}}
+                    <div class="border border-gray-200 rounded-xl p-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <i class="fas fa-comment-dots text-blue-700 text-xs"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs font-semibold text-gray-700">Chat / Message</div>
+                                <div class="text-xs text-gray-400">Incoming message or reply on ticket</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="se-wrap flex-1" id="soundWrapChat">
+                                <button type="button" class="se-btn" onclick="_soundDDToggle('soundWrapChat')">
+                                    <span class="se-label is-placeholder" id="soundLabelChat">Loading sounds…</span>
+                                    <svg class="se-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <div class="sound-dd-panel" id="soundPanelChat" role="listbox"></div>
+                            </div>
+                            <button type="button"
+                                onclick="previewSound(document.getElementById('soundWrapChat').dataset.value)"
+                                class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-all flex-shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"/></svg>
+                                Preview
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <p class="text-xs text-gray-400 mt-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 inline mr-1" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                    </svg>
+                    Settings are saved locally in your browser. Sound must be enabled (🔊 button) for it to play.
+                </p>
             </div>
         </div>
 
@@ -507,41 +590,157 @@
         </div>
 
         {{-- ── ABOUT TAB ── --}}
-        <div id="tab-about" class="settings-content p-6 hidden">
-            <div class="max-w-sm mx-auto text-center py-6">
-                <div class="w-20 h-20 bg-gradient-to-br from-red-800 to-red-950 rounded-2xl mx-auto mb-5 flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-                    </svg>
-                </div>
-                <h2 class="text-2xl font-bold text-gray-900 mb-1">ECoSystem</h2>
-                <p class="text-sm text-gray-500 mb-4">Enterprise Management Platform</p>
-                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold mb-6">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                    </svg>
-                    Version 1.0.0
-                </span>
-                <div class="space-y-2 text-sm text-left">
-                    <div class="flex justify-between px-4 py-3 bg-gray-50 rounded-lg">
-                        <span class="text-gray-500">Release Date</span>
-                        <span class="font-semibold text-gray-900">November 2025</span>
+        <div id="tab-about" class="settings-content hidden overflow-hidden">
+
+            {{-- Hero Banner --}}
+            <div class="bg-gradient-to-br from-red-800 via-red-900 to-red-950 px-8 py-10">
+                <div class="flex items-center gap-5">
+                    <div class="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center flex-shrink-0 border border-white/20 shadow-lg overflow-hidden">
+                        <img src="/images/logo_nobg.png" alt="ECoSystem" class="w-12 h-12 object-contain">
                     </div>
-                    <div class="flex justify-between px-4 py-3 bg-gray-50 rounded-lg">
-                        <span class="text-gray-500">License</span>
-                        <span class="font-semibold text-gray-900">Enterprise</span>
-                    </div>
-                    <div class="flex justify-between px-4 py-3 bg-gray-50 rounded-lg">
-                        <span class="text-gray-500">Last Updated</span>
-                        <span class="font-semibold text-gray-900">{{ now()->format('d M Y') }}</span>
+                    <div class="flex-1 min-w-0">
+                        <h1 class="text-2xl font-bold text-white tracking-tight">ECoSystem</h1>
+                        <p class="text-red-200 text-sm mt-0.5">Enterprise Management Platform</p>
+                        <div class="mt-3 flex flex-wrap items-center gap-2">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/15 text-white rounded-full text-xs font-semibold border border-white/20">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                </svg>
+                                Version 1.0.0
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-xs font-medium border border-emerald-400/25">
+                                <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>
+                                Up to date
+                            </span>
+                        </div>
                     </div>
                 </div>
-                <p class="text-xs text-gray-400 mt-6">© {{ now()->year }} Putra & Natanael. All rights reserved.</p>
+            </div>
+
+            {{-- Body --}}
+            <div class="p-6 space-y-5">
+
+                {{-- Info Cards --}}
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="border border-gray-200 rounded-xl p-4 flex items-center gap-3">
+                        <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-700" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-400">Release Date</div>
+                            <div class="text-sm font-semibold text-gray-900">November 2025</div>
+                        </div>
+                    </div>
+                    <div class="border border-gray-200 rounded-xl p-4 flex items-center gap-3">
+                        <div class="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-green-700" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-400">Last Updated</div>
+                            <div class="text-sm font-semibold text-gray-900">{{ now()->format('d M Y') }}</div>
+                        </div>
+                    </div>
+                    <div class="border border-gray-200 rounded-xl p-4 flex items-center gap-3">
+                        <div class="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-purple-700" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-400">License</div>
+                            <div class="text-sm font-semibold text-gray-900">Enterprise</div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Platform Modules --}}
+                <div class="border border-gray-200 rounded-xl p-5">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-red-800" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-sm font-semibold text-gray-800">Platform Modules</h3>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2.5">
+                        @foreach([
+                            ['icon' => 'fa-ticket-alt',   'label' => 'Ticket Management'],
+                            ['icon' => 'fa-headset',      'label' => 'Delivery Support'],
+                            ['icon' => 'fa-project-diagram','label' => 'Delivery Project'],
+                            ['icon' => 'fa-clock',        'label' => 'Timesheet'],
+                            ['icon' => 'fa-chart-bar',    'label' => 'Reporting'],
+                            ['icon' => 'fa-users',        'label' => 'Employee Management'],
+                        ] as $mod)
+                        <div class="flex items-center gap-2.5 text-xs text-gray-600">
+                            <div class="w-6 h-6 bg-red-50 rounded-md flex items-center justify-center flex-shrink-0">
+                                <i class="fas {{ $mod['icon'] }} text-red-800 text-xs"></i>
+                            </div>
+                            {{ $mod['label'] }}
+                        </div>
+                        @endforeach
+                    </div>
+                </div>
+
+{{-- Team & Copyright --}}
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-1 border-t border-gray-100">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500">Developed by</span>
+                        <div class="flex items-center gap-1.5">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-semibold border border-gray-200">
+                                <span class="w-4 h-4 bg-red-800 text-white rounded-full flex items-center justify-center text-xs font-bold leading-none">P</span>
+                                Putra
+                            </span>
+                            <span class="text-gray-300">&amp;</span>
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-semibold border border-gray-200">
+                                <span class="w-4 h-4 bg-red-800 text-white rounded-full flex items-center justify-center text-xs font-bold leading-none">N</span>
+                                Natanael
+                            </span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-400">© {{ now()->year }} Putra &amp; Natanael. All rights reserved.</p>
+                </div>
+
             </div>
         </div>
 
     </div>{{-- end card --}}
 </div>
+
+<style>
+.sound-dd-panel {
+    display: none;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.18);
+    max-height: 340px;
+    overflow-y: auto;
+    padding: 0.375rem 0;
+}
+.sound-dd-panel.sound-dd-open {
+    display: block;
+    position: fixed;
+    z-index: 9999;
+}
+.sound-dd-item {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    color: #4b5563;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+}
+.sound-dd-item:hover { background: #f9fafb; }
+.sound-dd-item.is-active { background: #f9fafb; color: #111827; font-weight: 500; }
+</style>
 
 <script>
 (function () {
@@ -739,6 +938,157 @@
         if (paths.length) paths[0].setAttribute('d', isHidden ? eyeSlash : eyeOpen);
     }
 
+    // ── Notification Sound Picker ──────────────────────────────────
+    var _previewAudio     = new Audio();
+    var _defaultSoundFile = 'mixkit-software-interface-back-2575.wav';
+    var _activeSoundWrap  = null;
+
+    var SOUND_CHANNELS = [
+        { key: 'notif_sound_ticket', wrapId: 'soundWrapTicket', panelId: 'soundPanelTicket', labelId: 'soundLabelTicket' },
+        { key: 'notif_sound_chat',   wrapId: 'soundWrapChat',   panelId: 'soundPanelChat',   labelId: 'soundLabelChat'   },
+    ];
+
+    function _getCurrentSound(key) {
+        var v = localStorage.getItem(key)
+            || localStorage.getItem('notif_sound')
+            || _defaultSoundFile;
+        return v.includes('.') ? v : _defaultSoundFile;
+    }
+
+    function selectSound(key, filename) {
+        if (!filename) return;
+        localStorage.setItem(key, filename);
+        previewSound(filename);
+    }
+
+    function previewSound(filename) {
+        if (!filename) return;
+        _previewAudio.src = '/sounds/' + filename;
+        _previewAudio.currentTime = 0;
+        _previewAudio.play().catch(function() {});
+    }
+
+    function _soundDDToggle(wrapId) {
+        var wrap = document.getElementById(wrapId);
+        if (!wrap) return;
+        if (_activeSoundWrap && _activeSoundWrap !== wrap) _soundDDHide(_activeSoundWrap);
+        if (wrap.classList.contains('is-open')) _soundDDHide(wrap);
+        else _soundDDShow(wrap);
+    }
+
+    function _soundDDShow(wrap) {
+        var btn   = wrap.querySelector('.se-btn');
+        var panel = wrap._soundPanel;
+        if (!btn || !panel) return;
+        var r = btn.getBoundingClientRect();
+        var spaceBelow = window.innerHeight - r.bottom;
+        var placeAbove = spaceBelow < 344 && r.top > spaceBelow;
+        panel.style.left  = r.left + 'px';
+        panel.style.width = r.width + 'px';
+        if (placeAbove) {
+            panel.style.top    = 'auto';
+            panel.style.bottom = (window.innerHeight - r.top + 4) + 'px';
+        } else {
+            panel.style.bottom = 'auto';
+            panel.style.top    = (r.bottom + 4) + 'px';
+        }
+        document.body.appendChild(panel);
+        panel.classList.add('sound-dd-open');
+        wrap.classList.add('is-open');
+        _activeSoundWrap = wrap;
+    }
+
+    function _soundDDHide(wrap) {
+        if (!wrap) return;
+        wrap.classList.remove('is-open');
+        var panel = wrap._soundPanel;
+        if (panel) {
+            panel.classList.remove('sound-dd-open');
+            panel.style.cssText = '';
+            if (panel.parentNode !== wrap) wrap.appendChild(panel);
+        }
+        if (_activeSoundWrap === wrap) _activeSoundWrap = null;
+    }
+
+    function _soundDDSelect(wrap, filename, text, channelKey) {
+        wrap.dataset.value = filename;
+        var label = wrap.querySelector('.se-label');
+        if (label) { label.textContent = text; label.classList.remove('is-placeholder'); }
+        var panel = wrap._soundPanel;
+        if (panel) {
+            panel.querySelectorAll('.sound-dd-item').forEach(function(item) {
+                item.classList.toggle('is-active', item.dataset.value === filename);
+            });
+        }
+        _soundDDHide(wrap);
+        selectSound(channelKey, filename);
+    }
+
+    document.addEventListener('click', function(e) {
+        if (!_activeSoundWrap) return;
+        if (_activeSoundWrap.contains(e.target)) return;
+        var panel = _activeSoundWrap._soundPanel;
+        if (panel && panel.contains(e.target)) return;
+        _soundDDHide(_activeSoundWrap);
+    });
+
+    window.addEventListener('scroll', function() {
+        if (_activeSoundWrap) _soundDDHide(_activeSoundWrap);
+    }, true);
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && _activeSoundWrap) _soundDDHide(_activeSoundWrap);
+    });
+
+    async function _loadSounds() {
+        try {
+            var res  = await fetch('/api/notification-sounds', { credentials: 'same-origin' });
+            var json = await res.json();
+            if (!json.success || !json.data.length) return;
+
+            var def = json.data.find(function(s) { return s.is_default; });
+            if (def) _defaultSoundFile = def.filename;
+
+            SOUND_CHANNELS.forEach(function(channel) {
+                var wrap  = document.getElementById(channel.wrapId);
+                var panel = document.getElementById(channel.panelId);
+                var label = document.getElementById(channel.labelId);
+                if (!wrap || !panel || !label) return;
+
+                wrap._soundPanel = panel;
+
+                var current = _getCurrentSound(channel.key);
+                panel.innerHTML = '';
+                json.data.forEach(function(s) {
+                    var item = document.createElement('button');
+                    item.type = 'button';
+                    item.className = 'sound-dd-item' + (s.filename === current ? ' is-active' : '');
+                    item.textContent = s.name + (s.is_default ? ' (Default)' : '');
+                    item.dataset.value = s.filename;
+                    (function(w, fn, txt, k) {
+                        item.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            _soundDDSelect(w, fn, txt, k);
+                        });
+                    })(wrap, s.filename, item.textContent, channel.key);
+                    panel.appendChild(item);
+                });
+
+                var currentSound = json.data.find(function(s) { return s.filename === current; })
+                                || json.data[0];
+                if (currentSound) {
+                    wrap.dataset.value = currentSound.filename;
+                    label.textContent  = currentSound.name + (currentSound.is_default ? ' (Default)' : '');
+                    label.classList.remove('is-placeholder');
+                }
+            });
+        } catch (e) {
+            console.warn('Failed to load sounds', e);
+        }
+    }
+
+    _loadSounds();
+
     // ── Expose ─────────────────────────────────────────────────────
     window.switchTab          = switchTab;
     window.selectTheme        = selectTheme;
@@ -749,6 +1099,9 @@
     window.resetSettings      = resetSettings;
     window.changePassword     = changePassword;
     window.togglePassword     = togglePassword;
+    window.selectSound        = selectSound;
+    window.previewSound       = previewSound;
+    window._soundDDToggle     = _soundDDToggle;
 })();
 </script>
 @endsection

@@ -10,6 +10,24 @@ use Illuminate\Support\Facades\Validator;
 class CustomerAddressController extends Controller
 {
     /**
+     * Sync customer.email from the first address that has an email.
+     * Called after any address create/update/delete.
+     */
+    private function syncCustomerEmail(int $customerId): void
+    {
+        $email = DB::table('customer_address')
+            ->where('customer_id', $customerId)
+            ->whereNotNull('email')
+            ->where('email', '!=', '')
+            ->orderBy('address_id', 'asc')
+            ->value('email');
+
+        DB::table('customer')
+            ->where('customer_id', $customerId)
+            ->update(['email' => $email ?: null]);
+    }
+
+    /**
      * Get all addresses for a customer
      */
     public function index($customerId)
@@ -172,6 +190,8 @@ class CustomerAddressController extends Controller
                 'updated_at' => now(),
             ]);
 
+            $this->syncCustomerEmail((int) $customerId);
+
             Log::info('=== API: CUSTOMER ADDRESS CREATED SUCCESSFULLY ===', [
                 'address_id' => $addressId
             ]);
@@ -278,6 +298,8 @@ class CustomerAddressController extends Controller
                 ], 404);
             }
 
+            $this->syncCustomerEmail((int) $customerId);
+
             Log::info('=== API: CUSTOMER ADDRESS UPDATED SUCCESSFULLY ===');
 
             return response()->json([
@@ -320,6 +342,8 @@ class CustomerAddressController extends Controller
                     'message' => 'Address not found'
                 ], 404);
             }
+
+            $this->syncCustomerEmail((int) $customerId);
 
             Log::info('=== API: CUSTOMER ADDRESS DELETED SUCCESSFULLY ===');
 
