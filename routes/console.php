@@ -10,6 +10,3 @@ Artisan::command('inspire', function () {
 
 // Proses email masuk setiap menit → buat tiket / tambah pesan ke tiket
 Schedule::command('email:process-inbox')->everyMinute();
-
-// Safety-net: backfill SLA events yang slip-through setiap 5 menit
-Schedule::command('sla:backfill-events')->everyFiveMinutes();

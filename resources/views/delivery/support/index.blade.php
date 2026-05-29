@@ -48,9 +48,9 @@
         <p class="text-2xl font-bold text-gray-900" id="processCount">0</p>
     </div>
 
-    <!-- waiting on Customer -->
+    <!-- Author Action -->
     <div id="filterAuthorAction" class="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterTickets('author action')">
-        <p class="text-xs font-medium text-gray-500 mb-1">waiting on Customer</p>
+        <p class="text-xs font-medium text-gray-500 mb-1">Author Action</p>
         <p class="text-2xl font-bold text-gray-900" id="authorCount">0</p>
     </div>
 

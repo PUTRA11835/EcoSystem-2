@@ -1453,23 +1453,6 @@ class TicketController extends Controller
             $ticket->update([
                 'status' => $request->status
             ]);
-            $wasAlreadyClosed = in_array($ticket->status, ['closed'], true);
-
-            $ticket->update(['status' => $request->status]);
-
-            // Jika baru ditutup (bukan sudah closed sebelumnya), catat SLA close event
-            if ($request->status === 'closed' && !$wasAlreadyClosed) {
-                if ($request->has('jarvies_status')) {
-                    $ticket->update(['jarvies_status' => $request->jarvies_status]);
-                } elseif ($ticket->jarvies_status !== 'closed') {
-                    $ticket->update(['jarvies_status' => 'closed']);
-                }
-
-                $sla = \App\Models\TicketSla::with('policy')->where('ticket_id', $ticket->ticket_id)->first();
-                if ($sla && !$sla->isClosed()) {
-                    app(\App\Services\SlaService::class)->closeTicketSla($sla, $ticket, null, now());
-                }
-            }
 
             // Add system log and send email when ticket is closed or cancelled
             if (in_array($request->status, ['closed', 'cancel'])) {
@@ -2575,25 +2558,4 @@ class TicketController extends Controller
             ], 500);
         }
     }
-
-    // ─── Jarvies: customer menutup tiket ────────────────────────────────────
-    public function closeByCustomer(\Illuminate\Http\Request $request, int $id)
-    {
-        $ticket = Ticket::findOrFail($id);
-
-        if ($ticket->jarvies_status === 'closed' || $ticket->status === 'closed') {
-            return response()->json(['success' => false, 'message' => 'Ticket is already closed.'], 422);
-        }
-
-        $ticket->update(['jarvies_status' => 'closed', 'status' => 'closed']);
-
-        $sla = \App\Models\TicketSla::with('policy')->where('ticket_id', $ticket->ticket_id)->first();
-        if ($sla && !$sla->isClosed()) {
-            app(\App\Services\SlaService::class)->closeTicketSla($sla, $ticket, null, now());
-        }
-
-        return response()->json(['success' => true, 'message' => 'Ticket closed successfully.']);
-    }
-
-
 }

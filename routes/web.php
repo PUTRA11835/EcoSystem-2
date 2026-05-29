@@ -32,7 +32,6 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AdminSessionController;
 use App\Http\Controllers\AdminJobController;
 use App\Http\Controllers\AdminBackupController;
-use App\Http\Controllers\SlaController;
 use App\Http\Middleware\CheckAuthToken;
 
 // ==================== PUBLIC ROUTES ====================
@@ -154,9 +153,6 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('activity-log');
         Route::get('/sessions', [AdminSessionController::class, 'page'])->name('sessions');
         Route::get('/failed-jobs', [AdminJobController::class, 'page'])->name('failed-jobs');
-        Route::get('/sla/config', [SlaController::class, 'configPage'])->name('sla.config');
-        Route::get('/sla/report', [SlaController::class, 'reportPage'])->name('sla.report');
-        Route::get('/sla/tickets/{id}/pdf', [SlaController::class, 'downloadTicketPdf'])->name('sla.ticket.pdf');
         Route::get('/backup', [AdminBackupController::class, 'page'])->name('backup');
         Route::get('/backup/download/{filename}', [AdminBackupController::class, 'downloadBackup'])->name('backup.download');
         Route::get('/export/employees', [AdminBackupController::class, 'exportEmployees'])->name('export.employees');
