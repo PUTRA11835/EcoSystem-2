@@ -214,13 +214,47 @@ class DeliveryProjectPlanning extends Model
     {
         if ($this->is_group) {
             $stages = $this->stages;
-            
+
             if ($stages->isEmpty()) {
+                // ✅ FIX: check direct activities (Phase → Group → Activity, no stage)
+                $directActivities = self::where('parent_id', $this->id)
+                    ->where('is_group', false)
+                    ->whereNull('stage_id')
+                    ->with('activity')
+                    ->get();
+
+                if ($directActivities->isNotEmpty()) {
+                    $totalWeight     = 0;
+                    $weightedProgress = 0;
+
+                    foreach ($directActivities as $pa) {
+                        $weight   = (float) ($pa->weight ?? 0);
+                        $progress = $pa->activity
+                            ? (float) ($pa->activity->progress_percentage ?? $pa->progress_percentage ?? 0)
+                            : (float) ($pa->progress_percentage ?? 0);
+
+                        $totalWeight      += $weight;
+                        $weightedProgress += $progress * $weight;
+                    }
+
+                    if ($totalWeight > 0) {
+                        return round($weightedProgress / $totalWeight, 2);
+                    }
+
+                    // No weights set — simple average
+                    $avg = $directActivities->avg(function ($pa) {
+                        return $pa->activity
+                            ? (float) ($pa->activity->progress_percentage ?? 0)
+                            : (float) ($pa->progress_percentage ?? 0);
+                    });
+                    return round($avg ?? 0, 2);
+                }
+
                 return (float) ($this->progress_percentage ?? 0);
             }
 
             $totalWeight = $stages->sum('weight');
-            
+
             if ($totalWeight == 0) {
                 return round($stages->avg('progress') ?? 0, 2);
             }
@@ -432,6 +466,32 @@ class DeliveryProjectPlanning extends Model
     }
 
     /**
+     * Recalculate group weight as sum of direct child activities' weights.
+     * Called after any activity under this group is created, updated, or deleted.
+     */
+    public function recalculateGroupWeight(): void
+    {
+        if (!$this->is_group) {
+            return;
+        }
+
+        $sumWeight = self::where('parent_id', $this->id)
+            ->where('is_group', false)
+            ->sum('weight');
+
+        $this->weight = round((float) $sumWeight, 2);
+        $this->saveQuietly();
+
+        // Propagate up if this group itself is nested inside another group
+        if ($this->parent_id) {
+            $parentGroup = self::find($this->parent_id);
+            if ($parentGroup && $parentGroup->is_group) {
+                $parentGroup->recalculateGroupWeight();
+            }
+        }
+    }
+
+    /**
      * ✅ ORIGINAL: Get total activities weight (preserved)
      */
     public function getTotalActivitiesWeight(): float
@@ -527,12 +587,70 @@ class DeliveryProjectPlanning extends Model
         }
 
         $stages = $this->stages;
-        
+
+        // ✅ FIX: handle groups that use direct activities (no stages)
         if ($stages->isEmpty()) {
-            Log::info("Group has no stages, keeping current status", ['group_id' => $this->id]);
+            $directActivities = self::where('parent_id', $this->id)
+                ->where('is_group', false)
+                ->whereNull('stage_id')
+                ->with('activity')
+                ->get();
+
+            if ($directActivities->isEmpty()) {
+                Log::info("Group has no stages or direct activities, keeping current status", ['group_id' => $this->id]);
+                return;
+            }
+
+            $totalWeight      = 0;
+            $weightedProgress = 0;
+            $hasDelayed       = false;
+
+            foreach ($directActivities as $pa) {
+                $weight   = (float) ($pa->weight ?? 0);
+                $progress = $pa->activity
+                    ? (float) ($pa->activity->progress_percentage ?? $pa->progress_percentage ?? 0)
+                    : (float) ($pa->progress_percentage ?? 0);
+                $actStatus = $pa->activity ? ($pa->activity->status ?? $pa->status ?? 'not_started') : ($pa->status ?? 'not_started');
+
+                $totalWeight      += $weight;
+                $weightedProgress += $progress * $weight;
+
+                if ($actStatus === 'delayed') {
+                    $hasDelayed = true;
+                }
+            }
+
+            $progress = $totalWeight > 0 ? round($weightedProgress / $totalWeight, 2) : 0;
+            $this->progress_percentage = $progress;
+
+            if ($progress == 0) {
+                $this->status = 'not_started';
+            } elseif ($progress >= 100) {
+                $this->status = 'completed';
+            } else {
+                $this->status = $hasDelayed ? 'delayed' : 'in_progress';
+            }
+
+            Log::info("Group status updated (direct activities)", [
+                'group_id'   => $this->id,
+                'progress'   => $progress,
+                'status'     => $this->status,
+                'activities' => $directActivities->count(),
+            ]);
+
+            $this->saveQuietly();
+
+            if ($this->parent_id) {
+                $parent = $this->parent;
+                if ($parent && $parent->is_group) {
+                    $parent->updateGroupStatus();
+                }
+            }
+
             return;
         }
 
+        // ── Existing: stage-based ──────────────────────────────────────────
         $progress = $this->calculated_progress;
         $this->progress_percentage = $progress;
 

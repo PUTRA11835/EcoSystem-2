@@ -202,4 +202,68 @@ class DeliveryProjectActivity extends Model
     {
         return $this->status === 'delayed';
     }
+
+    /**
+     * Compute status from current progress + dates.
+     * Rules (Delayed checked first — takes precedence over Completed):
+     *   1. actual_end > planned_end                                → delayed
+     *   2. progress < 100 AND today > planned_end                  → delayed
+     *   3. progress = 0   AND today > planned_start AND !actual_start → delayed
+     *   4. progress = 100 AND actual_end set                       → completed
+     *   5. progress = 100 AND actual_end empty                     → in_progress
+     *   6. progress = 0                                            → not_started
+     *   7. otherwise                                               → in_progress
+     */
+    public function computeStatus(?\Carbon\Carbon $today = null): string
+    {
+        $today    = $today ?? \Carbon\Carbon::today();
+        $progress = (float) ($this->progress_percentage ?? 0);
+
+        $ps = $this->start_date;
+        $pe = $this->end_date;
+        $as = $this->actual_start_date;
+        $ae = $this->actual_end_date;
+
+        // DELAYED (precedence)
+        if ($ae && $pe && $ae->gt($pe))                           return 'delayed';
+        if ($progress < 100 && $pe && $today->gt($pe))            return 'delayed';
+        if ($progress == 0 && $ps && $today->gt($ps) && !$as)     return 'delayed';
+
+        // COMPLETED
+        if ($progress >= 100 && $ae)                              return 'completed';
+
+        // IN_PROGRESS / NOT_STARTED
+        if ($progress >= 100 && !$ae)                             return 'in_progress';
+        if ($progress == 0)                                       return 'not_started';
+        return 'in_progress';
+    }
+
+    /**
+     * Auto-recompute status on save when progress/date fields change.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $activity) {
+            $relevant = ['progress_percentage', 'start_date', 'end_date', 'actual_start_date', 'actual_end_date'];
+            $changed  = false;
+            foreach ($relevant as $f) {
+                if ($activity->isDirty($f)) { $changed = true; break; }
+            }
+            // Also recompute if status itself is dirty (e.g. legacy direct write) so we always end up consistent
+            if ($changed || $activity->isDirty('status') || !$activity->exists) {
+                $activity->status = $activity->computeStatus();
+            }
+        });
+
+        // Sync computed status back to the linked planning record (denormalized mirror)
+        static::saved(function (self $activity) {
+            if (!$activity->wasChanged('status')) return;
+
+            $planning = DeliveryProjectPlanning::where('activity_id', $activity->id)->first();
+            if ($planning && $planning->status !== $activity->status) {
+                $planning->status = $activity->status;
+                $planning->saveQuietly();
+            }
+        });
+    }
 }

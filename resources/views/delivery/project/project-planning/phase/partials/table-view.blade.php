@@ -254,6 +254,9 @@
             return;
         }
 
+        // Reset activity data map for drawer
+        window._activityDataMap = {};
+
         tbody.innerHTML = '';
         
         if (phasesData.length === 0) {
@@ -601,21 +604,40 @@
      * Create ACTIVITY row
      */
     function createActivityRow(activity, stageId, indentation, parentElement) {
+        // Store in data map for the detail drawer
+        window._activityDataMap[activity.id] = activity;
+
         const row = document.createElement('tr');
         row.className = `hover:bg-blue-50 activity-row transition stage-child-${stageId}`;
         row.style.display = 'none';
         row.dataset.activityId = activity.id;
         row.dataset.stageId = stageId;
-        
+
         if (activity.parent_id) {
             row.classList.add(`activity-child-${activity.parent_id}`);
         }
-        
+
         const weight = parseFloat(activity.weight) || 0;
         const progress = parseFloat(activity.progress_percentage) || 0;
         const escapedName = escapeHtml(activity.name || 'Unnamed Activity');
         const paddingLeft = (indentation * 1.5) + 'rem';
-        
+
+        // Small inline badges
+        const complexityBadge = activity.complexity
+            ? `<span class="hidden sm:inline ml-1.5 px-1.5 py-0.5 rounded text-xs font-semibold
+                ${activity.complexity === 'high'   ? 'bg-red-100 text-red-600' :
+                  activity.complexity === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                                                     'bg-green-100 text-green-700'}"
+               title="Complexity: ${activity.complexity}">${activity.complexity.charAt(0).toUpperCase()}</span>`
+            : '';
+        const newReqBadge = activity.new_requirement
+            ? `<span class="hidden sm:inline ml-1.5 px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-600" title="New Requirement">NR</span>`
+            : '';
+        const hasActualDates = activity.actual_start_date || activity.actual_end_date;
+        const actualDot = hasActualDates
+            ? `<span class="hidden sm:inline ml-1.5 w-1.5 h-1.5 rounded-full bg-teal-400 inline-block" title="Has actual dates"></span>`
+            : '';
+
         row.innerHTML = `
             <td class="px-2 sm:px-3 py-2 sticky left-0 bg-white z-10 min-w-[250px] sm:min-w-[400px]" style="padding-left: ${paddingLeft};">
                 <div class="flex items-center justify-between group">
@@ -623,9 +645,21 @@
                         <svg class="w-3 h-3 text-blue-500 mr-1 sm:mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
-                        <span class="text-xs font-medium text-gray-900 truncate">${escapedName}</span>
+                        <button onclick="openActivityDrawer(${activity.id}, ${stageId}, null)"
+                                class="text-xs font-medium text-gray-900 truncate hover:text-blue-600 hover:underline text-left transition"
+                                title="View details">
+                            ${escapedName}
+                        </button>
+                        ${complexityBadge}${newReqBadge}${actualDot}
                     </div>
                     <div class="hidden group-hover:flex items-center space-x-1 ml-2 flex-shrink-0">
+                        <button onclick="openActivityDrawer(${activity.id}, ${stageId}, null)"
+                                class="p-1 text-gray-500 hover:bg-gray-100 rounded transition"
+                                title="View Details">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </button>
                         <button onclick="editActivity(${activity.id}, ${stageId})"
                                 class="p-1 text-blue-600 hover:bg-blue-100 rounded transition"
                                 title="Edit Activity">
@@ -680,6 +714,9 @@
      * Create ACTIVITY row directly under GROUP (without stage)
      */
     function createActivityRowForGroup(activity, groupId, indentation, parentElement) {
+        // Store in data map for the detail drawer
+        window._activityDataMap[activity.id] = activity;
+
         const row = document.createElement('tr');
         row.className = `hover:bg-blue-50 activity-row transition group-child-${groupId}`;
         row.style.display = 'none';
@@ -691,6 +728,22 @@
         const escapedName = escapeHtml(activity.name || 'Unnamed Activity');
         const paddingLeft = (indentation * 1.5) + 'rem';
 
+        // Small inline badges
+        const complexityBadge = activity.complexity
+            ? `<span class="hidden sm:inline ml-1.5 px-1.5 py-0.5 rounded text-xs font-semibold
+                ${activity.complexity === 'high'   ? 'bg-red-100 text-red-600' :
+                  activity.complexity === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                                                     'bg-green-100 text-green-700'}"
+               title="Complexity: ${activity.complexity}">${activity.complexity.charAt(0).toUpperCase()}</span>`
+            : '';
+        const newReqBadge = activity.new_requirement
+            ? `<span class="hidden sm:inline ml-1.5 px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-600" title="New Requirement">NR</span>`
+            : '';
+        const hasActualDates = activity.actual_start_date || activity.actual_end_date;
+        const actualDot = hasActualDates
+            ? `<span class="hidden sm:inline ml-1.5 w-1.5 h-1.5 rounded-full bg-teal-400 inline-block" title="Has actual dates"></span>`
+            : '';
+
         row.innerHTML = `
             <td class="px-2 sm:px-3 py-2 sticky left-0 bg-white z-10 min-w-[250px] sm:min-w-[400px]" style="padding-left: ${paddingLeft};">
                 <div class="flex items-center justify-between group">
@@ -698,10 +751,22 @@
                         <svg class="w-3 h-3 text-blue-500 mr-1 sm:mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
-                        <span class="text-xs font-medium text-gray-900 truncate">${escapedName}</span>
-                        <span class="ml-1 sm:ml-2 text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded hidden sm:inline">Direct</span>
+                        <button onclick="openActivityDrawer(${activity.id}, null, ${groupId})"
+                                class="text-xs font-medium text-gray-900 truncate hover:text-blue-600 hover:underline text-left transition"
+                                title="View details">
+                            ${escapedName}
+                        </button>
+                        <span class="ml-1.5 text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded hidden sm:inline flex-shrink-0">Direct</span>
+                        ${complexityBadge}${newReqBadge}${actualDot}
                     </div>
                     <div class="hidden group-hover:flex items-center space-x-1 ml-2 flex-shrink-0">
+                        <button onclick="openActivityDrawer(${activity.id}, null, ${groupId})"
+                                class="p-1 text-gray-500 hover:bg-gray-100 rounded transition"
+                                title="View Details">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </button>
                         <button onclick="editActivityForGroup(${activity.id}, ${groupId})"
                                 class="p-1 text-blue-600 hover:bg-blue-100 rounded transition"
                                 title="Edit Activity">

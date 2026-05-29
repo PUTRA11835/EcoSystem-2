@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use App\Models\AuthUser;
+use App\Models\DeliveryProjectCost;
 
 
 class DeliveryProject extends Model
@@ -43,7 +44,6 @@ class DeliveryProject extends Model
         'project_manager_id',
         'co_pm_id',
         'project_admin_id',
-        'sales_id',
         'revenue',
         'plan_cost',
         'gross_profit',
@@ -102,10 +102,18 @@ class DeliveryProject extends Model
                     ->orderBy('order_sequence');
     }
 
+    public function costs()
+    {
+        return $this->hasMany(DeliveryProjectCost::class, 'delivery_projects_id')
+                    ->whereNull('parent_id')
+                    ->with('children')
+                    ->orderBy('order_sequence');
+    }
+
     public function teamMembers()
     {
         return $this->belongsToMany(Employee::class, 'delivery_project_employee', 'delivery_projects_id', 'employee_id', 'id', 'employee_id')
-                    ->withPivot('module', 'role', 'employee_type', 'vendor_name', 'start_date', 'end_date')
+                    ->withPivot('module', 'role', 'employee_type', 'vendor_name', 'start_date', 'end_date', 'notes')
                     ->withTimestamps();
     }
 

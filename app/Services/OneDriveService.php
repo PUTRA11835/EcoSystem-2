@@ -232,6 +232,56 @@ class OneDriveService
     }
 
     /**
+     * List immediate children (folders only) of a folder specified by its item ID.
+     * Returns an array of ['id' => ..., 'name' => ...] for each child folder.
+     */
+    public function listSubFoldersByParentId(string $parentFolderId): array
+    {
+        $token = $this->getAccessToken();
+
+        $response = Http::withToken($token)->get(
+            "{$this->baseUrl}/users/{$this->userEmail}/drive/items/{$parentFolderId}/children",
+            ['$select' => 'id,name,folder', '$top' => 200]
+        );
+
+        if (!$response->successful()) {
+            Log::error('OneDrive listSubFoldersByParentId failed', [
+                'parent_id' => $parentFolderId,
+                'status'    => $response->status(),
+                'body'      => $response->body(),
+            ]);
+            throw new \RuntimeException('Failed to list OneDrive subfolder children: ' . $response->body());
+        }
+
+        return collect($response->json('value', []))
+            ->filter(fn($item) => isset($item['folder']))
+            ->map(fn($item) => ['id' => $item['id'], 'name' => $item['name']])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Find an existing subfolder by name inside a parent folder (by item ID),
+     * or create it if it does not exist.
+     * Comparison is case-insensitive.
+     * Returns the subfolder's item ID.
+     */
+    public function findOrCreateSubFolderById(string $parentFolderId, string $folderName): string
+    {
+        $children = $this->listSubFoldersByParentId($parentFolderId);
+
+        $needle = mb_strtolower(trim($folderName));
+        foreach ($children as $child) {
+            if (mb_strtolower($child['name']) === $needle) {
+                return $child['id'];
+            }
+        }
+
+        // Not found — create it
+        return $this->createSubFolder($parentFolderId, $folderName);
+    }
+
+    /**
      * Create an anonymous share link for the given folder ID.
      * type='edit' grants upload + edit access to anyone with the link.
      * Returns the web URL of the share link.

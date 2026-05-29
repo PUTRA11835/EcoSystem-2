@@ -3,8 +3,12 @@
 @section('page-title', 'Add New Delivery Project')
 @section('page-subtitle', 'Create a new delivery project')
 @push('styles')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 <style>
     .primary-focus:focus { border-color: var(--primary-color) !important; box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15) !important; outline: none !important; }
+    .flatpickr-day.fp-weekend:not(.flatpickr-disabled) { color: #ef4444; }
+    .flatpickr-day.fp-holiday { color: #dc2626 !important; font-weight: 600; }
+    .flatpickr-day.flatpickr-disabled.fp-holiday { color: #dc2626 !important; }
 </style>
 @endpush
 
@@ -13,8 +17,19 @@
 $clients   = ($clients ?? collect())->sortBy(fn($c) => strtolower($c->basicData->name_1 ?? $c->email ?? 'zzz'))->values();
 $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
 @endphp
-<form action="{{ route('projects.store') }}" method="POST">
+<form action="{{ route('projects.store') }}" method="POST" id="createProjectForm">
     @csrf
+    {{-- Validation error toast + inline highlights --}}
+    @if($errors->any())
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const msgs = @json($errors->all());
+            if (typeof showNotification === 'function') {
+                showNotification(msgs[0] + (msgs.length > 1 ? ' (+' + (msgs.length-1) + ' lainnya)' : ''), 'error');
+            }
+        });
+    </script>
+    @endif
     
     {{-- Basic Project Information --}}
     <div class="bg-white overflow-hidden shadow-md sm:rounded-lg mb-6">
@@ -31,7 +46,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                 <div class="custom-dd relative mt-1" data-fixed="true">
                     @php $oldClient = old('client_id'); $oldClientLabel = ''; @endphp
                     @foreach($clients as $c)@if($oldClient == $c->customer_id)@php $oldClientLabel = $c->basicData->name_1 ?? $c->email ?? 'Unknown'; @endphp @endif @endforeach
-                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border {{ $errors->has('client_id') ? 'border-red-400' : 'border-gray-300' }} rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
                         <span class="custom-dd-label {{ $oldClientLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $oldClientLabel ?: '-- Select Client --' }}</span>
                         <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
@@ -47,6 +62,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                         <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
                     </div>
                 </div>
+                @error('client_id')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
             <div>
                 <label class="block font-medium text-sm text-gray-700">Project Owner <span class="text-red-500">*</span></label>
@@ -103,83 +119,110 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                     </div>
                 </div>
             </div>
-            <!-- Category (Readonly) -->
-            <div>
-                <label for="category" class="block font-medium text-sm text-gray-700">Category</label>
-                <input type="text" 
-                       name="category" 
-                       id="category" 
-                       class="mt-1 block w-full bg-gray-100 cursor-not-allowed border border-gray-300 rounded-lg shadow-sm text-sm px-4 py-2.5" 
-                       value="{{ old('category') }}"
-                       readonly>
-                <p class="mt-1 text-xs text-gray-500">Auto-filled from Delivery Project Planning.</p>
-            </div>
-            <!-- Phase (Readonly) -->
-            <div>
-                <label for="phase" class="block font-medium text-sm text-gray-700">Phase</label>
-                <input type="text" 
-                       name="phase" 
-                       id="phase" 
-                       class="mt-1 block w-full bg-gray-100 cursor-not-allowed border border-gray-300 rounded-lg shadow-sm text-sm px-4 py-2.5" 
-                       value="{{ old('phase') }}"
-                       readonly>
-                <p class="mt-1 text-xs text-gray-500">Auto-filled from Delivery Project Planning.</p>
-            </div>
             <div class="md:col-span-2">
-                <label for="io_number" class="block font-medium text-sm text-gray-700">IO/Number Order</label>
+                <label for="io_number" class="block font-medium text-sm text-gray-700">
+                    IO/Number Order <span class="text-red-500">*</span>
+                </label>
                 <input type="text"
                        name="io_number"
                        id="io_number"
-                       class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
+                       class="mt-1 block w-full border {{ $errors->has('io_number') ? 'border-red-400 bg-red-50' : 'border-gray-300' }} rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
                        value="{{ old('io_number') }}"
-                       placeholder="e.g. IO-2026-001">
+                       placeholder="e.g. IO-2026-001"
+                       required>
+                @error('io_number')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
             <div class="md:col-span-2">
                 <label for="name" class="block font-medium text-sm text-gray-700">Project Name <span class="text-red-500">*</span></label>
-                <input type="text" 
-                       name="name" 
-                       id="name" 
-                       class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
+                <input type="text"
+                       name="name"
+                       id="name"
+                       class="mt-1 block w-full border {{ $errors->has('name') ? 'border-red-400 bg-red-50' : 'border-gray-300' }} rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
                        value="{{ old('name') }}"
+                       placeholder="Insert Project Name"
                        required>
+                @error('name')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
             <div class="md:col-span-2">
                 <label for="description" class="block font-medium text-sm text-gray-700">Description <span class="text-red-500">*</span></label>
-                <textarea name="description" 
-                          id="description" 
-                          rows="4" 
-                          class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
+                <textarea name="description"
+                          id="description"
+                          rows="4"
+                          class="mt-1 block w-full border {{ $errors->has('description') ? 'border-red-400 bg-red-50' : 'border-gray-300' }} rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
                           required>{{ old('description') }}</textarea>
+                @error('description')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
+        </div>
+    </div>
+
+    {{-- Auto-filled Information Section --}}
+    <div class="bg-blue-50 border border-blue-200 overflow-hidden shadow-sm sm:rounded-lg mb-6">
+        <div class="px-6 py-4 border-b border-blue-200 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+            </svg>
             <div>
-                <label for="start_date" class="block font-medium text-sm text-gray-700">Start Date</label>
-                <input type="date" 
-                       name="start_date" 
-                       id="start_date" 
-                       class="mt-1 block w-full bg-gray-100 cursor-not-allowed border border-gray-300 rounded-lg shadow-sm text-sm px-4 py-2.5" 
+                <h3 class="text-sm font-semibold text-blue-800">Informasi Auto-filled</h3>
+                <p class="text-xs text-blue-600">Field-field berikut akan terisi otomatis setelah Delivery Project Planning dikonfigurasi. Tidak perlu diisi secara manual.</p>
+            </div>
+        </div>
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {{-- Category --}}
+            <div>
+                <label for="category" class="block font-medium text-sm text-blue-700">Category</label>
+                <input type="text"
+                       name="category"
+                       id="category"
+                       class="mt-1 block w-full bg-blue-100/60 cursor-not-allowed border border-blue-200 rounded-lg shadow-sm text-sm px-4 py-2.5 text-gray-500"
+                       value="{{ old('category') }}"
+                       readonly
+                       placeholder="Terisi otomatis…">
+                <p class="mt-1 text-xs text-blue-500">Auto-filled dari Delivery Project Planning.</p>
+            </div>
+            {{-- Phase --}}
+            <div>
+                <label for="phase" class="block font-medium text-sm text-blue-700">Phase</label>
+                <input type="text"
+                       name="phase"
+                       id="phase"
+                       class="mt-1 block w-full bg-blue-100/60 cursor-not-allowed border border-blue-200 rounded-lg shadow-sm text-sm px-4 py-2.5 text-gray-500"
+                       value="{{ old('phase') }}"
+                       readonly
+                       placeholder="Terisi otomatis…">
+                <p class="mt-1 text-xs text-blue-500">Auto-filled dari Delivery Project Planning.</p>
+            </div>
+            {{-- Start Date --}}
+            <div>
+                <label for="start_date" class="block font-medium text-sm text-blue-700">Start Date</label>
+                <input type="date"
+                       name="start_date"
+                       id="start_date"
+                       class="mt-1 block w-full bg-blue-100/60 cursor-not-allowed border border-blue-200 rounded-lg shadow-sm text-sm px-4 py-2.5 text-gray-500"
                        value="{{ old('start_date') }}"
                        readonly>
-                <p class="mt-1 text-xs text-gray-500">Auto-filled from Delivery Project Planning.</p>
+                <p class="mt-1 text-xs text-blue-500">Auto-filled dari Delivery Project Planning.</p>
             </div>
+            {{-- End Date --}}
             <div>
-                <label for="end_date" class="block font-medium text-sm text-gray-700">End Date</label>
-                <input type="date" 
-                       name="end_date" 
-                       id="end_date" 
-                       class="mt-1 block w-full bg-gray-100 cursor-not-allowed border border-gray-300 rounded-lg shadow-sm text-sm px-4 py-2.5" 
+                <label for="end_date" class="block font-medium text-sm text-blue-700">End Date</label>
+                <input type="date"
+                       name="end_date"
+                       id="end_date"
+                       class="mt-1 block w-full bg-blue-100/60 cursor-not-allowed border border-blue-200 rounded-lg shadow-sm text-sm px-4 py-2.5 text-gray-500"
                        value="{{ old('end_date') }}"
                        readonly>
-                <p class="mt-1 text-xs text-gray-500">Auto-filled from Delivery Project Planning.</p>
+                <p class="mt-1 text-xs text-blue-500">Auto-filled dari Delivery Project Planning.</p>
             </div>
+            {{-- Go Live Estimated --}}
             <div>
-                <label for="go_live_estimated" class="block font-medium text-sm text-gray-700">Go Live Estimated</label>
-                <input type="date" 
-                       name="go_live_estimated" 
-                       id="go_live_estimated" 
-                       class="mt-1 block w-full bg-gray-100 cursor-not-allowed border border-gray-300 rounded-lg shadow-sm text-sm px-4 py-2.5" 
+                <label for="go_live_estimated" class="block font-medium text-sm text-blue-700">Go Live Estimated</label>
+                <input type="date"
+                       name="go_live_estimated"
+                       id="go_live_estimated"
+                       class="mt-1 block w-full bg-blue-100/60 cursor-not-allowed border border-blue-200 rounded-lg shadow-sm text-sm px-4 py-2.5 text-gray-500"
                        value="{{ old('go_live_estimated') }}"
                        readonly>
-                <p class="mt-1 text-xs text-gray-500">Auto-filled from Delivery Project Planning.</p>
+                <p class="mt-1 text-xs text-blue-500">Auto-filled dari Delivery Project Planning (fase Go-Live).</p>
             </div>
         </div>
     </div>
@@ -188,11 +231,11 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
     <div class="bg-white overflow-hidden shadow-md sm:rounded-lg mb-6">
         <div class="p-6 border-b border-gray-200">
             <h3 class="text-xl font-semibold text-gray-700">Delivery Information</h3>
-            <p class="mt-1 text-sm text-gray-600">Delivery and sales information (optional)</p>
+            <p class="mt-1 text-sm text-gray-600">Delivery and sales information</p>
         </div>
         <div class="p-6">
-            {{-- Sales Data Section --}}
-            <div class="border-t border-gray-200 pt-6 mb-6">
+            {{-- Sales Data Section (including Financial Data) --}}
+            <div class="mb-6">
                 <h4 class="text-lg font-medium text-gray-900 mb-4">Sales Data</h4>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
@@ -213,7 +256,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                             </div>
                         </div>
                     </div>
-                    
+
                     <div id="ae_name_container">
                         <label class="block text-sm font-medium text-gray-700 mb-1">
                             Account Executive Name
@@ -248,67 +291,71 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                                style="{{ $isInternal ? 'display:none;' : '' }}"
                                class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                     </div>
-                    
+
                     <div>
                         <label for="ae_phone" class="block text-sm font-medium text-gray-700 mb-1">
                             Phone Number
                         </label>
-                        <input type="text" name="ae_phone" id="ae_phone" 
+                        <input type="text" name="ae_phone" id="ae_phone"
                                value="{{ old('ae_phone') }}"
                                class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                     </div>
-                    
+
                     <div>
                         <label for="ae_email" class="block text-sm font-medium text-gray-700 mb-1">
                             Email
                         </label>
-                        <input type="email" name="ae_email" id="ae_email" 
+                        <input type="email" name="ae_email" id="ae_email"
                                value="{{ old('ae_email') }}"
                                class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                     </div>
-                </div>
-            </div>
 
-            {{-- Financial Data Section --}}
-            <div class="border-t border-gray-200 pt-6 mb-6">
-                <h4 class="text-lg font-medium text-gray-900 mb-4">Financial Data</h4>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {{-- Revenue --}}
                     <div>
-                        <label for="revenue" class="block text-sm font-medium text-gray-700 mb-1">Revenue</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Revenue</label>
                         <div class="relative mt-1">
-                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp</span>
-                            <input type="number" name="revenue" id="revenue"
-                                   value="{{ old('revenue') }}"
-                                   min="0" step="0.01"
-                                   class="block w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg shadow-sm primary-focus text-sm"
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
+                            <input type="text" id="sfin_rev_disp" inputmode="numeric" autocomplete="off"
+                                   class="block w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg shadow-sm primary-focus text-sm text-right"
                                    placeholder="0">
+                            <input type="hidden" name="revenue" id="sfin_rev_val" value="{{ old('revenue', '') }}">
                         </div>
                     </div>
+                    {{-- Plan Cost --}}
                     <div>
-                        <label for="plan_cost" class="block text-sm font-medium text-gray-700 mb-1">Plan Cost</label>
-                        <input type="number" name="plan_cost" id="plan_cost"
-                               value="{{ old('plan_cost') }}"
-                               min="0" step="0.01"
-                               class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
-                               placeholder="0">
-                    </div>
-                    <div>
-                        <label for="gross_profit" class="block text-sm font-medium text-gray-700 mb-1">Gross Profit</label>
-                        <input type="number" name="gross_profit" id="gross_profit"
-                               value="{{ old('gross_profit') }}"
-                               min="0" step="0.01"
-                               class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
-                               placeholder="0">
-                    </div>
-                    <div>
-                        <label for="gross_profit_percentage" class="block text-sm font-medium text-gray-700 mb-1">% Gross Profit</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Plan Cost</label>
                         <div class="relative mt-1">
-                            <input type="number" name="gross_profit_percentage" id="gross_profit_percentage"
-                                   value="{{ old('gross_profit_percentage') }}"
-                                   min="0" max="100" step="0.01"
-                                   class="block w-full pr-8 pl-3 py-2.5 border border-gray-300 rounded-lg shadow-sm primary-focus text-sm"
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
+                            <input type="text" id="sfin_pc_disp" inputmode="numeric" autocomplete="off"
+                                   class="block w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg shadow-sm primary-focus text-sm text-right"
                                    placeholder="0">
+                            <input type="hidden" name="plan_cost" id="sfin_pc_val" value="{{ old('plan_cost', '') }}">
+                        </div>
+                    </div>
+                    {{-- Gross Profit (auto-calc: Revenue - Plan Cost) --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Gross Profit
+                        </label>
+                        <div class="relative mt-1">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
+                            <input type="text" id="sfin_gp_disp" readonly tabindex="-1"
+                                   class="block w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-lg bg-gray-50 cursor-not-allowed text-sm text-gray-500 text-right"
+                                   placeholder="0">
+                            <input type="hidden" name="gross_profit" id="sfin_gp_val" value="{{ old('gross_profit', '') }}">
+                        </div>
+                    </div>
+                    {{-- % Gross Profit (auto-calc: GP / Revenue × 100) --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            % Gross Profit
+                        </label>
+                        <div class="relative mt-1">
+                            <input type="text" id="sfin_pct_disp" readonly tabindex="-1"
+                                   class="block w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-lg bg-gray-50 cursor-not-allowed text-sm text-gray-500 text-right"
+                                   placeholder="0,00">
                             <span class="absolute inset-y-0 right-0 flex items-center pr-3 text-sm text-gray-500 pointer-events-none">%</span>
+                            <input type="hidden" name="gross_profit_percentage" id="sfin_pct_val" value="{{ old('gross_profit_percentage', '') }}">
                         </div>
                     </div>
                 </div>
@@ -318,62 +365,6 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
             <div class="border-t border-gray-200 pt-6">
                 <h4 class="text-lg font-medium text-gray-900 mb-4">Delivery Data</h4>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div>
-                        <label for="delivery_owner_id" class="block text-sm font-medium text-gray-700 mb-1">
-                            Delivery Owner
-                        </label>
-                        @php
-                            $oldDoId = old('delivery_owner_id');
-                            $oldDoLabel = '';
-                            foreach($employees as $e) { if ($oldDoId == $e->employee_id) { $oldDoLabel = $e->basicData->full_name ?? '-'; break; } }
-                        @endphp
-                        <div class="custom-dd relative mt-1" data-fixed="true">
-                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                                <span class="custom-dd-label {{ $oldDoLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $oldDoLabel ?: '-- Select Employee --' }}</span>
-                                <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                            </button>
-                            <input type="hidden" name="delivery_owner_id" id="delivery_owner_id" value="{{ $oldDoId }}">
-                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
-                                <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
-                                    <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
-                                </div>
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Employee --</button>
-                                @foreach($employees as $employee)
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? '-' }}</button>
-                                @endforeach
-                                <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label for="delivery_manager_id" class="block text-sm font-medium text-gray-700 mb-1">
-                            Delivery Manager
-                        </label>
-                        @php
-                            $oldDmId = old('delivery_manager_id');
-                            $oldDmLabel = '';
-                            foreach($employees as $e) { if ($oldDmId == $e->employee_id) { $oldDmLabel = $e->basicData->full_name ?? '-'; break; } }
-                        @endphp
-                        <div class="custom-dd relative mt-1" data-fixed="true">
-                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                                <span class="custom-dd-label {{ $oldDmLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $oldDmLabel ?: '-- Select Employee --' }}</span>
-                                <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                            </button>
-                            <input type="hidden" name="delivery_manager_id" id="delivery_manager_id" value="{{ $oldDmId }}">
-                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
-                                <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
-                                    <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
-                                </div>
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Employee --</button>
-                                @foreach($employees as $employee)
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? '-' }}</button>
-                                @endforeach
-                                <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
-                            </div>
-                        </div>
-                    </div>
-                    
                     <div>
                         <label for="delivery_method" class="block text-sm font-medium text-gray-700 mb-1">
                             Delivery Method
@@ -420,119 +411,40 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
 
     {{-- Team Members Section --}}
     <div class="bg-white overflow-hidden shadow-md sm:rounded-lg mb-6">
-        <div class="p-6 border-b border-gray-200">
-            <h3 class="text-xl font-semibold text-gray-700">Team Members</h3>
-            <p class="mt-1 text-sm text-gray-600">Additional team member assignments (optional)</p>
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <div>
+                <h3 class="text-xl font-semibold text-gray-700">Team Members</h3>
+                <p class="mt-1 text-sm text-gray-600">Project roles and team member assignments</p>
+            </div>
+            <button type="button" onclick="openAddTeamModal()"
+                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                <svg class="-ml-1 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Add Team Member
+            </button>
         </div>
         <div class="p-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {{-- Project Manager --}}
-                @php
-                    $oldPmId = old('project_manager_id');
-                    $oldPmLabel = '';
-                    foreach($employees as $e) { if ($oldPmId == $e->employee_id) { $oldPmLabel = $e->basicData->full_name ?? '-'; break; } }
-                @endphp
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Project Manager</label>
-                    <div class="custom-dd relative mt-1" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $oldPmLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $oldPmLabel ?: '-- Select Employee --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="project_manager_id" id="project_manager_id" value="{{ $oldPmId }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
-                            <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
-                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
-                            </div>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Employee --</button>
-                            @foreach($employees as $employee)
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? '-' }}</button>
-                            @endforeach
-                            <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
-                        </div>
-                    </div>
+            {{-- Team Members Table --}}
+            <div>
+                <p class="text-sm text-gray-500 text-center py-8" id="teamEmptyMsg">No additional team members added yet.</p>
+                <div class="overflow-x-auto hidden" id="teamTableWrap">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Module</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="teamTableBody"></tbody>
+                    </table>
                 </div>
-
-                {{-- Co PM --}}
-                @php
-                    $oldCoPmId = old('co_pm_id');
-                    $oldCoPmLabel = '';
-                    foreach($employees as $e) { if ($oldCoPmId == $e->employee_id) { $oldCoPmLabel = $e->basicData->full_name ?? '-'; break; } }
-                @endphp
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Co PM</label>
-                    <div class="custom-dd relative mt-1" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $oldCoPmLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $oldCoPmLabel ?: '-- Select Employee --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="co_pm_id" id="co_pm_id" value="{{ $oldCoPmId }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
-                            <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
-                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
-                            </div>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Employee --</button>
-                            @foreach($employees as $employee)
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? '-' }}</button>
-                            @endforeach
-                            <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
-                        </div>
-                    </div>
-                </div>
-
-                {{-- Project Admin --}}
-                @php
-                    $oldPaId = old('project_admin_id');
-                    $oldPaLabel = '';
-                    foreach($employees as $e) { if ($oldPaId == $e->employee_id) { $oldPaLabel = $e->basicData->full_name ?? '-'; break; } }
-                @endphp
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Project Admin</label>
-                    <div class="custom-dd relative mt-1" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $oldPaLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $oldPaLabel ?: '-- Select Employee --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="project_admin_id" id="project_admin_id" value="{{ $oldPaId }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
-                            <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
-                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
-                            </div>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Employee --</button>
-                            @foreach($employees as $employee)
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? '-' }}</button>
-                            @endforeach
-                            <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
-                        </div>
-                    </div>
-                </div>
-
-                {{-- Sales --}}
-                @php
-                    $oldSalesId = old('sales_id');
-                    $oldSalesLabel = '';
-                    foreach($employees as $e) { if ($oldSalesId == $e->employee_id) { $oldSalesLabel = $e->basicData->full_name ?? '-'; break; } }
-                @endphp
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Sales</label>
-                    <div class="custom-dd relative mt-1" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $oldSalesLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $oldSalesLabel ?: '-- Select Employee --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="sales_id" id="sales_id" value="{{ $oldSalesId }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
-                            <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
-                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
-                            </div>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Employee --</button>
-                            @foreach($employees as $employee)
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">{{ $employee->basicData->full_name ?? '-' }}</button>
-                            @endforeach
-                            <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
-                        </div>
-                    </div>
-                </div>
+                {{-- Hidden inputs generated by JS, inside the form --}}
+                <div id="teamHiddenInputs"></div>
             </div>
         </div>
     </div>
@@ -541,7 +453,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
     <div class="bg-white overflow-hidden shadow-md sm:rounded-lg mb-6">
         <div class="p-6 border-b border-gray-200">
             <h3 class="text-xl font-semibold text-gray-700">Location Information</h3>
-            <p class="mt-1 text-sm text-gray-600">Project location information (optional)</p>
+            <p class="mt-1 text-sm text-gray-600">Project location information</p>
         </div>
         <div class="p-6">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
@@ -663,6 +575,132 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
         </div>
     </div>
 </form>
+
+{{-- Add / Edit Team Member Modal (outside <form> to avoid nesting issues) --}}
+<div id="cTeamModal" class="fixed inset-0 z-50 hidden">
+    <div class="fixed inset-0 bg-black bg-opacity-50" onclick="closeCTeamModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col pointer-events-auto">
+            <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900" id="cTeamModalTitle">Add Team Member</h3>
+                <button type="button" onclick="closeCTeamModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {{-- Employee --}}
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-900 mb-1">
+                            Consultant <span class="text-red-500">*</span>
+                        </label>
+                        <div class="custom-dd relative" data-fixed="true" id="ctm_emp_dd">
+                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                                <span class="custom-dd-label text-gray-500">-- Select Employee --</span>
+                                <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <input type="hidden" id="ctm_employee_id">
+                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-[60] py-1.5 overflow-y-auto" style="max-height:280px;">
+                                <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                    <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
+                                </div>
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Employee --</button>
+                                @foreach($employees as $employee)
+                                    <button type="button"
+                                            class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                                            data-value="{{ $employee->employee_id }}"
+                                            data-position="{{ $employee->basicData->position ?? '' }}">
+                                        {{ $employee->basicData->full_name ?? '-' }}
+                                    </button>
+                                @endforeach
+                                <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+                            </div>
+                        </div>
+                        <p id="ctm_emp_err" class="mt-1 text-xs text-red-500 hidden">Please select an employee.</p>
+                    </div>
+                    {{-- Module --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-900 mb-1">Module</label>
+                        <input type="text" id="ctm_module"
+                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                               placeholder="e.g. FI, CO, MM">
+                    </div>
+                    {{-- Role --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-900 mb-1">Role <span class="text-red-500">*</span></label>
+                        <select id="ctm_role"
+                                class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
+                            <option value="">-- Select Role --</option>
+                            <option value="Project Manager">Project Manager</option>
+                            <option value="Co Project Manager">Co Project Manager</option>
+                            <option value="Project Admin">Project Admin</option>
+                            <option value="Lead">Lead</option>
+                            <option value="Member">Member</option>
+                        </select>
+                        <p id="ctm_role_err" class="mt-1 text-xs text-red-500 hidden">Please select a role.</p>
+                    </div>
+                    {{-- Employee Type --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-900 mb-1">Employee Type <span class="text-red-500">*</span></label>
+                        <select id="ctm_employee_type" onchange="ctmToggleVendor()"
+                                class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
+                            <option value="Internal">Internal</option>
+                            <option value="External">External</option>
+                            <option value="Vendor">Vendor</option>
+                        </select>
+                    </div>
+                    {{-- Vendor Name (conditional) --}}
+                    <div id="ctm_vendor_wrap" style="display:none;">
+                        <label class="block text-sm font-medium text-gray-900 mb-1">Vendor Name</label>
+                        <input type="text" id="ctm_vendor_name"
+                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                               placeholder="Nama vendor">
+                    </div>
+                    {{-- Start Date --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-900 mb-1">
+                            Start Date <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="ctm_start_date"
+                               placeholder="Select Start Date"
+                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                               autocomplete="off" readonly>
+                        <p id="ctm_start_err" class="mt-1 text-xs text-red-500 hidden">Start date is required.</p>
+                    </div>
+                    {{-- End Date --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-900 mb-1">
+                            End Date <span class="text-xs text-gray-400 font-normal">— optional</span>
+                        </label>
+                        <input type="text" id="ctm_end_date"
+                               placeholder="Select End Date"
+                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                               autocomplete="off" readonly>
+                    </div>
+                    {{-- Notes --}}
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-900 mb-1">
+                            Notes <span class="text-xs text-gray-400 font-normal">— optional</span>
+                        </label>
+                        <textarea id="ctm_notes" rows="2"
+                                  class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                                  placeholder="Additional notes or remarks..."></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                <button type="button" onclick="closeCTeamModal()"
+                        class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                    Cancel
+                </button>
+                <button type="button" onclick="saveCTeamMember()"
+                        class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    Save Member
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 {{-- JavaScript for Dynamic Form --}}
 <script>
@@ -895,6 +933,78 @@ document.addEventListener('DOMContentLoaded', function() {
     @endif
 });
 </script>
+{{-- ===== Sales Financial: Thousand Separator + Auto-Calculation ===== --}}
+<script>
+(function () {
+    // Format angka dengan titik sebagai pemisah ribuan (gaya Indonesia)
+    function fmtRp(n) {
+        const neg = n < 0;
+        const abs = Math.abs(Math.round(n));
+        return (neg ? '-' : '') + abs.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+    // Parse string berformat (Indonesian thousands-dot, or raw DB decimal)
+    function parseNum(str) {
+        if (str === '' || str === null || str === undefined) return 0;
+        const s = String(str).trim();
+        // Indonesian display format with comma decimal (e.g. "1.000.000,50")
+        if (s.includes(',')) {
+            return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
+        }
+        // Indonesian thousands-dot format with multiple dots (e.g. "1.000.000.000")
+        const dotCount = (s.match(/\./g) || []).length;
+        if (dotCount > 1) {
+            return parseFloat(s.replace(/\./g, '')) || 0;
+        }
+        // Raw DB value: standard integer or decimal (e.g. "1000000000" or "1000000000.00")
+        return parseFloat(s) || 0;
+    }
+    // Hitung ulang Gross Profit & % GP dari Revenue dan Plan Cost
+    function sfinRecalc() {
+        const rev  = parseNum(document.getElementById('sfin_rev_val')?.value);
+        const pc   = parseNum(document.getElementById('sfin_pc_val')?.value);
+        const gp   = rev - pc;
+        const pct  = (rev !== 0) ? (gp / rev) * 100 : 0;
+
+        const gpVal   = document.getElementById('sfin_gp_val');
+        const pctVal  = document.getElementById('sfin_pct_val');
+        const gpDisp  = document.getElementById('sfin_gp_disp');
+        const pctDisp = document.getElementById('sfin_pct_disp');
+
+        if (gpVal)   gpVal.value   = gp;
+        if (pctVal)  pctVal.value  = pct.toFixed(2);
+        if (gpDisp)  gpDisp.value  = fmtRp(gp);
+        if (pctDisp) pctDisp.value = pct.toFixed(2).replace('.', ',');
+    }
+    // Attach listener ke input display: format on-the-fly + sync hidden
+    function bindInput(dispId, valId) {
+        const disp = document.getElementById(dispId);
+        const val  = document.getElementById(valId);
+        if (!disp || !val) return;
+        disp.addEventListener('input', function () {
+            const raw    = this.value.replace(/[^0-9]/g, '');
+            this.value   = raw ? raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
+            val.value    = raw || '';
+            sfinRecalc();
+        });
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+        const revVal  = document.getElementById('sfin_rev_val');
+        const pcVal   = document.getElementById('sfin_pc_val');
+        const revDisp = document.getElementById('sfin_rev_disp');
+        const pcDisp  = document.getElementById('sfin_pc_disp');
+        if (!revVal) return; // guard: elemen tidak ada di halaman ini
+
+        // Inisialisasi display dari value lama (old input setelah validasi error)
+        if (revVal.value)  revDisp.value = fmtRp(parseFloat(revVal.value) || 0);
+        if (pcVal.value)   pcDisp.value  = fmtRp(parseFloat(pcVal.value)  || 0);
+        sfinRecalc();
+
+        bindInput('sfin_rev_disp', 'sfin_rev_val');
+        bindInput('sfin_pc_disp',  'sfin_pc_val');
+    });
+})();
+</script>
+
 {{-- Load custom-dd component (sama dengan halaman admin lain). filemtime
      cache buster supaya production auto-invalidate setiap deploy. --}}
 @php
@@ -902,5 +1012,290 @@ document.addEventListener('DOMContentLoaded', function() {
     $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 @endphp
 <script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
+
+{{-- Flatpickr + HolidayCalendar (inline, uses fetch — no axios needed) --}}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+<script>
+window.HolidayCalendar = (function () {
+    var _set  = new Set();
+    var _meta = {};
+    var _loaded = false, _promise = null;
+
+    function isWeekend(d) { var day = d.getDay(); return day === 0 || day === 6; }
+    function toISO(d) {
+        return d.getFullYear() + '-' +
+               String(d.getMonth() + 1).padStart(2, '0') + '-' +
+               String(d.getDate()).padStart(2, '0');
+    }
+    function isNonWorkingDay(d) { return isWeekend(d) || _set.has(toISO(d)); }
+    function holidayInfo(d) { return _meta[toISO(d)] || null; }
+
+    function load(from, to) {
+        if (_loaded) return Promise.resolve();
+        if (_promise) return _promise;
+        var y = new Date().getFullYear();
+        from = from || (y - 1); to = to || (y + 2);
+        _promise = fetch('/api/holidays?from=' + from + '&to=' + to)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                (data.holidays || []).forEach(function (h) {
+                    _set.add(h.date);
+                    _meta[h.date] = { name: h.name, type: h.type };
+                });
+                _loaded = true;
+            })
+            .catch(function (err) {
+                console.warn('HolidayCalendar: failed to load holidays', err);
+                _loaded = true;
+            });
+        return _promise;
+    }
+
+    function initPicker(input, options) {
+        if (!input || typeof flatpickr === 'undefined') return null;
+        var cfg = Object.assign({
+            dateFormat: 'Y-m-d',
+            allowInput: false,
+            disableMobile: true,
+            monthSelectorType: 'static',
+            appendTo: document.body,
+            disable: [function (date) { return isNonWorkingDay(date); }],
+            onDayCreate: function (_, __, ___, dayElem) {
+                if (isWeekend(dayElem.dateObj)) dayElem.classList.add('fp-weekend');
+                var info = holidayInfo(dayElem.dateObj);
+                if (info) { dayElem.classList.add('fp-holiday'); dayElem.title = info.name; }
+            }
+        }, options || {});
+        return flatpickr(input, cfg);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () { load(); });
+
+    return { load: load, isNonWorkingDay: isNonWorkingDay, holidayInfo: holidayInfo, initPicker: initPicker, toISO: toISO };
+})();
+</script>
+
+{{-- ===== Team Members (Create Form) ===== --}}
+<script>
+(function () {
+    // Employee data map: id → { name, position }
+    var empMap = {};
+    @foreach($employees as $employee)
+    @php
+        $empName = addslashes($employee->basicData->full_name ?? '-');
+        $empPos  = addslashes($employee->basicData->position ?? '');
+    @endphp
+    empMap['{{ $employee->employee_id }}'] = { name: '{{ $empName }}', position: '{{ $empPos }}' };
+    @endforeach
+
+    var teamMembers = [];   // array of member objects
+    var editIndex   = -1;   // -1 = add mode, >=0 = edit index
+    var fpStart = null, fpEnd = null;
+
+    /* ---- helpers ---- */
+    function escHtml(s) {
+        return String(s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function fmtDate(d) {
+        if (!d) return '-';
+        var dt = new Date(d + 'T00:00:00');
+        return dt.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    /* ---- vendor toggle ---- */
+    function ctmToggleVendor() {
+        var type = document.getElementById('ctm_employee_type').value;
+        document.getElementById('ctm_vendor_wrap').style.display = (type === 'Vendor') ? 'block' : 'none';
+    }
+    window.ctmToggleVendor = ctmToggleVendor;
+
+    /* ---- pickers ---- */
+    function initModalPickers() {
+        if (fpStart) { fpStart.destroy(); fpStart = null; }
+        if (fpEnd)   { fpEnd.destroy(); fpEnd = null; }
+        var sEl = document.getElementById('ctm_start_date');
+        var eEl = document.getElementById('ctm_end_date');
+        if (window.HolidayCalendar) {
+            fpStart = window.HolidayCalendar.initPicker(sEl, { dateFormat: 'Y-m-d', allowInput: false });
+            fpEnd   = window.HolidayCalendar.initPicker(eEl, { dateFormat: 'Y-m-d', allowInput: false });
+        } else if (typeof flatpickr !== 'undefined') {
+            fpStart = flatpickr(sEl, { dateFormat: 'Y-m-d' });
+            fpEnd   = flatpickr(eEl, { dateFormat: 'Y-m-d' });
+        }
+    }
+
+    /* ---- reset modal fields ---- */
+    function resetModal() {
+        // custom-dd reset
+        var ddLabel = document.querySelector('#ctm_emp_dd .custom-dd-label');
+        if (ddLabel) { ddLabel.textContent = '-- Select Employee --'; ddLabel.className = 'custom-dd-label text-gray-500'; }
+        document.getElementById('ctm_employee_id').value = '';
+        document.getElementById('ctm_module').value       = '';
+        document.getElementById('ctm_role').value         = '';
+        document.getElementById('ctm_employee_type').value = 'Internal';
+        ctmToggleVendor();
+        document.getElementById('ctm_vendor_name').value  = '';
+        document.getElementById('ctm_start_date').value   = '';
+        document.getElementById('ctm_end_date').value     = '';
+        document.getElementById('ctm_notes').value        = '';
+        ['ctm_emp_err', 'ctm_role_err', 'ctm_start_err'].forEach(function (id) {
+            document.getElementById(id).classList.add('hidden');
+        });
+    }
+
+    /* ---- open (add) ---- */
+    function openAddTeamModal() {
+        editIndex = -1;
+        document.getElementById('cTeamModalTitle').textContent = 'Add Team Member';
+        resetModal();
+        document.getElementById('cTeamModal').classList.remove('hidden');
+        setTimeout(function () {
+            initModalPickers();
+            if (typeof initCustomDropdowns === 'function') {
+                initCustomDropdowns(document.getElementById('ctm_emp_dd'));
+            }
+        }, 50);
+    }
+    window.openAddTeamModal = openAddTeamModal;
+
+    /* ---- open (edit) ---- */
+    function editTeamMember(idx) {
+        var m = teamMembers[idx];
+        if (!m) return;
+        editIndex = idx;
+        document.getElementById('cTeamModalTitle').textContent = 'Edit Team Member';
+        resetModal();
+
+        // Fill employee custom-dd
+        var ddLabel = document.querySelector('#ctm_emp_dd .custom-dd-label');
+        if (ddLabel) { ddLabel.textContent = m.name; ddLabel.className = 'custom-dd-label text-gray-700'; }
+        document.getElementById('ctm_employee_id').value   = m.employee_id;
+        document.getElementById('ctm_module').value        = m.module || '';
+        document.getElementById('ctm_role').value          = m.role || '';
+        document.getElementById('ctm_employee_type').value = m.employee_type || 'Internal';
+        ctmToggleVendor();
+        document.getElementById('ctm_vendor_name').value   = m.vendor_name || '';
+        document.getElementById('ctm_notes').value         = m.notes || '';
+
+        document.getElementById('cTeamModal').classList.remove('hidden');
+        setTimeout(function () {
+            initModalPickers();
+            if (m.start_date && fpStart) fpStart.setDate(m.start_date, true);
+            if (m.end_date   && fpEnd)   fpEnd.setDate(m.end_date, true);
+            if (typeof initCustomDropdowns === 'function') {
+                initCustomDropdowns(document.getElementById('ctm_emp_dd'));
+            }
+        }, 50);
+    }
+    window.editTeamMember = editTeamMember;
+
+    /* ---- close ---- */
+    function closeCTeamModal() {
+        document.getElementById('cTeamModal').classList.add('hidden');
+        if (fpStart) { fpStart.destroy(); fpStart = null; }
+        if (fpEnd)   { fpEnd.destroy(); fpEnd = null; }
+    }
+    window.closeCTeamModal = closeCTeamModal;
+
+    /* ---- remove ---- */
+    function removeTeamMember(idx) {
+        teamMembers.splice(idx, 1);
+        renderTeamTable();
+    }
+    window.removeTeamMember = removeTeamMember;
+
+    /* ---- save ---- */
+    function saveCTeamMember() {
+        var empId = document.getElementById('ctm_employee_id').value;
+        var role  = document.getElementById('ctm_role').value;
+        var start = document.getElementById('ctm_start_date').value;
+        var valid = true;
+
+        if (!empId) { document.getElementById('ctm_emp_err').classList.remove('hidden'); valid = false; }
+        else         { document.getElementById('ctm_emp_err').classList.add('hidden'); }
+        if (!role)  { document.getElementById('ctm_role_err').classList.remove('hidden'); valid = false; }
+        else         { document.getElementById('ctm_role_err').classList.add('hidden'); }
+        if (!start) { document.getElementById('ctm_start_err').classList.remove('hidden'); valid = false; }
+        else         { document.getElementById('ctm_start_err').classList.add('hidden'); }
+        if (!valid) return;
+
+        var empType  = document.getElementById('ctm_employee_type').value;
+        var empInfo  = empMap[empId] || { name: empId, position: '' };
+        var member = {
+            employee_id:   empId,
+            name:          empInfo.name,
+            position:      empInfo.position,
+            module:        document.getElementById('ctm_module').value.trim(),
+            role:          role,
+            employee_type: empType,
+            vendor_name:   (empType === 'Vendor') ? document.getElementById('ctm_vendor_name').value.trim() : '',
+            start_date:    start,
+            end_date:      document.getElementById('ctm_end_date').value || '',
+            notes:         document.getElementById('ctm_notes').value.trim(),
+        };
+
+        if (editIndex >= 0) {
+            teamMembers[editIndex] = member;
+        } else {
+            teamMembers.push(member);
+        }
+        closeCTeamModal();
+        renderTeamTable();
+    }
+    window.saveCTeamMember = saveCTeamMember;
+
+    /* ---- render table + hidden inputs ---- */
+    function renderTeamTable() {
+        var tbody  = document.getElementById('teamTableBody');
+        var wrap   = document.getElementById('teamTableWrap');
+        var empty  = document.getElementById('teamEmptyMsg');
+        var hidden = document.getElementById('teamHiddenInputs');
+
+        if (teamMembers.length === 0) {
+            wrap.classList.add('hidden');
+            empty.classList.remove('hidden');
+        } else {
+            wrap.classList.remove('hidden');
+            empty.classList.add('hidden');
+        }
+
+        tbody.innerHTML = '';
+        teamMembers.forEach(function (m, i) {
+            var tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50';
+            var period = fmtDate(m.start_date) + ' – ' + (m.end_date ? fmtDate(m.end_date) : 'Present');
+            var typeDisplay = escHtml(m.employee_type) + (m.vendor_name ? ' (' + escHtml(m.vendor_name) + ')' : '');
+            var nameCell = escHtml(m.name) + (m.position ? '<div class="text-xs text-gray-400 mt-0.5">' + escHtml(m.position) + '</div>' : '');
+            tr.innerHTML =
+                '<td class="px-6 py-4 text-sm font-medium text-gray-900">' + nameCell + '</td>' +
+                '<td class="px-6 py-4 text-sm text-gray-500">' + (m.module ? escHtml(m.module) : '-') + '</td>' +
+                '<td class="px-6 py-4 text-sm text-gray-500">' + escHtml(m.role) + '</td>' +
+                '<td class="px-6 py-4 text-sm text-gray-500">' + typeDisplay + '</td>' +
+                '<td class="px-6 py-4 text-sm text-gray-500">' + escHtml(period) + '</td>' +
+                '<td class="px-6 py-4 text-sm whitespace-nowrap">' +
+                    '<button type="button" onclick="editTeamMember(' + i + ')" class="text-blue-600 hover:text-blue-800 text-xs font-medium mr-3">Edit</button>' +
+                    '<button type="button" onclick="removeTeamMember(' + i + ')" class="text-red-500 hover:text-red-700 text-xs font-medium">Remove</button>' +
+                '</td>';
+            tbody.appendChild(tr);
+        });
+
+        // Regenerate hidden inputs inside the main form
+        hidden.innerHTML = '';
+        var fields = ['employee_id', 'module', 'role', 'employee_type', 'vendor_name', 'start_date', 'end_date', 'notes'];
+        teamMembers.forEach(function (m, i) {
+            fields.forEach(function (f) {
+                var inp = document.createElement('input');
+                inp.type  = 'hidden';
+                inp.name  = 'team_members[' + i + '][' + f + ']';
+                inp.value = m[f] || '';
+                hidden.appendChild(inp);
+            });
+        });
+    }
+    window.renderTeamTable = renderTeamTable;
+})();
+</script>
 
 @endsection

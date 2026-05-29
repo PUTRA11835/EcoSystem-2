@@ -108,6 +108,7 @@ class DeliveryProjectStageManagementController extends Controller
                 'data' => [
                     'id' => $stage->id,
                     'planning_id' => $stage->planning_id,
+                    'phase_id' => $stage->planning?->phase_id,
                     'name' => $stage->name,
                     'description' => $stage->description,
                     'weight' => $stage->weight,

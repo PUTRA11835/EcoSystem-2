@@ -425,22 +425,31 @@ class DeliveryProjectDataController extends Controller
             $formatted['progress_percentage'] = $activity->progress_percentage ?? 0;
             $formatted['start_date'] = $activity->start_date ? $activity->start_date->format('d M Y') : '-';
             $formatted['end_date'] = $activity->end_date ? $activity->end_date->format('d M Y') : '-';
+            $formatted['actual_start_date'] = $activity->actual_start_date ? $activity->actual_start_date->format('d M Y') : null;
+            $formatted['actual_end_date'] = $activity->actual_end_date ? $activity->actual_end_date->format('d M Y') : null;
             $formatted['status'] = $activity->status ?? 'not_started';
-            
+
             $duration = null;
             if ($activity->start_date && $activity->end_date) {
                 $duration = $activity->start_date->diffInDays($activity->end_date) + 1;
             }
             $formatted['duration_in_days'] = $duration;
-            
+
+            // Actual duration (calendar days)
+            $actualDuration = null;
+            if ($activity->actual_start_date && $activity->actual_end_date) {
+                $actualDuration = $activity->actual_start_date->diffInDays($activity->actual_end_date) + 1;
+            }
+            $formatted['actual_duration_in_days'] = $actualDuration;
+
             $formatted['status_text'] = ucwords(str_replace('_', ' ', $activity->status ?? 'not_started'));
             $formatted['status_badge'] = $this->getStatusBadgeClass($activity->status ?? 'not_started');
-            
+
             $formatted['is_overdue'] = false;
             if ($activity->end_date && $activity->status !== 'completed') {
                 $formatted['is_overdue'] = $activity->end_date->isPast();
             }
-            
+
             $formatted['module'] = $activity->module;
             $formatted['object'] = $activity->object;
             $formatted['deliverable'] = $activity->deliverable;
@@ -553,60 +562,91 @@ class DeliveryProjectDataController extends Controller
     {
         $totalWeight = 0;
         $weightedProgress = 0;
-        
+
+        // Stage-based activities (Phase → Group → Stage → Activity)
         if ($group->stages && $group->stages->isNotEmpty()) {
             foreach ($group->stages as $stage) {
-                $weight = $stage->weight ?? 0;
-                $progress = $stage->calculated_progress ?? $stage->progress ?? 0;
-                
+                $weight = (float)($stage->weight ?? 0);
+                $progress = (float)($stage->calculated_progress ?? $stage->progress ?? 0);
+
                 $totalWeight += $weight;
                 $weightedProgress += ($progress * $weight);
             }
         }
-        
+
+        // Sub-groups (nested groups)
         if ($group->children && $group->children->where('is_group', true)->isNotEmpty()) {
             foreach ($group->children->where('is_group', true) as $subGroup) {
-                $weight = $subGroup->calculated_weight ?? 0;
+                $weight = (float)($subGroup->calculated_weight ?? $subGroup->weight ?? 0);
                 $progress = $this->calculateGroupProgress($subGroup);
-                
+
                 $totalWeight += $weight;
                 $weightedProgress += ($progress * $weight);
             }
         }
-        
+
+        // Direct activities (Phase → Group → Activity, no stage)
+        if ($group->directActivities && $group->directActivities->isNotEmpty()) {
+            foreach ($group->directActivities as $planningActivity) {
+                $weight = (float)($planningActivity->weight ?? 0);
+                // Prefer the linked DeliveryProjectActivity's progress (always up-to-date)
+                $progress = $planningActivity->activity
+                    ? (float)($planningActivity->activity->progress_percentage ?? $planningActivity->progress_percentage ?? 0)
+                    : (float)($planningActivity->progress_percentage ?? 0);
+
+                $totalWeight += $weight;
+                $weightedProgress += ($progress * $weight);
+            }
+        }
+
         if ($totalWeight == 0) {
             $allProgress = collect();
-            
+
             if ($group->stages) {
                 $allProgress = $allProgress->merge($group->stages->pluck('progress'));
             }
-            
             if ($group->children) {
                 foreach ($group->children->where('is_group', true) as $subGroup) {
                     $allProgress->push($this->calculateGroupProgress($subGroup));
                 }
             }
-            
+            if ($group->directActivities) {
+                foreach ($group->directActivities as $planningActivity) {
+                    $p = $planningActivity->activity
+                        ? (float)($planningActivity->activity->progress_percentage ?? $planningActivity->progress_percentage ?? 0)
+                        : (float)($planningActivity->progress_percentage ?? 0);
+                    $allProgress->push($p);
+                }
+            }
+
             return $allProgress->isNotEmpty() ? round($allProgress->avg(), 2) : 0;
         }
-        
+
         return round($weightedProgress / $totalWeight, 2);
     }
 
     private function calculateGroupStatus($group)
     {
         $progress = $this->calculateGroupProgress($group);
-        
+
         $allStatuses = collect();
-        
+
         if ($group->stages) {
             $allStatuses = $allStatuses->merge($group->stages->pluck('status'));
         }
-        
         if ($group->children) {
             foreach ($group->children->where('is_group', true) as $subGroup) {
                 $childStatus = $this->calculateGroupStatus($subGroup);
                 $allStatuses->push($childStatus['status']);
+            }
+        }
+        // Direct activities' statuses
+        if ($group->directActivities) {
+            foreach ($group->directActivities as $planningActivity) {
+                $s = $planningActivity->activity
+                    ? ($planningActivity->activity->status ?? $planningActivity->status ?? 'not_started')
+                    : ($planningActivity->status ?? 'not_started');
+                $allStatuses->push($s);
             }
         }
         
@@ -689,23 +729,29 @@ class DeliveryProjectDataController extends Controller
         if (empty($groups)) {
             return 0;
         }
-        
-        $totalWeight = 0;
+
         $weightedProgress = 0;
-        
+
         foreach ($groups as $group) {
-            $weight = $group['weight'] ?? 0;
-            $progress = $group['progress_percentage'] ?? 0;
-            
-            $totalWeight += $weight;
+            $weight = (float)($group['weight'] ?? 0);
+            $progress = (float)($group['progress_percentage'] ?? 0);
             $weightedProgress += ($progress * $weight);
         }
-        
-        if ($totalWeight == 0) {
-            return round(collect($groups)->avg('progress_percentage') ?? 0, 2);
+
+        // Formula: Σ(activity_weight × activity_progress) / phase_weight
+        // Divides by the configured phase weight, not sum of group weights.
+        // This ensures progress reflects how much of the total planned phase scope is done.
+        if ($phaseWeight > 0) {
+            return round($weightedProgress / $phaseWeight, 2);
         }
-        
-        return round($weightedProgress / $totalWeight, 2);
+
+        // Fallback: no configured phase weight, use sum of group weights
+        $totalGroupWeight = collect($groups)->sum('weight');
+        if ($totalGroupWeight > 0) {
+            return round($weightedProgress / $totalGroupWeight, 2);
+        }
+
+        return 0;
     }
 
     private function calculatePhaseStatus($groups, $progress)

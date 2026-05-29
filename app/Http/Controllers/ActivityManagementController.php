@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\DeliveryProject;
+use App\Models\DeliveryProjectPhase;
 use App\Models\DeliveryProjectPlanning;
 use App\Models\DeliveryProjectActivity;
 use App\Models\ActivityStage;
@@ -65,6 +66,8 @@ class ActivityManagementController extends Controller
                 'weight' => 'nullable|numeric|min:0|max:100',
                 'start_date' => 'required_if:is_group,false|nullable|date',
                 'end_date' => 'required_if:is_group,false|nullable|date|after_or_equal:start_date',
+                'actual_start_date' => 'nullable|date',
+                'actual_end_date' => 'nullable|date',
                 'notes' => 'nullable|string',
                 'module' => 'nullable|string|max:255',
                 'object' => 'nullable|string|max:255',
@@ -79,6 +82,24 @@ class ActivityManagementController extends Controller
             }
 
             Log::info('Validation passed', ['validated' => $validated]);
+
+            // Phase weight validation (before DB transaction so we can return 422)
+            $isGroupCheck = $validated['is_group'] ?? false;
+            if (!$isGroupCheck && isset($validated['phase_id']) && isset($validated['weight']) && $validated['weight'] > 0) {
+                $phaseRecord = DeliveryProjectPhase::find($validated['phase_id']);
+                if ($phaseRecord && $phaseRecord->weight > 0) {
+                    $usedWeight = (float) DeliveryProjectPlanning::where('delivery_projects_id', $project->id)
+                        ->where('phase_id', $validated['phase_id'])
+                        ->where('is_group', false)
+                        ->sum('weight');
+                    if (($usedWeight + (float)$validated['weight']) > $phaseRecord->weight + 0.01) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Bobot melebihi batas fase "' . $phaseRecord->name . '". Batas: ' . $phaseRecord->weight . '%, Sudah terpakai: ' . round($usedWeight, 2) . '%, Sisa: ' . round($phaseRecord->weight - $usedWeight, 2) . '%.',
+                        ], 422);
+                    }
+                }
+            }
 
             return DB::transaction(function () use ($validated, $project, $request) {
                 $isGroup = $validated['is_group'] ?? false;
@@ -163,6 +184,8 @@ class ActivityManagementController extends Controller
                         'order_sequence' => $maxActivitySequence + 1,
                         'start_date' => $this->parseDate($validated['start_date']),
                         'end_date' => $this->parseDate($validated['end_date']),
+                        'actual_start_date' => isset($validated['actual_start_date']) ? $this->parseDate($validated['actual_start_date']) : null,
+                        'actual_end_date' => isset($validated['actual_end_date']) ? $this->parseDate($validated['actual_end_date']) : null,
                         'weight' => $validated['weight'] ?? 0,
                         'progress_percentage' => 0,
                         'status' => 'not_started',
@@ -182,6 +205,8 @@ class ActivityManagementController extends Controller
 
                     $planning->start_date = $activity->start_date;
                     $planning->end_date = $activity->end_date;
+                    $planning->actual_start_date = $activity->actual_start_date;
+                    $planning->actual_end_date = $activity->actual_end_date;
                     $planning->weight = $activity->weight;
                     $planning->activity_id = $activity->id;
                     $planning->save();
@@ -193,15 +218,18 @@ class ActivityManagementController extends Controller
                     if ($stage) {
                         $stage->updateDatesFromActivities();
                         $stage->updateProgressFromActivities();
-                        
+
                         $group = $stage->group;
                         if ($group) {
                             $group->updateGroupStatus();
+                            $group->recalculateGroupWeight();
                         }
                     }
                 } elseif ($planning->parent_id) {
-                    $parent = $planning->parent;
+                    $parent = DeliveryProjectPlanning::find($planning->parent_id);
                     if ($parent && $parent->is_group) {
+                        $parent->recalculateGroupWeight();
+                        // ✅ FIX: juga update progress & status group dari direct activities
                         $parent->updateGroupStatus();
                     }
                 }
@@ -268,7 +296,8 @@ class ActivityManagementController extends Controller
                         'is_group' => false,
                         'parent_id' => null,
                         'stage_id' => $activity->stage_id,
-                        'phase_id' => $activity->stage->planning->phase_id ?? null,
+                        // ✅ null-safe: direct group activities have stage_id = null (PHP 8.2 compat)
+                        'phase_id' => $activity->stage?->planning?->phase_id ?? null,
                         'start_date' => $activity->start_date?->format('Y-m-d'),
                         'end_date' => $activity->end_date?->format('Y-m-d'),
                         'actual_start_date' => $activity->actual_start_date?->format('Y-m-d'),
@@ -309,7 +338,8 @@ class ActivityManagementController extends Controller
                     'is_group' => false,
                     'parent_id' => null,
                     'stage_id' => $activity->stage_id,
-                    'phase_id' => $activity->stage->planning->phase_id ?? null,
+                    // ✅ null-safe: direct group activities have stage_id = null (PHP 8.2 compat)
+                    'phase_id' => $activity->stage?->planning?->phase_id ?? null,
                     'start_date' => $activity->start_date?->format('Y-m-d'),
                     'end_date' => $activity->end_date?->format('Y-m-d'),
                     'actual_start_date' => $activity->actual_start_date?->format('Y-m-d'),
@@ -424,7 +454,7 @@ class ActivityManagementController extends Controller
                 'end_date' => 'nullable|date|after_or_equal:start_date',
                 'actual_start_date' => 'nullable|date',
                 'actual_end_date' => 'nullable|date|after_or_equal:actual_start_date',
-                'status' => 'nullable|in:not_started,in_progress,monitoring,completed,delayed',
+                'status' => 'nullable|in:not_started,in_progress,completed,delayed',
                 'progress_percentage' => 'nullable|numeric|min:0|max:100',
                 'weight' => 'nullable|numeric|min:0|max:100',
                 'stage_id' => 'nullable|exists:activity_stages,id',
@@ -439,13 +469,57 @@ class ActivityManagementController extends Controller
 
             $isActivityType = $request->query('type') === 'activity';
 
-            return DB::transaction(function () use ($validated, $activityId, $isActivityType) {
+            // Validation: progress = 100 requires actual_end_date
+            if (isset($validated['progress_percentage']) && (float)$validated['progress_percentage'] >= 100) {
+                $hasActualEnd = !empty($validated['actual_end_date']);
+                if (!$hasActualEnd) {
+                    $existingActualEnd = null;
+                    if ($isActivityType) {
+                        $existingActualEnd = DeliveryProjectActivity::where('id', $activityId)->value('actual_end_date');
+                    } else {
+                        $existingActualEnd = DeliveryProjectPlanning::where('id', $activityId)->value('actual_end_date');
+                    }
+                    if (!$existingActualEnd) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Actual End Date wajib diisi saat progress 100%.',
+                        ], 422);
+                    }
+                }
+            }
+
+            return DB::transaction(function () use ($validated, $activityId, $isActivityType, $project) {
                 // ✅ If type=activity, search ProjectActivity first to avoid ID conflicts
                 if ($isActivityType) {
                     $activity = DeliveryProjectActivity::find($activityId);
 
                     if ($activity) {
                         Log::info('Updating DeliveryProjectActivity directly (type=activity)', ['id' => $activityId]);
+
+                        // Phase weight validation on update
+                        if (isset($validated['weight']) && $validated['weight'] > 0) {
+                            $phaseId = null;
+                            if ($activity->stage_id) {
+                                $stg = ActivityStage::with('planning')->find($activity->stage_id);
+                                $phaseId = $stg?->planning?->phase_id;
+                            } else {
+                                $pr = DeliveryProjectPlanning::where('activity_id', $activity->id)->first();
+                                $phaseId = $pr?->phase_id;
+                            }
+                            if ($phaseId) {
+                                $phaseRecord = DeliveryProjectPhase::find($phaseId);
+                                if ($phaseRecord && $phaseRecord->weight > 0) {
+                                    $usedWeight = (float) DeliveryProjectPlanning::where('delivery_projects_id', $project->id)
+                                        ->where('phase_id', $phaseId)
+                                        ->where('is_group', false)
+                                        ->where('activity_id', '!=', $activityId)
+                                        ->sum('weight');
+                                    if (($usedWeight + (float)$validated['weight']) > $phaseRecord->weight + 0.01) {
+                                        throw new \Exception('Bobot melebihi batas fase "' . $phaseRecord->name . '". Batas: ' . $phaseRecord->weight . '%, Sudah terpakai (excl. ini): ' . round($usedWeight, 2) . '%, Sisa: ' . round($phaseRecord->weight - $usedWeight, 2) . '%.');
+                                    }
+                                }
+                            }
+                        }
 
                         if (isset($validated['name'])) $activity->name = $validated['name'];
                         if (isset($validated['start_date'])) $activity->start_date = $this->parseDate($validated['start_date']);
@@ -471,6 +545,24 @@ class ActivityManagementController extends Controller
 
                         $activity->save();
 
+                        // Sync the linked planning record so calculateGroupProgress() reads fresh data
+                        $planningRecord = DeliveryProjectPlanning::where('activity_id', $activity->id)->first();
+                        if ($planningRecord) {
+                            $syncFields = [];
+                            if (isset($validated['progress_percentage'])) {
+                                $syncFields['progress_percentage'] = $validated['progress_percentage'];
+                            }
+                            if (isset($validated['status'])) {
+                                $syncFields['status'] = $validated['status'];
+                            }
+                            if (isset($validated['weight'])) {
+                                $syncFields['weight'] = $validated['weight'];
+                            }
+                            if (!empty($syncFields)) {
+                                $planningRecord->fill($syncFields)->saveQuietly();
+                            }
+                        }
+
                         if ($activity->stage_id) {
                             $stage = ActivityStage::find($activity->stage_id);
                             if ($stage) {
@@ -480,7 +572,18 @@ class ActivityManagementController extends Controller
                                 $group = $stage->group;
                                 if ($group) {
                                     $group->updateGroupStatus();
+                                    $group->recalculateGroupWeight();
                                 }
+                            }
+                        }
+
+                        // Recalculate parent group weight AND progress for Phase→Group→Activity path
+                        if ($planningRecord && $planningRecord->parent_id) {
+                            $parentGroup = DeliveryProjectPlanning::find($planningRecord->parent_id);
+                            if ($parentGroup && $parentGroup->is_group) {
+                                $parentGroup->recalculateGroupWeight();
+                                // ✅ FIX: juga update progress & status group dari direct activities
+                                $parentGroup->updateGroupStatus();
                             }
                         }
 
@@ -583,11 +686,22 @@ class ActivityManagementController extends Controller
                         if ($stage) {
                             $stage->updateDatesFromActivities();
                             $stage->updateProgressFromActivities();
-                            
+
                             $group = $stage->group;
                             if ($group) {
                                 $group->updateGroupStatus();
+                                $group->recalculateGroupWeight();
                             }
+                        }
+                    }
+
+                    // Recalculate parent group weight AND progress for Phase→Group→Activity path
+                    if (!$planning->stage_id && $planning->parent_id) {
+                        $parentGroup = DeliveryProjectPlanning::find($planning->parent_id);
+                        if ($parentGroup && $parentGroup->is_group) {
+                            $parentGroup->recalculateGroupWeight();
+                            // ✅ FIX: juga update progress & status group dari direct activities
+                            $parentGroup->updateGroupStatus();
                         }
                     }
 
@@ -655,21 +769,53 @@ class ActivityManagementController extends Controller
                 'activity_id' => $activityId,
                 'error' => $e->getMessage(),
             ]);
-            
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update'
-            ], 500);
+                'message' => $e->getMessage() ?: 'Failed to update',
+            ], 422);
         }
     }
 
     /**
-     * Delete activity
+     * Get phase weight usage info for a given phase
      */
-    public function destroy(DeliveryProject $project, $activityId)
+    public function getPhaseWeightInfo(Request $request, DeliveryProject $project, $phaseId)
+    {
+        $phase = DeliveryProjectPhase::findOrFail($phaseId);
+        $phaseWeight = (float) ($phase->weight ?? 0);
+
+        $excludeActivityId = $request->query('exclude_activity_id');
+
+        $query = DeliveryProjectPlanning::where('delivery_projects_id', $project->id)
+            ->where('phase_id', $phaseId)
+            ->where('is_group', false);
+
+        if ($excludeActivityId) {
+            $query->where(function ($q) use ($excludeActivityId) {
+                $q->where('activity_id', '!=', $excludeActivityId)
+                  ->orWhereNull('activity_id');
+            });
+        }
+
+        $usedWeight = (float) $query->sum('weight');
+        $remainingWeight = $phaseWeight > 0 ? max(0, $phaseWeight - $usedWeight) : null;
+
+        return response()->json([
+            'phase_name'       => $phase->name,
+            'phase_weight'     => round($phaseWeight, 2),
+            'used_weight'      => round($usedWeight, 2),
+            'remaining_weight' => $remainingWeight !== null ? round($remainingWeight, 2) : null,
+        ]);
+    }
+
+    /**
+     * Delete activity or group
+     */
+    public function destroy(Request $request, DeliveryProject $project, $activityId)
     {
         if (is_null($activityId) || $activityId === 'null' || !is_numeric($activityId) || $activityId <= 0) {
-            Log::error("Invalid activity ID for deletion'{$activityId}'", [
+            Log::error("Invalid activity ID for deletion '{$activityId}'", [
                 'delivery_projects_id' => $project->id
             ]);
             return response()->json([
@@ -678,107 +824,155 @@ class ActivityManagementController extends Controller
             ], 400);
         }
 
+        $isGroupRequest = $request->boolean('is_group');
+
         try {
-            Log::info('=== DELETE ACTIVITY START ===', [
+            Log::info('=== DELETE START ===', [
                 'delivery_projects_id' => $project->id,
-                'activity_id' => $activityId
+                'id' => $activityId,
+                'is_group' => $isGroupRequest,
             ]);
 
-            // Try to find in ProjectPlanning first
-            $planning = DeliveryProjectPlanning::find($activityId);
+            // ─── GROUP DELETION ───────────────────────────────────────────────
+            if ($isGroupRequest) {
+                $planning = DeliveryProjectPlanning::find($activityId);
 
-            if (!$planning) {
-                Log::info('Planning not found, searching in ProjectActivity...');
-                $projectActivity = DeliveryProjectActivity::find($activityId);
-
-                if (!$projectActivity) {
-                    Log::error('Activity not found in both tables', ['id' => $activityId]);
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Activity not found'
-                    ], 404);
+                if (!$planning || !$planning->is_group) {
+                    return response()->json(['success' => false, 'message' => 'Group not found'], 404);
                 }
 
+                return DB::transaction(function () use ($planning) {
+                    if ($planning->children()->count() > 0) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Cannot delete group with items inside. Empty it first.'
+                        ], 422);
+                    }
+                    if ($planning->stages()->count() > 0) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Cannot delete group with stages. Delete stages first.'
+                        ], 422);
+                    }
+
+                    $parentId = $planning->parent_id;
+                    $planning->delete();
+
+                    Log::info('Group planning deleted', ['id' => $planning->id]);
+
+                    if ($parentId) {
+                        $parent = DeliveryProjectPlanning::find($parentId);
+                        if ($parent && $parent->is_group) {
+                            $parent->recalculateGroupWeight();
+                        }
+                    }
+
+                    return response()->json(['success' => true, 'message' => 'Group deleted']);
+                });
+            }
+
+            // ─── ACTIVITY DELETION ────────────────────────────────────────────
+            // Try delivery_project_activities FIRST (most common path from frontend)
+            $projectActivity = DeliveryProjectActivity::find($activityId);
+
+            if ($projectActivity) {
                 return DB::transaction(function () use ($projectActivity) {
                     $stageId = $projectActivity->stage_id;
 
+                    // Delete the planning record first to remove FK reference
+                    $planningRecord = DeliveryProjectPlanning::where('activity_id', $projectActivity->id)->first();
+                    $parentGroupId = $planningRecord?->parent_id;
+
+                    if ($planningRecord) {
+                        $planningRecord->delete();
+                        Log::info('Linked planning record deleted', ['planning_id' => $planningRecord->id]);
+                    }
+
                     $projectActivity->delete();
+                    Log::info('DeliveryProjectActivity deleted', ['id' => $projectActivity->id]);
 
-                    Log::info('ProjectActivity deleted', ['id' => $projectActivity->id]);
-
-                    // Update stage progress if exists
                     if ($stageId) {
                         $stage = ActivityStage::find($stageId);
                         if ($stage) {
                             $stage->updateProgressFromActivities();
-
                             $group = $stage->group;
                             if ($group) {
                                 $group->updateGroupStatus();
+                                $group->recalculateGroupWeight();
                             }
                         }
                     }
 
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Activity deleted'
-                    ]);
+                    if ($parentGroupId) {
+                        $parentGroup = DeliveryProjectPlanning::find($parentGroupId);
+                        if ($parentGroup && $parentGroup->is_group) {
+                            $parentGroup->recalculateGroupWeight();
+                            // ✅ FIX: juga update progress & status group dari direct activities
+                            $parentGroup->updateGroupStatus();
+                        }
+                    }
+
+                    return response()->json(['success' => true, 'message' => 'Activity deleted']);
                 });
             }
 
-            // Handle ProjectPlanning deletion
-            return DB::transaction(function () use ($planning) {
-                if ($planning->is_group) {
-                    if ($planning->children()->count() > 0) {
-                        throw new \Exception('Cannot delete group with children. Empty it first.');
-                    }
-                    if ($planning->stages()->count() > 0) {
-                        throw new \Exception('Cannot delete group with stages. Delete stages first.');
-                    }
-                }
+            // Fallback: ID might be a planning record ID (activity type)
+            $planning = DeliveryProjectPlanning::where('id', $activityId)->where('is_group', false)->first();
 
+            if (!$planning) {
+                Log::error('Item not found in either table', ['id' => $activityId]);
+                return response()->json(['success' => false, 'message' => 'Activity not found'], 404);
+            }
+
+            return DB::transaction(function () use ($planning) {
                 $stageId = $planning->stage_id;
                 $parentId = $planning->parent_id;
+                $linkedActivityId = $planning->activity_id;
 
                 $planning->delete();
+                Log::info('Activity planning deleted', ['planning_id' => $planning->id]);
 
-                Log::info('ProjectPlanning deleted', ['id' => $planning->id]);
+                if ($linkedActivityId) {
+                    DeliveryProjectActivity::where('id', $linkedActivityId)->delete();
+                    Log::info('Linked DeliveryProjectActivity deleted', ['activity_id' => $linkedActivityId]);
+                }
 
                 if ($stageId) {
                     $stage = ActivityStage::find($stageId);
                     if ($stage) {
                         $stage->updateProgressFromActivities();
-
                         $group = $stage->group;
                         if ($group) {
                             $group->updateGroupStatus();
+                            $group->recalculateGroupWeight();
                         }
                     }
                 }
 
                 if ($parentId) {
                     $parent = DeliveryProjectPlanning::find($parentId);
-                    if ($parent) {
+                    if ($parent && $parent->is_group) {
+                        $parent->recalculateGroupWeight();
+                        // ✅ FIX: juga update progress & status group dari direct activities
                         $parent->updateGroupStatus();
                     }
                 }
 
-                return response()->json([
-                    'success' => true,
-                    'message' => $planning->is_group ? 'Group deleted' : 'Activity deleted'
-                ]);
+                return response()->json(['success' => true, 'message' => 'Activity deleted']);
             });
 
         } catch (\Exception $e) {
-            Log::error('=== DELETE ACTIVITY ERROR ===', [
-                'activity_id' => $activityId,
+            Log::error('=== DELETE ERROR ===', [
+                'id' => $activityId,
+                'is_group' => $isGroupRequest,
                 'error' => $e->getMessage(),
+                'file' => $e->getFile() . ':' . $e->getLine(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete the activity. It may be referenced by other records.'
-            ], 422);
+                'message' => 'Failed to delete: ' . $e->getMessage()
+            ], 500);
         }
     }
 

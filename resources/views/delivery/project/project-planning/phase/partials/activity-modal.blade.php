@@ -28,6 +28,18 @@
                                 placeholder="Enter activity name...">
                         </div>
 
+                        <!-- Duration (working days) -->
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Duration <span class="text-xs text-gray-500 font-normal">(working days)</span>
+                                </label>
+                                <input type="number" id="activityDuration" min="1" step="1" value="1"
+                                    class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base">
+                                <p class="text-xs text-gray-500 mt-1">Skips weekends &amp; tanggal merah</p>
+                            </div>
+                        </div>
+
                         <!-- Planned Dates -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <div>
@@ -36,7 +48,6 @@
                                 </label>
                                 <input type="text" id="activityStartDate" required
                                     placeholder="dd/mm/yyyy"
-                                    pattern="\d{2}/\d{2}/\d{4}"
                                     class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base">
                             </div>
                             <div>
@@ -45,30 +56,28 @@
                                 </label>
                                 <input type="text" id="activityEndDate" required
                                     placeholder="dd/mm/yyyy"
-                                    pattern="\d{2}/\d{2}/\d{4}"
                                     class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base">
                             </div>
                         </div>
 
-                        <!-- ✅ NEW: Actual Dates (Edit mode only) -->
-                        <div id="activityActualDates" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <!-- Actual Dates -->
+                        <div id="activityActualDates" class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
                                     Actual Start Date
                                 </label>
                                 <input type="text" id="activityActualStart"
                                     placeholder="dd/mm/yyyy"
-                                    pattern="\d{2}/\d{2}/\d{4}"
                                     class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Actual End Date
+                                    Actual End Date <span id="activityActualEndRequired" class="hidden text-red-500">*</span>
                                 </label>
                                 <input type="text" id="activityActualEnd"
                                     placeholder="dd/mm/yyyy"
-                                    pattern="\d{2}/\d{2}/\d{4}"
                                     class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base">
+                                <p id="activityActualEndHint" class="hidden mt-1 text-xs text-amber-600">⚠ Required when progress is 100%</p>
                             </div>
                         </div>
 
@@ -76,26 +85,25 @@
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Weight (%)</label>
-                                <input type="number" id="activityWeight" required 
+                                <input type="number" id="activityWeight" required
                                     min="0" max="100" step="0.1" value="10"
-                                    class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base">
+                                    class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
+                                    oninput="updatePhaseWeightDisplay()">
                             </div>
                             <div id="activityStatusField" class="hidden">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                                <select id="activityStatus" required
-                                        class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base">
-                                    <option value="not_started">Not Started</option>
-                                    <option value="in_progress">In Progress</option>
-                                    <option value="monitoring">Monitoring</option>
-                                    <option value="completed">Completed</option>
-                                    <option value="delayed">Delayed</option>
-                                </select>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-xs text-gray-400 font-normal">(auto)</span></label>
+                                <div id="activityStatusBadge" class="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-800 border border-gray-200">
+                                    <span id="activityStatusBadgeText">Not Started</span>
+                                </div>
+                                {{-- Hidden input to keep status in form submission (kept for compatibility) --}}
+                                <input type="hidden" id="activityStatus" value="not_started">
                             </div>
                             <div id="activityProgressField" class="hidden">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Progress (%)</label>
-                                <input type="number" id="activityProgress" required 
+                                <input type="number" id="activityProgress" required
                                     min="0" max="100" step="1" value="0"
-                                    class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base">
+                                    class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
+                                    oninput="updateAutoStatus()">
                             </div>
                         </div>
 
@@ -207,16 +215,39 @@
                             </div>
                         </div>
 
+                        {{-- Phase Weight Limit Panel --}}
+                        <div id="phaseWeightPanel" class="hidden border border-gray-200 rounded-lg p-4 bg-gray-50">
+                            <p class="text-xs font-semibold text-gray-700 mb-3">
+                                Phase Weight Limit — <span id="phaseWeightPhaseName" class="text-gray-500 font-normal"></span>
+                            </p>
+                            <div class="flex items-center justify-between text-xs mb-2">
+                                <span class="text-gray-500">Used (others): <strong id="phaseUsedDisplay" class="text-gray-800">0%</strong></span>
+                                <span class="text-gray-500">This activity: <strong id="phaseThisDisplay" class="text-blue-700">0%</strong></span>
+                                <span class="text-gray-500">Limit: <strong id="phaseLimitDisplay" class="text-gray-800">100%</strong></span>
+                            </div>
+                            {{-- Progress bar --}}
+                            <div class="w-full bg-gray-200 rounded-full h-2.5 relative overflow-hidden">
+                                <div id="phaseWeightBarUsed" class="absolute left-0 top-0 h-2.5 bg-blue-400 transition-all duration-300" style="width:0%"></div>
+                                <div id="phaseWeightBarNew" class="absolute top-0 h-2.5 bg-blue-600 transition-all duration-300" style="left:0%;width:0%"></div>
+                            </div>
+                            <div class="flex items-center justify-between mt-2">
+                                <span class="text-xs" id="phaseRemainingLabel">
+                                    Remaining after save: <strong id="phaseRemainingDisplay" class="text-green-700">—</strong>
+                                </span>
+                                <span id="phaseWeightWarning" class="hidden text-xs font-semibold text-red-600">⚠ Exceeds phase limit!</span>
+                            </div>
+                        </div>
+
                         <div class="bg-blue-50 border border-blue-200 rounded-md p-3">
                             <div class="flex items-start">
-                                <svg class="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <svg class="h-5 w-5 text-blue-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
                                 </svg>
                                 <div class="ml-3 flex-1">
                                     <p class="text-xs sm:text-sm text-blue-700">
-                                        💡 <strong>Weight Distribution:</strong> Total weight of all activities in this stage should equal 100% for accurate progress calculation.
+                                        💡 <strong>Weight Distribution:</strong> Activity weights are absolute percentages of the overall project. The sum of all activities in a phase must equal that phase's configured weight.
                                     </p>
-                                    <p class="text-xs text-blue-600 mt-1" id="weightInfo">Current stage weight: Calculating...</p>
+                                    <p class="text-xs text-blue-600 mt-1" id="weightInfo">Group weight will auto-update to the sum of its activities.</p>
                                 </div>
                             </div>
                         </div>
@@ -377,6 +408,226 @@ function setSubmitButtonLoading() {
 let currentPhaseIdForActivity = null;
 let isGroupDirectActivity = false;
 
+// Phase weight state
+let phaseWeightLimit = 0;
+let phaseWeightUsed  = 0;
+
+async function loadPhaseWeightInfo(phaseId, excludeActivityId = null) {
+    const panel = document.getElementById('phaseWeightPanel');
+    if (!phaseId) { panel.classList.add('hidden'); return; }
+
+    try {
+        const pid = window.projectId || window.currentProjectId;
+        let url = `/planning/${pid}/phases/${phaseId}/weight-info`;
+        if (excludeActivityId) url += `?exclude_activity_id=${excludeActivityId}`;
+        const res = await axios.get(url);
+        const d   = res.data;
+
+        phaseWeightLimit = d.phase_weight  || 0;
+        phaseWeightUsed  = d.used_weight   || 0;
+
+        document.getElementById('phaseWeightPhaseName').textContent = d.phase_name || '';
+        panel.classList.remove('hidden');
+        updatePhaseWeightDisplay();
+    } catch (e) {
+        console.warn('Could not load phase weight info', e);
+        panel.classList.add('hidden');
+    }
+}
+
+function updatePhaseWeightDisplay() {
+    if (phaseWeightLimit <= 0) return;
+
+    const thisWeight = parseFloat(document.getElementById('activityWeight')?.value) || 0;
+    const totalAfter = phaseWeightUsed + thisWeight;
+    const pct        = v => (v / phaseWeightLimit * 100).toFixed(1);
+
+    document.getElementById('phaseUsedDisplay').textContent    = phaseWeightUsed.toFixed(1) + '%';
+    document.getElementById('phaseThisDisplay').textContent    = thisWeight.toFixed(1) + '%';
+    document.getElementById('phaseLimitDisplay').textContent   = phaseWeightLimit.toFixed(1) + '%';
+
+    const usedPct = Math.min(100, pct(phaseWeightUsed));
+    const newPct  = Math.min(100 - usedPct, pct(thisWeight));
+
+    document.getElementById('phaseWeightBarUsed').style.width = usedPct + '%';
+    const barNew = document.getElementById('phaseWeightBarNew');
+    barNew.style.left  = usedPct + '%';
+    barNew.style.width = newPct  + '%';
+
+    const remaining = phaseWeightLimit - totalAfter;
+    const remEl  = document.getElementById('phaseRemainingDisplay');
+    const warnEl = document.getElementById('phaseWeightWarning');
+
+    if (totalAfter > phaseWeightLimit + 0.01) {
+        remEl.textContent  = '—';
+        remEl.className    = 'text-red-600 font-semibold';
+        barNew.className   = 'absolute top-0 h-2.5 bg-red-500 transition-all duration-300';
+        warnEl.classList.remove('hidden');
+    } else {
+        remEl.textContent = remaining.toFixed(1) + '%';
+        remEl.className   = remaining < 5 ? 'text-amber-600 font-semibold' : 'text-green-700 font-semibold';
+        barNew.className  = 'absolute top-0 h-2.5 bg-blue-600 transition-all duration-300';
+        warnEl.classList.add('hidden');
+    }
+}
+
+// ============================================================================
+// FLATPICKR + DURATION 3-WAY BINDING + AUTO-STATUS
+// ============================================================================
+
+let _suppressDateSync = false;
+
+function destroyActivityPickers() {
+    ['_fpStartDate', '_fpEndDate', '_fpActualStart', '_fpActualEnd'].forEach(k => {
+        if (window[k]) {
+            try { window[k].destroy(); } catch (e) {}
+            window[k] = null;
+        }
+    });
+}
+
+async function initActivityModalPickers() {
+    // Ensure holidays loaded before creating pickers
+    await HolidayCalendar.load();
+
+    destroyActivityPickers();
+
+    window._fpStartDate = HolidayCalendar.initPicker(
+        document.getElementById('activityStartDate'),
+        { onChange: function(dates) { onActivityStartChange(dates); updateAutoStatus(); } }
+    );
+    window._fpEndDate = HolidayCalendar.initPicker(
+        document.getElementById('activityEndDate'),
+        { onChange: function(dates) { onActivityEndChange(dates); updateAutoStatus(); } }
+    );
+    window._fpActualStart = HolidayCalendar.initPicker(
+        document.getElementById('activityActualStart'),
+        { onChange: function() { updateAutoStatus(); } }
+    );
+    window._fpActualEnd = HolidayCalendar.initPicker(
+        document.getElementById('activityActualEnd'),
+        { onChange: function() { updateAutoStatus(); } }
+    );
+}
+
+function onActivityDurationChange() {
+    if (_suppressDateSync) return;
+    if (!window._fpStartDate) return;
+
+    const start = window._fpStartDate.selectedDates[0];
+    if (!start) return;
+
+    const duration = parseInt(document.getElementById('activityDuration').value) || 0;
+    if (duration < 1) return;
+
+    const newEnd = HolidayCalendar.addWorkingDays(start, duration);
+    _suppressDateSync = true;
+    window._fpEndDate.setDate(newEnd, false);
+    _suppressDateSync = false;
+}
+
+function onActivityStartChange(selectedDates) {
+    if (_suppressDateSync) return;
+    const start = selectedDates[0];
+    if (!start || !window._fpEndDate) return;
+
+    const duration = parseInt(document.getElementById('activityDuration').value) || 0;
+
+    if (duration >= 1) {
+        const newEnd = HolidayCalendar.addWorkingDays(start, duration);
+        _suppressDateSync = true;
+        window._fpEndDate.setDate(newEnd, false);
+        _suppressDateSync = false;
+    } else {
+        // No duration yet: derive duration from start..end if end exists
+        const end = window._fpEndDate.selectedDates[0];
+        if (end && end >= start) {
+            const d = HolidayCalendar.countWorkingDays(start, end);
+            _suppressDateSync = true;
+            document.getElementById('activityDuration').value = Math.max(1, d);
+            _suppressDateSync = false;
+        }
+    }
+}
+
+function onActivityEndChange(selectedDates) {
+    if (_suppressDateSync) return;
+    const end = selectedDates[0];
+    if (!end || !window._fpStartDate) return;
+
+    const start = window._fpStartDate.selectedDates[0];
+    if (!start) return;
+
+    if (end < start) return; // ignored (validated separately on save)
+
+    // Manual end change → recompute duration
+    const d = HolidayCalendar.countWorkingDays(start, end);
+    _suppressDateSync = true;
+    document.getElementById('activityDuration').value = Math.max(1, d);
+    _suppressDateSync = false;
+}
+
+function computeActivityStatus({ progress, plannedStart, plannedEnd, actualStart, actualEnd }) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    progress = parseFloat(progress) || 0;
+
+    const ps = plannedStart ? parseIndonesianDate(plannedStart) : null;
+    const pe = plannedEnd   ? parseIndonesianDate(plannedEnd)   : null;
+    const as = actualStart  ? parseIndonesianDate(actualStart)  : null;
+    const ae = actualEnd    ? parseIndonesianDate(actualEnd)    : null;
+
+    // === DELAYED (precedence) ===
+    if (ae && pe && ae > pe)                              return 'delayed';
+    if (progress < 100 && pe && today > pe)               return 'delayed';
+    if (progress === 0 && ps && today > ps && !as)        return 'delayed';
+
+    // === COMPLETED ===
+    if (progress >= 100 && ae)                            return 'completed';
+
+    // === IN_PROGRESS / NOT_STARTED ===
+    if (progress >= 100 && !ae)                           return 'in_progress';
+    if (progress === 0)                                   return 'not_started';
+    return 'in_progress';
+}
+
+function updateAutoStatus() {
+    const start    = document.getElementById('activityStartDate').value;
+    const end      = document.getElementById('activityEndDate').value;
+    const actStart = document.getElementById('activityActualStart').value;
+    const actEnd   = document.getElementById('activityActualEnd').value;
+    const progress = document.getElementById('activityProgress')?.value || 0;
+
+    const status = computeActivityStatus({
+        progress: progress,
+        plannedStart: start, plannedEnd: end,
+        actualStart: actStart, actualEnd: actEnd,
+    });
+
+    const styles = {
+        not_started: { cls: 'bg-gray-100 text-gray-800 border-gray-200',   label: 'Not Started' },
+        in_progress: { cls: 'bg-blue-100 text-blue-800 border-blue-200',   label: 'In Progress' },
+        completed:   { cls: 'bg-green-100 text-green-800 border-green-200', label: 'Completed' },
+        delayed:     { cls: 'bg-red-100  text-red-800 border-red-200',     label: 'Delayed' },
+    };
+    const s = styles[status];
+    const badge = document.getElementById('activityStatusBadge');
+    if (badge) badge.className = 'inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium border ' + s.cls;
+    const txt = document.getElementById('activityStatusBadgeText');
+    if (txt) txt.textContent = s.label;
+    const hidden = document.getElementById('activityStatus');
+    if (hidden) hidden.value = status;
+
+    // Show "actual_end required when progress 100" hint
+    const progNum = parseFloat(progress) || 0;
+    const needsActualEnd = progNum >= 100 && !actEnd;
+    const reqMark = document.getElementById('activityActualEndRequired');
+    const hint    = document.getElementById('activityActualEndHint');
+    if (reqMark) reqMark.classList.toggle('hidden', !needsActualEnd);
+    if (hint)    hint.classList.toggle('hidden', !needsActualEnd);
+}
+
 /**
  * Open activity modal for activities directly under a GROUP (without stage)
  */
@@ -419,17 +670,19 @@ window.openActivityModalForGroup = function(groupId, groupName, phaseId, activit
     if (teamMemberFields) teamMemberFields.classList.add('hidden');
     if (teamMemberIcon) teamMemberIcon.classList.remove('rotate-180');
 
+    // Always show status badge (it's auto-computed, read-only)
+    document.getElementById('activityStatusField').classList.remove('hidden');
+
     if (activityId && activityId !== 'null' && activityId !== 'undefined') {
         activityFormMode = 'edit';
         currentActivityId = activityId;
 
         document.getElementById('activityModalTitle').textContent = 'Edit Activity';
         document.getElementById('activityModalSubtitle').textContent = `Group: ${groupName || 'Direct Activity'}`;
-        document.getElementById('activityStatusField').classList.remove('hidden');
         document.getElementById('activityProgressField').classList.remove('hidden');
-        document.getElementById('activityActualDates').classList.add('hidden');
 
-        loadActivityData(activityId);
+        // Init pickers BEFORE loadActivityData so setDate works on Flatpickr instances
+        initActivityModalPickers().then(() => loadActivityData(activityId));
         loadAssignedMembers(activityId);
     } else {
         activityFormMode = 'create';
@@ -437,12 +690,18 @@ window.openActivityModalForGroup = function(groupId, groupName, phaseId, activit
 
         document.getElementById('activityModalTitle').textContent = 'Add Activity to Group';
         document.getElementById('activityModalSubtitle').textContent = `Group: ${groupName || 'Direct Activity'}`;
-        document.getElementById('activityStatusField').classList.add('hidden');
         document.getElementById('activityProgressField').classList.add('hidden');
-        document.getElementById('activityActualDates').classList.add('hidden');
 
-        document.getElementById('activityStartDate').value = getTodayIndonesian();
-        document.getElementById('activityEndDate').value = getDateFromNowIndonesian(7);
+        initActivityModalPickers().then(() => {
+            // Default: today as start, duration 1 → end same day
+            const today = new Date();
+            document.getElementById('activityDuration').value = 1;
+            _suppressDateSync = true;
+            window._fpStartDate.setDate(today, false);
+            window._fpEndDate.setDate(today, false);
+            _suppressDateSync = false;
+            updateAutoStatus();
+        });
 
         updateMemberDropdown();
     }
@@ -452,6 +711,14 @@ window.openActivityModalForGroup = function(groupId, groupName, phaseId, activit
     if (weightInfoEl) {
         weightInfoEl.innerHTML = '💡 This activity will be added directly to the group (without stage)';
         weightInfoEl.className = 'text-xs text-blue-600 mt-1';
+    }
+
+    // Reset & load phase weight info
+    phaseWeightLimit = 0;
+    phaseWeightUsed  = 0;
+    document.getElementById('phaseWeightPanel').classList.add('hidden');
+    if (phaseId) {
+        loadPhaseWeightInfo(phaseId, (activityId && activityId !== 'null') ? activityId : null);
     }
 
     modal.classList.remove('hidden');
@@ -503,35 +770,45 @@ window.openActivityModal = function(stageId, groupId, activityId = null, groupNa
     if (teamMemberFields) teamMemberFields.classList.add('hidden');
     if (teamMemberIcon) teamMemberIcon.classList.remove('rotate-180');
 
+    // Always show status badge (it's auto-computed, read-only)
+    document.getElementById('activityStatusField').classList.remove('hidden');
+
     if (activityId && activityId !== 'null' && activityId !== 'undefined') {
         activityFormMode = 'edit';
         currentActivityId = activityId;
 
         document.getElementById('activityModalTitle').textContent = 'Edit Activity';
-        document.getElementById('activityStatusField').classList.remove('hidden');
         document.getElementById('activityProgressField').classList.remove('hidden');
-        document.getElementById('activityActualDates').classList.remove('hidden');
 
-        loadActivityData(activityId);
-
+        initActivityModalPickers().then(() => loadActivityData(activityId));
         loadAssignedMembers(activityId);
     } else {
         activityFormMode = 'create';
         currentActivityId = null;
 
         document.getElementById('activityModalTitle').textContent = 'Add New Activity';
-        document.getElementById('activityStatusField').classList.add('hidden');
         document.getElementById('activityProgressField').classList.add('hidden');
-        document.getElementById('activityActualDates').classList.add('hidden');
 
-        document.getElementById('activityStartDate').value = getTodayIndonesian();
-        document.getElementById('activityEndDate').value = getDateFromNowIndonesian(7);
+        initActivityModalPickers().then(() => {
+            const today = new Date();
+            document.getElementById('activityDuration').value = 1;
+            _suppressDateSync = true;
+            window._fpStartDate.setDate(today, false);
+            window._fpEndDate.setDate(today, false);
+            _suppressDateSync = false;
+            updateAutoStatus();
+        });
 
         updateMemberDropdown();
     }
     
+    // Reset phase weight panel; loadStageInfo will populate it once phase_id is known
+    phaseWeightLimit = 0;
+    phaseWeightUsed  = 0;
+    document.getElementById('phaseWeightPanel').classList.add('hidden');
+
     loadStageInfo(stageId);
-    
+
     modal.classList.remove('hidden');
     document.getElementById('activityName').focus();
 };
@@ -541,9 +818,10 @@ window.closeActivityModal = function() {
     if (modal) {
         modal.classList.add('hidden');
     }
-    
+
+    destroyActivityPickers();
     resetSubmitButton();
-    
+
     activityFormMode = 'create';
     currentActivityId = null;
     currentStageId = null;
@@ -551,11 +829,18 @@ window.closeActivityModal = function() {
 };
 
 function loadStageInfo(stageId) {
-    axios.get(`/planning/${window.projectId}/stages/${stageId}`)
+    const pid = window.projectId || window.currentProjectId;
+    axios.get(`/planning/${pid}/stages/${stageId}`)
         .then(response => {
             const stage = response.data.data || response.data;
             document.getElementById('activityModalSubtitle').textContent = `Stage: ${stage.name}`;
             updateWeightInfo(stage);
+
+            // Load phase weight info using phase_id from stage
+            if (stage.phase_id) {
+                const excludeId = (activityFormMode === 'edit' && currentActivityId) ? currentActivityId : null;
+                loadPhaseWeightInfo(stage.phase_id, excludeId);
+            }
         })
         .catch(error => {
             console.error('❌ Error loading stage:', error);
@@ -594,15 +879,29 @@ function loadActivityData(activityId) {
 
             
             document.getElementById('activityName').value = activity.name || '';
-            document.getElementById('activityStartDate').value = isoToIndonesian(activity.start_date);
-            document.getElementById('activityEndDate').value = isoToIndonesian(activity.end_date);
 
-            document.getElementById('activityActualStart').value = isoToIndonesian(activity.actual_start_date);
-            document.getElementById('activityActualEnd').value = isoToIndonesian(activity.actual_end_date);
-            
+            // Set dates via Flatpickr (suppress sync to avoid recompute loops)
+            // NOTE: pass 'Y-m-d' as 3rd arg so Flatpickr parses ISO strings correctly
+            // (default dateFormat is 'd/m/Y'; without explicit format, ISO "2026-05-25" fails)
+            _suppressDateSync = true;
+            if (activity.start_date && window._fpStartDate) window._fpStartDate.setDate(activity.start_date, false, 'Y-m-d');
+            if (activity.end_date   && window._fpEndDate)   window._fpEndDate.setDate(activity.end_date, false, 'Y-m-d');
+            if (activity.actual_start_date && window._fpActualStart) window._fpActualStart.setDate(activity.actual_start_date, false, 'Y-m-d');
+            if (activity.actual_end_date   && window._fpActualEnd)   window._fpActualEnd.setDate(activity.actual_end_date, false, 'Y-m-d');
+            _suppressDateSync = false;
+
+            // Derive duration from existing planned dates
+            if (activity.start_date && activity.end_date) {
+                const s = new Date(activity.start_date);
+                const e = new Date(activity.end_date);
+                document.getElementById('activityDuration').value = Math.max(1, HolidayCalendar.countWorkingDays(s, e));
+            }
+
             document.getElementById('activityWeight').value = parseFloat(activity.weight) || 0;
             document.getElementById('activityStatus').value = activity.status || 'not_started';
             document.getElementById('activityProgress').value = parseFloat(activity.progress_percentage) || 0;
+
+            updateAutoStatus();
             
             document.getElementById('activityModule').value = activity.module || '';
             document.getElementById('activityObject').value = activity.object || '';
@@ -639,6 +938,9 @@ window.saveActivity = function(event) {
     const startDateIso = indonesianToIso(startDateIndo);
     const endDateIso = indonesianToIso(endDateIndo);
 
+    const actualStartIndo = document.getElementById('activityActualStart').value;
+    const actualEndIndo = document.getElementById('activityActualEnd').value;
+
     const formData = {
         stage_id: isGroupDirectActivity ? null : currentStageId,
         parent_id: currentGroupId,
@@ -646,6 +948,8 @@ window.saveActivity = function(event) {
         name: document.getElementById('activityName').value,
         start_date: startDateIso,
         end_date: endDateIso,
+        actual_start_date: actualStartIndo ? indonesianToIso(actualStartIndo) : null,
+        actual_end_date: actualEndIndo ? indonesianToIso(actualEndIndo) : null,
         weight: parseFloat(document.getElementById('activityWeight').value) || 0,
 
         module: document.getElementById('activityModule')?.value || null,
@@ -667,20 +971,35 @@ window.saveActivity = function(event) {
 
     if (endDate < startDate) {
         resetSubmitButton();
-        
         showNotification('End date must be after start date', 'error');
         return;
     }
-    
-    if (activityFormMode === 'edit') {
-        const actualStartIndo = document.getElementById('activityActualStart').value;
-        const actualEndIndo = document.getElementById('activityActualEnd').value;
 
-        formData.actual_start_date = actualStartIndo ? indonesianToIso(actualStartIndo) : null;
-        formData.actual_end_date = actualEndIndo ? indonesianToIso(actualEndIndo) : null;
+    // Validate phase weight limit
+    if (phaseWeightLimit > 0) {
+        const thisWeight = parseFloat(formData.weight) || 0;
+        if ((phaseWeightUsed + thisWeight) > phaseWeightLimit + 0.01) {
+            resetSubmitButton();
+            showNotification(
+                `Bobot melebihi batas fase (${phaseWeightLimit}%). Sudah terpakai: ${phaseWeightUsed.toFixed(1)}%, sisa: ${Math.max(0, phaseWeightLimit - phaseWeightUsed).toFixed(1)}%.`,
+                'error'
+            );
+            return;
+        }
+    }
+
+    if (activityFormMode === 'edit') {
+        // Status is auto-computed (read from hidden input updated by updateAutoStatus)
         formData.status = document.getElementById('activityStatus')?.value;
         formData.progress_percentage = parseFloat(document.getElementById('activityProgress')?.value) || 0;
 
+        // Validate: progress 100 requires actual_end_date
+        if (formData.progress_percentage >= 100 && !actualEndIndo) {
+            resetSubmitButton();
+            showNotification('Actual End Date wajib diisi saat progress 100%.', 'error');
+            document.getElementById('activityActualEnd')?.focus();
+            return;
+        }
     }
     
     
@@ -968,6 +1287,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.projectId) {
         loadProjectTeamMembers();
     }
+    // Wire duration input listener (input element is in markup, listener added once)
+    const dur = document.getElementById('activityDuration');
+    if (dur) dur.addEventListener('input', onActivityDurationChange);
 });
 
 </script>
