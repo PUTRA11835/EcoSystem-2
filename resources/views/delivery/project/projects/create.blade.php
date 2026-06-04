@@ -25,7 +25,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
         document.addEventListener('DOMContentLoaded', function() {
             const msgs = @json($errors->all());
             if (typeof showNotification === 'function') {
-                showNotification(msgs[0] + (msgs.length > 1 ? ' (+' + (msgs.length-1) + ' lainnya)' : ''), 'error');
+                showNotification(msgs[0] + (msgs.length > 1 ? ' (+' + (msgs.length-1) + ' more)' : ''), 'error');
             }
         });
     </script>
@@ -163,7 +163,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
             </svg>
             <div>
                 <h3 class="text-sm font-semibold text-blue-800">Informasi Auto-filled</h3>
-                <p class="text-xs text-blue-600">Field-field berikut akan terisi otomatis setelah Delivery Project Planning dikonfigurasi. Tidak perlu diisi secara manual.</p>
+                <p class="text-xs text-blue-600">The following fields are auto-filled once the Delivery Project Planning is configured. No manual entry required.</p>
             </div>
         </div>
         <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -176,7 +176,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                        class="mt-1 block w-full bg-blue-100/60 cursor-not-allowed border border-blue-200 rounded-lg shadow-sm text-sm px-4 py-2.5 text-gray-500"
                        value="{{ old('category') }}"
                        readonly
-                       placeholder="Terisi otomatis…">
+                       placeholder="Auto-filled…">
                 <p class="mt-1 text-xs text-blue-500">Auto-filled dari Delivery Project Planning.</p>
             </div>
             {{-- Phase --}}
@@ -188,7 +188,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                        class="mt-1 block w-full bg-blue-100/60 cursor-not-allowed border border-blue-200 rounded-lg shadow-sm text-sm px-4 py-2.5 text-gray-500"
                        value="{{ old('phase') }}"
                        readonly
-                       placeholder="Terisi otomatis…">
+                       placeholder="Auto-filled…">
                 <p class="mt-1 text-xs text-blue-500">Auto-filled dari Delivery Project Planning.</p>
             </div>
             {{-- Start Date --}}
@@ -264,7 +264,14 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                         @php
                             $oldAeNameVal = old('ae_name');
                             $isInternal   = (old('ae_type') === 'Internal');
+                            $isExternal   = (old('ae_type') === 'External');
+                            $hasAeType    = ($isInternal || $isExternal);
                         @endphp
+                        {{-- Placeholder ter-disable: tampil sampai Account Executive Type dipilih --}}
+                        <input type="text" id="ae_name_placeholder" disabled
+                               placeholder="-- Select type first --"
+                               style="{{ $hasAeType ? 'display:none;' : '' }}"
+                               class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm text-sm px-4 py-2.5 bg-gray-100 text-gray-400 cursor-not-allowed">
                         {{-- Custom-dd dengan search untuk AE Internal --}}
                         <div id="ae_employee_dd_wrapper" style="{{ $isInternal ? '' : 'display:none;' }}">
                             <div class="custom-dd relative mt-1" data-fixed="true" data-onchange="fillAEContactInfo">
@@ -285,10 +292,10 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                                 </div>
                             </div>
                         </div>
-                        {{-- Text input untuk AE External / default --}}
-                        <input type="text" name="{{ !$isInternal ? 'ae_name' : '' }}" id="ae_name_input"
-                               value="{{ !$isInternal ? $oldAeNameVal : '' }}"
-                               style="{{ $isInternal ? 'display:none;' : '' }}"
+                        {{-- Text input untuk AE External --}}
+                        <input type="text" name="{{ $isExternal ? 'ae_name' : '' }}" id="ae_name_input"
+                               value="{{ $isExternal ? $oldAeNameVal : '' }}"
+                               style="{{ $isExternal ? '' : 'display:none;' }}"
                                class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                     </div>
 
@@ -654,7 +661,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                         <label class="block text-sm font-medium text-gray-900 mb-1">Vendor Name</label>
                         <input type="text" id="ctm_vendor_name"
                                class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                               placeholder="Nama vendor">
+                               placeholder="Vendor name">
                     </div>
                     {{-- Start Date --}}
                     <div>
@@ -840,14 +847,16 @@ function fillAEContactInfo() {
     if (contact.email) emailEl.value = contact.email;
 }
 
-// Toggle AE fields based on type (Internal/External)
+// Toggle AE fields based on type (empty / Internal / External)
 function toggleAEFields() {
     const aeType      = document.getElementById('ae_type').value;
+    const placeholder = document.getElementById('ae_name_placeholder');
     const ddWrapper   = document.getElementById('ae_employee_dd_wrapper');
     const aeHidden    = document.getElementById('ae_employee_hidden');
     const aeTextInput = document.getElementById('ae_name_input');
 
     if (aeType === 'Internal') {
+        if (placeholder) placeholder.style.display = 'none';
         ddWrapper.style.display   = 'block';
         aeHidden.name             = 'ae_name';
         aeTextInput.style.display = 'none';
@@ -856,11 +865,21 @@ function toggleAEFields() {
         if (typeof initCustomDropdowns === 'function') {
             initCustomDropdowns(ddWrapper);
         }
-    } else {
+    } else if (aeType === 'External') {
+        if (placeholder) placeholder.style.display = 'none';
         ddWrapper.style.display   = 'none';
         aeHidden.name             = '';
         aeTextInput.style.display = 'block';
         aeTextInput.name          = 'ae_name';
+    } else {
+        // No type selected yet → AE Name disabled (placeholder only).
+        if (placeholder) placeholder.style.display = 'block';
+        ddWrapper.style.display   = 'none';
+        aeHidden.name             = '';
+        aeHidden.value            = '';
+        aeTextInput.style.display = 'none';
+        aeTextInput.name          = '';
+        aeTextInput.value         = '';
     }
 }
 
@@ -922,10 +941,9 @@ document.addEventListener('DOMContentLoaded', function() {
         initCustomDropdowns();
     }
 
-    // Initialize AE fields if there's an old value
-    @if(old('ae_type'))
-        toggleAEFields();
-    @endif
+    // Always sync AE fields: applies the disabled placeholder when no type is
+    // selected, or the correct control (dropdown/text) when a type exists.
+    toggleAEFields();
 
     // Initialize location dropdowns if there are old values
     @if(old('location_geographical'))

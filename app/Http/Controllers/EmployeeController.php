@@ -97,6 +97,8 @@ class EmployeeController extends Controller
                     'eb.direct_supervision',
                     'eb.manager',
                     'eb.authorization_group',
+                    'eb.home_base',
+                    'eb.grade',
                     'eb.block',
                     'eb.deletion_flag',
                     'eb.created_by',
@@ -345,6 +347,8 @@ class EmployeeController extends Controller
                     'eb.direct_supervision',
                     'eb.manager',
                     'eb.authorization_group',
+                    'eb.home_base',
+                    'eb.grade',
                     // Address
                     'ea.address_type',
                     'ea.country',
@@ -497,6 +501,8 @@ class EmployeeController extends Controller
                 'direct_supervision' => $request->direct_supervision,
                 'manager' => $request->manager,
                 'authorization_group' => $request->authorization_group,
+                'home_base' => $request->home_base,
+                'grade' => $request->grade,
                 'created_by' => $currentUserECI,  // ✅ Gunakan ECI
                 'created_on' => now(),
                 'block' => false,
@@ -667,6 +673,8 @@ class EmployeeController extends Controller
                         'direct_supervision' => $request->direct_supervision,
                         'manager' => $request->manager,
                         'authorization_group' => $request->authorization_group,
+                        'home_base' => $request->home_base,
+                        'grade' => $request->grade,
                         'last_changed_by' => $currentUserECI,  // ✅ Gunakan ECI
                         'last_changed_on' => now(),
                     ]

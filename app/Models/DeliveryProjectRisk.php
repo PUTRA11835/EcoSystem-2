@@ -14,6 +14,7 @@ class DeliveryProjectRisk extends Model
     protected $fillable = [
         'delivery_projects_id',
         'risk_number',
+        'risk_type',
         'category',
         'description',
         'cause',
@@ -25,13 +26,15 @@ class DeliveryProjectRisk extends Model
         'risk_owner',
         'status',
         'target_date',
+        'actual_end_date',
         'notes',
     ];
 
     protected $casts = [
-        'probability' => 'integer',
-        'impact'      => 'integer',
-        'target_date' => 'date',
+        'probability'     => 'integer',
+        'impact'          => 'integer',
+        'target_date'     => 'date',
+        'actual_end_date' => 'date',
     ];
 
     // ── Relationships ──────────────────────────────────────────────

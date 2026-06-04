@@ -84,6 +84,11 @@ class DeliveryProject extends Model
         return $this->hasMany(DeliveryProjectUpdate::class, 'delivery_projects_id');
     }
 
+    public function issues() {
+        return $this->hasMany(DeliveryProjectIssue::class, 'delivery_projects_id')
+                    ->orderBy('issue_number');
+    }
+
     public function activities() {
         return $this->hasMany(DeliveryProjectActivity::class, 'delivery_projects_id');
     }

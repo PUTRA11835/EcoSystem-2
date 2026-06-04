@@ -7,6 +7,7 @@ use App\Models\DeliveryProjectPhase;
 use App\Models\DeliveryProjectPlanning;
 use App\Models\DeliveryProjectActivity;
 use App\Models\ActivityStage;
+use App\Services\HolidayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -979,6 +980,40 @@ class ActivityManagementController extends Controller
     /**
      * Get assigned members for an activity
      */
+    /**
+     * Compute the activity's own duration in working days (skips weekends &
+     * Indonesian holidays). Returns null when planned dates are missing.
+     */
+    private function activityWorkingDays(DeliveryProjectActivity $activity): ?int
+    {
+        if (empty($activity->start_date) || empty($activity->end_date)) {
+            return null;
+        }
+
+        return app(HolidayService::class)->countWorkingDays($activity->start_date, $activity->end_date);
+    }
+
+    /**
+     * Guard: a member's involvement duration may not exceed the activity's own
+     * duration. Returns a 422 JsonResponse on violation, or null when valid.
+     */
+    private function validateMemberDuration($duration, DeliveryProjectActivity $activity)
+    {
+        if ($duration === null || $duration === '') {
+            return null;
+        }
+
+        $max = $this->activityWorkingDays($activity);
+        if ($max !== null && (int) $duration > $max) {
+            return response()->json([
+                'success' => false,
+                'message' => "Member duration ({$duration} working days) cannot exceed the activity duration ({$max} working days).",
+            ], 422);
+        }
+
+        return null;
+    }
+
     public function getAssignedMembers(DeliveryProject $project, $activityId)
     {
         try {
@@ -997,6 +1032,7 @@ class ActivityManagementController extends Controller
                     'name' => $employee->basicData?->full_name ?? $employee->eci ?? 'N/A',
                     'position' => $employee->basicData?->position ?? 'N/A',
                     'role' => $employee->pivot->role,
+                    'duration' => $employee->pivot->duration,
                     'assigned_date' => $employee->pivot->assigned_date,
                     'notes' => $employee->pivot->notes,
                 ];
@@ -1029,6 +1065,7 @@ class ActivityManagementController extends Controller
             $validated = $request->validate([
                 'employee_id' => 'required|exists:employee,employee_id',
                 'role' => 'nullable|string|max:100',
+                'duration' => 'nullable|integer|min:1',
                 'notes' => 'nullable|string',
             ]);
 
@@ -1039,6 +1076,11 @@ class ActivityManagementController extends Controller
                     'success' => false,
                     'message' => 'Activity not found'
                 ], 404);
+            }
+
+            // Member duration must not exceed the activity's own duration
+            if ($error = $this->validateMemberDuration($validated['duration'] ?? null, $activity)) {
+                return $error;
             }
 
             // Check if already assigned
@@ -1052,6 +1094,7 @@ class ActivityManagementController extends Controller
             // Attach the employee
             $activity->assignedEmployees()->attach($validated['employee_id'], [
                 'role' => $validated['role'] ?? 'Member',
+                'duration' => $validated['duration'] ?? null,
                 'assigned_date' => now()->toDateString(),
                 'notes' => $validated['notes'] ?? null,
             ]);
@@ -1087,6 +1130,7 @@ class ActivityManagementController extends Controller
         try {
             $validated = $request->validate([
                 'role' => 'nullable|string|max:100',
+                'duration' => 'nullable|integer|min:1',
                 'notes' => 'nullable|string',
             ]);
 
@@ -1099,8 +1143,14 @@ class ActivityManagementController extends Controller
                 ], 404);
             }
 
+            // Member duration must not exceed the activity's own duration
+            if ($error = $this->validateMemberDuration($validated['duration'] ?? null, $activity)) {
+                return $error;
+            }
+
             $activity->assignedEmployees()->updateExistingPivot($employeeId, [
                 'role' => $validated['role'],
+                'duration' => $validated['duration'] ?? null,
                 'notes' => $validated['notes'],
             ]);
 

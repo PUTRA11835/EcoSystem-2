@@ -363,6 +363,16 @@ class DeliveryProjectController extends Controller
             'approval_name' => 'nullable|string',
         ]);
 
+        // Normalize AE name against AE type. When no type is selected the AE Name
+        // input is disabled and not submitted, so without this guard a previously
+        // stored name would linger without a type — causing confusion on next edit.
+        // Tying the name to the type keeps the record consistent whether the user
+        // clears the type intentionally or by accident.
+        if (empty($validatedData['ae_type'])) {
+            $validatedData['ae_type'] = null;
+            $validatedData['ae_name'] = null;
+        }
+
         $project->update($validatedData);
 
         if ($request->expectsJson()) {
@@ -506,13 +516,63 @@ class DeliveryProjectController extends Controller
      */
     public function getTeamMembers(DeliveryProject $project)
     {
-        $teamMembers = $project->teamMembers()
-            ->with('basicData')
-            ->get();
+        // One entry per pivot row so that members holding multiple roles (e.g.
+        // someone who is both Project Manager AND an MM Member) all surface in
+        // the dropdown. belongsToMany() deduplicates by employee_id, so we query
+        // the junction table directly and join the name from employee_basic_data.
+        $rows = DB::table('delivery_project_employee as dpe')
+            ->leftJoin('employee_basic_data as ebd', 'ebd.employee_id', '=', 'dpe.employee_id')
+            ->where('dpe.delivery_projects_id', $project->id)
+            ->orderBy('dpe.created_at')
+            ->get([
+                'dpe.employee_id',
+                'dpe.role',
+                'dpe.module',
+                'dpe.employee_type',
+                'ebd.first_name',
+                'ebd.last_name',
+            ]);
+
+        $teamMembers = $rows->map(function ($r) {
+            $name = trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? ''));
+            return [
+                'employee_id'   => $r->employee_id,
+                'name'          => $name !== '' ? $name : ('Employee #' . $r->employee_id),
+                'role'          => $r->role,
+                'module'        => $r->module,
+                'employee_type' => $r->employee_type,
+            ];
+        });
+
+        // FK-fallback roles: PM / Co PM / Project Admin stored only on the project
+        // row (no pivot entry, e.g. projects created before the pivot flow). Mirror
+        // the Team Members table on the show page so the dropdown is complete.
+        $pivotIds = $rows->pluck('employee_id')->map(fn($id) => (string) $id)->all();
+        $fkRoles = [
+            ['id' => $project->project_manager_id, 'role' => 'Project Manager'],
+            ['id' => $project->co_pm_id,            'role' => 'Co Project Manager'],
+            ['id' => $project->project_admin_id,    'role' => 'Project Admin'],
+        ];
+        foreach ($fkRoles as $fk) {
+            if (!$fk['id'] || in_array((string) $fk['id'], $pivotIds, true)) {
+                continue;
+            }
+            $ebd = DB::table('employee_basic_data')
+                ->where('employee_id', $fk['id'])
+                ->first(['first_name', 'last_name']);
+            $name = $ebd ? trim(($ebd->first_name ?? '') . ' ' . ($ebd->last_name ?? '')) : '';
+            $teamMembers->push([
+                'employee_id'   => $fk['id'],
+                'name'          => $name !== '' ? $name : ('Employee #' . $fk['id']),
+                'role'          => $fk['role'],
+                'module'        => null,
+                'employee_type' => null,
+            ]);
+        }
 
         return response()->json([
             'success' => true,
-            'team_members' => $teamMembers
+            'team_members' => $teamMembers->values(),
         ]);
     }
 
@@ -713,9 +773,33 @@ class DeliveryProjectController extends Controller
         return back()->with('success', 'Team member updated successfully.');
     }
 
-    public function destroy(DeliveryProject $project)
+    public function destroy(Request $request, $project)
     {
-        $project->delete();
+        // NOTE: We resolve the model manually (instead of route-model binding) so
+        // the operation is idempotent. A double-submitted DELETE (the second request
+        // arriving after the row is already gone) previously threw ModelNotFound and
+        // surfaced a scary "No query results" error even though the delete succeeded.
+        // Treating an already-deleted project as success matches the desired end state.
+        $model = DeliveryProject::find($project);
+
+        if ($model) {
+            try {
+                $model->delete();
+            } catch (\Throwable $e) {
+                Log::error('DeliveryProjectController@destroy', ['id' => $project, 'error' => $e->getMessage()]);
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Failed to delete project. It may still have related records.',
+                    ], 500);
+                }
+                return redirect()->route('projects.index')->with('error', 'Failed to delete the project.');
+            }
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Project deleted successfully.']);
+        }
         return redirect()->route('projects.index')->with('success', 'Project deleted successfully.');
     }
     
@@ -1127,6 +1211,101 @@ class DeliveryProjectController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Upload failed: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Create a OneDrive upload session so the client can upload the file directly.
+     * Returns only an uploadUrl — no file data passes through this server.
+     */
+    public function createDocumentUploadSession(Request $request, DeliveryProject $project)
+    {
+        if (!$project->onedrive_folder_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'OneDrive folder has not been created for this project.',
+            ], 422);
+        }
+
+        $request->validate([
+            'filename'      => 'required|string|max:255',
+            'document_name' => 'nullable|string|max:255',
+            'document_type' => 'required|string|max:100',
+        ]);
+
+        try {
+            $oneDrive  = new OneDriveService();
+            $uploadUrl = $oneDrive->createUploadSession(
+                $project->onedrive_folder_id,
+                $request->input('filename')
+            );
+
+            return response()->json([
+                'success'    => true,
+                'upload_url' => $uploadUrl,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('createDocumentUploadSession failed', [
+                'project_id' => $project->id,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create upload session: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * After the client has uploaded the file directly to OneDrive,
+     * create a share link and save the document metadata to the database.
+     */
+    public function finalizeDocumentUpload(Request $request, DeliveryProject $project)
+    {
+        if (!$project->onedrive_folder_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'OneDrive folder not found.',
+            ], 422);
+        }
+
+        $request->validate([
+            'onedrive_item_id' => 'required|string',
+            'document_name'    => 'nullable|string|max:255',
+            'document_type'    => 'required|string|max:100',
+            'filename'         => 'required|string|max:255',
+        ]);
+
+        try {
+            $oneDrive = new OneDriveService();
+            $shareUrl = $oneDrive->createAnonymousLink($request->input('onedrive_item_id'), 'view');
+
+            $docName  = $request->input('document_name') ?: $request->input('filename');
+            $document = $project->documents()->create([
+                'document_name' => $docName,
+                'link_document' => $shareUrl,
+                'document_type' => $request->input('document_type'),
+            ]);
+
+            return response()->json([
+                'success'  => true,
+                'message'  => 'Document uploaded successfully.',
+                'document' => [
+                    'id'            => $document->id,
+                    'document_name' => $document->document_name,
+                    'link_document' => $document->link_document,
+                    'document_type' => $document->document_type,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('finalizeDocumentUpload failed', [
+                'project_id' => $project->id,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to finalize upload: ' . $e->getMessage(),
             ], 500);
         }
     }

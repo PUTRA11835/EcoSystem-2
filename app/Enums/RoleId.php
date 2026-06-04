@@ -31,6 +31,10 @@ enum RoleId: int
     case RPMO            = 7;
 
     // ── Extended roles (added via migration 2026_04_16) ─────────────────────
+    // DB name: Delivery Project Administrator (employee_role.id = 12)
+    // Project-domain administrator — mirrors Helpdesk's role in the support
+    // domain, but scoped to the Delivery Project module (no support-ticket powers).
+    case DELIVERY_PROJECT_ADMIN = 12;
     // DB name: Delivery Project User (employee_role.id = 15)
     case EMPLOYEE_PROJECT = 15;
     // DB name: Delivery Support Manager (employee_role.id = 20)
@@ -46,6 +50,7 @@ enum RoleId: int
         self::HEAD_OF_SUPPORT->value,
         self::HELPDESK->value,
         self::RPMO->value,
+        self::DELIVERY_PROJECT_ADMIN->value,
         self::EMPLOYEE_PROJECT->value,
         self::SUPPORT_MANAGER->value,
     ];

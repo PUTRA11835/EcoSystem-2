@@ -545,7 +545,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Account Executive Type</label>
-                    <div class="custom-dd relative" data-fixed="true">
+                    <div class="custom-dd relative" data-fixed="true" data-onchange="toggleAEFields">
                         <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
                             <span class="custom-dd-label {{ $project->ae_type ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->ae_type ?: '-- Select --' }}</span>
                             <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -558,9 +558,43 @@
                         </div>
                     </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">Account Executive</label>
-                    <input type="text" name="ae_name" value="{{ $project->ae_name }}"
+                <div id="ae_name_container">
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Account Executive Name</label>
+                    @php
+                        $aeName       = $project->ae_name;
+                        $aeIsInternal = ($project->ae_type === 'Internal');
+                        $aeIsExternal = ($project->ae_type === 'External');
+                        $aeHasType    = ($aeIsInternal || $aeIsExternal);
+                    @endphp
+                    {{-- Placeholder ter-disable: tampil sampai Account Executive Type dipilih --}}
+                    <input type="text" id="ae_name_placeholder" disabled
+                           placeholder="-- Select type first --"
+                           style="{{ $aeHasType ? 'display:none;' : '' }}"
+                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm bg-gray-100 text-gray-400 cursor-not-allowed">
+                    {{-- Custom-dd dengan search untuk AE Internal (konsisten dengan halaman create) --}}
+                    <div id="ae_employee_dd_wrapper" style="{{ $aeIsInternal ? '' : 'display:none;' }}">
+                        <div class="custom-dd relative" data-fixed="true" data-onchange="fillAEContactInfo">
+                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between py-2.5 px-3 bg-white border border-gray-300 rounded-md shadow-sm text-sm hover:border-gray-400 transition-all text-left">
+                                <span class="custom-dd-label {{ ($aeIsInternal && $aeName) ? 'text-gray-700' : 'text-gray-500' }}">{{ ($aeIsInternal && $aeName) ? $aeName : '-- Select Employee --' }}</span>
+                                <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <input type="hidden" name="{{ $aeIsInternal ? 'ae_name' : '' }}" id="ae_employee_hidden" value="{{ $aeIsInternal ? $aeName : '' }}">
+                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                                <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                    <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
+                                </div>
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Employee --</button>
+                                @foreach($employees as $employee)
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->basicData->full_name ?? '-' }}">{{ $employee->basicData->full_name ?? '-' }}</button>
+                                @endforeach
+                                <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+                            </div>
+                        </div>
+                    </div>
+                    {{-- Text input untuk AE External --}}
+                    <input type="text" name="{{ $aeIsExternal ? 'ae_name' : '' }}" id="ae_name_input"
+                           value="{{ $aeIsExternal ? $aeName : '' }}"
+                           style="{{ $aeIsExternal ? '' : 'display:none;' }}"
                            class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                 </div>
                 <div>
@@ -622,6 +656,61 @@
                         <span class="absolute inset-y-0 right-0 flex items-center pr-3 text-sm text-gray-500 pointer-events-none">%</span>
                         <input type="hidden" name="gross_profit_percentage" id="sfin_pct_val" value="{{ $project->gross_profit_percentage }}">
                     </div>
+                </div>
+            </div>
+
+            {{-- ── Term Of Payment (TOP) Plan ─────────────────────────── --}}
+            <div class="mt-8 pt-6 border-t border-gray-200" data-project-id="{{ $project->id }}">
+                <div class="flex justify-between items-center flex-wrap gap-3 mb-4">
+                    <div>
+                        <h4 class="text-lg font-medium text-gray-900">Term Of Payment Plan</h4>
+                    </div>
+                    <button type="button" onclick="PaymentTermPlan.openAdd()"
+                            class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Add Payment Term
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto rounded-lg border border-gray-200">
+                    <table class="min-w-full text-sm border-collapse" id="paymentTermTable">
+                        <thead>
+                            <tr class="bg-gray-700 text-white">
+                                <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[50px]">No</th>
+                                <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[160px]">Payment Term</th>
+                                <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[110px]">Payment %</th>
+                                <th class="px-3 py-3 text-right font-semibold whitespace-nowrap min-w-[150px]">Amount</th>
+                                <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[220px]">Payment Requirements / Evidence</th>
+                                <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[130px]">Estimated Date</th>
+                                <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px]">Submit Invoice Date</th>
+                                <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[130px]">Invoice No</th>
+                                <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[130px]">Paid Date</th>
+                                <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[100px]">Status</th>
+                                <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[80px]">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="paymentTermBody" class="divide-y divide-gray-100 bg-white">
+                            <tr>
+                                <td colspan="11" class="text-center py-8">
+                                    <svg class="animate-spin h-5 w-5 primary-text mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                    </svg>
+                                    <p class="text-gray-500 text-xs">Loading payment terms…</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                        <tfoot class="bg-gray-50 border-t-2 border-gray-200">
+                            <tr id="paymentTermFooter" class="font-semibold text-gray-700">
+                                <td class="px-3 py-3 text-center" colspan="2">Total</td>
+                                <td class="px-3 py-3 text-center" id="ptTotalPct">0%</td>
+                                <td class="px-3 py-3 text-right" id="ptTotalAmount">Rp 0</td>
+                                <td class="px-3 py-3" colspan="7"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
                 </div>
             </div>
             </div>{{-- /Sales Data --}}
@@ -700,6 +789,27 @@
                 }
 
                 $hasAnyTeam = $teamPivotRows->isNotEmpty() || !empty($fkFallbacks);
+
+                // People list shared by the Owner / Originator (Issue Log) and
+                // Risk Owner (Risk Register) dropdowns. Mirrors exactly the names
+                // shown in the Team Members table (FK-fallback PM/Co PM/Project
+                // Admin + every pivot member/lead) plus the project delivery
+                // owner & manager.
+                $teamPeople = collect();
+                if ($project->deliveryOwner && $project->deliveryOwner->basicData) {
+                    $teamPeople->push($project->deliveryOwner->basicData->full_name);
+                }
+                if ($project->deliveryManager && $project->deliveryManager->basicData) {
+                    $teamPeople->push($project->deliveryManager->basicData->full_name);
+                }
+                foreach ($fkFallbacks as $fb) {
+                    $teamPeople->push($fb['emp']->basicData->full_name ?? null);
+                }
+                foreach ($teamPivotRows as $tpRow) {
+                    $tpEmp = $employees->firstWhere('employee_id', $tpRow->employee_id);
+                    $teamPeople->push($tpEmp?->basicData->full_name);
+                }
+                $teamPeople = $teamPeople->filter()->unique()->sort()->values();
             @endphp
 
             {{-- Team Members Table --}}
@@ -888,66 +998,69 @@
 </section>
 
 {{-- Issues Section WITH CHECKBOX SELECTION --}}
-<section id="issues" class="mb-6 card-hover section-animate">
+<section id="issues" class="mb-6 card-hover section-animate" data-project-id="{{ $project->id }}">
     <div class="bg-white shadow-md rounded-lg">
-        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
-            <h2 class="text-lg font-semibold text-gray-700">Project Issues</h2>
-            <button onclick="openModal('issueModal')" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Add Issue
-            </button>
-        </div>
-        <div class="p-6">
-            @if($project->updates->isNotEmpty())
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200" id="issuesTable">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left">
-                                    <input type="checkbox" id="selectAllIssues" class="row-checkbox" onchange="toggleSelectAll('issue')">
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Issue</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Complexity</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            @foreach($project->updates as $update)
-                                <tr class="hover:bg-gray-50 issue-row" data-issue-id="{{ $update->id }}">
-                                    <td class="px-6 py-4">
-                                        <input type="checkbox" class="row-checkbox issue-checkbox" 
-                                               data-id="{{ $update->id }}"
-                                               data-issue="{{ $update->highlight_issue }}"
-                                               data-action="{{ $update->action }}"
-                                               data-due="{{ $update->due_date }}"
-                                               data-status="{{ $update->status }}"
-                                               data-complexity="{{ $update->complexity }}"
-                                               onchange="handleRowSelection('issue')">
-                                    </td>
-                                    <td class="px-6 py-4 text-sm text-gray-900">{{ $update->highlight_issue }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-500">
-                                        {{ \Carbon\Carbon::parse($update->due_date)->format('d M Y') }}
-                                        @if(!in_array($update->status, ['Done', 'Closed']) && \Carbon\Carbon::parse($update->due_date)->isPast())
-                                            <span class="block text-xs font-semibold text-red-600">Overdue</span>
-                                        @endif
-                                    </td>
-                                    <td class="px-6 py-4 text-sm">
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full
-                                            @if($update->status == 'Open') bg-yellow-100 text-yellow-800
-                                            @elseif($update->status == 'Closed') bg-green-100 text-green-800
-                                            @else bg-blue-100 text-blue-800 @endif">
-                                            {{ $update->status }}
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-4 text-sm text-gray-500">{{ $update->complexity }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+
+        {{-- ── Header ─────────────────────────────────────────────── --}}
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex justify-between items-center flex-wrap gap-3">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-700 flex items-center">
+                        <svg class="w-5 h-5 mr-2 primary-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        Project Issues
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-1">Project Issue Log</p>
                 </div>
-            @else
-                <p class="text-sm text-gray-500 text-center py-8">No issues reported yet.</p>
-            @endif
+                <button type="button" onclick="IssueLog.openAdd()"
+                        class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Add Issue
+                </button>
+            </div>
+        </div>
+
+        {{-- ── Table ───────────────────────────────────────────────── --}}
+        <div class="p-6">
+            <div class="overflow-x-auto overflow-y-auto max-h-[520px] rounded-lg border border-gray-200 risk-scroll">
+                <table class="min-w-full text-sm border-collapse" id="issueLogTable">
+                    <thead class="sticky top-0 z-10">
+                        <tr class="bg-gray-700 text-white">
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[80px]">ID</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[220px]">Issue Description</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[90px]">Module</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">Date Identified</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[110px]">Closed Date</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[90px]">Status</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[160px]">Risk To Project</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[110px]">Project Risk ID</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[90px]">Priority</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">Originator</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">Owner</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[130px]">Estimated Closed</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[100px]">Escalation</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[160px]">Impact of Issue</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[180px]">Tracking Comments</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[80px]">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="issueTableBody" class="divide-y divide-gray-100 bg-white">
+                        <tr>
+                            <td colspan="16" class="text-center py-10">
+                                <svg class="animate-spin h-6 w-6 primary-text mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                </svg>
+                                <p class="text-gray-500 text-xs">Loading issues…</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">Priority: H = High &nbsp;|&nbsp; M = Medium &nbsp;|&nbsp; L = Low &nbsp;&nbsp;·&nbsp;&nbsp; Escalation Needed: Y / N</p>
         </div>
     </div>
 </section>
@@ -968,7 +1081,7 @@
                         </svg>
                         Project Risk Register
                     </h2>
-                    <p class="text-xs text-gray-500 mt-1">Template Manajemen Risiko Proyek Terintegrasi</p>
+                    <p class="text-xs text-gray-500 mt-1">Integrated Project Risk Management Register</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <button type="button" onclick="RiskRegister.openDashboard()"
@@ -996,26 +1109,28 @@
                     <thead class="sticky top-0 z-10">
                         <tr class="bg-gray-700 text-white">
                             <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[80px]">Risk ID</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">Kategori Risiko</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[200px]">Deskripsi Risiko</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[160px]">Penyebab (Trigger)</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[160px]">Dampak Proyek</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[110px]">Risk Type</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">Risk Category</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[200px]">Risk Description</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[160px]">Cause (Trigger)</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[160px]">Project Impact</th>
                             <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[70px]">P (1-5)</th>
                             <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[70px]">I (1-5)</th>
                             <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[70px]">Score</th>
-                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[90px]">Tingkat Risiko</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[110px]">Strategi Respons</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[180px]">Rencana Mitigasi / Kontiniensi</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[90px]">Risk Level</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[110px]">Response Strategy</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[180px]">Mitigation / Contingency Plan</th>
                             <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[110px]">Risk Owner</th>
                             <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[100px]">Status</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[110px]">Target Penyelesaian</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[140px]">Komentar / Catatan</th>
-                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[80px]">Aksi</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[110px]">Target Date</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">Actual End Date</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[140px]">Comments / Notes</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[80px]">Action</th>
                         </tr>
                     </thead>
                     <tbody id="riskTableBody" class="divide-y divide-gray-100 bg-white">
                         <tr>
-                            <td colspan="16" class="text-center py-10">
+                            <td colspan="18" class="text-center py-10">
                                 <svg class="animate-spin h-6 w-6 primary-text mx-auto mb-2" fill="none" viewBox="0 0 24 24">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -1351,7 +1466,7 @@
                             <th class="px-4 py-3 text-right font-semibold w-36 bg-orange-600">Actual</th>
                             <th class="px-4 py-3 text-right font-semibold w-36 bg-green-700">Avail. Budget</th>
                             <th class="px-4 py-3 text-right font-semibold w-36 bg-teal-700">Avail. Release</th>
-                            <th class="px-4 py-3 text-center font-semibold w-28">Aksi</th>
+                            <th class="px-4 py-3 text-center font-semibold w-28">Action</th>
                         </tr>
                     </thead>
                     <tbody id="planCostTableBody" class="divide-y divide-gray-100">
@@ -1693,6 +1808,197 @@
 {{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- RISK REGISTER — ADD / EDIT MODAL                              --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- TERM OF PAYMENT (TOP) PLAN — ADD / EDIT MODAL                  --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="paymentTermModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="PaymentTermPlan.closeModal()"></div>
+    <div class="relative flex items-center justify-center min-h-screen p-4">
+        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+
+            {{-- Header --}}
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <h3 class="text-base font-semibold text-gray-900" id="paymentTermModalTitle">Add Payment Term</h3>
+                <button type="button" onclick="PaymentTermPlan.closeModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            {{-- Body --}}
+            <div class="p-6 overflow-y-auto space-y-4">
+                <input type="hidden" id="paymentTermModalMode" value="create">
+                <input type="hidden" id="paymentTermModalId" value="">
+
+                {{-- Payment Term --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Payment Term <span class="text-red-500">*</span></label>
+                    <input type="text" id="pt_payment_term" maxlength="255" autocomplete="off"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"
+                           placeholder="e.g. Down Payment, Termin 1, Final Payment">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {{-- Payment % --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Payment % <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <input type="number" id="pt_payment_percentage" min="0" max="100" step="0.01" autocomplete="off"
+                                   oninput="PaymentTermPlan.recalcAmount()"
+                                   class="w-full pr-9 pl-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus text-right"
+                                   placeholder="0">
+                            <span class="absolute inset-y-0 right-0 flex items-center pr-3 text-sm text-gray-500 pointer-events-none">%</span>
+                        </div>
+                    </div>
+
+                    {{-- Amount (auto) --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Amount <span class="text-gray-400 font-normal">(auto)</span></label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
+                            <input type="text" id="pt_amount_disp" readonly tabindex="-1"
+                                   class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 cursor-not-allowed text-sm text-gray-600 text-right"
+                                   placeholder="0">
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Payment Requirements / Evidence --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Payment Requirements / Evidence</label>
+                    <textarea id="pt_requirements" rows="2"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus resize-none"
+                              placeholder="e.g. Signed BAST, Invoice, PO number…"></textarea>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {{-- Estimated Date --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Estimated Date</label>
+                        <input type="text" id="pt_estimated_date" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"
+                               placeholder="dd/mm/yyyy">
+                    </div>
+
+                    {{-- Submit Invoice Date --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Submit Invoice Date</label>
+                        <input type="text" id="pt_submit_invoice_date" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"
+                               placeholder="dd/mm/yyyy">
+                    </div>
+                </div>
+
+                {{-- Invoice Number — wajib saat Submit Invoice Date terisi --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Invoice Number <span id="pt_invoice_number_req" class="text-red-500 hidden">*</span>
+                    </label>
+                    <input type="text" id="pt_invoice_number" maxlength="255" autocomplete="off"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"
+                           placeholder="e.g. INV/2026/06/001">
+                    <p id="pt_invoice_number_hint" class="mt-1 text-xs text-gray-400 hidden">Required because Submit Invoice Date is filled.</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {{-- Paid Date --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Paid Date</label>
+                        <input type="text" id="pt_paid_date" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"
+                               placeholder="dd/mm/yyyy">
+                    </div>
+
+                    {{-- Status --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
+                        <select id="pt_status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus">
+                            @foreach(['Open','Paid','Delay'] as $s)
+                                <option value="{{ $s }}">{{ $s }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Footer --}}
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+                <button type="button" onclick="PaymentTermPlan.closeModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    Cancel
+                </button>
+                <button type="button" id="paymentTermSaveBtn" onclick="PaymentTermPlan.save()"
+                        class="px-4 py-2 text-sm font-semibold text-white primary-gradient rounded-lg hover:opacity-90 transition disabled:opacity-50">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- TERM OF PAYMENT (TOP) PLAN — DELETE CONFIRMATION MODAL         --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="paymentTermDeleteModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="PaymentTermPlan.closeDeleteModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-semibold text-gray-900 mb-1">Delete Payment Term #<span id="ptDeleteNumber"></span>?</h3>
+                <p class="text-sm text-gray-500 mb-5">This payment term will be permanently deleted.</p>
+                <input type="hidden" id="ptDeleteId" value="">
+                <div class="flex gap-3 justify-center">
+                    <button type="button" onclick="PaymentTermPlan.closeDeleteModal()"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" id="ptDeleteConfirmBtn" onclick="PaymentTermPlan.confirmDelete()"
+                            class="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition">
+                        Yes, Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- RISK REGISTER — DELETE CONFIRMATION MODAL                      --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="riskDeleteModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="RiskRegister.closeDeleteModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-semibold text-gray-900 mb-1">Delete <span id="riskDeleteLabel"></span>?</h3>
+                <p class="text-sm text-gray-500 mb-5">This risk will be permanently deleted.</p>
+                <input type="hidden" id="riskDeleteId" value="">
+                <div class="flex gap-3 justify-center">
+                    <button type="button" onclick="RiskRegister.closeDeleteModal()"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" id="riskDeleteConfirmBtn" onclick="RiskRegister.confirmDelete()"
+                            class="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition">
+                        Yes, Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div id="riskModal" class="fixed inset-0 z-50 hidden">
     <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="RiskRegister.closeModal()"></div>
     <div class="relative flex items-center justify-center min-h-screen p-4">
@@ -1715,11 +2021,21 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-                    {{-- Category --}}
+                    {{-- Risk Type --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Kategori Risiko <span class="text-red-500">*</span></label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Risk Type <span class="text-red-500">*</span></label>
+                        <select id="risk_type" onchange="RiskRegister.onRiskTypeChange()" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                            <option value="">-- Select Type --</option>
+                            <option value="Threat">Threat</option>
+                            <option value="Opportunity">Opportunity</option>
+                        </select>
+                    </div>
+
+                    {{-- Risk Category --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Risk Category <span class="text-red-500">*</span></label>
                         <select id="risk_category" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
-                            <option value="">-- Pilih Kategori --</option>
+                            <option value="">-- Select Risk Category --</option>
                             @foreach(['Scope','Schedule','Cost/Budget','Resource','Technical/Quality','Procurement','Stakeholder','External'] as $cat)
                                 <option value="{{ $cat }}">{{ $cat }}</option>
                             @endforeach
@@ -1729,7 +2045,7 @@
                     {{-- Status --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
-                        <select id="risk_status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                        <select id="risk_status" onchange="RiskRegister.onStatusChange()" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
                             @foreach(['Open','In Progress','Mitigated','Closed'] as $s)
                                 <option value="{{ $s }}">{{ $s }}</option>
                             @endforeach
@@ -1764,29 +2080,37 @@
                         </div>
                     </div>
 
-                    {{-- Response Strategy --}}
+                    {{-- Response Strategy (options depend on Risk Type) --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Strategi Respons</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Response Strategy <span class="text-red-500">*</span></label>
                         <select id="risk_response_strategy" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
-                            <option value="">-- Pilih Strategi --</option>
-                            @foreach(['Avoid','Mitigate','Transfer','Accept','Exploit','Enhance','Share'] as $rs)
-                                <option value="{{ $rs }}">{{ $rs }}</option>
-                            @endforeach
+                            <option value="">-- Select Risk Type first --</option>
                         </select>
                     </div>
 
                     {{-- Risk Owner --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Risk Owner</label>
-                        <input type="text" id="risk_owner" maxlength="100"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                               placeholder="Nama penanggung jawab">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Risk Owner <span class="text-red-500">*</span></label>
+                        <select id="risk_owner" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                            <option value="">-- Select Risk Owner --</option>
+                            @foreach($teamPeople as $person)
+                                <option value="{{ $person }}">{{ $person }}</option>
+                            @endforeach
+                        </select>
                     </div>
 
                     {{-- Target Date --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Target Penyelesaian</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Target Date <span class="text-red-500">*</span></label>
                         <input type="text" id="risk_target_date" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                               placeholder="dd/mm/yyyy">
+                    </div>
+
+                    {{-- Actual End Date (shown only when status = Closed) --}}
+                    <div id="risk_actual_end_wrapper" class="hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Actual End Date <span class="text-red-500">*</span></label>
+                        <input type="text" id="risk_actual_end_date" autocomplete="off"
                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
                                placeholder="dd/mm/yyyy">
                     </div>
@@ -1795,42 +2119,42 @@
 
                 {{-- Description --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Deskripsi Risiko <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Risk Description <span class="text-red-500">*</span></label>
                     <textarea id="risk_description" rows="2"
                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-                              placeholder="Deskripsikan risiko yang diidentifikasi…"></textarea>
+                              placeholder="Describe the identified risk…"></textarea>
                 </div>
 
                 {{-- Cause / Trigger --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Penyebab (Trigger)</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Cause (Trigger) <span class="text-red-500">*</span></label>
                     <textarea id="risk_cause" rows="2"
                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-                              placeholder="Apa yang dapat memicu risiko ini…"></textarea>
+                              placeholder="What could trigger this risk…"></textarea>
                 </div>
 
                 {{-- Project Impact text --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Dampak Proyek</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Project Impact <span class="text-red-500">*</span></label>
                     <textarea id="risk_project_impact" rows="2"
                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-                              placeholder="Dampak yang ditimbulkan pada proyek…"></textarea>
+                              placeholder="Impact this risk would have on the project…"></textarea>
                 </div>
 
                 {{-- Mitigation Plan --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Rencana Mitigasi / Kontiniensi</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Mitigation / Contingency Plan <span class="text-red-500">*</span></label>
                     <textarea id="risk_mitigation_plan" rows="2"
                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-                              placeholder="Langkah-langkah mitigasi dan rencana kontinjensi…"></textarea>
+                              placeholder="Mitigation steps and contingency plan…"></textarea>
                 </div>
 
                 {{-- Notes --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Komentar / Catatan</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Comments / Notes <span class="text-red-500">*</span></label>
                     <textarea id="risk_notes" rows="2"
                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-                              placeholder="Catatan tambahan…"></textarea>
+                              placeholder="Additional notes…"></textarea>
                 </div>
             </div>
 
@@ -1878,19 +2202,19 @@
                 {{-- Stat Cards --}}
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
-                        <p class="text-xs text-gray-500 mb-1">Total Risiko</p>
+                        <p class="text-xs text-gray-500 mb-1">Total Risks</p>
                         <p id="dash_total" class="text-3xl font-bold text-gray-800">0</p>
                     </div>
                     <div class="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
-                        <p class="text-xs text-red-600 mb-1">Risiko High</p>
+                        <p class="text-xs text-red-600 mb-1">High Risk</p>
                         <p id="dash_high" class="text-3xl font-bold text-red-700">0</p>
                     </div>
                     <div class="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
-                        <p class="text-xs text-orange-600 mb-1">Risiko Medium</p>
+                        <p class="text-xs text-orange-600 mb-1">Medium Risk</p>
                         <p id="dash_medium" class="text-3xl font-bold text-orange-700">0</p>
                     </div>
                     <div class="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-                        <p class="text-xs text-green-600 mb-1">Risiko Low</p>
+                        <p class="text-xs text-green-600 mb-1">Low Risk</p>
                         <p id="dash_low" class="text-3xl font-bold text-green-700">0</p>
                     </div>
                 </div>
@@ -1899,13 +2223,13 @@
 
                     {{-- Status Breakdown --}}
                     <div>
-                        <h4 class="text-sm font-semibold text-gray-700 mb-3">Breakdown Status Risk</h4>
+                        <h4 class="text-sm font-semibold text-gray-700 mb-3">Risk Status Breakdown</h4>
                         <div class="rounded-lg border border-gray-200 overflow-hidden">
                             <table class="min-w-full text-sm">
                                 <thead>
                                     <tr class="bg-gray-800 text-white">
                                         <th class="px-4 py-2.5 text-left font-semibold">Status</th>
-                                        <th class="px-4 py-2.5 text-center font-semibold w-20">Jumlah</th>
+                                        <th class="px-4 py-2.5 text-center font-semibold w-20">Count</th>
                                     </tr>
                                 </thead>
                                 <tbody id="dash_status_tbody" class="divide-y divide-gray-100 bg-white">
@@ -2490,7 +2814,7 @@
                 _adRenumberRows();
                 _adUpdateSummary();
                 if (_adGetCurrentCount() === 0) _adShowEmpty();
-                showPlanCostToast('Pengeluaran dihapus.', 'success');
+                showPlanCostToast('Expense deleted.', 'success');
             } catch (err) {
                 showPlanCostToast('Failed to delete expense.', 'error');
             }
@@ -2553,7 +2877,7 @@
             }
             _adUpdateSummary();
         } catch (e) {
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-red-500 text-sm">Gagal memuat data.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-red-500 text-sm">Failed to load data.</td></tr>`;
         }
     }
 
@@ -2590,7 +2914,7 @@
             <td class="px-4 py-2.5 text-right font-mono text-sm text-blue-700 font-medium">${fmtRp(item.amount)}</td>
             <td class="px-4 py-2.5 text-center">${docCell}</td>
             <td class="px-4 py-2.5 text-center">
-                <button type="button" title="Hapus"
+                <button type="button" title="Delete"
                         onclick="PlanCost.deleteExpenseItem(${item.id}, this.closest('tr'))"
                         class="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2763,7 +3087,7 @@
                             <label class="block text-sm font-medium text-gray-900 mb-1">Vendor Name</label>
                             <input type="text" name="vendor_name" id="vendor_name"
                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                                   placeholder="Nama vendor">
+                                   placeholder="Vendor name">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Start Date <span class="text-red-500">*</span></label>
@@ -2998,7 +3322,7 @@
                         <input type="hidden" id="doc_type" value="">
                         <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:280px;">
                             <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
-                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Cari tipe dokumen…" autocomplete="off" spellcheck="false">
+                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search document type…" autocomplete="off" spellcheck="false">
                             </div>
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Type --</button>
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="TOR">TOR</button>
@@ -3035,7 +3359,7 @@
             <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
                 <button type="button" onclick="closeModal('documentModal')"
                         class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all">
-                    Batal
+                    Cancel
                 </button>
                 <button type="button" id="docUploadBtn" onclick="submitDocumentUpload()"
                         class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
@@ -3050,69 +3374,198 @@
 </div>
 
 {{-- Issue Modal --}}
-<div id="issueModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeModal('issueModal')"></div>
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- ISSUE LOG — DELETE CONFIRMATION MODAL                          --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="issueDeleteModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="IssueLog.closeDeleteModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="modal-content bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
-            <div class="p-6 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900">Add Issue</h3>
-            </div>
-            <form id="addIssueForm" action="{{ route('project.updates.store', $project->id) }}" method="POST">
-                @csrf
-                <div class="modal-body p-6 overflow-y-auto">
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Highlight Issue</label>
-                            <textarea name="highlight_issue" rows="3" required
-                                      class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm"
-                                      placeholder="Describe the issue found..."></textarea>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Action</label>
-                            <textarea name="action" rows="3" required
-                                      class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm"
-                                      placeholder="Action taken or planned..."></textarea>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-                                <input type="text" name="due_date" id="add_due_date" required readonly
-                                       placeholder="Select Due Date"
-                                       class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm cursor-pointer">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                                <select name="status" required
-                                        class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm">
-                                    <option value="To Be Discussed">To Be Discussed</option>
-                                    <option value="To Be Confirmed">To Be Confirmed</option>
-                                    <option value="Open">Open</option>
-                                    <option value="Closed">Closed</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Complexity</label>
-                                <select name="complexity" required
-                                        class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm">
-                                    <option value="Low">Low</option>
-                                    <option value="Medium">Medium</option>
-                                    <option value="High">High</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
                 </div>
-                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
-                    <button type="button" onclick="closeModal('issueModal')"
-                            class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                <h3 class="text-base font-semibold text-gray-900 mb-1">Delete <span id="issueDeleteLabel"></span>?</h3>
+                <p class="text-sm text-gray-500 mb-5">This issue will be permanently deleted.</p>
+                <input type="hidden" id="issueDeleteId" value="">
+                <div class="flex gap-3 justify-center">
+                    <button type="button" onclick="IssueLog.closeDeleteModal()"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
                         Cancel
                     </button>
-                    <button type="submit"
-                            class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                        Add Issue
+                    <button type="button" id="issueDeleteConfirmBtn" onclick="IssueLog.confirmDelete()"
+                            class="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition">
+                        Yes, Delete
                     </button>
                 </div>
-            </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- ISSUE LOG — ADD / EDIT MODAL                                   --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="issueModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="IssueLog.closeModal()"></div>
+    <div class="relative flex items-center justify-center min-h-screen p-4">
+        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+
+            {{-- Header --}}
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <h3 class="text-base font-semibold text-gray-900" id="issueModalTitle">Add Issue</h3>
+                <button type="button" onclick="IssueLog.closeModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            {{-- Body --}}
+            <div class="p-6 overflow-y-auto space-y-4">
+                <input type="hidden" id="issueModalMode" value="create">
+                <input type="hidden" id="issueModalId" value="">
+
+                {{-- Issue Description --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Issue Description <span class="text-red-500">*</span></label>
+                    <textarea id="issue_description" rows="2"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                              placeholder="Describe the issue found…"></textarea>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                    {{-- Module --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Module</label>
+                        <input type="text" id="issue_module" maxlength="100"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                               placeholder="e.g. FI, MM, SD">
+                    </div>
+
+                    {{-- Project Risk ID (optional) --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Project Risk ID</label>
+                        <select id="issue_risk_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                            <option value="">— None —</option>
+                        </select>
+                    </div>
+
+                    {{-- Status --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
+                        <select id="issue_status" onchange="IssueLog.onStatusChange()" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                            <option value="Open">Open</option>
+                            <option value="Closed">Closed</option>
+                        </select>
+                    </div>
+
+                    {{-- Priority --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Priority <span class="text-red-500">*</span></label>
+                        <select id="issue_priority" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                            <option value="High">High (H)</option>
+                            <option value="Medium" selected>Medium (M)</option>
+                            <option value="Low">Low (L)</option>
+                        </select>
+                    </div>
+
+                    {{-- Originator --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Originator <span class="text-red-500">*</span></label>
+                        <select id="issue_originator" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                            <option value="">-- Select Originator --</option>
+                            @foreach($teamPeople as $person)
+                                <option value="{{ $person }}">{{ $person }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    {{-- Owner --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Owner <span class="text-red-500">*</span></label>
+                        <select id="issue_owner" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                            <option value="">-- Select Owner --</option>
+                            @foreach($teamPeople as $person)
+                                <option value="{{ $person }}">{{ $person }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    {{-- Date Identified --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Date Identified <span class="text-red-500">*</span></label>
+                        <input type="text" id="issue_date_identified" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                               placeholder="dd/mm/yyyy">
+                    </div>
+
+                    {{-- Estimated Closed --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Estimated Closed</label>
+                        <input type="text" id="issue_estimated_closed" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                               placeholder="dd/mm/yyyy">
+                    </div>
+
+                    {{-- Escalation Needed --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Escalation Needed <span class="text-red-500">*</span></label>
+                        <select id="issue_escalation_needed" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                            <option value="0" selected>No</option>
+                            <option value="1">Yes</option>
+                        </select>
+                    </div>
+
+                    {{-- Closed Date (shown only when status = Closed) --}}
+                    <div id="issue_closed_date_wrapper" class="hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Closed Date <span class="text-red-500">*</span></label>
+                        <input type="text" id="issue_closed_date" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                               placeholder="dd/mm/yyyy">
+                    </div>
+
+                </div>
+
+                {{-- Risk To Project --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Risk To Project</label>
+                    <textarea id="issue_risk_to_project" rows="2"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                              placeholder="What this issue puts at risk for the project…"></textarea>
+                </div>
+
+                {{-- Impact of Issue --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Impact of Issue</label>
+                    <textarea id="issue_impact" rows="2"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                              placeholder="Impact this issue has on the project…"></textarea>
+                </div>
+
+                {{-- Tracking Comments --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tracking Comments</label>
+                    <textarea id="issue_tracking_comments" rows="2"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                              placeholder="Progress notes / tracking comments…"></textarea>
+                </div>
+            </div>
+
+            {{-- Footer --}}
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+                <button type="button" onclick="IssueLog.closeModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    Cancel
+                </button>
+                <button type="button" id="issueModalSaveBtn" onclick="IssueLog.save()"
+                        class="px-4 py-2 text-sm font-semibold text-white primary-gradient rounded-lg hover:opacity-90 transition disabled:opacity-50">
+                    Save
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -3198,82 +3651,14 @@
                 <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
                     <button type="button" onclick="closeModal('editDocumentModal')"
                             class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all">
-                        Batal
+                        Cancel
                     </button>
                     <button type="submit" id="editDocSaveBtn"
                             class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                         </svg>
-                        Simpan
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-{{-- Edit Issue Modal --}}
-<div id="editIssueModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeModal('editIssueModal')"></div>
-    <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="modal-content bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
-            <div class="p-6 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900">Edit Issue</h3>
-            </div>
-            <form id="editIssueForm">
-                @csrf
-                @method('PATCH')
-                <input type="hidden" id="edit_issue_id">
-                <div class="modal-body p-6 overflow-y-auto space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Highlight Issue</label>
-                        <textarea id="edit_highlight_issue" rows="3" required
-                                  class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm"
-                                  placeholder="Describe the issue..."></textarea>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Action</label>
-                        <textarea id="edit_action" rows="3" required
-                                  class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm"
-                                  placeholder="Describe the action taken..."></textarea>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-                            <input type="text" id="edit_due_date" required readonly
-                                   placeholder="Select Due Date"
-                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm cursor-pointer">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                            <select id="edit_status" required
-                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm">
-                                <option value="To Be Discussed">To Be Discussed</option>
-                                <option value="To Be Confirmed">To Be Confirmed</option>
-                                <option value="Open">Open</option>
-                                <option value="Closed">Closed</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Complexity</label>
-                            <select id="edit_complexity" required
-                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm primary-focus text-sm">
-                                <option value="Low">Low</option>
-                                <option value="Medium">Medium</option>
-                                <option value="High">High</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
-                    <button type="button" onclick="closeModal('editIssueModal')"
-                            class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-                        Cancel
-                    </button>
-                    <button type="submit"
-                            class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                        Update Issue
+                        Save
                     </button>
                 </div>
             </form>
@@ -3304,14 +3689,14 @@
             <div class="px-6 pb-6 flex justify-end gap-2">
                 <button onclick="closeNoFolderWarning()"
                         class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all">
-                    Batal
+                    Cancel
                 </button>
                 <button onclick="closeNoFolderWarning(); openOneDriveModal();"
                         class="px-4 py-2 text-sm font-semibold text-white primary-gradient rounded-lg hover:opacity-90 transition-all inline-flex items-center gap-1.5">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
                     </svg>
-                    Buat Folder Sekarang
+                    Create Folder Now
                 </button>
             </div>
         </div>
@@ -3348,7 +3733,7 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                     </svg>
-                    Hapus Folder
+                    Delete Folder
                 </button>
             </div>
         </div>
@@ -3927,8 +4312,7 @@ if (planningSection) {
 // ============================================
 let selectedItems = {
     team: new Set(),
-    document: new Set(),
-    issue: new Set()
+    document: new Set()
 };
 
 let currentType = null;
@@ -4033,8 +4417,6 @@ function handleBulkEdit() {
     
     if (currentType === 'document') {
         openEditDocumentModal(checkbox);
-    } else if (currentType === 'issue') {
-        openEditIssueModal(checkbox);
     } else if (currentType === 'team') {
         openEditTeamMemberModal(checkbox);
     }
@@ -4075,8 +4457,6 @@ async function executeBulkDelete() {
 
             if (currentType === 'document') {
                 url = `/project/documents/${id}`;
-            } else if (currentType === 'issue') {
-                url = `/project-updates/${id}`;
             } else {
                 // Team members cannot be deleted — delete button is hidden for type 'team'
                 continue;
@@ -4132,18 +4512,6 @@ function openEditDocumentModal(checkbox) {
     if (label) { label.textContent = 'Click or drag & drop replacement file'; label.className = 'text-sm text-gray-400'; }
 
     openModal('editDocumentModal');
-}
-
-function openEditIssueModal(checkbox) {
-    document.getElementById('edit_issue_id').value = checkbox.dataset.id;
-    document.getElementById('edit_highlight_issue').value = checkbox.dataset.issue;
-    document.getElementById('edit_action').value = checkbox.dataset.action;
-    // Gunakan Flatpickr API untuk due date
-    if (window._fpEditDue) window._fpEditDue.setDate(checkbox.dataset.due || '', false);
-    else document.getElementById('edit_due_date').value = checkbox.dataset.due || '';
-    document.getElementById('edit_status').value = checkbox.dataset.status;
-    document.getElementById('edit_complexity').value = checkbox.dataset.complexity;
-    openModal('editIssueModal');
 }
 
 function toggleOthersInput(value, wrapId) {
@@ -4413,43 +4781,6 @@ document.getElementById('editDocumentForm')?.addEventListener('submit', async fu
     }
 });
 
-// Edit Issue Form Submit
-document.getElementById('editIssueForm')?.addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const issueId = document.getElementById('edit_issue_id').value;
-    
-    const formData = {
-        highlight_issue: document.getElementById('edit_highlight_issue').value,
-        action: document.getElementById('edit_action').value,
-        due_date: document.getElementById('edit_due_date').value,
-        status: document.getElementById('edit_status').value,
-        complexity: document.getElementById('edit_complexity').value,
-    };
-    
-    try {
-        const response = await fetch(`/project-updates/${issueId}`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                'Accept': 'application/json',
-            },
-            body: JSON.stringify(formData)
-        });
-        
-        if (response.ok) {
-            showNotification('Issue updated successfully!', 'success');
-            closeModal('editIssueModal');
-            clearAllSelections();
-            setTimeout(() => location.reload(), 1000);
-        } else {
-            throw new Error('Update failed');
-        }
-    } catch (error) {
-        showNotification('Failed to update issue', 'error');
-    }
-});
-
 // ============================================
 // MODAL FUNCTIONALITY
 // ============================================
@@ -4524,7 +4855,7 @@ async function clearRole(field, roleName) {
         const fd = new FormData();
         fd.append('_method', 'PATCH');
         fd.append(field, '');
-        const res  = await fetch('{{ route("projects.updateDeliveryInfo", $project->id) }}', {
+        const res  = await fetch('/projects/{{ $project->id }}/delivery-info', {
             method:  'POST',
             headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
             body:    fd,
@@ -4560,10 +4891,17 @@ function openDeleteModal(projectId, projectName) {
     };
 }
 
+let projectDeleteInProgress = false;
 async function executeProjectDelete(projectId) {
+    // Guard against double-submit: the confirm button is shared between flows and a
+    // rapid double-click previously fired two DELETE requests — the first deleted the
+    // project, the second hit an already-gone row and showed a "No query results" error.
+    if (projectDeleteInProgress) return;
+    projectDeleteInProgress = true;
+
     const btn = document.getElementById('confirmDeleteBtn');
     const originalText = btn.innerHTML;
-    
+
     // Show loading
     btn.innerHTML = `
         <svg class="animate-spin h-4 w-4 inline-block mr-2" fill="none" viewBox="0 0 24 24">
@@ -4599,17 +4937,18 @@ async function executeProjectDelete(projectId) {
     } catch (error) {
         console.error('Delete error:', error);
         showNotification('Failed to delete project: ' + error.message, 'error');
-        
-        // Restore button
+
+        // Restore button so the user can retry
         btn.innerHTML = originalText;
         btn.disabled = false;
+        projectDeleteInProgress = false;
     }
 }
 
 // Close modal on ESC key
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        const modals = ['teamModal', 'editTeamModal', 'roleModal', 'documentModal', 'issueModal', 'deleteModal', 'editDocumentModal', 'editIssueModal', 'deleteFolderConfirmModal', 'noFolderWarningModal'];
+        const modals = ['teamModal', 'editTeamModal', 'roleModal', 'documentModal', 'issueModal', 'issueDeleteModal', 'deleteModal', 'editDocumentModal', 'deleteFolderConfirmModal', 'noFolderWarningModal'];
         modals.forEach(modalId => closeModal(modalId));
     }
 });
@@ -4681,7 +5020,6 @@ document.addEventListener('DOMContentLoaded', function() {
     attachSectionForm('generalInfoForm',  'General information updated successfully.',  'Failed to update general information.');
     attachSectionForm('deliveryInfoForm', 'Delivery information updated successfully.', 'Failed to update delivery information.');
     attachSectionForm('locationInfoForm', 'Location information updated successfully.', 'Failed to update location information.');
-    attachSectionForm('addIssueForm',     'Issue added successfully.',                  'Failed to add issue.');
 })();
 
 // ============================================
@@ -4707,7 +5045,69 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof initCustomDropdowns === 'function') {
         initCustomDropdowns();
     }
+
+    // Sync AE Name field with the current AE Type (placeholder/dropdown/text).
+    toggleAEFields();
 });
+
+// ── Account Executive (Sales Data) — konsisten dengan halaman create ──────────
+// Contact map: full_name → { phone, email } untuk auto-fill saat AE Internal dipilih.
+const aeEmployeeContacts = {
+@foreach($employees as $employee)
+@php
+    $addr  = $employee->addresses->first();
+    $phone = $addr?->cell_phone ?: ($addr?->telephone ?? '');
+    $email = $addr?->email_work ?: ($addr?->email_personal ?? '');
+    $name  = addslashes($employee->basicData->full_name ?? '-');
+@endphp
+    "{{ $name }}": { phone: "{{ $phone }}", email: "{{ $email }}" },
+@endforeach
+};
+
+function fillAEContactInfo() {
+    const name    = document.getElementById('ae_employee_hidden').value;
+    const contact = aeEmployeeContacts[name] || {};
+    const phoneEl = document.querySelector('input[name="ae_phone"]');
+    const emailEl = document.querySelector('input[name="ae_email"]');
+    if (contact.phone && phoneEl) phoneEl.value = contact.phone;
+    if (contact.email && emailEl) emailEl.value = contact.email;
+}
+
+// Toggle AE Name control based on AE Type (empty / Internal / External).
+function toggleAEFields() {
+    const aeType      = document.getElementById('ae_type').value;
+    const placeholder = document.getElementById('ae_name_placeholder');
+    const ddWrapper   = document.getElementById('ae_employee_dd_wrapper');
+    const aeHidden    = document.getElementById('ae_employee_hidden');
+    const aeTextInput = document.getElementById('ae_name_input');
+    if (!ddWrapper || !aeHidden || !aeTextInput) return;
+
+    if (aeType === 'Internal') {
+        if (placeholder) placeholder.style.display = 'none';
+        ddWrapper.style.display   = 'block';
+        aeHidden.name             = 'ae_name';
+        aeTextInput.style.display = 'none';
+        aeTextInput.name          = '';
+        if (typeof initCustomDropdowns === 'function') {
+            initCustomDropdowns(ddWrapper);
+        }
+    } else if (aeType === 'External') {
+        if (placeholder) placeholder.style.display = 'none';
+        ddWrapper.style.display   = 'none';
+        aeHidden.name             = '';
+        aeTextInput.style.display = 'block';
+        aeTextInput.name          = 'ae_name';
+    } else {
+        // No type selected yet → AE Name disabled (placeholder only).
+        if (placeholder) placeholder.style.display = 'block';
+        ddWrapper.style.display   = 'none';
+        aeHidden.name             = '';
+        aeHidden.value            = '';
+        aeTextInput.style.display = 'none';
+        aeTextInput.name          = '';
+        aeTextInput.value         = '';
+    }
+}
 
 // ── Upload Document ───────────────────────────────────────────────────────
 function closeNoFolderWarning() {
@@ -4762,6 +5162,41 @@ function handleEditDocFileDrop(event) {
     _assignFileToDrop(event.dataTransfer.files[0], 'edit_doc_file', 'editDocDropLabel');
 }
 
+async function _uploadFileChunked(uploadUrl, file, onProgress) {
+    const CHUNK = 5 * 1024 * 1024; // 5 MB per chunk
+    let start = 0;
+    let itemId = null;
+
+    while (start < file.size) {
+        const end   = Math.min(start + CHUNK, file.size);
+        const chunk = file.slice(start, end);
+
+        const res = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+                'Content-Range': `bytes ${start}-${end - 1}/${file.size}`,
+                'Content-Type': file.type || 'application/octet-stream',
+            },
+            body: chunk,
+        });
+
+        if (res.status === 202) {
+            onProgress(Math.round(end / file.size * 95));
+        } else if (res.status === 200 || res.status === 201) {
+            const data = await res.json();
+            itemId = data.id;
+            onProgress(100);
+        } else {
+            const errText = await res.text();
+            throw new Error(`OneDrive upload failed (${res.status}): ${errText}`);
+        }
+
+        start = end;
+    }
+
+    return itemId;
+}
+
 async function submitDocumentUpload() {
     const fileInput  = document.getElementById('docFileInput');
     const typeSelect = document.getElementById('doc_type');
@@ -4785,50 +5220,72 @@ async function submitDocumentUpload() {
     }
 
     const file    = fileInput.files[0];
-    const maxSize = 100 * 1024 * 1024; // 100 MB
+    const maxSize = 100 * 1024 * 1024;
     if (file.size > maxSize) {
-        showNotification('Ukuran file maksimal 100 MB.', 'error');
+        showNotification('File size must not exceed 100 MB.', 'error');
         return;
     }
 
-    const btn     = document.getElementById('docUploadBtn');
+    const btn      = document.getElementById('docUploadBtn');
     const progress = document.getElementById('docUploadProgress');
-    const label   = document.getElementById('docUploadLabel');
+    const label    = document.getElementById('docUploadLabel');
 
     btn.disabled = true;
     progress.classList.remove('hidden');
-    label.textContent = 'Uploading to OneDrive...';
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('document_name', document.getElementById('doc_name').value.trim());
-    formData.append('document_type', docType);
-    formData.append('_token', '{{ csrf_token() }}');
+    label.textContent = 'Preparing upload...';
 
     try {
-        const response = await fetch('{{ route('project.documents.upload', $project->id) }}', {
+        // Step 1: get upload session URL from server (no file data — tiny request)
+        const sessionRes = await fetch('/projects/{{ $project->id }}/documents/create-upload-session', {
             method: 'POST',
-            headers: { 'Accept': 'application/json' },
-            body: formData,
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            body: JSON.stringify({
+                filename:      file.name,
+                document_name: document.getElementById('doc_name').value.trim(),
+                document_type: docType,
+            }),
         });
 
-        const data = await response.json();
+        const sessionData = await sessionRes.json();
+        if (!sessionData.success) {
+            throw new Error(sessionData.message || 'Failed to create upload session.');
+        }
+
+        // Step 2: upload file directly to OneDrive in chunks (bypasses server limit)
+        label.textContent = 'Uploading to OneDrive...';
+        const itemId = await _uploadFileChunked(sessionData.upload_url, file, pct => {
+            label.textContent = `Uploading... ${pct}%`;
+        });
+
+        if (!itemId) throw new Error('Upload completed but no item ID returned.');
+
+        // Step 3: finalize — server creates share link and saves to DB
+        label.textContent = 'Finalizing...';
+        const finalRes = await fetch('/projects/{{ $project->id }}/documents/finalize-upload', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            body: JSON.stringify({
+                onedrive_item_id: itemId,
+                filename:         file.name,
+                document_name:    document.getElementById('doc_name').value.trim(),
+                document_type:    docType,
+            }),
+        });
+
+        const data = await finalRes.json();
 
         if (data.success) {
             showNotification('Document uploaded successfully!', 'success');
             closeModal('documentModal');
 
-            // Hide empty state, show table
             const emptyState = document.getElementById('documentsEmptyState');
             if (emptyState) emptyState.classList.add('hidden');
             const tableWrap = document.getElementById('documentsTableWrap');
             if (tableWrap) tableWrap.classList.remove('hidden');
 
-            // Append new row to table
             const tbody = document.getElementById('documentsTableBody');
-
-            const doc = data.document;
-            const tr  = document.createElement('tr');
+            const doc   = data.document;
+            const tr    = document.createElement('tr');
             tr.className = 'hover:bg-gray-50 document-row';
             tr.setAttribute('data-document-id', doc.id);
             tr.innerHTML = `
@@ -4865,12 +5322,11 @@ async function submitDocumentUpload() {
                 </td>`;
             tbody.appendChild(tr);
         } else {
-            showNotification(data.message || 'Failed to upload document.', 'error');
-            btn.disabled = false;
+            throw new Error(data.message || 'Failed to finalize upload.');
         }
     } catch (err) {
         console.error('Upload error:', err);
-        showNotification('An error occurred during upload.', 'error');
+        showNotification(err.message || 'An error occurred during upload.', 'error');
         btn.disabled = false;
     } finally {
         progress.classList.add('hidden');
@@ -4929,7 +5385,7 @@ async function confirmDeleteFolder() {
     btn.disabled = true;
     btn.innerHTML = `<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Deleting...`;
     try {
-        const res  = await fetch('{{ route('projects.deleteFolder', $project->id) }}', {
+        const res  = await fetch('/projects/{{ $project->id }}/folder', {
             method:  'DELETE',
             headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
         });
@@ -4954,7 +5410,7 @@ async function confirmDeleteFolder() {
         showNotification('Error: ' + err.message, 'error');
     } finally {
         btn.disabled = false;
-        btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg> Hapus Folder`;
+        btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg> Delete Folder`;
     }
 }
 
@@ -4974,7 +5430,7 @@ async function generateProjectFolder() {
     label.textContent = 'Creating folder…';
 
     try {
-        const res  = await fetch('{{ route('projects.generateFolder', $project->id) }}', {
+        const res  = await fetch('/projects/{{ $project->id }}/generate-folder', {
             method:  'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -5095,18 +5551,29 @@ document.addEventListener('DOMContentLoaded', function () {
         // Edit Team Member modal (hanya end_date yang editable)
         window._fpEditEnd   = HolidayCalendar.initPicker(document.getElementById('edit_end_date'));
 
-        // Add Issue modal
-        window._fpAddDue  = HolidayCalendar.initPicker(document.getElementById('add_due_date'));
-
-        // Edit Issue modal
-        window._fpEditDue = HolidayCalendar.initPicker(document.getElementById('edit_due_date'));
+        // Issue Log modal — Date Identified / Estimated Closed / Closed Date
+        window._fpIssueIdentified = HolidayCalendar.initPicker(document.getElementById('issue_date_identified'));
+        window._fpIssueEstClosed  = HolidayCalendar.initPicker(document.getElementById('issue_estimated_closed'));
+        window._fpIssueClosed     = HolidayCalendar.initPicker(document.getElementById('issue_closed_date'));
 
         // Location Information — Valid From / Valid To
         window._fpLocFrom = HolidayCalendar.initPicker(document.getElementById('loc_valid_from'));
         window._fpLocTo   = HolidayCalendar.initPicker(document.getElementById('loc_valid_to'));
 
-        // Risk Register — Target Date
-        window._fpRiskTarget = HolidayCalendar.initPicker(document.getElementById('risk_target_date'));
+        // Risk Register — Target Date & Actual End Date
+        window._fpRiskTarget    = HolidayCalendar.initPicker(document.getElementById('risk_target_date'));
+        window._fpRiskActualEnd = HolidayCalendar.initPicker(document.getElementById('risk_actual_end_date'));
+
+        // Term Of Payment Plan — Estimated / Submit Invoice / Paid Date
+        window._fpPtEstimated     = HolidayCalendar.initPicker(document.getElementById('pt_estimated_date'));
+        window._fpPtSubmitInvoice = HolidayCalendar.initPicker(document.getElementById('pt_submit_invoice_date'), {
+            onChange: function () {
+                if (window.PaymentTermPlan && window.PaymentTermPlan.toggleInvoiceRequired) {
+                    window.PaymentTermPlan.toggleInvoiceRequired();
+                }
+            }
+        });
+        window._fpPtPaid          = HolidayCalendar.initPicker(document.getElementById('pt_paid_date'));
     });
 });
 </script>
@@ -5120,6 +5587,12 @@ window.RiskRegister = (function () {
 
     const PROJECT_ID = {{ $project->id }};
     const BASE_URL   = `/projects/${PROJECT_ID}/risks`;
+
+    // Response strategies per risk type. Opportunity excludes "Exploit".
+    const STRATEGIES = {
+        'Threat':      ['Avoid', 'Mitigate', 'Transfer', 'Accept', 'Exploit', 'Enhance', 'Share'],
+        'Opportunity': ['Avoid', 'Mitigate', 'Transfer', 'Accept', 'Enhance', 'Share'],
+    };
 
     function getCsrf() {
         return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
@@ -5153,6 +5626,49 @@ window.RiskRegister = (function () {
         return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${cls}">${esc(status)}</span>`;
     }
 
+    function typeBadge(type) {
+        if (type === 'Opportunity')
+            return '<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Opportunity</span>';
+        if (type === 'Threat')
+            return '<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-700">Threat</span>';
+        return '—';
+    }
+
+    // Repopulate Response Strategy <select> based on selected Risk Type,
+    // preserving the current selection if it is still valid.
+    function populateResponseStrategies(type, keepValue) {
+        const sel = document.getElementById('risk_response_strategy');
+        if (!sel) return;
+        const list = STRATEGIES[type] || [];
+        const prev = keepValue ?? sel.value;
+        if (!list.length) {
+            sel.innerHTML = '<option value="">-- Select Risk Type first --</option>';
+            return;
+        }
+        sel.innerHTML = '<option value="">-- Select Strategy --</option>' +
+            list.map(s => `<option value="${s}">${s}</option>`).join('');
+        if (prev && list.includes(prev)) sel.value = prev;
+    }
+
+    function onRiskTypeChange() {
+        const type = document.getElementById('risk_type').value;
+        populateResponseStrategies(type);
+    }
+
+    // Show/hide the Actual End Date field depending on status.
+    function onStatusChange() {
+        const status  = document.getElementById('risk_status').value;
+        const wrapper = document.getElementById('risk_actual_end_wrapper');
+        if (!wrapper) return;
+        if (status === 'Closed') {
+            wrapper.classList.remove('hidden');
+        } else {
+            wrapper.classList.add('hidden');
+            document.getElementById('risk_actual_end_date').value = '';
+            if (window._fpRiskActualEnd) window._fpRiskActualEnd.clear();
+        }
+    }
+
     function esc(str) {
         if (!str) return '';
         return String(str)
@@ -5160,6 +5676,17 @@ window.RiskRegister = (function () {
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
+    }
+
+    // Set a <select> value, injecting the value as an option first if it is
+    // not already present (e.g. legacy free-text owner no longer on the team).
+    function setSelectValue(sel, val) {
+        if (!sel) return;
+        const v = val ?? '';
+        if (v && !Array.from(sel.options).some(o => o.value === v)) {
+            sel.add(new Option(v, v));
+        }
+        sel.value = v;
     }
 
     // ── Load & render ─────────────────────────────────────────────
@@ -5170,14 +5697,14 @@ window.RiskRegister = (function () {
             renderTable(_risks);
         } catch (e) {
             document.getElementById('riskTableBody').innerHTML =
-                `<tr><td colspan="16" class="text-center py-8 text-red-500 text-sm">Failed to load data. Please refresh.</td></tr>`;
+                `<tr><td colspan="18" class="text-center py-8 text-red-500 text-sm">Failed to load data. Please refresh.</td></tr>`;
         }
     }
 
     function renderTable(risks) {
         const tbody = document.getElementById('riskTableBody');
         if (!risks.length) {
-            tbody.innerHTML = `<tr><td colspan="16" class="text-center py-10 text-gray-400 text-sm">Belum ada risiko. Klik "Add Risk" untuk memulai.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="18" class="text-center py-10 text-gray-400 text-sm">No risks yet. Click "Add Risk" to get started.</td></tr>`;
             return;
         }
         tbody.innerHTML = risks.map(r => rowHtml(r)).join('');
@@ -5188,6 +5715,7 @@ window.RiskRegister = (function () {
         const level = r.risk_level;
         return `<tr class="hover:bg-gray-50 align-top">
             <td class="px-3 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">${esc(r.risk_id_label)}</td>
+            <td class="px-3 py-3 text-center whitespace-nowrap">${typeBadge(r.risk_type)}</td>
             <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(r.category)}</td>
             <td class="px-3 py-3 text-xs text-gray-800 max-w-[200px]"><div class="line-clamp-3">${esc(r.description)}</div></td>
             <td class="px-3 py-3 text-xs text-gray-600 max-w-[160px]"><div class="line-clamp-3">${esc(r.cause) || '—'}</div></td>
@@ -5201,6 +5729,7 @@ window.RiskRegister = (function () {
             <td class="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">${esc(r.risk_owner) || '—'}</td>
             <td class="px-3 py-3 text-center">${statusBadge(r.status)}</td>
             <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(r.target_date_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(r.actual_end_date_label) || '—'}</td>
             <td class="px-3 py-3 text-xs text-gray-500 max-w-[140px]"><div class="line-clamp-2">${esc(r.notes) || '—'}</div></td>
             <td class="px-3 py-3 text-center whitespace-nowrap">
                 <button onclick="RiskRegister.openEdit(${r.id})"
@@ -5209,7 +5738,7 @@ window.RiskRegister = (function () {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                     </svg>
                 </button>
-                <button onclick="RiskRegister.confirmDelete(${r.id}, '${esc(r.risk_id_label)}')"
+                <button onclick="RiskRegister.openDeleteModal(${r.id}, '${esc(r.risk_id_label)}')"
                         class="inline-flex items-center p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition" title="Delete">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -5221,20 +5750,21 @@ window.RiskRegister = (function () {
 
     // ── Modal helpers ─────────────────────────────────────────────
     function resetForm() {
-        ['risk_category','risk_status','risk_probability','risk_impact',
-         'risk_response_strategy'].forEach(id => {
+        ['risk_type','risk_category','risk_probability','risk_impact'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
         });
         document.getElementById('risk_status').value = 'Open';
         ['risk_description','risk_cause','risk_project_impact',
-         'risk_mitigation_plan','risk_risk_owner','risk_notes'].forEach(id => {
+         'risk_mitigation_plan','risk_notes'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
         });
         document.getElementById('risk_owner').value = '';
         document.getElementById('risk_target_date').value = '';
         if (window._fpRiskTarget) window._fpRiskTarget.clear();
+        populateResponseStrategies('');         // reset strategy options (none until type chosen)
+        onStatusChange();                        // hide & clear Actual End Date
         document.getElementById('riskScorePreview').textContent  = '—';
         document.getElementById('riskLevelPreview').textContent  = '—';
         document.getElementById('riskLevelPreview').className    = 'text-sm font-bold text-gray-400';
@@ -5259,12 +5789,13 @@ window.RiskRegister = (function () {
         document.getElementById('riskModalId').value    = id;
         document.getElementById('riskModalTitle').textContent = `Edit Risk — ${r.risk_id_label}`;
 
+        document.getElementById('risk_type').value               = r.risk_type ?? '';
         document.getElementById('risk_category').value           = r.category ?? '';
         document.getElementById('risk_status').value             = r.status ?? 'Open';
         document.getElementById('risk_probability').value        = r.probability ?? '';
         document.getElementById('risk_impact').value             = r.impact ?? '';
-        document.getElementById('risk_response_strategy').value  = r.response_strategy ?? '';
-        document.getElementById('risk_owner').value              = r.risk_owner ?? '';
+        populateResponseStrategies(r.risk_type ?? '', r.response_strategy ?? '');
+        setSelectValue(document.getElementById('risk_owner'), r.risk_owner ?? '');
         document.getElementById('risk_description').value        = r.description ?? '';
         document.getElementById('risk_cause').value              = r.cause ?? '';
         document.getElementById('risk_project_impact').value     = r.project_impact ?? '';
@@ -5275,6 +5806,14 @@ window.RiskRegister = (function () {
             window._fpRiskTarget.setDate(r.target_date, false, 'Y-m-d');
         } else if (r.target_date) {
             document.getElementById('risk_target_date').value = r.target_date;
+        }
+
+        // Actual End Date (show field first if status = Closed)
+        onStatusChange();
+        if (r.actual_end_date && window._fpRiskActualEnd) {
+            window._fpRiskActualEnd.setDate(r.actual_end_date, false, 'Y-m-d');
+        } else if (r.actual_end_date) {
+            document.getElementById('risk_actual_end_date').value = r.actual_end_date;
         }
 
         refreshScore();
@@ -5314,16 +5853,35 @@ window.RiskRegister = (function () {
     async function save() {
         const mode = document.getElementById('riskModalMode').value;
 
-        const category = document.getElementById('risk_category').value.trim();
-        const desc     = document.getElementById('risk_description').value.trim();
-        const prob     = document.getElementById('risk_probability').value;
-        const imp      = document.getElementById('risk_impact').value;
-        const status   = document.getElementById('risk_status').value;
+        const riskType  = document.getElementById('risk_type').value;
+        const category  = document.getElementById('risk_category').value.trim();
+        const desc      = document.getElementById('risk_description').value.trim();
+        const prob      = document.getElementById('risk_probability').value;
+        const imp       = document.getElementById('risk_impact').value;
+        const strategy  = document.getElementById('risk_response_strategy').value;
+        const owner     = document.getElementById('risk_owner').value.trim();
+        const targetDt  = document.getElementById('risk_target_date').value;
+        const cause     = document.getElementById('risk_cause').value.trim();
+        const impactTxt = document.getElementById('risk_project_impact').value.trim();
+        const mitigation= document.getElementById('risk_mitigation_plan').value.trim();
+        const notes     = document.getElementById('risk_notes').value.trim();
+        const status    = document.getElementById('risk_status').value;
+        const actualEnd = document.getElementById('risk_actual_end_date').value;
 
-        if (!category) { showNotification('Pilih kategori risiko.', 'error'); return; }
-        if (!desc)     { showNotification('Deskripsi risiko wajib diisi.', 'error'); return; }
-        if (!prob)     { showNotification('Probability wajib dipilih.', 'error'); return; }
-        if (!imp)      { showNotification('Impact wajib dipilih.', 'error'); return; }
+        // All fields are mandatory.
+        if (!riskType)   { showNotification('Risk Type is required.', 'error'); return; }
+        if (!category)   { showNotification('Risk Category is required.', 'error'); return; }
+        if (!prob)       { showNotification('Probability is required.', 'error'); return; }
+        if (!imp)        { showNotification('Impact is required.', 'error'); return; }
+        if (!strategy)   { showNotification('Response Strategy is required.', 'error'); return; }
+        if (!owner)      { showNotification('Risk Owner is required.', 'error'); return; }
+        if (!targetDt)   { showNotification('Target Date is required.', 'error'); return; }
+        if (!desc)       { showNotification('Risk Description is required.', 'error'); return; }
+        if (!cause)      { showNotification('Cause (Trigger) is required.', 'error'); return; }
+        if (!impactTxt)  { showNotification('Project Impact is required.', 'error'); return; }
+        if (!mitigation) { showNotification('Mitigation / Contingency Plan is required.', 'error'); return; }
+        if (!notes)      { showNotification('Comments / Notes is required.', 'error'); return; }
+        if (status === 'Closed' && !actualEnd) { showNotification('Actual End Date is required when status is Closed.', 'error'); return; }
 
         const btn = document.getElementById('riskModalSaveBtn');
         const orig = btn.innerHTML;
@@ -5331,18 +5889,20 @@ window.RiskRegister = (function () {
         btn.innerHTML = '<svg class="animate-spin w-4 h-4 mx-auto" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>';
 
         const payload = {
+            risk_type:         riskType,
             category:          category,
             description:       desc,
-            cause:             document.getElementById('risk_cause').value.trim() || null,
-            project_impact:    document.getElementById('risk_project_impact').value.trim() || null,
+            cause:             cause,
+            project_impact:    impactTxt,
             probability:       parseInt(prob, 10),
             impact:            parseInt(imp, 10),
-            response_strategy: document.getElementById('risk_response_strategy').value || null,
-            mitigation_plan:   document.getElementById('risk_mitigation_plan').value.trim() || null,
-            risk_owner:        document.getElementById('risk_owner').value.trim() || null,
+            response_strategy: strategy,
+            mitigation_plan:   mitigation,
+            risk_owner:        owner,
             status:            status,
-            target_date:       document.getElementById('risk_target_date').value || null,
-            notes:             document.getElementById('risk_notes').value.trim() || null,
+            target_date:       targetDt,
+            actual_end_date:   status === 'Closed' ? (actualEnd || null) : null,
+            notes:             notes,
             _token:            getCsrf(),
         };
 
@@ -5358,7 +5918,7 @@ window.RiskRegister = (function () {
             closeModal();
             await load();
         } catch (e) {
-            let msg = 'Terjadi kesalahan. Silakan coba lagi.';
+            let msg = 'Something went wrong. Please try again.';
             if (e.response?.data?.errors) {
                 const first = Object.values(e.response.data.errors)[0];
                 msg = Array.isArray(first) ? first[0] : String(first);
@@ -5373,26 +5933,37 @@ window.RiskRegister = (function () {
     }
 
     // ── Delete ────────────────────────────────────────────────────
-    async function confirmDelete(id, label) {
-        const confirmed = await Swal.fire({
-            title: `Delete ${label}?`,
-            text:  'Risiko ini akan dihapus secara permanen.',
-            icon:  'warning',
-            showCancelButton:  true,
-            confirmButtonText: 'Ya, hapus',
-            cancelButtonText:  'Batal',
-            confirmButtonColor: '#dc2626',
-        });
-        if (!confirmed.isConfirmed) return;
+    function openDeleteModal(id, label) {
+        document.getElementById('riskDeleteId').value = id;
+        document.getElementById('riskDeleteLabel').textContent = label ?? '';
+        document.getElementById('riskDeleteModal').classList.remove('hidden');
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('riskDeleteModal').classList.add('hidden');
+    }
+
+    async function confirmDelete() {
+        const id = document.getElementById('riskDeleteId').value;
+        if (!id) return;
+
+        const btn  = document.getElementById('riskDeleteConfirmBtn');
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = 'Deleting…';
 
         try {
             const res = await axios.delete(`${BASE_URL}/${id}`, {
                 headers: { 'X-CSRF-TOKEN': getCsrf() },
             });
+            closeDeleteModal();
             showNotification(res.data.message ?? 'Deleted.', 'success');
             await load();
         } catch (e) {
-            showNotification(e.response?.data?.message ?? 'Gagal menghapus.', 'error');
+            showNotification(e.response?.data?.message ?? 'Failed to delete.', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = orig;
         }
     }
 
@@ -5446,7 +6017,663 @@ window.RiskRegister = (function () {
     // ── Auto-load on page ready ───────────────────────────────────
     document.addEventListener('DOMContentLoaded', function () { load(); });
 
-    return { openAdd, openEdit, closeModal, save, confirmDelete, openDashboard, closeDashboard, refreshScore };
+    return { openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete, openDashboard, closeDashboard, refreshScore, onRiskTypeChange, onStatusChange };
+})();
+</script>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- ISSUE LOG — JAVASCRIPT                                         --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<script>
+window.IssueLog = (function () {
+    'use strict';
+
+    const PROJECT_ID = {{ $project->id }};
+    const BASE_URL   = `/projects/${PROJECT_ID}/issues`;
+    const RISK_URL   = `/projects/${PROJECT_ID}/risks`;
+
+    function getCsrf() {
+        return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+    }
+
+    let _issues = [];
+
+    function esc(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // Set a <select> value, injecting the value as an option first if it is
+    // not already present (e.g. a team member later removed from the project).
+    function setSelectValue(sel, val) {
+        if (!sel) return;
+        const v = val ?? '';
+        if (v && !Array.from(sel.options).some(o => o.value === v)) {
+            sel.add(new Option(v, v));
+        }
+        sel.value = v;
+    }
+
+    // ── Badges ────────────────────────────────────────────────────
+    function statusBadge(status) {
+        const map = {
+            'Open':   'bg-yellow-100 text-yellow-800',
+            'Closed': 'bg-green-100 text-green-800',
+        };
+        const cls = map[status] ?? 'bg-gray-100 text-gray-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${cls}">${esc(status)}</span>`;
+    }
+
+    function priorityBadge(priority) {
+        const map = {
+            'High':   { letter: 'H', cls: 'bg-red-100 text-red-700' },
+            'Medium': { letter: 'M', cls: 'bg-orange-100 text-orange-700' },
+            'Low':    { letter: 'L', cls: 'bg-green-100 text-green-700' },
+        };
+        const p = map[priority];
+        if (!p) return '—';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-bold ${p.cls}" title="${esc(priority)}">${p.letter}</span>`;
+    }
+
+    function escalationBadge(needed) {
+        return needed
+            ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">Y</span>'
+            : '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-600">N</span>';
+    }
+
+    // ── Risk ID dropdown ──────────────────────────────────────────
+    // Populate #issue_risk_id from this project's Risk Register, preserving
+    // the given selection if it is still valid.
+    async function loadRiskOptions(keepValue) {
+        const sel = document.getElementById('issue_risk_id');
+        if (!sel) return;
+        let risks = [];
+        try {
+            const res = await axios.get(RISK_URL);
+            risks = res.data.risks ?? [];
+        } catch (e) {
+            risks = [];
+        }
+        const prev = keepValue ?? sel.value;
+        sel.innerHTML = '<option value="">— None —</option>' +
+            risks.map(r => `<option value="${r.id}">${esc(r.risk_id_label)}</option>`).join('');
+        if (prev) sel.value = String(prev);
+    }
+
+    // Show/hide Closed Date depending on status.
+    function onStatusChange() {
+        const status  = document.getElementById('issue_status').value;
+        const wrapper = document.getElementById('issue_closed_date_wrapper');
+        if (!wrapper) return;
+        if (status === 'Closed') {
+            wrapper.classList.remove('hidden');
+        } else {
+            wrapper.classList.add('hidden');
+            document.getElementById('issue_closed_date').value = '';
+            if (window._fpIssueClosed) window._fpIssueClosed.clear();
+        }
+    }
+
+    // ── Load & render ─────────────────────────────────────────────
+    async function load() {
+        try {
+            const res = await axios.get(BASE_URL);
+            _issues = res.data.issues ?? [];
+            renderTable(_issues);
+        } catch (e) {
+            document.getElementById('issueTableBody').innerHTML =
+                `<tr><td colspan="16" class="text-center py-8 text-red-500 text-sm">Failed to load data. Please refresh.</td></tr>`;
+        }
+    }
+
+    function renderTable(issues) {
+        const tbody = document.getElementById('issueTableBody');
+        if (!issues.length) {
+            tbody.innerHTML = `<tr><td colspan="16" class="text-center py-10 text-gray-400 text-sm">No issues reported yet. Click "Add Issue" to get started.</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = issues.map(i => rowHtml(i)).join('');
+    }
+
+    function rowHtml(i) {
+        return `<tr class="hover:bg-gray-50 align-top">
+            <td class="px-3 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">${esc(i.issue_id_label)}</td>
+            <td class="px-3 py-3 text-xs text-gray-800 max-w-[220px]"><div class="line-clamp-3">${esc(i.issue_description)}</div></td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(i.module) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(i.date_identified_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(i.closed_date_label) || '—'}</td>
+            <td class="px-3 py-3 text-center">${statusBadge(i.status)}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[160px]"><div class="line-clamp-3">${esc(i.risk_to_project) || '—'}</div></td>
+            <td class="px-3 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">${esc(i.risk_id_label) || '—'}</td>
+            <td class="px-3 py-3 text-center">${priorityBadge(i.priority)}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(i.originator) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(i.owner) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(i.estimated_closed_label) || '—'}</td>
+            <td class="px-3 py-3 text-center">${escalationBadge(i.escalation_needed)}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[160px]"><div class="line-clamp-3">${esc(i.impact_of_issue) || '—'}</div></td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[180px]"><div class="line-clamp-3">${esc(i.tracking_comments) || '—'}</div></td>
+            <td class="px-3 py-3 text-center whitespace-nowrap">
+                <button onclick="IssueLog.openEdit(${i.id})"
+                        class="inline-flex items-center p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition" title="Edit">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                </button>
+                <button onclick="IssueLog.openDeleteModal(${i.id}, '${esc(i.issue_id_label)}')"
+                        class="inline-flex items-center p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition" title="Delete">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </button>
+            </td>
+        </tr>`;
+    }
+
+    // ── Modal helpers ─────────────────────────────────────────────
+    function resetForm() {
+        document.getElementById('issue_description').value       = '';
+        document.getElementById('issue_module').value            = '';
+        document.getElementById('issue_status').value            = 'Open';
+        document.getElementById('issue_priority').value          = 'Medium';
+        document.getElementById('issue_originator').value        = '';
+        document.getElementById('issue_owner').value             = '';
+        document.getElementById('issue_escalation_needed').value = '0';
+        document.getElementById('issue_risk_to_project').value   = '';
+        document.getElementById('issue_impact').value            = '';
+        document.getElementById('issue_tracking_comments').value = '';
+
+        document.getElementById('issue_date_identified').value   = '';
+        document.getElementById('issue_estimated_closed').value  = '';
+        document.getElementById('issue_closed_date').value       = '';
+        if (window._fpIssueIdentified) window._fpIssueIdentified.clear();
+        if (window._fpIssueEstClosed)  window._fpIssueEstClosed.clear();
+        if (window._fpIssueClosed)     window._fpIssueClosed.clear();
+
+        onStatusChange(); // hide & clear Closed Date
+    }
+
+    function openAdd() {
+        resetForm();
+        document.getElementById('issueModalMode').value  = 'create';
+        document.getElementById('issueModalId').value    = '';
+        document.getElementById('issueModalTitle').textContent = 'Add Issue';
+        loadRiskOptions('');
+        document.getElementById('issueModal').classList.remove('hidden');
+    }
+
+    async function openEdit(id) {
+        const i = _issues.find(x => x.id === id);
+        if (!i) return;
+        resetForm();
+        document.getElementById('issueModalMode').value  = 'edit';
+        document.getElementById('issueModalId').value    = id;
+        document.getElementById('issueModalTitle').textContent = `Edit Issue — ${i.issue_id_label}`;
+
+        document.getElementById('issue_description').value       = i.issue_description ?? '';
+        document.getElementById('issue_module').value            = i.module ?? '';
+        document.getElementById('issue_status').value            = i.status ?? 'Open';
+        document.getElementById('issue_priority').value          = i.priority ?? 'Medium';
+        setSelectValue(document.getElementById('issue_originator'), i.originator ?? '');
+        setSelectValue(document.getElementById('issue_owner'), i.owner ?? '');
+        document.getElementById('issue_escalation_needed').value = i.escalation_needed ? '1' : '0';
+        document.getElementById('issue_risk_to_project').value   = i.risk_to_project ?? '';
+        document.getElementById('issue_impact').value            = i.impact_of_issue ?? '';
+        document.getElementById('issue_tracking_comments').value = i.tracking_comments ?? '';
+
+        await loadRiskOptions(i.delivery_project_risk_id ? String(i.delivery_project_risk_id) : '');
+
+        if (i.date_identified && window._fpIssueIdentified) {
+            window._fpIssueIdentified.setDate(i.date_identified, false, 'Y-m-d');
+        }
+        if (i.estimated_closed && window._fpIssueEstClosed) {
+            window._fpIssueEstClosed.setDate(i.estimated_closed, false, 'Y-m-d');
+        }
+
+        onStatusChange(); // reveal Closed Date field if needed
+        if (i.closed_date && window._fpIssueClosed) {
+            window._fpIssueClosed.setDate(i.closed_date, false, 'Y-m-d');
+        }
+
+        document.getElementById('issueModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+        document.getElementById('issueModal').classList.add('hidden');
+    }
+
+    // ── Save (create / update) ────────────────────────────────────
+    async function save() {
+        const mode = document.getElementById('issueModalMode').value;
+
+        const description = document.getElementById('issue_description').value.trim();
+        const moduleVal   = document.getElementById('issue_module').value.trim();
+        const status      = document.getElementById('issue_status').value;
+        const priority    = document.getElementById('issue_priority').value;
+        const originator  = document.getElementById('issue_originator').value;
+        const owner       = document.getElementById('issue_owner').value;
+        const escalation  = document.getElementById('issue_escalation_needed').value;
+        const riskId      = document.getElementById('issue_risk_id').value;
+        const riskToProj  = document.getElementById('issue_risk_to_project').value.trim();
+        const impact      = document.getElementById('issue_impact').value.trim();
+        const comments    = document.getElementById('issue_tracking_comments').value.trim();
+        const dateIdent   = document.getElementById('issue_date_identified').value;
+        const estClosed   = document.getElementById('issue_estimated_closed').value;
+        const closedDate  = document.getElementById('issue_closed_date').value;
+
+        if (!description) { showNotification('Issue Description is required.', 'error'); return; }
+        if (!dateIdent)   { showNotification('Date Identified is required.', 'error'); return; }
+        if (!priority)    { showNotification('Priority is required.', 'error'); return; }
+        if (!originator)  { showNotification('Originator is required.', 'error'); return; }
+        if (!owner)       { showNotification('Owner is required.', 'error'); return; }
+        if (status === 'Closed' && !closedDate) { showNotification('Closed Date is required when status is Closed.', 'error'); return; }
+
+        const btn  = document.getElementById('issueModalSaveBtn');
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="animate-spin w-4 h-4 mx-auto" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>';
+
+        const payload = {
+            issue_description:        description,
+            module:                   moduleVal || null,
+            date_identified:          dateIdent,
+            closed_date:              status === 'Closed' ? (closedDate || null) : null,
+            status:                   status,
+            risk_to_project:          riskToProj || null,
+            priority:                 priority,
+            originator:               originator,
+            owner:                    owner,
+            estimated_closed:         estClosed || null,
+            escalation_needed:        escalation === '1',
+            impact_of_issue:          impact || null,
+            tracking_comments:        comments || null,
+            delivery_project_risk_id: riskId || null,
+            _token:                   getCsrf(),
+        };
+
+        try {
+            let res;
+            if (mode === 'create') {
+                res = await axios.post(BASE_URL, payload);
+            } else {
+                const id = document.getElementById('issueModalId').value;
+                res = await axios.put(`${BASE_URL}/${id}`, payload);
+            }
+            showNotification(res.data.message ?? 'Saved.', 'success');
+            closeModal();
+            await load();
+        } catch (e) {
+            let msg = 'Something went wrong. Please try again.';
+            if (e.response?.data?.errors) {
+                const first = Object.values(e.response.data.errors)[0];
+                msg = Array.isArray(first) ? first[0] : String(first);
+            } else if (e.response?.data?.message) {
+                msg = e.response.data.message;
+            }
+            showNotification(msg, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+        }
+    }
+
+    // ── Delete ────────────────────────────────────────────────────
+    function openDeleteModal(id, label) {
+        document.getElementById('issueDeleteId').value = id;
+        document.getElementById('issueDeleteLabel').textContent = label ?? '';
+        document.getElementById('issueDeleteModal').classList.remove('hidden');
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('issueDeleteModal').classList.add('hidden');
+    }
+
+    async function confirmDelete() {
+        const id = document.getElementById('issueDeleteId').value;
+        if (!id) return;
+
+        const btn  = document.getElementById('issueDeleteConfirmBtn');
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = 'Deleting…';
+
+        try {
+            const res = await axios.delete(`${BASE_URL}/${id}`, {
+                headers: { 'X-CSRF-TOKEN': getCsrf() },
+            });
+            closeDeleteModal();
+            showNotification(res.data.message ?? 'Deleted.', 'success');
+            await load();
+        } catch (e) {
+            showNotification(e.response?.data?.message ?? 'Failed to delete.', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+        }
+    }
+
+    // ── Auto-load on page ready ───────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function () { load(); });
+
+    return { openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete, onStatusChange };
+})();
+</script>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- TERM OF PAYMENT (TOP) PLAN — JAVASCRIPT                        --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<script>
+window.PaymentTermPlan = (function () {
+    'use strict';
+
+    const PROJECT_ID = {{ $project->id }};
+    const BASE_URL   = `/projects/${PROJECT_ID}/payment-terms`;
+
+    let _terms   = [];
+    // Revenue acuan untuk hitung Amount = revenue × % / 100
+    let _revenue = parseFloat('{{ $project->revenue ?? 0 }}') || 0;
+
+    function getCsrf() {
+        return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+    }
+
+    function esc(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // ── Currency formatting (Indonesian thousands-dot) ─────────────
+    function fmtRp(n) {
+        const num = Number(n) || 0;
+        const neg = num < 0;
+        const abs = Math.abs(Math.round(num));
+        return 'Rp ' + (neg ? '-' : '') + abs.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    // Baca revenue terkini dari field Sales Data (jika user mengubah tanpa reload)
+    function currentRevenue() {
+        const el = document.getElementById('sfin_rev_val');
+        if (el && el.value !== '') {
+            const v = parseFloat(el.value);
+            if (!isNaN(v)) return v;
+        }
+        return _revenue;
+    }
+
+    function statusBadge(status) {
+        const map = {
+            'Open':  'bg-yellow-100 text-yellow-800',
+            'Paid':  'bg-green-100 text-green-800',
+            'Delay': 'bg-red-100 text-red-700',
+        };
+        const cls = map[status] ?? 'bg-gray-100 text-gray-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${cls}">${esc(status)}</span>`;
+    }
+
+    function fmtPct(p) {
+        const num = Number(p) || 0;
+        // tampilkan tanpa desimal jika bulat, jika tidak 2 desimal
+        return (Number.isInteger(num) ? num.toString() : num.toFixed(2).replace('.', ',')) + '%';
+    }
+
+    // ── Load & render ─────────────────────────────────────────────
+    async function load() {
+        try {
+            const res = await axios.get(BASE_URL);
+            _terms = res.data.payment_terms ?? [];
+            if (res.data.project_revenue !== undefined && res.data.project_revenue !== null) {
+                _revenue = parseFloat(res.data.project_revenue) || _revenue;
+            }
+            renderTable();
+        } catch (e) {
+            const tbody = document.getElementById('paymentTermBody');
+            if (tbody) tbody.innerHTML =
+                `<tr><td colspan="11" class="text-center py-8 text-red-500 text-sm">Failed to load data. Please refresh.</td></tr>`;
+        }
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('paymentTermBody');
+        if (!tbody) return;
+
+        if (!_terms.length) {
+            tbody.innerHTML = `<tr><td colspan="11" class="text-center py-8 text-gray-400 text-sm">No payment terms yet. Click "Add Payment Term" to get started.</td></tr>`;
+        } else {
+            tbody.innerHTML = _terms.map(t => rowHtml(t)).join('');
+        }
+
+        // Footer totals
+        const totalPct = _terms.reduce((s, t) => s + (Number(t.payment_percentage) || 0), 0);
+        const totalAmt = _terms.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+        const pctEl = document.getElementById('ptTotalPct');
+        const amtEl = document.getElementById('ptTotalAmount');
+        if (pctEl) {
+            pctEl.textContent = fmtPct(totalPct);
+            pctEl.className = 'px-3 py-3 text-center ' + (totalPct > 100 ? 'text-red-600' : 'text-gray-700');
+        }
+        if (amtEl) amtEl.textContent = fmtRp(totalAmt);
+    }
+
+    function rowHtml(t) {
+        return `<tr class="hover:bg-gray-50 align-top">
+            <td class="px-3 py-3 text-center text-xs font-mono text-gray-600">${t.term_number}</td>
+            <td class="px-3 py-3 text-xs text-gray-800"><div class="line-clamp-3">${esc(t.payment_term)}</div></td>
+            <td class="px-3 py-3 text-center text-xs font-semibold text-gray-700">${fmtPct(t.payment_percentage)}</td>
+            <td class="px-3 py-3 text-right text-xs font-semibold text-gray-800 whitespace-nowrap">${fmtRp(t.amount)}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[260px]"><div class="line-clamp-3">${esc(t.requirements) || '—'}</div></td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(t.estimated_date_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(t.submit_invoice_date_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(t.invoice_number) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(t.paid_date_label) || '—'}</td>
+            <td class="px-3 py-3 text-center">${statusBadge(t.status)}</td>
+            <td class="px-3 py-3 text-center whitespace-nowrap">
+                <button type="button" onclick="PaymentTermPlan.openEdit(${t.id})"
+                        class="inline-flex items-center p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition" title="Edit">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                </button>
+                <button type="button" onclick="PaymentTermPlan.openDeleteModal(${t.id}, ${t.term_number})"
+                        class="inline-flex items-center p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition" title="Delete">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </button>
+            </td>
+        </tr>`;
+    }
+
+    // ── Amount auto-calc (preview di modal) ────────────────────────
+    function recalcAmount() {
+        const pct = parseFloat(document.getElementById('pt_payment_percentage').value);
+        const amount = (isNaN(pct) ? 0 : currentRevenue() * pct / 100);
+        const disp = document.getElementById('pt_amount_disp');
+        if (disp) {
+            const abs = Math.abs(Math.round(amount));
+            disp.value = abs.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        }
+    }
+
+    // Toggle indikator "wajib" pada Invoice Number sesuai isi Submit Invoice Date
+    function toggleInvoiceRequired() {
+        const hasDate = !!document.getElementById('pt_submit_invoice_date').value;
+        const req  = document.getElementById('pt_invoice_number_req');
+        const hint = document.getElementById('pt_invoice_number_hint');
+        if (req)  req.classList.toggle('hidden', !hasDate);
+        if (hint) hint.classList.toggle('hidden', !hasDate);
+    }
+
+    // ── Modal helpers ──────────────────────────────────────────────
+    function resetForm() {
+        document.getElementById('pt_payment_term').value        = '';
+        document.getElementById('pt_payment_percentage').value  = '';
+        document.getElementById('pt_amount_disp').value         = '';
+        document.getElementById('pt_requirements').value        = '';
+        document.getElementById('pt_status').value              = 'Open';
+        document.getElementById('pt_estimated_date').value      = '';
+        document.getElementById('pt_submit_invoice_date').value = '';
+        document.getElementById('pt_invoice_number').value      = '';
+        document.getElementById('pt_paid_date').value           = '';
+        if (window._fpPtEstimated)     window._fpPtEstimated.clear();
+        if (window._fpPtSubmitInvoice) window._fpPtSubmitInvoice.clear();
+        if (window._fpPtPaid)          window._fpPtPaid.clear();
+        toggleInvoiceRequired();
+    }
+
+    function openAdd() {
+        resetForm();
+        document.getElementById('paymentTermModalMode').value  = 'create';
+        document.getElementById('paymentTermModalId').value    = '';
+        document.getElementById('paymentTermModalTitle').textContent = 'Add Payment Term';
+        document.getElementById('paymentTermModal').classList.remove('hidden');
+    }
+
+    function openEdit(id) {
+        const t = _terms.find(x => x.id === id);
+        if (!t) return;
+        resetForm();
+        document.getElementById('paymentTermModalMode').value  = 'edit';
+        document.getElementById('paymentTermModalId').value    = id;
+        document.getElementById('paymentTermModalTitle').textContent = `Edit Payment Term #${t.term_number}`;
+
+        document.getElementById('pt_payment_term').value       = t.payment_term ?? '';
+        document.getElementById('pt_payment_percentage').value = t.payment_percentage ?? '';
+        document.getElementById('pt_requirements').value       = t.requirements ?? '';
+        document.getElementById('pt_invoice_number').value     = t.invoice_number ?? '';
+        document.getElementById('pt_status').value             = t.status ?? 'Open';
+
+        if (t.estimated_date && window._fpPtEstimated) window._fpPtEstimated.setDate(t.estimated_date, false, 'Y-m-d');
+        else if (t.estimated_date) document.getElementById('pt_estimated_date').value = t.estimated_date;
+
+        if (t.submit_invoice_date && window._fpPtSubmitInvoice) window._fpPtSubmitInvoice.setDate(t.submit_invoice_date, false, 'Y-m-d');
+        else if (t.submit_invoice_date) document.getElementById('pt_submit_invoice_date').value = t.submit_invoice_date;
+
+        if (t.paid_date && window._fpPtPaid) window._fpPtPaid.setDate(t.paid_date, false, 'Y-m-d');
+        else if (t.paid_date) document.getElementById('pt_paid_date').value = t.paid_date;
+
+        toggleInvoiceRequired();
+        recalcAmount();
+        document.getElementById('paymentTermModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+        document.getElementById('paymentTermModal').classList.add('hidden');
+    }
+
+    // ── Save (create / update) ─────────────────────────────────────
+    async function save() {
+        const mode = document.getElementById('paymentTermModalMode').value;
+        const term = document.getElementById('pt_payment_term').value.trim();
+        const pct  = document.getElementById('pt_payment_percentage').value;
+
+        const submitInvoiceDate = document.getElementById('pt_submit_invoice_date').value || null;
+        const invoiceNumber     = document.getElementById('pt_invoice_number').value.trim();
+
+        if (!term) { showNotification('Payment Term is required.', 'error'); return; }
+        if (pct === '' || isNaN(parseFloat(pct))) { showNotification('Payment % is required.', 'error'); return; }
+        if (parseFloat(pct) < 0 || parseFloat(pct) > 100) { showNotification('Payment % must be between 0 and 100.', 'error'); return; }
+        if (submitInvoiceDate && !invoiceNumber) { showNotification('Invoice Number is required when Submit Invoice Date is filled.', 'error'); return; }
+
+        // Guard: total payment terms tidak boleh melebihi 100% / revenue
+        const editId    = mode === 'edit' ? parseInt(document.getElementById('paymentTermModalId').value, 10) : null;
+        const otherPct  = _terms.reduce((s, t) => (t.id === editId ? s : s + (Number(t.payment_percentage) || 0)), 0);
+        const totalPct  = otherPct + parseFloat(pct);
+        if (totalPct > 100 + 0.001) {
+            const rev      = currentRevenue();
+            const totalAmt = rev * totalPct / 100;
+            const pctLabel = (Number.isInteger(totalPct) ? totalPct.toString() : totalPct.toFixed(2).replace('.', ',')) + '%';
+            showNotification(`Total payment terms (${pctLabel} = ${fmtRp(totalAmt)}) cannot exceed the project revenue (${fmtRp(rev)}).`, 'error');
+            return;
+        }
+
+        const btn = document.getElementById('paymentTermSaveBtn');
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="animate-spin w-4 h-4 mx-auto" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>';
+
+        const payload = {
+            payment_term:        term,
+            payment_percentage:  parseFloat(pct),
+            requirements:        document.getElementById('pt_requirements').value.trim() || null,
+            estimated_date:      document.getElementById('pt_estimated_date').value || null,
+            submit_invoice_date: submitInvoiceDate,
+            invoice_number:      invoiceNumber || null,
+            paid_date:           document.getElementById('pt_paid_date').value || null,
+            status:              document.getElementById('pt_status').value,
+            _token:              getCsrf(),
+        };
+
+        try {
+            let res;
+            if (mode === 'create') {
+                res = await axios.post(BASE_URL, payload);
+            } else {
+                const id = document.getElementById('paymentTermModalId').value;
+                res = await axios.put(`${BASE_URL}/${id}`, payload);
+            }
+            showNotification(res.data.message ?? 'Saved.', 'success');
+            closeModal();
+            await load();
+        } catch (e) {
+            let msg = 'Something went wrong. Please try again.';
+            if (e.response?.data?.errors) {
+                const first = Object.values(e.response.data.errors)[0];
+                msg = Array.isArray(first) ? first[0] : String(first);
+            } else if (e.response?.data?.message) {
+                msg = e.response.data.message;
+            }
+            showNotification(msg, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+        }
+    }
+
+    // ── Delete ─────────────────────────────────────────────────────
+    function openDeleteModal(id, number) {
+        document.getElementById('ptDeleteId').value = id;
+        document.getElementById('ptDeleteNumber').textContent = number ?? '';
+        document.getElementById('paymentTermDeleteModal').classList.remove('hidden');
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('paymentTermDeleteModal').classList.add('hidden');
+    }
+
+    async function confirmDelete() {
+        const id = document.getElementById('ptDeleteId').value;
+        if (!id) return;
+
+        const btn  = document.getElementById('ptDeleteConfirmBtn');
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = 'Deleting…';
+
+        try {
+            const res = await axios.delete(`${BASE_URL}/${id}`, {
+                headers: { 'X-CSRF-TOKEN': getCsrf() },
+            });
+            closeDeleteModal();
+            showNotification(res.data.message ?? 'Deleted.', 'success');
+            await load();
+        } catch (e) {
+            showNotification(e.response?.data?.message ?? 'Failed to delete.', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () { load(); });
+
+    return { openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete, recalcAmount, toggleInvoiceRequired, reload: load };
 })();
 </script>
 @endsection

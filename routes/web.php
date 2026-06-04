@@ -24,6 +24,7 @@ use App\Http\Controllers\DeliveryProjectDataController;
 use App\Http\Controllers\DeliveryProjectStageManagementController;
 use App\Http\Controllers\DeliveryProjectPlanningExportController;
 use App\Http\Controllers\DeliveryProjectRiskController;
+use App\Http\Controllers\DeliveryProjectPaymentTermController;
 use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\TicketViewController;
@@ -190,6 +191,12 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::post('/projects/{project}/generate-folder', [DeliveryProjectController::class, 'generateFolder'])->name('projects.generateFolder');
     Route::delete('/projects/{project}/folder', [DeliveryProjectController::class, 'deleteFolder'])->name('projects.deleteFolder');
 
+    // Term of Payment (TOP) Plan routes
+    Route::get('/projects/{project}/payment-terms',         [DeliveryProjectPaymentTermController::class, 'index'])->name('projects.paymentTerms.index');
+    Route::post('/projects/{project}/payment-terms',        [DeliveryProjectPaymentTermController::class, 'store'])->name('projects.paymentTerms.store');
+    Route::put('/projects/{project}/payment-terms/{term}',  [DeliveryProjectPaymentTermController::class, 'update'])->name('projects.paymentTerms.update');
+    Route::delete('/projects/{project}/payment-terms/{term}',[DeliveryProjectPaymentTermController::class, 'destroy'])->name('projects.paymentTerms.destroy');
+
     // Risk Register routes
     Route::get('/projects/{project}/risks',          [DeliveryProjectRiskController::class, 'index'])->name('projects.risks.index');
     Route::post('/projects/{project}/risks',         [DeliveryProjectRiskController::class, 'store'])->name('projects.risks.store');
@@ -210,6 +217,8 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // Document management routes
     Route::post('/projects/{project}/documents', [DeliveryProjectController::class, 'storeDocument'])->name('project.documents.store');
     Route::post('/projects/{project}/documents/upload', [DeliveryProjectController::class, 'uploadDocument'])->name('project.documents.upload');
+    Route::post('/projects/{project}/documents/create-upload-session', [DeliveryProjectController::class, 'createDocumentUploadSession'])->name('project.documents.create-upload-session');
+    Route::post('/projects/{project}/documents/finalize-upload', [DeliveryProjectController::class, 'finalizeDocumentUpload'])->name('project.documents.finalize-upload');
     Route::patch('/project/documents/{document}', [DeliveryProjectController::class, 'updateDocument'])->name('project.documents.update');
     Route::delete('/project/documents/{document}', [DeliveryProjectController::class, 'destroyDocument'])->name('project.documents.destroy');
 
@@ -229,9 +238,15 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/api/regions', [DeliveryProjectController::class, 'getRegions'])->name('api.regions');
     Route::get('/api/cities', [DeliveryProjectController::class, 'getCities'])->name('api.cities');
 
-    // Issues routes
+    // Issues routes (global pages)
     Route::get('/issues', [DeliveryProjectIssueController::class, 'index'])->name('issues.index');
     Route::get('/issues/{project}', [DeliveryProjectIssueController::class, 'show'])->name('issues.show');
+
+    // Project Issue Log routes (AJAX CRUD on the project detail page)
+    Route::get('/projects/{project}/issues',           [DeliveryProjectIssueController::class, 'apiIndex'])->name('projects.issues.index');
+    Route::post('/projects/{project}/issues',          [DeliveryProjectIssueController::class, 'store'])->name('projects.issues.store');
+    Route::put('/projects/{project}/issues/{issue}',   [DeliveryProjectIssueController::class, 'update'])->name('projects.issues.update');
+    Route::delete('/projects/{project}/issues/{issue}',[DeliveryProjectIssueController::class, 'destroy'])->name('projects.issues.destroy');
 
     // Profile routes
     Route::get('/staging-tickets', [StagingTicketController::class, 'view'])->name('staging.index');

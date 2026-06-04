@@ -830,7 +830,11 @@ window.saveAllPhaseChanges = async function() {
         // 2. Create new phases
         for (const newPhase of window.phaseChanges.toCreate) {
             
-            const createResponse = await axios.post('{{ route("planning.phases.create", $project) }}', {
+            // Relative path (not route()) so the request always inherits the page's
+            // scheme. An absolute URL from route() can resolve to http:// on a proxy
+            // that terminates SSL when APP_ENV isn't production (forceScheme is skipped),
+            // which the HTTPS page then blocks as Mixed Content → axios "Network Error".
+            const createResponse = await axios.post(`/planning/${projectId}/phases/create-custom`, {
                 name: newPhase.name,
                 orientation: newPhase.orientation,
                 color: newPhase.color,

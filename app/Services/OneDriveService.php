@@ -282,6 +282,38 @@ class OneDriveService
     }
 
     /**
+     * Create an upload session for large files (>4 MB).
+     * Returns the uploadUrl that the client can PUT chunks to directly.
+     */
+    public function createUploadSession(string $folderId, string $fileName): string
+    {
+        $token   = $this->getAccessToken();
+        $encoded = rawurlencode($fileName);
+
+        $response = Http::withToken($token)->post(
+            "{$this->baseUrl}/users/{$this->userEmail}/drive/items/{$folderId}:/{$encoded}:/createUploadSession",
+            [
+                'item' => [
+                    '@microsoft.graph.conflictBehavior' => 'rename',
+                    'name'                              => $fileName,
+                ],
+            ]
+        );
+
+        if (!$response->successful()) {
+            Log::error('OneDrive createUploadSession failed', [
+                'folder_id' => $folderId,
+                'file_name' => $fileName,
+                'status'    => $response->status(),
+                'body'      => $response->body(),
+            ]);
+            throw new \RuntimeException('Failed to create OneDrive upload session: ' . $response->body());
+        }
+
+        return $response->json('uploadUrl');
+    }
+
+    /**
      * Create an anonymous share link for the given folder ID.
      * type='edit' grants upload + edit access to anyone with the link.
      * Returns the web URL of the share link.

@@ -90,7 +90,7 @@ class DeliveryProjectActivity extends Model
     public function assignedEmployees(): BelongsToMany
     {
         return $this->belongsToMany(Employee::class, 'activity_employee', 'delivery_project_activity_id', 'employee_id', 'id', 'employee_id')
-                    ->withPivot('role', 'assigned_date', 'notes')
+                    ->withPivot('role', 'assigned_date', 'notes', 'duration')
                     ->withTimestamps();
     }
 

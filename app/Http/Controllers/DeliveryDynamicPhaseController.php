@@ -9,6 +9,7 @@ use App\Models\DeliveryProjectPlanning;
 use App\Models\DeliveryProjectActivity;
 use App\Models\DeliveryProjectViewConfiguration;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -106,7 +107,7 @@ class DeliveryDynamicPhaseController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed: ' . implode(', ', array_flatten($e->errors()))
+                'message' => 'Validation failed: ' . implode(', ', Arr::flatten($e->errors()))
             ], 422);
             
         } catch (\Exception $e) {
