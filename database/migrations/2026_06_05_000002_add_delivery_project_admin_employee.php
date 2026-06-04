@@ -49,13 +49,21 @@ return new class extends Migration
             'updated_at' => Carbon::now(),
         ]);
 
-        // 4. Pivot role assignment (multi-role source of truth).
-        DB::table('employee_role_assignment')->insertOrIgnore([
-            'employee_id' => $employeeId,
-            'role_id'     => $roleId,
-            'created_at'  => Carbon::now(),
-            'updated_at'  => Carbon::now(),
-        ]);
+        // 4. Pivot role assignments (multi-role source of truth).
+        //    The "User System Registered" role is REQUIRED for EcoSystem login
+        //    access (see AuthController: $hasSystemAccess check) — every employee
+        //    must have it, so assign it alongside the project admin role.
+        $systemRoleId = DB::table('employee_role')->where('name', 'User System Registered')->value('id');
+        $assignRoleIds = array_values(array_unique(array_filter([$roleId, $systemRoleId])));
+
+        DB::table('employee_role_assignment')->insertOrIgnore(
+            array_map(fn ($rid) => [
+                'employee_id' => $employeeId,
+                'role_id'     => $rid,
+                'created_at'  => Carbon::now(),
+                'updated_at'  => Carbon::now(),
+            ], $assignRoleIds)
+        );
 
         // 5. Basic data. Indonesian source values are mapped to the system's
         //    English enum so the master-employee dropdowns display them correctly:
