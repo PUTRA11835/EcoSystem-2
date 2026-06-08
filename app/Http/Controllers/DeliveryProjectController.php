@@ -347,18 +347,23 @@ class DeliveryProjectController extends Controller
         if ($request->expectsJson()) {
             $payload = ['success' => true, 'message' => $message];
             if ($warning) {
-                $payload['warning'] = $warning;
+                $payload['warning'] = $warning; // structured: count, window, items[]
             }
             return response()->json($payload);
         }
-        return back()->with('success', $message)->with('warning', $warning);
+        $flashWarning = $warning
+            ? $warning['count'] . ' planning item(s) fall outside the contract window (' . $warning['window'] . '). Please review.'
+            : null;
+        return back()->with('success', $message)->with('warning', $flashWarning);
     }
 
     /**
-     * Build a human-readable warning when existing (leaf) planning items fall outside
-     * the project's contract window. Returns null when everything is within range.
+     * Build a structured warning when existing (leaf) planning items fall outside the
+     * project's contract window. Returns null when everything is within range, otherwise
+     * ['count' => int, 'window' => string, 'items' => string[]] so the client modal can
+     * render the full (expandable) list.
      */
-    private function planningOutsideContractWarning(DeliveryProject $project): ?string
+    private function planningOutsideContractWarning(DeliveryProject $project): ?array
     {
         $cStart = $project->contract_start_date;
         $cEnd   = $project->contract_end_date;
@@ -382,19 +387,20 @@ class DeliveryProjectController extends Controller
             return null;
         }
 
-        $names = $offenders->take(5)->map(function ($p) {
+        $items = $offenders->map(function ($p) {
             $s = $p->start_date ? Carbon::parse($p->start_date)->format('d M Y') : '—';
             $e = $p->end_date ? Carbon::parse($p->end_date)->format('d M Y') : '—';
-            return '• ' . ($p->name ?: 'Planning #' . $p->id) . ' (' . $s . ' → ' . $e . ')';
-        })->implode("\n");
+            return ($p->name ?: 'Planning #' . $p->id) . ' (' . $s . ' → ' . $e . ')';
+        })->values()->all();
 
-        $extra = $offenders->count() > 5 ? "\n…and " . ($offenders->count() - 5) . ' more.' : '';
         $window = ($cStart ? Carbon::parse($cStart)->format('d M Y') : '—')
                 . ' → ' . ($cEnd ? Carbon::parse($cEnd)->format('d M Y') : '—');
 
-        return "Warning: " . $offenders->count() . " planning item(s) now fall OUTSIDE the contract window (" . $window . "):\n"
-             . $names . $extra
-             . "\n\nThe contract dates were saved. Please review and adjust these planning items.";
+        return [
+            'count'  => $offenders->count(),
+            'window' => $window,
+            'items'  => $items,
+        ];
     }
 
     public function updateDeliveryInfo(Request $request, DeliveryProject $project)

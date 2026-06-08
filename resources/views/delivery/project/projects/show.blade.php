@@ -494,7 +494,7 @@
                     <input type="text" name="contract_start_date" id="contract_start_date" autocomplete="off" readonly required
                            value="{{ $project->contract_start_date ? \Carbon\Carbon::parse($project->contract_start_date)->format('Y-m-d') : '' }}"
                            class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus bg-white cursor-pointer"
-                           placeholder="yyyy-mm-dd">
+                           placeholder="dd-mon-yyyy">
                 </div>
                 {{-- Contract End Date --}}
                 <div>
@@ -502,7 +502,7 @@
                     <input type="text" name="contract_end_date" id="contract_end_date" autocomplete="off" readonly required
                            value="{{ $project->contract_end_date ? \Carbon\Carbon::parse($project->contract_end_date)->format('Y-m-d') : '' }}"
                            class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus bg-white cursor-pointer"
-                           placeholder="yyyy-mm-dd">
+                           placeholder="dd-mon-yyyy">
                 </div>
                 {{-- Go Live Estimated (read-only) --}}
                 <div>
@@ -1651,6 +1651,37 @@
                         Yes, Delete
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- CONTRACT WINDOW WARNING MODAL (pengganti native alert)        --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="contractWarningModal" class="fixed inset-0 z-[60] hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeContractWarningModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col" style="max-height:85vh;">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center gap-3 flex-shrink-0">
+                <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-base font-semibold text-gray-900">Saved — please review planning</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">The contract dates were saved successfully.</p>
+                </div>
+            </div>
+            <div class="overflow-y-auto flex-1 px-6 py-4">
+                <div id="contractWarningBody" class="text-sm text-gray-700"></div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-200 flex justify-end flex-shrink-0">
+                <button type="button" onclick="closeContractWarningModal()"
+                        class="px-5 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition">
+                    OK, I'll review
+                </button>
             </div>
         </div>
     </div>
@@ -4999,11 +5030,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 const data = await res.json();
                 if (res.ok && data.success) {
                     showNotification(data.message || fallbackSuccess, 'success');
-                    // A clear, blocking warning when the save left planning outside the contract window
+                    // A clear, acknowledged warning when the save left planning outside the
+                    // contract window — shown in a styled modal (consistent with the rest of
+                    // the page) instead of a native alert(). Reload happens when dismissed.
                     if (data.warning) {
-                        alert(data.warning);
+                        showContractWarningModal(data.warning);
+                    } else {
+                        setTimeout(() => location.reload(), 800);
                     }
-                    setTimeout(() => location.reload(), data.warning ? 200 : 800);
                 } else {
                     // Show first validation error if available
                     let msg = data.message || fallbackError;
@@ -5025,6 +5059,80 @@ document.addEventListener('DOMContentLoaded', function() {
     attachSectionForm('deliveryInfoForm', 'Delivery information updated successfully.', 'Failed to update delivery information.');
     attachSectionForm('locationInfoForm', 'Location information updated successfully.', 'Failed to update location information.');
 })();
+
+// ── Contract window warning modal (global; called from attachSectionForm + onclick) ──
+// `warning` is the structured payload { count, window, items[] }. A plain string is
+// also accepted as a graceful fallback (legacy / unexpected shape).
+function showContractWarningModal(warning) {
+    const modal = document.getElementById('contractWarningModal');
+    const body  = document.getElementById('contractWarningBody');
+    if (!modal || !body) {            // graceful fallback if markup missing
+        alert(typeof warning === 'string' ? warning : 'Saved with warnings — please review planning.');
+        setTimeout(() => location.reload(), 200);
+        return;
+    }
+
+    body.innerHTML = '';
+
+    if (typeof warning === 'string') {
+        body.textContent = warning;
+        body.style.whiteSpace = 'pre-line';
+        modal.classList.remove('hidden');
+        return;
+    }
+
+    const items = Array.isArray(warning.items) ? warning.items : [];
+    const count = warning.count || items.length;
+    const win   = warning.window || '';
+
+    const head = document.createElement('p');
+    head.className = 'mb-2';
+    head.textContent = count + ' planning item(s) now fall OUTSIDE the contract window'
+        + (win ? ' (' + win + ')' : '') + ':';
+    body.appendChild(head);
+
+    const ul = document.createElement('ul');
+    ul.className = 'list-disc pl-5 space-y-1 text-gray-600';
+    const PREVIEW = 5;
+    items.forEach(function (it, i) {
+        const li = document.createElement('li');
+        li.textContent = it;
+        if (i >= PREVIEW) { li.setAttribute('data-extra', '1'); li.style.display = 'none'; }
+        ul.appendChild(li);
+    });
+    body.appendChild(ul);
+
+    if (items.length > PREVIEW) {
+        const hidden = items.length - PREVIEW;
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'mt-2 text-sm font-medium text-amber-700 hover:text-amber-800 hover:underline';
+        toggle.textContent = 'Show ' + hidden + ' more';
+        let expanded = false;
+        toggle.addEventListener('click', function () {
+            expanded = !expanded;
+            ul.querySelectorAll('li[data-extra]').forEach(function (li) {
+                li.style.display = expanded ? '' : 'none';
+            });
+            toggle.textContent = expanded ? 'Show less' : ('Show ' + hidden + ' more');
+        });
+        body.appendChild(toggle);
+    }
+
+    const note = document.createElement('p');
+    note.className = 'text-xs text-gray-400 mt-3';
+    note.textContent = 'Please review and adjust these planning items.';
+    body.appendChild(note);
+
+    modal.classList.remove('hidden');
+}
+
+function closeContractWarningModal() {
+    const modal = document.getElementById('contractWarningModal');
+    if (modal) modal.classList.add('hidden');
+    // The data was already saved; reload so the page reflects the new contract dates.
+    location.reload();
+}
 
 // ============================================
 // OTHER EXISTING FUNCTIONS
