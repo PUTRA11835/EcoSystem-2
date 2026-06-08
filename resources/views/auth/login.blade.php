@@ -682,15 +682,6 @@
                         <span style="font-size:.875rem;font-weight:600;">Signing in...</span>
                     </div>
                 </button>
-
-                {{-- Request access --}}
-                <p style="text-align:center;font-size:.8125rem;color:#64748B;margin-top:.25rem;">
-                    New to ECoSystem?
-                    <a href="#" style="color:#A00000;font-weight:600;text-decoration:none;transition:color .15s;"
-                       onmouseover="this.style.color='#6B0000'"
-                       onmouseout="this.style.color='#A00000'">Request Access</a>
-                </p>
-            </form>
         </div>
     </div>
 

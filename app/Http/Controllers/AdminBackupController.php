@@ -401,7 +401,7 @@ class AdminBackupController extends Controller
             fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
             // Header columns — snake_case, compatible with both full names and Excel-truncated variants
             fputcsv($handle, [
-                'ECI', 'role', 'status',
+                'ECI', 'role', 'status', 'email',
                 'title', 'nick_name', 'gender', 'religion',
                 'first_name', 'last_name',
                 'marital_status', 'birth_date', 'birth_place',
@@ -412,7 +412,7 @@ class AdminBackupController extends Controller
             ]);
             // Example row
             fputcsv($handle, [
-                'ECI001', 'Delivery Support User', 'Active',
+                'ECI001', 'Delivery Support User', 'Active', 'john.doe@example.com',
                 'Mr.', 'John', 'Male', 'Islam',
                 'John', 'Doe',
                 'Single', '1990-01-15', 'Jakarta',
@@ -463,6 +463,8 @@ class AdminBackupController extends Controller
     {
         if (!$this->assertAdmin()) return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
 
+        set_time_limit(300);
+
         $request->validate(['file' => 'required|file|mimes:csv,txt,xlsx|max:20480']);
 
         $handle = fopen($request->file('file')->getRealPath(), 'r');
@@ -501,6 +503,7 @@ class AdminBackupController extends Controller
             'department'        => ['department', 'Department'],
             'since_date'        => ['since_date', 'Since Date'],
             'nik'               => ['nik', 'NIK', 'nik (identification_type)', 'NIK (identification_type)'],
+            'email'             => ['email', 'Email', 'email_work', 'Email Work'],
         ];
 
         // Build colIndex: canonical_field => column index in CSV
@@ -583,6 +586,15 @@ class AdminBackupController extends Controller
                     if ($roleId) $empUpdate['role_id'] = $roleId;
                     DB::table('employee')->where('eci', $eci)->update($empUpdate);
 
+                    // Update email di auth_users jika CSV mengisi email dan auth_users belum punya email
+                    $email = $get('email');
+                    if ($email) {
+                        DB::table('auth_users')
+                            ->where('employee_id', $existing->employee_id)
+                            ->whereNull('email')
+                            ->update(['email' => $email, 'updated_at' => now()]);
+                    }
+
                     if ($basicData) {
                         $basicData['updated_at'] = now();
                         if (DB::table('employee_basic_data')->where('employee_id', $existing->employee_id)->exists()) {
@@ -604,14 +616,44 @@ class AdminBackupController extends Controller
                         $errors[] = "Baris {$rowNum}: ECI '{$eci}' baru tapi Role tidak valid — baris dilewati";
                         continue;
                     }
+
+                    $email = $get('email');
+                    if (!$email) {
+                        $errors[] = "Baris {$rowNum} ({$eci}): Kolom 'email' wajib diisi untuk employee baru";
+                        continue;
+                    }
+
                     $employeeId = DB::table('employee')->insertGetId([
                         'role_id'    => $roleId,
                         'eci'        => $eci,
-                        'password'   => bcrypt($eci), // default password = ECI
                         'is_active'  => $isActive,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
+
+                    // Role assignment
+                    DB::table('employee_role_assignment')->insertOrIgnore([
+                        'employee_id' => $employeeId,
+                        'role_id'     => $roleId,
+                        'created_at'  => now(),
+                        'updated_at'  => now(),
+                    ]);
+
+                    // Auth account — password default = ECI, sistem kirim email setup password saat login pertama
+                    if (!DB::table('auth_users')->where('employee_id', $employeeId)->exists()) {
+                        DB::table('auth_users')->insert([
+                            'employee_id'   => $employeeId,
+                            'customer_id'   => null,
+                            'username'      => $eci,
+                            'email'         => $email,
+                            'phone'         => null,
+                            'password'      => \Illuminate\Support\Facades\Hash::make($eci, ['rounds' => 8]),
+                            'is_active'     => $isActive,
+                            'is_already_cp' => false,
+                            'created_at'    => now(),
+                            'updated_at'    => now(),
+                        ]);
+                    }
 
                     if ($basicData) {
                         $basicData['employee_id'] = $employeeId;

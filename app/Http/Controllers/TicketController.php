@@ -9,6 +9,7 @@ use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
 use App\Services\OneDriveService;
+use App\Services\SlaService;
 use App\Services\StagingTicketService;
 use App\Services\TicketNumberService;
 use Illuminate\Http\Request;
@@ -1548,6 +1549,18 @@ class TicketController extends Controller
             $ticket->update([
                 'status' => $request->status
             ]);
+
+            // Trigger SLA state transition (non-fatal)
+            try {
+                $ticket->load('sla');
+                app(SlaService::class)->handleStatusChange($ticket, $request->status);
+            } catch (\Throwable $e) {
+                Log::warning('TicketController@updateTicketStatus: SLA handleStatusChange gagal (non-fatal)', [
+                    'ticket_id' => $id,
+                    'status'    => $request->status,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
 
             // Add system log and send email when ticket is closed or cancelled
             if (in_array($request->status, ['closed', 'cancelled'])) {

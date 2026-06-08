@@ -49,7 +49,24 @@
       "Bash(php -l app/Http/Controllers/TicketMigrationController.php)",
       "Bash(php -l routes/web.php)",
       "Bash(php -l routes/api.php)",
-      "Bash(php -r \"use Illuminate\\\\Support\\\\Facades\\\\Http; echo 'Http available';\")"
+      "Bash(php -r \"use Illuminate\\\\Support\\\\Facades\\\\Http; echo 'Http available';\")",
+      "Bash(git ls-tree *)",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"c:\\\\EcoSystem-2\\\\resources\\\\views\\\\admin\\\\sla\")",
+      "PowerShell(\"done\")",
+      "Bash(php -l app/Services/SlaService.php)",
+      "Bash(php -l app/Http/Controllers/SlaController.php)",
+      "Bash(php -l app/Models/SlaPolicy.php)",
+      "Bash(php -l app/Models/TicketSla.php)",
+      "Bash(php -l app/Models/TicketSlaEvent.php)",
+      "Bash(php -l app/Services/StagingTicketService.php)",
+      "Bash(php -l app/Http/Controllers/TicketMessageController.php)",
+      "Bash(php -l app/Models/Ticket.php)",
+      "Bash(php -l app/Console/Commands/SyncSlaFromTickets.php)",
+      "Bash(php -l app/Console/Commands/BackfillMissingSlaEvents.php)",
+      "Bash(php -l database/seeders/SlaSeeder.php)",
+      "Bash(powershell -Command \"Get-Content 'c:\\\\EcoSystem-2\\\\storage\\\\logs\\\\laravel.log' -Tail 50\")",
+      "Bash(nginx -v)",
+      "Bash(where nginx *)"
     ]
   }
 }

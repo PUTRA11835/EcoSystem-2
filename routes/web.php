@@ -34,7 +34,15 @@ use App\Http\Controllers\AdminJobController;
 use App\Http\Controllers\AdminBackupController;
 use App\Http\Controllers\AdminNotificationSoundController;
 use App\Http\Controllers\TicketMigrationController;
+use App\Http\Controllers\SlaController;
 use App\Http\Middleware\CheckAuthToken;
+
+// ==================== ROOT REDIRECT ====================
+Route::get('/', function () {
+    return session('auth_token')
+        ? redirect()->route('dashboard')
+        : redirect()->route('login');
+});
 
 // ==================== PUBLIC ROUTES ====================
 
@@ -169,6 +177,12 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::post('/sounds', [AdminNotificationSoundController::class, 'store'])->name('sounds.store');
         Route::delete('/sounds/{id}', [AdminNotificationSoundController::class, 'destroy'])->name('sounds.destroy');
     });
+
+    // ==================== SLA ====================
+    Route::get('/sla/config', [SlaController::class, 'configPage'])->name('sla.config');
+    Route::get('/sla/report', [SlaController::class, 'reportPage'])->name('sla.report');
+    Route::get('/admin/sla/tickets/{id}/pdf',     [SlaController::class, 'downloadTicketPdf'])->name('sla.ticket.pdf');
+    Route::get('/admin/sla/tickets/{id}/log-pdf', [SlaController::class, 'downloadLogPdf'])->name('sla.ticket.log-pdf');
 
     // ==================== SETTINGS ====================
     Route::prefix('settings')->name('settings.')->group(function () {

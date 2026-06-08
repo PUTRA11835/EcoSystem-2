@@ -8,6 +8,7 @@ use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
+use App\Services\SlaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -304,6 +305,25 @@ class TicketMessageController extends Controller
                 );
             }
 
+            // Trigger SLA event (non-fatal)
+            if ($message && !$isInternalNote) {
+                try {
+                    $ticket->refresh();
+                    app(SlaService::class)->recordMessageEvent(
+                        $ticket,
+                        $message,
+                        'employee',
+                        $ticket->status
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('TicketMessageController@store: SLA record gagal (non-fatal)', [
+                        'ticket_id'  => $ticketId,
+                        'message_id' => $message->id,
+                        'error'      => $e->getMessage(),
+                    ]);
+                }
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -438,6 +458,22 @@ class TicketMessageController extends Controller
                 $ticketUpdate['cc_emails'] = $merged;
             }
             $ticket->update($ticketUpdate);
+
+            // Trigger SLA event untuk customer reply (non-fatal)
+            try {
+                app(SlaService::class)->recordMessageEvent(
+                    $ticket,
+                    $message,
+                    'customer',
+                    null
+                );
+            } catch (\Throwable $e) {
+                Log::warning('TicketMessageController@customerReply: SLA record gagal (non-fatal)', [
+                    'ticket_id'  => $ticket->ticket_id,
+                    'message_id' => $message->id,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
 
             // Relay email ke thread M365:
             // - skip_relay = true  → Jarvies sudah kirim email via OAuth customer sendiri,

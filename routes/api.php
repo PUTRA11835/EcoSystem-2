@@ -500,6 +500,16 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/failed-jobs', [AdminJobController::class, 'clearAll']);
     });
 
+    // ── SLA ────────────────────────────────────────────────────────────────
+    Route::get('/tickets/{id}/sla', [\App\Http\Controllers\SlaController::class, 'getTicketSla']);
+
+    // Admin-only SLA endpoints
+    Route::get('/admin/sla/policies',          [\App\Http\Controllers\SlaController::class, 'getPolicies']);
+    Route::post('/admin/sla/policies',         [\App\Http\Controllers\SlaController::class, 'storePolicy']);
+    Route::put('/admin/sla/policies/{id}',     [\App\Http\Controllers\SlaController::class, 'updatePolicy']);
+    Route::delete('/admin/sla/policies/{id}',  [\App\Http\Controllers\SlaController::class, 'destroyPolicy']);
+    Route::get('/admin/sla/report',            [\App\Http\Controllers\SlaController::class, 'getReport']);
+
     // Notification sounds list (accessible to all authenticated users)
     Route::get('/notification-sounds', [AdminNotificationSoundController::class, 'list']);
 

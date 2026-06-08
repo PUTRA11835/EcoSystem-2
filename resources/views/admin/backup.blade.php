@@ -491,9 +491,13 @@ async function runImport(type) {
         const res  = await fetch(endpoint, {
             method: 'POST',
             credentials: 'same-origin',
-            headers: { 'X-CSRF-TOKEN': CSRF },
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
             body: form,
         });
+        if (!res.ok && res.status !== 422) {
+            const text = await res.text();
+            throw new Error(`Server error ${res.status}: ${text.substring(0, 200)}`);
+        }
         const json = await res.json();
         showImportResult(type, json);
     } catch (e) {
@@ -690,7 +694,7 @@ async function runMigImport() {
         const res  = await fetch('/api/admin/import/tickets/zip', {
             method: 'POST',
             credentials: 'same-origin',
-            headers: { 'X-CSRF-TOKEN': CSRF },
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
             body: form,
         });
         const json = await res.json();

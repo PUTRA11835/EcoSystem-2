@@ -52,6 +52,15 @@
         $showAllMenus     = $userRoleId == \App\Enums\RoleId::EC_ADMINISTRATOR->value;
         $showRpmoMenu     = in_array($userRoleId, \App\Enums\RoleId::PERIOD_MANAGEMENT_GROUP, true);
         $showLimitedMenus = in_array($userRoleId, [\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value, \App\Enums\RoleId::EC_USER->value], true);
+        $showSlaMenu      = in_array($userRoleId, [
+            \App\Enums\RoleId::EC_ADMINISTRATOR->value,
+            \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value,
+            \App\Enums\RoleId::DELIVERY_HELPDESK->value,
+        ], true);
+        $canManageSla     = in_array($userRoleId, [
+            \App\Enums\RoleId::EC_ADMINISTRATOR->value,
+            \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value,
+        ], true);
     @endphp
     
     <style>
@@ -548,6 +557,30 @@
                 </div>
                 @endif
 
+                @if($showSlaMenu)
+                <!-- SLA - Admin, Delivery Support Head, Helpdesk -->
+                @php $slaOpen = Request::is('sla*'); @endphp
+                <div class="mb-2">
+                    <button onclick="toggleSlaDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $slaOpen ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-stopwatch"></i>
+                        </span>
+                        <span class="nav-text flex-1 font-medium">SLA</span>
+                        <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $slaOpen ? 'rotate-180' : '' }}" id="slaChevron"></i>
+                    </button>
+                    <div id="slaDropdown" class="nav-text {{ $slaOpen ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
+                        <a href="{{ route('sla.config') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('sla/config*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-sliders-h text-xs"></i></span>
+                            <span class="nav-text text-sm">SLA Config</span>
+                        </a>
+                        <a href="{{ route('sla.report') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('sla/report*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-chart-line text-xs"></i></span>
+                            <span class="nav-text text-sm">SLA Report</span>
+                        </a>
+                    </div>
+                </div>
+                @endif
+
                 @if($showRpmoMenu)
                 <!-- RPMO - For admin, RPMO, Project Head, Support Head -->
                 @php
@@ -797,6 +830,15 @@
             if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
         }
 
+        function toggleSlaDropdown() {
+            const submenu = document.getElementById('slaDropdown');
+            const chevron = document.getElementById('slaChevron');
+            if (!submenu) return;
+            const isOpen = !submenu.classList.contains('hidden');
+            submenu.classList.toggle('hidden', isOpen);
+            if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
+        }
+
         function toggleUserDropdown() {
             document.getElementById('userDropdown').classList.toggle('hidden');
         }
@@ -946,6 +988,33 @@
         _audioTicket.preload = 'auto';
         _audioChat.preload   = 'auto';
 
+        // ── Browser autoplay unlock ──────────────────────────────────────────
+        // Browsers block audio.play() until the user has interacted with the page
+        // (click, keydown, touchstart). We silently warm-up both audio elements on
+        // the first interaction so every subsequent play() call succeeds immediately.
+        var _audioUnlocked = false;
+        function _unlockAudio() {
+            if (_audioUnlocked) return;
+            _audioUnlocked = true;
+            [_audioTicket, _audioChat].forEach(function (el) {
+                var prev = el.volume;
+                el.volume = 0;
+                el.play().then(function () {
+                    el.pause();
+                    el.currentTime = 0;
+                    el.volume = prev;
+                }).catch(function () {
+                    el.volume = prev;
+                });
+            });
+            document.removeEventListener('click',      _unlockAudio);
+            document.removeEventListener('keydown',    _unlockAudio);
+            document.removeEventListener('touchstart', _unlockAudio);
+        }
+        document.addEventListener('click',      _unlockAudio);
+        document.addEventListener('keydown',    _unlockAudio);
+        document.addEventListener('touchstart', _unlockAudio);
+
         function _getSoundFile(key) {
             var filename = localStorage.getItem(key)
                 || localStorage.getItem('notif_sound')  // legacy single-key fallback
@@ -960,6 +1029,14 @@
             if (audioEl.src !== expected) {
                 audioEl.src = '/sounds/' + file;
                 audioEl.load();
+                // After src change, re-warm the element if user has already interacted
+                if (_audioUnlocked) {
+                    audioEl.play().then(function () {
+                        audioEl.pause();
+                        audioEl.currentTime = 0;
+                    }).catch(function () {});
+                    return;
+                }
             }
             audioEl.currentTime = 0;
             audioEl.play().catch(function () {});

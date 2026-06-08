@@ -197,6 +197,30 @@ class Ticket extends Model
         return $this->hasMany(DeliverySupportActivity::class, 'ticket_id', 'ticket_id');
     }
 
+    // ── SLA ──────────────────────────────────────────────────────────────────
+
+    public function sla()
+    {
+        return $this->hasOne(TicketSla::class, 'ticket_id', 'ticket_id');
+    }
+
+    public function isSlaEligible(): bool
+    {
+        return $this->ticket_type !== null
+            && $this->ticket_priority !== null
+            && $this->scale !== null;
+    }
+
+    public function getSlaMode(): string
+    {
+        return in_array($this->ticket_type, self::slaFullTypes()) ? 'full' : 'response_only';
+    }
+
+    public static function slaFullTypes(): array
+    {
+        return ['Incident', 'Service Request'];
+    }
+
     // Get delivery supports via activities
     public function deliverySupports()
     {
