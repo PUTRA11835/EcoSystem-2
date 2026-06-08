@@ -978,7 +978,9 @@
             late_exception_rejected:      { bg: '#fee2e2', color: '#dc2626', fa: 'fa-ban' },
             customer_mandays_canceled:    { bg: '#ffedd5', color: '#ea580c', fa: 'fa-times-circle' },
             customer_mandays_proposed:    { bg: '#dbeafe', color: '#2563eb', fa: 'fa-file-invoice' },
-            resolution_days_proposed:     { bg: '#e0e7ff', color: '#4f46e5', fa: 'fa-users' }
+            resolution_days_proposed:     { bg: '#e0e7ff', color: '#4f46e5', fa: 'fa-users' },
+            contract_end_reminder:        { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-file-contract' },
+            top_invoice_reminder:         { bg: '#dbeafe', color: '#2563eb', fa: 'fa-file-invoice-dollar' }
         };
         var DEFAULT_CFG = { bg: '#fee2e2', color: '#b91c1c', fa: 'fa-at' };
 
@@ -994,6 +996,8 @@
                 case 'customer_mandays_canceled':    return 'Customer Mandays Proposal canceled';
                 case 'customer_mandays_proposed':    return 'Customer Mandays — needs review';
                 case 'resolution_days_proposed':     return 'Resolution Days — needs review';
+                case 'contract_end_reminder':        return 'Contract deadline reminder';
+                case 'top_invoice_reminder':         return 'Invoice submission due';
                 default: return (n.from_name || 'Someone') + ' mentioned you';
             }
         }
@@ -1023,7 +1027,7 @@
             a.style.background      = isUnread ? '#fff1f2' : '#ffffff';
             a.addEventListener('mouseover', function () { a.style.background = isUnread ? '#ffe4e6' : '#f9fafb'; });
             a.addEventListener('mouseout',  function () { a.style.background = isUnread ? '#fff1f2' : '#ffffff'; });
-            a.addEventListener('click', function () { deleteNotif(n.id); });
+            a.addEventListener('click', function () { markNotifReadBell(n.id); });
 
             /* icon circle */
             var circle = document.createElement('div');
@@ -1125,31 +1129,30 @@
                 .catch(function () { setListMessage(list, 'Failed to load'); });
         }
 
-        /* ---- fire-and-forget delete (called on click, navigation proceeds normally) ---- */
-        function deleteNotif(id) {
+        /* ---- fire-and-forget mark-as-read (called on click, navigation proceeds normally) ----
+           Only marks the notification read so it leaves the bell (unread-only) but stays
+           visible on the full /notifications page. */
+        function markNotifReadBell(id) {
             var badge = document.getElementById('bellBadge');
             if (badge && !badge.classList.contains('hidden')) {
                 var count = parseInt(badge.textContent || '0') - 1;
                 if (count <= 0) badge.classList.add('hidden');
                 else badge.textContent = count;
             }
-            fetch('/api/notifications/' + id, {
-                method: 'DELETE',
+            fetch('/api/notifications/' + id + '/read', {
+                method: 'PUT',
                 credentials: 'same-origin',
                 headers: { 'X-CSRF-TOKEN': csrf }
             }).catch(function () {});
         }
 
-        /* ---- mark all read + clear ---- */
+        /* ---- mark all read (does NOT delete — read items remain on the full page) ---- */
         function markAllNotificationsRead() {
             var list = document.getElementById('bellNotifList');
             if (list) setListMessage(list, 'No notifications');
             var badge = document.getElementById('bellBadge');
             if (badge) badge.classList.add('hidden');
             fetch('/api/notifications/read-all', { method: 'PUT', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': csrf } })
-                .then(function () {
-                    return fetch('/api/notifications/bulk-delete', { method: 'DELETE', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': csrf } });
-                })
                 .catch(function () {});
         }
 

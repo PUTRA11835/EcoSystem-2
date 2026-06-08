@@ -488,21 +488,21 @@
                     </div>
                     <p class="mt-1 text-xs text-amber-600">*Auto-filled from Project Planning</p>
                 </div>
-                {{-- Start Date (read-only) --}}
+                {{-- Contract Start Date --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">Start Date</label>
-                    <div class="block w-full py-2.5 px-3 border border-gray-200 rounded-md bg-gray-50 shadow-sm text-sm text-gray-700">
-                        {{ $project->start_date ? \Carbon\Carbon::parse($project->start_date)->format('d M Y') : 'N/A' }}
-                    </div>
-                    <p class="mt-1 text-xs text-amber-600">*Derived from earliest date in Project Planning</p>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Contract Start Date <span class="text-red-500">*</span></label>
+                    <input type="text" name="contract_start_date" id="contract_start_date" autocomplete="off" readonly required
+                           value="{{ $project->contract_start_date ? \Carbon\Carbon::parse($project->contract_start_date)->format('Y-m-d') : '' }}"
+                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus bg-white cursor-pointer"
+                           placeholder="yyyy-mm-dd">
                 </div>
-                {{-- End Date (read-only) --}}
+                {{-- Contract End Date --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">End Date</label>
-                    <div class="block w-full py-2.5 px-3 border border-gray-200 rounded-md bg-gray-50 shadow-sm text-sm text-gray-700">
-                        {{ $project->end_date ? \Carbon\Carbon::parse($project->end_date)->format('d M Y') : 'N/A' }}
-                    </div>
-                    <p class="mt-1 text-xs text-amber-600">*Derived from latest date in Project Planning</p>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Contract End Date <span class="text-red-500">*</span></label>
+                    <input type="text" name="contract_end_date" id="contract_end_date" autocomplete="off" readonly required
+                           value="{{ $project->contract_end_date ? \Carbon\Carbon::parse($project->contract_end_date)->format('Y-m-d') : '' }}"
+                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus bg-white cursor-pointer"
+                           placeholder="yyyy-mm-dd">
                 </div>
                 {{-- Go Live Estimated (read-only) --}}
                 <div>
@@ -4999,7 +4999,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 const data = await res.json();
                 if (res.ok && data.success) {
                     showNotification(data.message || fallbackSuccess, 'success');
-                    setTimeout(() => location.reload(), 800);
+                    // A clear, blocking warning when the save left planning outside the contract window
+                    if (data.warning) {
+                        alert(data.warning);
+                    }
+                    setTimeout(() => location.reload(), data.warning ? 200 : 800);
                 } else {
                     // Show first validation error if available
                     let msg = data.message || fallbackError;
@@ -5522,7 +5526,7 @@ window.HolidayCalendar = window.HolidayCalendar || (function () {
         var cfg = Object.assign({
             dateFormat  : 'Y-m-d',    // format disimpan ke value input (untuk server)
             altInput    : true,        // tampilkan input kedua yang user-friendly
-            altFormat   : 'd/m/Y',    // format tampilan ke user
+            altFormat   : 'd M Y',    // format tampilan ke user (mis. 08 Jun 2026)
             altInputClass: altClass,
             allowInput  : false,
             disableMobile: true,
@@ -5544,6 +5548,20 @@ window.HolidayCalendar = window.HolidayCalendar || (function () {
 // Inisialisasi semua picker setelah holidays di-load
 document.addEventListener('DOMContentLoaded', function () {
     HolidayCalendar.load().then(function () {
+        // Contract dates (General Information) — start = lower bound of end, end = upper bound of start
+        var _csEl = document.getElementById('contract_start_date');
+        var _ceEl = document.getElementById('contract_end_date');
+        if (_csEl && _ceEl) {
+            window._fpContractStart = HolidayCalendar.initPicker(_csEl, {
+                onChange: function (_, str) { if (window._fpContractEnd) window._fpContractEnd.set('minDate', str || null); }
+            });
+            window._fpContractEnd = HolidayCalendar.initPicker(_ceEl, {
+                onChange: function (_, str) { if (window._fpContractStart) window._fpContractStart.set('maxDate', str || null); }
+            });
+            if (_csEl.value && window._fpContractEnd)   window._fpContractEnd.set('minDate', _csEl.value);
+            if (_ceEl.value && window._fpContractStart) window._fpContractStart.set('maxDate', _ceEl.value);
+        }
+
         // Add Team Member modal
         window._fpAddStart = HolidayCalendar.initPicker(document.getElementById('add_start_date'));
         window._fpAddEnd   = HolidayCalendar.initPicker(document.getElementById('add_end_date'));

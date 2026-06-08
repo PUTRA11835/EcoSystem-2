@@ -31,9 +31,9 @@ class DeliveryProject extends Model
         'status',
         'calculated_progress',
         'phase',
-        'start_date',
-        'end_date',
         'go_live_estimated',
+        'contract_start_date',
+        'contract_end_date',
         // Delivery Information
         'ae_type',
         'ae_name',
@@ -72,6 +72,8 @@ class DeliveryProject extends Model
         'approval_date' => 'datetime',
         'location_valid_from' => 'date',
         'location_valid_to' => 'date',
+        'contract_start_date' => 'date',
+        'contract_end_date' => 'date',
     ];
 
     // Existing relationships
@@ -142,20 +144,18 @@ class DeliveryProject extends Model
         Log::info("🔄 Updating project from planning", ['delivery_projects_id' => $this->id]);
         
         try {
-            $this->updateProjectDates();
-            
+            $this->seedLocationDefaultsFromPlanning();
+
             $this->updateGoLiveDate();
-            
+
             $this->updateCurrentPhase();
-            
+
             $this->updateDeliveryProjectCategory();
-            
+
             $this->saveQuietly();
-            
+
             Log::info("✅ Project updated successfully", [
                 'delivery_projects_id' => $this->id,
-                'start_date' => $this->start_date,
-                'end_date' => $this->end_date,
                 'go_live' => $this->go_live_estimated,
                 'phase' => $this->phase,
                 'category' => $this->category
@@ -169,16 +169,25 @@ class DeliveryProject extends Model
         }
     }
 
-    private function updateProjectDates()
+    /**
+     * Seed the location validity window from the planning span the first time only
+     * (does not overwrite values already set). The project's own date columns were
+     * removed in favour of the manually-entered contract window.
+     */
+    private function seedLocationDefaultsFromPlanning()
     {
+        if ($this->location_valid_from && $this->location_valid_to) {
+            return;
+        }
+
         $allDates = collect();
-        
+
         $plannings = $this->plannings()
             ->where('is_group', false)
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
             ->get();
-        
+
         foreach ($plannings as $planning) {
             if ($planning->start_date) {
                 $allDates->push($planning->start_date);
@@ -187,16 +196,13 @@ class DeliveryProject extends Model
                 $allDates->push($planning->end_date);
             }
         }
-        
+
         if ($allDates->isNotEmpty()) {
-            $this->start_date = $allDates->min();
-            $this->end_date = $allDates->max();
-            
             if (!$this->location_valid_from) {
-                $this->location_valid_from = $this->start_date;
+                $this->location_valid_from = $allDates->min();
             }
             if (!$this->location_valid_to) {
-                $this->location_valid_to = $this->end_date;
+                $this->location_valid_to = $allDates->max();
             }
         }
     }

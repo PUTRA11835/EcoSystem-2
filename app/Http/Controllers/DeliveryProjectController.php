@@ -44,6 +44,8 @@ class DeliveryProjectController extends Controller
             'description' => 'required|string',
             'project_type' => 'required|string|max:255',
             'high_level_risk' => 'nullable|in:Low,Moderate,High',
+            'contract_start_date' => 'required|date',
+            'contract_end_date' => 'required|date|after_or_equal:contract_start_date',
             'io_number' => 'required|string|max:255|unique:delivery_projects,io_number',
             'ae_type' => 'nullable|in:Internal,External',
             'ae_name' => 'nullable|string',
@@ -83,6 +85,8 @@ class DeliveryProjectController extends Controller
             'description' => $request->description,
             'project_type' => $request->project_type,
             'high_level_risk' => $request->high_level_risk,
+            'contract_start_date' => $request->contract_start_date,
+            'contract_end_date' => $request->contract_end_date,
             'io_number' => $request->io_number,
             'category' => 'Open',
             'phase' => null,
@@ -178,10 +182,8 @@ class DeliveryProjectController extends Controller
             }
         }
 
-        $project->start_date = $firstStartDate ? $firstStartDate->toDateString() : null;
-        $project->end_date = $lastEndDate ? $lastEndDate->toDateString() : null;
         $project->go_live_estimated = $goLiveDate ?: null;
-        
+
         if (!$project->location_valid_from && $firstStartDate) {
             $project->location_valid_from = $firstStartDate->toDateString();
         }
@@ -324,21 +326,75 @@ class DeliveryProjectController extends Controller
     public function updateGeneralInfo(Request $request, DeliveryProject $project)
     {
         $validated = $request->validate([
-            'client_id'       => 'nullable|exists:customer,customer_id',
-            'name'            => 'required|string|max:255',
-            'project_owner'   => 'nullable|string|max:255',
-            'project_type'    => ['nullable', Rule::in(['Implementation','Roll Out','Migration','Upgrade','WRICEF'])],
-            'high_level_risk' => ['nullable', Rule::in(['Low','Moderate','High'])],
-            'io_number'       => ['required', 'string', 'max:255', Rule::unique('delivery_projects', 'io_number')->ignore($project->id)],
-            'description'     => 'nullable|string|max:5000',
+            'client_id'           => 'nullable|exists:customer,customer_id',
+            'name'                => 'required|string|max:255',
+            'project_owner'       => 'nullable|string|max:255',
+            'project_type'        => ['nullable', Rule::in(['Implementation','Roll Out','Migration','Upgrade','WRICEF'])],
+            'high_level_risk'     => ['nullable', Rule::in(['Low','Moderate','High'])],
+            'contract_start_date' => 'required|date',
+            'contract_end_date'   => 'required|date|after_or_equal:contract_start_date',
+            'io_number'           => ['required', 'string', 'max:255', Rule::unique('delivery_projects', 'io_number')->ignore($project->id)],
+            'description'         => 'nullable|string|max:5000',
         ]);
 
         $project->update($validated);
 
+        // The new contract window is allowed to fall outside existing planning, but we
+        // surface a clear warning so the user can reconcile against the contract document.
+        $warning = $this->planningOutsideContractWarning($project);
+
+        $message = 'General information updated successfully.';
         if ($request->expectsJson()) {
-            return response()->json(['success' => true, 'message' => 'General information updated successfully.']);
+            $payload = ['success' => true, 'message' => $message];
+            if ($warning) {
+                $payload['warning'] = $warning;
+            }
+            return response()->json($payload);
         }
-        return back()->with('success', 'General information updated successfully.');
+        return back()->with('success', $message)->with('warning', $warning);
+    }
+
+    /**
+     * Build a human-readable warning when existing (leaf) planning items fall outside
+     * the project's contract window. Returns null when everything is within range.
+     */
+    private function planningOutsideContractWarning(DeliveryProject $project): ?string
+    {
+        $cStart = $project->contract_start_date;
+        $cEnd   = $project->contract_end_date;
+        if (!$cStart && !$cEnd) {
+            return null;
+        }
+
+        $offenders = $project->plannings()
+            ->where('is_group', false)
+            ->where(function ($q) {
+                $q->whereNotNull('start_date')->orWhereNotNull('end_date');
+            })
+            ->get()
+            ->filter(function ($p) use ($cStart, $cEnd) {
+                $startsTooEarly = $cStart && $p->start_date && Carbon::parse($p->start_date)->lt(Carbon::parse($cStart));
+                $endsTooLate    = $cEnd && $p->end_date && Carbon::parse($p->end_date)->gt(Carbon::parse($cEnd));
+                return $startsTooEarly || $endsTooLate;
+            });
+
+        if ($offenders->isEmpty()) {
+            return null;
+        }
+
+        $names = $offenders->take(5)->map(function ($p) {
+            $s = $p->start_date ? Carbon::parse($p->start_date)->format('d M Y') : '—';
+            $e = $p->end_date ? Carbon::parse($p->end_date)->format('d M Y') : '—';
+            return '• ' . ($p->name ?: 'Planning #' . $p->id) . ' (' . $s . ' → ' . $e . ')';
+        })->implode("\n");
+
+        $extra = $offenders->count() > 5 ? "\n…and " . ($offenders->count() - 5) . ' more.' : '';
+        $window = ($cStart ? Carbon::parse($cStart)->format('d M Y') : '—')
+                . ' → ' . ($cEnd ? Carbon::parse($cEnd)->format('d M Y') : '—');
+
+        return "Warning: " . $offenders->count() . " planning item(s) now fall OUTSIDE the contract window (" . $window . "):\n"
+             . $names . $extra
+             . "\n\nThe contract dates were saved. Please review and adjust these planning items.";
     }
 
     public function updateDeliveryInfo(Request $request, DeliveryProject $project)

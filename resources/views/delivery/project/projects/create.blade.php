@@ -119,6 +119,38 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                     </div>
                 </div>
             </div>
+            {{-- Contract Start Date --}}
+            <div>
+                <label for="contract_start_date" class="block font-medium text-sm text-gray-700">
+                    Contract Start Date <span class="text-red-500">*</span>
+                </label>
+                <input type="text"
+                       name="contract_start_date"
+                       id="contract_start_date"
+                       autocomplete="off"
+                       readonly
+                       class="mt-1 block w-full border {{ $errors->has('contract_start_date') ? 'border-red-400 bg-red-50' : 'border-gray-300' }} rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5 bg-white cursor-pointer"
+                       value="{{ old('contract_start_date') }}"
+                       placeholder="yyyy-mm-dd"
+                       required>
+                @error('contract_start_date')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+            </div>
+            {{-- Contract End Date --}}
+            <div>
+                <label for="contract_end_date" class="block font-medium text-sm text-gray-700">
+                    Contract End Date <span class="text-red-500">*</span>
+                </label>
+                <input type="text"
+                       name="contract_end_date"
+                       id="contract_end_date"
+                       autocomplete="off"
+                       readonly
+                       class="mt-1 block w-full border {{ $errors->has('contract_end_date') ? 'border-red-400 bg-red-50' : 'border-gray-300' }} rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5 bg-white cursor-pointer"
+                       value="{{ old('contract_end_date') }}"
+                       placeholder="yyyy-mm-dd"
+                       required>
+                @error('contract_end_date')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+            </div>
             <div class="md:col-span-2">
                 <label for="io_number" class="block font-medium text-sm text-gray-700">
                     IO/Number Order <span class="text-red-500">*</span>
@@ -189,28 +221,6 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                        value="{{ old('phase') }}"
                        readonly
                        placeholder="Auto-filled…">
-                <p class="mt-1 text-xs text-blue-500">Auto-filled dari Delivery Project Planning.</p>
-            </div>
-            {{-- Start Date --}}
-            <div>
-                <label for="start_date" class="block font-medium text-sm text-blue-700">Start Date</label>
-                <input type="date"
-                       name="start_date"
-                       id="start_date"
-                       class="mt-1 block w-full bg-blue-100/60 cursor-not-allowed border border-blue-200 rounded-lg shadow-sm text-sm px-4 py-2.5 text-gray-500"
-                       value="{{ old('start_date') }}"
-                       readonly>
-                <p class="mt-1 text-xs text-blue-500">Auto-filled dari Delivery Project Planning.</p>
-            </div>
-            {{-- End Date --}}
-            <div>
-                <label for="end_date" class="block font-medium text-sm text-blue-700">End Date</label>
-                <input type="date"
-                       name="end_date"
-                       id="end_date"
-                       class="mt-1 block w-full bg-blue-100/60 cursor-not-allowed border border-blue-200 rounded-lg shadow-sm text-sm px-4 py-2.5 text-gray-500"
-                       value="{{ old('end_date') }}"
-                       readonly>
                 <p class="mt-1 text-xs text-blue-500">Auto-filled dari Delivery Project Planning.</p>
             </div>
             {{-- Go Live Estimated --}}
@@ -1091,6 +1101,40 @@ window.HolidayCalendar = (function () {
 
     return { load: load, isNonWorkingDay: isNonWorkingDay, holidayInfo: holidayInfo, initPicker: initPicker, toISO: toISO };
 })();
+</script>
+
+{{-- Contract date pickers (linked: start = lower bound of end, end = upper bound of start) --}}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var csEl = document.getElementById('contract_start_date');
+    var ceEl = document.getElementById('contract_end_date');
+    if (!csEl || !ceEl) return;
+    var fpCS = null, fpCE = null;
+
+    function init() {
+        var base = { dateFormat: 'Y-m-d', allowInput: false };
+        if (window.HolidayCalendar) {
+            fpCS = window.HolidayCalendar.initPicker(csEl, Object.assign({}, base, {
+                onChange: function (_, str) { if (fpCE) fpCE.set('minDate', str || null); }
+            }));
+            fpCE = window.HolidayCalendar.initPicker(ceEl, Object.assign({}, base, {
+                onChange: function (_, str) { if (fpCS) fpCS.set('maxDate', str || null); }
+            }));
+        } else if (typeof flatpickr !== 'undefined') {
+            fpCS = flatpickr(csEl, base);
+            fpCE = flatpickr(ceEl, base);
+        }
+        // Re-apply linkage for old() values after a failed submit
+        if (csEl.value && fpCE) fpCE.set('minDate', csEl.value);
+        if (ceEl.value && fpCS) fpCS.set('maxDate', ceEl.value);
+    }
+
+    if (window.HolidayCalendar && window.HolidayCalendar.load) {
+        window.HolidayCalendar.load().then(init);
+    } else {
+        init();
+    }
+});
 </script>
 
 {{-- ===== Team Members (Create Form) ===== --}}

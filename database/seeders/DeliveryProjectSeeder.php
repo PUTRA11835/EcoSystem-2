@@ -39,8 +39,8 @@ class DeliveryProjectSeeder extends Seeder
                 'category' => 'In Process',
                 'status' => 'On Track',
                 'phase' => 'Realization',
-                'start_date' => Carbon::now()->subMonths(3)->format('Y-m-d'),
-                'end_date' => Carbon::now()->addMonths(6)->format('Y-m-d'),
+                'contract_start_date' => Carbon::now()->subMonths(3)->format('Y-m-d'),
+                'contract_end_date' => Carbon::now()->addMonths(6)->format('Y-m-d'),
                 'go_live_estimated' => Carbon::now()->addMonths(5)->format('Y-m-d'),
                 'calculated_progress' => 35.50,
                 'ae_name' => 'Budi Santoso',
@@ -65,8 +65,8 @@ class DeliveryProjectSeeder extends Seeder
                 'category' => 'Open',
                 'status' => 'Monitoring',
                 'phase' => 'Project Preparation',
-                'start_date' => Carbon::now()->format('Y-m-d'),
-                'end_date' => Carbon::now()->addMonths(8)->format('Y-m-d'),
+                'contract_start_date' => Carbon::now()->format('Y-m-d'),
+                'contract_end_date' => Carbon::now()->addMonths(8)->format('Y-m-d'),
                 'go_live_estimated' => Carbon::now()->addMonths(7)->format('Y-m-d'),
                 'calculated_progress' => 5.00,
                 'ae_name' => 'Ahmad Wijaya',
@@ -91,8 +91,8 @@ class DeliveryProjectSeeder extends Seeder
                 'category' => 'In Process',
                 'status' => 'At Risk',
                 'phase' => 'Business Blueprint',
-                'start_date' => Carbon::now()->subMonths(1)->format('Y-m-d'),
-                'end_date' => Carbon::now()->addMonths(4)->format('Y-m-d'),
+                'contract_start_date' => Carbon::now()->subMonths(1)->format('Y-m-d'),
+                'contract_end_date' => Carbon::now()->addMonths(4)->format('Y-m-d'),
                 'go_live_estimated' => Carbon::now()->addMonths(3)->format('Y-m-d'),
                 'calculated_progress' => 25.00,
                 'ae_name' => 'Sinta Dewi',
@@ -117,8 +117,8 @@ class DeliveryProjectSeeder extends Seeder
                 'category' => 'Closed',
                 'status' => 'On Track',
                 'phase' => 'Go-Live & Support',
-                'start_date' => Carbon::now()->subMonths(8)->format('Y-m-d'),
-                'end_date' => Carbon::now()->subMonths(1)->format('Y-m-d'),
+                'contract_start_date' => Carbon::now()->subMonths(8)->format('Y-m-d'),
+                'contract_end_date' => Carbon::now()->subMonths(1)->format('Y-m-d'),
                 'go_live_estimated' => Carbon::now()->subMonths(2)->format('Y-m-d'),
                 'calculated_progress' => 100.00,
                 'ae_name' => 'Rina Sari',
@@ -142,8 +142,8 @@ class DeliveryProjectSeeder extends Seeder
                 // Insert project
                 $projectId = DB::table('delivery_projects')->insertGetId(array_merge($projectData, [
                     'created_by_id' => null,
-                    'location_valid_from' => $projectData['start_date'],
-                    'location_valid_to' => $projectData['end_date'],
+                    'location_valid_from' => $projectData['contract_start_date'],
+                    'location_valid_to' => $projectData['contract_end_date'],
                     'created_at' => Carbon::now(),
                     'updated_at' => Carbon::now(),
                 ]));
@@ -191,8 +191,8 @@ class DeliveryProjectSeeder extends Seeder
                         'delivery_projects_id' => $projectId,
                         'employee_id' => $employees[$i],
                         'assignment' => $assignments[$i] ?? 'Team Member',
-                        'start_date' => $projectData['start_date'],
-                        'end_date' => $projectData['end_date'],
+                        'start_date' => $projectData['contract_start_date'],
+                        'end_date' => $projectData['contract_end_date'],
                         'created_at' => Carbon::now(),
                         'updated_at' => Carbon::now(),
                     ]);
@@ -222,7 +222,7 @@ class DeliveryProjectSeeder extends Seeder
 
     private function createProjectPlanning($projectId, $phases, $projectData): void
     {
-        $startDate = Carbon::parse($projectData['start_date']);
+        $startDate = Carbon::parse($projectData['contract_start_date']);
 
         // Hanya buat planning untuk fase yang visible (non-optional)
         $visiblePhases = $phases->filter(fn($p) => !$p->is_optional);

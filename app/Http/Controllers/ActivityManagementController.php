@@ -34,6 +34,40 @@ class ActivityManagementController extends Controller
     }
 
     /**
+     * Ensure a planning item's dates stay within the project's contract window.
+     * Returns an error message string when out of range, or null when valid /
+     * when no contract window has been set yet.
+     */
+    private function contractRangeViolation(DeliveryProject $project, $startDate, $endDate): ?string
+    {
+        $cStart = $project->contract_start_date;
+        $cEnd   = $project->contract_end_date;
+        if (!$cStart && !$cEnd) {
+            return null;
+        }
+
+        $start = $startDate ? $this->parseDate($startDate) : null;
+        $end   = $endDate ? $this->parseDate($endDate) : null;
+
+        $fmt = fn ($d) => Carbon::parse($d)->format('d M Y');
+
+        if ($cStart && $start && $start->lt(Carbon::parse($cStart))) {
+            return 'Planning start date (' . $fmt($start) . ') cannot be earlier than the Contract Start Date (' . $fmt($cStart) . ').';
+        }
+        if ($cEnd && $end && $end->gt(Carbon::parse($cEnd))) {
+            return 'Planning end date (' . $fmt($end) . ') cannot be later than the Contract End Date (' . $fmt($cEnd) . ').';
+        }
+        if ($cEnd && $start && $start->gt(Carbon::parse($cEnd))) {
+            return 'Planning start date (' . $fmt($start) . ') cannot be later than the Contract End Date (' . $fmt($cEnd) . ').';
+        }
+        if ($cStart && $end && $end->lt(Carbon::parse($cStart))) {
+            return 'Planning end date (' . $fmt($end) . ') cannot be earlier than the Contract Start Date (' . $fmt($cStart) . ').';
+        }
+
+        return null;
+    }
+
+    /**
      * Create new activity/group
      */
     public function store(Request $request, DeliveryProject $project)
@@ -83,6 +117,19 @@ class ActivityManagementController extends Controller
             }
 
             Log::info('Validation passed', ['validated' => $validated]);
+
+            // Contract window guard — planning dates must stay inside the contract period.
+            $isGroupForRange = $validated['is_group'] ?? false;
+            if (!$isGroupForRange) {
+                $rangeError = $this->contractRangeViolation(
+                    $project,
+                    $validated['start_date'] ?? null,
+                    $validated['end_date'] ?? null
+                );
+                if ($rangeError) {
+                    return response()->json(['success' => false, 'message' => $rangeError], 422);
+                }
+            }
 
             // Phase weight validation (before DB transaction so we can return 422)
             $isGroupCheck = $validated['is_group'] ?? false;
@@ -486,6 +533,18 @@ class ActivityManagementController extends Controller
                             'message' => 'Actual End Date wajib diisi saat progress 100%.',
                         ], 422);
                     }
+                }
+            }
+
+            // Contract window guard — planning dates must stay inside the contract period.
+            if (array_key_exists('start_date', $validated) || array_key_exists('end_date', $validated)) {
+                $rangeError = $this->contractRangeViolation(
+                    $project,
+                    $validated['start_date'] ?? null,
+                    $validated['end_date'] ?? null
+                );
+                if ($rangeError) {
+                    return response()->json(['success' => false, 'message' => $rangeError], 422);
                 }
             }
 

@@ -519,13 +519,19 @@ async function initActivityModalPickers() {
 
     destroyActivityPickers();
 
+    // Contract window bounds — planning dates may not fall outside the contract period.
+    var _contract = window.projectContractDates || {};
+    var _planBounds = {};
+    if (_contract.start) _planBounds.minDate = _contract.start;
+    if (_contract.end)   _planBounds.maxDate = _contract.end;
+
     window._fpStartDate = HolidayCalendar.initPicker(
         document.getElementById('activityStartDate'),
-        { onChange: function(dates) { onActivityStartChange(dates); updateAutoStatus(); } }
+        Object.assign({ onChange: function(dates) { onActivityStartChange(dates); updateAutoStatus(); } }, _planBounds)
     );
     window._fpEndDate = HolidayCalendar.initPicker(
         document.getElementById('activityEndDate'),
-        { onChange: function(dates) { onActivityEndChange(dates); updateAutoStatus(); } }
+        Object.assign({ onChange: function(dates) { onActivityEndChange(dates); updateAutoStatus(); } }, _planBounds)
     );
     window._fpActualStart = HolidayCalendar.initPicker(
         document.getElementById('activityActualStart'),

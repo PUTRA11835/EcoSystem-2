@@ -12,6 +12,11 @@
 <div class="min-h-screen bg-gray-50 pb-20 sm:pb-6" data-project-id="{{ $project->id }}">
     <script>
         window.currentProjectId = {{ $project->id }};
+        // Contract window — used to constrain planning (activity) date pickers.
+        window.projectContractDates = {
+            start: @json($project->contract_start_date ? \Carbon\Carbon::parse($project->contract_start_date)->format('Y-m-d') : null),
+            end:   @json($project->contract_end_date ? \Carbon\Carbon::parse($project->contract_end_date)->format('Y-m-d') : null)
+        };
     </script>
     <!-- ======================================== -->
          <!-- MOBILE HEADER (< lg) -->
@@ -167,7 +172,7 @@
                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                             </svg>
-                            {{ $project->start_date ? \Carbon\Carbon::parse($project->start_date)->format('d M Y') : 'Not set' }}
+                            {{ $project->contract_start_date ? \Carbon\Carbon::parse($project->contract_start_date)->format('d M Y') : 'Not set' }}
                         </span>
                     </div>
                 </div>
