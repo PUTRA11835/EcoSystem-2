@@ -520,10 +520,14 @@ async function initActivityModalPickers() {
     destroyActivityPickers();
 
     // Contract window bounds — planning dates may not fall outside the contract period.
+    // PENTING: contract dates datang sebagai string ISO ('Y-m-d'), tapi dateFormat
+    // picker ini 'd/m/Y'. Flatpickr mem-parse minDate/maxDate STRING memakai dateFormat,
+    // sehingga '2026-06-04' salah di-parse → bounds ngawur → SEMUA tanggal ke-disable.
+    // Solusi: kirim sebagai objek Date (Flatpickr menerima Date langsung tanpa parsing).
     var _contract = window.projectContractDates || {};
     var _planBounds = {};
-    if (_contract.start) _planBounds.minDate = _contract.start;
-    if (_contract.end)   _planBounds.maxDate = _contract.end;
+    if (_contract.start) _planBounds.minDate = new Date(_contract.start + 'T00:00:00');
+    if (_contract.end)   _planBounds.maxDate = new Date(_contract.end + 'T00:00:00');
 
     window._fpStartDate = HolidayCalendar.initPicker(
         document.getElementById('activityStartDate'),

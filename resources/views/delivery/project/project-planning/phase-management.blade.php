@@ -439,6 +439,12 @@ window.HolidayCalendar = (function() {
             return null;
         }
 
+        // Matikan autocomplete/autofill bawaan browser. Karena flatpickr
+        // memakai allowInput:true, input tetap <input type="text"> biasa,
+        // sehingga browser menampilkan dropdown riwayat ketikan (dd/mm/yyyy)
+        // yang menutupi kalender. attribute ini mencegah dropdown tersebut.
+        input.setAttribute('autocomplete', 'off');
+
         const cfg = Object.assign({
             dateFormat: 'd/m/Y',
             allowInput: true,

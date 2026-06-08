@@ -1199,7 +1199,7 @@
             customer_mandays_proposed:    { bg: '#dbeafe', color: '#2563eb', fa: 'fa-file-invoice' },
             resolution_days_proposed:     { bg: '#e0e7ff', color: '#4f46e5', fa: 'fa-users' },
             contract_end_reminder:        { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-file-contract' },
-            top_invoice_reminder:         { bg: '#dbeafe', color: '#2563eb', fa: 'fa-file-invoice-dollar' }
+            top_invoice_reminder:         { bg: '#dbeafe', color: '#2563eb', fa: 'fa-file-invoice-dollar' },
             ticket_member_added:          { bg: '#dcfce7', color: '#16a34a', fa: 'fa-user-plus' },
             ticket_member_removed:        { bg: '#fee2e2', color: '#dc2626', fa: 'fa-user-minus' },
             ticket_member_reactivated:    { bg: '#dbeafe', color: '#2563eb', fa: 'fa-user-check' },

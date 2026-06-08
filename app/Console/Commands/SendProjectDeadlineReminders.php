@@ -45,7 +45,7 @@ class SendProjectDeadlineReminders extends Command
 
         // Recipients: all active Head of Project + Delivery Project Administrator.
         $recipientIds = Employee::whereIn('role_id', [
-                RoleId::HEAD_OF_PROJECT->value,
+                RoleId::DELIVERY_PROJECT_HEAD->value,
                 RoleId::DELIVERY_PROJECT_ADMIN->value,
             ])
             ->where('is_active', true)

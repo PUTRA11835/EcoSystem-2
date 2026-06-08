@@ -44,10 +44,9 @@ class NotificationController extends Controller
 
         $employeeId = $sessionUser['id'];
 
-        // The bell dropdown only surfaces UNREAD notifications. Read ones remain
-        // available on the full /notifications page (see index()).
-        $notifications = Notification::where('employee_id', $employeeId)
-            ->where('is_read', false)
+        // Bell dropdown menampilkan 20 notifikasi terbaru (read + unread); badge
+        // memakai unread_count di bawah. ticket_reply / ticket_internal_note punya
+        // kanal sendiri (chat) sehingga dikecualikan dari bell.
         $messageTypes = ['ticket_reply', 'ticket_internal_note'];
 
         $notifications = Notification::where('employee_id', $employeeId)
