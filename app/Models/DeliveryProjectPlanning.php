@@ -19,10 +19,11 @@ class DeliveryProjectPlanning extends Model
     protected $fillable = [
         'delivery_projects_id',
         'phase_id',
-        'activity_id',              
+        'activity_id',
         'parent_id',
         'stage_id',
         'is_group',
+        'is_golive',
         'group_name',
         'weight',
         'start_date',
@@ -46,6 +47,7 @@ class DeliveryProjectPlanning extends Model
         'progress_percentage' => 'decimal:2',
         'weight' => 'decimal:2',
         'is_group' => 'boolean',
+        'is_golive' => 'boolean',
     ];
 
     protected $appends = [

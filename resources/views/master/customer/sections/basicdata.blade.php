@@ -173,15 +173,23 @@
             <!-- EC Account Executive -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">EC Account Executive</label>
-                <div class="relative">
-                    <input type="text" id="ecAccountExecutive" value="{{ $customer->basicData->ec_account_executive ?? '' }}" 
-                        class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent pr-8">
-                    <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
-                </div>
+                @php
+                    $ecCurrent = $customer->basicData->ec_account_executive ?? '';
+                    $ecMatched = collect($employees ?? [])->contains(fn($e) => $e['eci'] === $ecCurrent);
+                @endphp
+                <select id="ecAccountExecutive" data-searchable="true"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                    <option value="">— Select Employee —</option>
+                    @foreach(($employees ?? []) as $emp)
+                        <option value="{{ $emp['eci'] }}" {{ $ecCurrent === $emp['eci'] ? 'selected' : '' }}>
+                            {{ $emp['name'] }} ({{ $emp['eci'] }})
+                        </option>
+                    @endforeach
+                    @if($ecCurrent !== '' && !$ecMatched)
+                        {{-- Legacy value not matching any employee ECI — keep it so it isn't lost --}}
+                        <option value="{{ $ecCurrent }}" selected>{{ $ecCurrent }}</option>
+                    @endif
+                </select>
             </div>
 
             <!-- Authorization Group -->

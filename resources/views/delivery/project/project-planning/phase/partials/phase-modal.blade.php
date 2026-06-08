@@ -37,14 +37,6 @@
                                             <div class="w-3 h-3 rounded flex-shrink-0" style="background-color: {{ $phase->color }}"></div>
                                             <span class="font-medium text-sm truncate">{{ $phase->name }}</span>
 
-                                            @if($phase->is_golive_phase)
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 flex-shrink-0">
-                                                    <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/>
-                                                    </svg>
-                                                    Go-Live
-                                                </span>
-                                            @endif
                                         </div>
                                         <div class="flex items-center space-x-2 flex-shrink-0">
                                             <input type="number" 
@@ -55,16 +47,7 @@
                                                    data-phase-id="{{ $phase->id }}">
                                             <span class="text-sm text-gray-500">%</span>
 
-                                            <button onclick="toggleGoLivePhase({{ $phase->id }})" 
-                                                    data-phase-id="{{ $phase->id }}"
-                                                    class="golive-btn p-1 {{ $phase->is_golive_phase ? 'text-green-600' : 'text-gray-400' }}"
-                                                    title="{{ $phase->is_golive_phase ? 'Go-Live Phase' : 'Mark as Go-Live Phase' }}">
-                                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                                                </svg>
-                                            </button>
-                                            
-                                            <button onclick="togglePhaseVisibilityUI({{ $phase->id }})" 
+                                            <button onclick="togglePhaseVisibilityUI({{ $phase->id }})"
                                                     data-phase-id="{{ $phase->id }}"
                                                     class="visibility-btn p-1 {{ $phase->is_visible ? 'text-blue-600' : 'text-gray-400' }}"
                                                     title="{{ $phase->is_visible ? 'Visible' : 'Hidden' }}">
@@ -126,14 +109,7 @@
                                     class="w-full sm:w-32 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     min="0" max="100" step="0.1">
 
-                                <label class="flex items-center space-x-2 cursor-pointer">
-                                    <input type="checkbox" 
-                                        id="verticalPhaseIsGoLive"
-                                        class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
-                                    <span class="text-sm text-gray-700">Go-Live Phase</span>
-                                </label>
-                                
-                                <button onclick="addNewPhaseToList()" 
+                                <button onclick="addNewPhaseToList()"
                                         class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
                                     <svg class="inline-block w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
@@ -343,7 +319,6 @@ window.phaseChanges = {
     toDelete: new Set(),      // Phase IDs to delete
     weightChanges: {},        // { phaseId: newWeight }
     visibilityChanges: {},    // { phaseId: newVisibility }
-    goLiveChanges: {},        // { phaseId: isGoLive }
     orderChanges: []          // New order sequence
 };
 
@@ -471,43 +446,6 @@ window.markPhaseAsModified = function(phaseId) {
     }
     
     calculateTotalWeights();
-};
-
-/**
- * ✅ Toggle Go-Live phase
- */
-window.toggleGoLivePhase = function(phaseId) {
-    
-    phaseId = normalizePhaseId(phaseId);
-    
-    const phaseItem = document.querySelector(`.phase-item[data-phase-id="${phaseId}"]`);
-    const btn = phaseItem.querySelector('.golive-btn');
-    
-    const currentlyGoLive = btn.classList.contains('text-green-600');
-    const newGoLiveStatus = !currentlyGoLive;
-    
-    // Toggle UI
-    if (newGoLiveStatus) {
-        btn.classList.remove('text-gray-400');
-        btn.classList.add('text-green-600');
-        btn.title = 'Go-Live Phase';
-    } else {
-        btn.classList.remove('text-green-600');
-        btn.classList.add('text-gray-400');
-        btn.title = 'Mark as Go-Live Phase';
-    }
-    
-    // Skip new phases
-    if (isNewPhaseId(phaseId)) {
-        return;
-    }
-    
-    // Track change
-    window.phaseChanges.modified.add(phaseId);
-    window.phaseChanges.goLiveChanges[phaseId] = newGoLiveStatus;
-    
-    // Visual feedback
-    phaseItem.classList.add('ring-2', 'ring-yellow-400');
 };
 
 /**
@@ -686,13 +624,11 @@ window.addNewPhaseToList = function() {
     const nameInput = document.getElementById('verticalPhaseName');
     const weightInput = document.getElementById('verticalPhaseWeight');
     const colorInput = document.getElementById('verticalPhaseColor');
-    const goLiveCheckbox = document.getElementById('verticalPhaseIsGoLive');
-    
+
     const name = nameInput.value.trim();
     const weight = parseFloat(weightInput.value) || 0;
     const color = colorInput.value;
-    const isGoLive = goLiveCheckbox.checked;
-    
+
     // Validation
     if (!name) {
         if (typeof showNotification === 'function') {
@@ -720,19 +656,9 @@ window.addNewPhaseToList = function() {
         name: name,
         weight: weight,
         color: color,
-        orientation: 'vertical',
-        is_golive_phase: isGoLive
+        orientation: 'vertical'
     });
 
-    const goLiveBadge = isGoLive ? `
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 flex-shrink-0">
-            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/>
-            </svg>
-            Go-Live
-        </span>
-    ` : '';
-    
     // Add to UI
     const phasesList = document.getElementById('verticalPhasesList');
     const newPhaseHtml = `
@@ -750,7 +676,6 @@ window.addNewPhaseToList = function() {
                     </span>
                     <div class="w-3 h-3 rounded flex-shrink-0" style="background-color: ${color}"></div>
                     <span class="font-medium text-sm truncate">${escapeHtml(name)}</span>
-                    ${goLiveBadge}
                     <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded flex-shrink-0">Baru</span>
                 </div>
                 <div class="flex items-center space-x-2 flex-shrink-0">
@@ -779,8 +704,7 @@ window.addNewPhaseToList = function() {
     nameInput.value = '';
     weightInput.value = '';
     colorInput.value = '#3B82F6';
-    goLiveCheckbox.checked = false;
-    
+
     // Recalculate
     calculateTotalWeights();
     
@@ -846,28 +770,23 @@ window.saveAllPhaseChanges = async function() {
                     phase_id: createResponse.data.phase.id,
                     weight: newPhase.weight,
                     orientation: newPhase.orientation,
-                    is_golive_phase: newPhase.is_golive_phase,
                     _token: '{{ csrf_token() }}'
                 });
             }
         }
         
-        // 3. Update weights, visibility, and go-live for modified phases
+        // 3. Update weights and visibility for modified phases
         for (const phaseId of window.phaseChanges.modified) {
             if (isNewPhaseId(phaseId)) continue;
             if (window.phaseChanges.toDelete.has(phaseId)) continue;
-            
-            
+
+
             const updates = {};
-            
+
             if (window.phaseChanges.weightChanges[phaseId] !== undefined) {
                 updates.weight = window.phaseChanges.weightChanges[phaseId];
             }
 
-            if (window.phaseChanges.goLiveChanges[phaseId] !== undefined) {
-                updates.is_golive_phase = window.phaseChanges.goLiveChanges[phaseId];
-            }
-            
             if (Object.keys(updates).length > 0) {
                 await axios.put(`/planning/${projectId}/phases/${phaseId}`, {
                     ...updates,
@@ -905,7 +824,6 @@ window.saveAllPhaseChanges = async function() {
             toDelete: new Set(),
             weightChanges: {},
             visibilityChanges: {},
-            goLiveChanges: {},
             orderChanges: []
         };
         
@@ -951,7 +869,7 @@ window.closePhaseConfigModal = function() {
         modal.classList.add('hidden');
         
         // Clear inputs
-        const inputs = ['verticalPhaseName', 'verticalPhaseWeight', 'verticalPhaseColor', 'verticalPhaseIsGoLive'];
+        const inputs = ['verticalPhaseName', 'verticalPhaseWeight', 'verticalPhaseColor'];
         inputs.forEach(id => {
             const el = document.getElementById(id);
             if (el) {
@@ -972,7 +890,6 @@ window.closePhaseConfigModal = function() {
             toDelete: new Set(),
             weightChanges: {},
             visibilityChanges: {},
-            goLiveChanges: {},
             orderChanges: []
         };
     }

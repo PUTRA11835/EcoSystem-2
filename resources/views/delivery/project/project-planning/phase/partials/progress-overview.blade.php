@@ -152,8 +152,8 @@
         <h4 class="text-xs sm:text-sm font-semibold text-gray-700 mb-3">Progress by Phase</h4>
         
         @if(count($phaseProgressData) > 0)
-            {{-- Mobile: Vertical Stack, Tablet: 2 cols, Desktop: 3-4 cols --}}
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {{-- Mobile: Vertical Stack, Tablet: 2-3 cols, Desktop: 5 cols (all phases in one row) --}}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
                 @foreach($phaseProgressData as $data)
                     @php
                         $phase = $data['phase'];

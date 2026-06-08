@@ -107,6 +107,13 @@
                             </div>
                         </div>
 
+                        <!-- Go-Live Activity marker -->
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="activityIsGolive"
+                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            <span class="text-sm text-gray-700">Mark as Go-Live activity</span>
+                        </label>
+
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Module</label>
@@ -946,6 +953,7 @@ function loadActivityData(activityId) {
             document.getElementById('activityReceiveType').value = activity.receive_type || '';
             document.getElementById('activityNewRequirement').checked = activity.new_requirement || false;
             document.getElementById('activityDeliverable').value = activity.deliverable || '';
+            document.getElementById('activityIsGolive').checked = activity.is_golive || false;
             
             form.classList.remove('opacity-50', 'pointer-events-none');
             document.getElementById('activityName').focus();
@@ -995,6 +1003,7 @@ window.saveActivity = function(event) {
         receive_type: document.getElementById('activityReceiveType')?.value || null,
         new_requirement: document.getElementById('activityNewRequirement')?.checked || false,
         deliverable: document.getElementById('activityDeliverable')?.value || null,
+        is_golive: document.getElementById('activityIsGolive')?.checked || false,
     };
 
     // ✅ For group-direct activities, include phase_id since stage_id is null

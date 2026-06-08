@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectPaymentTerm;
+use App\Services\ProjectReminderService;
 use Illuminate\Http\Request;
 
 class DeliveryProjectPaymentTermController extends Controller
@@ -44,6 +45,9 @@ class DeliveryProjectPaymentTermController extends Controller
             'amount'               => $this->computeAmount($project, $validated['payment_percentage']),
         ]));
 
+        // A new term may already be due/overdue → refresh the invoice reminders now.
+        app(ProjectReminderService::class)->syncAllQuietly();
+
         return response()->json([
             'message'      => 'Payment term added successfully.',
             'payment_term' => $this->format($term),
@@ -69,6 +73,9 @@ class DeliveryProjectPaymentTermController extends Controller
             'amount' => $this->computeAmount($project, $validated['payment_percentage']),
         ]));
 
+        // estimated_date / submit_invoice_date may have changed → re-evaluate reminders.
+        app(ProjectReminderService::class)->syncAllQuietly();
+
         return response()->json([
             'message'      => 'Payment term updated successfully.',
             'payment_term' => $this->format($term),
@@ -93,6 +100,9 @@ class DeliveryProjectPaymentTermController extends Controller
             ->each(function ($t, $i) {
                 $t->update(['term_number' => $i + 1]);
             });
+
+        // A deleted term must drop its reminder too.
+        app(ProjectReminderService::class)->syncAllQuietly();
 
         return response()->json(['message' => 'Payment term deleted successfully.']);
     }

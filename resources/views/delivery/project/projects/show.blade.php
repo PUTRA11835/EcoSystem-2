@@ -510,7 +510,7 @@
                     <div class="block w-full py-2.5 px-3 border border-gray-200 rounded-md bg-gray-50 shadow-sm text-sm text-gray-700">
                         {{ $project->go_live_estimated ? \Carbon\Carbon::parse($project->go_live_estimated)->format('d M Y') : 'N/A' }}
                     </div>
-                    <p class="mt-1 text-xs text-amber-600">*Derived from the latest date in phase marked as 'Go-Live Phase'</p>
+                    <p class="mt-1 text-xs text-amber-600">*Derived from the Planned Start Date of the activity marked as 'Go-Live'</p>
                 </div>
                 {{-- Description (full width) --}}
                 <div class="md:col-span-2">

@@ -10,6 +10,7 @@ use App\Models\DeliveryProjectPlanning;
 use App\Models\DeliveryProjectPhase;
 use App\Models\DeliveryProjectActivity;
 use App\Services\OneDriveService;
+use App\Services\ProjectReminderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -136,6 +137,9 @@ class DeliveryProjectController extends Controller
                              ->with('error', 'Failed to create the project due to a server error. Please try again.');
         }
 
+        // A freshly created project may already sit inside the contract-end window.
+        app(ProjectReminderService::class)->syncAllQuietly();
+
         return redirect()->route('projects.index')
                          ->with('success', 'Project successfully created.');
     }
@@ -177,8 +181,11 @@ class DeliveryProjectController extends Controller
                 }
             }
 
-            if ($plan->phase && $plan->phase->is_golive_phase) {
-                $goLiveDate = $plan->end_date;
+            // Go-Live ditandai di level activity (planning leaf). Estimasi = Planned
+            // Start Date activity tsb (tanggal otoritatif di tabel activities; planning
+            // leaf bisa lag). Hanya satu yang boleh go-live per project.
+            if ($plan->is_golive && !$plan->is_group) {
+                $goLiveDate = $plan->activity?->start_date ?: $plan->start_date;
             }
         }
 
@@ -338,6 +345,10 @@ class DeliveryProjectController extends Controller
         ]);
 
         $project->update($validated);
+
+        // Contract end date changed → re-evaluate the contract-deadline bell reminders now
+        // instead of waiting for the next daily run.
+        app(ProjectReminderService::class)->syncAllQuietly();
 
         // The new contract window is allowed to fall outside existing planning, but we
         // surface a clear warning so the user can reconcile against the contract document.

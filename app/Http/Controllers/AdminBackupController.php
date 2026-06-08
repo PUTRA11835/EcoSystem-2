@@ -338,11 +338,13 @@ class AdminBackupController extends Controller
 
         $rows = DB::table('customer as c')
             ->leftJoin('customer_basic_data as b', 'c.customer_id', '=', 'b.customer_id')
+            ->leftJoin('customer as p', 'c.parent_customer_id', '=', 'p.customer_id')
             ->select(
                 'c.customer_id', 'c.customer_code', 'c.email', 'c.is_active',
                 'b.title', 'b.name_1', 'b.name_2',
                 'b.customer_group', 'b.customer_category', 'b.industry_sector',
                 'b.ec_account_executive', 'b.sap_account_executive',
+                'p.customer_code as parent_customer_code',
                 'c.created_at'
             )
             ->orderBy('c.customer_id')
@@ -362,6 +364,7 @@ class AdminBackupController extends Controller
                 'Title', 'Company Name', 'Name 2',
                 'Customer Group', 'Customer Category', 'Industry Sector',
                 'EC Account Executive', 'SAP Account Executive',
+                'Parent Customer Code',
                 'Created At',
             ]);
             foreach ($rows as $r) {
@@ -371,6 +374,7 @@ class AdminBackupController extends Controller
                     $r->title ?? '', $r->name_1 ?? '', $r->name_2 ?? '',
                     $r->customer_group ?? '', $r->customer_category ?? '', $r->industry_sector ?? '',
                     $r->ec_account_executive ?? '', $r->sap_account_executive ?? '',
+                    $r->parent_customer_code ?? '',
                     $r->created_at,
                 ]);
             }
@@ -444,12 +448,14 @@ class AdminBackupController extends Controller
                 'Title', 'Company Name', 'Name 2',
                 'Customer Group', 'Customer Category', 'Industry Sector',
                 'EC Account Executive', 'SAP Account Executive',
+                'Parent Customer Code',
             ]);
             fputcsv($handle, [
                 'CUST001', 'company@example.com', 'Active',
                 'PT', 'Example Company Tbk', '',
                 'Corporate', '', 'Technology',
                 'John Smith', '',
+                '',
             ]);
             fclose($handle);
         };
@@ -741,6 +747,9 @@ class AdminBackupController extends Controller
         $updated  = 0;
         $errors   = [];
         $rowNum   = 1;
+        // [customer_id => parent customer code] — resolved in a second pass so a
+        // parent referenced by a row above it (not yet inserted) still maps.
+        $pendingParents = [];
 
         $get = function (string $col, array $row) use ($headerMap): ?string {
             if (!isset($headerMap[$col])) return null;
@@ -757,6 +766,7 @@ class AdminBackupController extends Controller
 
             $customerCode = $get('Customer Code', $row);
             $email        = $get('Email', $row);
+            $parentCode   = $get('Parent Customer Code', $row);
             $isActive     = $get('Status', $row) !== null
                 ? (strtolower($get('Status', $row)) === 'active' ? 1 : 0)
                 : 1;
@@ -806,6 +816,7 @@ class AdminBackupController extends Controller
                         $basicData['created_at']  = now();
                         DB::table('customer_basic_data')->insert($basicData);
                     }
+                    if ($parentCode !== null) $pendingParents[$existing->customer_id] = $parentCode;
                     $updated++;
                 } else {
                     // Generate customer_code jika tidak ada
@@ -839,6 +850,7 @@ class AdminBackupController extends Controller
                     $basicData['created_at']  = now();
                     $basicData['updated_at']  = now();
                     DB::table('customer_basic_data')->insert($basicData);
+                    if ($parentCode !== null) $pendingParents[$customerId] = $parentCode;
                     $imported++;
                 }
             } catch (\Exception $e) {
@@ -847,6 +859,21 @@ class AdminBackupController extends Controller
         }
 
         fclose($handle);
+
+        // ── Second pass: resolve Parent Customer Code → parent_customer_id ──
+        foreach ($pendingParents as $cid => $pcode) {
+            $parent = DB::table('customer')->where('customer_code', $pcode)->first();
+            if (!$parent) {
+                $errors[] = "Parent Customer Code '{$pcode}' tidak ditemukan — parent untuk customer ID {$cid} dilewati";
+                continue;
+            }
+            if ($parent->customer_id == $cid) {
+                $errors[] = "Customer ID {$cid} tidak bisa menjadi parent dirinya sendiri";
+                continue;
+            }
+            DB::table('customer')->where('customer_id', $cid)
+                ->update(['parent_customer_id' => $parent->customer_id, 'updated_at' => now()]);
+        }
 
         Log::info('AdminBackupController: customer import', [
             'imported' => $imported, 'updated' => $updated, 'errors' => count($errors),

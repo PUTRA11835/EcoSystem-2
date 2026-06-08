@@ -23,6 +23,7 @@ use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\DeliveryProjectDataController;
 use App\Http\Controllers\DeliveryProjectStageManagementController;
 use App\Http\Controllers\DeliveryProjectPlanningExportController;
+use App\Http\Controllers\DeliveryProjectPlanningImportController;
 use App\Http\Controllers\DeliveryProjectRiskController;
 use App\Http\Controllers\DeliveryProjectPaymentTermController;
 use App\Http\Controllers\AttachmentController;
@@ -356,6 +357,12 @@ Route::middleware(CheckAuthToken::class)->group(function () {
             Route::get('/table-excel', [DeliveryProjectPlanningExportController::class, 'exportTableExcel'])->name('table-excel');
             Route::get('/gantt-excel', [DeliveryProjectPlanningExportController::class, 'exportGanttExcel'])->name('gantt-excel');
             Route::get('/scurve-excel', [DeliveryProjectPlanningExportController::class, 'exportSCurveExcel'])->name('scurve-excel');
+        });
+
+        // Import routes (bulk migration of the planning structure from CSV)
+        Route::prefix('import')->name('import.')->group(function () {
+            Route::get('/template', [DeliveryProjectPlanningImportController::class, 'template'])->name('template');
+            Route::post('/', [DeliveryProjectPlanningImportController::class, 'import'])->name('store');
         });
     });
 
