@@ -30,13 +30,33 @@ class CustomerBasicDataController extends Controller
                 ->where('customer_id', $customerId)
                 ->first();
 
+            // Field `domain` (dan `customer_code`) berada di tabel `customer`, bukan
+            // `customer_basic_data`. Ambil dari sana agar UI bisa populate input setelah
+            // save tanpa harus full reload.
+            $customerCols = DB::table('customer')
+                ->where('customer_id', $customerId)
+                ->select('customer_code', 'domain', 'email')
+                ->first();
+
             if (!$basicData) {
                 Log::info('No basic data found, returning empty response');
                 return response()->json([
                     'success' => true,
                     'message' => 'No basic data found',
-                    'data' => null
+                    'data'    => $customerCols ? (object) [
+                        'customer_code' => $customerCols->customer_code,
+                        'domain'        => $customerCols->domain,
+                        'email'         => $customerCols->email,
+                    ] : null,
                 ]);
+            }
+
+            // Merge kolom dari `customer` ke response basicData agar JS bisa
+            // setValue('customerDomain', basicData.domain) tanpa join terpisah.
+            if ($customerCols) {
+                $basicData->customer_code = $customerCols->customer_code;
+                $basicData->domain        = $customerCols->domain;
+                $basicData->email         = $customerCols->email;
             }
 
             Log::info('=== API: CUSTOMER BASIC DATA FETCHED SUCCESSFULLY ===');
@@ -75,6 +95,7 @@ class CustomerBasicDataController extends Controller
 
         $validator = Validator::make($request->all(), [
             'customer_code'        => ['sometimes', 'required', 'string', 'max:4', 'regex:/^[A-Za-z0-9]{1,4}$/', 'unique:customer,customer_code,' . $customerId . ',customer_id'],
+            'domain'               => 'nullable|string|max:255',
             'name_1'               => 'required|string|max:255',
             'name_2'               => 'nullable|string|max:255',
             'title'                => 'nullable|string|max:50',
@@ -122,6 +143,14 @@ class CustomerBasicDataController extends Controller
                 DB::table('customer')
                     ->where('customer_id', $customerId)
                     ->update(['customer_code' => strtoupper($request->customer_code)]);
+            }
+
+            // Update domain on the customer table if the field was sent
+            // (use has() not filled() so user can also CLEAR domain by sending empty string)
+            if ($request->has('domain')) {
+                DB::table('customer')
+                    ->where('customer_id', $customerId)
+                    ->update(['domain' => \App\Models\Customer::normalizeDomain($request->domain)]);
             }
 
             // Check if basic data already exists

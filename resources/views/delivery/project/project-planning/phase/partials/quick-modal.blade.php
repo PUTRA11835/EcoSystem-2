@@ -352,14 +352,15 @@ window.confirmDelete = function() {
     }
 
     const idToDelete = deleteItemId;
+    const isGroupToDelete = deleteItemIsGroup; // ✅ capture before closeDeleteModal() resets it
     closeDeleteModal();
-    
+
     if (typeof showNotification === 'function') {
         showNotification('Deleting...', 'info');
     }
 
     axios.delete(`/planning/${window.projectId}/activities/${idToDelete}`, {
-        data: { _token: '{{ csrf_token() }}' }
+        data: { _token: '{{ csrf_token() }}', is_group: isGroupToDelete ? 1 : 0 }
     })
     .then(response => {
 

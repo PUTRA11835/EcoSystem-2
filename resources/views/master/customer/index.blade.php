@@ -136,6 +136,13 @@
                         </div>
 
                         <div class="flex flex-col">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Email Domain</label>
+                            <input type="text" id="customerDomain" placeholder="@company.com (optional)"
+                                   class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <span class="text-xs text-gray-400 mt-1">Inbox emails whose sender ends with this domain will be routed to this customer's staging tickets.</span>
+                        </div>
+
+                        <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Title</label>
                             <input type="text" id="title" placeholder="e.g., PT, CV, UD" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
                         </div>
@@ -587,6 +594,7 @@
         const customerData = {
             customer_code: document.getElementById('customerCode').value.toUpperCase(),
             email: document.getElementById('email').value || null,
+            domain: document.getElementById('customerDomain').value || null,
             title: document.getElementById('title').value,
             name_1: document.getElementById('companyName').value,
             search_term_1: document.getElementById('searchTerm').value || document.getElementById('companyName').value.toUpperCase(),

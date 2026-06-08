@@ -112,6 +112,7 @@ class TicketMessageController extends Controller
         $validator = Validator::make($request->all(), [
             'message_body'            => 'nullable|string',
             'message_type'            => 'required|in:reply,internal_note',
+            'to_emails'               => 'nullable',
             'cc_emails'               => 'nullable',
             'attachments'             => 'nullable|array',
             'attachments.*'           => 'file|max:10240', // maks 10 MB per file
@@ -199,6 +200,24 @@ class TicketMessageController extends Controller
                 }
             }
 
+            // Parse TO dari request — list email primary recipient.
+            // Pertama dipakai sebagai $toEmail utama, sisanya jadi additional toRecipients.
+            // Tidak dipersist ke DB — UI re-seed dari resolveCustomerEmail() tiap reply.
+            $requestToRaw = $request->input('to_emails');
+            $requestTo    = null;
+            if ($requestToRaw !== null) {
+                if (is_array($requestToRaw)) {
+                    $requestTo = $requestToRaw;
+                } else {
+                    $decoded   = json_decode($requestToRaw, true);
+                    $requestTo = is_array($decoded) ? $decoded : [];
+                }
+                $requestTo = array_values(array_filter(array_map(
+                    fn($e) => is_string($e) ? trim($e) : (is_array($e) ? trim((string)($e['address'] ?? '')) : ''),
+                    $requestTo
+                )));
+            }
+
             $uploadedFiles = $request->hasFile('attachments') ? $request->file('attachments') : [];
             $message       = null;
 
@@ -209,7 +228,12 @@ class TicketMessageController extends Controller
                     $ticket->refresh();
                 }
 
-                $customerEmail = $this->resolveCustomerEmail($ticket);
+                // Resolve primary TO: jika user kirim to_emails, pakai entri pertama,
+                // fallback ke resolveCustomerEmail. Sisa entri diteruskan sebagai additional.
+                $customerEmail   = $requestTo[0] ?? $this->resolveCustomerEmail($ticket);
+                $additionalToList = $requestTo !== null && count($requestTo) > 1
+                    ? array_slice($requestTo, 1)
+                    : [];
                 if ($customerEmail) {
                     // Email-first: kirim → dapat hasil → simpan ke DB
                     $message = $this->sendEmailThenSave($ticket, [
@@ -218,7 +242,7 @@ class TicketMessageController extends Controller
                         'sender_name'  => $senderName,
                         'message'      => trim(strip_tags($messageBody)),
                         'message_html' => $messageBody,
-                    ], $uploadedFiles, $ticketId, $senderId, $requestCc);
+                    ], $uploadedFiles, $ticketId, $senderId, $requestCc, $customerEmail, $additionalToList);
                 }
 
                 if (!$message) {
@@ -780,10 +804,15 @@ class TicketMessageController extends Controller
         array  $files,
         int    $ticketId,
         int    $senderId,
-        ?array $ccOverride = null
+        ?array $ccOverride = null,
+        ?string $toOverride = null,
+        array  $additionalToEmails = []
     ): ?TicketMessage {
         try {
-            $customerEmail = $this->resolveCustomerEmail($ticket);
+            // Primary TO override dari caller (mis. user input UI). Fallback ke
+            // resolveCustomerEmail untuk menjaga perilaku lama (caller existing yang
+            // tidak mengirim $toOverride tetap berjalan apa adanya).
+            $customerEmail = $toOverride ?: $this->resolveCustomerEmail($ticket);
             if (!$customerEmail) return null;
 
             $subject = 'Ticket #' . $ticket->ticket_number . ': ' . mb_substr($ticket->description ?? '', 0, 80);
@@ -824,7 +853,10 @@ class TicketMessageController extends Controller
                 $files,
                 $ccList,
                 true,                       // noRePrefix — subject langsung "Ticket #XXXX: desc" tanpa "Re: "
-                $ticket->email_thread_id    // conversationId fallback jika inReplyTo tidak ditemukan
+                $ticket->email_thread_id,   // conversationId fallback jika inReplyTo tidak ditemukan
+                false,                      // forceNewDraft — biarkan default
+                [],                         // rawAttachments — tidak ada forwarded attachment di reply biasa
+                $additionalToEmails         // additional toRecipients selain primary
             );
 
             // ── Simpan TicketMessage SETELAH email berhasil ───────────────────

@@ -46,7 +46,9 @@ class EmployeeBasicData extends Model
         'direct_supervision',
         'manager',
         'authorization_group',
-        
+        'home_base',
+        'grade',
+
         // Status Administrasi
         'block',
         'deletion_flag',

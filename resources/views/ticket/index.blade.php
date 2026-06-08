@@ -1068,7 +1068,8 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const toMs   = dateTo   ? new Date(dateTo   + 'T23:59:59+07:00').getTime() : null;
 
         // Description keyword (case-insensitive substring)
-        const descKw = (document.getElementById('descFilterInput')?.value || '').trim().toLowerCase();
+        const descKw   = (document.getElementById('descFilterInput')?.value  || '').trim().toLowerCase();
+        const ticketKw = (document.getElementById('ticketFilterInput')?.value || '').trim().toLowerCase();
 
         filteredTickets = getViewBase().filter(ticket => {
             const matchesCard      = currentFilter === 'all' || ticket.status === currentFilter;
@@ -1090,7 +1091,8 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                 }
             }
 
-            const matchDesc = !descKw || (ticket.description || '').toLowerCase().includes(descKw);
+            const matchDesc   = !descKw   || (ticket.description   || '').toLowerCase().includes(descKw);
+            const matchTicket = !ticketKw || (ticket.ticket_number || '').toLowerCase().includes(ticketKw);
 
             return matchesCard
                 && matchColCustomer && matchColPic && matchColPriority && matchColScale
@@ -1100,6 +1102,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         updateColFilterIndicators();
         updateDateFilterIndicator();
         updateDescFilterIndicator();
+        updateTicketFilterIndicator();
         currentPage = 1;
         renderTickets();
     }
@@ -1112,6 +1115,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const open  = !panel.classList.contains('hidden');
         // close other popovers
         closeDescFilter();
+        closeTicketFilter();
         if (open) { panel.classList.add('hidden'); return; }
         positionPanelUnder(btn, panel);
         panel.classList.remove('hidden');
@@ -1171,8 +1175,8 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const btn   = document.getElementById('descFilterBtn');
         const open  = !panel.classList.contains('hidden');
         // close other popovers
-        const dp = document.getElementById('dateFilterPanel');
-        if (dp) dp.classList.add('hidden');
+        document.getElementById('dateFilterPanel')?.classList.add('hidden');
+        document.getElementById('ticketFilterPanel')?.classList.add('hidden');
         if (open) { panel.classList.add('hidden'); return; }
         positionPanelUnder(btn, panel);
         panel.classList.remove('hidden');
@@ -1202,6 +1206,43 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         if (icon) icon.classList.toggle('text-gray-300', kw === '');
     }
 
+    // ── Ticket Number Keyword Filter (debounced) ──────────────────────────
+    let _ticketFilterTimer = null;
+    function toggleTicketFilter(ev) {
+        ev?.stopPropagation();
+        const panel = document.getElementById('ticketFilterPanel');
+        const btn   = document.getElementById('ticketFilterBtn');
+        const open  = !panel.classList.contains('hidden');
+        document.getElementById('dateFilterPanel')?.classList.add('hidden');
+        document.getElementById('descFilterPanel')?.classList.add('hidden');
+        if (open) { panel.classList.add('hidden'); return; }
+        positionPanelUnder(btn, panel);
+        panel.classList.remove('hidden');
+        document.getElementById('ticketFilterInput')?.focus();
+    }
+
+    function closeTicketFilter() {
+        document.getElementById('ticketFilterPanel')?.classList.add('hidden');
+    }
+
+    function onTicketFilterInput() {
+        clearTimeout(_ticketFilterTimer);
+        _ticketFilterTimer = setTimeout(applyAdvancedFilters, 250);
+    }
+
+    function clearTicketFilter() {
+        const input = document.getElementById('ticketFilterInput');
+        if (input) input.value = '';
+        applyAdvancedFilters();
+    }
+
+    function updateTicketFilterIndicator() {
+        const kw   = (document.getElementById('ticketFilterInput')?.value || '').trim();
+        const icon = document.getElementById('ticketFilterIcon');
+        if (icon) icon.classList.toggle('text-red-500', kw !== '');
+        if (icon) icon.classList.toggle('text-gray-300', kw === '');
+    }
+
     // Position floating panel right under the column header button (handles overflow:auto)
     function positionPanelUnder(btn, panel) {
         const rect = btn.getBoundingClientRect();
@@ -1218,11 +1259,15 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const xp = document.getElementById('descFilterPanel');
         const xb = document.getElementById('descFilterBtn');
         if (xp && !xp.classList.contains('hidden') && !xp.contains(e.target) && !xb.contains(e.target)) xp.classList.add('hidden');
+        const tp = document.getElementById('ticketFilterPanel');
+        const tb = document.getElementById('ticketFilterBtn');
+        if (tp && !tp.classList.contains('hidden') && !tp.contains(e.target) && !tb.contains(e.target)) tp.classList.add('hidden');
     });
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             document.getElementById('dateFilterPanel')?.classList.add('hidden');
             document.getElementById('descFilterPanel')?.classList.add('hidden');
+            document.getElementById('ticketFilterPanel')?.classList.add('hidden');
         }
     });
 
@@ -1240,7 +1285,8 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const dFrom = document.getElementById('dateFilterFrom');  if (dFrom) dFrom.value = '';
         const dTo   = document.getElementById('dateFilterTo');    if (dTo)   dTo.value   = '';
         const dErr  = document.getElementById('dateFilterError'); if (dErr)  dErr.classList.add('hidden');
-        const desc  = document.getElementById('descFilterInput'); if (desc)  desc.value  = '';
+        const desc   = document.getElementById('descFilterInput');   if (desc)   desc.value   = '';
+        const ticketF = document.getElementById('ticketFilterInput'); if (ticketF) ticketF.value = '';
 
         currentTicketSort = { key: 'last_update', dir: 'desc' };
         updateTicketSortIcons();

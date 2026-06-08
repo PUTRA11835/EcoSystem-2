@@ -14,9 +14,26 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Trust load balancer / reverse proxy (AWS ALB, Nginx, CloudFront).
+        // Tanpa ini, di belakang proxy yang terminate SSL, Laravel melihat request
+        // sebagai HTTP biasa sehingga route()/url() menghasilkan URL http:// ->
+        // browser memblokirnya sebagai Mixed Content saat halaman dibuka via HTTPS.
+        $middleware->trustProxies(
+            at: '*',
+            headers: \Illuminate\Http\Request::HEADER_X_FORWARDED_FOR
+                | \Illuminate\Http\Request::HEADER_X_FORWARDED_HOST
+                | \Illuminate\Http\Request::HEADER_X_FORWARDED_PORT
+                | \Illuminate\Http\Request::HEADER_X_FORWARDED_PROTO
+                | \Illuminate\Http\Request::HEADER_X_FORWARDED_AWS_ELB
+        );
+
         // TAMBAHKAN INI - Exclude API dari CSRF
         $middleware->validateCsrfTokens(except: [
             'api/*',
+        ]);
+
+        $middleware->encryptCookies(except: [
+            'ecosystem-session',
         ]);
         
         $middleware->alias([

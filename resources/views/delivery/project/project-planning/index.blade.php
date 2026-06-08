@@ -2,7 +2,7 @@
 @extends('dashboard')
 @section('title', 'Delivery Project Planning')
 @section('page-title', 'Delivery Project')
-@section('page-subtitle', 'Kelola perencanaan proyek')
+@section('page-subtitle', 'Manage project planning')
 
 @section('content')
 <div class="min-h-screen bg-gray-50">
@@ -33,7 +33,7 @@
     <div class="bg-white shadow-sm rounded-lg overflow-hidden">
         <div class="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200">
             <div class="flex justify-between items-center flex-wrap gap-4">
-                <h3 class="text-lg font-medium text-gray-900">Daftar Project Planning</h3>
+                <h3 class="text-lg font-medium text-gray-900">Project Planning List</h3>
                 {{-- custom-dd manual untuk style konsisten. Hidden input pakai
                      id="statusFilter" supaya reading .value tetap jalan. JS
                      handler dipanggil via data-onchange (custom-dd tidak fire
@@ -236,8 +236,8 @@
                         <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
-                        <h3 class="mt-2 text-sm font-medium text-gray-900">Belum Ada Project Planning</h3>
-                        <p class="mt-1 text-sm text-gray-500">Mulai dengan membuat planning untuk project pertama Anda</p>
+                        <h3 class="mt-2 text-sm font-medium text-gray-900">No Project Planning Yet</h3>
+                        <p class="mt-1 text-sm text-gray-500">Start by creating a planning for your first project</p>
                         <div class="mt-4">
                             <a href="{{ route('projects.index') }}" 
                                class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
@@ -424,8 +424,8 @@
                                 <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                 </svg>
-                                <h3 class="mt-2 text-sm font-medium text-gray-900">Belum Ada Project Planning</h3>
-                                <p class="mt-1 text-sm text-gray-500">Mulai dengan membuat planning untuk project pertama Anda</p>
+                                <h3 class="mt-2 text-sm font-medium text-gray-900">No Project Planning Yet</h3>
+                                <p class="mt-1 text-sm text-gray-500">Start by creating a planning for your first project</p>
                             </td>
                         </tr>
                     @endforelse

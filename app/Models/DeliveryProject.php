@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use App\Models\AuthUser;
+use App\Models\DeliveryProjectCost;
 
 
 class DeliveryProject extends Model
@@ -20,17 +21,19 @@ class DeliveryProject extends Model
      */
     protected $fillable = [
         'client_id',
-        'pic',
+        'project_owner',
         'project_type',
+        'high_level_risk',
+        'io_number',
         'name',
         'description',
         'category',
         'status',
         'calculated_progress',
         'phase',
-        'start_date',
-        'end_date',
         'go_live_estimated',
+        'contract_start_date',
+        'contract_end_date',
         // Delivery Information
         'ae_type',
         'ae_name',
@@ -38,10 +41,13 @@ class DeliveryProject extends Model
         'ae_email',
         'delivery_owner_id',
         'delivery_manager_id',
-        'project_owner_id',
+        'project_manager_id',
         'co_pm_id',
         'project_admin_id',
-        'sales_id',
+        'revenue',
+        'plan_cost',
+        'gross_profit',
+        'gross_profit_percentage',
         'delivery_method',
         'warranty_period',
         'total_mandays',
@@ -66,6 +72,8 @@ class DeliveryProject extends Model
         'approval_date' => 'datetime',
         'location_valid_from' => 'date',
         'location_valid_to' => 'date',
+        'contract_start_date' => 'date',
+        'contract_end_date' => 'date',
     ];
 
     // Existing relationships
@@ -76,6 +84,11 @@ class DeliveryProject extends Model
 
     public function updates() {
         return $this->hasMany(DeliveryProjectUpdate::class, 'delivery_projects_id');
+    }
+
+    public function issues() {
+        return $this->hasMany(DeliveryProjectIssue::class, 'delivery_projects_id')
+                    ->orderBy('issue_number');
     }
 
     public function activities() {
@@ -96,10 +109,18 @@ class DeliveryProject extends Model
                     ->orderBy('order_sequence');
     }
 
+    public function costs()
+    {
+        return $this->hasMany(DeliveryProjectCost::class, 'delivery_projects_id')
+                    ->whereNull('parent_id')
+                    ->with('children')
+                    ->orderBy('order_sequence');
+    }
+
     public function teamMembers()
     {
         return $this->belongsToMany(Employee::class, 'delivery_project_employee', 'delivery_projects_id', 'employee_id', 'id', 'employee_id')
-                    ->withPivot('assignment', 'start_date', 'end_date')
+                    ->withPivot('module', 'role', 'employee_type', 'vendor_name', 'start_date', 'end_date', 'notes')
                     ->withTimestamps();
     }
 
@@ -123,20 +144,18 @@ class DeliveryProject extends Model
         Log::info("🔄 Updating project from planning", ['delivery_projects_id' => $this->id]);
         
         try {
-            $this->updateProjectDates();
-            
+            $this->seedLocationDefaultsFromPlanning();
+
             $this->updateGoLiveDate();
-            
+
             $this->updateCurrentPhase();
-            
+
             $this->updateDeliveryProjectCategory();
-            
+
             $this->saveQuietly();
-            
+
             Log::info("✅ Project updated successfully", [
                 'delivery_projects_id' => $this->id,
-                'start_date' => $this->start_date,
-                'end_date' => $this->end_date,
                 'go_live' => $this->go_live_estimated,
                 'phase' => $this->phase,
                 'category' => $this->category
@@ -150,16 +169,25 @@ class DeliveryProject extends Model
         }
     }
 
-    private function updateProjectDates()
+    /**
+     * Seed the location validity window from the planning span the first time only
+     * (does not overwrite values already set). The project's own date columns were
+     * removed in favour of the manually-entered contract window.
+     */
+    private function seedLocationDefaultsFromPlanning()
     {
+        if ($this->location_valid_from && $this->location_valid_to) {
+            return;
+        }
+
         $allDates = collect();
-        
+
         $plannings = $this->plannings()
             ->where('is_group', false)
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
             ->get();
-        
+
         foreach ($plannings as $planning) {
             if ($planning->start_date) {
                 $allDates->push($planning->start_date);
@@ -168,16 +196,13 @@ class DeliveryProject extends Model
                 $allDates->push($planning->end_date);
             }
         }
-        
+
         if ($allDates->isNotEmpty()) {
-            $this->start_date = $allDates->min();
-            $this->end_date = $allDates->max();
-            
             if (!$this->location_valid_from) {
-                $this->location_valid_from = $this->start_date;
+                $this->location_valid_from = $allDates->min();
             }
             if (!$this->location_valid_to) {
-                $this->location_valid_to = $this->end_date;
+                $this->location_valid_to = $allDates->max();
             }
         }
     }

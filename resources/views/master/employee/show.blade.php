@@ -303,7 +303,9 @@
                 setValue('directSupervision', basicData.direct_supervision);
                 setValue('manager', basicData.manager);
                 setValue('authorizationGroup', basicData.authorization_group);
-                
+                setValue('homeBase', basicData.home_base);
+                setValue('grade', basicData.grade);
+
                 // Status
                 setCheckbox('block', basicData.block);
                 setCheckbox('deletionFlag', basicData.deletion_flag);
@@ -354,6 +356,8 @@
             direct_supervision: getValue('directSupervision'),
             manager: getValue('manager'),
             authorization_group: getValue('authorizationGroup'),
+            home_base: getValue('homeBase'),
+            grade: getValue('grade'),
             block: getCheckbox('block'),
             deletion_flag: getCheckbox('deletionFlag')
         };

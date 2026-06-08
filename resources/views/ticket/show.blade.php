@@ -221,14 +221,23 @@
             </div>
 
             {{-- Collapsible compose content --}}
-            <div id="replyComposeInner" style="max-height:600px;overflow:hidden;opacity:1;transition:max-height .2s ease,opacity .2s ease;">
+            {{-- overflow:visible (default expanded) agar dropdown picker Quill ("Normal") tidak ter-clip.
+                 Saat collapse via toggleReplyBox(), JS akan switch ke overflow:hidden sementara untuk
+                 menyembunyikan konten yang ter-collapse. --}}
+            <div id="replyComposeInner" style="max-height:600px;overflow:visible;opacity:1;transition:max-height .2s ease,opacity .2s ease;">
 
-            {{-- To / CC Row: hanya tampil untuk email tickets --}}
-            @if(($ticket->channel === 'email' || $ticket->email_thread_id) && !empty($customerEmail))
-            <div class="px-4 pt-1.5">
-                <div class="flex items-center gap-2 text-xs text-gray-500 px-2 py-1">
-                    <span class="font-semibold text-gray-500 flex-shrink-0">To</span>
-                    <span class="text-gray-700">{{ $customerEmail }}</span>
+            {{-- To Row: tag input — initial value dari resolved customer email, bisa ditambah/dihapus --}}
+            @if($ticket->channel === 'email' || $ticket->email_thread_id)
+            <div class="px-4 pt-1.5" id="toRow">
+                <div class="flex flex-wrap items-center gap-1 min-h-[30px] border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text" onclick="document.getElementById('toInput').focus()">
+                    <span class="text-[11px] text-gray-500 font-semibold mr-0.5 flex-shrink-0">To</span>
+                    <div id="toTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
+                    <input type="text" id="toInput"
+                           placeholder="Add email and press Enter..."
+                           class="text-xs border-none bg-transparent outline-none flex-1 min-w-[150px] placeholder-gray-300 py-0.5"
+                           onkeydown="handleToKeydown(event)"
+                           onblur="commitToInput()"
+                           onpaste="handleToPaste(event)">
                 </div>
             </div>
             @endif
@@ -269,8 +278,11 @@
 
             <div class="px-4 pt-2 pb-2">
                 {{-- Mention dropdown (positioned relative to editor wrapper) --}}
+                {{-- NOTE: wrapper TIDAK pakai overflow-hidden — itu memotong dropdown picker
+                     "Normal" Quill yang muncul ke bawah. Border-radius cukup pakai rounded-lg
+                     tanpa overflow clip; konten editor sudah dibatasi oleh .ql-editor overflow. --}}
                 <div class="relative">
-                    <div class="bg-white border border-gray-300 rounded-lg overflow-hidden">
+                    <div class="bg-white border border-gray-300 rounded-lg">
                         <div id="quillEditor" style="min-height: 80px;"></div>
                     </div>
                     {{-- @mention autocomplete dropdown — fixed so it's never clipped by overflow parents --}}
@@ -810,7 +822,18 @@
 .email-html-body a  { color: #2563eb; text-decoration: underline; }
 .email-html-body ul, .email-html-body ol { padding-left: 1.25rem; margin-bottom: 0.4rem; }
 .email-html-body blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; margin: 0.25rem 0; }
-.email-html-body img { max-width: 100%; height: auto; border-radius: 6px; }
+/* !important diperlukan karena HTML email dari Outlook/Gmail sering menyertakan
+   inline style="width: NNNpx" pada <img> yang akan override CSS biasa. */
+.email-html-body img {
+    max-width: min(100%, 420px) !important;
+    max-height: 320px !important;
+    width: auto !important;
+    height: auto !important;
+    object-fit: contain;
+    border-radius: 6px;
+    display: block;
+    margin: 4px 0;
+}
 .email-html-body table { border-collapse: collapse; font-size: 12px; max-width: 100%; }
 .email-html-body td, .email-html-body th { border: 1px solid #e5e7eb; padding: 4px 8px; }
 
@@ -822,7 +845,51 @@
 .ql-editor a { color: #2563eb !important; text-decoration: underline !important; cursor: pointer; }
 
 /* Quill Editor Overrides */
-.ql-toolbar.ql-snow { border: none !important; border-bottom: 1px solid #e5e7eb !important; padding: 4px 8px !important; background: #f9fafb; }
+.ql-toolbar.ql-snow {
+    border: none !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    padding: 4px 8px !important;
+    background: #f9fafb;
+    /* JANGAN override display ke flex — Quill default inline-block lebih kompatibel
+       dengan picker SVG-nya. Hanya `display:flex` di .ql-formats yang mendistorsi
+       polygon SVG chevron "Normal" jadi terlihat seperti dash "—". */
+}
+/* Rapatkan jarak antar grup format agar lebih banyak tombol muat dalam 1 baris.
+   Default Quill ~15px → 6px. JANGAN ubah display .ql-formats — tetap inline-block
+   bawaan Quill agar SVG chevron picker render dengan benar (sebagai panah ▼). */
+.ql-toolbar.ql-snow .ql-formats {
+    margin-right: 6px !important;
+    margin-bottom: 0 !important;
+}
+.ql-toolbar.ql-snow .ql-formats:last-child { margin-right: 0 !important; }
+
+/* Pastikan dropdown picker tetap tersembunyi sampai user benar-benar klik untuk
+   expand — guard terhadap rule lain yang mungkin override display:none Quill. */
+.ql-toolbar.ql-snow .ql-picker .ql-picker-options { display: none !important; }
+.ql-toolbar.ql-snow .ql-picker.ql-expanded .ql-picker-options {
+    display: block !important;
+    position: absolute;
+    top: 100%;
+    z-index: 10;
+    background: #fff;
+    border: 1px solid #ccc;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Quill link tooltip ("Enter link" / "Edit") — pin ke posisi tetap di tepi kiri
+   editor agar label "Link:" tidak terpotong saat Quill kalkulasi left berdasarkan
+   cursor yang menghasilkan nilai negatif/kecil. max-width mencegah overflow kanan
+   bila URL yang dimasukkan panjang. */
+.ql-container .ql-tooltip {
+    left: 8px !important;
+    max-width: calc(100% - 16px);
+    box-sizing: border-box;
+    white-space: nowrap;
+    z-index: 30;
+}
+.ql-container .ql-tooltip input[type="text"] {
+    min-width: 200px;
+}
 .ql-container.ql-snow { border: none !important; font-size: 13px; }
 .ql-editor { min-height: 80px; max-height: 180px; overflow-y: auto; overflow-x: hidden; padding: 8px 12px; }
 .ql-editor.ql-blank::before { font-style: normal; color: #9ca3af; font-size: 13px; }
@@ -840,10 +907,17 @@
     margin: 2px 0;
     cursor: default;
 }
-/* Images inside message bubbles */
+/* Images inside message bubbles — cap both width & height so the bubble doesn't
+   grow to fit huge inline screenshots. min(100%, 420px) keeps it responsive on
+   narrow viewports while limiting to ~420px on wider screens.
+   !important is needed because email HTML from Outlook/Gmail often inlines
+   style="width:NNNpx" / "height:NNNpx" on <img> which overrides plain CSS. */
 .message-bubble img {
-    max-width: 100%;
-    height: auto;
+    max-width: min(100%, 420px) !important;
+    max-height: 320px !important;
+    width: auto !important;
+    height: auto !important;
+    object-fit: contain;
     border-radius: 6px;
     display: block;
     margin: 4px 0;
@@ -1548,8 +1622,74 @@
         const isExpanded = inner.style.maxHeight !== '0px';
         inner.style.maxHeight = isExpanded ? '0px'   : '600px';
         inner.style.opacity   = isExpanded ? '0'     : '1';
+        // overflow switch: hidden saat collapse (sembunyikan konten yang ter-collapse),
+        // visible saat expand (agar dropdown picker Quill tidak ter-clip).
+        // Saat expand, tunda set ke 'visible' sampai transisi max-height selesai (~200ms)
+        // supaya konten tidak "lompat" keluar saat sedang ter-animate.
+        if (isExpanded) {
+            inner.style.overflow = 'hidden';
+        } else {
+            setTimeout(() => { inner.style.overflow = 'visible'; }, 220);
+        }
         if (iconDown) iconDown.classList.toggle('hidden', isExpanded);
         if (iconUp)   iconUp.classList.toggle('hidden', !isExpanded);
+    }
+
+    // ── TO state ────────────────────────────────────────────────────────────
+    // Default seeded dengan resolved customer email (sama dengan tampilan lama).
+    // User dapat menambah/menghapus tag untuk mengirim ke multiple primary recipient.
+    // Tidak dipersist ke DB (tiap reply mulai dari customer email lagi) — sesuai
+    // permintaan minimal-MVP, persistensi bisa ditambah kemudian.
+    let toEmails = @json(array_values(array_filter([$customerEmail ?? null])));
+
+    function renderToTags() {
+        const container = document.getElementById('toTagsContainer');
+        if (!container) return;
+        container.innerHTML = toEmails.map((email, i) =>
+            `<span class="inline-flex items-center gap-1 bg-green-50 border border-green-200 text-green-700 text-[11px] rounded-full px-2 py-0.5 max-w-[220px]">
+                <span class="truncate">${escHtmlCC(email)}</span>
+                <button type="button" onclick="removeToTag(${i})" class="text-green-300 hover:text-red-500 transition-colors flex-shrink-0 leading-none ml-0.5">&times;</button>
+            </span>`
+        ).join('');
+    }
+
+    function removeToTag(index) {
+        toEmails.splice(index, 1);
+        renderToTags();
+    }
+
+    function handleToKeydown(e) {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            commitToInput();
+        } else if (e.key === 'Backspace' && e.target.value === '' && toEmails.length > 0) {
+            toEmails.pop();
+            renderToTags();
+        }
+    }
+
+    function commitToInput() {
+        const input = document.getElementById('toInput');
+        if (!input) return;
+        const parts = input.value.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+        let added = false;
+        const lowerExisting = new Set(toEmails.map(e => String(e).toLowerCase()));
+        for (const email of parts) {
+            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !lowerExisting.has(email.toLowerCase())) {
+                toEmails.push(email);
+                lowerExisting.add(email.toLowerCase());
+                added = true;
+            }
+        }
+        if (added) renderToTags();
+        input.value = '';
+    }
+
+    function handleToPaste(e) {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text');
+        const input = document.getElementById('toInput');
+        if (input) { input.value = text; commitToInput(); }
     }
 
     // â"€â"€ CC state â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
@@ -1830,6 +1970,7 @@
             }, 0);
         });
 
+        renderToTags();
         renderCcTags();
         loadMessages();
         switchSidebarView('my');
@@ -2535,12 +2676,17 @@
                 ? pendingMentions.filter(m => m.type === 'role').map(m => m.id)
                 : [];
 
+            // Pastikan input TO yang belum ter-commit (user mengetik tanpa Enter) ikut terkirim.
+            commitToInput();
+            commitCcInput();
+
             if (hasFiles) {
                 // Kirim sebagai multipart/form-data
                 // Jangan set Content-Type manual — browser otomatis tambahkan boundary yang benar
                 const formData = new FormData();
                 formData.append('message_body', htmlContent);
                 formData.append('message_type', messageType);
+                formData.append('to_emails', JSON.stringify(toEmails));
                 formData.append('cc_emails', JSON.stringify(ccEmails));
                 selectedFiles.forEach(file => formData.append('attachments[]', file));
                 mentionedEmployeeIds.forEach(id => formData.append('mentioned_employee_ids[]', id));
@@ -2552,6 +2698,7 @@
                 requestBody = JSON.stringify({
                     message_body: htmlContent,
                     message_type: messageType,
+                    to_emails: toEmails,
                     cc_emails: ccEmails,
                     mentioned_employee_ids: mentionedEmployeeIds,
                     mentioned_role_ids: mentionedRoleIds,
