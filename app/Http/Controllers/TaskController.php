@@ -33,7 +33,7 @@ class TaskController extends Controller
             // Ambil tiket di mana user ini adalah PIC
             $tickets = DB::table('ticket')
                 ->leftJoin('customer_basic_data', 'ticket.customer_id', '=', 'customer_basic_data.customer_id')
-                ->where('ticket.employee_id', $empId)
+                ->where('ticket.ticket_lead_id', $empId)
                 ->whereIn('ticket.status', self::ACTIVE_STATUSES)
                 ->whereNull('ticket.deleted_at')
                 ->select([

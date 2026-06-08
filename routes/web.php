@@ -36,7 +36,17 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AdminSessionController;
 use App\Http\Controllers\AdminJobController;
 use App\Http\Controllers\AdminBackupController;
+use App\Http\Controllers\AdminNotificationSoundController;
+use App\Http\Controllers\TicketMigrationController;
+use App\Http\Controllers\SlaController;
 use App\Http\Middleware\CheckAuthToken;
+
+// ==================== ROOT REDIRECT ====================
+Route::get('/', function () {
+    return session('auth_token')
+        ? redirect()->route('dashboard')
+        : redirect()->route('login');
+});
 
 // ==================== PUBLIC ROUTES ====================
 
@@ -164,7 +174,19 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/export/tickets',   [AdminBackupController::class, 'exportTickets'])->name('export.tickets');
         Route::get('/import/template/employees', [AdminBackupController::class, 'templateEmployees'])->name('import.template.employees');
         Route::get('/import/template/customers', [AdminBackupController::class, 'templateCustomers'])->name('import.template.customers');
+        Route::post('/import/employees', [AdminBackupController::class, 'importEmployees'])->name('import.employees');
+        Route::post('/import/customers', [AdminBackupController::class, 'importCustomers'])->name('import.customers');
+        Route::get('/export/tickets/zip', [TicketMigrationController::class, 'exportZip'])->name('export.tickets.zip');
+        Route::get('/sounds', [AdminNotificationSoundController::class, 'index'])->name('sounds');
+        Route::post('/sounds', [AdminNotificationSoundController::class, 'store'])->name('sounds.store');
+        Route::delete('/sounds/{id}', [AdminNotificationSoundController::class, 'destroy'])->name('sounds.destroy');
     });
+
+    // ==================== SLA ====================
+    Route::get('/sla/config', [SlaController::class, 'configPage'])->name('sla.config');
+    Route::get('/sla/report', [SlaController::class, 'reportPage'])->name('sla.report');
+    Route::get('/admin/sla/tickets/{id}/pdf',     [SlaController::class, 'downloadTicketPdf'])->name('sla.ticket.pdf');
+    Route::get('/admin/sla/tickets/{id}/log-pdf', [SlaController::class, 'downloadLogPdf'])->name('sla.ticket.log-pdf');
 
     // ==================== SETTINGS ====================
     Route::prefix('settings')->name('settings.')->group(function () {

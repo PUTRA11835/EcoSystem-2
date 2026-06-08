@@ -37,9 +37,9 @@ class TicketController extends Controller
                 ->whereNull('deleted_at')
                 ->selectRaw("
                     COUNT(*) as total,
-                    SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
-                    SUM(CASE WHEN status = 'hold'        THEN 1 ELSE 0 END) as hold,
-                    SUM(CASE WHEN status = 'closed'      THEN 1 ELSE 0 END) as closed
+                    SUM(CASE WHEN status = 'inprocess' THEN 1 ELSE 0 END) as inprocess,
+                    SUM(CASE WHEN status = 'hold'      THEN 1 ELSE 0 END) as hold,
+                    SUM(CASE WHEN status = 'closed'    THEN 1 ELSE 0 END) as closed
                 ")
                 ->first();
 
@@ -72,10 +72,10 @@ class TicketController extends Controller
             return response()->json([
                 'success' => true,
                 'stats'   => [
-                    'total'       => (int) $stats->total,
-                    'in_progress' => (int) $stats->in_progress,
-                    'hold'        => (int) $stats->hold,
-                    'closed'      => (int) $stats->closed,
+                    'total'     => (int) $stats->total,
+                    'inprocess' => (int) $stats->inprocess,
+                    'hold'      => (int) $stats->hold,
+                    'closed'    => (int) $stats->closed,
                 ],
                 'data'    => TicketListResource::collection($tickets->items()),
                 'meta'    => [
@@ -296,8 +296,8 @@ class TicketController extends Controller
             $ticket   = Ticket::where('ticket_id', $id)->whereNull('deleted_at')->firstOrFail();
             $authUser = $request->user();
 
-            $ticket->update(['employee_id' => $authUser->employee_id]);
-            $ticket->load(['customer.basicData', 'employee.basicData', 'members.basicData']);
+            $ticket->update(['ticket_lead_id' => $authUser->employee_id]);
+            $ticket->load(['customer.basicData', 'ticketLead.basicData', 'members.basicData']);
 
             return response()->json([
                 'success' => true,
@@ -416,23 +416,29 @@ class TicketController extends Controller
                 ->whereNull('deleted_at')
                 ->selectRaw("
                     COUNT(*) as total,
-                    SUM(CASE WHEN status = 'open'        THEN 1 ELSE 0 END) as open,
-                    SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
-                    SUM(CASE WHEN status = 'hold'        THEN 1 ELSE 0 END) as hold,
-                    SUM(CASE WHEN status = 'reply'       THEN 1 ELSE 0 END) as reply,
-                    SUM(CASE WHEN status = 'closed'      THEN 1 ELSE 0 END) as closed
+                    SUM(CASE WHEN status = 'open'                    THEN 1 ELSE 0 END) as open,
+                    SUM(CASE WHEN status = 'inprocess'               THEN 1 ELSE 0 END) as inprocess,
+                    SUM(CASE WHEN status = 'waiting_on_customer'     THEN 1 ELSE 0 END) as waiting_on_customer,
+                    SUM(CASE WHEN status = 'waiting_on_3rd_party'    THEN 1 ELSE 0 END) as waiting_on_3rd_party,
+                    SUM(CASE WHEN status = 'waiting_to_confirmation' THEN 1 ELSE 0 END) as waiting_to_confirmation,
+                    SUM(CASE WHEN status = 'hold'                    THEN 1 ELSE 0 END) as hold,
+                    SUM(CASE WHEN status = 'cancelled'               THEN 1 ELSE 0 END) as cancelled,
+                    SUM(CASE WHEN status = 'closed'                  THEN 1 ELSE 0 END) as closed
                 ")
                 ->first();
 
             return response()->json([
                 'success' => true,
                 'data'    => [
-                    'total'       => (int) $row->total,
-                    'open'        => (int) $row->open,
-                    'in_progress' => (int) $row->in_progress,
-                    'hold'        => (int) $row->hold,
-                    'reply'       => (int) $row->reply,
-                    'closed'      => (int) $row->closed,
+                    'total'                   => (int) $row->total,
+                    'open'                    => (int) $row->open,
+                    'inprocess'               => (int) $row->inprocess,
+                    'waiting_on_customer'     => (int) $row->waiting_on_customer,
+                    'waiting_on_3rd_party'    => (int) $row->waiting_on_3rd_party,
+                    'waiting_to_confirmation' => (int) $row->waiting_to_confirmation,
+                    'hold'                    => (int) $row->hold,
+                    'cancelled'               => (int) $row->cancelled,
+                    'closed'                  => (int) $row->closed,
                 ],
             ]);
         } catch (\Exception $e) {
@@ -454,7 +460,7 @@ class TicketController extends Controller
             $ticket = Ticket::where('ticket_id', $id)->whereNull('deleted_at')->firstOrFail();
 
             $ticket->update([
-                'status'              => 'reply',
+                'status'              => 'waiting_on_customer',
                 'last_agent_reply_at' => now(),
             ]);
 
@@ -483,12 +489,15 @@ class TicketController extends Controller
     private function mapStatusToDb(string $status): ?string
     {
         return match (strtolower(trim($status))) {
-            'open'        => 'open',
-            'in progress' => 'in_progress',
-            'hold'        => 'hold',
-            'reply'       => 'reply',
-            'closed'      => 'closed',
-            default       => null,
+            'open'                    => 'open',
+            'inprocess', 'in process' => 'inprocess',
+            'waiting_on_customer'     => 'waiting_on_customer',
+            'waiting_on_3rd_party'    => 'waiting_on_3rd_party',
+            'waiting_to_confirmation' => 'waiting_to_confirmation',
+            'hold'                    => 'hold',
+            'cancelled'               => 'cancelled',
+            'closed'                  => 'closed',
+            default                   => null,
         };
     }
 }

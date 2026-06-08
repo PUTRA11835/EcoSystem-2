@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             // ECOSYSTEM Core Seeders
             RoleSeeder::class,
             EmployeeSeeder::class,
+            UserSystemRolesSeeder::class,
             CustomerSeeder::class,
 
             DeliveryProjectSeeder::class,

@@ -52,12 +52,14 @@ class DashboardController extends Controller
         $statusCounts = DB::table('ticket')
             ->selectRaw("
                 COUNT(*) as total,
-                SUM(CASE WHEN status = 'open'        THEN 1 ELSE 0 END) as open,
-                SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
-                SUM(CASE WHEN status = 'hold'        THEN 1 ELSE 0 END) as hold,
-                SUM(CASE WHEN status = 'cancel'      THEN 1 ELSE 0 END) as cancel,
-                SUM(CASE WHEN status = 'closed'      THEN 1 ELSE 0 END) as closed,
-                SUM(CASE WHEN status = 'reply'       THEN 1 ELSE 0 END) as reply
+                SUM(CASE WHEN status = 'open'                    THEN 1 ELSE 0 END) as open,
+                SUM(CASE WHEN status = 'inprocess'               THEN 1 ELSE 0 END) as inprocess,
+                SUM(CASE WHEN status = 'waiting_on_customer'     THEN 1 ELSE 0 END) as waiting_on_customer,
+                SUM(CASE WHEN status = 'waiting_on_3rd_party'    THEN 1 ELSE 0 END) as waiting_on_3rd_party,
+                SUM(CASE WHEN status = 'waiting_to_confirmation' THEN 1 ELSE 0 END) as waiting_to_confirmation,
+                SUM(CASE WHEN status = 'hold'                    THEN 1 ELSE 0 END) as hold,
+                SUM(CASE WHEN status = 'cancelled'               THEN 1 ELSE 0 END) as cancelled,
+                SUM(CASE WHEN status = 'closed'                  THEN 1 ELSE 0 END) as closed
             ")
             ->first();
 
@@ -86,12 +88,14 @@ class DashboardController extends Controller
         return [
             'total'        => (int) $statusCounts->total,
             'by_status'    => [
-                'open'        => (int) $statusCounts->open,
-                'in_progress' => (int) $statusCounts->in_progress,
-                'hold'        => (int) $statusCounts->hold,
-                'cancel'      => (int) $statusCounts->cancel,
-                'closed'      => (int) $statusCounts->closed,
-                'reply'       => (int) $statusCounts->reply,
+                'open'                    => (int) $statusCounts->open,
+                'inprocess'               => (int) $statusCounts->inprocess,
+                'waiting_on_customer'     => (int) $statusCounts->waiting_on_customer,
+                'waiting_on_3rd_party'    => (int) $statusCounts->waiting_on_3rd_party,
+                'waiting_to_confirmation' => (int) $statusCounts->waiting_to_confirmation,
+                'hold'                    => (int) $statusCounts->hold,
+                'cancelled'               => (int) $statusCounts->cancelled,
+                'closed'                  => (int) $statusCounts->closed,
             ],
             'by_priority'  => [
                 'low'    => (int) $priorityCounts->low,

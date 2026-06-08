@@ -49,9 +49,18 @@
         $userRoleId = $user['role']['id'] ?? 1;
         
         // Define menu visibility based on role
-        $showAllMenus   = $userRoleId == 1;
-        $showRpmoMenu   = in_array($userRoleId, [1, 4, 5, 7]);
-        $showLimitedMenus = in_array($userRoleId, [2, 3]);
+        $showAllMenus     = $userRoleId == \App\Enums\RoleId::EC_ADMINISTRATOR->value;
+        $showRpmoMenu     = in_array($userRoleId, \App\Enums\RoleId::PERIOD_MANAGEMENT_GROUP, true);
+        $showLimitedMenus = in_array($userRoleId, [\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value, \App\Enums\RoleId::EC_USER->value], true);
+        $showSlaMenu      = in_array($userRoleId, [
+            \App\Enums\RoleId::EC_ADMINISTRATOR->value,
+            \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value,
+            \App\Enums\RoleId::DELIVERY_HELPDESK->value,
+        ], true);
+        $canManageSla     = in_array($userRoleId, [
+            \App\Enums\RoleId::EC_ADMINISTRATOR->value,
+            \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value,
+        ], true);
     @endphp
     
     <style>
@@ -382,8 +391,8 @@
                             </span>
                             <span class="nav-text text-sm">MD Validation</span>
                         </a>
-                        {{-- MD Recap: admin + HoS only --}}
-                        @if(in_array($userRoleId, [1, 5]))
+                        {{-- MD Recap: EC Administrator + Delivery Support Head only --}}
+                        @if(in_array($userRoleId, [\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value], true))
                         <a href="{{ route('reporting.md-recap') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/md-recap*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-table text-xs"></i>
@@ -465,8 +474,8 @@
                     </a>
                 </div>
 
-                @if(in_array($userRoleId, [2, 15]))
-                <!-- MY TASKS - Employee & Employee Project (bisa jadi PIC) -->
+                @if(in_array($userRoleId, \App\Enums\RoleId::DELIVERY_USER_GROUP, true))
+                <!-- MY TASKS - Delivery Support User & Delivery Project User (bisa jadi PIC) -->
                 <div class="mb-2">
                     <a href="{{ route('ticket.task') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ticket/task*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -477,8 +486,8 @@
                 </div>
                 @endif
 
-                @if(in_array($userRoleId, [1, 4, 5, 6, 7]))
-                <!-- CONSULTANT WORKLOAD - Admin, Head, Helpdesk, RPMO -->
+                @if(in_array($userRoleId, array_merge([\App\Enums\RoleId::EC_ADMINISTRATOR->value], \App\Enums\RoleId::HEAD_GROUP, \App\Enums\RoleId::HELPDESK_GROUP), true))
+                <!-- CONSULTANT WORKLOAD - EC Administrator, Head, Helpdesk, RPMO -->
                 <div class="mb-2">
                     <a href="{{ route('ticket.consultant-workload') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ticket/consultant-workload*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -489,8 +498,8 @@
                 </div>
                 @endif
 
-                @if(in_array($userRoleId, [1, 6, 7]))
-                <!-- STAGING TICKET - Only for admin & helpdesk (not Delivery Support User) -->
+                @if(in_array($userRoleId, array_merge([\App\Enums\RoleId::EC_ADMINISTRATOR->value], \App\Enums\RoleId::STAGING_GROUP), true))
+                <!-- STAGING TICKET - EC Administrator, Delivery Support Head, Helpdesk, RPMO -->
                 <div class="mb-2">
                     <a href="{{ route('staging.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('staging-tickets*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -567,6 +576,34 @@
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-database text-xs"></i></span>
                             <span class="nav-text text-sm">Backup & Export</span>
                         </a>
+                        <a href="{{ route('admin.sounds') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/sounds*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-music text-xs"></i></span>
+                            <span class="nav-text text-sm">Notif Sounds</span>
+                        </a>
+                    </div>
+                </div>
+                @endif
+
+                @if($showSlaMenu)
+                <!-- SLA - Admin, Delivery Support Head, Helpdesk -->
+                @php $slaOpen = Request::is('sla*'); @endphp
+                <div class="mb-2">
+                    <button onclick="toggleSlaDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $slaOpen ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-stopwatch"></i>
+                        </span>
+                        <span class="nav-text flex-1 font-medium">SLA</span>
+                        <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $slaOpen ? 'rotate-180' : '' }}" id="slaChevron"></i>
+                    </button>
+                    <div id="slaDropdown" class="nav-text {{ $slaOpen ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
+                        <a href="{{ route('sla.config') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('sla/config*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-sliders-h text-xs"></i></span>
+                            <span class="nav-text text-sm">SLA Config</span>
+                        </a>
+                        <a href="{{ route('sla.report') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('sla/report*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-chart-line text-xs"></i></span>
+                            <span class="nav-text text-sm">SLA Report</span>
+                        </a>
                     </div>
                 </div>
                 @endif
@@ -575,7 +612,7 @@
                 <!-- RPMO - For admin, RPMO, Project Head, Support Head -->
                 @php
                     $rpmoDropdownOpen = Request::is('rpmo*');
-                    $showRpmoMain     = in_array($userRoleId, [1, 7]); // only admin & RPMO see the main RPMO link
+                    $showRpmoMain     = in_array($userRoleId, [\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_RPMO_HEAD->value], true); // only EC Administrator & RPMO Head see the main RPMO link
                 @endphp
                 <div class="mb-2">
                     <button onclick="toggleRpmoDropdown()" class="nav-link w-full flex items-center gap-3 px-4 py-3 rounded-xl {{ $rpmoDropdownOpen ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all" style="background:none;border:none;cursor:pointer;text-align:left;">
@@ -654,6 +691,12 @@
                         <!-- Search Bar -->
                         @yield('page-actions')
                         <!-- Notification Bell -->
+                        <div class="flex items-center gap-2">
+                            <button id="soundToggleBtn" onclick="toggleNotifSound()"
+                                title="Disable notification sound"
+                                class="w-10 h-10 flex items-center justify-center border-2 border-gray-200 rounded-xl hover:border-red-800 hover:bg-red-50 transition-all text-red-700 hover:text-red-800">
+                                <i id="soundToggleIcon" class="fas fa-volume-up text-sm"></i>
+                            </button>
                         <div class="relative" id="bellWrapper">
                             <button id="bellBtn" onclick="toggleBellDropdown()"
                                 class="relative w-10 h-10 flex items-center justify-center border-2 border-gray-200 rounded-xl hover:border-red-800 hover:bg-red-50 transition-all text-gray-600 hover:text-red-800">
@@ -675,6 +718,7 @@
                                 </div>
                             </div>
                         </div>
+                        </div>{{-- end flex gap-2 sound+bell wrapper --}}
 
                         <!-- User Menu -->
                         <div class="relative">
@@ -807,6 +851,15 @@
         function toggleAdminDropdown() {
             const submenu = document.getElementById('adminDropdown');
             const chevron = document.getElementById('adminChevron');
+            if (!submenu) return;
+            const isOpen = !submenu.classList.contains('hidden');
+            submenu.classList.toggle('hidden', isOpen);
+            if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
+        }
+
+        function toggleSlaDropdown() {
+            const submenu = document.getElementById('slaDropdown');
+            const chevron = document.getElementById('slaChevron');
             if (!submenu) return;
             const isOpen = !submenu.classList.contains('hidden');
             submenu.classList.toggle('hidden', isOpen);
@@ -949,6 +1002,158 @@
             }
         });
 
+        /* ---- notification sound (HTML Audio — works without immediate user gesture) ---- */
+        var _soundEnabled    = localStorage.getItem('notif_sound_enabled') !== 'false';
+        var _lastUnreadCount = null;
+        var _pageTitle       = document.title;
+
+        // Use <audio> element — simpler and respects Chrome's per-origin user activation,
+        // meaning it works even when triggered by push/postMessage without a direct click.
+        var _defaultSoundFile = 'mixkit-software-interface-back-2575.wav';
+        var _audioTicket = new Audio('/sounds/' + _defaultSoundFile);
+        var _audioChat   = new Audio('/sounds/' + _defaultSoundFile);
+        _audioTicket.preload = 'auto';
+        _audioChat.preload   = 'auto';
+
+        // ── Browser autoplay unlock ──────────────────────────────────────────
+        // Browsers block audio.play() until the user has interacted with the page
+        // (click, keydown, touchstart). We silently warm-up both audio elements on
+        // the first interaction so every subsequent play() call succeeds immediately.
+        var _audioUnlocked = false;
+        function _unlockAudio() {
+            if (_audioUnlocked) return;
+            _audioUnlocked = true;
+            [_audioTicket, _audioChat].forEach(function (el) {
+                var prev = el.volume;
+                el.volume = 0;
+                el.play().then(function () {
+                    el.pause();
+                    el.currentTime = 0;
+                    el.volume = prev;
+                }).catch(function () {
+                    el.volume = prev;
+                });
+            });
+            document.removeEventListener('click',      _unlockAudio);
+            document.removeEventListener('keydown',    _unlockAudio);
+            document.removeEventListener('touchstart', _unlockAudio);
+        }
+        document.addEventListener('click',      _unlockAudio);
+        document.addEventListener('keydown',    _unlockAudio);
+        document.addEventListener('touchstart', _unlockAudio);
+
+        function _getSoundFile(key) {
+            var filename = localStorage.getItem(key)
+                || localStorage.getItem('notif_sound')  // legacy single-key fallback
+                || _defaultSoundFile;
+            return filename.includes('.') ? filename : _defaultSoundFile;
+        }
+
+        function _playAudioEl(audioEl, key) {
+            if (!_soundEnabled) return;
+            var file     = _getSoundFile(key);
+            var expected = location.origin + '/sounds/' + file;
+            if (audioEl.src !== expected) {
+                audioEl.src = '/sounds/' + file;
+                audioEl.load();
+                // After src change, re-warm the element if user has already interacted
+                if (_audioUnlocked) {
+                    audioEl.play().then(function () {
+                        audioEl.pause();
+                        audioEl.currentTime = 0;
+                    }).catch(function () {});
+                    return;
+                }
+            }
+            audioEl.currentTime = 0;
+            audioEl.play().catch(function () {});
+        }
+
+        function playTicketSound() { _playAudioEl(_audioTicket, 'notif_sound_ticket'); }
+        function playChatSound()   { _playAudioEl(_audioChat,   'notif_sound_chat'); }
+        function playNotifSound()  { playTicketSound(); }
+
+        function _applySoundUi() {
+            var btn  = document.getElementById('soundToggleBtn');
+            var icon = document.getElementById('soundToggleIcon');
+            if (_soundEnabled) {
+                if (icon) icon.className = 'fas fa-volume-up text-sm';
+                if (btn)  { btn.classList.remove('text-gray-400'); btn.classList.add('text-red-700'); btn.title = 'Disable notification sound'; }
+            } else {
+                if (icon) icon.className = 'fas fa-volume-mute text-sm';
+                if (btn)  { btn.classList.remove('text-red-700'); btn.classList.add('text-gray-400'); btn.title = 'Enable notification sound'; }
+            }
+        }
+
+        function toggleNotifSound() {
+            _soundEnabled = !_soundEnabled;
+            localStorage.setItem('notif_sound_enabled', _soundEnabled ? 'true' : 'false');
+            if (_soundEnabled) {
+                // Play immediately as audio unlock + confirmation for user
+                playNotifSound();
+                if ('Notification' in window && Notification.permission === 'default') {
+                    Notification.requestPermission();
+                }
+            }
+            _applySoundUi();
+        }
+
+        // Sync button UI to persisted state on page load
+        _applySoundUi();
+
+        /* ---- browser (OS) notification ---- */
+        function showOsNotification(title, body, url) {
+            if (!('Notification' in window) || Notification.permission !== 'granted') return;
+            var n = new Notification(title, {
+                body: body,
+                icon: '/images/logo_nobg.png',
+                tag:  'ecosystem-notif-' + Date.now(),
+            });
+            n.onclick = function () {
+                window.focus();
+                if (url) window.location.href = url;
+                n.close();
+            };
+        }
+
+        /* ---- tab title badge ---- */
+        function updateTabTitle(count) {
+            document.title = count > 0 ? '(' + count + ') ' + _pageTitle : _pageTitle;
+        }
+
+        /* ---- handle new notifications (sound + OS notif) ---- */
+        function handleNewNotifications() {
+            // Bunyi hanya jika tab aktif dan bukan di halaman ticket show
+            // (halaman ticket punya message polling sendiri yang handle sound)
+            var onTicketPage = /^\/ticket\/\d+/.test(window.location.pathname);
+            if (!document.hidden && !onTicketPage) {
+                playTicketSound();
+            }
+            // OS notification — hanya saat tab background/minimize agar tidak mengganggu saat user sedang aktif
+            if (document.hidden && _soundEnabled && 'Notification' in window && Notification.permission === 'granted') {
+                fetch('/api/notifications?limit=1', { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (data.data && data.data.length > 0) {
+                            var n = data.data[0];
+                            showOsNotification(
+                                getTitle(n),
+                                n.preview || '',
+                                n.link || (n.ticket_id ? '/ticket/' + n.ticket_id : '/notifications')
+                            );
+                        }
+                    })
+                    .catch(function () {});
+            }
+        }
+
+        /* ---- fetch immediately when tab becomes visible again ---- */
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) fetchUnreadCount();
+        });
+
+        window.toggleNotifSound = toggleNotifSound;
+
         /* ---- badge count ---- */
         function fetchUnreadCount() {
             fetch('/api/notifications/unread-count', { credentials: 'same-origin' })
@@ -956,12 +1161,26 @@
                 .then(function (data) {
                     var badge = document.getElementById('bellBadge');
                     if (!badge) return;
+
+                    // Badge + OS notification only for non-message types
                     var count = data.count || 0;
                     if (count > 0) {
                         badge.textContent = count > 99 ? '99+' : count;
                         badge.classList.remove('hidden');
                     } else {
                         badge.classList.add('hidden');
+                    }
+                    updateTabTitle(count);
+                    if (_lastUnreadCount !== null && count > _lastUnreadCount) {
+                        handleNewNotifications();
+                    }
+                    _lastUnreadCount = count;
+
+                    // Message sound only (internal note / email reply) — no badge, no OS notif
+                    var msgCount = data.message_sound_count || 0;
+                    if (msgCount > 0) {
+                        var onTicketPage = /^\/ticket\/\d+/.test(window.location.pathname);
+                        if (!onTicketPage) { playChatSound(); }
                     }
                 })
                 .catch(function () {});
@@ -981,6 +1200,11 @@
             resolution_days_proposed:     { bg: '#e0e7ff', color: '#4f46e5', fa: 'fa-users' },
             contract_end_reminder:        { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-file-contract' },
             top_invoice_reminder:         { bg: '#dbeafe', color: '#2563eb', fa: 'fa-file-invoice-dollar' }
+            ticket_member_added:          { bg: '#dcfce7', color: '#16a34a', fa: 'fa-user-plus' },
+            ticket_member_removed:        { bg: '#fee2e2', color: '#dc2626', fa: 'fa-user-minus' },
+            ticket_member_reactivated:    { bg: '#dbeafe', color: '#2563eb', fa: 'fa-user-check' },
+            ticket_internal_note:         { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-sticky-note' },
+            ticket_reply:                 { bg: '#dbeafe', color: '#2563eb', fa: 'fa-reply' }
         };
         var DEFAULT_CFG = { bg: '#fee2e2', color: '#b91c1c', fa: 'fa-at' };
 
@@ -998,6 +1222,11 @@
                 case 'resolution_days_proposed':     return 'Resolution Days — needs review';
                 case 'contract_end_reminder':        return 'Contract deadline reminder';
                 case 'top_invoice_reminder':         return 'Invoice submission due';
+                case 'ticket_member_added':       return (n.from_name || 'Someone') + ' added you to a ticket';
+                case 'ticket_member_removed':     return (n.from_name || 'Someone') + ' removed a member from a ticket';
+                case 'ticket_member_reactivated': return (n.from_name || 'Someone') + ' re-added a member to a ticket';
+                case 'ticket_internal_note':      return (n.from_name || 'Someone') + ' added an internal note';
+                case 'ticket_reply':              return (n.from_name || 'Someone') + ' replied to a ticket';
                 default: return (n.from_name || 'Someone') + ' mentioned you';
             }
         }
@@ -1159,10 +1388,142 @@
         /* ---- expose globals ---- */
         window.toggleBellDropdown       = toggleBellDropdown;
         window.markAllNotificationsRead = markAllNotificationsRead;
+        window.fetchUnreadCount         = fetchUnreadCount;
+        window.playNotifSound           = playNotifSound;
+        window.playTicketSound          = playTicketSound;
+        window.playChatSound            = playChatSound;
 
         /* ---- start ---- */
         fetchUnreadCount();
-        setInterval(fetchUnreadCount, 30000);
+        setInterval(fetchUnreadCount, 15000);
+    })();
+    </script>
+
+    <!-- ==================== WEB PUSH SERVICE WORKER ==================== -->
+    <script>
+    (function () {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+        var VAPID_PUBLIC_KEY = '{{ config("webpush.vapid_public_key") }}';
+
+        function urlBase64ToUint8Array(base64String) {
+            var padding = '='.repeat((4 - base64String.length % 4) % 4);
+            var base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            var raw     = window.atob(base64);
+            var output  = new Uint8Array(raw.length);
+            for (var i = 0; i < raw.length; ++i) output[i] = raw.charCodeAt(i);
+            return output;
+        }
+
+        function subscribeToPush(registration) {
+            registration.pushManager.getSubscription().then(function (existing) {
+                if (existing) {
+                    sendSubscriptionToServer(existing);
+                    return;
+                }
+                registration.pushManager.subscribe({
+                    userVisibleOnly:      true,
+                    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+                }).then(function (sub) {
+                    sendSubscriptionToServer(sub);
+                }).catch(function (err) {
+                    console.warn('[WebPush] Subscribe failed:', err);
+                });
+            });
+        }
+
+        function sendSubscriptionToServer(sub) {
+            var json = sub.toJSON();
+            var csrf = document.querySelector('meta[name="csrf-token"]');
+            fetch('/api/push/subscribe', {
+                method:      'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type':  'application/json',
+                    'X-CSRF-TOKEN':  csrf ? csrf.content : '',
+                    'Accept':        'application/json',
+                },
+                body: JSON.stringify({
+                    endpoint:    json.endpoint,
+                    keys: {
+                        p256dh: json.keys.p256dh,
+                        auth:   json.keys.auth,
+                    },
+                }),
+            }).catch(function () {});
+        }
+
+        /* Register Service Worker */
+        navigator.serviceWorker.register('/sw.js').then(function (registration) {
+            /* Listen for push messages forwarded from SW (to play custom sound) */
+            navigator.serviceWorker.addEventListener('message', function (event) {
+                if (event.data && event.data.type === 'PUSH_RECEIVED') {
+                    var payload = event.data.payload || {};
+                    var msgTypes = ['ticket_reply', 'ticket_internal_note'];
+                    /* Chat/message types use chat sound; others use ticket/alert sound. */
+                    if (msgTypes.includes(payload.type)) {
+                        if (typeof window.playChatSound === 'function') window.playChatSound();
+                    } else {
+                        if (typeof window.playTicketSound === 'function') window.playTicketSound();
+                    }
+                    if (!msgTypes.includes(payload.type)) {
+                        if (typeof window.fetchUnreadCount === 'function') {
+                            window.fetchUnreadCount();
+                        }
+                    }
+                }
+            });
+
+            /* Subscribe to push once notification permission is granted */
+            if (Notification.permission === 'granted') {
+                subscribeToPush(registration);
+            }
+        }).catch(function (err) {
+            console.warn('[SW] Registration failed:', err);
+        });
+
+        function unsubscribeFromPush() {
+            navigator.serviceWorker.ready.then(function (registration) {
+                registration.pushManager.getSubscription().then(function (sub) {
+                    if (!sub) return;
+                    var endpoint = sub.endpoint;
+                    sub.unsubscribe().then(function () {
+                        var csrf = document.querySelector('meta[name="csrf-token"]');
+                        fetch('/api/push/unsubscribe', {
+                            method:      'DELETE',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': csrf ? csrf.content : '',
+                                'Accept':       'application/json',
+                            },
+                            body: JSON.stringify({ endpoint: endpoint }),
+                        }).catch(function () {});
+                    });
+                });
+            });
+        }
+
+        /* Wrap toggleNotifSound: subscribe on enable, unsubscribe on disable */
+        var _origToggle = window.toggleNotifSound;
+        window.toggleNotifSound = function () {
+            if (typeof _origToggle === 'function') _origToggle();
+            /* Read the new state from localStorage (set by _origToggle) */
+            var nowEnabled = localStorage.getItem('notif_sound_enabled') !== 'false';
+            if (nowEnabled) {
+                if (Notification.permission === 'granted') {
+                    navigator.serviceWorker.ready.then(subscribeToPush);
+                } else if (Notification.permission === 'default') {
+                    Notification.requestPermission().then(function (perm) {
+                        if (perm === 'granted') {
+                            navigator.serviceWorker.ready.then(subscribeToPush);
+                        }
+                    });
+                }
+            } else {
+                unsubscribeFromPush();
+            }
+        };
     })();
     </script>
 

@@ -9,6 +9,7 @@ use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\SlaService;
 use App\Services\TicketNumberService;
 
 /**
@@ -24,7 +25,10 @@ use App\Services\TicketNumberService;
  */
 class StagingTicketService
 {
-    public function __construct(private readonly TicketNumberService $ticketNumbers) {}
+    public function __construct(
+        private readonly TicketNumberService $ticketNumbers,
+        private readonly SlaService $sla,
+    ) {}
 
     // ─── 1. Create from web form (Customer Project / Jarvies) ────────────────
 
@@ -62,7 +66,7 @@ class StagingTicketService
             }
         }
 
-        return StagingTicket::create([
+        $staging = StagingTicket::create([
             'customer_id'        => $customerId,
             'end_customer_id'    => isset($data['end_customer_id']) ? (int) $data['end_customer_id'] : null,
             'description'        => $data['description'],
@@ -73,15 +77,24 @@ class StagingTicketService
             'submitted_by_email' => $data['submitted_by_email'] ?? null,
             'sender_name'        => $data['sender_name'] ?? null,
             'cc_emails'          => $data['cc_emails'] ?? null,
-            // internetMessageId dari email [Menunggu Validasi] yang dikirim Jarvies
-            // Digunakan sebagai In-Reply-To saat EcoSystem kirim email notifikasi approval
             'email_message_id'   => $data['internet_message_id'] ?? null,
-            // Field tambahan (opsional dari Jarvies)
             'name'               => $data['name'] ?? null,
             'no_hp'              => $data['no_hp'] ?? null,
             'module'             => $data['module'] ?? null,
             'client'             => $data['client'] ?? null,
         ]);
+
+        // SLA clock mulai sejak staging masuk
+        try {
+            $this->sla->attachToStaging($staging);
+        } catch (\Throwable $e) {
+            Log::warning('StagingTicketService@createFromWeb: SLA attachToStaging gagal (non-fatal)', [
+                'staging_id' => $staging->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
+
+        return $staging;
     }
 
     // ─── 2. Create from email (MS Graph inbox processor) ─────────────────────
@@ -188,6 +201,16 @@ class StagingTicketService
             $staging->created_at = $receivedAt;
         }
 
+        // SLA clock mulai sejak email masuk
+        try {
+            $this->sla->attachToStaging($staging);
+        } catch (\Throwable $e) {
+            Log::warning('StagingTicketService@createFromEmail: SLA attachToStaging gagal (non-fatal)', [
+                'staging_id' => $staging->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
+
         return $staging;
     }
 
@@ -242,7 +265,6 @@ class StagingTicketService
                 'ticket_type'     => $ticketType,
                 'scale'           => $finalScale,
                 'status'          => 'open',
-                'jarvies_status'  => 'sent it to support',
                 'channel'         => $staging->channel,
                 'email_thread_id' => $staging->email_thread_id,
                 'cc_emails'       => $ccEmails,              // checklist G
@@ -375,6 +397,16 @@ class StagingTicketService
                 ]);
             }
 
+            // Inisialisasi SLA record untuk tiket baru (non-fatal)
+            try {
+                $this->sla->attachToTicket($ticket, $staging);
+            } catch (\Throwable $e) {
+                Log::warning('StagingTicketService@approve: SLA attach gagal (non-fatal)', [
+                    'ticket_id' => $ticket->ticket_id,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
+
             Log::info('StagingTicketService@approve: staging promoted to ticket', [
                 'staging_id'       => $staging->id,
                 'ticket_id'        => $ticket->ticket_id,
@@ -416,6 +448,16 @@ class StagingTicketService
             'validated_by'      => $validatedBy,
             'validated_at'      => now(),
         ]);
+
+        // Hapus SLA record staging — tiket yang ditolak tidak masuk SLA report
+        try {
+            $this->sla->detachFromStaging($staging);
+        } catch (\Throwable $e) {
+            Log::warning('StagingTicketService@reject: SLA detachFromStaging gagal (non-fatal)', [
+                'staging_id' => $staging->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
 
         Log::info('StagingTicketService@reject: staging rejected', [
             'staging_id' => $staging->id,

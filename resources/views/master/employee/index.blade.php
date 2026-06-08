@@ -846,7 +846,7 @@
         }
 
         if (!currentEmployeeId) {
-            employeeData.role_id = 2;
+            employeeData.role_id = 3;
         }
 
         try {

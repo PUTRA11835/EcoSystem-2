@@ -31,7 +31,7 @@ class TimesheetController extends Controller
             $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
 
             // Admin, Head of Project, Head of Support, and RPMO can access this
-            $approvalRoles = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
+            $approvalRoles = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
             if (!in_array($roleId, $approvalRoles, true)) {
                 return response()->json([
                     'success' => false,
@@ -334,16 +334,16 @@ class TimesheetController extends Controller
             //   Head of Support  → also sees all support timesheets (ticket_id IS NOT NULL)
             //   Head of Project  → also sees all project timesheets (delivery_projects_id IS NOT NULL)
             //   RPMO             → also sees all office timesheets (both NULL)
-            if ($currentRoleId !== RoleId::ADMIN->value) {
+            if ($currentRoleId !== RoleId::EC_ADMINISTRATOR->value) {
                 $query->where(function ($q) use ($currentEmployeeId, $currentRoleId) {
                     // Always own timesheets
                     $q->where('employee_id', $currentEmployeeId);
 
-                    if ($currentRoleId === RoleId::HEAD_OF_SUPPORT->value) {
+                    if ($currentRoleId === RoleId::DELIVERY_SUPPORT_HEAD->value) {
                         $q->orWhereNotNull('ticket_id');
-                    } elseif ($currentRoleId === RoleId::HEAD_OF_PROJECT->value) {
+                    } elseif ($currentRoleId === RoleId::DELIVERY_PROJECT_HEAD->value) {
                         $q->orWhereNotNull('delivery_projects_id');
-                    } elseif ($currentRoleId === RoleId::RPMO->value) {
+                    } elseif ($currentRoleId === RoleId::DELIVERY_RPMO_HEAD->value) {
                         $q->orWhere(function ($inner) {
                             $inner->whereNull('ticket_id')->whereNull('delivery_projects_id');
                         });
@@ -462,10 +462,10 @@ class TimesheetController extends Controller
             // Admins, Head of Support, Head of Project, and Helpdesk can view any timesheet.
             // All other roles may only view their own.
             $privileged = in_array($roleId, [
-                RoleId::ADMIN->value,
-                RoleId::HEAD_OF_SUPPORT->value,
-                RoleId::HEAD_OF_PROJECT->value,
-                RoleId::HELPDESK->value,
+                RoleId::EC_ADMINISTRATOR->value,
+                RoleId::DELIVERY_SUPPORT_HEAD->value,
+                RoleId::DELIVERY_PROJECT_HEAD->value,
+                RoleId::DELIVERY_HELPDESK->value,
             ], true);
 
             if (!$privileged && (int) $timesheet->employee_id !== (int) $sessionEmpId) {
@@ -554,7 +554,7 @@ class TimesheetController extends Controller
             // ── Period access gate ────────────────────────────────────────────
             // Bypass for Admin and RPMO (they can always submit)
             $sessionRoleId = (int) (session('user')['role']['id'] ?? 0);
-            $bypass = in_array($sessionRoleId, [RoleId::ADMIN->value, RoleId::RPMO->value]);
+            $bypass = in_array($sessionRoleId, [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value]);
 
             if (!$bypass) {
                 /** @var PeriodService $periodSvc */
@@ -619,7 +619,7 @@ class TimesheetController extends Controller
             $sessionUser       = session('user');
             $currentEmployeeId = $sessionUser['id'] ?? null;
             $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
-            $privilegedRoles   = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
+            $privilegedRoles   = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
 
             if (!in_array($currentRoleId, $privilegedRoles, true) && (int) $timesheet->employee_id !== (int) $currentEmployeeId) {
                 return response()->json([
@@ -718,7 +718,7 @@ class TimesheetController extends Controller
             $sessionUser       = session('user');
             $currentEmployeeId = $sessionUser['id'] ?? null;
             $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
-            $privilegedRoles   = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
+            $privilegedRoles   = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
 
             if (!in_array($currentRoleId, $privilegedRoles, true) && (int) $timesheet->employee_id !== (int) $currentEmployeeId) {
                 return response()->json([
@@ -762,7 +762,7 @@ class TimesheetController extends Controller
             $sessionUser       = session('user');
             $currentEmployeeId = $sessionUser['id'] ?? null;
             $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
-            $privilegedRoles   = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
+            $privilegedRoles   = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
 
             if (!in_array($currentRoleId, $privilegedRoles, true) && (int) $timesheet->employee_id !== (int) $currentEmployeeId) {
                 return response()->json([
@@ -853,11 +853,11 @@ class TimesheetController extends Controller
             $isProject = (bool) $timesheet->delivery_projects_id;
 
             if ($isSupport) {
-                $targetRole = RoleId::HEAD_OF_SUPPORT->value;
+                $targetRole = RoleId::DELIVERY_SUPPORT_HEAD->value;
             } elseif ($isProject) {
-                $targetRole = RoleId::HEAD_OF_PROJECT->value;
+                $targetRole = RoleId::DELIVERY_PROJECT_HEAD->value;
             } else {
-                $targetRole = RoleId::RPMO->value;
+                $targetRole = RoleId::DELIVERY_RPMO_HEAD->value;
             }
 
             // Submitter name — use session if available, else query
@@ -910,7 +910,7 @@ class TimesheetController extends Controller
             $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
 
             // Admin, Head of Project, Head of Support, and RPMO can approve
-            $approvalRoles = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
+            $approvalRoles = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
             if (!in_array($roleId, $approvalRoles, true)) {
                 return response()->json([
                     'success' => false,
@@ -959,7 +959,7 @@ class TimesheetController extends Controller
             $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
 
             // Admin, Head of Project, Head of Support, and RPMO can reject
-            $approvalRoles = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
+            $approvalRoles = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
             if (!in_array($roleId, $approvalRoles, true)) {
                 return response()->json([
                     'success' => false,

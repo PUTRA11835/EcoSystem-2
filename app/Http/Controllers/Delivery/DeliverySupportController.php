@@ -639,8 +639,8 @@ class DeliverySupportController extends Controller
         }
 
         // Assign ticket PIC to activity if exists
-        if ($ticket->employee_id) {
-            $activity->employees()->attach($ticket->employee_id, [
+        if ($ticket->ticket_lead_id) {
+            $activity->employees()->attach($ticket->ticket_lead_id, [
                 'role' => 'lead',
                 'allocation_percentage' => 100,
                 'is_active' => true,

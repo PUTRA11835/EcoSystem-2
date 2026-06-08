@@ -29,19 +29,19 @@
     <!-- Employee Profile Card -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div class="flex items-start gap-6">
-            <div class="w-32 h-32 rounded-full bg-gradient-to-br from-red-800 to-red-950 text-white flex items-center justify-center font-bold text-4xl flex-shrink-0">
+            <div id="headerInitials" class="w-32 h-32 rounded-full bg-gradient-to-br from-red-800 to-red-950 text-white flex items-center justify-center font-bold text-4xl flex-shrink-0">
                 {{ strtoupper(substr(($employee->first_name ?? 'N'), 0, 1) . substr(($employee->last_name ?? 'A'), 0, 1)) }}
             </div>
             <div class="flex-1">
                 <div class="flex items-start justify-between mb-4">
                     <div>
-                        <h1 class="text-3xl font-bold text-gray-900">{{ trim(($employee->first_name ?? '') . ' ' . ($employee->last_name ?? '')) ?: 'N/A' }}</h1>
-                        <p class="text-lg text-gray-600 mt-1">{{ $employee->position ?? 'N/A' }}</p>
+                        <h1 id="headerFullName" class="text-3xl font-bold text-gray-900">{{ trim(($employee->first_name ?? '') . ' ' . ($employee->last_name ?? '')) ?: 'N/A' }}</h1>
+                        <p id="headerPosition" class="text-lg text-gray-600 mt-1">{{ $employee->position ?? 'N/A' }}</p>
                     </div>
                     @php
                         $statusClass = 'bg-gray-100 text-gray-800';
                         $statusLabel = 'Unknown';
-                        
+
                         if (isset($employee->deletion_flag) && $employee->deletion_flag) {
                             $statusClass = 'bg-red-100 text-red-800';
                             $statusLabel = 'Flagged for Deletion';
@@ -56,35 +56,35 @@
                             $statusLabel = 'Inactive';
                         }
                     @endphp
-                    <span class="inline-block px-4 py-2 text-sm font-semibold rounded-full {{ $statusClass }}">
+                    <span id="headerStatusBadge" class="inline-block px-4 py-2 text-sm font-semibold rounded-full {{ $statusClass }}">
                         {{ $statusLabel }}
                     </span>
                 </div>
-                
+
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
                         <p class="text-gray-500">Employee ID (ECI)</p>
-                        <p class="font-semibold text-gray-900">{{ $employee->eci ?? 'N/A' }}</p>
+                        <p id="headerEci" class="font-semibold text-gray-900">{{ $employee->eci ?? 'N/A' }}</p>
                     </div>
                     <div>
                         <p class="text-gray-500">Email (Personal)</p>
-                        <p class="font-semibold text-gray-900">{{ $employee->email_personal ?? 'N/A' }}</p>
+                        <p id="headerEmail" class="font-semibold text-gray-900">{{ $employee->email_personal ?? 'N/A' }}</p>
                     </div>
                     <div>
                         <p class="text-gray-500">Phone</p>
-                        <p class="font-semibold text-gray-900">{{ $employee->cell_phone ?? $employee->telephone ?? 'N/A' }}</p>
+                        <p id="headerPhone" class="font-semibold text-gray-900">{{ $employee->cell_phone ?? $employee->telephone ?? 'N/A' }}</p>
                     </div>
                     <div>
                         <p class="text-gray-500">Department</p>
-                        <p class="font-semibold text-gray-900">{{ $employee->department ?? 'N/A' }}</p>
+                        <p id="headerDepartment" class="font-semibold text-gray-900">{{ $employee->department ?? 'N/A' }}</p>
                     </div>
                     <div>
                         <p class="text-gray-500">Division</p>
-                        <p class="font-semibold text-gray-900">{{ $employee->division ?? 'N/A' }}</p>
+                        <p id="headerDivision" class="font-semibold text-gray-900">{{ $employee->division ?? 'N/A' }}</p>
                     </div>
                     <div>
                         <p class="text-gray-500">Since Date</p>
-                        <p class="font-semibold text-gray-900">{{ $employee->since_date ? \Carbon\Carbon::parse($employee->since_date)->format('d M Y') : 'N/A' }}</p>
+                        <p id="headerSinceDate" class="font-semibold text-gray-900">{{ $employee->since_date ? \Carbon\Carbon::parse($employee->since_date)->format('d M Y') : 'N/A' }}</p>
                     </div>
                 </div>
             </div>
@@ -233,6 +233,33 @@
         }
     }
 
+    // Refresh the header card from server without full page reload
+    window.refreshHeader = async function(id) {
+        try {
+            const res = await fetch(`/api/employees/${id}/header`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            const result = await res.json();
+            if (!result.success) return;
+            const d = result.data;
+            document.getElementById('headerInitials').textContent    = d.initials     || 'NA';
+            document.getElementById('headerFullName').textContent    = d.full_name    || 'N/A';
+            document.getElementById('headerPosition').textContent    = d.position     || 'N/A';
+            const badge = document.getElementById('headerStatusBadge');
+            badge.textContent = d.status_label;
+            badge.className   = 'inline-block px-4 py-2 text-sm font-semibold rounded-full ' + d.status_class;
+            document.getElementById('headerEci').textContent         = d.eci          || 'N/A';
+            document.getElementById('headerEmail').textContent       = d.email_personal || 'N/A';
+            document.getElementById('headerPhone').textContent       = d.phone        || 'N/A';
+            document.getElementById('headerDepartment').textContent  = d.department   || 'N/A';
+            document.getElementById('headerDivision').textContent    = d.division     || 'N/A';
+            document.getElementById('headerSinceDate').textContent   = d.since_date   || 'N/A';
+        } catch (e) {
+            console.error('refreshHeader error', e);
+        }
+    };
+
     // Load employee basic data
     async function loadEmployeeBasicData(employeeId) {
         try {
@@ -353,6 +380,7 @@
             if (data.success) {
                 showNotification('Basic data saved successfully!', 'success');
                 loadEmployeeBasicData(employeeId);
+                refreshHeader(employeeId);
             } else {
                 const fieldLabels = {
                     first_name: 'First Name', last_name: 'Last Name', nick_name: 'Nick Name',

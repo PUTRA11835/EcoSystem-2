@@ -42,13 +42,13 @@ class MandaysController extends Controller
         $empId       = $sessionUser['id'] ?? null;
 
         // Admins bypass participant check
-        if ($roleId === RoleId::ADMIN->value) return null;
+        if ($roleId === RoleId::EC_ADMINISTRATOR->value) return null;
 
         if (!$empId) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
 
-        $isPic    = (int) $ticket->employee_id === (int) $empId;
+        $isPic    = (int) $ticket->ticket_lead_id === (int) $empId;
         $isMember = $ticket->members()->where('ticket_member.employee_id', $empId)->exists();
 
         if (!$isPic && !$isMember) {
@@ -65,14 +65,14 @@ class MandaysController extends Controller
         $roleId      = $sessionUser['role']['id'] ?? 0;
         $empId       = $sessionUser['id'] ?? null;
 
-        $headRoles = [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value, RoleId::HEAD_OF_PROJECT->value];
+        $headRoles = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value, RoleId::DELIVERY_PROJECT_HEAD->value];
         if (in_array($roleId, $headRoles, true)) return null;
 
         if (!$empId) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
 
-        $isPic    = (int) $ticket->employee_id === (int) $empId;
+        $isPic    = (int) $ticket->ticket_lead_id === (int) $empId;
         $isMember = $ticket->members()->where('ticket_member.employee_id', $empId)->exists();
 
         if (!$isPic && !$isMember) {
@@ -95,7 +95,7 @@ class MandaysController extends Controller
         $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
 
         // Kumpulkan employee_id: PIC + members
-        $employeeIds = collect([$ticket->employee_id])
+        $employeeIds = collect([$ticket->ticket_lead_id])
             ->merge($ticket->members->pluck('employee_id'))
             ->filter()
             ->unique()
@@ -256,7 +256,7 @@ class MandaysController extends Controller
         $fromId      = $sessionUser['id'] ?? null;
         $ticketNum   = $ticket->ticket_number ?? $ticketId;
         $this->notifyRoles(
-            [RoleId::HELPDESK->value],
+            [RoleId::DELIVERY_HELPDESK->value],
             'customer_mandays_proposed',
             $fromName,
             $fromId,
@@ -302,7 +302,7 @@ class MandaysController extends Controller
     public function saveHelpdeskDraft(Request $request, $ticketId)
     {
         if ($deny = $this->denyUnlessRole(
-            [RoleId::ADMIN->value, RoleId::HELPDESK->value],
+            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_HELPDESK->value],
             'Only Helpdesk can edit the customer mandays proposal at this stage.'
         )) {
             return $deny;
@@ -353,7 +353,7 @@ class MandaysController extends Controller
     public function submitToChat($ticketId)
     {
         if ($deny = $this->denyUnlessRole(
-            [RoleId::ADMIN->value, RoleId::HELPDESK->value],
+            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_HELPDESK->value],
             'Only Helpdesk can send the mandays proposal to the customer.'
         )) {
             return $deny;
@@ -496,7 +496,7 @@ class MandaysController extends Controller
     public function approveCustomerMandays($ticketId)
     {
         if ($deny = $this->denyUnlessRole(
-            [RoleId::ADMIN->value, RoleId::HELPDESK->value],
+            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_HELPDESK->value],
             'Only Helpdesk can approve the customer mandays proposal.'
         )) {
             return $deny;
@@ -529,7 +529,7 @@ class MandaysController extends Controller
     public function cancelCustomerMandays(Request $request, $ticketId)
     {
         if ($deny = $this->denyUnlessRole(
-            [RoleId::ADMIN->value, RoleId::HELPDESK->value],
+            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_HELPDESK->value],
             'Only Helpdesk can cancel the customer mandays proposal.'
         )) {
             return $deny;
@@ -561,8 +561,8 @@ class MandaysController extends Controller
         $link      = "/ticket/{$ticketId}";
 
         $recipients = collect();
-        if ($ticket->employee_id) {
-            $recipients->push($ticket->employee_id);
+        if ($ticket->ticket_lead_id) {
+            $recipients->push($ticket->ticket_lead_id);
         }
         $ticket->members->pluck('employee_id')->each(fn ($id) => $recipients->push($id));
 
@@ -830,7 +830,7 @@ class MandaysController extends Controller
         $fromId      = $sessionUser['id'] ?? null;
         $ticketNum   = $ticket->ticket_number ?? $ticketId;
         $this->notifyRoles(
-            [RoleId::HEAD_OF_SUPPORT->value, RoleId::HEAD_OF_PROJECT->value],
+            [RoleId::DELIVERY_SUPPORT_HEAD->value, RoleId::DELIVERY_PROJECT_HEAD->value],
             'resolution_days_proposed',
             $fromName,
             $fromId,
@@ -852,7 +852,7 @@ class MandaysController extends Controller
     public function approveResolutionProposal(Request $request, $ticketId)
     {
         if ($deny = $this->denyUnlessRole(
-            [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value, RoleId::HEAD_OF_PROJECT->value],
+            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value, RoleId::DELIVERY_PROJECT_HEAD->value],
             'Only Head of Support or Head of Project can approve resolution days proposals.'
         )) {
             return $deny;
@@ -1223,11 +1223,11 @@ class MandaysController extends Controller
         $people = [];
 
         // PIC
-        if ($ticket->employee_id) {
-            $pic = Employee::with(['basicData', 'qualifications'])->find($ticket->employee_id);
+        if ($ticket->ticket_lead_id) {
+            $pic = Employee::with(['basicData', 'qualifications'])->find($ticket->ticket_lead_id);
             if ($pic) {
-                $people[$ticket->employee_id] = [
-                    'employee_id' => $ticket->employee_id,
+                $people[$ticket->ticket_lead_id] = [
+                    'employee_id' => $ticket->ticket_lead_id,
                     'name'        => trim(($pic->basicData?->first_name ?? '') . ' ' . ($pic->basicData?->last_name ?? '')),
                     'role'        => 'PIC',
                     'modules'     => $pic->qualifications->pluck('module')->filter()->unique()->values()->all(),

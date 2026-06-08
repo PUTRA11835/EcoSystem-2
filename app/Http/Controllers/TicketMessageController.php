@@ -8,6 +8,7 @@ use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
+use App\Services\SlaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -149,7 +150,7 @@ class TicketMessageController extends Controller
                 ], 401);
             }
 
-            $ticket = Ticket::findOrFail($ticketId);
+            $ticket = Ticket::with('members')->findOrFail($ticketId);
             $roleId = $sessionUser['role']['id'];
 
             // Determine sender type and info
@@ -265,6 +266,16 @@ class TicketMessageController extends Controller
 
                 $ticket->update(['last_agent_reply_at' => now(), 'last_message_at' => now()]);
 
+                // Notifikasi ke PIC + member aktif lain
+                if ($message) {
+                    $replyPreview = mb_substr(strip_tags($messageBody), 0, 100);
+                    $this->notifyTicketParticipants(
+                        $ticket, $message, $senderId, $senderName,
+                        'ticket_reply',
+                        $senderName . ' replied: ' . ($replyPreview ?: '(reply)')
+                    );
+                }
+
             } else {
                 // Internal note — tidak pernah dikirim ke email
                 $mentionedEmployeeIds = $request->input('mentioned_employee_ids', []);
@@ -307,6 +318,33 @@ class TicketMessageController extends Controller
                         $mentionedEmployeeIds,
                         $mentionedRoleIds
                     );
+                }
+
+                // Notifikasi ke PIC + member aktif lain
+                $notePreview = mb_substr(strip_tags($messageBody), 0, 100);
+                $this->notifyTicketParticipants(
+                    $ticket, $message, $senderId, $senderName,
+                    'ticket_internal_note',
+                    $senderName . ': ' . ($notePreview ?: '(internal note)')
+                );
+            }
+
+            // Trigger SLA event (non-fatal)
+            if ($message && !$isInternalNote) {
+                try {
+                    $ticket->refresh();
+                    app(SlaService::class)->recordMessageEvent(
+                        $ticket,
+                        $message,
+                        'employee',
+                        $ticket->status
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('TicketMessageController@store: SLA record gagal (non-fatal)', [
+                        'ticket_id'  => $ticketId,
+                        'message_id' => $message->id,
+                        'error'      => $e->getMessage(),
+                    ]);
                 }
             }
 
@@ -445,6 +483,22 @@ class TicketMessageController extends Controller
             }
             $ticket->update($ticketUpdate);
 
+            // Trigger SLA event untuk customer reply (non-fatal)
+            try {
+                app(SlaService::class)->recordMessageEvent(
+                    $ticket,
+                    $message,
+                    'customer',
+                    null
+                );
+            } catch (\Throwable $e) {
+                Log::warning('TicketMessageController@customerReply: SLA record gagal (non-fatal)', [
+                    'ticket_id'  => $ticket->ticket_id,
+                    'message_id' => $message->id,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
+
             // Relay email ke thread M365:
             // - skip_relay = true  → Jarvies sudah kirim email via OAuth customer sendiri,
             //                        thread sudah tersambung, tidak perlu relay dari helpdesk
@@ -503,6 +557,49 @@ class TicketMessageController extends Controller
      * Role mentions are fan-out expanded: each member of the role gets one notification.
      * The sender never receives their own notification.
      */
+
+    /**
+     * Kirim notifikasi ke PIC + semua member aktif ticket (kecuali pengirim pesan).
+     * Dipanggil setelah internal note atau email reply tersimpan.
+     */
+    private function notifyTicketParticipants(
+        Ticket        $ticket,
+        TicketMessage $message,
+        int           $senderId,
+        string        $senderName,
+        string        $type,    // 'ticket_internal_note' | 'ticket_reply'
+        string        $preview
+    ): void {
+        $link = "/ticket/{$ticket->ticket_id}";
+
+        // Kumpulkan PIC + member aktif, hapus duplikat dan pengirim sendiri
+        $recipients = collect();
+
+        if ($ticket->ticket_lead_id && $ticket->ticket_lead_id !== $senderId) {
+            $recipients->push((int) $ticket->ticket_lead_id);
+        }
+
+        $ticket->members // hanya aktif (via wherePivot)
+            ->pluck('employee_id')
+            ->each(fn ($id) => $recipients->push((int) $id));
+
+        $recipients->unique()
+            ->reject(fn ($id) => $id === $senderId)
+            ->each(function ($empId) use ($senderId, $senderName, $type, $ticket, $message, $link, $preview) {
+                Notification::create([
+                    'employee_id'      => $empId,
+                    'type'             => $type,
+                    'ticket_id'        => $ticket->ticket_id,
+                    'message_id'       => $message->id,
+                    'from_employee_id' => $senderId,
+                    'from_name'        => $senderName,
+                    'preview'          => $preview,
+                    'link'             => $link,
+                    'is_read'          => false,
+                ]);
+            });
+    }
+
     private function createMentionNotifications(
         TicketMessage $message,
         Ticket $ticket,

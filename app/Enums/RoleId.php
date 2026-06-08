@@ -4,31 +4,31 @@ namespace App\Enums;
 
 /**
  * Daftar role_id yang digunakan di seluruh sistem EcoSystem.
- * Nilai int ini harus cocok dengan kolom `role_id` di tabel `role`.
+ * Nilai int ini harus cocok dengan kolom `role_id` di tabel `employee_role`.
  *
  * Penggunaan:
- *   RoleId::ADMIN->value          // → 1
- *   RoleId::from(1)               // → RoleId::ADMIN
- *   RoleId::tryFrom(99)           // → null (safe)
+ *   RoleId::EC_ADMINISTRATOR->value   // → 1
+ *   RoleId::from(1)                   // → RoleId::EC_ADMINISTRATOR
+ *   RoleId::tryFrom(99)               // → null (safe)
  *   in_array($roleId, RoleId::HELPDESK_GROUP) // → true jika 6 atau 7
  */
 enum RoleId: int
 {
     // ── System roles (ID 1-7, fixed) ───────────────────────────────────────────
     // DB name: EC Administrator
-    case ADMIN           = 1;
+    case EC_ADMINISTRATOR   = 1;
     // DB name: Delivery Support User
-    case EMPLOYEE        = 2;
+    case DELIVERY_SUPPORT_USER = 2;
     // DB name: EC User
-    case INTERNSHIP      = 3;
+    case EC_USER            = 3;
     // DB name: Delivery Project Head
-    case HEAD_OF_PROJECT = 4;
+    case DELIVERY_PROJECT_HEAD = 4;
     // DB name: Delivery Support Head
-    case HEAD_OF_SUPPORT = 5;
+    case DELIVERY_SUPPORT_HEAD = 5;
     // DB name: Delivery Support Service Helpdesk
-    case HELPDESK        = 6;
+    case DELIVERY_HELPDESK  = 6;
     // DB name: Delivery RPMO Head
-    case RPMO            = 7;
+    case DELIVERY_RPMO_HEAD = 7;
 
     // ── Extended roles (added via migration 2026_04_16) ─────────────────────
     // DB name: Delivery Project Administrator (employee_role.id = 12)
@@ -36,56 +36,62 @@ enum RoleId: int
     // domain, but scoped to the Delivery Project module (no support-ticket powers).
     case DELIVERY_PROJECT_ADMIN = 12;
     // DB name: Delivery Project User (employee_role.id = 15)
-    case EMPLOYEE_PROJECT = 15;
+    case DELIVERY_PROJECT_USER = 15;
     // DB name: Delivery Support Manager (employee_role.id = 20)
-    case SUPPORT_MANAGER = 20;
+    case DELIVERY_SUPPORT_MANAGER = 20;
 
     // ── Grup yang sering dipakai bersama ────────────────────────────────────
 
-    /** Admin + semua operator internal */
+    /** EC Administrator + semua operator internal */
     public const INTERNAL_GROUP = [
-        self::ADMIN->value,
-        self::EMPLOYEE->value,
-        self::HEAD_OF_PROJECT->value,
-        self::HEAD_OF_SUPPORT->value,
-        self::HELPDESK->value,
-        self::RPMO->value,
-        self::DELIVERY_PROJECT_ADMIN->value,
-        self::EMPLOYEE_PROJECT->value,
-        self::SUPPORT_MANAGER->value,
+        self::EC_ADMINISTRATOR->value,
+        self::DELIVERY_SUPPORT_USER->value,
+        self::DELIVERY_PROJECT_HEAD->value,
+        self::DELIVERY_SUPPORT_HEAD->value,
+        self::DELIVERY_HELPDESK->value,
+        self::DELIVERY_RPMO_HEAD->value,
+        self::DELIVERY_PROJECT_USER->value,
+        self::DELIVERY_SUPPORT_MANAGER->value,
     ];
 
     /** Delivery domain users (subject to period restrictions) */
     public const DELIVERY_USER_GROUP = [
-        self::EMPLOYEE->value,         // Support domain
-        self::EMPLOYEE_PROJECT->value, // Project domain
+        self::DELIVERY_SUPPORT_USER->value,  // Support domain
+        self::DELIVERY_PROJECT_USER->value,  // Project domain
     ];
 
     /** Period management actors (can view Period Management page) */
     public const PERIOD_MANAGEMENT_GROUP = [
-        self::ADMIN->value,
-        self::HEAD_OF_PROJECT->value,
-        self::HEAD_OF_SUPPORT->value,
-        self::RPMO->value,
+        self::EC_ADMINISTRATOR->value,
+        self::DELIVERY_PROJECT_HEAD->value,
+        self::DELIVERY_SUPPORT_HEAD->value,
+        self::DELIVERY_RPMO_HEAD->value,
     ];
 
-    /** Role yang bisa mengelola tiket (Admin + Head of Support + Helpdesk + RPMO) */
+    /** Role yang bisa mengelola tiket (EC Administrator + Delivery Support Head + Helpdesk + RPMO) */
     public const TICKET_MANAGER_GROUP = [
-        self::ADMIN->value,
-        self::HEAD_OF_SUPPORT->value,
-        self::HELPDESK->value,
-        self::RPMO->value,
+        self::EC_ADMINISTRATOR->value,
+        self::DELIVERY_SUPPORT_HEAD->value,
+        self::DELIVERY_HELPDESK->value,
+        self::DELIVERY_RPMO_HEAD->value,
     ];
 
     /** Head roles */
     public const HEAD_GROUP = [
-        self::HEAD_OF_PROJECT->value,
-        self::HEAD_OF_SUPPORT->value,
+        self::DELIVERY_PROJECT_HEAD->value,
+        self::DELIVERY_SUPPORT_HEAD->value,
     ];
 
     /** Helpdesk + RPMO */
     public const HELPDESK_GROUP = [
-        self::HELPDESK->value,
-        self::RPMO->value,
+        self::DELIVERY_HELPDESK->value,
+        self::DELIVERY_RPMO_HEAD->value,
+    ];
+
+    /** Roles yang dapat mengakses fitur Staging / Ticket Validation */
+    public const STAGING_GROUP = [
+        self::DELIVERY_SUPPORT_HEAD->value,
+        self::DELIVERY_HELPDESK->value,
+        self::DELIVERY_RPMO_HEAD->value,
     ];
 }

@@ -110,18 +110,18 @@ class PeriodManagementController extends Controller
         // For heads: get eligible employees for their domain's late exceptions
         // Admin gets all delivery employees (both domains)
         $domainEmployees = collect();
-        if ($roleId === RoleId::ADMIN->value) {
+        if ($roleId === RoleId::EC_ADMINISTRATOR->value) {
             $domainEmployees = Employee::whereIn('role_id', [
-                    RoleId::EMPLOYEE->value,
-                    RoleId::EMPLOYEE_PROJECT->value,
+                    RoleId::DELIVERY_SUPPORT_USER->value,
+                    RoleId::DELIVERY_PROJECT_USER->value,
                 ])
                 ->with('basicData')
                 ->orderBy('employee_id')
                 ->get(['employee_id', 'role_id']);
-        } elseif (in_array($roleId, [RoleId::HEAD_OF_PROJECT->value, RoleId::HEAD_OF_SUPPORT->value])) {
+        } elseif (in_array($roleId, [RoleId::DELIVERY_PROJECT_HEAD->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
             $domainRoleId    = ($domain === PeriodService::DOMAIN_PROJECT)
-                ? RoleId::EMPLOYEE_PROJECT->value
-                : RoleId::EMPLOYEE->value;
+                ? RoleId::DELIVERY_PROJECT_USER->value
+                : RoleId::DELIVERY_SUPPORT_USER->value;
             $domainEmployees = Employee::where('role_id', $domainRoleId)
                 ->with('basicData')
                 ->orderBy('employee_id')
@@ -135,14 +135,14 @@ class PeriodManagementController extends Controller
 
     private function isAdmin(): bool
     {
-        return $this->actorRoleId() === RoleId::ADMIN->value;
+        return $this->actorRoleId() === RoleId::EC_ADMINISTRATOR->value;
     }
 
     // ── API: Create period (RPMO / Admin) ─────────────────────────────────────
 
     public function store(Request $request): JsonResponse
     {
-        if (!in_array($this->actorRoleId(), [RoleId::ADMIN->value, RoleId::RPMO->value])) {
+        if (!in_array($this->actorRoleId(), [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value])) {
             return $this->unauthorized('Only RPMO Head or EC Administrator can create periods.');
         }
 
@@ -176,7 +176,7 @@ class PeriodManagementController extends Controller
 
     public function openGlobal(ReportingPeriod $period): JsonResponse
     {
-        if (!in_array($this->actorRoleId(), [RoleId::ADMIN->value, RoleId::RPMO->value])) {
+        if (!in_array($this->actorRoleId(), [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value])) {
             return $this->unauthorized('Only RPMO Head or EC Administrator can open periods globally.');
         }
 
@@ -196,7 +196,7 @@ class PeriodManagementController extends Controller
 
     public function closeGlobal(ReportingPeriod $period): JsonResponse
     {
-        if (!in_array($this->actorRoleId(), [RoleId::ADMIN->value, RoleId::RPMO->value])) {
+        if (!in_array($this->actorRoleId(), [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value])) {
             return $this->unauthorized('Only RPMO Head or EC Administrator can close periods globally.');
         }
 
@@ -216,7 +216,7 @@ class PeriodManagementController extends Controller
 
     public function forceCloseDomain(Request $request, ReportingPeriod $period): JsonResponse
     {
-        if (!in_array($this->actorRoleId(), [RoleId::ADMIN->value, RoleId::RPMO->value])) {
+        if (!in_array($this->actorRoleId(), [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value])) {
             return $this->unauthorized('Only RPMO Head or EC Administrator can force-close domains.');
         }
 
@@ -241,7 +241,7 @@ class PeriodManagementController extends Controller
         $roleId  = $this->actorRoleId();
         $isAdmin = $this->isAdmin();
 
-        if (!$isAdmin && !in_array($roleId, [RoleId::HEAD_OF_PROJECT->value, RoleId::HEAD_OF_SUPPORT->value])) {
+        if (!$isAdmin && !in_array($roleId, [RoleId::DELIVERY_PROJECT_HEAD->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
             return $this->unauthorized('Only Project Head, Support Head, or EC Administrator can open domain periods.');
         }
 
@@ -274,7 +274,7 @@ class PeriodManagementController extends Controller
         $roleId  = $this->actorRoleId();
         $isAdmin = $this->isAdmin();
 
-        if (!$isAdmin && !in_array($roleId, [RoleId::HEAD_OF_PROJECT->value, RoleId::HEAD_OF_SUPPORT->value])) {
+        if (!$isAdmin && !in_array($roleId, [RoleId::DELIVERY_PROJECT_HEAD->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
             return $this->unauthorized('Only Project Head, Support Head, or EC Administrator can close domain periods.');
         }
 
@@ -335,7 +335,7 @@ class PeriodManagementController extends Controller
 
     public function updateDates(Request $request, ReportingPeriod $period): JsonResponse
     {
-        if (!in_array($this->actorRoleId(), [RoleId::ADMIN->value, RoleId::RPMO->value])) {
+        if (!in_array($this->actorRoleId(), [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value])) {
             return $this->unauthorized('Only RPMO Head or EC Administrator can edit period dates.');
         }
 
@@ -372,7 +372,7 @@ class PeriodManagementController extends Controller
 
     public function destroy(ReportingPeriod $period): JsonResponse
     {
-        if (!in_array($this->actorRoleId(), [RoleId::ADMIN->value, RoleId::RPMO->value])) {
+        if (!in_array($this->actorRoleId(), [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value])) {
             return $this->unauthorized('Only RPMO Head or EC Administrator can delete periods.');
         }
 
@@ -451,8 +451,8 @@ class PeriodManagementController extends Controller
             $senderName  = $this->actorName();
             $domainLabel = ucfirst($domain);
             $headRole    = $domain === PeriodService::DOMAIN_PROJECT
-                ? RoleId::HEAD_OF_PROJECT->value
-                : RoleId::HEAD_OF_SUPPORT->value;
+                ? RoleId::DELIVERY_PROJECT_HEAD->value
+                : RoleId::DELIVERY_SUPPORT_HEAD->value;
 
             $this->notifyRoles(
                 [$headRole],
@@ -496,8 +496,8 @@ class PeriodManagementController extends Controller
     {
         $roleId  = $this->actorRoleId();
         $isAdmin = $this->isAdmin();
-        $isRpmo  = $roleId === RoleId::RPMO->value;
-        $isHead  = in_array($roleId, [RoleId::HEAD_OF_PROJECT->value, RoleId::HEAD_OF_SUPPORT->value]);
+        $isRpmo  = $roleId === RoleId::DELIVERY_RPMO_HEAD->value;
+        $isHead  = in_array($roleId, [RoleId::DELIVERY_PROJECT_HEAD->value, RoleId::DELIVERY_SUPPORT_HEAD->value]);
 
         if (!$isAdmin && !$isRpmo && !$isHead) {
             return $this->unauthorized();
@@ -531,7 +531,7 @@ class PeriodManagementController extends Controller
     {
         $roleId  = $this->actorRoleId();
         $isAdmin = $this->isAdmin();
-        $isHead  = in_array($roleId, [RoleId::HEAD_OF_PROJECT->value, RoleId::HEAD_OF_SUPPORT->value]);
+        $isHead  = in_array($roleId, [RoleId::DELIVERY_PROJECT_HEAD->value, RoleId::DELIVERY_SUPPORT_HEAD->value]);
 
         if (!$isAdmin && !$isHead) {
             return $this->unauthorized('Only Head or Admin can approve at Level 1.');
@@ -572,7 +572,7 @@ class PeriodManagementController extends Controller
 
                 // Notify all RPMO
                 $this->notifyRoles(
-                    [RoleId::RPMO->value],
+                    [RoleId::DELIVERY_RPMO_HEAD->value],
                     'late_exception_pending_rpmo',
                     $headName,
                     "{$empName}'s late access request for {$periodLabel} was approved by Head {$headName}. Your review is needed.",
@@ -608,7 +608,7 @@ class PeriodManagementController extends Controller
     {
         $roleId  = $this->actorRoleId();
         $isAdmin = $this->isAdmin();
-        $isRpmo  = $roleId === RoleId::RPMO->value;
+        $isRpmo  = $roleId === RoleId::DELIVERY_RPMO_HEAD->value;
 
         if (!$isAdmin && !$isRpmo) {
             return $this->unauthorized('Only RPMO or Admin can approve at Level 2.');

@@ -86,6 +86,17 @@
                 opacity: 1;
                 transform: translateY(0);
             }
+            /* Panel terbuka ke atas saat ruang bawah tidak cukup */
+            .se-wrap.opens-up .se-panel {
+                top: auto;
+                bottom: 100%;
+                margin-top: 0;
+                margin-bottom: 0.375rem;
+                transform: translateY(4px);
+            }
+            .se-wrap.opens-up.is-open .se-panel {
+                transform: translateY(0);
+            }
             .se-item {
                 display: block; width: 100%;
                 padding: 0.5rem 1rem;
@@ -271,7 +282,7 @@
     let openWrap = null;
     function closeOpen() {
         if (!openWrap) return;
-        openWrap.classList.remove('is-open');
+        openWrap.classList.remove('is-open', 'opens-up');
         const btn = openWrap.querySelector('.se-btn');
         if (btn) btn.setAttribute('aria-expanded', 'false');
         // Kalau panel di-detach ke body (mode fixed), kembalikan ke wrapper
@@ -330,6 +341,13 @@
             document.body.appendChild(panel);
             panel._seDetached = true;
             positionFixedPanel(btn, panel);
+        } else {
+            // Mode absolute biasa: deteksi apakah ruang bawah cukup, jika tidak
+            // buka ke atas.
+            const btnRect = btn.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - btnRect.bottom;
+            const placeAbove = spaceBelow < (PANEL_MAX_PX + 16) && btnRect.top > spaceBelow;
+            wrap.classList.toggle('opens-up', placeAbove);
         }
 
         // Auto-focus search input bila ada

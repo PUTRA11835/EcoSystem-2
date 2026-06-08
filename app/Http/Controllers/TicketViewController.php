@@ -50,7 +50,7 @@ class TicketViewController extends Controller
 
         // Get customers for Admin create ticket dropdown
         $customers = [];
-        if ($user->role->role_id === RoleId::ADMIN->value) {
+        if ($user->role->role_id === RoleId::EC_ADMINISTRATOR->value) {
             $customers = Customer::with('basicData')
                 ->where('is_active', true)
                 ->get()
@@ -99,7 +99,7 @@ class TicketViewController extends Controller
         }
 
         // Load ticket with all relationships
-        $ticket = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
+        $ticket = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'allMembers.basicData'])
             ->findOrFail($id);
 
         // Check if ticket is assigned to a delivery support

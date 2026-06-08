@@ -17,8 +17,8 @@ class TicketExport implements
     WithStyles,
     ShouldAutoSize
 {
-    // Column count: A–U (21 columns)
-    private const LAST_COL = 'U';
+    // Column count: A–T (20 columns, Jarvies Status column removed)
+    private const LAST_COL = 'T';
 
     protected Collection $rows;
 
@@ -31,24 +31,15 @@ class TicketExport implements
     {
         return $this->rows->map(function ($t) {
             $statusLabel = match ($t['status'] ?? '') {
-                'open'          => 'Open',
-                'in_progress'   => 'In Progress',
-                'hold'          => 'Hold',
-                'wait_to_close' => 'Wait to Close',
-                'cancel'        => 'Cancel',
-                'closed'        => 'Closed',
-                'reply'         => 'Reply',
-                default         => $t['status'] ?? '-',
-            };
-
-            $jarviesLabel = match ($t['jarvies_status'] ?? '') {
-                'sent it to support' => 'To Support',
-                'in process'         => 'In Process',
-                'author action'      => 'Author Action',
-                'proposed solution'  => 'Proposed Solution',
-                'sent in to SAP'     => 'Sent to SAP',
-                'closed'             => 'Closed',
-                default              => $t['jarvies_status'] ?? '-',
+                'open'                    => 'Open',
+                'inprocess'               => 'Inprocess',
+                'waiting_on_customer'     => 'Waiting on Customer',
+                'waiting_on_3rd_party'    => 'Waiting on 3rd Party',
+                'waiting_to_confirmation' => 'Waiting to Confirmation',
+                'hold'                    => 'Hold',
+                'cancelled'               => 'Cancelled',
+                'closed'                  => 'Closed',
+                default                   => $t['status'] ?? '-',
             };
 
             return [
@@ -63,7 +54,6 @@ class TicketExport implements
                 'priority'                 => $t['ticket_priority'] ?? '-',
                 'scale'                    => $t['scale'] ?? '-',
                 'status'                   => $statusLabel,
-                'jarvies_status'           => $jarviesLabel,
                 'type'                     => $t['ticket_type'] ?? '-',
                 'assign_delivery'          => '-',
                 'customer_mandays'         => $t['customer_mandays'] !== null
@@ -97,7 +87,6 @@ class TicketExport implements
             'Priority',
             'Scale',
             'Status',
-            'Jarvies Status',
             'Type',
             'Assign Delivery',
             'Customer Mandays',

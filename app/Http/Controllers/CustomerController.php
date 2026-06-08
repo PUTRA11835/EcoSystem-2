@@ -195,6 +195,61 @@ class CustomerController extends Controller
     }
 
     /**
+     * GET /api/customers/{id}/header
+     * Returns only the fields shown in the profile header card for AJAX refresh.
+     */
+    public function headerData($id)
+    {
+        try {
+            $customer = Customer::with('basicData')->find($id);
+            if (!$customer) {
+                return response()->json(['success' => false, 'message' => 'Customer not found'], 404);
+            }
+
+            $name1 = $customer->basicData->name_1 ?? '';
+            $initials = $name1 ? strtoupper(substr($name1, 0, 1)) : 'N';
+            if (strlen($name1) > 1 && strpos($name1, ' ') !== false) {
+                $parts = explode(' ', $name1);
+                $initials = strtoupper(substr($parts[0], 0, 1) . substr(end($parts), 0, 1));
+            }
+
+            if (!empty($customer->basicData->deletion_flag)) {
+                $statusClass = 'bg-red-100 text-red-800';
+                $statusLabel = 'Flagged for Deletion';
+            } elseif (!empty($customer->basicData->block)) {
+                $statusClass = 'bg-yellow-100 text-yellow-800';
+                $statusLabel = 'Blocked';
+            } elseif ($customer->is_active) {
+                $statusClass = 'bg-green-100 text-green-800';
+                $statusLabel = 'Active';
+            } else {
+                $statusClass = 'bg-gray-100 text-gray-800';
+                $statusLabel = 'Inactive';
+            }
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'name_1'            => $customer->basicData->name_1 ?? '',
+                    'name_2'            => $customer->basicData->name_2 ?? '',
+                    'customer_code'     => $customer->customer_code ?? '',
+                    'email'             => $customer->email ?? '',
+                    'phone'             => $customer->basicData->telephone ?? $customer->basicData->cell_phone ?? '',
+                    'customer_group'    => $customer->basicData->customer_group ?? '',
+                    'customer_category' => $customer->basicData->customer_category ?? '',
+                    'industry_sector'   => $customer->basicData->industry_sector ?? '',
+                    'initials'          => $initials,
+                    'status_label'      => $statusLabel,
+                    'status_class'      => $statusClass,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('headerData error', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to load header data'], 500);
+        }
+    }
+
+    /**
      * Customer grouping page (WEB)
      */
     public function grouping()

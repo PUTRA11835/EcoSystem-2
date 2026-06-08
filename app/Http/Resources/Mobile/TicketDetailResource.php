@@ -31,10 +31,9 @@ class TicketDetailResource extends JsonResource
             'id'             => $this->ticket_id,
             'title'          => $this->subject,
             'description'    => $this->description,
-            'status'         => $this->status_label,
-            'priority'       => $this->ticket_priority,
-            'type'           => $this->category,
-            'jarvies_status' => $this->jarvies_status,
+            'status'   => $this->status_label,
+            'priority' => $this->ticket_priority,
+            'type'     => $this->category,
             'customer'       => [
                 'id'   => $this->customer?->customer_id,
                 'name' => $this->customer?->basicData?->name_1,

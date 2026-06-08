@@ -48,7 +48,7 @@
     </div>
 
     {{-- Filter Tabs --}}
-    @php $ticketManagerOrEmployee = array_merge(\App\Enums\RoleId::TICKET_MANAGER_GROUP, [\App\Enums\RoleId::EMPLOYEE->value]); @endphp
+    @php $ticketManagerOrEmployee = array_merge(\App\Enums\RoleId::TICKET_MANAGER_GROUP, [\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value]); @endphp
     @if(in_array($user->role->role_id, $ticketManagerOrEmployee, true))
     <div class="px-4 pb-3">
         <div class="flex bg-white bg-opacity-10 rounded-lg p-0.5 gap-0.5">
@@ -109,22 +109,28 @@
                     <span class="text-sm text-gray-400 font-mono">{{ $ticket->ticket_number }}</span>
                     @php
                         $statusColors = [
-                            'open' => 'bg-blue-100 text-blue-700',
-                            'in_progress' => 'bg-yellow-100 text-yellow-700',
-                            'hold' => 'bg-orange-100 text-orange-700',
-                            'cancel' => 'bg-gray-100 text-gray-500',
-                            'closed' => 'bg-green-100 text-green-700',
-                            'reply' => 'bg-purple-100 text-purple-700',
-                            'wait_to_close' => 'bg-teal-100 text-teal-700',
+                            'open'                    => 'bg-blue-100 text-blue-700',
+                            'inprocess'               => 'bg-yellow-100 text-yellow-700',
+                            'waiting_on_customer'     => 'bg-amber-100 text-amber-700',
+                            'waiting_on_3rd_party'    => 'bg-indigo-100 text-indigo-700',
+                            'waiting_to_confirmation' => 'bg-teal-100 text-teal-700',
+                            'hold'                    => 'bg-orange-100 text-orange-700',
+                            'cancelled'               => 'bg-gray-100 text-gray-500',
+                            'closed'                  => 'bg-green-100 text-green-700',
                         ];
                         $statusLabels = [
-                            'open' => 'Open', 'in_progress' => 'In Progress', 'hold' => 'Hold',
-                            'cancel' => 'Cancel', 'closed' => 'Closed', 'reply' => 'Reply',
-                            'wait_to_close' => 'Wait to Close',
+                            'open'                    => 'Open',
+                            'inprocess'               => 'Inprocess',
+                            'waiting_on_customer'     => 'Waiting on Customer',
+                            'waiting_on_3rd_party'    => 'Waiting on 3rd Party',
+                            'waiting_to_confirmation' => 'Waiting to Confirmation',
+                            'hold'                    => 'Hold',
+                            'cancelled'               => 'Cancelled',
+                            'closed'                  => 'Closed',
                         ];
                     @endphp
                     <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
-                        {{ $statusLabels[$ticket->status] ?? 'Open' }}
+                        {{ $statusLabels[$ticket->status] ?? ucfirst($ticket->status) }}
                     </span>
                     @if($ticket->ticket_type)
                     @php
@@ -144,25 +150,23 @@
                     <span>{{ $ticket->customer?->basicData?->name_1 ?? 'Unknown Customer' }}</span>
                     <span class="text-gray-300">|</span>
                     <span>{{ $ticket->created_at->format('d M Y H:i') }} WIB</span>
-                    @if($ticket->employee)
+                    @if($ticket->ticketLead)
                         <span class="text-gray-300">|</span>
-                        <span>PIC: {{ $ticket->employee->basicData ? trim($ticket->employee->basicData->first_name . ' ' . ($ticket->employee->basicData->last_name ?? '')) : 'Assigned' }}</span>
+                        <span>Ticket Lead: {{ $ticket->ticketLead->basicData ? trim($ticket->ticketLead->basicData->first_name . ' ' . ($ticket->ticketLead->basicData->last_name ?? '')) : 'Assigned' }}</span>
                     @endif
                 </div>
             </div>
             @php
                 $canViewCredential =
-                    in_array($user->role->role_id, array_merge(\App\Enums\RoleId::TICKET_MANAGER_GROUP, [\App\Enums\RoleId::HEAD_OF_SUPPORT->value]), true)
-                    || $ticket->employee_id == $user->id
+                    in_array($user->role->role_id, array_merge(\App\Enums\RoleId::TICKET_MANAGER_GROUP, [\App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value]), true)
+                    || $ticket->ticket_lead_id == $user->id
                     || $ticket->members->contains('employee_id', $user->id);
             @endphp
             @if($canViewCredential && $ticket->customer_id)
             <button onclick="openCredentialModal()"
                 title="Customer Credential"
-                class="ml-4 flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-                </svg>
+                class="ml-4 flex-shrink-0 h-9 px-3 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
+                Credential
             </button>
             @endif
             {{-- Toggle right panel --}}
@@ -201,7 +205,7 @@
                     @else
                     <div class="px-4 pt-2 pb-0.5 flex items-center gap-1.5 text-xs text-gray-400">
                         <i class="fas fa-comment text-[10px]"></i>
-                        <span>Replies only visible in <strong>Jarvies</strong> — no email will be sent</span>
+                        <span>Replies saved internally — no email will be sent to customer</span>
                     </div>
                     @endif
                 </div>
@@ -319,9 +323,9 @@
     @php
         $mandaysStatus   = $ticket->mandays_proposal_status   ?? 'none';
         $resolutionStatus  = $ticket->resolution_days_status    ?? 'none';
-        $isPic           = $user->role->role_id === \App\Enums\RoleId::EMPLOYEE->value;
+        $isPic           = $user->role->role_id === \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value;
         $isHelpdesk      = in_array($user->role->role_id, \App\Enums\RoleId::HELPDESK_GROUP, true);
-        $isHead          = $user->role->role_id === \App\Enums\RoleId::HEAD_OF_SUPPORT->value;
+        $isHead          = $user->role->role_id === \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value;
         $mandaysBadge    = [
             'none'            => ['bg-gray-100 text-gray-500',   'None'],
             'pic_draft'       => ['bg-yellow-100 text-yellow-700','Draft'],
@@ -347,8 +351,8 @@
             'none'  => 'Propose Resolution Days',
             default => 'Update Resolution Days',
         };
-        $ticketAssigned    = $ticket->employee_id !== null;
-        $canTakeTicket     = $user->role->role_id === \App\Enums\RoleId::EMPLOYEE->value
+        $ticketAssigned    = $ticket->ticket_lead_id !== null;
+        $canTakeTicket     = $user->role->role_id === \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value
                              && !$ticketAssigned;
         $canAssignPic      = in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true);
         // Mandays buttons only visible when ticket has a PIC
@@ -442,11 +446,11 @@
                     </button>
                 </div>
                 @endif
-                {{-- Assign / Change PIC (TICKET_MANAGER_GROUP) --}}
+                {{-- Assign / Change Ticket Lead (TICKET_MANAGER_GROUP) --}}
                 @if($canAssignPic)
                 <div>
-                    <button onclick="openAssignPicModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                        {{ $ticketAssigned ? 'Change PIC' : 'Assign PIC' }}
+                    <button onclick="openAssignTicketLeadModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                        {{ $ticketAssigned ? 'Change Ticket Lead' : 'Assign Ticket Lead' }}
                     </button>
                 </div>
                 @endif
@@ -487,7 +491,7 @@
                  onclick="toggleSidebarPanel('propertiesPanel', 'propertiesChevron')">
                 <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Properties</h4>
                 <div class="flex items-center gap-2">
-                    @if(in_array($user->role->role_id, [\App\Enums\RoleId::ADMIN->value, \App\Enums\RoleId::HEAD_OF_SUPPORT->value, \App\Enums\RoleId::HELPDESK->value], true))
+                    @if(in_array($user->role->role_id, [\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value, \App\Enums\RoleId::DELIVERY_HELPDESK->value], true))
                     <button onclick="event.stopPropagation(); saveAllProperties()"
                             class="inline-flex items-center px-2.5 py-1 primary-gradient text-white text-[10px] font-semibold rounded-md hover:opacity-90 transition-all duration-200">
                         Save All
@@ -497,11 +501,10 @@
                 </div>
             </div>
             @php
-                $canEditProps  = in_array($user->role->role_id, [\App\Enums\RoleId::ADMIN->value, \App\Enums\RoleId::HEAD_OF_SUPPORT->value, \App\Enums\RoleId::HELPDESK->value], true);
+                $canEditProps  = in_array($user->role->role_id, [\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value, \App\Enums\RoleId::DELIVERY_HELPDESK->value], true);
                 $ddBtnCls      = 'custom-dd-btn w-full flex items-center justify-between gap-1 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white hover:border-gray-400 transition-all';
                 $roValCls      = 'text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 w-full block';
-                $statusLabels  = ['open'=>'Open','in_progress'=>'In Progress','hold'=>'Hold','wait_to_close'=>'Wait to Close','cancel'=>'Cancel','closed'=>'Closed','reply'=>'Reply'];
-                $jarviesLabels = ['in process'=>'In Process','author action'=>'Author Action','proposed solution'=>'Proposed Solution','sent in to SAP'=>'Sent in to SAP','sent it to support'=>'Sent it to Support','closed'=>'Closed'];
+                $statusLabels  = ['open'=>'Open','inprocess'=>'Inprocess','waiting_on_customer'=>'Waiting on Customer','waiting_on_3rd_party'=>'Waiting on 3rd Party','waiting_to_confirmation'=>'Waiting to Confirmation','hold'=>'Hold','cancelled'=>'Cancelled','closed'=>'Closed'];
             @endphp
             <div id="propertiesPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
                 {{-- Status --}}
@@ -514,43 +517,20 @@
                             <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                         </button>
                         <input type="hidden" id="detailStatus" value="{{ $ticket->status }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:150px;">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:190px;">
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="open">Open</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="in_progress">In Progress</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="inprocess">Inprocess</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="waiting_on_customer">Waiting on Customer</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="waiting_on_3rd_party">Waiting on 3rd Party</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="waiting_to_confirmation">Waiting to Confirmation</button>
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="hold">Hold</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="wait_to_close">Wait to Close</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="cancel">Cancel</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="cancelled">Cancelled</button>
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="closed">Closed</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="reply">Reply</button>
                         </div>
                     </div>
                     @else
                     <input type="hidden" id="detailStatus" value="{{ $ticket->status }}">
                     <span class="{{ $roValCls }}">{{ $statusLabels[$ticket->status] ?? ucfirst($ticket->status) }}</span>
-                    @endif
-                </div>
-                {{-- Jarvies Status --}}
-                <div>
-                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Jarvies Status</label>
-                    @if($canEditProps)
-                    <div class="custom-dd relative w-full">
-                        <button type="button" class="{{ $ddBtnCls }}">
-                            <span class="custom-dd-label text-gray-700">{{ $jarviesLabels[$ticket->jarvies_status] ?? ucfirst($ticket->jarvies_status ?? '—') }}</span>
-                            <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" id="detailJarviesStatus" value="{{ $ticket->jarvies_status }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:160px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="in process">In Process</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="author action">Author Action</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="proposed solution">Proposed Solution</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="sent in to SAP">Sent in to SAP</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="sent it to support">Sent it to Support</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="closed">Closed</button>
-                        </div>
-                    </div>
-                    @else
-                    <input type="hidden" id="detailJarviesStatus" value="{{ $ticket->jarvies_status }}">
-                    <span class="{{ $roValCls }}">{{ $jarviesLabels[$ticket->jarvies_status] ?? ucfirst($ticket->jarvies_status ?? '—') }}</span>
                     @endif
                 </div>
                 {{-- Priority --}}
@@ -618,34 +598,76 @@
                     <span class="{{ $roValCls }}">{{ $ticket->ticket_type ?? 'Incident' }}</span>
                     @endif
                 </div>
-                {{-- Agent (PIC) --}}
+                {{-- Ticket Lead --}}
                 <div>
-                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Agent (PIC)</label>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Ticket Lead</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-                        @if($ticket->employee && $ticket->employee->basicData)
-                            {{ trim($ticket->employee->basicData->first_name . ' ' . ($ticket->employee->basicData->last_name ?? '')) }}
+                        @if($ticket->ticketLead && $ticket->ticketLead->basicData)
+                            {{ trim($ticket->ticketLead->basicData->first_name . ' ' . ($ticket->ticketLead->basicData->last_name ?? '')) }}
                         @else
                             <span class="text-gray-400 italic">— Unassigned —</span>
                         @endif
                     </p>
                 </div>
+                {{-- PIC (In Charge) --}}
+                @php
+                    $canEditPic = in_array($user->role->role_id, array_merge(\App\Enums\RoleId::TICKET_MANAGER_GROUP, [\App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value]), true)
+                        || $ticket->ticket_lead_id == $user->id
+                        || $ticket->members->contains('employee_id', $user->id);
+                    $picOptions = [];
+                    if ($ticket->ticketLead && $ticket->ticketLead->basicData) {
+                        $leadName = trim(($ticket->ticketLead->basicData->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData->last_name ?? ''));
+                        $picOptions[] = ['name' => $leadName, 'label' => $leadName . ' (Ticket Lead)'];
+                    }
+                    foreach ($ticket->allMembers as $m) {
+                        if ($m->pivot->is_active && $m->basicData) {
+                            $mName = trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? ''));
+                            $picOptions[] = ['name' => $mName, 'label' => $mName];
+                        }
+                    }
+                @endphp
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">PIC (In Charge)</label>
+                    @if($canEditPic && count($picOptions) > 0)
+                    <div class="custom-dd relative w-full" data-onchange="onPicDropdownChange">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between gap-1 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white hover:border-gray-400 transition-all">
+                            <span class="custom-dd-label text-gray-700 truncate">{{ $ticket->pic ?? 'Helpdesk' }}</span>
+                            <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="picSelectHidden" value="{{ $ticket->pic ?? '' }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;">
+                            @foreach($picOptions as $opt)
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 {{ $ticket->pic === $opt['name'] ? 'bg-gray-50 font-medium text-gray-900' : '' }}" data-value="{{ $opt['name'] }}">{{ $opt['label'] }}</button>
+                            @endforeach
+                        </div>
+                    </div>
+                    @else
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->pic ?? 'Helpdesk' }}</p>
+                    @endif
+                </div>
                 {{-- Team Members --}}
                 @php
                     $canManageMembers = in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true)
-                        || ($user->role->role_id === \App\Enums\RoleId::EMPLOYEE->value && $ticket->employee_id == $user->id);
-                    $currentMemberIds = $ticket->members->pluck('employee_id')->toArray();
+                        || ($user->role->role_id === \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value && $ticket->ticket_lead_id == $user->id);
+                    $allMemberIds = $ticket->allMembers->pluck('employee_id')->toArray();
                 @endphp
                 <div class="pt-3 border-t border-gray-200">
                     <label class="text-xs font-semibold text-gray-500 mb-2 block">Team Members</label>
                     <div id="membersList" class="space-y-1 mb-2">
-                        @forelse($ticket->members as $member)
-                            @php $mName = trim(($member->basicData->first_name ?? '') . ' ' . ($member->basicData->last_name ?? '')); @endphp
-                            <div class="member-chip flex items-center justify-between gap-1 px-2.5 py-1.5 bg-blue-50 rounded-lg" data-id="{{ $member->employee_id }}">
-                                <span class="text-xs text-blue-700 font-medium truncate">{{ $mName }}</span>
+                        @forelse($ticket->allMembers as $member)
+                            @php
+                                $mName    = trim(($member->basicData->first_name ?? '') . ' ' . ($member->basicData->last_name ?? ''));
+                                $mActive  = (bool) $member->pivot->is_active;
+                            @endphp
+                            <div class="member-chip flex items-center justify-between gap-1 px-2.5 py-1.5 rounded-lg {{ $mActive ? 'bg-blue-50' : 'bg-gray-100' }}"
+                                 data-id="{{ $member->employee_id }}" data-active="{{ $mActive ? '1' : '0' }}">
+                                <span class="text-xs font-medium truncate {{ $mActive ? 'text-blue-700' : 'text-gray-400 line-through' }}">{{ $mName }}</span>
                                 @if($canManageMembers)
-                                <button type="button" onclick="removeMemberBtn({{ $member->employee_id }})"
-                                        class="text-blue-300 hover:text-red-500 transition-colors flex-shrink-0 ml-1">
-                                    <i class="fas fa-times text-[9px]"></i>
+                                <button type="button"
+                                        onclick="toggleMemberBtn({{ $member->employee_id }}, {{ $mActive ? 'true' : 'false' }})"
+                                        class="flex-shrink-0 ml-1 transition-colors {{ $mActive ? 'text-blue-300 hover:text-red-500' : 'text-gray-400 hover:text-green-500' }}"
+                                        title="{{ $mActive ? 'Nonaktifkan member' : 'Aktifkan kembali member' }}">
+                                    <i class="fas {{ $mActive ? 'fa-eye-slash' : 'fa-eye' }} text-[9px]"></i>
                                 </button>
                                 @endif
                             </div>
@@ -664,7 +686,8 @@
                             <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:320px;">
                                 <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Add member --</button>
                                 @foreach($employees as $emp)
-                                    @if(!in_array($emp['employee_id'], $currentMemberIds) && $emp['employee_id'] != $ticket->employee_id)
+                                    @php $empInAll = in_array($emp['employee_id'], $allMemberIds); @endphp
+                                    @if(!$empInAll && $emp['employee_id'] != $ticket->ticket_lead_id)
                                         <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $emp['employee_id'] }}">{{ $emp['name'] }}</button>
                                     @endif
                                 @endforeach
@@ -689,38 +712,6 @@
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-blue-50 rounded-lg border border-blue-200">
                         &#8627; {{ $ticket->endCustomer?->basicData?->name_1 ?? 'N/A' }}
                     </p>
-                </div>
-                @endif
-                {{-- Additional Info --}}
-                @if($ticket->name || $ticket->no_hp || $ticket->module || $ticket->client)
-                <div class="pt-3 border-t border-gray-200">
-                    <label class="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">Additional Info</label>
-                    <div class="space-y-1.5">
-                        @if($ticket->name)
-                        <div>
-                            <span class="text-[10px] text-gray-400 font-semibold uppercase">Name</span>
-                            <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->name }}</p>
-                        </div>
-                        @endif
-                        @if($ticket->no_hp)
-                        <div>
-                            <span class="text-[10px] text-gray-400 font-semibold uppercase">No HP</span>
-                            <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->no_hp }}</p>
-                        </div>
-                        @endif
-                        @if($ticket->module)
-                        <div>
-                            <span class="text-[10px] text-gray-400 font-semibold uppercase">Module</span>
-                            <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->module }}</p>
-                        </div>
-                        @endif
-                        @if($ticket->client)
-                        <div>
-                            <span class="text-[10px] text-gray-400 font-semibold uppercase">Client</span>
-                            <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->client }}</p>
-                        </div>
-                        @endif
-                    </div>
                 </div>
                 @endif
                 {{-- Man Days (from approved customer mandays proposal) --}}
@@ -767,7 +758,7 @@
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('d M Y H:i') }} WIB</p>
                 </div>
                 {{-- Admin only: Delete Ticket --}}
-                @if($user->role->role_id === \App\Enums\RoleId::ADMIN->value)
+                @if($user->role->role_id === \App\Enums\RoleId::EC_ADMINISTRATOR->value)
                 <div class="pt-3 border-t border-gray-200">
                     <button onclick="deleteTicket()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Delete Ticket
@@ -776,6 +767,43 @@
                 @endif
             </div>
         </div>
+
+        {{-- ── Additional Info Panel ── --}}
+        @if($ticket->name || $ticket->no_hp || $ticket->module || $ticket->client)
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
+            <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+                 onclick="toggleSidebarPanel('additionalInfoPanel', 'additionalInfoChevron')">
+                <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Additional Info</h4>
+                <i id="additionalInfoChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
+            </div>
+            <div id="additionalInfoPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
+                @if($ticket->name)
+                <div>
+                    <span class="text-[10px] text-gray-400 font-semibold uppercase">Name</span>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->name }}</p>
+                </div>
+                @endif
+                @if($ticket->no_hp)
+                <div>
+                    <span class="text-[10px] text-gray-400 font-semibold uppercase">No HP</span>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->no_hp }}</p>
+                </div>
+                @endif
+                @if($ticket->module)
+                <div>
+                    <span class="text-[10px] text-gray-400 font-semibold uppercase">Module</span>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->module }}</p>
+                </div>
+                @endif
+                @if($ticket->client)
+                <div>
+                    <span class="text-[10px] text-gray-400 font-semibold uppercase">Client</span>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->client }}</p>
+                </div>
+                @endif
+            </div>
+        </div>
+        @endif
 
     </div>
 </div>
@@ -995,17 +1023,16 @@
 .sb-prio-medium    { background:#dbeafe; color:#1d4ed8; }
 .sb-prio-low       { background:#dcfce7; color:#15803d; }
 .sb-prio-default   { background:#f3f4f6; color:#4b5563; }
-/* Jarvies status */
-.sb-jarvies        { background:#fef9c3; color:#a16207; }
 /* Ticket status */
-.sb-status-open         { background:#dbeafe; color:#1d4ed8; }
-.sb-status-in_progress  { background:#ede9fe; color:#6d28d9; }
-.sb-status-closed       { background:#dcfce7; color:#15803d; }
-.sb-status-wait_to_close{ background:#ffedd5; color:#c2410c; }
-.sb-status-hold         { background:#f3f4f6; color:#4b5563; }
-.sb-status-reply        { background:#fef9c3; color:#a16207; }
-.sb-status-cancel       { background:#fee2e2; color:#b91c1c; }
-.sb-status-default      { background:#f3f4f6; color:#6b7280; }
+.sb-status-open                    { background:#dbeafe; color:#1d4ed8; }
+.sb-status-inprocess               { background:#fef9c3; color:#92400e; }
+.sb-status-waiting_on_customer     { background:#fef3c7; color:#b45309; }
+.sb-status-waiting_on_3rd_party    { background:#e0e7ff; color:#4338ca; }
+.sb-status-waiting_to_confirmation { background:#ccfbf1; color:#0f766e; }
+.sb-status-hold                    { background:#ffedd5; color:#c2410c; }
+.sb-status-cancelled               { background:#fee2e2; color:#b91c1c; }
+.sb-status-closed                  { background:#dcfce7; color:#15803d; }
+.sb-status-default                 { background:#f3f4f6; color:#6b7280; }
 
 /* â"€â"€â"€ Internal note reply button (hidden until hover on group) â"€â"€â"€ */
 .note-reply-btn {
@@ -1209,33 +1236,33 @@
 </div>
 @endif
 
-{{-- Assign PIC Modal (Admin / Helpdesk / Delivery Support Head) --}}
+{{-- Assign Ticket Lead Modal (Admin / Helpdesk / Delivery Support Head) --}}
 @if($canAssignPic)
-<div id="assignPicModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="assignTicketLeadModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-sm shadow-2xl flex flex-col">
         <div class="flex justify-between items-center px-5 py-4 border-b border-gray-200">
-            <h3 class="text-base font-bold text-gray-900">Assign PIC</h3>
-            <button onclick="closeAssignPicModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+            <h3 class="text-base font-bold text-gray-900">Assign Ticket Lead</h3>
+            <button onclick="closeAssignTicketLeadModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
         <div class="p-5 space-y-4">
-            <p class="text-xs text-gray-500">Select a consultant to assign as PIC for this ticket.</p>
+            <p class="text-xs text-gray-500">Select a consultant to assign as Ticket Lead for this ticket.</p>
             <div>
                 <label class="block text-xs font-semibold text-gray-600 mb-1">Consultant</label>
                 <div class="relative">
-                    <input id="assignPicSearch" type="text" placeholder="Search name..."
+                    <input id="assignTicketLeadSearch" type="text" placeholder="Search name..."
                         autocomplete="off"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs primary-focus"
-                        oninput="filterAssignPicList()">
-                    <div id="assignPicDropdown" class="hidden absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto text-xs"></div>
+                        oninput="filterAssignTicketLeadList()">
+                    <div id="assignTicketLeadDropdown" class="hidden absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto text-xs"></div>
                 </div>
-                <input type="hidden" id="assignPicSelectedId">
-                <div id="assignPicSelectedName" class="mt-1.5 text-xs primary-text font-semibold hidden"></div>
+                <input type="hidden" id="assignTicketLeadSelectedId">
+                <div id="assignTicketLeadSelectedName" class="mt-1.5 text-xs primary-text font-semibold hidden"></div>
             </div>
         </div>
         <div class="px-5 py-4 border-t border-gray-200 flex justify-end gap-2">
-            <button id="assignPicBtn" onclick="submitAssignPic()" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">Assign</button>
+            <button id="assignTicketLeadBtn" onclick="submitAssignTicketLead()" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">Assign</button>
         </div>
     </div>
 </div>
@@ -1530,12 +1557,19 @@
 {{-- ===== END MANDAYS MODALS ===== --}}
 
 <script>
-    const ticketId         = {{ $ticket->ticket_id }};
-    const userRole         = {{ $user->role->role_id ?? 0 }};
-    const ticketCustomerId = {{ $ticket->customer_id ?? 'null' }};
-    const currentUserId    = {{ $user->id ?? 'null' }};
+    const ticketId                    = {{ $ticket->ticket_id }};
+    const userRole                    = {{ $user->role->role_id ?? 0 }};
+    const EC_ADMINISTRATOR_ROLE       = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
+    const DELIVERY_SUPPORT_USER_ROLE  = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};
+    const EC_USER_ROLE                = {{ \App\Enums\RoleId::EC_USER->value }};
+    const DELIVERY_HELPDESK_ROLE      = {{ \App\Enums\RoleId::DELIVERY_HELPDESK->value }};
+    const DELIVERY_RPMO_HEAD_ROLE     = {{ \App\Enums\RoleId::DELIVERY_RPMO_HEAD->value }};
+    const ticketCustomerId            = {{ $ticket->customer_id ?? 'null' }};
+    const currentUserId               = {{ $user->id ?? 'null' }};
     const ticketChannel = @json($ticket->channel ?? 'web');
     const assignedDsId   = {{ isset($deliverySupport) && $deliverySupport ? $deliverySupport->id : 'null' }};
+    const currentTicketLeadId   = {{ $ticket->ticket_lead_id ?? 'null' }};
+    const currentTicketLeadName = @json($ticket->ticketLead?->basicData ? trim(($ticket->ticketLead->basicData->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData->last_name ?? '')) : null);
     const assignedDsName = @json(isset($deliverySupport) && $deliverySupport ? $deliverySupport->name : null);
     const assignedDsType = @json(isset($deliverySupport) && $deliverySupport ? $deliverySupport->type : null);
     let quillEditor     = null;
@@ -1939,7 +1973,7 @@
         renderToTags();
         renderCcTags();
         loadMessages();
-        loadSidebarTickets();
+        switchSidebarView('my');
         markMessagesRead();
         startMessagePolling();
     });
@@ -2131,6 +2165,31 @@
                     thread.insertAdjacentHTML('beforeend', createMessageBubble(msg));
                     renderedMessageIds.add(msg.id);
                 });
+
+                // Bunyi + OS notif jika ada pesan baru dari orang lain (bukan diri sendiri)
+                const incomingMessages = newMessages.filter(msg => msg.sender_id !== currentUserId);
+                if (incomingMessages.length > 0) {
+                    var _chatFn = window.playChatSound || window.playNotifSound;
+                    if (typeof _chatFn === 'function') _chatFn();
+                    // OS notification hanya saat tab background/minimize
+                    if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+                        const latest = incomingMessages[incomingMessages.length - 1];
+                        const isNote = latest.message_type === 'internal_note';
+                        const senderLabel = latest.sender_name || (isNote ? 'Someone' : 'Customer');
+                        const title = isNote
+                            ? senderLabel + ' added an internal note'
+                            : senderLabel + ' replied to ticket ' + ({!! $ticket->ticket_number ? json_encode($ticket->ticket_number) : 'null' !!} || '');
+                        const body  = latest.message_text
+                            ? latest.message_text.substring(0, 100)
+                            : (latest.subject || '');
+                        const n = new Notification(title, {
+                            body: body,
+                            icon: '/images/logo_nobg.png',
+                            tag:  'ticket-msg-' + latest.id,
+                        });
+                        n.onclick = function () { window.focus(); n.close(); };
+                    }
+                }
             }
 
             // Auto-populate CC input saat ada reply customer baru yang bawa CC —
@@ -2708,8 +2767,8 @@
     async function loadSidebarTickets() {
         try {
             let endpoint = '/api/tickets';
-            if (userRole === 3) endpoint = '/api/tickets/my';
-            else if ([1, 2, 6, 7].includes(userRole) && sidebarView === 'my') endpoint = '/api/tickets/my';
+            if (userRole === EC_USER_ROLE) endpoint = '/api/tickets/my';
+            else if ([EC_ADMINISTRATOR_ROLE, DELIVERY_SUPPORT_USER_ROLE, DELIVERY_HELPDESK_ROLE, DELIVERY_RPMO_HEAD_ROLE].includes(userRole) && sidebarView === 'my') endpoint = '/api/tickets/my';
 
             const response = await fetch(endpoint, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -2740,13 +2799,14 @@
         };
         // Status label + badge class mapping
         const statusMap = {
-            'open':          ['Open',           'sb-status-open'],
-            'in_progress':   ['In Progress',    'sb-status-in_progress'],
-            'closed':        ['Closed',         'sb-status-closed'],
-            'wait_to_close': ['Wait Close',     'sb-status-wait_to_close'],
-            'hold':          ['Hold',           'sb-status-hold'],
-            'reply':         ['Reply',          'sb-status-reply'],
-            'cancel':        ['Canceled',       'sb-status-cancel'],
+            'open':                    ['Open',                    'sb-status-open'],
+            'inprocess':               ['Inprocess',               'sb-status-inprocess'],
+            'waiting_on_customer':     ['Waiting Customer',        'sb-status-waiting_on_customer'],
+            'waiting_on_3rd_party':    ['Waiting 3rd Party',       'sb-status-waiting_on_3rd_party'],
+            'waiting_to_confirmation': ['Waiting Confirmation',    'sb-status-waiting_to_confirmation'],
+            'hold':                    ['Hold',                    'sb-status-hold'],
+            'cancelled':               ['Cancelled',               'sb-status-cancelled'],
+            'closed':                  ['Closed',                  'sb-status-closed'],
         };
 
         list.innerHTML = tickets.map(t => {
@@ -2765,12 +2825,6 @@
             const prioKey   = t.ticket_priority || 'Medium';
             const prioCls   = prioBadge[prioKey] || 'sb-prio-default';
 
-            // Jarvies status badge (only if available)
-            const jStatus   = t.jarvies_status;
-            const jBadge    = jStatus
-                ? `<span class="sb-badge sb-jarvies">JS: ${jStatus}</span>`
-                : '';
-
             // Ticket status badge
             const sRaw    = (t.status || 'open').toLowerCase();
             const [sLabel, sCls] = statusMap[sRaw] || ['Unknown', 'sb-status-default'];
@@ -2784,7 +2838,6 @@
                     <p class="text-[10px] text-gray-500 truncate mb-1.5 leading-snug">${desc}</p>
                     <div class="flex items-center gap-1 flex-wrap">
                         <span class="sb-badge ${prioCls}">${prioKey}</span>
-                        ${jBadge}
                         <span class="sb-badge ${sCls}">S: ${sLabel}</span>
                     </div>
                 </a>`;
@@ -2889,47 +2942,54 @@
         const list = document.getElementById('membersList');
         if (!list) return;
 
-        const memberIds = new Set(members.map(m => m.employee_id));
-
+        // All member IDs (active + inactive) — excluded from "add" dropdown
+        const allMemberIds = new Set(members.map(m => m.employee_id));
         if (members.length === 0) {
             list.innerHTML = '<p class="text-xs text-gray-400 italic" id="noMembersText">No members assigned.</p>';
         } else {
-            list.innerHTML = members.map(m => `
-                <div class="member-chip flex items-center justify-between gap-1 px-2.5 py-1.5 bg-blue-50 rounded-lg" data-id="${m.employee_id}">
-                    <span class="text-xs text-blue-700 font-medium truncate">${escHtmlMember(m.name)}</span>
-                    ${canManageMembers ? `<button type="button" onclick="removeMemberBtn(${m.employee_id})"
-                        class="text-blue-300 hover:text-red-500 transition-colors flex-shrink-0 ml-1">
-                        <i class="fas fa-times text-[9px]"></i></button>` : ''}
-                </div>`).join('');
+            list.innerHTML = members.map(m => {
+                const isActive = m.is_active;
+                const chipBg   = isActive ? 'bg-blue-50' : 'bg-gray-100';
+                const nameCls  = isActive ? 'text-xs text-blue-700 font-medium truncate' : 'text-xs text-gray-400 font-medium truncate line-through';
+                const toggleIcon   = isActive ? 'fa-eye-slash' : 'fa-eye';
+                const toggleTitle  = isActive ? 'Deactivate member' : 'Reactivate member';
+                const toggleColor  = isActive ? 'text-blue-300 hover:text-red-500' : 'text-gray-400 hover:text-green-500';
+                const manageBtn = canManageMembers
+                    ? `<button type="button" onclick="toggleMemberBtn(${m.employee_id}, ${isActive})"
+                            title="${toggleTitle}"
+                            class="${toggleColor} transition-colors flex-shrink-0 ml-1">
+                            <i class="fas ${toggleIcon} text-[9px]"></i></button>`
+                    : '';
+                return `<div class="member-chip flex items-center justify-between gap-1 px-2.5 py-1.5 ${chipBg} rounded-lg" data-id="${m.employee_id}">
+                    <span class="${nameCls}">${escHtmlMember(m.name)}</span>
+                    ${manageBtn}
+                </div>`;
+            }).join('');
         }
 
-        // Rebuild custom-dd panel items: show only employees not already in members
-        // and not the PIC. Preserve search input wrapper + empty-state element.
+        // Rebuild custom-dd panel items: exclude ALL member records (active + inactive).
+        // Inactive members can be reactivated via toggle button directly.
         const ddPanel = document.querySelector('#addMemberDd .custom-dd-panel');
         const hidden  = document.getElementById('addMemberSelect');
         if (ddPanel) {
             const searchWrap = ddPanel.querySelector('.custom-dd-search-wrap');
             const emptyEl    = ddPanel.querySelector('.custom-dd-empty');
 
-            // Build new items HTML (placeholder + filtered employees)
             const escAttr = (s) => String(s).replace(/"/g, '&quot;');
             const escTxt  = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
             const itemCls = 'custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors';
             let itemsHtml = `<button type="button" class="${itemCls}" data-value="">-- Add member --</button>`;
             allEmployees.forEach(emp => {
-                if (!memberIds.has(emp.employee_id) && emp.employee_id != {{ $ticket->employee_id ?? 'null' }}) {
+                if (!allMemberIds.has(emp.employee_id) && emp.employee_id != {{ $ticket->ticket_lead_id ?? 'null' }}) {
                     itemsHtml += `<button type="button" class="${itemCls}" data-value="${escAttr(emp.employee_id)}">${escTxt(emp.name)}</button>`;
                 }
             });
 
-            // Replace items, preserve search + empty-state refs (panel-level click delegation
-            // di custom-dropdown.js tetap menangkap item baru tanpa re-init).
             ddPanel.innerHTML = '';
             if (searchWrap) ddPanel.appendChild(searchWrap);
             ddPanel.insertAdjacentHTML('beforeend', itemsHtml);
             if (emptyEl) ddPanel.appendChild(emptyEl);
 
-            // Reset selection state
             if (hidden) hidden.value = '';
             const label = document.querySelector('#addMemberDd .custom-dd-label');
             if (label) {
@@ -2965,19 +3025,26 @@
         }
     }
 
-    async function removeMemberBtn(employeeId) {
+    async function toggleMemberBtn(employeeId, isActive) {
+        const method = isActive ? 'DELETE' : 'POST';
+        const url    = isActive
+            ? `/api/tickets/${ticketId}/members/${employeeId}`
+            : `/api/tickets/${ticketId}/members`;
+        const body   = isActive ? null : JSON.stringify({ employee_id: employeeId });
+
         try {
-            const res  = await fetch(`/api/tickets/${ticketId}/members/${employeeId}`, {
-                method: 'DELETE',
+            const res  = await fetch(url, {
+                method,
                 headers: getHeaders(),
                 credentials: 'same-origin',
+                ...(body ? { body } : {}),
             });
             const data = await res.json();
-            if (!data.success) { showNotification(data.message || 'Failed to remove member.', 'error'); return; }
+            if (!data.success) { showNotification(data.message || 'Failed to update member.', 'error'); return; }
             renderMembers(data.data);
-            showNotification('Member removed.', 'success');
+            showNotification(isActive ? 'Member deactivated.' : 'Member reactivated.', 'success');
         } catch {
-            showNotification('Error removing member.', 'error');
+            showNotification('Error updating member.', 'error');
         }
     }
 
@@ -2992,13 +3059,12 @@
     }
 
     async function saveAllProperties() {
-        const status       = document.getElementById('detailStatus').value;
-        const jarviesStatus = document.getElementById('detailJarviesStatus').value;
-        const priority     = document.getElementById('detailPriority').value;
-        const scale        = document.getElementById('detailScale').value;
-        const type         = document.getElementById('detailType').value;
+        const status   = document.getElementById('detailStatus').value;
+        const priority = document.getElementById('detailPriority').value;
+        const scale    = document.getElementById('detailScale').value;
+        const type     = document.getElementById('detailType').value;
         try {
-            const [, updateRes] = await Promise.all([
+            const [statusRes, updateRes] = await Promise.all([
                 fetch(`/api/tickets/${ticketId}/update-status`, {
                     method: 'PUT',
                     headers: getHeaders(),
@@ -3010,7 +3076,6 @@
                     headers: getHeaders(),
                     credentials: 'same-origin',
                     body: JSON.stringify({
-                        jarvies_status: jarviesStatus,
                         ticket_priority: priority,
                         scale: scale || null,
                         ticket_type: type || null,
@@ -3038,11 +3103,11 @@
                 method: 'PUT',
                 headers: getHeaders(),
                 credentials: 'same-origin',
-                body: JSON.stringify({ employee_id: {{ $user->id ?? 'null' }} }),
+                body: JSON.stringify({ ticket_lead_id: {{ $user->id ?? 'null' }} }),
             });
             const result = await response.json();
             if (result.success) {
-                showNotification('Ticket taken! You are now the PIC.', 'success');
+                showNotification('Ticket taken! You are now the Ticket Lead.', 'success');
                 setTimeout(() => location.reload(), 800);
             } else {
                 showNotification(result.message || 'Failed to take ticket.', 'error');
@@ -3054,86 +3119,120 @@
         }
     }
 
-    // ==================== ASSIGN PIC MODAL ====================
-    let assignPicList = [];
+    // ==================== PIC (IN CHARGE) ====================
+    function onPicDropdownChange() {
+        const val = document.getElementById('picSelectHidden')?.value;
+        if (val) updatePic(val);
+    }
 
-    async function openAssignPicModal() {
-        document.getElementById('assignPicModal').classList.remove('hidden');
-        document.getElementById('assignPicModal').classList.add('flex');
-        document.getElementById('assignPicSearch').value = '';
-        document.getElementById('assignPicSelectedId').value = '';
-        document.getElementById('assignPicSelectedName').classList.add('hidden');
-        document.getElementById('assignPicDropdown').classList.add('hidden');
+    async function updatePic(picName) {
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/pic`, {
+                method: 'PATCH',
+                headers: getHeaders(),
+                credentials: 'same-origin',
+                body: JSON.stringify({ pic: picName }),
+            });
+            const result = await res.json();
+            if (!result.success) {
+                showNotification(result.message || 'Failed to update PIC', 'error');
+            }
+        } catch (e) {
+            showNotification('Error: ' + e.message, 'error');
+        }
+    }
 
-        if (assignPicList.length === 0) {
+    // ==================== ASSIGN TICKET LEAD MODAL ====================
+    let assignTicketLeadList = [];
+
+    async function openAssignTicketLeadModal() {
+        document.getElementById('assignTicketLeadModal').classList.remove('hidden');
+        document.getElementById('assignTicketLeadModal').classList.add('flex');
+        document.getElementById('assignTicketLeadDropdown').classList.add('hidden');
+
+        // Pre-fill dengan Ticket Lead saat ini
+        if (currentTicketLeadId && currentTicketLeadName) {
+            document.getElementById('assignTicketLeadSearch').value = currentTicketLeadName;
+            document.getElementById('assignTicketLeadSelectedId').value = currentTicketLeadId;
+            const label = document.getElementById('assignTicketLeadSelectedName');
+            label.textContent = '✓ ' + currentTicketLeadName + ' selected';
+            label.classList.remove('hidden');
+        } else {
+            document.getElementById('assignTicketLeadSearch').value = '';
+            document.getElementById('assignTicketLeadSelectedId').value = '';
+            document.getElementById('assignTicketLeadSelectedName').classList.add('hidden');
+        }
+
+        if (assignTicketLeadList.length === 0) {
             try {
-                const res  = await fetch('/api/tickets/available-pics', { headers: getHeaders(), credentials: 'same-origin' });
+                const res  = await fetch('/api/tickets/available-ticket-leads', { headers: getHeaders(), credentials: 'same-origin' });
                 const data = await res.json();
-                assignPicList = data.data || [];
+                assignTicketLeadList = data.data || [];
             } catch (e) {
                 showNotification('Failed to load consultant list', 'error');
             }
         }
-        renderAssignPicDropdown(assignPicList);
+        // Defer agar render terjadi setelah event bubble click selesai
+        setTimeout(() => renderAssignTicketLeadDropdown(assignTicketLeadList), 0);
     }
 
-    function closeAssignPicModal() {
-        document.getElementById('assignPicModal').classList.add('hidden');
-        document.getElementById('assignPicModal').classList.remove('flex');
+    function closeAssignTicketLeadModal() {
+        document.getElementById('assignTicketLeadModal').classList.add('hidden');
+        document.getElementById('assignTicketLeadModal').classList.remove('flex');
     }
 
-    function filterAssignPicList() {
-        const q = document.getElementById('assignPicSearch').value.trim().toLowerCase();
-        const filtered = q ? assignPicList.filter(p => p.name.toLowerCase().includes(q)) : assignPicList;
-        renderAssignPicDropdown(filtered);
-        document.getElementById('assignPicDropdown').classList.remove('hidden');
-        document.getElementById('assignPicSelectedId').value = '';
-        document.getElementById('assignPicSelectedName').classList.add('hidden');
+    function filterAssignTicketLeadList() {
+        const q = document.getElementById('assignTicketLeadSearch').value.trim().toLowerCase();
+        const filtered = q ? assignTicketLeadList.filter(p => p.name.toLowerCase().includes(q)) : assignTicketLeadList;
+        renderAssignTicketLeadDropdown(filtered);
+        document.getElementById('assignTicketLeadDropdown').classList.remove('hidden');
+        document.getElementById('assignTicketLeadSelectedId').value = '';
+        document.getElementById('assignTicketLeadSelectedName').classList.add('hidden');
     }
 
-    function renderAssignPicDropdown(list) {
-        const dd = document.getElementById('assignPicDropdown');
+    function renderAssignTicketLeadDropdown(list) {
+        const dd = document.getElementById('assignTicketLeadDropdown');
         if (!list.length) {
             dd.innerHTML = '<div class="px-3 py-2 text-gray-400 italic">No consultant found</div>';
         } else {
             dd.innerHTML = list.map(p =>
-                `<div class="px-3 py-2 hover:bg-red-50 cursor-pointer text-gray-700" onclick="selectAssignPic(${p.employee_id}, '${p.name.replace(/'/g, "\\'")}')">${p.name}</div>`
+                `<div class="px-3 py-2 hover:bg-red-50 cursor-pointer text-gray-700" onclick="selectAssignTicketLead(${p.employee_id}, '${p.name.replace(/'/g, "\\'")}')">${p.name}</div>`
             ).join('');
         }
         dd.classList.remove('hidden');
     }
 
-    function selectAssignPic(id, name) {
-        document.getElementById('assignPicSelectedId').value = id;
-        document.getElementById('assignPicSearch').value = name;
-        document.getElementById('assignPicDropdown').classList.add('hidden');
-        const label = document.getElementById('assignPicSelectedName');
+    function selectAssignTicketLead(id, name) {
+        document.getElementById('assignTicketLeadSelectedId').value = id;
+        document.getElementById('assignTicketLeadSearch').value = name;
+        document.getElementById('assignTicketLeadDropdown').classList.add('hidden');
+        const label = document.getElementById('assignTicketLeadSelectedName');
         label.textContent = '✓ ' + name + ' selected';
         label.classList.remove('hidden');
     }
 
-    async function submitAssignPic() {
-        const empId = document.getElementById('assignPicSelectedId').value;
+    async function submitAssignTicketLead() {
+        const empId = document.getElementById('assignTicketLeadSelectedId').value;
         if (!empId) { showNotification('Please select a consultant', 'warning'); return; }
 
-        const btn = document.getElementById('assignPicBtn');
+        const btn = document.getElementById('assignTicketLeadBtn');
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Assigning...';
 
         try {
-            const res    = await fetch(`/api/tickets/${ticketId}/assign-pic`, {
+            const res    = await fetch(`/api/tickets/${ticketId}/assign-ticket-lead`, {
                 method: 'POST',
                 headers: getHeaders(),
                 credentials: 'same-origin',
-                body: JSON.stringify({ employee_id: empId }),
+                body: JSON.stringify({ ticket_lead_id: empId }),
             });
             const result = await res.json();
             if (result.success) {
-                showNotification('PIC assigned successfully!', 'success');
-                closeAssignPicModal();
+                showNotification('Ticket Lead assigned successfully!', 'success');
+                closeAssignTicketLeadModal();
                 setTimeout(() => location.reload(), 800);
             } else {
-                showNotification(result.message || 'Failed to assign PIC', 'error');
+                showNotification(result.message || 'Failed to assign Ticket Lead', 'error');
                 btn.disabled = false;
                 btn.innerHTML = 'Assign';
             }
@@ -3144,12 +3243,15 @@
         }
     }
 
-    // Close dropdown on outside click
+    // Close dropdown on outside click (kecuali klik di dalam modal atau di search field)
     document.addEventListener('click', function(e) {
-        const dd = document.getElementById('assignPicDropdown');
-        if (dd && !dd.contains(e.target) && e.target.id !== 'assignPicSearch') {
-            dd.classList.add('hidden');
-        }
+        const dd    = document.getElementById('assignTicketLeadDropdown');
+        const modal = document.getElementById('assignTicketLeadModal');
+        if (!dd || dd.classList.contains('hidden')) return;
+        if (dd.contains(e.target)) return;
+        if (e.target.id === 'assignTicketLeadSearch') return;
+        if (modal && modal.querySelector('.bg-white')?.contains(e.target)) return;
+        dd.classList.add('hidden');
     });
 
     async function deleteTicket() {

@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 
 class ConsultantWorkloadController extends Controller
 {
-    private const ACTIVE_STATUSES = ['open', 'in_progress', 'hold', 'reply', 'wait_to_close'];
+    private const ACTIVE_STATUSES = ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'];
 
     public function index()
     {
@@ -125,7 +125,7 @@ class ConsultantWorkloadController extends Controller
                 ->toArray();
             $progressMap = self::progressMapForTickets($ticketIds);
 
-            $statusOrder = ['in_progress' => 0, 'reply' => 1, 'open' => 2, 'hold' => 3, 'wait_to_close' => 4];
+            $statusOrder = ['inprocess' => 0, 'waiting_on_customer' => 1, 'waiting_on_3rd_party' => 2, 'waiting_to_confirmation' => 3, 'open' => 4, 'hold' => 5];
             $tickets = $this->ticketsByEmployee($id, $progressMap)
                 ->sortBy(fn($t) => $statusOrder[$t->status] ?? 99)
                 ->values();
@@ -178,7 +178,7 @@ class ConsultantWorkloadController extends Controller
     private function ticketsByEmployee(int $empId, array $progressMap = [])
     {
         $picIds    = DB::table('ticket')
-            ->where('employee_id', $empId)
+            ->where('ticket_lead_id', $empId)
             ->whereIn('status', self::ACTIVE_STATUSES)
             ->whereNull('deleted_at')
             ->pluck('ticket_id');
@@ -200,7 +200,7 @@ class ConsultantWorkloadController extends Controller
             'ticket.status', 'ticket.ticket_priority', 'ticket.ticket_type',
             'ticket.man_days', 'ticket.progress_percentage', 'ticket.progress_note',
             'ticket.last_progress_at', 'ticket.module', 'ticket.start_date',
-            'ticket.end_date', 'ticket.employee_id',
+            'ticket.end_date', 'ticket.ticket_lead_id',
             'customer_basic_data.name_1 as customer_name',
         ];
 
@@ -220,7 +220,7 @@ class ConsultantWorkloadController extends Controller
         $consultantDetails = $this->consultantDetailsForTickets($ticketIds->toArray());
 
         return $tickets->map(function ($ticket) use ($progressMap, $consultantDetails, $empId) {
-            $ticket->role_in_ticket = ((int) $ticket->employee_id === $empId) ? 'pic' : 'member';
+            $ticket->role_in_ticket = ((int) $ticket->ticket_lead_id === $empId) ? 'pic' : 'member';
             $tid = $ticket->ticket_id;
 
             // Weighted average dari consultant_mandays_detail, fallback ke ticket.progress_percentage

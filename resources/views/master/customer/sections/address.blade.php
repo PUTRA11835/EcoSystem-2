@@ -552,6 +552,7 @@
                 showNotification(isUpdate ? 'Address updated successfully!' : 'Address created successfully!', 'success');
                 loadAddresses();
                 if (isUpdate) { loadAddressToForm(addressId); } else { clearAddressForm(); }
+                if (typeof window.refreshHeader === 'function') window.refreshHeader({{ $customerId }});
             } else {
                 showNotification('Failed to save address: ' + (data.message || 'Unknown error'), 'error');
             }
@@ -654,6 +655,7 @@
                 closeConfirmDeleteAddress();
                 selectedAddressId = null;
                 loadAddresses();
+                if (typeof window.refreshHeader === 'function') window.refreshHeader({{ $customerId }});
                 
                 // Clear form fields
                 document.getElementById('addressType').value = '';
