@@ -107,6 +107,13 @@
                             </div>
                         </div>
 
+                        <!-- Go-Live Activity marker -->
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="activityIsGolive"
+                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            <span class="text-sm text-gray-700">Mark as Go-Live activity</span>
+                        </label>
+
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Module</label>
@@ -520,10 +527,14 @@ async function initActivityModalPickers() {
     destroyActivityPickers();
 
     // Contract window bounds — planning dates may not fall outside the contract period.
+    // PENTING: contract dates datang sebagai string ISO ('Y-m-d'), tapi dateFormat
+    // picker ini 'd/m/Y'. Flatpickr mem-parse minDate/maxDate STRING memakai dateFormat,
+    // sehingga '2026-06-04' salah di-parse → bounds ngawur → SEMUA tanggal ke-disable.
+    // Solusi: kirim sebagai objek Date (Flatpickr menerima Date langsung tanpa parsing).
     var _contract = window.projectContractDates || {};
     var _planBounds = {};
-    if (_contract.start) _planBounds.minDate = _contract.start;
-    if (_contract.end)   _planBounds.maxDate = _contract.end;
+    if (_contract.start) _planBounds.minDate = new Date(_contract.start + 'T00:00:00');
+    if (_contract.end)   _planBounds.maxDate = new Date(_contract.end + 'T00:00:00');
 
     window._fpStartDate = HolidayCalendar.initPicker(
         document.getElementById('activityStartDate'),
@@ -942,6 +953,7 @@ function loadActivityData(activityId) {
             document.getElementById('activityReceiveType').value = activity.receive_type || '';
             document.getElementById('activityNewRequirement').checked = activity.new_requirement || false;
             document.getElementById('activityDeliverable').value = activity.deliverable || '';
+            document.getElementById('activityIsGolive').checked = activity.is_golive || false;
             
             form.classList.remove('opacity-50', 'pointer-events-none');
             document.getElementById('activityName').focus();
@@ -991,6 +1003,7 @@ window.saveActivity = function(event) {
         receive_type: document.getElementById('activityReceiveType')?.value || null,
         new_requirement: document.getElementById('activityNewRequirement')?.checked || false,
         deliverable: document.getElementById('activityDeliverable')?.value || null,
+        is_golive: document.getElementById('activityIsGolive')?.checked || false,
     };
 
     // ✅ For group-direct activities, include phase_id since stage_id is null

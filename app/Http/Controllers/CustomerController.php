@@ -83,9 +83,21 @@ class CustomerController extends Controller
                 'user_passed_to_view' => $user,
                 'user_name_passed' => $user['name'] ?? 'NO NAME'
             ]);
-            
-            // Pass both customer and user to view
-            return view('master.customer.show', compact('customer', 'user'));
+
+            // Active employees for the EC Account Executive dropdown (value = ECI)
+            $employees = \App\Models\Employee::with('basicData')
+                ->where('is_active', true)
+                ->get()
+                ->map(fn($e) => [
+                    'eci'  => $e->eci,
+                    'name' => $e->basicData->full_name ?? $e->eci,
+                ])
+                ->filter(fn($e) => !empty($e['eci']))
+                ->sortBy('name')
+                ->values();
+
+            // Pass customer, user and employees to view
+            return view('master.customer.show', compact('customer', 'user', 'employees'));
             
         } catch (\Exception $e) {
             Log::error('=== WEB: ERROR SHOWING CUSTOMER DETAIL ===', [

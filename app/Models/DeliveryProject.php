@@ -209,38 +209,31 @@ class DeliveryProject extends Model
 
     private function updateGoLiveDate()
     {
-        // Ambil fase dengan flag Go-Live
-        $goLivePhases = $this->phases()
-            ->where('is_golive_phase', true)
-            ->where('is_visible', true)
-            ->get();
-        
-        if ($goLivePhases->isEmpty()) {
-            Log::info("ℹ️ No Go-Live phase found");
+        // Go-Live kini ditandai di level ACTIVITY (planning leaf), bukan fase.
+        // Go Live Estimated = Planned Start Date dari activity yang ditandai go-live.
+        // Hanya satu activity per project yang boleh go-live (dijaga di controller).
+        $goLiveLeaf = $this->plannings()
+            ->where('is_golive', true)
+            ->where('is_group', false)
+            ->with('activity')
+            ->first();
+
+        if (!$goLiveLeaf) {
+            // Tidak ada activity go-live (atau tanda dilepas) → kosongkan estimasi.
+            $this->go_live_estimated = null;
+            Log::info("ℹ️ No Go-Live activity found; go_live_estimated cleared");
             return;
         }
-        
-        // Ambil tanggal paling akhir dari semua aktivitas di fase Go-Live
-        $latestDate = null;
-        
-        foreach ($goLivePhases as $phase) {
-            $plannings = $this->plannings()
-                ->where('phase_id', $phase->id)
-                ->where('is_group', false)
-                ->whereNotNull('end_date')
-                ->get();
-            
-            foreach ($plannings as $planning) {
-                if (!$latestDate || $planning->end_date > $latestDate) {
-                    $latestDate = $planning->end_date;
-                }
-            }
-        }
-        
-        if ($latestDate) {
-            $this->go_live_estimated = $latestDate;
-            Log::info("✅ Go-Live date updated", ['date' => $latestDate]);
-        }
+
+        // Tanggal otoritatif ada di tabel activities (planning leaf bisa lag karena
+        // jalur update type=activity tidak men-sync tanggal). Fallback ke planning.
+        $startDate = $goLiveLeaf->activity?->start_date ?: $goLiveLeaf->start_date;
+
+        $this->go_live_estimated = $startDate;
+        Log::info("✅ Go-Live date updated from activity", [
+            'planning_id' => $goLiveLeaf->id,
+            'date'        => $startDate,
+        ]);
     }
     
     private function updateCurrentPhase()

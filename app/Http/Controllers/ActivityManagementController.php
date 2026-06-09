@@ -97,6 +97,7 @@ class ActivityManagementController extends Controller
                 'parent_id' => 'nullable|exists:delivery_project_planning,id',
                 'stage_id' => 'nullable|exists:activity_stages,id',
                 'is_group' => 'boolean',
+                'is_golive' => 'boolean',
                 'name' => 'required|string|max:255',
                 'weight' => 'nullable|numeric|min:0|max:100',
                 'start_date' => 'required_if:is_group,false|nullable|date',
@@ -258,6 +259,9 @@ class ActivityManagementController extends Controller
                     $planning->weight = $activity->weight;
                     $planning->activity_id = $activity->id;
                     $planning->save();
+
+                    // Go-Live marker (exclusive — clears any other go-live leaf).
+                    $this->applyGoLiveFlag($project, $planning, (bool) ($validated['is_golive'] ?? false));
                 }
 
                 // Update stage dates & progress
@@ -320,6 +324,41 @@ class ActivityManagementController extends Controller
     }
 
     /**
+     * Mark (or unmark) a planning leaf as the project's Go-Live activity.
+     *
+     * Go-Live is exclusive: only one activity per project may carry the flag. Setting it
+     * here first clears the flag on every other leaf, then flags the target. Saving the
+     * target leaf fires DeliveryProjectPlanning's saved event → updateFromPlanning(), which
+     * recomputes go_live_estimated from this activity's Planned Start Date.
+     */
+    private function applyGoLiveFlag(DeliveryProject $project, DeliveryProjectPlanning $leaf, bool $isGoLive): void
+    {
+        // Groups can never be a go-live milestone.
+        if ($leaf->is_group) {
+            return;
+        }
+
+        if ($isGoLive) {
+            // Exclusive: drop the flag from any other leaf still marked go-live.
+            DeliveryProjectPlanning::where('delivery_projects_id', $project->id)
+                ->where('id', '!=', $leaf->id)
+                ->where('is_golive', true)
+                ->update(['is_golive' => false]);
+
+            if (!$leaf->is_golive) {
+                $leaf->is_golive = true;
+                $leaf->save(); // triggers go_live_estimated recompute
+            } else {
+                // Already flagged but a sibling may have been cleared above — force recompute.
+                $project->refresh()->updateFromPlanning();
+            }
+        } elseif ($leaf->is_golive) {
+            $leaf->is_golive = false;
+            $leaf->save(); // recompute clears go_live_estimated when no leaf is flagged
+        }
+    }
+
+    /**
      * Get activity details
      */
     public function show(Request $request, DeliveryProject $project, $activityId)
@@ -360,6 +399,7 @@ class ActivityManagementController extends Controller
                         'complexity' => $activity->complexity,
                         'receive_type' => $activity->receive_type,
                         'new_requirement' => $activity->new_requirement,
+                        'is_golive' => (bool) DeliveryProjectPlanning::where('activity_id', $activity->id)->value('is_golive'),
                     ];
 
                     return response()->json($responseData);
@@ -425,6 +465,7 @@ class ActivityManagementController extends Controller
                 'status' => $planning->status,
                 'progress_percentage' => $planning->progress_percentage,
                 'notes' => $planning->notes,
+                'is_golive' => (bool) $planning->is_golive,
             ];
 
             // Include stages if this is a group
@@ -505,6 +546,7 @@ class ActivityManagementController extends Controller
                 'status' => 'nullable|in:not_started,in_progress,completed,delayed',
                 'progress_percentage' => 'nullable|numeric|min:0|max:100',
                 'weight' => 'nullable|numeric|min:0|max:100',
+                'is_golive' => 'boolean',
                 'stage_id' => 'nullable|exists:activity_stages,id',
                 'notes' => 'nullable|string',
                 'module' => 'nullable|string|max:255',
@@ -647,6 +689,11 @@ class ActivityManagementController extends Controller
                             }
                         }
 
+                        // Go-Live marker — apply to the linked planning leaf when submitted.
+                        if ($planningRecord && array_key_exists('is_golive', $validated)) {
+                            $this->applyGoLiveFlag($project, $planningRecord, (bool) $validated['is_golive']);
+                        }
+
                         return response()->json([
                             'success' => true,
                             'message' => 'Activity updated successfully',
@@ -702,6 +749,11 @@ class ActivityManagementController extends Controller
                     }
 
                     $planning->save();
+
+                    // Go-Live marker — apply to this leaf when submitted (ignored for groups).
+                    if (array_key_exists('is_golive', $validated)) {
+                        $this->applyGoLiveFlag($project, $planning, (bool) $validated['is_golive']);
+                    }
 
                     // Update linked ProjectActivity if exists
                     if ($planning->activity_id && $planning->activity) {

@@ -60,7 +60,8 @@ class TicketMessageController extends Controller
                     'sender_email'        => $message->sender_email,
                     'message_body'        => $message->message,
                     'message_html'        => $message->message_html,
-                    'message_type'        => $message->is_internal_note ? 'internal_note' : 'reply',
+                    'message_type'        => $message->message_type
+                                                ?: ($message->is_internal_note ? 'internal_note' : 'reply'),
                     'reply_to_id'         => $message->reply_to_id,
                     'reply_to_preview'    => $replyToPreview,
                     'channel'             => $message->channel ?? 'web',
@@ -121,6 +122,7 @@ class TicketMessageController extends Controller
             'mentioned_role_ids'      => 'nullable|array',
             'mentioned_role_ids.*'    => 'integer',
             'reply_to_id'             => 'nullable|integer|exists:ticket_message,id',
+            'ticket_status'           => 'nullable|in:inprocess,waiting_on_customer,waiting_to_confirmation,waiting_on_3rd_party,hold',
         ]);
 
         if ($validator->fails()) {
@@ -332,12 +334,18 @@ class TicketMessageController extends Controller
             // Trigger SLA event (non-fatal)
             if ($message && !$isInternalNote) {
                 try {
+                    // Terapkan status yang dipilih dari modal sebelum hitung SLA
+                    $chosenStatus = $request->input('ticket_status');
+                    if ($chosenStatus) {
+                        $ticket->update(['status' => $chosenStatus]);
+                    }
+
                     $ticket->refresh();
                     app(SlaService::class)->recordMessageEvent(
                         $ticket,
                         $message,
                         'employee',
-                        $ticket->status
+                        $chosenStatus ?? $ticket->status
                     );
                 } catch (\Throwable $e) {
                     Log::warning('TicketMessageController@store: SLA record gagal (non-fatal)', [
@@ -481,6 +489,13 @@ class TicketMessageController extends Controller
                 $merged = $existing->concat($ccList)->unique('address')->values()->all();
                 $ticketUpdate['cc_emails'] = $merged;
             }
+
+            // Customer balas → otomatis kembalikan ticket ke inprocess jika sedang paused
+            $stopStatuses = ['waiting_on_customer', 'waiting_to_confirmation', 'waiting_on_3rd_party', 'hold'];
+            if (in_array($ticket->status, $stopStatuses)) {
+                $ticketUpdate['status'] = 'inprocess';
+            }
+
             $ticket->update($ticketUpdate);
 
             // Trigger SLA event untuk customer reply (non-fatal)
@@ -979,6 +994,42 @@ class TicketMessageController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Kirim email sistem (mis. meeting invitation) ke customer menggunakan infrastruktur
+     * yang SAMA dengan sendEmailThenSave — threading, resolve email, logging semuanya
+     * seragam dengan reply biasa. Setelah TicketMessage tersimpan, message_type diupdate.
+     *
+     * @return TicketMessage|null  null jika tidak ada customer email atau email gagal dikirim
+     */
+    public function sendSystemReplyEmail(
+        Ticket $ticket,
+        int    $senderId,
+        string $senderName,
+        string $htmlBody,
+        string $plainBody,
+        string $messageType
+    ): ?TicketMessage {
+        $message = $this->sendEmailThenSave(
+            $ticket,
+            [
+                'sender_type'  => 'employee',
+                'sender_id'    => $senderId,
+                'sender_name'  => $senderName,
+                'message'      => $plainBody,
+                'message_html' => $htmlBody,
+            ],
+            [],
+            $ticket->ticket_id,
+            $senderId
+        );
+
+        if ($message) {
+            $message->update(['message_type' => $messageType]);
+        }
+
+        return $message;
     }
 
     /**

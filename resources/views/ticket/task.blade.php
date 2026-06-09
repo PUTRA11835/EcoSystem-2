@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'My Tasks')
 @section('page-title', 'My Tasks')
-@section('page-subtitle', 'Active tickets where I am assigned as PIC')
+@section('page-subtitle', 'Active tickets where I am assigned as Lead')
 
 @section('content')
 <div class="flex flex-col gap-6">
@@ -252,13 +252,13 @@ function computeSummary(tasks) {
 }
 
 const STATUS_BADGE = {
-    open:          { text: 'Open',        dot: 'bg-blue-400',   cls: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
-    in_progress:   { text: 'In Progress', dot: 'bg-yellow-400', cls: 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200' },
-    hold:          { text: 'Hold',        dot: 'bg-orange-400', cls: 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' },
-    reply:         { text: 'Reply',       dot: 'bg-purple-400', cls: 'bg-purple-50 text-purple-700 ring-1 ring-purple-200' },
-    wait_to_close: { text: 'Wait Close',  dot: 'bg-teal-400',   cls: 'bg-teal-50 text-teal-700 ring-1 ring-teal-200' },
-    closed:        { text: 'Closed',      dot: 'bg-green-400',  cls: 'bg-green-50 text-green-700 ring-1 ring-green-200' },
-    cancel:        { text: 'Cancelled',   dot: 'bg-red-400',    cls: 'bg-red-50 text-red-700 ring-1 ring-red-200' },
+    open:          { text: 'Open',        cls: 'bg-blue-100 text-blue-700' },
+    inprocess:     { text: 'In Progress', cls: 'bg-yellow-100 text-yellow-700' },
+    hold:          { text: 'Hold',        cls: 'bg-orange-100 text-orange-700' },
+    reply:         { text: 'Reply',       cls: 'bg-purple-100 text-purple-700' },
+    wait_to_close: { text: 'Wait Close',  cls: 'bg-teal-100 text-teal-700' },
+    closed:        { text: 'Closed',      cls: 'bg-green-100 text-green-700' },
+    cancel:        { text: 'Cancelled',   cls: 'bg-red-100 text-red-700' },
 };
 
 const PRIORITY_CLS = {
@@ -377,23 +377,16 @@ function updateCards(summary) {
     sEl.textContent = score;
     sEl.className   = `text-3xl font-bold leading-none ${sColor}`;
 
-    document.getElementById('summaryText').textContent = `${summary.ticket_count ?? 0} active ticket(s)`;
+    document.getElementById('summaryText').textContent = `${summary.ticket_count ?? 0} active ticket(s) as Lead`;
 }
 
 // ── Render ─────────────────────────────────────────────────────────
 function renderTable(tasks) {
     if (!tasks.length) {
-        document.getElementById('taskBody').innerHTML = `
-            <tr><td colspan="8" class="text-center py-20">
-                <div class="flex flex-col items-center gap-3">
-                    <div class="w-14 h-14 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center">
-                        <svg class="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
-                        </svg>
-                    </div>
-                    <p class="text-sm font-semibold text-gray-400">No active tickets</p>
-                    <p class="text-xs text-gray-300">You have no tickets assigned as PIC this period.</p>
-                </div>
+        document.getElementById('taskBody').innerHTML =
+            `<tr><td colspan="8" class="text-center py-12 text-gray-400">
+                <i class="fas fa-check-circle text-3xl mb-3 block text-gray-300"></i>
+                No active tickets assigned as Lead
             </td></tr>`;
         return;
     }
@@ -409,6 +402,9 @@ function taskRows(t) {
     const isOverdue = t.end_date && new Date(t.end_date) < new Date() && t.status !== 'closed' && t.status !== 'cancel';
 
     const details    = t.consultant_details ?? [];
+    const myDetail   = details.find(d => d.employee_id == myEmpId);
+    const myMd       = myDetail ? Math.round((parseFloat(myDetail.mandays) + parseFloat(myDetail.approved_additional || 0)) * 100) / 100 : null;
+    const displayMd  = myMd || (t.man_days ? parseFloat(t.man_days) : null);
     const hasDetails = details.length > 0;
 
     const expandBtn = hasDetails
@@ -483,19 +479,13 @@ function taskRows(t) {
                 <span class="w-1.5 h-1.5 rounded-full ${prInfo.dot} shrink-0"></span>${t.ticket_priority ?? '—'}
             </span>
         </td>
-        <td class="px-5 py-3.5">${moduleHtml}</td>
-        <td class="px-5 py-3.5 text-right">
-            <span class="text-sm font-bold text-gray-700">${t.man_days || '—'}</span>
-            ${t.man_days ? '<span class="text-xs text-gray-400 ml-0.5">md</span>' : ''}
-        </td>
-        <td class="px-5 py-3.5 text-right">
-            <span class="text-xs font-medium ${isOverdue ? 'text-red-600 font-semibold' : 'text-gray-500'}">${endDate}</span>
-            ${isOverdue ? '<span class="ml-1 text-[10px] font-bold text-red-500 bg-red-50 rounded px-1">overdue</span>' : ''}
-        </td>
-        <td class="px-5 py-3.5" onclick="event.stopPropagation()">
-            <div class="flex items-center gap-2.5">
-                <div class="flex-1 bg-gray-100 rounded-full h-1.5 max-w-[90px]">
-                    <div class="${progressBarColor(pct)} h-1.5 rounded-full transition-all" style="width:${pct}%"></div>
+        <td class="px-4 py-3">${moduleHtml}</td>
+        <td class="px-4 py-3 text-right font-semibold text-gray-700">${displayMd ? displayMd + ' md' : '<span class="text-gray-400 italic font-normal">Belum ditentukan</span>'}</td>
+        <td class="px-4 py-3 text-right text-xs text-gray-500">${endDate}</td>
+        <td class="px-4 py-3" onclick="event.stopPropagation()">
+            <div class="flex items-center gap-2">
+                <div class="bg-gray-100 rounded-full h-2" style="width:110px">
+                    <div class="${progressBarColor(pct)} h-2 rounded-full transition-all" style="width:${pct}%"></div>
                 </div>
                 <span class="text-xs font-bold text-gray-600 w-8 text-right shrink-0">${pct}%</span>
                 <button onclick="event.stopPropagation(); openCpModal(${t.ticket_id}, '${(t.ticket_number??'').replace(/'/g,"\\'")}', ${pct}, '${(t.progress_note??'').replace(/'/g,"\\'")}')"

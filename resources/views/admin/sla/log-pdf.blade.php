@@ -490,50 +490,57 @@
 
             @foreach($events as $idx => $e)
                 @php
-                    $dateStr = $e->event_at?->format('d/m/Y');
-                    $timeStr = $e->event_at?->format('H:i');
+                    $eAt       = \Carbon\Carbon::parse($e['event_at']);
+                    $dateStr   = $eAt->format('d/m/Y');
+                    $timeStr   = $eAt->format('H:i');
                     $isNewDate = ($dateStr !== $lastDate);
                     $lastDate  = $dateStr;
-                    $dot       = $dotColors[$e->event_type] ?? '#9ca3af';
-                    $evLabel   = $eventLabels[$e->event_type] ?? $e->event_type;
+                    $dot       = $dotColors[$e['event_type']] ?? '#9ca3af';
+                    $evLabel   = $eventLabels[$e['event_type']] ?? $e['event_type'];
                     $rowBg     = $idx % 2 === 0 ? '#ffffff' : '#f9f9f9';
 
                     // Waiting
                     $waitStr = null;
-                    if ($e->waiting_hours !== null) {
-                        $wm = round($e->waiting_hours * 60);
-                        $waitStr = number_format((float)$e->waiting_hours, 2) . ' h(' . $wm . ' min)';
+                    if (($e['waiting_hours'] ?? null) !== null) {
+                        $wm = round($e['waiting_hours'] * 60);
+                        $waitStr = number_format((float)$e['waiting_hours'], 2) . ' h(' . $wm . ' min)';
                     }
 
                     // Response
                     $respStr = null;
-                    if ($e->response_hours !== null) {
-                        $rm = round($e->response_hours * 60);
-                        $respStr = number_format((float)$e->response_hours, 2) . ' h(' . $rm . ' min)';
+                    if (($e['response_hours'] ?? null) !== null) {
+                        $rm = round($e['response_hours'] * 60);
+                        $respStr = number_format((float)$e['response_hours'], 2) . ' h(' . $rm . ' min)';
                     }
 
-                    // Resolution in H:MM
+                    // Resolution — format sama dengan Waiting: "1.20 h(72 min)"
                     $resStr = null;
-                    if ($e->resolution_hours !== null) {
-                        $rh = floor((float)$e->resolution_hours);
-                        $rm2 = round(((float)$e->resolution_hours - $rh) * 60);
-                        $resStr = $rh . ':' . str_pad($rm2, 2, '0', STR_PAD_LEFT);
+                    if (($e['resolution_hours'] ?? null) !== null) {
+                        $rm2    = round((float)$e['resolution_hours'] * 60);
+                        $resStr = number_format((float)$e['resolution_hours'], 2) . ' h(' . $rm2 . ' min)';
                     }
 
                     // Status label
-                    $statusLabel = $e->jarvis_status ? str_replace('_', ' ', $e->jarvis_status) : null;
+                    $statusLabel = ($e['jarvis_status'] ?? null)
+                        ? str_replace('_', ' ', $e['jarvis_status'])
+                        : null;
 
                     // Ball after
-                    $ballLabel = $e->ball_after ? ($ballLabels[$e->ball_after] ?? null) : null;
-                    $ballCls   = $e->ball_after ? ($ballClass[$e->ball_after] ?? '') : '';
+                    $ballLabel = ($e['ball_after'] ?? null) ? ($ballLabels[$e['ball_after']] ?? null) : null;
+                    $ballCls   = ($e['ball_after'] ?? null) ? ($ballClass[$e['ball_after']] ?? '') : '';
 
-                    // Message / notes
-                    $msgText = $e->message_preview ?: $e->notes;
+                    // Message / notes — sender_name ditampilkan di kolom pesan untuk identifikasi
+                    $msgText = $e['message_preview'] ?? $e['notes'] ?? null;
+                    if ($msgText && ($e['sender_name'] ?? null)) {
+                        $msgText = $e['sender_name'] . ': ' . $msgText;
+                    } elseif ($e['sender_name'] ?? null) {
+                        $msgText = $e['sender_name'];
+                    }
                 @endphp
 
                 @if($isNewDate)
                 <tr class="date-group-header">
-                    <td colspan="9">{{ $e->event_at?->format('l, d F Y') }}</td>
+                    <td colspan="9">{{ $eAt->format('l, d F Y') }}</td>
                 </tr>
                 @endif
 

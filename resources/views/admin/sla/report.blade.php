@@ -170,41 +170,68 @@
 
 {{-- ── SLA Log Modal ────────────────────────────────────────────────────────── --}}
 <div id="detailModal" class="fixed inset-0 z-50 hidden">
-    <div class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onclick="closeDetailModal()"></div>
+    <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onclick="closeDetailModal()"></div>
     <div class="absolute inset-0 flex items-center justify-center p-4">
-        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col">
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden">
 
             {{-- Header --}}
-            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
-                <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
-                        <i class="fas fa-table text-indigo-600 text-sm"></i>
+            <div class="flex-shrink-0 bg-white border-b border-gray-100">
+                <div class="flex items-center justify-between px-6 py-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                            <i class="fas fa-table text-gray-500 text-sm"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-800">SLA Log</h3>
+                            <p class="text-xs text-gray-400 mt-0.5">Ticket <span id="detailTicketNum" class="font-mono font-semibold text-gray-600"></span></p>
+                        </div>
                     </div>
-                    <div>
-                        <h3 class="text-sm font-semibold text-gray-800">SLA Log</h3>
-                        <p class="text-xs text-gray-400">
-                            Ticket <span id="detailTicketNum" class="font-mono font-semibold text-gray-600"></span>
-                            <span id="detailResolutionBadge" class="hidden ml-2 text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
-                                Resolution Time: <span id="detailResolutionTime"></span>
-                            </span>
-                        </p>
+                    <div class="flex items-center gap-2">
+                        <div id="detailSummaryBadges" class="hidden items-center gap-2 flex-wrap"></div>
+                        <button onclick="refreshDetail()" title="Refresh SLA Log"
+                            class="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 bg-white px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                            <i class="fas fa-sync-alt text-xs" id="detailRefreshIcon"></i> Refresh
+                        </button>
+                        <a id="detailPdfBtn" href="#" target="_blank" title="Download SLA Log PDF"
+                            class="hidden inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                            <i class="fas fa-file-pdf text-xs"></i> Download PDF
+                        </a>
+                        <button onclick="closeDetailModal()"
+                            class="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition">
+                            <i class="fas fa-times text-sm"></i>
+                        </button>
                     </div>
                 </div>
-                <div class="flex items-center gap-2">
-                    <div id="detailSummaryBadges" class="hidden items-center gap-2 flex-wrap"></div>
-                    <a id="detailPdfBtn" href="#" target="_blank" title="Download SLA Log PDF"
-                        class="hidden inline-flex items-center gap-1.5 text-xs font-semibold text-red-700 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition">
-                        <i class="fas fa-file-pdf text-xs"></i> Download PDF
-                    </a>
-                    <button onclick="closeDetailModal()"
-                        class="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition">
-                        <i class="fas fa-times text-sm"></i>
-                    </button>
+
+                {{-- Summary stats bar --}}
+                <div id="detailStatsBar" class="hidden px-6 pb-4">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Response</p>
+                            <p class="text-sm font-bold text-gray-800 mt-0.5" id="statResponseVal">—</p>
+                            <p class="text-[10px] mt-0.5" id="statResponseStatus"></p>
+                        </div>
+                        <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Resolution</p>
+                            <p class="text-sm font-bold text-gray-800 mt-0.5" id="statResolutionVal">—</p>
+                            <p class="text-[10px] mt-0.5" id="statResolutionStatus"></p>
+                        </div>
+                        <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Waiting</p>
+                            <p class="text-sm font-bold text-gray-800 mt-0.5" id="statWaitingVal">—</p>
+                            <p class="text-[10px] text-gray-400 mt-0.5">total pause time</p>
+                        </div>
+                        <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Ball Holder</p>
+                            <p class="text-sm font-bold text-gray-800 mt-0.5" id="statBallHolder">—</p>
+                            <p class="text-[10px] text-gray-400 mt-0.5" id="statBallHolderSub"></p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             {{-- Table --}}
-            <div id="detailContent" class="overflow-auto flex-1">
+            <div id="detailContent" class="overflow-auto flex-1 bg-gray-50/30">
                 <div class="flex items-center justify-center h-32 text-gray-300">
                     <i class="fas fa-spinner fa-spin text-3xl"></i>
                 </div>
@@ -448,70 +475,89 @@ function _toHLabel(hours) {
     return `${hours.toFixed(2)} h(${mins} min)`;
 }
 
+let _currentDetailTicketId = null;
+
 async function openDetail(ticketId, ticketNum) {
+    _currentDetailTicketId = ticketId;
     document.getElementById('detailTicketNum').textContent = '#' + ticketNum;
-    document.getElementById('detailResolutionBadge').classList.add('hidden');
     document.getElementById('detailSummaryBadges').classList.add('hidden');
     document.getElementById('detailSummaryBadges').innerHTML = '';
+    document.getElementById('detailStatsBar').classList.add('hidden');
 
-    // Set PDF download link
     const pdfBtn = document.getElementById('detailPdfBtn');
     pdfBtn.href = '/admin/sla/tickets/' + ticketId + '/log-pdf';
     pdfBtn.classList.remove('hidden');
 
     document.getElementById('detailContent').innerHTML = `
-        <div class="flex items-center justify-center h-32 text-gray-300">
+        <div class="flex flex-col items-center justify-center gap-3 py-20 text-gray-300">
             <i class="fas fa-spinner fa-spin text-3xl"></i>
+            <p class="text-sm text-gray-400">Loading SLA log…</p>
         </div>`;
     document.getElementById('detailModal').classList.remove('hidden');
 
+    await _fetchAndRenderDetail(ticketId);
+}
+
+async function refreshDetail() {
+    if (!_currentDetailTicketId) return;
+    const icon = document.getElementById('detailRefreshIcon');
+    icon?.classList.add('fa-spin');
+    await _fetchAndRenderDetail(_currentDetailTicketId);
+    icon?.classList.remove('fa-spin');
+}
+
+async function _fetchAndRenderDetail(ticketId) {
     try {
         const res  = await fetch('/api/tickets/' + ticketId + '/sla', { credentials: 'include' });
         const json = await res.json();
         if (!json.success || !json.data) {
             document.getElementById('detailContent').innerHTML =
-                `<p class="text-center text-gray-400 py-8 text-sm">No SLA data available for this ticket.</p>`;
+                `<div class="flex flex-col items-center gap-2 py-16 text-gray-300"><i class="fas fa-inbox text-3xl"></i><p class="text-sm text-gray-400">No SLA data available for this ticket.</p></div>`;
             return;
         }
         renderDetail(json.data);
     } catch {
         document.getElementById('detailContent').innerHTML =
-            `<p class="text-center text-red-400 py-8 text-sm">Failed to load SLA log.</p>`;
+            `<div class="flex flex-col items-center gap-2 py-16 text-red-300"><i class="fas fa-exclamation-triangle text-3xl"></i><p class="text-sm text-red-400">Failed to load SLA log.</p></div>`;
     }
 }
 
 function renderDetail(data) {
-    // ── Header badges ──────────────────────────────────────────────────────────
+    // ── Stats bar ──────────────────────────────────────────────────────────────
     const respSc = STATUS_CFG[data.response?.status] || STATUS_CFG['pending'];
     const resSc  = STATUS_CFG[data.resolution?.status] || STATUS_CFG['pending'];
-    const ballCfg = BALL_CFG[data.ball_holder] || BALL_CFG['helpdesk'];
 
+    document.getElementById('statResponseVal').textContent   = data.response?.actual_hours != null ? data.response.actual_hours + ' hrs' : '—';
+    document.getElementById('statResponseStatus').innerHTML  = `<span class="${respSc.text} font-semibold">${respSc.label}</span><span class="text-slate-400"> / target ${data.response?.target_hours ?? '—'} hrs</span>`;
+    document.getElementById('statResolutionVal').textContent = data.resolution?.actual_hours != null ? data.resolution.actual_hours + ' hrs' : (data.sla_mode === 'response_only' ? 'N/A' : '—');
+    document.getElementById('statResolutionStatus').innerHTML = data.resolution
+        ? `<span class="${resSc.text} font-semibold">${resSc.label}</span><span class="text-slate-400"> / target ${data.resolution.target_hours ?? '—'} hrs</span>`
+        : `<span class="text-slate-400">Response-only mode</span>`;
+
+    const totalWait = data.total_waiting_hours ?? (data.events?.reduce((s, e) => s + (e.waiting_hours || 0), 0) ?? 0);
+    document.getElementById('statWaitingVal').textContent    = totalWait > 0 ? totalWait.toFixed(2) + ' hrs' : '0 hrs';
+    document.getElementById('statBallHolder').textContent    = data.ball_holder ? (data.ball_holder.charAt(0).toUpperCase() + data.ball_holder.slice(1)) : '—';
+    document.getElementById('statBallHolderSub').textContent = 'current ball holder';
+    document.getElementById('detailStatsBar').classList.remove('hidden');
+
+    // ── Summary badges ─────────────────────────────────────────────────────────
     const badgesEl = document.getElementById('detailSummaryBadges');
     badgesEl.innerHTML = `
-        <span class="text-[11px] font-semibold ${respSc.text} ${respSc.bg} px-2.5 py-1 rounded-full whitespace-nowrap">
-            Response: ${respSc.label}
+        <span class="inline-flex items-center gap-1 text-[11px] font-semibold ${respSc.text} ${respSc.bg} px-2.5 py-1 rounded-full whitespace-nowrap">
+            <span class="w-1.5 h-1.5 rounded-full ${respSc.dot} flex-shrink-0"></span>Response: ${respSc.label}
         </span>
         ${data.resolution ? `
-        <span class="text-[11px] font-semibold ${resSc.text} ${resSc.bg} px-2.5 py-1 rounded-full whitespace-nowrap">
-            Resolution: ${resSc.label}
+        <span class="inline-flex items-center gap-1 text-[11px] font-semibold ${resSc.text} ${resSc.bg} px-2.5 py-1 rounded-full whitespace-nowrap">
+            <span class="w-1.5 h-1.5 rounded-full ${resSc.dot} flex-shrink-0"></span>Resolution: ${resSc.label}
         </span>` : ''}
-        <span class="text-[11px] font-semibold ${ballCfg.text} ${ballCfg.bg} px-2.5 py-1 rounded-full whitespace-nowrap">
-            <i class="fas ${ballCfg.icon} text-[10px] mr-0.5"></i>${data.ball_holder}
-        </span>
     `;
     badgesEl.classList.remove('hidden');
     badgesEl.classList.add('flex');
 
-    // Resolution time in header
-    if (data.resolution?.net_hours !== null && data.resolution?.net_hours !== undefined) {
-        document.getElementById('detailResolutionTime').textContent = _toHMM(data.resolution.net_hours);
-        document.getElementById('detailResolutionBadge').classList.remove('hidden');
-    }
-
     // ── Table ──────────────────────────────────────────────────────────────────
     if (!data.events?.length) {
         document.getElementById('detailContent').innerHTML = `
-            <div class="flex flex-col items-center gap-2 py-16 text-gray-300">
+            <div class="flex flex-col items-center gap-3 py-20 text-gray-300">
                 <i class="fas fa-table text-3xl"></i>
                 <p class="text-sm text-gray-400">No events recorded yet</p>
             </div>`;
@@ -519,102 +565,108 @@ function renderDetail(data) {
     }
 
     const BALL_ICON = {
-        helpdesk: { icon: '▶', cls: 'text-blue-600 bg-blue-50',   label: 'Helpdesk' },
-        customer: { icon: '⏸', cls: 'text-orange-600 bg-orange-50', label: 'Customer' },
-        sap:      { icon: '⏸', cls: 'text-purple-600 bg-purple-50', label: 'SAP' },
+        helpdesk: { icon: '▶', label: 'Helpdesk' },
+        customer: { icon: '⏸', label: 'Customer' },
+        sap:      { icon: '⏸', label: 'SAP'      },
+        meeting:  { icon: '⏸', label: 'Meeting'  },
     };
 
     const EVENT_ROW_CFG = {
-        email_received:       { dot: 'bg-indigo-400', label: 'Email / Request Received' },
-        ticket_validated:     { dot: 'bg-green-400',  label: 'Ticket Created' },
-        agent_replied:        { dot: 'bg-blue-400',   label: 'Helpdesk Reply' },
-        customer_replied:     { dot: 'bg-orange-400', label: 'Customer Reply' },
-        resolution_sent:      { dot: 'bg-teal-400',   label: 'Resolution Sent' },
-        escalated_to_sap:     { dot: 'bg-purple-400', label: 'Escalated to SAP' },
-        escalated_to_support: { dot: 'bg-gray-400',   label: 'Returned to Helpdesk' },
-        sla_warning:          { dot: 'bg-yellow-400', label: 'SLA Warning' },
-        sla_breached:         { dot: 'bg-red-500',    label: 'SLA Breached' },
-        ticket_closed:        { dot: 'bg-gray-400',   label: 'Ticket Closed' },
+        email_received:       { dot: '#6366f1', rowBg: '#fafaff', label: 'Email / Request Received'  },
+        ticket_validated:     { dot: '#16a34a', rowBg: '#f6fef7', label: 'Ticket Created'            },
+        agent_replied:        { dot: '#2563eb', rowBg: '#f5f9ff', label: 'Helpdesk Reply'            },
+        customer_replied:     { dot: '#ea580c', rowBg: '#fff8f4', label: 'Customer Reply'            },
+        resolution_sent:      { dot: '#0d9488', rowBg: '#f4fefc', label: 'Resolution Sent'           },
+        escalated_to_sap:     { dot: '#7c3aed', rowBg: '#faf7ff', label: 'Escalated to SAP'         },
+        escalated_to_support: { dot: '#6b7280', rowBg: '#f9fafb', label: 'Returned to Helpdesk'     },
+        sla_warning:          { dot: '#ca8a04', rowBg: '#fffdf0', label: 'SLA Warning'               },
+        sla_breached:         { dot: '#dc2626', rowBg: '#fff8f8', label: 'SLA Breached'              },
+        ticket_closed:        { dot: '#374151', rowBg: '#f9fafb', label: 'Ticket Closed'             },
+        meeting_started:      { dot: '#7c3aed', rowBg: '#faf7ff', label: 'Meeting Started'           },
+        meeting_ended:        { dot: '#7c3aed', rowBg: '#faf7ff', label: 'Meeting Ended'             },
     };
 
-    // Group rows by date for display
     let lastDate = null;
 
     const rows = data.events.map((e, idx) => {
         const dt      = e.event_at ? new Date(e.event_at) : null;
         const dateStr = dt ? dt.toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
         const timeStr = dt ? dt.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }) : '—';
-
         const showDate = dateStr !== lastDate;
         lastDate = dateStr;
 
-        const evCfg   = EVENT_ROW_CFG[e.event_type] || { dot: 'bg-gray-300', label: e.event_type };
+        const evCfg   = EVENT_ROW_CFG[e.event_type] || { dot: '#9ca3af', rowBg: '#fff', label: e.event_type };
         const ballCfg = e.ball_after ? (BALL_ICON[e.ball_after] || null) : null;
 
         const waitCell = e.waiting_hours !== null
-            ? `<span class="text-amber-700 font-semibold">${_toHLabel(e.waiting_hours)}</span>`
-            : `<span class="text-gray-300">—</span>`;
+            ? `<span class="text-[11px] font-semibold text-amber-600 whitespace-nowrap">${_toHLabel(e.waiting_hours)}</span>`
+            : `<span class="text-gray-300 text-xs">—</span>`;
 
         const respCell = e.response_hours !== null
-            ? `<span class="text-blue-700 font-semibold">${_toHLabel(e.response_hours)}</span>`
-            : `<span class="text-gray-300">—</span>`;
+            ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_toHLabel(e.response_hours)}</span>`
+            : `<span class="text-gray-300 text-xs">—</span>`;
 
         const resCell = e.resolution_hours !== null
-            ? `<span class="text-indigo-700 font-semibold">${_toHMM(e.resolution_hours)}</span>`
-            : `<span class="text-gray-300">—</span>`;
+            ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_toHLabel(e.resolution_hours)}</span>`
+            : `<span class="text-gray-300 text-xs">—</span>`;
 
         const statusCell = e.jarvis_status
-            ? `<span class="text-[11px] font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded whitespace-nowrap">${e.jarvis_status.replace(/_/g,' ')}</span>`
-            : `<span class="text-gray-300">—</span>`;
+            ? `<span class="text-[10px] text-gray-500 whitespace-nowrap">${e.jarvis_status.replace(/_/g,' ')}</span>`
+            : `<span class="text-gray-300 text-xs">—</span>`;
 
         const ballCell = ballCfg
-            ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold ${ballCfg.cls} px-2 py-0.5 rounded-full whitespace-nowrap">
-                   ${ballCfg.icon} ${ballCfg.label}
-               </span>`
-            : `<span class="text-gray-300">—</span>`;
+            ? `<span class="text-[11px] font-semibold text-gray-600 whitespace-nowrap">${ballCfg.icon} ${ballCfg.label}</span>`
+            : `<span class="text-gray-300 text-xs">—</span>`;
 
-        const msgText  = e.message_preview
-            ? `<span title="${e.message_preview.replace(/"/g,'&quot;')}" class="text-gray-600">${e.message_preview.substring(0, 80)}${e.message_preview.length > 80 ? '…' : ''}</span>`
-            : (e.notes ? `<span class="text-gray-400 italic">${e.notes}</span>` : `<span class="text-gray-300">—</span>`);
+        const senderPrefix = e.sender_name ? `<span class="font-semibold text-gray-700">${e.sender_name}:</span> ` : '';
+        const bodyText = e.message_preview || e.notes || null;
+        const msgText  = bodyText
+            ? `<span title="${(e.message_preview || '').replace(/"/g,'&quot;')}" class="text-gray-500 text-xs">${senderPrefix}${bodyText.substring(0, 80)}${bodyText.length > 80 ? '…' : ''}</span>`
+            : (e.sender_name ? `<span class="font-semibold text-gray-700 text-xs">${e.sender_name}</span>` : `<span class="text-gray-300 text-xs">—</span>`);
 
-        const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/60';
+        const dateSep = showDate ? `
+        <tr>
+            <td colspan="9" style="background:#f3f4f6; border-top:1px solid #e5e7eb; border-bottom:1px solid #e5e7eb; padding:4px 12px;">
+                <span style="font-size:10px; font-weight:600; color:#6b7280; letter-spacing:0.04em;">
+                    ${dt ? dt.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : dateStr}
+                </span>
+            </td>
+        </tr>` : '';
 
-        return `
-        <tr class="${rowBg} border-b border-gray-100 hover:bg-indigo-50/30 transition-colors">
-            <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">${showDate ? dateStr : ''}</td>
-            <td class="px-3 py-2 text-xs text-gray-600 font-mono whitespace-nowrap">${timeStr}</td>
-            <td class="px-3 py-2 text-xs text-right whitespace-nowrap">${waitCell}</td>
-            <td class="px-3 py-2 text-xs text-right whitespace-nowrap">${respCell}</td>
-            <td class="px-3 py-2 text-xs text-right whitespace-nowrap">${resCell}</td>
-            <td class="px-3 py-2 whitespace-nowrap">
-                <div class="flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full ${evCfg.dot} flex-shrink-0"></span>
-                    <span class="text-xs font-medium text-gray-700">${evCfg.label}</span>
+        return `${dateSep}
+        <tr style="background:${evCfg.rowBg}; border-left:3px solid ${evCfg.dot};" class="border-b border-gray-100/80 hover:brightness-[0.97] transition-all">
+            <td class="px-3 py-2.5 text-xs text-gray-400 whitespace-nowrap">${showDate ? dateStr : ''}</td>
+            <td class="px-3 py-2.5 text-xs text-gray-600 font-mono whitespace-nowrap">${timeStr}</td>
+            <td class="px-3 py-2.5 text-right whitespace-nowrap">${waitCell}</td>
+            <td class="px-3 py-2.5 text-right whitespace-nowrap">${respCell}</td>
+            <td class="px-3 py-2.5 text-right whitespace-nowrap">${resCell}</td>
+            <td class="px-3 py-2.5 whitespace-nowrap">
+                <div class="flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:${evCfg.dot};"></span>
+                    <span class="text-xs text-gray-700">${evCfg.label}</span>
                 </div>
             </td>
-            <td class="px-3 py-2">${statusCell}</td>
-            <td class="px-3 py-2">${ballCell}</td>
-            <td class="px-3 py-2 text-xs max-w-[220px] truncate">${msgText}</td>
+            <td class="px-3 py-2.5">${statusCell}</td>
+            <td class="px-3 py-2.5">${ballCell}</td>
+            <td class="px-3 py-2.5 max-w-[220px] truncate">${msgText}</td>
         </tr>`;
     }).join('');
 
     document.getElementById('detailContent').innerHTML = `
         <table class="w-full text-sm border-collapse" style="min-width:820px">
             <thead>
-                <tr class="bg-gray-700 text-white text-left sticky top-0 z-10">
-                    <th class="px-3 py-2.5 text-[11px] font-semibold tracking-wide whitespace-nowrap">Date</th>
-                    <th class="px-3 py-2.5 text-[11px] font-semibold tracking-wide whitespace-nowrap">Time</th>
-                    <th class="px-3 py-2.5 text-[11px] font-semibold tracking-wide text-right whitespace-nowrap">Waiting</th>
-                    <th class="px-3 py-2.5 text-[11px] font-semibold tracking-wide text-right whitespace-nowrap">Response</th>
-                    <th class="px-3 py-2.5 text-[11px] font-semibold tracking-wide text-right whitespace-nowrap">
-                        Resolution
-                        ${data.resolution?.net_hours !== null && data.resolution?.net_hours !== undefined
-                            ? `<span class="ml-1 text-indigo-300">${_toHMM(data.resolution.net_hours)}</span>` : ''}
+                <tr class="sticky top-0 z-10" style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
+                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Date</th>
+                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Time</th>
+                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-right">Waiting</th>
+                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-right">Response</th>
+                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-right">
+                        Resolution${data.resolution?.net_hours != null ? ` <span class="font-normal normal-case text-gray-400">(${_toHMM(data.resolution.net_hours)})</span>` : ''}
                     </th>
-                    <th class="px-3 py-2.5 text-[11px] font-semibold tracking-wide whitespace-nowrap">Event</th>
-                    <th class="px-3 py-2.5 text-[11px] font-semibold tracking-wide whitespace-nowrap">Status</th>
-                    <th class="px-3 py-2.5 text-[11px] font-semibold tracking-wide whitespace-nowrap">Ball</th>
-                    <th class="px-3 py-2.5 text-[11px] font-semibold tracking-wide">Message</th>
+                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left" style="padding-left:16px;">Event</th>
+                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Status</th>
+                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Ball</th>
+                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase text-left">Message</th>
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -623,6 +675,9 @@ function renderDetail(data) {
 
 function closeDetailModal() {
     document.getElementById('detailModal').classList.add('hidden');
+    document.getElementById('detailStatsBar').classList.add('hidden');
+    document.getElementById('detailSummaryBadges').classList.add('hidden');
+    _currentDetailTicketId = null;
 }
 
 document.addEventListener('keydown', e => {

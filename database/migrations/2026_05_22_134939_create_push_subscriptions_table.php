@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('push_subscriptions', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('employee_id')->index();
-            $table->text('endpoint');
+            $table->string('endpoint', 500);
             $table->string('public_key', 512)->nullable();
             $table->string('auth_token', 512)->nullable();
             $table->timestamps();

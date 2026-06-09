@@ -508,6 +508,14 @@
     </div>
 </div>
 @endif
+{{-- ── Access Denied State ────────────────────────────────────────────────── --}}
+<div id="accessDeniedState" class="hidden flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-200 shadow-sm text-center">
+    <div class="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
+        <i class="fas fa-lock text-amber-400 text-2xl"></i>
+    </div>
+    <p class="text-gray-700 font-semibold mb-1">You don't have access to Tickets</p>
+    <p id="accessDeniedMessage" class="text-gray-400 text-xs max-w-sm">Your account role isn't permitted to view the Ticket module. Please sign in with an account that has ticket access (e.g. Admin, Helpdesk, or RPMO).</p>
+</div>
 
 <!-- Create Ticket Modal (Admin) -->
 @if($user->role->role_id === \App\Enums\RoleId::EC_ADMINISTRATOR->value)
@@ -854,6 +862,18 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                 credentials: 'same-origin'
             });
 
+            // Akun tanpa hak akses ke modul ticket (mis. role Project Admin) → tampilkan
+            // state khusus, bukan "Failed to load tickets" yang membingungkan.
+            if (response.status === 403 || response.status === 401) {
+                let msg = '';
+                try { msg = (await response.json()).message || ''; } catch (e) {}
+                showAccessDenied(response.status === 401
+                    ? 'Your session has expired. Please sign in again to view tickets.'
+                    : (msg && msg !== 'Access denied' ? msg
+                        : "Your account role isn't permitted to view the Ticket module. Please sign in with an account that has ticket access (e.g. Admin, Helpdesk, or RPMO)."));
+                return;
+            }
+
             const contentType = response.headers.get('content-type');
             if (!contentType || !contentType.includes('application/json')) throw new Error('Non-JSON response');
 
@@ -869,7 +889,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                 updateStats();
                 renderTickets();
             } else {
-                showNotification('Failed to load tickets', 'error');
+                showNotification(data.message || 'Failed to load tickets', 'error');
                 document.getElementById('loadingState').classList.add('hidden');
                 document.getElementById('emptyState').classList.remove('hidden');
             }
@@ -879,6 +899,17 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             document.getElementById('loadingState').classList.add('hidden');
             document.getElementById('emptyState').classList.remove('hidden');
         }
+    }
+
+    // Tampilkan state "tidak punya akses" dan sembunyikan loading/list/empty.
+    function showAccessDenied(message) {
+        document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('ticketsContainer').classList.add('hidden');
+        document.getElementById('emptyState').classList.add('hidden');
+        const msgEl = document.getElementById('accessDeniedMessage');
+        if (msgEl && message) msgEl.textContent = message;
+        document.getElementById('accessDeniedState').classList.remove('hidden');
+        showNotification(message || "You don't have access to Tickets", 'error');
     }
 
     function updateStats() {

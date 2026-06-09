@@ -302,6 +302,15 @@
                     <button onclick="sendReply('internal_note')" class="inline-flex items-center px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg hover:bg-amber-100 transition-all duration-200">
                         Internal Note
                     </button>
+                    @if(in_array($user->role->role_id, [1, 5, 6, 7]))
+                    <button id="meetingBtn" onclick="openMeetingPanel()"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 {{ $inMeeting ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100' }}">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                        </svg>
+                        {{ $inMeeting ? 'End Meeting' : 'Meeting' }}
+                    </button>
+                    @endif
                     <span id="attachCount" class="hidden text-xs text-blue-600 font-medium ml-2"></span>
                     {{-- Send button dipisah ke pojok kanan --}}
                     @if($ticket->channel === 'email')
@@ -714,6 +723,43 @@
                     </p>
                 </div>
                 @endif
+                {{-- Nama, No HP, Module, Client --}}
+                <div class="pt-3 border-t border-gray-200 space-y-3">
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 mb-1 block">Nama</label>
+                        <input id="additionalInfoName" type="text" value="{{ $ticket->name ?: $ticket->submitted_by_name }}"
+                               placeholder="Isi nama pengirim..."
+                               class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 mb-1 block">No HP</label>
+                        <input id="additionalInfoNoHp" type="text" value="{{ $ticket->no_hp }}"
+                               placeholder="Isi nomor HP..."
+                               class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    </div>
+                    @if($ticket->submitted_by_email)
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 mb-1 block">Email Pengirim</label>
+                        <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->submitted_by_email }}</p>
+                    </div>
+                    @endif
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 mb-1 block">Module</label>
+                        <input id="additionalInfoModule" type="text" value="{{ $ticket->module }}"
+                               placeholder="Isi module..."
+                               class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 mb-1 block">Client</label>
+                        <input id="additionalInfoClient" type="text" value="{{ $ticket->client }}"
+                               placeholder="Isi nama client..."
+                               class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    </div>
+                    <button id="additionalInfoSaveBtn" onclick="saveAdditionalInfo()"
+                            class="w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                        Save
+                    </button>
+                </div>
                 {{-- Man Days (from approved customer mandays proposal) --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Man Days</label>
@@ -767,43 +813,6 @@
                 @endif
             </div>
         </div>
-
-        {{-- ── Additional Info Panel ── --}}
-        @if($ticket->name || $ticket->no_hp || $ticket->module || $ticket->client)
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
-            <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
-                 onclick="toggleSidebarPanel('additionalInfoPanel', 'additionalInfoChevron')">
-                <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Additional Info</h4>
-                <i id="additionalInfoChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
-            </div>
-            <div id="additionalInfoPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
-                @if($ticket->name)
-                <div>
-                    <span class="text-[10px] text-gray-400 font-semibold uppercase">Name</span>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->name }}</p>
-                </div>
-                @endif
-                @if($ticket->no_hp)
-                <div>
-                    <span class="text-[10px] text-gray-400 font-semibold uppercase">No HP</span>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->no_hp }}</p>
-                </div>
-                @endif
-                @if($ticket->module)
-                <div>
-                    <span class="text-[10px] text-gray-400 font-semibold uppercase">Module</span>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->module }}</p>
-                </div>
-                @endif
-                @if($ticket->client)
-                <div>
-                    <span class="text-[10px] text-gray-400 font-semibold uppercase">Client</span>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->client }}</p>
-                </div>
-                @endif
-            </div>
-        </div>
-        @endif
 
     </div>
 </div>
@@ -1268,6 +1277,90 @@
 </div>
 @endif
 
+{{-- ── Send Status Modal ───────────────────────────────────────────────── --}}
+<div id="sendStatusModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-xs shadow-2xl flex flex-col">
+        <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100">
+            <div>
+                <h3 class="text-sm font-bold text-gray-900">Send &amp; Set Status</h3>
+                <p class="text-[11px] text-gray-400 mt-0.5">Pilih status setelah reply dikirim</p>
+            </div>
+            <button onclick="closeSendStatusModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-red-700 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="px-4 py-4 flex flex-col gap-2">
+            {{-- Inprocess --}}
+            <button onclick="confirmSendWithStatus('inprocess')"
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-yellow-50 border border-yellow-200 hover:bg-yellow-400 hover:border-yellow-400 hover:text-white group transition-all duration-150">
+                <span class="w-8 h-8 rounded-lg bg-yellow-400 group-hover:bg-yellow-100 flex items-center justify-center transition-all shrink-0">
+                    <svg class="w-4 h-4 text-white group-hover:text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                </span>
+                <div class="text-left">
+                    <div class="text-xs font-bold text-yellow-800 group-hover:text-white">Inprocess</div>
+                    <div class="text-[10px] text-yellow-600 group-hover:text-yellow-100">Helpdesk sedang mengerjakan</div>
+                </div>
+                <svg class="ml-auto w-4 h-4 text-yellow-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+
+            {{-- Waiting on Customer --}}
+            <button onclick="confirmSendWithStatus('waiting_on_customer')"
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-500 hover:border-amber-500 hover:text-white group transition-all duration-150">
+                <span class="w-8 h-8 rounded-lg bg-amber-400 group-hover:bg-amber-100 flex items-center justify-center transition-all shrink-0">
+                    <svg class="w-4 h-4 text-white group-hover:text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                </span>
+                <div class="text-left">
+                    <div class="text-xs font-bold text-amber-800 group-hover:text-white">Waiting on Customer</div>
+                    <div class="text-[10px] text-amber-600 group-hover:text-amber-100">Menunggu balasan customer</div>
+                </div>
+                <svg class="ml-auto w-4 h-4 text-amber-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+
+            {{-- Waiting to Confirmation --}}
+            <button onclick="confirmSendWithStatus('waiting_to_confirmation')"
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-teal-50 border border-teal-200 hover:bg-teal-500 hover:border-teal-500 hover:text-white group transition-all duration-150">
+                <span class="w-8 h-8 rounded-lg bg-teal-400 group-hover:bg-teal-100 flex items-center justify-center transition-all shrink-0">
+                    <svg class="w-4 h-4 text-white group-hover:text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </span>
+                <div class="text-left">
+                    <div class="text-xs font-bold text-teal-800 group-hover:text-white">Waiting to Confirmation</div>
+                    <div class="text-[10px] text-teal-600 group-hover:text-teal-100">Menunggu konfirmasi customer</div>
+                </div>
+                <svg class="ml-auto w-4 h-4 text-teal-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+
+            {{-- Waiting on 3rd Party --}}
+            <button onclick="confirmSendWithStatus('waiting_on_3rd_party')"
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-500 hover:border-indigo-500 hover:text-white group transition-all duration-150">
+                <span class="w-8 h-8 rounded-lg bg-indigo-400 group-hover:bg-indigo-100 flex items-center justify-center transition-all shrink-0">
+                    <svg class="w-4 h-4 text-white group-hover:text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
+                </span>
+                <div class="text-left">
+                    <div class="text-xs font-bold text-indigo-800 group-hover:text-white">Waiting on 3rd Party</div>
+                    <div class="text-[10px] text-indigo-600 group-hover:text-indigo-100">Diteruskan ke SAP / pihak ketiga</div>
+                </div>
+                <svg class="ml-auto w-4 h-4 text-indigo-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+
+            {{-- Hold --}}
+            <button onclick="confirmSendWithStatus('hold')"
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-orange-50 border border-orange-200 hover:bg-orange-500 hover:border-orange-500 hover:text-white group transition-all duration-150">
+                <span class="w-8 h-8 rounded-lg bg-orange-400 group-hover:bg-orange-100 flex items-center justify-center transition-all shrink-0">
+                    <svg class="w-4 h-4 text-white group-hover:text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </span>
+                <div class="text-left">
+                    <div class="text-xs font-bold text-orange-800 group-hover:text-white">Hold</div>
+                    <div class="text-[10px] text-orange-600 group-hover:text-orange-100">Ticket ditahan sementara</div>
+                </div>
+                <svg class="ml-auto w-4 h-4 text-orange-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+        </div>
+        <div class="px-4 pb-4">
+            <button onclick="closeSendStatusModal()" class="w-full py-2 text-xs text-gray-400 hover:text-gray-600 transition-all">Cancel</button>
+        </div>
+    </div>
+</div>
+
 {{-- Helpdesk: Customer Mandays Review Modal --}}
 @if(isset($isHelpdesk) && $isHelpdesk)
 <div id="hdMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -1556,9 +1649,80 @@
 @endif
 {{-- ===== END MANDAYS MODALS ===== --}}
 
+{{-- ===== MEETING MODAL ===== --}}
+@if(in_array($user->role->role_id, [1, 5, 6, 7]))
+<div id="meetingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onclick="if(event.target===this) closeMeetingPanel()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        {{-- Header --}}
+        <div id="meetingModalHeader" class="flex items-center justify-between px-6 py-4 rounded-t-2xl">
+            <div class="flex items-center gap-3">
+                <div id="meetingModalIconWrap" class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <span id="meetingPanelTitle" class="text-base font-semibold"></span>
+            </div>
+            <button onclick="closeMeetingPanel()" class="text-gray-400 hover:text-gray-600 transition-colors p-1">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        {{-- Body --}}
+        <div class="px-6 pb-2 space-y-3">
+            <div id="meetingActiveInfo" class="hidden flex items-center gap-2 text-sm px-3 py-2 rounded-lg">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span id="meetingActiveInfoText"></span>
+            </div>
+
+            {{-- Link meeting — hanya tampil saat mulai meeting --}}
+            <div id="meetingLinkWrap">
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                    Link Meeting
+                    <span class="text-gray-400 font-normal">(opsional)</span>
+                </label>
+                <div class="flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 transition-all">
+                    <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                    </svg>
+                    <input id="meetingLink" type="url"
+                        class="flex-1 text-sm bg-transparent focus:outline-none"
+                        placeholder="https://meet.google.com/… atau https://zoom.us/…">
+                </div>
+                <p class="mt-1 text-xs text-gray-400">Link akan dikirim via email ke customer</p>
+            </div>
+
+            <div>
+                <label id="meetingNotesLabel" class="block text-sm font-medium text-gray-700 mb-1.5"></label>
+                <textarea id="meetingNotes" rows="2"
+                    class="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all bg-white"
+                    placeholder="(opsional)"></textarea>
+            </div>
+        </div>
+
+        {{-- Footer --}}
+        <div class="flex justify-end gap-3 px-6 py-4">
+            <button onclick="closeMeetingPanel()"
+                class="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all font-medium">
+                Batal
+            </button>
+            <button id="meetingConfirmBtn" onclick="confirmMeeting()"
+                class="px-5 py-2 text-sm font-semibold text-white rounded-xl transition-all">
+            </button>
+        </div>
+    </div>
+</div>
+@endif
+{{-- ===== END MEETING MODAL ===== --}}
+
 <script>
     const ticketId                    = {{ $ticket->ticket_id }};
     const userRole                    = {{ $user->role->role_id ?? 0 }};
+    let inMeeting                     = {{ $inMeeting ? 'true' : 'false' }};
     const EC_ADMINISTRATOR_ROLE       = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
     const DELIVERY_SUPPORT_USER_ROLE  = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};
     const EC_USER_ROLE                = {{ \App\Enums\RoleId::EC_USER->value }};
@@ -2405,6 +2569,60 @@
     }
 
     function createMessageBubble(msg) {
+        // Meeting events — kartu khusus di tengah chat
+        if (msg.message_type === 'meeting_started' || msg.message_type === 'meeting_ended') {
+            const isStart  = msg.message_type === 'meeting_started';
+            const cardBg   = isStart ? 'bg-purple-50 border-purple-200' : 'bg-green-50 border-green-200';
+            const iconClr  = isStart ? 'text-purple-500' : 'text-green-500';
+            const titleClr = isStart ? 'text-purple-800' : 'text-green-800';
+            const byClr    = isStart ? 'text-purple-600' : 'text-green-600';
+            const title    = isStart ? 'Meeting Dimulai' : 'Meeting Selesai';
+            const badge    = isStart
+                ? `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">SLA Dijeda</span>`
+                : `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-100 text-green-700">SLA Dilanjutkan</span>`;
+            const date = new Date(msg.created_at).toLocaleString('en-GB', {
+                timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', hour12: false
+            }) + ' (WIB)';
+            const byLine = msg.sender_name
+                ? `<p class="text-[11px] ${byClr} mt-0.5">oleh ${escHtml(msg.sender_name)}</p>` : '';
+
+            // Pisahkan link dari notes (link disimpan sebagai "Link: https://…" di baris terakhir)
+            let notesText = msg.message_body || '';
+            let linkHtml  = '';
+            const linkMatch = notesText.match(/(?:^|\n)Link:\s*(https?:\/\/\S+)/i);
+            if (linkMatch) {
+                const url = linkMatch[1];
+                linkHtml  = `<a href="${url}" target="_blank" rel="noopener noreferrer"
+                    class="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-700 text-white hover:bg-purple-800 transition-colors">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    Join Meeting
+                </a>`;
+                notesText = notesText.replace(/(?:^|\n)Link:\s*https?:\/\/\S+/i, '').trim();
+            }
+            const notesLine = notesText && notesText !== 'Meeting dimulai' && notesText !== 'Meeting selesai'
+                ? `<p class="text-xs text-gray-600 mt-1.5 whitespace-pre-wrap">${escHtml(notesText)}</p>` : '';
+            return `<div class="flex justify-center my-3 px-4">
+                <div class="flex items-start gap-2.5 px-4 py-3 rounded-xl border ${cardBg} w-full max-w-md">
+                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 ${iconClr}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between gap-2 flex-wrap">
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-xs font-semibold ${titleClr}">${title}</span>
+                                ${badge}
+                            </div>
+                            <span class="text-[10px] text-gray-400 flex-shrink-0">${date}</span>
+                        </div>
+                        ${byLine}
+                        ${notesLine}
+                        ${linkHtml}
+                    </div>
+                </div>
+            </div>`;
+        }
+
         // System messages (status changes, audit log) &rarr; centered pill, no bubble.
         // Real system messages are never email-channel — they're web/null from server-side events.
         // CC email replies from unregistered senders get stored as sender_type='system' by
@@ -2642,6 +2860,33 @@
         return html.trim();
     }
 
+    // ── Send Status Modal ─────────────────────────────────────────────────────
+    let _pendingSendType = null;
+
+    function openSendStatusModal(messageType) {
+        _pendingSendType = messageType;
+        // Reset ke default inprocess setiap kali modal dibuka
+        const defaultRadio = document.querySelector('input[name="sendStatus"][value="inprocess"]');
+        if (defaultRadio) defaultRadio.checked = true;
+        document.getElementById('sendStatusModal').classList.remove('hidden');
+    }
+
+    function closeSendStatusModal() {
+        document.getElementById('sendStatusModal').classList.add('hidden');
+        _pendingSendType = null;
+    }
+
+    function confirmSendWithStatus(chosenStatus) {
+        document.getElementById('sendStatusModal').classList.add('hidden');
+        _doSendReply(_pendingSendType, chosenStatus || 'inprocess');
+        _pendingSendType = null;
+    }
+
+    // Klik backdrop modal → tutup
+    document.getElementById('sendStatusModal').addEventListener('click', function(e) {
+        if (e.target === this) closeSendStatusModal();
+    });
+
     async function sendReply(messageType) {
         const rawHtml      = quillEditor.root.innerHTML;
         const htmlContent  = trimQuillHtml(rawHtml);
@@ -2654,11 +2899,26 @@
             return;
         }
 
+        // Untuk reply employee → tampilkan modal pilih status dulu
+        if (messageType === 'reply') {
+            openSendStatusModal(messageType);
+            return;
+        }
+
+        // Internal note langsung kirim tanpa modal
+        await _doSendReply(messageType, null);
+    }
+
+    async function _doSendReply(messageType, chosenStatus) {
         // Disable tombol kirim selama proses agar tidak double-submit
         const sendBtn = document.querySelector('button[onclick="sendReply(\'reply\')"]');
         const noteBtn = document.querySelector('button[onclick="sendReply(\'internal_note\')"]');
         if (sendBtn) { sendBtn.disabled = true; sendBtn.classList.add('opacity-60'); }
         if (noteBtn) { noteBtn.disabled = true; noteBtn.classList.add('opacity-60'); }
+
+        const rawHtml      = quillEditor.root.innerHTML;
+        const htmlContent  = trimQuillHtml(rawHtml);
+        const hasFiles     = selectedFiles.length > 0;
 
         try {
             let requestBody;
@@ -2681,8 +2941,6 @@
             commitCcInput();
 
             if (hasFiles) {
-                // Kirim sebagai multipart/form-data
-                // Jangan set Content-Type manual — browser otomatis tambahkan boundary yang benar
                 const formData = new FormData();
                 formData.append('message_body', htmlContent);
                 formData.append('message_type', messageType);
@@ -2692,6 +2950,7 @@
                 mentionedEmployeeIds.forEach(id => formData.append('mentioned_employee_ids[]', id));
                 mentionedRoleIds.forEach(id => formData.append('mentioned_role_ids[]', id));
                 if (replyToId && messageType === 'internal_note') formData.append('reply_to_id', replyToId);
+                if (chosenStatus) formData.append('ticket_status', chosenStatus);
                 requestBody = formData;
             } else {
                 headers['Content-Type'] = 'application/json';
@@ -2703,6 +2962,7 @@
                     mentioned_employee_ids: mentionedEmployeeIds,
                     mentioned_role_ids: mentionedRoleIds,
                     ...(replyToId && messageType === 'internal_note' ? { reply_to_id: replyToId } : {}),
+                    ...(chosenStatus ? { ticket_status: chosenStatus } : {}),
                 });
             }
 
@@ -3048,6 +3308,116 @@
         }
     }
 
+    // ==================== MEETING ====================
+    const MEETING_ICON_SVG = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>`;
+
+    function openMeetingPanel() {
+        const modal      = document.getElementById('meetingModal');
+        const header     = document.getElementById('meetingModalHeader');
+        const iconWrap   = document.getElementById('meetingModalIconWrap');
+        const title      = document.getElementById('meetingPanelTitle');
+        const notesLbl   = document.getElementById('meetingNotesLabel');
+        const confirmBtn = document.getElementById('meetingConfirmBtn');
+        const activeInfo = document.getElementById('meetingActiveInfo');
+        const activeText = document.getElementById('meetingActiveInfoText');
+        const notesArea  = document.getElementById('meetingNotes');
+        const linkWrap   = document.getElementById('meetingLinkWrap');
+        const linkInput  = document.getElementById('meetingLink');
+        if (!modal) return;
+
+        notesArea.value = '';
+        if (linkInput) linkInput.value = '';
+
+        if (inMeeting) {
+            header.className    = 'flex items-center justify-between px-6 py-4 rounded-t-2xl bg-red-50';
+            iconWrap.className  = 'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100 text-red-600';
+            title.className     = 'text-base font-semibold text-red-800';
+            title.textContent   = 'Akhiri Meeting';
+            activeInfo.className = 'flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200';
+            activeText.textContent = 'Meeting sedang berlangsung — SLA clock sedang dijeda.';
+            activeInfo.classList.remove('hidden');
+            if (linkWrap) linkWrap.classList.add('hidden');   // sembunyikan link saat end
+            notesLbl.textContent = 'Ringkasan meeting (opsional)';
+            notesArea.placeholder = 'Apa yang dibahas dalam meeting ini…';
+            confirmBtn.textContent = 'Akhiri Meeting';
+            confirmBtn.className = 'px-5 py-2 text-sm font-semibold text-white rounded-xl transition-all bg-red-600 hover:bg-red-700';
+        } else {
+            header.className    = 'flex items-center justify-between px-6 py-4 rounded-t-2xl bg-purple-50';
+            iconWrap.className  = 'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-purple-100 text-purple-600';
+            title.className     = 'text-base font-semibold text-purple-800';
+            title.textContent   = 'Mulai Meeting';
+            activeInfo.classList.add('hidden');
+            if (linkWrap) linkWrap.classList.remove('hidden'); // tampilkan link saat start
+            notesLbl.textContent = 'Topik / catatan meeting (opsional)';
+            notesArea.placeholder = 'Apa yang akan dibahas…';
+            confirmBtn.textContent = 'Mulai Meeting';
+            confirmBtn.className = 'px-5 py-2 text-sm font-semibold text-white rounded-xl transition-all bg-purple-700 hover:bg-purple-800';
+        }
+
+        modal.classList.remove('hidden');
+        setTimeout(() => (linkInput || notesArea)?.focus(), 50);
+    }
+
+    function closeMeetingPanel() {
+        const modal = document.getElementById('meetingModal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    async function confirmMeeting() {
+        const btn    = document.getElementById('meetingConfirmBtn');
+        const notes  = document.getElementById('meetingNotes')?.value?.trim() || null;
+        const link   = document.getElementById('meetingLink')?.value?.trim() || null;
+        if (!btn) return;
+
+        btn.disabled = true;
+        const origText = btn.textContent;
+        btn.textContent = 'Memproses…';
+
+        const endpoint = inMeeting
+            ? `/api/tickets/${ticketId}/sla/meeting/end`
+            : `/api/tickets/${ticketId}/sla/meeting/start`;
+
+        const payload = inMeeting ? { notes } : { notes, meeting_link: link };
+
+        try {
+            const res  = await fetch(endpoint, {
+                method: 'POST',
+                headers: getHeaders(),
+                credentials: 'same-origin',
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                const wasInMeeting = inMeeting;
+                inMeeting = !inMeeting;
+                closeMeetingPanel();
+
+                // Perbarui tombol Meeting
+                const meetBtn = document.getElementById('meetingBtn');
+                if (meetBtn) {
+                    meetBtn.innerHTML = `${MEETING_ICON_SVG} ${inMeeting ? 'End Meeting' : 'Meeting'}`;
+                    meetBtn.className = inMeeting
+                        ? 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                        : 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100';
+                }
+
+                showNotification(data.message, 'success');
+                btn.disabled = false;
+                // Reload pesan agar kartu meeting muncul di chat
+                try { await loadMessages(); } catch (_) {}
+            } else {
+                showNotification(data.message || 'Gagal', 'error');
+                btn.textContent = origText;
+                btn.disabled = false;
+            }
+        } catch {
+            showNotification('Terjadi kesalahan jaringan', 'error');
+            btn.textContent = origText;
+            btn.disabled = false;
+        }
+    }
+
     // ==================== ADMIN ACTIONS ====================
     function getHeaders() {
         return {
@@ -3139,6 +3509,34 @@
             }
         } catch (e) {
             showNotification('Error: ' + e.message, 'error');
+        }
+    }
+
+    // ==================== ADDITIONAL INFO SAVE ====================
+    async function saveAdditionalInfo() {
+        const btn = document.getElementById('additionalInfoSaveBtn');
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}`, {
+                method: 'PUT',
+                headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    name:   document.getElementById('additionalInfoName').value.trim()   || null,
+                    no_hp:  document.getElementById('additionalInfoNoHp').value.trim()   || null,
+                    module: document.getElementById('additionalInfoModule').value.trim() || null,
+                    client: document.getElementById('additionalInfoClient').value.trim() || null,
+                }),
+            });
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Failed to save');
+            showNotification('Additional info saved', 'success');
+        } catch (e) {
+            showNotification(e.message || 'Error saving additional info', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save';
         }
     }
 

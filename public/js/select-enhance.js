@@ -316,14 +316,27 @@
 
     function positionFixedPanel(btn, panel) {
         const r = btn.getBoundingClientRect();
-        const spaceBelow = window.innerHeight - r.bottom;
-        const placeAbove = spaceBelow < (PANEL_MAX_PX + 16) && r.top > spaceBelow;
+        const margin = 4;
+        const vh = window.innerHeight;
+        const spaceBelow = vh - r.bottom - margin;
+        const spaceAbove = r.top - margin;
+        // Buka ke atas hanya bila ruang bawah sempit DAN ruang atas lebih lega.
+        const placeAbove = spaceBelow < Math.min(PANEL_MAX_PX, 160) && spaceAbove > spaceBelow;
+        // Batasi tinggi panel ke ruang yang tersedia agar tidak keluar viewport.
+        const maxH = Math.max(120, Math.min(PANEL_MAX_PX, placeAbove ? spaceAbove : spaceBelow));
         panel.classList.add('is-fixed');
+        // PENTING: set top DAN bottom dua-duanya (salah satu 'auto'). Tanpa ini,
+        // rule `.se-panel { top:100% }` (untuk mode absolute) bocor ke mode fixed
+        // → di posisi "buka ke atas" panel melar dari atas viewport (top=100%vh)
+        // sehingga tampak tidak terbuka.
         panel.style.cssText = `
             position:fixed;
             left:${r.left}px;
             width:${r.width}px;
-            ${placeAbove ? `bottom:${window.innerHeight - r.top + 4}px;` : `top:${r.bottom + 4}px;`}
+            max-height:${maxH}px;
+            ${placeAbove
+                ? `bottom:${vh - r.top + margin}px; top:auto;`
+                : `top:${r.bottom + margin}px; bottom:auto;`}
             z-index:9999;
         `;
     }

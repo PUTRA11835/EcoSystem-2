@@ -502,7 +502,9 @@ Route::middleware(['web'])->group(function () {
     });
 
     // ── SLA ────────────────────────────────────────────────────────────────
-    Route::get('/tickets/{id}/sla', [\App\Http\Controllers\SlaController::class, 'getTicketSla']);
+    Route::get('/tickets/{id}/sla',               [\App\Http\Controllers\SlaController::class, 'getTicketSla']);
+    Route::post('/tickets/{id}/sla/meeting/start', [\App\Http\Controllers\SlaController::class, 'startMeeting']);
+    Route::post('/tickets/{id}/sla/meeting/end',   [\App\Http\Controllers\SlaController::class, 'endMeeting']);
 
     // Admin-only SLA endpoints
     Route::get('/admin/sla/policies',          [\App\Http\Controllers\SlaController::class, 'getPolicies']);

@@ -1555,6 +1555,10 @@ class TicketController extends Controller
             'scale'          => 'sometimes|nullable|string|in:Simple,Medium,Complex',
             'ticket_lead_id' => 'sometimes|nullable|exists:employee,employee_id',
             'man_days'       => 'sometimes|nullable|numeric|min:0|max:9999.99',
+            'name'           => 'sometimes|nullable|string|max:255',
+            'no_hp'          => 'sometimes|nullable|string|max:255',
+            'module'         => 'sometimes|nullable|string|max:255',
+            'client'         => 'sometimes|nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -1589,6 +1593,18 @@ class TicketController extends Controller
             }
             if ($request->has('man_days') && $isAdmin) {
                 $updateData['man_days'] = $request->man_days;
+            }
+            if ($request->has('name') && ($isAdmin || $isHelpdesk)) {
+                $updateData['name'] = $request->name ?: null;
+            }
+            if ($request->has('no_hp') && ($isAdmin || $isHelpdesk)) {
+                $updateData['no_hp'] = $request->no_hp ?: null;
+            }
+            if ($request->has('module') && ($isAdmin || $isHelpdesk)) {
+                $updateData['module'] = $request->module ?: null;
+            }
+            if ($request->has('client') && ($isAdmin || $isHelpdesk)) {
+                $updateData['client'] = $request->client ?: null;
             }
 
             if (!empty($updateData)) {

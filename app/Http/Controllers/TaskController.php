@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Log;
 
 class TaskController extends Controller
 {
-    private const ACTIVE_STATUSES = ['open', 'in_progress', 'hold', 'reply', 'wait_to_close'];
+    private const ACTIVE_STATUSES = ['open', 'inprocess', 'hold', 'reply', 'wait_to_close'];
 
     public function index()
     {
@@ -43,7 +43,7 @@ class TaskController extends Controller
                     'ticket.last_progress_at', 'ticket.module', 'ticket.start_date', 'ticket.end_date',
                     'customer_basic_data.name_1 as customer_name',
                 ])
-                ->orderByRaw("FIELD(ticket.status, 'in_progress', 'reply', 'open', 'hold', 'wait_to_close')")
+                ->orderByRaw("FIELD(ticket.status, 'inprocess', 'reply', 'open', 'hold', 'wait_to_close')")
                 ->get();
 
             if ($tickets->isEmpty()) {

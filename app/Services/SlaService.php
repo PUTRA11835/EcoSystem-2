@@ -762,4 +762,89 @@ class SlaService
             default                   => $status,
         };
     }
+
+    // ── 10. startMeeting ─────────────────────────────────────────────────────
+
+    /**
+     * Pause SLA clock saat meeting dimulai — ball berpindah ke customer.
+     * Jika ball sudah tidak di helpdesk, hanya catat event tanpa mengubah state.
+     */
+    public function startMeeting(Ticket $ticket, ?Carbon $startAt = null): void
+    {
+        $sla = $ticket->sla;
+        if (!$sla || $sla->isClosed()) {
+            return;
+        }
+
+        $at = $startAt ?? now();
+
+        if ($sla->ball_holder === 'helpdesk') {
+            $sla->ball_holder       = 'customer';
+            $sla->sla_paused_at     = $at;
+            $sla->resolution_status = 'paused';
+            $sla->save();
+
+            TicketSlaPause::create([
+                'ticket_id'           => $ticket->ticket_id,
+                'pause_reason'        => 'meeting',
+                'triggered_by_status' => 'meeting',
+                'started_at'          => $at,
+            ]);
+        }
+
+        TicketSlaEvent::create([
+            'ticket_id'         => $ticket->ticket_id,
+            'event_type'        => 'meeting_started',
+            'event_at'          => $at,
+            'triggered_by_type' => 'employee',
+            'notes'             => 'Meeting started — SLA clock paused',
+        ]);
+    }
+
+    // ── 11. endMeeting ───────────────────────────────────────────────────────
+
+    /**
+     * Resume SLA clock saat meeting selesai — ball kembali ke helpdesk.
+     * Durasi meeting dihitung sebagai waiting hours dan diakumulasi ke total.
+     */
+    public function endMeeting(Ticket $ticket, ?Carbon $endAt = null): void
+    {
+        $sla = $ticket->sla;
+        if (!$sla || $sla->isClosed()) {
+            return;
+        }
+
+        $at       = $endAt ?? now();
+        $is24h    = $sla->policy?->is_24_hours ?? true;
+        $waitingH = null;
+
+        if ($sla->ball_holder !== 'helpdesk' && $sla->sla_paused_at) {
+            $waitingH = $this->calcHours($sla->sla_paused_at, $at, $is24h);
+
+            $sla->total_waiting_hours = (float) $sla->total_waiting_hours + $waitingH;
+            $sla->ball_holder         = 'helpdesk';
+            $sla->sla_paused_at       = null;
+            $sla->session_start_at    = $at;
+            $sla->resolution_status   = 'pending';
+            $sla->save();
+
+            TicketSlaPause::where('ticket_id', $ticket->ticket_id)
+                ->whereNull('ended_at')
+                ->update([
+                    'ended_at'       => $at,
+                    'duration_hours' => $waitingH,
+                ]);
+        }
+
+        TicketSlaEvent::create([
+            'ticket_id'         => $ticket->ticket_id,
+            'event_type'        => 'meeting_ended',
+            'event_at'          => $at,
+            'waiting_hours'     => $waitingH,
+            'triggered_by_type' => 'employee',
+            'notes'             => $waitingH !== null
+                                   ? 'Meeting ended — ' . round($waitingH, 2) . ' hrs counted as waiting'
+                                   : 'Meeting ended',
+        ]);
+    }
 }
