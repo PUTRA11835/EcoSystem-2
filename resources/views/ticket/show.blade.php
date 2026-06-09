@@ -723,6 +723,43 @@
                     </p>
                 </div>
                 @endif
+                {{-- Nama, No HP, Module, Client --}}
+                <div class="pt-3 border-t border-gray-200 space-y-3">
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 mb-1 block">Nama</label>
+                        <input id="additionalInfoName" type="text" value="{{ $ticket->name ?: $ticket->submitted_by_name }}"
+                               placeholder="Isi nama pengirim..."
+                               class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 mb-1 block">No HP</label>
+                        <input id="additionalInfoNoHp" type="text" value="{{ $ticket->no_hp }}"
+                               placeholder="Isi nomor HP..."
+                               class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    </div>
+                    @if($ticket->submitted_by_email)
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 mb-1 block">Email Pengirim</label>
+                        <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->submitted_by_email }}</p>
+                    </div>
+                    @endif
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 mb-1 block">Module</label>
+                        <input id="additionalInfoModule" type="text" value="{{ $ticket->module }}"
+                               placeholder="Isi module..."
+                               class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 mb-1 block">Client</label>
+                        <input id="additionalInfoClient" type="text" value="{{ $ticket->client }}"
+                               placeholder="Isi nama client..."
+                               class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    </div>
+                    <button id="additionalInfoSaveBtn" onclick="saveAdditionalInfo()"
+                            class="w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                        Save
+                    </button>
+                </div>
                 {{-- Man Days (from approved customer mandays proposal) --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Man Days</label>
@@ -776,43 +813,6 @@
                 @endif
             </div>
         </div>
-
-        {{-- ── Additional Info Panel ── --}}
-        @if($ticket->name || $ticket->no_hp || $ticket->module || $ticket->client)
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
-            <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
-                 onclick="toggleSidebarPanel('additionalInfoPanel', 'additionalInfoChevron')">
-                <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Additional Info</h4>
-                <i id="additionalInfoChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
-            </div>
-            <div id="additionalInfoPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
-                @if($ticket->name)
-                <div>
-                    <span class="text-[10px] text-gray-400 font-semibold uppercase">Name</span>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->name }}</p>
-                </div>
-                @endif
-                @if($ticket->no_hp)
-                <div>
-                    <span class="text-[10px] text-gray-400 font-semibold uppercase">No HP</span>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->no_hp }}</p>
-                </div>
-                @endif
-                @if($ticket->module)
-                <div>
-                    <span class="text-[10px] text-gray-400 font-semibold uppercase">Module</span>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->module }}</p>
-                </div>
-                @endif
-                @if($ticket->client)
-                <div>
-                    <span class="text-[10px] text-gray-400 font-semibold uppercase">Client</span>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->client }}</p>
-                </div>
-                @endif
-            </div>
-        </div>
-        @endif
 
     </div>
 </div>
@@ -3509,6 +3509,34 @@
             }
         } catch (e) {
             showNotification('Error: ' + e.message, 'error');
+        }
+    }
+
+    // ==================== ADDITIONAL INFO SAVE ====================
+    async function saveAdditionalInfo() {
+        const btn = document.getElementById('additionalInfoSaveBtn');
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}`, {
+                method: 'PUT',
+                headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    name:   document.getElementById('additionalInfoName').value.trim()   || null,
+                    no_hp:  document.getElementById('additionalInfoNoHp').value.trim()   || null,
+                    module: document.getElementById('additionalInfoModule').value.trim() || null,
+                    client: document.getElementById('additionalInfoClient').value.trim() || null,
+                }),
+            });
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Failed to save');
+            showNotification('Additional info saved', 'success');
+        } catch (e) {
+            showNotification(e.message || 'Error saving additional info', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save';
         }
     }
 

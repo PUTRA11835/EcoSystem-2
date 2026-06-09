@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'My Tasks')
 @section('page-title', 'My Tasks')
-@section('page-subtitle', 'Active tickets where I am assigned as PIC')
+@section('page-subtitle', 'Active tickets where I am assigned as Lead')
 
 @section('content')
 <div class="flex flex-col gap-4">
@@ -122,10 +122,10 @@
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Progress (%)</label>
             <div class="flex items-center gap-3 mt-2">
                 <input type="range" id="cpModalSlider" min="0" max="100" step="5" value="0"
-                    oninput="const v=Math.min(100,Math.max(0,+this.value));this.value=v;document.getElementById('cpModalValue').value=v"
+                    oninput="var vs=Math.min(100,Math.max(0,+this.value));this.value=vs;document.getElementById('cpModalValue').value=vs"
                     class="flex-1 accent-indigo-600">
                 <input type="number" id="cpModalValue" min="0" max="100" value="0"
-                    oninput="const v=Math.min(100,Math.max(0,+this.value||0));document.getElementById('cpModalSlider').value=v"
+                    oninput="var vn=Math.min(100,Math.max(0,+this.value||0));document.getElementById('cpModalSlider').value=vn"
                     class="w-16 text-sm font-bold text-indigo-600 border border-indigo-200 rounded-lg px-2 py-1 text-right focus:ring-2 focus:ring-indigo-400 focus:outline-none">
             </div>
         </div>
@@ -167,7 +167,7 @@ function computeSummary(tasks) {
 
 const STATUS_BADGE = {
     open:          { text: 'Open',        cls: 'bg-blue-100 text-blue-700' },
-    in_progress:   { text: 'In Progress', cls: 'bg-yellow-100 text-yellow-700' },
+    inprocess:     { text: 'In Progress', cls: 'bg-yellow-100 text-yellow-700' },
     hold:          { text: 'Hold',        cls: 'bg-orange-100 text-orange-700' },
     reply:         { text: 'Reply',       cls: 'bg-purple-100 text-purple-700' },
     wait_to_close: { text: 'Wait Close',  cls: 'bg-teal-100 text-teal-700' },
@@ -284,7 +284,7 @@ function updateCards(summary) {
     sEl.textContent = score;
     sEl.className   = `text-2xl font-bold ${score >= 10 ? 'text-red-600' : score >= 5 ? 'text-yellow-600' : 'text-green-600'}`;
 
-    document.getElementById('summaryText').textContent = `${summary.ticket_count ?? 0} active ticket(s) as PIC`;
+    document.getElementById('summaryText').textContent = `${summary.ticket_count ?? 0} active ticket(s) as Lead`;
 }
 
 // ── Render ─────────────────────────────────────────────────────────
@@ -293,7 +293,7 @@ function renderTable(tasks) {
         document.getElementById('taskBody').innerHTML =
             `<tr><td colspan="8" class="text-center py-12 text-gray-400">
                 <i class="fas fa-check-circle text-3xl mb-3 block text-gray-300"></i>
-                No active tickets assigned as PIC
+                No active tickets assigned as Lead
             </td></tr>`;
         return;
     }
@@ -307,6 +307,9 @@ function taskRows(t) {
     const endDate = t.end_date ? new Date(t.end_date).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—';
 
     const details    = t.consultant_details ?? [];
+    const myDetail   = details.find(d => d.employee_id == myEmpId);
+    const myMd       = myDetail ? Math.round((parseFloat(myDetail.mandays) + parseFloat(myDetail.approved_additional || 0)) * 100) / 100 : null;
+    const displayMd  = myMd || (t.man_days ? parseFloat(t.man_days) : null);
     const hasDetails = details.length > 0;
 
     const expandBtn = hasDetails
@@ -376,7 +379,7 @@ function taskRows(t) {
             <span class="px-1.5 py-0.5 rounded text-xs font-medium ${prCls}">${t.ticket_priority ?? '—'}</span>
         </td>
         <td class="px-4 py-3">${moduleHtml}</td>
-        <td class="px-4 py-3 text-right font-semibold text-gray-700">${t.man_days || '—'}</td>
+        <td class="px-4 py-3 text-right font-semibold text-gray-700">${displayMd ? displayMd + ' md' : '<span class="text-gray-400 italic font-normal">Belum ditentukan</span>'}</td>
         <td class="px-4 py-3 text-right text-xs text-gray-500">${endDate}</td>
         <td class="px-4 py-3" onclick="event.stopPropagation()">
             <div class="flex items-center gap-2">
