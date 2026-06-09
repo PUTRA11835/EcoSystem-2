@@ -162,7 +162,7 @@ class TicketViewController extends Controller
             ->value('submitted_by_email');
 
         if (!$customerEmail) {
-            $customerEmail = DB::table('ticket_messages')
+            $customerEmail = DB::table('ticket_message')
                 ->where('ticket_id', $ticket->ticket_id)
                 ->where('sender_type', 'customer')
                 ->whereNotNull('sender_email')

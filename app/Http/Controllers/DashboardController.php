@@ -176,7 +176,7 @@ class DashboardController extends Controller
                 }
                 $dashboardData['ticket_chart'] = ['labels' => $chartLabels, 'data' => $chartData];
 
-                // Recent 5 tickets (all)
+                // Recent 8 tickets (all) — includes priority for dashboard display
                 $dashboardData['recent_tickets'] = DB::table('ticket as t')
                     ->whereNull('t.deleted_at')
                     ->leftJoin('customer as c', 't.customer_id', '=', 'c.customer_id')
@@ -185,15 +185,15 @@ class DashboardController extends Controller
                     ->leftJoin('employee_basic_data as ebd', 'e.employee_id', '=', 'ebd.employee_id')
                     ->select(
                         't.ticket_id', 't.ticket_number', 't.description',
-                        't.status', 't.created_at',
+                        't.status', 't.ticket_priority', 't.created_at',
                         'cbd.name_1 as customer_name',
                         DB::raw("COALESCE(TRIM(CONCAT(COALESCE(ebd.first_name,''),' ',COALESCE(ebd.last_name,''))), 'Unassigned') as pic_name")
                     )
-                    ->orderBy('t.created_at', 'desc')
-                    ->limit(5)
+                    ->orderByDesc('t.created_at')
+                    ->limit(8)
                     ->get();
 
-                // Team load: top 5 employees by open ticket count
+                // Team load: top 6 employees by active ticket count
                 $dashboardData['team_load'] = DB::table('ticket as t')
                     ->whereNull('t.deleted_at')
                     ->whereNotIn('t.status', ['closed', 'cancelled'])
@@ -201,9 +201,33 @@ class DashboardController extends Controller
                     ->leftJoin('employee_basic_data as ebd', 'e.employee_id', '=', 'ebd.employee_id')
                     ->select('e.employee_id', DB::raw("TRIM(CONCAT(COALESCE(ebd.first_name,''),' ',COALESCE(ebd.last_name,''))) as name"), DB::raw('COUNT(*) as open_count'))
                     ->groupBy('e.employee_id', 'ebd.first_name', 'ebd.last_name')
-                    ->orderBy('open_count', 'desc')
-                    ->limit(5)
+                    ->orderByDesc('open_count')
+                    ->limit(6)
                     ->get();
+
+                // Timesheets pending approval (submitted by team)
+                try {
+                    $dashboardData['timesheet_pending'] = DB::table('timesheet')
+                        ->where('status', 'submitted')
+                        ->count();
+                } catch (\Throwable) {
+                    $dashboardData['timesheet_pending'] = 0;
+                }
+
+                // SLA compliance summary
+                try {
+                    $slaMet      = DB::table('ticket_sla')->where('resolution_status', 'met')->count();
+                    $slaBreached = DB::table('ticket_sla')->where('resolution_status', 'breached')->count();
+                    $dashboardData['sla_summary'] = [
+                        'met'             => $slaMet,
+                        'breached'        => $slaBreached,
+                        'compliance_rate' => ($slaMet + $slaBreached) > 0
+                            ? round($slaMet / ($slaMet + $slaBreached) * 100, 1)
+                            : null,
+                    ];
+                } catch (\Throwable) {
+                    $dashboardData['sla_summary'] = null;
+                }
             }
 
             // ── Helpdesk dashboard data ───────────────────────────────────────

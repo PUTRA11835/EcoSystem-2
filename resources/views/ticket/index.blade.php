@@ -3,21 +3,15 @@
 @section('page-title', 'Support Tickets')
 @section('page-subtitle', 'Manage and track all support requests')
 @section('content')
+{{-- Quill.js (untuk editor pesan di modal Create Ticket Helpdesk) --}}
+@if(in_array($user->role->role_id ?? 0, \App\Enums\RoleId::HELPDESK_GROUP, true))
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+@endif
 
-{{-- ── Header ──────────────────────────────────────────────────────────────── --}}
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
-    <div>
-        <div class="flex items-center gap-2.5">
-            <div class="w-9 h-9 rounded-xl primary-gradient flex items-center justify-center shadow-sm">
-                <i class="fas fa-ticket-alt text-white text-sm"></i>
-            </div>
-            <div>
-                <h1 class="text-xl font-bold text-gray-900 leading-tight">Support Tickets</h1>
-                <p class="text-xs text-gray-400 mt-0.5">Manage and track all support requests</p>
-            </div>
-        </div>
-    </div>
 
+{{-- ── Header Controls ──────────────────────────────────────────────────────── --}}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4 mb-5">
     <div class="flex items-center gap-2.5 flex-wrap">
         {{-- View toggles --}}
         @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value)
@@ -49,9 +43,9 @@
         </div>
         @endif
 
-        @if($user->role->role_id === \App\Enums\RoleId::EC_ADMINISTRATOR->value)
-        <button onclick="openCreateTicketModal()"
-            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 primary-gradient text-white text-xs font-semibold rounded-xl hover:opacity-90 transition-all shadow-sm">
+        @if($user->role->role_id === \App\Enums\RoleId::EC_ADMINISTRATOR->value || in_array($user->role->role_id, \App\Enums\RoleId::HELPDESK_GROUP, true))
+        <button onclick="{{ $user->role->role_id === \App\Enums\RoleId::EC_ADMINISTRATOR->value ? 'openCreateTicketModal()' : 'openHelpdeskCreateModal()' }}"
+            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">
             <i class="fas fa-plus text-xs"></i>Create Ticket
         </button>
         @endif
@@ -364,6 +358,156 @@
     </button>
 </div>
 
+{{-- ── Create Ticket Modal (Helpdesk) ────────────────────────────────────── --}}
+@if(in_array($user->role->role_id, \App\Enums\RoleId::HELPDESK_GROUP, true))
+<div id="helpdeskCreateModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
+    <div class="min-h-full flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
+            <div class="flex items-center justify-between px-6 py-5 border-b border-gray-200">
+                <h3 class="text-xl font-bold text-gray-900">Create New Ticket</h3>
+                <button onclick="closeHelpdeskCreateModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <form id="helpdeskCreateForm" onsubmit="submitHelpdeskCreateTicket(event)" class="p-6 space-y-4">
+                {{-- Customer Email --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        Customer Email <span class="text-red-500">*</span>
+                    </label>
+                    <input type="email" id="hd_customer_email" required
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                        placeholder="customer@example.com">
+                </div>
+
+                {{-- CC --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        CC <span class="text-gray-400 font-normal normal-case">(optional, pisah koma)</span>
+                    </label>
+                    <input type="text" id="hd_cc_emails"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                        placeholder="cc1@example.com, cc2@example.com">
+                </div>
+
+                {{-- Subject / Description --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        Subject / Description <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="hd_description" required maxlength="1000"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                        placeholder="Describe the issue...">
+                </div>
+
+                {{-- Priority + Ticket Type (2 col) --}}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Priority <span class="text-red-500">*</span></label>
+                        <select id="hd_priority" required
+                            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                            <option value="Very High">Very High</option>
+                            <option value="High">High</option>
+                            <option value="Medium" selected>Medium</option>
+                            <option value="Low">Low</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                            Ticket Type <span class="text-red-500">*</span>
+                        </label>
+                        <select id="hd_ticket_type" required
+                            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                            <option value="">-- Select Type --</option>
+                            <option value="Incident">Incident</option>
+                            <option value="Service Request">Service Request</option>
+                            <option value="Change Request">Change Request</option>
+                            <option value="Consult">Consult</option>
+                        </select>
+                    </div>
+                </div>
+
+                {{-- Scale --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        Scale <span class="text-gray-400 font-normal normal-case">(optional, untuk SLA)</span>
+                    </label>
+                    <select id="hd_scale"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                        <option value="">-- Select Scale --</option>
+                        <option value="Simple" selected>Simple</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Complex">Complex</option>
+                    </select>
+                </div>
+
+                {{-- Additional Info --}}
+                <div class="border-t border-gray-100 pt-3">
+                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Additional Info <span class="font-normal normal-case">(optional)</span></p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Name</label>
+                            <input type="text" id="hd_name" maxlength="255"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                                placeholder="Contact person name">
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">No HP</label>
+                            <input type="text" id="hd_no_hp" maxlength="255"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                                placeholder="Phone number">
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Module</label>
+                            <input type="text" id="hd_module" maxlength="255"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                                placeholder="Related module">
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Client</label>
+                            <input type="text" id="hd_client" maxlength="255"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                                placeholder="Client name">
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Body / Message (Quill rich-text, supports paste screenshot) --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        Message <span class="text-gray-400 font-normal normal-case">(optional — supports paste image)</span>
+                    </label>
+                    <div id="hdBodyEditor" class="border border-gray-300 rounded-lg overflow-hidden" style="min-height:140px; background:#fff;"></div>
+                </div>
+
+                {{-- Attachments --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        Attachments <span class="text-gray-400 font-normal normal-case">(optional, max 20 MB/file)</span>
+                    </label>
+                    <input type="file" id="hd_attachments" multiple
+                        class="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200">
+                </div>
+
+                <div id="hdCreateError" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3"></div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                    <button type="button" onclick="closeHelpdeskCreateModal()"
+                        class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                        Cancel
+                    </button>
+                    <button type="submit" id="btnHdCreateTicket"
+                        class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                        <i class="fas fa-paper-plane text-xs"></i>Send & Create Ticket
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
 {{-- ── Access Denied State ────────────────────────────────────────────────── --}}
 <div id="accessDeniedState" class="hidden flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-200 shadow-sm text-center">
     <div class="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
@@ -375,9 +519,9 @@
 
 <!-- Create Ticket Modal (Admin) -->
 @if($user->role->role_id === \App\Enums\RoleId::EC_ADMINISTRATOR->value)
-<div id="createTicketModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-hidden">
-    <div class="h-full flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl">
+<div id="createTicketModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
+    <div class="min-h-full flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
             <div class="flex items-center justify-between px-6 py-5 border-b border-gray-200">
                 <h3 class="text-xl font-bold text-gray-900">Create New Ticket</h3>
                 <button onclick="closeCreateTicketModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
@@ -387,11 +531,14 @@
                 </button>
             </div>
             <form id="createTicketForm" onsubmit="submitCreateTicket(event)" class="p-6 space-y-4">
+                {{-- Customer --}}
                 <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Customer</label>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        Customer <span class="text-red-500">*</span>
+                    </label>
                     <div class="relative">
                         <input type="text" id="customerSearch"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
                             placeholder="Search customer..."
                             autocomplete="off"
                             onfocus="showCustomerDropdown()"
@@ -411,32 +558,98 @@
                         </div>
                     </div>
                 </div>
+
+                {{-- Subject / Description --}}
                 <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Description</label>
-                    <textarea id="newDescription" required rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent" placeholder="Describe the issue..."></textarea>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        Subject / Description <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="newDescription" required maxlength="1000"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                        placeholder="Describe the issue...">
                 </div>
+
+                {{-- Priority + Ticket Type (2 col) --}}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Priority <span class="text-red-500">*</span></label>
+                        <select id="newPriority" required
+                            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                            <option value="Very High">Very High</option>
+                            <option value="High">High</option>
+                            <option value="Medium" selected>Medium</option>
+                            <option value="Low">Low</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                            Ticket Type <span class="text-red-500">*</span>
+                        </label>
+                        <select id="newTicketType" required
+                            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                            <option value="">-- Select Type --</option>
+                            <option value="Incident">Incident</option>
+                            <option value="Service Request">Service Request</option>
+                            <option value="Change Request">Change Request</option>
+                            <option value="Consult">Consult</option>
+                        </select>
+                    </div>
+                </div>
+
+                {{-- Scale --}}
                 <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Priority</label>
-                    <select id="newPriority" required class="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                        <option value="Very High">Very High</option>
-                        <option value="High">High</option>
-                        <option value="Medium" selected>Medium</option>
-                        <option value="Low">Low</option>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        Scale <span class="text-gray-400 font-normal normal-case">(optional, untuk SLA)</span>
+                    </label>
+                    <select id="newScale"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                        <option value="">-- Select Scale --</option>
+                        <option value="Simple" selected>Simple</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Complex">Complex</option>
                     </select>
                 </div>
-                <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Ticket Type <span class="text-gray-400 font-normal normal-case">(optional)</span></label>
-                    <select id="newTicketType" class="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                        <option value="">-- Select Type --</option>
-                        <option value="Incident">Incident</option>
-                        <option value="Service Request">Service Request</option>
-                        <option value="Change Request">Change Request</option>
-                        <option value="Consult">Consult</option>
-                    </select>
+
+                {{-- Additional Info --}}
+                <div class="border-t border-gray-100 pt-3">
+                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Additional Info <span class="font-normal normal-case">(optional)</span></p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Name</label>
+                            <input type="text" id="newName" maxlength="255"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                                placeholder="Contact person name">
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">No HP</label>
+                            <input type="text" id="newNoHp" maxlength="255"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                                placeholder="Phone number">
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Module</label>
+                            <input type="text" id="newModule" maxlength="255"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                                placeholder="Related module">
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Client</label>
+                            <input type="text" id="newClient" maxlength="255"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                                placeholder="Client name">
+                        </div>
+                    </div>
                 </div>
+
+                <div id="adminCreateError" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3"></div>
+
                 <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                    <button type="button" onclick="closeCreateTicketModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Cancel</button>
-                    <button type="submit" id="btnCreateTicket" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Create Ticket</button>
+                    <button type="button" onclick="closeCreateTicketModal()"
+                        class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Cancel</button>
+                    <button type="submit" id="btnCreateTicket"
+                        class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                        <i class="fas fa-plus text-xs"></i>Create Ticket
+                    </button>
                 </div>
             </form>
         </div>
@@ -941,13 +1154,34 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                     </div>`;
                 })()}
             </td>
-            {{-- SLA columns (populated elsewhere) --}}
-            ${dash()}${dash()}${dash()}${dash()}
-            {{-- End date / Due date --}}
-            <td class="px-3 py-3 whitespace-nowrap">
-                <span class="text-xs text-gray-500">${endDateStr}</span>
-            </td>
-            ${dash()}${dash()}
+            ${(function() {
+                const sla = ticket.sla;
+                if (!sla) {
+                    return `${dash()}${dash()}${dash()}${dash()}${dash()}${dash()}${dash()}`;
+                }
+                const slaStatusBadge = (status) => {
+                    const map = {
+                        'met':                 { label: 'Met',      cls: 'bg-green-50 text-green-700',  dot: 'bg-green-500' },
+                        'breached':            { label: 'Breached', cls: 'bg-red-50 text-red-700',    dot: 'bg-red-500' },
+                        'pending':             { label: 'Pending',  cls: 'bg-gray-100 text-gray-500',  dot: 'bg-gray-400' },
+                        'pending_validation':  { label: 'Validating', cls: 'bg-blue-50 text-blue-600', dot: 'bg-blue-400' },
+                        'paused':              { label: 'Paused',   cls: 'bg-amber-50 text-amber-700', dot: 'bg-amber-400' },
+                    };
+                    const s = map[status] || { label: status || '—', cls: 'bg-gray-100 text-gray-500', dot: 'bg-gray-400' };
+                    return badge(s.label, s.cls, s.dot);
+                };
+                const fmtDue = d => d ? fmtDT(new Date(d)) : '—';
+
+                return `
+                    <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-600">${sla.target_response_hours != null ? parseFloat(sla.target_response_hours).toFixed(2) + ' h' : '<span class="text-gray-300">—</span>'}</td>
+                    <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-600">${sla.response_time_hours != null ? parseFloat(sla.response_time_hours).toFixed(2) + ' h' : '<span class="text-gray-300">—</span>'}</td>
+                    <td class="px-3 py-3 whitespace-nowrap">${slaStatusBadge(sla.response_status)}</td>
+                    <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-600">${sla.target_resolution_hours != null ? parseFloat(sla.target_resolution_hours).toFixed(2) + ' h' : '<span class="text-gray-300">—</span>'}</td>
+                    <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-500">${fmtDue(sla.resolution_due_at)}</td>
+                    <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-600">${sla.resolution_time_hours != null ? parseFloat(sla.resolution_time_hours).toFixed(2) + ' h' : '<span class="text-gray-300">—</span>'}</td>
+                    <td class="px-3 py-3 whitespace-nowrap">${slaStatusBadge(sla.resolution_status)}</td>
+                `;
+            })()}
         </tr>`;
     }
 
@@ -1437,6 +1671,130 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     }
 
 
+    // ==================== HELPDESK: CREATE TICKET ====================
+    let hdQuillEditor = null;
+
+    function initHdQuill() {
+        if (hdQuillEditor) return;
+        hdQuillEditor = new Quill('#hdBodyEditor', {
+            theme: 'snow',
+            placeholder: 'Email body content',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic', 'underline'],
+                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                    ['link', 'image'],
+                    ['clean'],
+                ],
+            },
+        });
+
+        // Handle clipboard paste of images
+        hdQuillEditor.root.addEventListener('paste', function (e) {
+            const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+            if (!items) return;
+            for (const item of items) {
+                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = function (evt) {
+                        const range = hdQuillEditor.getSelection(true);
+                        hdQuillEditor.insertEmbed(range.index, 'image', evt.target.result);
+                        hdQuillEditor.setSelection(range.index + 1);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+        });
+    }
+
+    function openHelpdeskCreateModal() {
+        document.getElementById('helpdeskCreateModal').classList.remove('hidden');
+        // Defer init so the div is visible before Quill measures it
+        setTimeout(initHdQuill, 50);
+    }
+    function closeHelpdeskCreateModal() {
+        document.getElementById('helpdeskCreateModal').classList.add('hidden');
+        document.getElementById('helpdeskCreateForm').reset();
+        document.getElementById('hdCreateError').classList.add('hidden');
+        const btn = document.getElementById('btnHdCreateTicket');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane text-xs"></i>Send & Create Ticket'; }
+        if (hdQuillEditor) { hdQuillEditor.setContents([]); }
+    }
+
+    async function submitHelpdeskCreateTicket(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnHdCreateTicket');
+        const errEl = document.getElementById('hdCreateError');
+
+        // Validate ticket_type (required)
+        const ticketType = document.getElementById('hd_ticket_type').value;
+        if (!ticketType) {
+            errEl.textContent = 'Ticket Type is required.';
+            errEl.classList.remove('hidden');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Sending…';
+        errEl.classList.add('hidden');
+
+        const bodyHtml = hdQuillEditor ? hdQuillEditor.root.innerHTML : '';
+
+        const form = new FormData();
+        form.append('customer_email', document.getElementById('hd_customer_email').value);
+        form.append('cc_emails', document.getElementById('hd_cc_emails').value);
+        form.append('description', document.getElementById('hd_description').value);
+        form.append('ticket_priority', document.getElementById('hd_priority').value);
+        form.append('ticket_type', ticketType);
+        form.append('scale', document.getElementById('hd_scale').value);
+        form.append('body', bodyHtml);
+        const hdName   = document.getElementById('hd_name').value;
+        const hdNoHp   = document.getElementById('hd_no_hp').value;
+        const hdModule = document.getElementById('hd_module').value;
+        const hdClient = document.getElementById('hd_client').value;
+        if (hdName)   form.append('name',   hdName);
+        if (hdNoHp)   form.append('no_hp',  hdNoHp);
+        if (hdModule) form.append('module', hdModule);
+        if (hdClient) form.append('client', hdClient);
+        const files = document.getElementById('hd_attachments').files;
+        for (let i = 0; i < files.length; i++) {
+            form.append('attachments[]', files[i]);
+        }
+
+        try {
+            const res = await fetch('/api/tickets/helpdesk-create', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                credentials: 'same-origin',
+                body: form,
+            });
+            const result = await res.json();
+            if (result.success) {
+                showNotification(
+                    `Ticket ${result.ticket_number} created${result.email_sent ? ' & email sent!' : ' (email failed, check logs)'}`,
+                    result.email_sent ? 'success' : 'warning'
+                );
+                closeHelpdeskCreateModal();
+                loadTickets();
+            } else {
+                errEl.textContent = result.message || 'Failed to create ticket.';
+                errEl.classList.remove('hidden');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-paper-plane text-xs"></i>Send & Create Ticket';
+            }
+        } catch (err) {
+            errEl.textContent = 'Network error: ' + err.message;
+            errEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-paper-plane text-xs"></i>Send & Create Ticket';
+        }
+    }
+
     // ==================== ADMIN: CREATE TICKET ====================
     function openCreateTicketModal() { document.getElementById('createTicketModal').classList.remove('hidden'); }
     function closeCreateTicketModal() {
@@ -1444,23 +1802,39 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         document.getElementById('createTicketForm').reset();
         document.getElementById('customerSearch').value = '';
         document.getElementById('newCustomerId').value = '';
+        document.getElementById('adminCreateError').classList.add('hidden');
         const btn = document.getElementById('btnCreateTicket');
-        if (btn) { btn.disabled = false; btn.textContent = 'Create Ticket'; }
-        const options = document.querySelectorAll('.customer-option');
-        options.forEach(opt => opt.classList.remove('hidden'));
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plus text-xs"></i>Create Ticket'; }
+        document.querySelectorAll('.customer-option').forEach(opt => opt.classList.remove('hidden'));
     }
 
     async function submitCreateTicket(e) {
         e.preventDefault();
-        const btn = document.getElementById('btnCreateTicket');
-        btn.disabled = true; btn.textContent = 'Creating…';
-        const form = document.getElementById('createTicketForm');
-        const ticketTypeVal = form.querySelector('#newTicketType').value;
+        const btn    = document.getElementById('btnCreateTicket');
+        const errEl  = document.getElementById('adminCreateError');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Creating…';
+        errEl.classList.add('hidden');
+
+        const ticketTypeVal = document.getElementById('newTicketType').value;
+        if (!ticketTypeVal) {
+            errEl.textContent = 'Ticket Type is required.';
+            errEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-plus text-xs"></i>Create Ticket';
+            return;
+        }
+
         const data = {
-            description: form.querySelector('#newDescription').value,
-            ticket_priority: form.querySelector('#newPriority').value,
-            customer_id: form.querySelector('#newCustomerId').value,
-            ticket_type: ticketTypeVal || null,
+            description:     document.getElementById('newDescription').value,
+            ticket_priority: document.getElementById('newPriority').value,
+            customer_id:     document.getElementById('newCustomerId').value,
+            ticket_type:     ticketTypeVal,
+            scale:           document.getElementById('newScale').value || null,
+            name:            document.getElementById('newName').value || null,
+            no_hp:           document.getElementById('newNoHp').value || null,
+            module:          document.getElementById('newModule').value || null,
+            client:          document.getElementById('newClient').value || null,
         };
         try {
             const response = await fetch('/api/tickets', {
@@ -1476,12 +1850,16 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                 closeCreateTicketModal();
                 loadTickets();
             } else {
-                showNotification(result.message || 'Failed to create ticket', 'error');
-                btn.disabled = false; btn.textContent = 'Create Ticket';
+                errEl.textContent = result.message || 'Failed to create ticket.';
+                errEl.classList.remove('hidden');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-plus text-xs"></i>Create Ticket';
             }
         } catch (error) {
-            showNotification('Failed to create ticket: ' + error.message, 'error');
-            btn.disabled = false; btn.textContent = 'Create Ticket';
+            errEl.textContent = 'Network error: ' + error.message;
+            errEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-plus text-xs"></i>Create Ticket';
         }
     }
 
@@ -1514,8 +1892,13 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
     // Event listeners
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && document.getElementById('createTicketModal') && !document.getElementById('createTicketModal').classList.contains('hidden')) {
-            closeCreateTicketModal();
+        if (e.key === 'Escape') {
+            if (document.getElementById('createTicketModal') && !document.getElementById('createTicketModal').classList.contains('hidden')) {
+                closeCreateTicketModal();
+            }
+            if (document.getElementById('helpdeskCreateModal') && !document.getElementById('helpdeskCreateModal').classList.contains('hidden')) {
+                closeHelpdeskCreateModal();
+            }
         }
     });
 

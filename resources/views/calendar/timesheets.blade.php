@@ -15,22 +15,29 @@
 
 <div class="space-y-6">
     <!-- Header Section -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
         <div>
-            <h2 class="text-2xl font-bold text-gray-900">
-                @if($isApprovalMode || $isHoSMode)
-                    Timesheet Approval
-                @else
-                    Timesheets
-                @endif
-            </h2>
-            <p class="text-gray-600 mt-1">
-                @if($isApprovalMode || $isHoSMode)
-                    Review and approve/reject employee timesheet submissions
-                @else
-                    Log and manage your working hours
-                @endif
-            </p>
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl primary-gradient flex items-center justify-center shadow-sm">
+                    <i class="fas fa-clock text-white text-sm"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900 leading-tight">
+                        @if($isApprovalMode || $isHoSMode)
+                            Timesheet Approval
+                        @else
+                            Timesheets
+                        @endif
+                    </h1>
+                    <p class="text-xs text-gray-400 mt-0.5">
+                        @if($isApprovalMode || $isHoSMode)
+                            Review and approve/reject employee timesheet submissions
+                        @else
+                            Log and manage your working hours
+                        @endif
+                    </p>
+                </div>
+            </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <div id="tsPeriodBadge" class="hidden items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600">
@@ -54,45 +61,66 @@
 
     <!-- Stats Cards -->
     @if($isApprovalMode || $isHoSMode)
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
-        <div id="cardAll" class="bg-white rounded-lg border-2 border-red-600 p-3 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterByStatus('')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Total</p>
-            <p class="text-2xl font-bold text-gray-900" id="statTotal">0</p>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+        <div id="cardAll" class="bg-white rounded-xl border-2 border-red-600 px-4 py-3.5 hover:shadow-md transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('')">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Total</p>
+            <p class="text-2xl font-bold text-gray-700 leading-none" id="statTotal">0</p>
         </div>
-        <div id="cardSubmitted" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('submitted')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Pending Review</p>
-            <p class="text-2xl font-bold text-gray-900" id="statSubmittedCount">0</p>
+        <div id="cardSubmitted" class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-yellow-200 transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('submitted')">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Pending Review</p>
+            </div>
+            <p class="text-2xl font-bold text-yellow-600 leading-none" id="statSubmittedCount">0</p>
         </div>
-        <div id="cardApproved" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('approved')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Approved</p>
-            <p class="text-2xl font-bold text-gray-900" id="statApprovedCount">0</p>
+        <div id="cardApproved" class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-green-200 transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('approved')">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Approved</p>
+            </div>
+            <p class="text-2xl font-bold text-green-600 leading-none" id="statApprovedCount">0</p>
         </div>
-        <div id="cardRejected" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('rejected')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Rejected</p>
-            <p class="text-2xl font-bold text-gray-900" id="statRejectedCount">0</p>
+        <div id="cardRejected" class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-red-200 transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('rejected')">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Rejected</p>
+            </div>
+            <p class="text-2xl font-bold text-red-600 leading-none" id="statRejectedCount">0</p>
         </div>
     </div>
     @else
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-2">
-        <div id="cardAll" class="bg-white rounded-lg border-2 border-red-600 p-3 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterByStatus('')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Total</p>
-            <p class="text-2xl font-bold text-gray-900" id="statTotal">0</p>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
+        <div id="cardAll" class="bg-white rounded-xl border-2 border-red-600 px-4 py-3.5 hover:shadow-md transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('')">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Total</p>
+            <p class="text-2xl font-bold text-gray-700 leading-none" id="statTotal">0</p>
         </div>
-        <div id="cardDraft" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('draft')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Draft</p>
-            <p class="text-2xl font-bold text-gray-900" id="statDraftCount">0</p>
+        <div id="cardDraft" class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-gray-300 transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('draft')">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Draft</p>
+            </div>
+            <p class="text-2xl font-bold text-gray-600 leading-none" id="statDraftCount">0</p>
         </div>
-        <div id="cardSubmitted" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('submitted')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Submitted</p>
-            <p class="text-2xl font-bold text-gray-900" id="statSubmittedCount">0</p>
+        <div id="cardSubmitted" class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-yellow-200 transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('submitted')">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Submitted</p>
+            </div>
+            <p class="text-2xl font-bold text-yellow-600 leading-none" id="statSubmittedCount">0</p>
         </div>
-        <div id="cardApproved" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('approved')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Approved</p>
-            <p class="text-2xl font-bold text-gray-900" id="statApprovedCount">0</p>
+        <div id="cardApproved" class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-green-200 transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('approved')">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Approved</p>
+            </div>
+            <p class="text-2xl font-bold text-green-600 leading-none" id="statApprovedCount">0</p>
         </div>
-        <div id="cardRejected" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('rejected')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Rejected</p>
-            <p class="text-2xl font-bold text-gray-900" id="statRejectedCount">0</p>
+        <div id="cardRejected" class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-red-200 transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('rejected')">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Rejected</p>
+            </div>
+            <p class="text-2xl font-bold text-red-600 leading-none" id="statRejectedCount">0</p>
         </div>
     </div>
     @endif
@@ -138,7 +166,7 @@
     @endif
 
     <!-- Filters & Search -->
-    <div class="bg-gray-50 rounded-lg border border-gray-200 p-4 mb-5">
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 mb-5">
         <div class="flex items-center gap-2 mb-3">
             <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -227,96 +255,101 @@
         </div>
     </div>
 
-    <!-- Pagination -->
-    <div class="flex items-center justify-between mb-4">
-        <!-- Bulk Actions Bar (Hidden by default) -->
-        <div id="bulkActions" class="hidden items-center gap-2">
-            <span class="text-sm font-medium text-gray-700">
-                <span id="selectedCount">0</span> selected
-            </span>
-            @if($isApprovalMode || $isHoSMode)
-            <button id="btnBulkApprove" onclick="openBulkApproveModal()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-all duration-200">
-                <i class="fas fa-check text-xs"></i> Approve
-            </button>
-            <button id="btnBulkReject" onclick="openBulkRejectModal()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-all duration-200">
-                <i class="fas fa-times text-xs"></i> Reject
-            </button>
-            @else
-            <button id="btnBulkEdit" onclick="editSelectedTimesheet()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Edit
-            </button>
-            <button id="btnBulkSubmit" onclick="openBulkSubmitModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Submit
-            </button>
-            <button id="btnBulkDelete" onclick="openBulkDeleteModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Delete
-            </button>
-            @endif
-        </div>
-        <span id="noBulkActions" class="text-sm text-gray-500">
-            <span id="currentRangeStart">1</span>–<span id="currentRangeEnd">20</span> of <span id="totalItems">0</span> timesheets
-        </span>
-        <div class="flex items-center gap-1">
-            <button onclick="previousPage()" id="btnPrevPage" disabled class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-                </svg>
-            </button>
-            <button onclick="nextPage()" id="btnNextPage" class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                </svg>
-            </button>
-        </div>
-    </div>
-
     <!-- Timesheets Table -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div class="overflow-auto" style="max-height: calc(100vh - 380px); min-height: 200px;">
+    <div class="ts-card bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        {{-- Table Toolbar --}}
+        <div class="ts-toolbar flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/60">
+            <!-- Bulk Actions Bar (Hidden by default) -->
+            <div id="bulkActions" class="hidden items-center gap-2">
+                <span class="text-xs font-medium text-gray-700">
+                    <span id="selectedCount">0</span> selected
+                </span>
+                @if($isApprovalMode || $isHoSMode)
+                <button id="btnBulkApprove" onclick="openBulkApproveModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-all duration-200">
+                    <i class="fas fa-check text-[10px]"></i> Approve
+                </button>
+                <button id="btnBulkReject" onclick="openBulkRejectModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-all duration-200">
+                    <i class="fas fa-times text-[10px]"></i> Reject
+                </button>
+                @else
+                <button id="btnBulkEdit" onclick="editSelectedTimesheet()" class="inline-flex items-center px-3 py-1.5 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    Edit
+                </button>
+                <button id="btnBulkSubmit" onclick="openBulkSubmitModal()" class="inline-flex items-center px-3 py-1.5 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    Submit
+                </button>
+                <button id="btnBulkDelete" onclick="openBulkDeleteModal()" class="inline-flex items-center px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-all duration-200">
+                    Delete
+                </button>
+                @endif
+            </div>
+            <span id="noBulkActions" class="text-xs text-gray-400">
+                Showing <span class="font-semibold text-gray-600" id="currentRangeStart">1</span>&ndash;<span class="font-semibold text-gray-600" id="currentRangeEnd">20</span>
+                <span class="text-gray-300 mx-1">of</span>
+                <span class="font-semibold text-gray-700" id="totalItems">0</span> timesheets
+            </span>
+            <div class="flex items-center gap-1">
+                <button onclick="previousPage()" id="btnPrevPage" disabled
+                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                    </svg>
+                    Prev
+                </button>
+                <button onclick="nextPage()" id="btnNextPage"
+                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                    Next
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="ts-table-wrap overflow-auto" style="max-height: calc(100vh - 380px); min-height: 200px;">
             <table id="timesheetTable" class="w-full text-sm border-collapse" style="min-width: {{ $lockedType === 'support' ? '1200px' : '900px' }};">
                 <thead id="timesheetTableHead" class="sticky top-0 z-10 bg-gray-50">
                     @if($isApprovalMode && $lockedType !== 'support')
                     <tr>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:36px;">
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:36px;">
                             <input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300">
                         </th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Employee</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Date</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Time</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Duration</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Project/Ticket</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Activity</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:200px;">Description</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Status</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Employee</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Date</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Time</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Duration</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Project/Ticket</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Activity</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:200px;">Description</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Status</th>
                     </tr>
                     @elseif($lockedType === 'support')
                     <tr>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:36px;"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300"></th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Date</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:55px;">Month</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:55px;">Year</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Name</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Status</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Ticket</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:180px;">Description</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Customer</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Quota MD</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:180px;">Activity</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:90px;">MD Consumed</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:70px;">On Site</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:36px;"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300"></th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Date</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:55px;">Month</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:55px;">Year</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Name</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Status</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Ticket</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:180px;">Description</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Customer</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Quota MD</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:180px;">Activity</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:90px;">MD Consumed</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:70px;">On Site</th>
                     </tr>
                     @else
                     <tr>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:36px;">
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:36px;">
                             <input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300">
                         </th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Date</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Time</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Duration</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Project/Ticket</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Activity</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:200px;">Description</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Status</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Date</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Time</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Duration</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Project/Ticket</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Activity</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:200px;">Description</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Status</th>
                     </tr>
                     @endif
                 </thead>
@@ -326,16 +359,20 @@
             </table>
         </div>
 
-        <div id="emptyState" class="hidden text-center py-16">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 text-gray-300 mx-auto mb-3">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-            </svg>
+        <div id="emptyState" class="hidden flex flex-col items-center justify-center py-20 text-center">
+            <div class="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
+                <i class="fas fa-clock text-gray-300 text-2xl"></i>
+            </div>
             @if($isApprovalMode || $isHoSMode)
-            <p class="text-gray-600 font-semibold mb-1">No Timesheets Pending Approval</p>
+            <p class="text-gray-700 font-semibold mb-1">No Timesheets Pending Approval</p>
             <p class="text-gray-400 text-xs">All employee timesheets have been reviewed</p>
             @else
-            <p class="text-gray-600 font-semibold mb-1">No Timesheets Found</p>
-            <p class="text-gray-400 text-xs mb-4">Click "Create Timesheet" button</p>
+            <p class="text-gray-700 font-semibold mb-1">No Timesheets Found</p>
+            <p class="text-gray-400 text-xs mb-5">Try adjusting your filters or create a new timesheet</p>
+            <button onclick="openTimesheetModal()"
+                class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-xl hover:opacity-90 transition-all shadow-sm">
+                <i class="fas fa-plus text-xs"></i>Create Timesheet
+            </button>
             @endif
         </div>
     </div>
@@ -788,6 +825,20 @@
 </div>
 
 
+
+<style>
+/* ── Stat card active state ── */
+[id^="card"].border-2.border-red-600 {
+    background: #fff8f8 !important;
+    box-shadow: 0 2px 8px rgba(220,38,38,0.08) !important;
+}
+/* ── Table rows ── */
+#timesheetsTableBody tr { cursor: default; transition: background 0.1s; }
+#timesheetsTableBody tr:hover { background: #f8fafc; }
+/* ── Hide table toolbar + table when empty state is visible ── */
+.ts-card:has(#emptyState:not(.hidden)) .ts-toolbar,
+.ts-card:has(#emptyState:not(.hidden)) .ts-table-wrap { display: none !important; }
+</style>
 
 <script>
     // Pass PHP variables to JavaScript
