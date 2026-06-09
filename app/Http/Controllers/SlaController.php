@@ -231,11 +231,19 @@ class SlaController extends Controller
 
         $events = $this->buildSlaEventLog($sla, $ticket->ticket_id, $ticket->status);
 
+        // Tampilkan 'meeting' sebagai ball_holder saat meeting sedang aktif
+        // (DB menyimpan 'customer' tapi label itu membingungkan bagi agen)
+        $activeMeeting = TicketSlaPause::where('ticket_id', $ticket->ticket_id)
+            ->where('pause_reason', 'meeting')
+            ->whereNull('ended_at')
+            ->exists();
+        $ballHolder = $activeMeeting ? 'meeting' : $sla->ball_holder;
+
         return response()->json([
             'success' => true,
             'data'    => [
                 'sla_mode'    => $sla->sla_mode,
-                'ball_holder' => $sla->ball_holder,
+                'ball_holder' => $ballHolder,
                 'response'    => $responseData,
                 'resolution'  => $resolutionData,
                 'events'      => $events,
@@ -295,8 +303,16 @@ class SlaController extends Controller
         $pauseEndedByMsg   = $allPauses->whereNotNull('ended_by_message_id')->keyBy('ended_by_message_id');
 
         // ── 4. All non-internal messages ──────────────────────────────────────
+        // Meeting messages are tracked via TicketSlaEvent (specialEvents above);
+        // excluding them here prevents duplicates in the SLA timeline walk.
+        // Use explicit NULL guard: MySQL treats NULL NOT IN (...) as NULL (unknown),
+        // so a plain whereNotIn would silently drop all legacy rows with null message_type.
         $messages = TicketMessage::where('ticket_id', $ticketId)
             ->where('is_internal_note', false)
+            ->where(function ($q) {
+                $q->whereNull('message_type')
+                  ->orWhereNotIn('message_type', ['meeting_started', 'meeting_ended']);
+            })
             ->orderBy('created_at')
             ->get();
 
@@ -562,41 +578,102 @@ class SlaController extends Controller
         }
 
         $v = Validator::make($request->all(), [
-            'started_at' => 'nullable|date',
-            'notes'      => 'nullable|string|max:1000',
+            'started_at'   => 'nullable|date',
+            'notes'        => 'nullable|string|max:1000',
+            'meeting_link' => 'nullable|url|max:2048',
         ]);
 
         if ($v->fails()) {
             return response()->json(['success' => false, 'errors' => $v->errors()], 422);
         }
 
-        $ticket      = Ticket::with('sla.policy')->findOrFail($id);
+        $ticket      = Ticket::with(['sla.policy', 'customer'])->findOrFail($id);
         $startAt     = $request->filled('started_at') ? Carbon::parse($request->started_at) : now();
         $senderName  = session('user.name') ?? 'Helpdesk';
-        $senderId    = session('user.id');
+        $senderId    = (int) session('user.id');
         $notes       = $request->input('notes');
+        $meetingLink = $request->input('meeting_link');
 
         try {
             $this->sla->startMeeting($ticket, $startAt);
 
-            TicketMessage::create([
-                'ticket_id'        => $ticket->ticket_id,
-                'sender_type'      => 'system',
-                'sender_id'        => $senderId,
-                'sender_name'      => $senderName,
-                'message'          => $notes,
-                'is_internal_note' => true,
-                'message_type'     => 'meeting_started',
-                'channel'          => 'web',
-                'created_at'       => $startAt,
-                'updated_at'       => $startAt,
-            ]);
+            // Bangun HTML undangan meeting (tanpa footer — TicketMessageController menambahkannya)
+            $html      = $this->buildMeetingEmailHtml($ticket, $senderName, $notes, $meetingLink, $startAt);
+            $msgParts  = array_filter([$notes, $meetingLink ? "Link: {$meetingLink}" : null]);
+            $plainBody = implode("\n", $msgParts) ?: 'Meeting dimulai';
 
-            return response()->json(['success' => true, 'message' => 'Meeting dimulai — SLA clock dijeda.']);
+            // Kirim via infrastruktur email yang SAMA dengan chat reply biasa
+            $emailMsg = app(TicketMessageController::class)->sendSystemReplyEmail(
+                $ticket,
+                $senderId,
+                $senderName,
+                $html,
+                $plainBody,
+                'meeting_started'
+            );
+
+            // Fallback: jika tidak ada customer email atau email gagal, simpan sebagai
+            // pesan internal agar meeting card tetap muncul di room chat
+            if (!$emailMsg) {
+                TicketMessage::create([
+                    'ticket_id'        => $ticket->ticket_id,
+                    'sender_type'      => 'system',
+                    'sender_id'        => $senderId,
+                    'sender_name'      => $senderName,
+                    'message'          => $plainBody,
+                    'is_internal_note' => true,
+                    'message_type'     => 'meeting_started',
+                    'channel'          => 'web',
+                    'created_at'       => $startAt,
+                    'updated_at'       => $startAt,
+                ]);
+            }
+
+            return response()->json([
+                'success'    => true,
+                'message'    => 'Meeting dimulai — SLA clock dijeda.',
+                'email_sent' => (bool) $emailMsg,
+            ]);
         } catch (\Throwable $e) {
             Log::error('SlaController@startMeeting failed', ['ticket_id' => $id, 'error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Gagal memulai meeting.'], 500);
         }
+    }
+
+    private function buildMeetingEmailHtml(
+        Ticket  $ticket,
+        string  $senderName,
+        ?string $notes,
+        ?string $meetingLink,
+        Carbon  $startAt
+    ): string {
+        $ticketNum  = e($ticket->ticket_number ?? '');
+        $agent      = e($senderName);
+        $timeStr    = $startAt->timezone('Asia/Jakarta')->format('d M Y, H:i') . ' WIB';
+        $notesHtml  = $notes
+            ? '<p style="margin:0 0 12px 0;">' . nl2br(e($notes)) . '</p>'
+            : '';
+        $linkBlock  = $meetingLink
+            ? '<div style="margin:20px 0;padding:16px 20px;background:#f5f3ff;border-radius:10px;border-left:4px solid #7c3aed;">
+                 <p style="margin:0 0 8px 0;font-size:13px;font-weight:600;color:#5b21b6;">Link Meeting</p>
+                 <a href="' . e($meetingLink) . '" style="color:#7c3aed;font-size:14px;font-weight:600;word-break:break-all;">' . e($meetingLink) . '</a>
+               </div>'
+            : '';
+
+        return <<<HTML
+        <p style="margin:0 0 12px 0;">Halo,</p>
+        <p style="margin:0 0 12px 0;">
+            Kami mengundang Anda untuk mengikuti <strong>sesi meeting</strong> terkait tiket
+            <strong style="color:#374151;">#{$ticketNum}</strong>.
+        </p>
+        <table style="width:100%;background:#f9fafb;border-radius:8px;padding:12px 16px;margin-bottom:16px;border-collapse:collapse;">
+            <tr><td style="padding:4px 0;font-size:13px;color:#6b7280;width:120px;">Waktu</td><td style="padding:4px 0;font-size:13px;font-weight:600;color:#374151;">{$timeStr}</td></tr>
+            <tr><td style="padding:4px 0;font-size:13px;color:#6b7280;">Host</td><td style="padding:4px 0;font-size:13px;font-weight:600;color:#374151;">{$agent} &mdash; PT Eclectic Consulting</td></tr>
+        </table>
+        {$notesHtml}
+        {$linkBlock}
+        <p style="margin:12px 0 0 0;font-size:13px;color:#6b7280;">Untuk pertanyaan lebih lanjut, silakan balas email ini.</p>
+        HTML;
     }
 
     public function endMeeting(Request $request, $id)

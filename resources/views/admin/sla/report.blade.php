@@ -568,6 +568,7 @@ function renderDetail(data) {
         helpdesk: { icon: '▶', label: 'Helpdesk' },
         customer: { icon: '⏸', label: 'Customer' },
         sap:      { icon: '⏸', label: 'SAP'      },
+        meeting:  { icon: '⏸', label: 'Meeting'  },
     };
 
     const EVENT_ROW_CFG = {

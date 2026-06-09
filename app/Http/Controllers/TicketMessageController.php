@@ -997,6 +997,42 @@ class TicketMessageController extends Controller
     }
 
     /**
+     * Kirim email sistem (mis. meeting invitation) ke customer menggunakan infrastruktur
+     * yang SAMA dengan sendEmailThenSave — threading, resolve email, logging semuanya
+     * seragam dengan reply biasa. Setelah TicketMessage tersimpan, message_type diupdate.
+     *
+     * @return TicketMessage|null  null jika tidak ada customer email atau email gagal dikirim
+     */
+    public function sendSystemReplyEmail(
+        Ticket $ticket,
+        int    $senderId,
+        string $senderName,
+        string $htmlBody,
+        string $plainBody,
+        string $messageType
+    ): ?TicketMessage {
+        $message = $this->sendEmailThenSave(
+            $ticket,
+            [
+                'sender_type'  => 'employee',
+                'sender_id'    => $senderId,
+                'sender_name'  => $senderName,
+                'message'      => $plainBody,
+                'message_html' => $htmlBody,
+            ],
+            [],
+            $ticket->ticket_id,
+            $senderId
+        );
+
+        if ($message) {
+            $message->update(['message_type' => $messageType]);
+        }
+
+        return $message;
+    }
+
+    /**
      * Simpan file ke local storage untuk non-email ticket atau internal note.
      *
      * @param \Illuminate\Http\UploadedFile[] $files

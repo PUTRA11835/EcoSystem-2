@@ -1671,16 +1671,34 @@
         </div>
 
         {{-- Body --}}
-        <div class="px-6 pb-2">
-            <div id="meetingActiveInfo" class="hidden mb-4 flex items-center gap-2 text-sm px-3 py-2 rounded-lg">
+        <div class="px-6 pb-2 space-y-3">
+            <div id="meetingActiveInfo" class="hidden flex items-center gap-2 text-sm px-3 py-2 rounded-lg">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
                 <span id="meetingActiveInfoText"></span>
             </div>
+
+            {{-- Link meeting — hanya tampil saat mulai meeting --}}
+            <div id="meetingLinkWrap">
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                    Link Meeting
+                    <span class="text-gray-400 font-normal">(opsional)</span>
+                </label>
+                <div class="flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 transition-all">
+                    <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                    </svg>
+                    <input id="meetingLink" type="url"
+                        class="flex-1 text-sm bg-transparent focus:outline-none"
+                        placeholder="https://meet.google.com/… atau https://zoom.us/…">
+                </div>
+                <p class="mt-1 text-xs text-gray-400">Link akan dikirim via email ke customer</p>
+            </div>
+
             <div>
                 <label id="meetingNotesLabel" class="block text-sm font-medium text-gray-700 mb-1.5"></label>
-                <textarea id="meetingNotes" rows="3"
+                <textarea id="meetingNotes" rows="2"
                     class="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all bg-white"
                     placeholder="(opsional)"></textarea>
             </div>
@@ -2568,8 +2586,22 @@
             }) + ' (WIB)';
             const byLine = msg.sender_name
                 ? `<p class="text-[11px] ${byClr} mt-0.5">oleh ${escHtml(msg.sender_name)}</p>` : '';
-            const notesLine = msg.message_body
-                ? `<p class="text-xs text-gray-600 mt-1.5 whitespace-pre-wrap">${escHtml(msg.message_body)}</p>` : '';
+
+            // Pisahkan link dari notes (link disimpan sebagai "Link: https://…" di baris terakhir)
+            let notesText = msg.message_body || '';
+            let linkHtml  = '';
+            const linkMatch = notesText.match(/(?:^|\n)Link:\s*(https?:\/\/\S+)/i);
+            if (linkMatch) {
+                const url = linkMatch[1];
+                linkHtml  = `<a href="${url}" target="_blank" rel="noopener noreferrer"
+                    class="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-700 text-white hover:bg-purple-800 transition-colors">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    Join Meeting
+                </a>`;
+                notesText = notesText.replace(/(?:^|\n)Link:\s*https?:\/\/\S+/i, '').trim();
+            }
+            const notesLine = notesText && notesText !== 'Meeting dimulai' && notesText !== 'Meeting selesai'
+                ? `<p class="text-xs text-gray-600 mt-1.5 whitespace-pre-wrap">${escHtml(notesText)}</p>` : '';
             return `<div class="flex justify-center my-3 px-4">
                 <div class="flex items-start gap-2.5 px-4 py-3 rounded-xl border ${cardBg} w-full max-w-md">
                     <svg class="w-4 h-4 mt-0.5 flex-shrink-0 ${iconClr}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2585,6 +2617,7 @@
                         </div>
                         ${byLine}
                         ${notesLine}
+                        ${linkHtml}
                     </div>
                 </div>
             </div>`;
@@ -3288,18 +3321,22 @@
         const activeInfo = document.getElementById('meetingActiveInfo');
         const activeText = document.getElementById('meetingActiveInfoText');
         const notesArea  = document.getElementById('meetingNotes');
+        const linkWrap   = document.getElementById('meetingLinkWrap');
+        const linkInput  = document.getElementById('meetingLink');
         if (!modal) return;
 
         notesArea.value = '';
+        if (linkInput) linkInput.value = '';
 
         if (inMeeting) {
             header.className    = 'flex items-center justify-between px-6 py-4 rounded-t-2xl bg-red-50';
             iconWrap.className  = 'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100 text-red-600';
             title.className     = 'text-base font-semibold text-red-800';
             title.textContent   = 'Akhiri Meeting';
-            activeInfo.className = 'mb-4 flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200';
+            activeInfo.className = 'flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200';
             activeText.textContent = 'Meeting sedang berlangsung — SLA clock sedang dijeda.';
             activeInfo.classList.remove('hidden');
+            if (linkWrap) linkWrap.classList.add('hidden');   // sembunyikan link saat end
             notesLbl.textContent = 'Ringkasan meeting (opsional)';
             notesArea.placeholder = 'Apa yang dibahas dalam meeting ini…';
             confirmBtn.textContent = 'Akhiri Meeting';
@@ -3310,6 +3347,7 @@
             title.className     = 'text-base font-semibold text-purple-800';
             title.textContent   = 'Mulai Meeting';
             activeInfo.classList.add('hidden');
+            if (linkWrap) linkWrap.classList.remove('hidden'); // tampilkan link saat start
             notesLbl.textContent = 'Topik / catatan meeting (opsional)';
             notesArea.placeholder = 'Apa yang akan dibahas…';
             confirmBtn.textContent = 'Mulai Meeting';
@@ -3317,7 +3355,7 @@
         }
 
         modal.classList.remove('hidden');
-        setTimeout(() => notesArea.focus(), 50);
+        setTimeout(() => (linkInput || notesArea)?.focus(), 50);
     }
 
     function closeMeetingPanel() {
@@ -3328,6 +3366,7 @@
     async function confirmMeeting() {
         const btn    = document.getElementById('meetingConfirmBtn');
         const notes  = document.getElementById('meetingNotes')?.value?.trim() || null;
+        const link   = document.getElementById('meetingLink')?.value?.trim() || null;
         if (!btn) return;
 
         btn.disabled = true;
@@ -3338,16 +3377,19 @@
             ? `/api/tickets/${ticketId}/sla/meeting/end`
             : `/api/tickets/${ticketId}/sla/meeting/start`;
 
+        const payload = inMeeting ? { notes } : { notes, meeting_link: link };
+
         try {
             const res  = await fetch(endpoint, {
                 method: 'POST',
                 headers: getHeaders(),
                 credentials: 'same-origin',
-                body: JSON.stringify({ notes }),
+                body: JSON.stringify(payload),
             });
             const data = await res.json();
 
             if (data.success) {
+                const wasInMeeting = inMeeting;
                 inMeeting = !inMeeting;
                 closeMeetingPanel();
 
@@ -3361,8 +3403,9 @@
                 }
 
                 showNotification(data.message, 'success');
+                btn.disabled = false;
                 // Reload pesan agar kartu meeting muncul di chat
-                await loadMessages();
+                try { await loadMessages(); } catch (_) {}
             } else {
                 showNotification(data.message || 'Gagal', 'error');
                 btn.textContent = origText;
