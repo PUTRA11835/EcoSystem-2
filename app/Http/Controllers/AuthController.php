@@ -822,7 +822,7 @@ class AuthController extends Controller
                 ], 200);
 
                 foreach ($responseCookies as $cookie) {
-                    $response->withCookie($cookie);
+                    $response = $response->withCookie($cookie);
                 }
 
                 return $response;

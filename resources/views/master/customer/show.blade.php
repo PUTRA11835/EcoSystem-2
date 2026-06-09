@@ -284,7 +284,11 @@
             
             if (result.success && result.data) {
                 const basicData = result.data;
-                
+
+                // Fields on `customer` table (not `customer_basic_data`) — merged into
+                // basicData by the show() endpoint. setValue is no-op if id absent.
+                setValue('customerDomain', basicData.domain);
+
                 // General Information
                 setValue('title', basicData.title);
                 setValue('name1', basicData.name_1);
@@ -338,6 +342,7 @@
     async function saveCustomerBasicData(customerId) {
         const basicData = {
             customer_code: getValue('customerCode').toUpperCase(),
+            domain: getValue('customerDomain'),
             title: getValue('title'),
             name_1: getValue('name1'),
             name_2: getValue('name2'),

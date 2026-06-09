@@ -303,6 +303,44 @@
                             <label class="text-xs font-semibold text-gray-600 mb-1">Division</label>
                             <input type="text" id="division" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
                         </div>
+
+                        <div class="flex flex-col">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Home Base</label>
+                            <div class="custom-dd relative" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-500">Select Home Base</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="homeBase" value="">
+                                <div class="custom-dd-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 overflow-y-auto" style="max-height:220px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Home Base</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Jakarta">Jakarta</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Yogyakarta">Yogyakarta</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Surabaya">Surabaya</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Grade</label>
+                            <div class="custom-dd relative" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-500">Select Grade</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="grade" value="">
+                                <div class="custom-dd-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 overflow-y-auto" style="max-height:220px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Grade</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Management Trainee">Management Trainee</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Junior Consultant">Junior Consultant</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Associate Consultant">Associate Consultant</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Middle Consultant">Middle Consultant</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Senior Consultant">Senior Consultant</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Principal Consultant">Principal Consultant</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Expert Consultant">Expert Consultant</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </form>
@@ -625,6 +663,8 @@
             setCustomDropdownValue('title', '');
             setCustomDropdownValue('gender', '');
             setCustomDropdownValue('language', '');
+            setCustomDropdownValue('homeBase', '');
+            setCustomDropdownValue('grade', '');
         }
 
         // Set default value for Country
@@ -722,7 +762,14 @@
                 document.getElementById('employeeGroup').value = emp.employee_group || '';
                 document.getElementById('employeeSubgroup').value = emp.employee_subgroup || '';
                 document.getElementById('division').value = emp.division || '';
-                
+                if (typeof setCustomDropdownValue === 'function') {
+                    setCustomDropdownValue('homeBase', emp.home_base || '');
+                    setCustomDropdownValue('grade', emp.grade || '');
+                } else {
+                    document.getElementById('homeBase').value = emp.home_base || '';
+                    document.getElementById('grade').value = emp.grade || '';
+                }
+
                 document.getElementById('modalTitle').textContent = 'Edit Employee';
                 document.getElementById('employeeModal').classList.remove('hidden');
                 document.getElementById('employeeModal').classList.add('flex');
@@ -788,6 +835,8 @@
             employee_group: document.getElementById('employeeGroup').value,
             employee_subgroup: document.getElementById('employeeSubgroup').value,
             division: document.getElementById('division').value,
+            home_base: document.getElementById('homeBase').value,
+            grade: document.getElementById('grade').value,
         };
 
         // Add password only if it's provided

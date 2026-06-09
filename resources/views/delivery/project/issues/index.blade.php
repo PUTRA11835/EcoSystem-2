@@ -63,7 +63,7 @@
                     {{-- Tambahkan onclick ke div.card utama --}}
                     <div class="issue-card bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
                          @if($issue->delivery_project) onclick="window.location.href='{{ route('issues.show', $issue->delivery_project->id) }}'" @endif
-                         data-searchable-content="{{ strtolower(($issue->delivery_project?->client?->basicData?->name_1 ?? '') . ' ' . $issue->highlight_issue . ' ' . $issue->action . ' ' . $issue->status . ' ' . $issue->complexity . ' ' . ($issue->delivery_project?->status ?? '')) }}">
+                         data-searchable-content="{{ strtolower(($issue->delivery_project?->client?->basicData?->name_1 ?? '') . ' ' . $issue->issue_description . ' ' . $issue->owner . ' ' . $issue->status . ' ' . $issue->priority . ' ' . ($issue->delivery_project?->status ?? '')) }}">
                         {{-- Card Header --}}
                         <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
                             <div class="flex justify-between items-start">
@@ -73,19 +73,17 @@
                                     </h4>
                                     <div class="flex flex-wrap gap-2 mt-2">
                                         {{-- Issue Status Badge --}}
-                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full 
-                                            {{ $issue->status === 'To Be Discussed' ? 'bg-yellow-100 text-yellow-800' : 
-                                               ($issue->status === 'To Be Confirmed' ? 'bg-blue-100 text-blue-800' :
-                                               ($issue->status === 'Open' ? 'bg-green-100 text-green-800' :
-                                               ($issue->status === 'Closed' ? 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800'))) }}">
+                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
+                                            {{ $issue->status === 'Open' ? 'bg-yellow-100 text-yellow-800' :
+                                               ($issue->status === 'Closed' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800') }}">
                                             {{ $issue->status }}
                                         </span>
-                                        {{-- Complexity Badge --}}
-                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full 
-                                            {{ $issue->complexity === 'Medium' ? 'bg-yellow-100 text-yellow-800' : 
-                                               ($issue->complexity === 'Low' ? 'bg-gray-100 text-gray-800' :
-                                               ($issue->complexity === 'High' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800')) }}">
-                                            {{ $issue->complexity }}
+                                        {{-- Priority Badge --}}
+                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
+                                            {{ $issue->priority === 'High' ? 'bg-red-100 text-red-800' :
+                                               ($issue->priority === 'Medium' ? 'bg-orange-100 text-orange-800' :
+                                               ($issue->priority === 'Low' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800')) }}">
+                                            {{ $issue->priority }}
                                         </span>
                                         {{-- Project Status Badge --}}
                                         <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
@@ -95,31 +93,21 @@
                                         </span>
                                     </div>
                                 </div>
-                                {{-- Hapus tombol aksi (ikon mata) --}}
-                                {{-- <a href="{{ route('issues.show', $issue->delivery_project->id) }}" 
-                                   class="ml-2 p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                    </svg>
-                                </a> --}}
+                                <span class="ml-2 text-xs font-mono text-gray-500 whitespace-nowrap">{{ $issue->issue_id_label }}</span>
                             </div>
                         </div>
-                        
+
                         {{-- Card Body --}}
                         <div class="px-4 py-3 space-y-3">
                             {{-- Date Info --}}
                             <div class="flex flex-wrap justify-between text-sm">
                                 <div>
-                                    <span class="text-gray-500">Date:</span>
-                                    <span class="font-medium text-gray-900 ml-1">{{ $issue->created_at->format('d M Y') }}</span>
+                                    <span class="text-gray-500">Identified:</span>
+                                    <span class="font-medium text-gray-900 ml-1">{{ optional($issue->date_identified)->format('d M Y') ?? '—' }}</span>
                                 </div>
                                 <div>
-                                    <span class="text-gray-500">Due:</span>
-                                    <span class="font-medium text-gray-900 ml-1">{{ \Carbon\Carbon::parse($issue->due_date)->format('d M Y') }}</span>
-                                    @if(!in_array($issue->status, ['Done', 'Closed']) && \Carbon\Carbon::parse($issue->due_date)->isPast())
-                                        <span class="text-xs font-semibold text-red-600 ml-1">Overdue</span>
-                                    @endif
+                                    <span class="text-gray-500">Est. Closed:</span>
+                                    <span class="font-medium text-gray-900 ml-1">{{ optional($issue->estimated_closed)->format('d M Y') ?? '—' }}</span>
                                 </div>
                             </div>
 
@@ -127,12 +115,12 @@
                             <div class="space-y-2">
                                 <div>
                                     <p class="text-sm text-gray-500">Issue:</p>
-                                    <p class="text-sm font-medium text-gray-900 mt-1">{{ $issue->highlight_issue }}</p>
+                                    <p class="text-sm font-medium text-gray-900 mt-1">{{ $issue->issue_description }}</p>
                                 </div>
 
                                 <div>
-                                    <p class="text-sm text-gray-500">Action:</p>
-                                    <p class="text-sm font-medium text-gray-900 mt-1">{{ $issue->action }}</p>
+                                    <p class="text-sm text-gray-500">Owner:</p>
+                                    <p class="text-sm font-medium text-gray-900 mt-1">{{ $issue->owner ?? '—' }}</p>
                                 </div>
                             </div>
                         </div>
@@ -163,31 +151,26 @@
                             Customer
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Date
+                            ID
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Issue
+                            Issue Description
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Action
+                            Priority
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Complexity
+                            Owner
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Project Status
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Due Date
+                            Date Identified
                         </th>
-                        {{-- Hapus kolom "Aksi" dari thead
-                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Aksi
-                        </th>
-                        --}}
                     </tr>
                 </thead>
                 <tbody id="desktop-issue-table-body" class="bg-white divide-y divide-gray-200">
@@ -195,41 +178,37 @@
                         {{-- Tambahkan onclick dan cursor-pointer ke tr --}}
                         <tr class="issue-row hover:bg-gray-50 transition-colors cursor-pointer"
                             @if($issue->delivery_project) onclick="window.location.href='{{ route('issues.show', $issue->delivery_project->id) }}'" @endif
-                            data-searchable-content="{{ strtolower(($issue->delivery_project?->customer?->basicData?->name_1 ?? '') . ' ' . $issue->highlight_issue . ' ' . $issue->action . ' ' . $issue->status . ' ' . $issue->complexity . ' ' . ($issue->delivery_project?->status ?? '')) }}">
+                            data-searchable-content="{{ strtolower(($issue->delivery_project?->client?->basicData?->name_1 ?? '') . ' ' . $issue->issue_description . ' ' . $issue->owner . ' ' . $issue->status . ' ' . $issue->priority . ' ' . ($issue->delivery_project?->status ?? '')) }}">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm font-medium text-gray-900">
                                     {{ $issue->delivery_project?->client?->basicData?->name_1 ?? 'N/A' }}
                                 </div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {{ $issue->created_at->format('d M Y') }}
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-500">
+                                {{ $issue->issue_id_label }}
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500">
-                                <div class="max-w-xs truncate" title="{{ $issue->highlight_issue }}">
-                                    {{ $issue->highlight_issue }}
-                                </div>
-                            </td>
-                            <td class="px-6 py-4 text-sm text-gray-500">
-                                <div class="max-w-xs truncate" title="{{ $issue->action }}">
-                                    {{ $issue->action }}
+                                <div class="max-w-xs truncate" title="{{ $issue->issue_description }}">
+                                    {{ $issue->issue_description }}
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full 
-                                    {{ $issue->status === 'To Be Discussed' ? 'bg-yellow-100 text-yellow-800' : 
-                                       ($issue->status === 'To Be Confirmed' ? 'bg-blue-100 text-blue-800' :
-                                       ($issue->status === 'Open' ? 'bg-green-100 text-green-800' :
-                                       ($issue->status === 'Closed' ? 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800'))) }}">
+                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
+                                    {{ $issue->priority === 'High' ? 'bg-red-100 text-red-800' :
+                                       ($issue->priority === 'Medium' ? 'bg-orange-100 text-orange-800' :
+                                       ($issue->priority === 'Low' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800')) }}">
+                                    {{ $issue->priority }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
+                                    {{ $issue->status === 'Open' ? 'bg-yellow-100 text-yellow-800' :
+                                       ($issue->status === 'Closed' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800') }}">
                                     {{ $issue->status }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full 
-                                    {{ $issue->complexity === 'Medium' ? 'bg-yellow-100 text-yellow-800' : 
-                                       ($issue->complexity === 'Low' ? 'bg-gray-100 text-gray-800' :
-                                       ($issue->complexity === 'High' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800')) }}">
-                                    {{ $issue->complexity }}
-                                </span>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {{ $issue->owner ?? '—' }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
@@ -239,27 +218,8 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <div class="flex flex-col">
-                                    <span>{{ \Carbon\Carbon::parse($issue->due_date)->format('d M Y') }}</span>
-                                    @if(!in_array($issue->status, ['Done', 'Closed']) && \Carbon\Carbon::parse($issue->due_date)->isPast())
-                                        <span class="text-xs font-semibold text-red-600 mt-1">
-                                            Overdue
-                                        </span>
-                                    @endif
-                                </div>
+                                {{ optional($issue->date_identified)->format('d M Y') ?? '—' }}
                             </td>
-                            {{-- Hapus seluruh <td> untuk kolom "Aksi"
-                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <a href="{{ route('issues.show', $issue->project->id) }}" 
-                                   class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
-                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                    </svg>
-                                    Detail
-                                </a>
-                            </td>
-                            --}}
                         </tr>
                     @empty
                         <tr>

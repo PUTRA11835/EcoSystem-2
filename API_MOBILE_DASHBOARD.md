@@ -67,7 +67,7 @@
 | `calculated_progress` | decimal(5,2) | 0–100 |
 | `category` | string | Kategori proyek |
 | `phase` | string | Fase saat ini |
-| `start_date`, `end_date`, `go_live_estimated` | date | — |
+| `contract_start_date`, `contract_end_date`, `go_live_estimated` | date | Kolom legacy `start_date`/`end_date` dihapus Jun 2026, diganti contract dates |
 
 > **Dari DashboardController yang ada:** status `completed`, `closed`, `cancel` = sudah selesai.
 

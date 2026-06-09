@@ -96,7 +96,7 @@ class OneDriveService
     public function createFolderInPath(string $folderName, string $parentPath): string
     {
         $token = $this->getAccessToken();
-        $encodedParent = rawurlencode($parentPath);
+        $encodedParent = implode('/', array_map('rawurlencode', explode('/', $parentPath)));
 
         $response = Http::withToken($token)->post(
             "{$this->baseUrl}/users/{$this->userEmail}/drive/root:/{$encodedParent}:/children",
@@ -127,7 +127,7 @@ class OneDriveService
     public function listFolderChildrenByPath(string $folderPath): array
     {
         $token   = $this->getAccessToken();
-        $encoded = rawurlencode($folderPath);
+        $encoded = implode('/', array_map('rawurlencode', explode('/', $folderPath)));
 
         $response = Http::withToken($token)->get(
             "{$this->baseUrl}/users/{$this->userEmail}/drive/root:/{$encoded}:/children",
@@ -229,6 +229,88 @@ class OneDriveService
             'webUrl'      => $response->json('webUrl'),
             'downloadUrl' => $response->json('@microsoft.graph.downloadUrl'),
         ];
+    }
+
+    /**
+     * List immediate children (folders only) of a folder specified by its item ID.
+     * Returns an array of ['id' => ..., 'name' => ...] for each child folder.
+     */
+    public function listSubFoldersByParentId(string $parentFolderId): array
+    {
+        $token = $this->getAccessToken();
+
+        $response = Http::withToken($token)->get(
+            "{$this->baseUrl}/users/{$this->userEmail}/drive/items/{$parentFolderId}/children",
+            ['$select' => 'id,name,folder', '$top' => 200]
+        );
+
+        if (!$response->successful()) {
+            Log::error('OneDrive listSubFoldersByParentId failed', [
+                'parent_id' => $parentFolderId,
+                'status'    => $response->status(),
+                'body'      => $response->body(),
+            ]);
+            throw new \RuntimeException('Failed to list OneDrive subfolder children: ' . $response->body());
+        }
+
+        return collect($response->json('value', []))
+            ->filter(fn($item) => isset($item['folder']))
+            ->map(fn($item) => ['id' => $item['id'], 'name' => $item['name']])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Find an existing subfolder by name inside a parent folder (by item ID),
+     * or create it if it does not exist.
+     * Comparison is case-insensitive.
+     * Returns the subfolder's item ID.
+     */
+    public function findOrCreateSubFolderById(string $parentFolderId, string $folderName): string
+    {
+        $children = $this->listSubFoldersByParentId($parentFolderId);
+
+        $needle = mb_strtolower(trim($folderName));
+        foreach ($children as $child) {
+            if (mb_strtolower($child['name']) === $needle) {
+                return $child['id'];
+            }
+        }
+
+        // Not found — create it
+        return $this->createSubFolder($parentFolderId, $folderName);
+    }
+
+    /**
+     * Create an upload session for large files (>4 MB).
+     * Returns the uploadUrl that the client can PUT chunks to directly.
+     */
+    public function createUploadSession(string $folderId, string $fileName): string
+    {
+        $token   = $this->getAccessToken();
+        $encoded = rawurlencode($fileName);
+
+        $response = Http::withToken($token)->post(
+            "{$this->baseUrl}/users/{$this->userEmail}/drive/items/{$folderId}:/{$encoded}:/createUploadSession",
+            [
+                'item' => [
+                    '@microsoft.graph.conflictBehavior' => 'rename',
+                    'name'                              => $fileName,
+                ],
+            ]
+        );
+
+        if (!$response->successful()) {
+            Log::error('OneDrive createUploadSession failed', [
+                'folder_id' => $folderId,
+                'file_name' => $fileName,
+                'status'    => $response->status(),
+                'body'      => $response->body(),
+            ]);
+            throw new \RuntimeException('Failed to create OneDrive upload session: ' . $response->body());
+        }
+
+        return $response->json('uploadUrl');
     }
 
     /**

@@ -30,39 +30,48 @@ class DeliveryProjectController extends Controller
             return $client->basicData->name_1 ?? '';
         });
         $clientPicMap = $clients->pluck('pic', 'customer_id');
-        $employees = Employee::with('basicData')->get();
+        $employees = Employee::with(['basicData', 'addresses' => fn($q) => $q->where('is_primary', true)])->get()->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
 
-        // Get only Project Managers for PIC dropdown
-        $projectManagers = Employee::with('basicData')
-            ->whereHas('basicData', function($query) {
-                $query->where('position', 'Project Manager');
-            })
-            ->get();
-
-        return view('delivery.project.projects.create', compact('clients', 'clientPicMap', 'employees', 'projectManagers'));
+        return view('delivery.project.projects.create', compact('clients', 'clientPicMap', 'employees'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
             'client_id' => 'required|exists:customer,customer_id',
-            'pic' => 'required|string|max:255',
+            'project_owner' => 'required|string|max:255',
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'project_type' => 'required|string|max:255',
+            'high_level_risk' => 'nullable|in:Low,Moderate,High',
+            'contract_start_date' => 'required|date',
+            'contract_end_date' => 'required|date|after_or_equal:contract_start_date',
+            'io_number' => 'required|string|max:255|unique:delivery_projects,io_number',
             'ae_type' => 'nullable|in:Internal,External',
             'ae_name' => 'nullable|string',
             'ae_phone' => 'nullable|string',
             'ae_email' => 'nullable|email',
             'delivery_owner_id' => 'nullable|exists:employee,employee_id',
             'delivery_manager_id' => 'nullable|exists:employee,employee_id',
-            'project_owner_id' => 'nullable|exists:employee,employee_id',
+            'project_manager_id' => 'nullable|exists:employee,employee_id',
             'co_pm_id' => 'nullable|exists:employee,employee_id',
             'project_admin_id' => 'nullable|exists:employee,employee_id',
-            'sales_id' => 'nullable|exists:employee,employee_id',
+            'revenue' => 'nullable|numeric|min:0',
+            'plan_cost' => 'nullable|numeric|min:0',
+            'gross_profit' => 'nullable|numeric',
+            'gross_profit_percentage' => 'nullable|numeric|min:-100|max:100',
             'delivery_method' => 'nullable|in:Onsite,Hybrid,WFH',
             'warranty_period' => 'nullable|integer|min:0',
             'total_mandays' => 'nullable|integer|min:0',
+            'team_members'                    => 'nullable|array',
+            'team_members.*.employee_id'      => 'required|exists:employee,employee_id',
+            'team_members.*.module'           => 'nullable|string|max:255',
+            'team_members.*.role'             => 'required|in:Member,Lead,Project Manager,Co Project Manager,Project Admin',
+            'team_members.*.employee_type'    => 'required|in:Internal,External,Vendor',
+            'team_members.*.vendor_name'      => 'nullable|string|max:255',
+            'team_members.*.start_date'       => 'required|date',
+            'team_members.*.end_date'         => 'nullable|date|after_or_equal:team_members.*.start_date',
+            'team_members.*.notes'            => 'nullable|string',
         ]);
 
         // Get employee_id from session (ECOSYSTEM uses session-based auth)
@@ -71,25 +80,55 @@ class DeliveryProjectController extends Controller
 
         $projectData = [
             'client_id' => $request->client_id,
-            'pic' => $request->pic,
+            'project_owner' => $request->project_owner,
             'name' => $request->name,
             'description' => $request->description,
             'project_type' => $request->project_type,
+            'high_level_risk' => $request->high_level_risk,
+            'contract_start_date' => $request->contract_start_date,
+            'contract_end_date' => $request->contract_end_date,
+            'io_number' => $request->io_number,
             'category' => 'Open',
-            'phase' => null, // Will be calculated from planning phases
+            'phase' => null,
             'status' => 'Monitoring',
-            'created_by_id' => null, // ECOSYSTEM tidak menggunakan tabel users
+            'created_by_id' => null,
         ];
 
         $projectData = array_merge($projectData, $request->only([
             'ae_type', 'ae_name', 'ae_phone', 'ae_email',
             'delivery_owner_id', 'delivery_manager_id',
-            'project_owner_id', 'co_pm_id', 'project_admin_id', 'sales_id',
+            'project_manager_id', 'co_pm_id', 'project_admin_id',
+            'revenue', 'plan_cost', 'gross_profit', 'gross_profit_percentage',
             'delivery_method', 'warranty_period', 'total_mandays'
         ]));
 
         try {
             $project = DeliveryProject::create($projectData);
+
+            // Attach additional team members from the table UI
+            if ($request->filled('team_members') && is_array($request->input('team_members'))) {
+                $roleColsDirty = false;
+                foreach ($request->input('team_members') as $tm) {
+                    $project->teamMembers()->attach($tm['employee_id'], [
+                        'module'        => $tm['module']       ?? null,
+                        'role'          => $tm['role'],
+                        'employee_type' => $tm['employee_type'],
+                        'vendor_name'   => $tm['vendor_name']  ?? null,
+                        'start_date'    => $tm['start_date'],
+                        'end_date'      => $tm['end_date']      ?: null,
+                        'notes'         => $tm['notes']         ?? null,
+                    ]);
+                    // Sync FK columns if a project-level role was assigned via the table
+                    if (isset(self::PROJECT_ROLE_COLUMNS[$tm['role']])) {
+                        $col = self::PROJECT_ROLE_COLUMNS[$tm['role']];
+                        $project->$col = $tm['employee_id'];
+                        $roleColsDirty = true;
+                    }
+                }
+                if ($roleColsDirty) {
+                    $project->save();
+                }
+            }
         } catch (\Exception $e) {
             Log::error('DeliveryProjectController@store', ['error' => $e->getMessage()]);
             return redirect()->back()
@@ -143,10 +182,8 @@ class DeliveryProjectController extends Controller
             }
         }
 
-        $project->start_date = $firstStartDate ? $firstStartDate->toDateString() : null;
-        $project->end_date = $lastEndDate ? $lastEndDate->toDateString() : null;
         $project->go_live_estimated = $goLiveDate ?: null;
-        
+
         if (!$project->location_valid_from && $firstStartDate) {
             $project->location_valid_from = $firstStartDate->toDateString();
         }
@@ -164,19 +201,9 @@ class DeliveryProjectController extends Controller
             ]);
         }
 
-        $employees = Employee::with(['basicData', 'addresses'])->get();
+        $employees = Employee::with(['basicData', 'addresses'])->get()->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
 
-        $consultants = Employee::with(['basicData', 'addresses'])
-            ->whereHas('basicData', function($query) {
-                $query->where('position', 'Consultant');
-            })
-            ->get();
-
-        $projectManagers = Employee::with('basicData')
-            ->whereHas('basicData', function($query) {
-                $query->where('position', 'Project Manager');
-            })
-            ->get();
+        $clients = Customer::with('basicData')->get()->sortBy(fn($c) => strtolower($c->basicData->name_1 ?? ''))->values();
 
         $hasPlanning = DeliveryProjectPlanning::where('delivery_projects_id', $project->id)->exists();
 
@@ -212,15 +239,24 @@ class DeliveryProjectController extends Controller
             $finalPhaseWeights = $phaseWeights + $defaultPhaseWeights;
         }
 
+        // Raw pivot rows — one entry per row in the junction table.
+        // belongsToMany deduplicates by employee_id, so this is the only
+        // reliable way to surface every role entry (including multiple roles
+        // for the same employee).
+        $teamPivotRows = DB::table('delivery_project_employee')
+            ->where('delivery_projects_id', $project->id)
+            ->orderBy('created_at')
+            ->get();
+
         return view('delivery.project.projects.show', compact(
             'project',
             'employees',
-            'consultants',
-            'projectManagers',
+            'clients',
             'hasPlanning',
             'phases',
             'deliveryActivities',
-            'finalPhaseWeights'
+            'finalPhaseWeights',
+            'teamPivotRows'
         ));
     }
 
@@ -236,19 +272,29 @@ class DeliveryProjectController extends Controller
             $rules['value'] = ['required', Rule::in(['On Track', 'Monitoring', 'At Risk'])];
         } elseif ($field === 'phase') {
             $rules['value'] = ['required', Rule::in(['Prepare', 'Explore', 'Realize', 'Deploy'])];
-        } elseif ($field === 'pic') {
+        } elseif ($field === 'project_owner') {
             $rules['value'] = 'nullable|string|max:255';
+        } elseif ($field === 'high_level_risk') {
+            $rules['value'] = ['nullable', Rule::in(['Low', 'Moderate', 'High'])];
+        } elseif ($field === 'io_number') {
+            $rules['value'] = ['required', 'string', 'max:255', Rule::unique('delivery_projects', 'io_number')->ignore($project->id)];
         } elseif ($field === 'description') {
             $rules['value'] = 'nullable|string|max:5000';
+        } elseif ($field === 'name') {
+            $rules['value'] = 'required|string|max:255';
+        } elseif ($field === 'project_type') {
+            $rules['value'] = ['nullable', Rule::in(['Implementation', 'Roll Out', 'Migration', 'Upgrade', 'WRICEF'])];
+        } elseif ($field === 'client_id') {
+            $rules['value'] = 'nullable|exists:customer,customer_id';
         } else {
             $rules['value'] = 'nullable|string|max:255';
         }
         
         $request->validate($rules);
 
-        if ($field === 'pic') {
-            $project->update(['pic' => $value]);
-            return back()->with('success', 'PIC updated successfully.');
+        if ($field === 'project_owner') {
+            $project->update(['project_owner' => $value]);
+            return back()->with('success', 'Project Owner updated successfully.');
         }
 
         if ($field === 'description') {
@@ -256,10 +302,105 @@ class DeliveryProjectController extends Controller
             return back()->with('success', 'Description updated successfully.');
         }
 
+        if ($field === 'name') {
+            $project->update(['name' => $value]);
+            return back()->with('success', 'Project Name updated successfully.');
+        }
+
+        if ($field === 'client_id') {
+            $project->update(['client_id' => $value ?: null]);
+            return back()->with('success', 'Customer updated successfully.');
+        }
+
+        if ($field === 'project_type') {
+            $project->update(['project_type' => $value ?: null]);
+            return back()->with('success', 'Project Type updated successfully.');
+        }
+
         $project->$field = $value;
         $project->save();
 
         return back()->with('success', 'Project ' . ucfirst($field) . ' updated successfully.');
+    }
+
+    public function updateGeneralInfo(Request $request, DeliveryProject $project)
+    {
+        $validated = $request->validate([
+            'client_id'           => 'nullable|exists:customer,customer_id',
+            'name'                => 'required|string|max:255',
+            'project_owner'       => 'nullable|string|max:255',
+            'project_type'        => ['nullable', Rule::in(['Implementation','Roll Out','Migration','Upgrade','WRICEF'])],
+            'high_level_risk'     => ['nullable', Rule::in(['Low','Moderate','High'])],
+            'contract_start_date' => 'required|date',
+            'contract_end_date'   => 'required|date|after_or_equal:contract_start_date',
+            'io_number'           => ['required', 'string', 'max:255', Rule::unique('delivery_projects', 'io_number')->ignore($project->id)],
+            'description'         => 'nullable|string|max:5000',
+        ]);
+
+        $project->update($validated);
+
+        // The new contract window is allowed to fall outside existing planning, but we
+        // surface a clear warning so the user can reconcile against the contract document.
+        $warning = $this->planningOutsideContractWarning($project);
+
+        $message = 'General information updated successfully.';
+        if ($request->expectsJson()) {
+            $payload = ['success' => true, 'message' => $message];
+            if ($warning) {
+                $payload['warning'] = $warning; // structured: count, window, items[]
+            }
+            return response()->json($payload);
+        }
+        $flashWarning = $warning
+            ? $warning['count'] . ' planning item(s) fall outside the contract window (' . $warning['window'] . '). Please review.'
+            : null;
+        return back()->with('success', $message)->with('warning', $flashWarning);
+    }
+
+    /**
+     * Build a structured warning when existing (leaf) planning items fall outside the
+     * project's contract window. Returns null when everything is within range, otherwise
+     * ['count' => int, 'window' => string, 'items' => string[]] so the client modal can
+     * render the full (expandable) list.
+     */
+    private function planningOutsideContractWarning(DeliveryProject $project): ?array
+    {
+        $cStart = $project->contract_start_date;
+        $cEnd   = $project->contract_end_date;
+        if (!$cStart && !$cEnd) {
+            return null;
+        }
+
+        $offenders = $project->plannings()
+            ->where('is_group', false)
+            ->where(function ($q) {
+                $q->whereNotNull('start_date')->orWhereNotNull('end_date');
+            })
+            ->get()
+            ->filter(function ($p) use ($cStart, $cEnd) {
+                $startsTooEarly = $cStart && $p->start_date && Carbon::parse($p->start_date)->lt(Carbon::parse($cStart));
+                $endsTooLate    = $cEnd && $p->end_date && Carbon::parse($p->end_date)->gt(Carbon::parse($cEnd));
+                return $startsTooEarly || $endsTooLate;
+            });
+
+        if ($offenders->isEmpty()) {
+            return null;
+        }
+
+        $items = $offenders->map(function ($p) {
+            $s = $p->start_date ? Carbon::parse($p->start_date)->format('d M Y') : '—';
+            $e = $p->end_date ? Carbon::parse($p->end_date)->format('d M Y') : '—';
+            return ($p->name ?: 'Planning #' . $p->id) . ' (' . $s . ' → ' . $e . ')';
+        })->values()->all();
+
+        $window = ($cStart ? Carbon::parse($cStart)->format('d M Y') : '—')
+                . ' → ' . ($cEnd ? Carbon::parse($cEnd)->format('d M Y') : '—');
+
+        return [
+            'count'  => $offenders->count(),
+            'window' => $window,
+            'items'  => $items,
+        ];
     }
 
     public function updateDeliveryInfo(Request $request, DeliveryProject $project)
@@ -270,12 +411,13 @@ class DeliveryProjectController extends Controller
             'ae_name' => 'nullable|string',
             'ae_phone' => 'nullable|string',
             'ae_email' => 'nullable|email',
-            'delivery_owner_id' => 'nullable|exists:employee,employee_id',
-            'delivery_manager_id' => 'nullable|exists:employee,employee_id',
-            'project_owner_id' => 'nullable|exists:employee,employee_id',
+            'revenue' => 'nullable|numeric|min:0',
+            'plan_cost' => 'nullable|numeric|min:0',
+            'gross_profit' => 'nullable|numeric',
+            'gross_profit_percentage' => 'nullable|numeric|min:-100|max:100',
+            'project_manager_id' => 'nullable|exists:employee,employee_id',
             'co_pm_id' => 'nullable|exists:employee,employee_id',
             'project_admin_id' => 'nullable|exists:employee,employee_id',
-            'sales_id' => 'nullable|exists:employee,employee_id',
             'delivery_method' => 'nullable|in:Onsite,Hybrid,WFH',
             'warranty_period' => 'nullable|integer|min:0',
             'total_mandays' => 'nullable|integer|min:0',
@@ -283,9 +425,36 @@ class DeliveryProjectController extends Controller
             'approval_name' => 'nullable|string',
         ]);
 
+        // Normalize AE name against AE type. When no type is selected the AE Name
+        // input is disabled and not submitted, so without this guard a previously
+        // stored name would linger without a type — causing confusion on next edit.
+        // Tying the name to the type keeps the record consistent whether the user
+        // clears the type intentionally or by accident.
+        if (empty($validatedData['ae_type'])) {
+            $validatedData['ae_type'] = null;
+            $validatedData['ae_name'] = null;
+        }
+
         $project->update($validatedData);
 
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Delivery information updated successfully.']);
+        }
         return back()->with('success', 'Delivery information updated successfully.');
+    }
+
+    public function updateFinancialInfo(Request $request, DeliveryProject $project)
+    {
+        $validatedData = $request->validate([
+            'revenue' => 'nullable|numeric|min:0',
+            'plan_cost' => 'nullable|numeric|min:0',
+            'gross_profit' => 'nullable|numeric',
+            'gross_profit_percentage' => 'nullable|numeric|min:-100|max:100',
+        ]);
+
+        $project->update($validatedData);
+
+        return back()->with('success', 'Financial information updated successfully.');
     }
 
     public function updateLocationInfo(Request $request, DeliveryProject $project)
@@ -304,6 +473,9 @@ class DeliveryProjectController extends Controller
 
         $project->update($validatedData);
 
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Location information updated successfully.']);
+        }
         return back()->with('success', 'Location information updated successfully.');
     }
 
@@ -316,7 +488,7 @@ class DeliveryProjectController extends Controller
         $request->validate([
             'document_name' => 'required|string|max:255',
             'link_document' => 'required|url',
-            'document_type' => 'required|in:BAST/BAPP,Contract,Justification,PR/PO,Others',
+            'document_type' => 'required|string|max:100',
         ]);
 
         $document = $project->documents()->create($request->only(['document_name', 'link_document', 'document_type']));
@@ -336,21 +508,51 @@ class DeliveryProjectController extends Controller
     {
         $request->validate([
             'document_name' => 'required|string|max:255',
-            'link_document' => 'required|url',
-            'document_type' => 'required|in:BAST/BAPP,Contract,Justification,PR/PO,Others',
+            'document_type' => 'required|string|max:100',
+            'file'          => 'nullable|file|max:102400',
+        ], [
+            'file.max' => 'Ukuran file maksimal 100 MB.',
         ]);
 
-        $document->update($request->only(['document_name', 'link_document', 'document_type']));
+        $updateData = $request->only(['document_name', 'document_type']);
 
-        if ($request->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Document updated successfully',
-                'document' => $document
-            ]);
+        if ($request->hasFile('file')) {
+            $project = DeliveryProject::find($document->delivery_projects_id);
+
+            if (!$project || !$project->onedrive_folder_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'OneDrive folder has not been created for this project.',
+                ], 422);
+            }
+
+            $oneDrive     = new OneDriveService();
+            $file         = $request->file('file');
+            $originalName = $file->getClientOriginalName();
+
+            $result   = $oneDrive->uploadFile(
+                $project->onedrive_folder_id,
+                $originalName,
+                file_get_contents($file->getRealPath()),
+                $file->getMimeType() ?: 'application/octet-stream'
+            );
+
+            $updateData['link_document'] = $oneDrive->createAnonymousLink($result['id'], 'view');
         }
 
-        return back()->with('success', 'Document updated successfully.');
+        $document->update($updateData);
+        $document->refresh();
+
+        return response()->json([
+            'success'  => true,
+            'message'  => 'Document updated successfully.',
+            'document' => [
+                'id'            => $document->id,
+                'document_name' => $document->document_name,
+                'document_type' => $document->document_type,
+                'link_document' => $document->link_document,
+            ],
+        ]);
     }
 
     public function destroyDocument(Document $document)
@@ -376,101 +578,290 @@ class DeliveryProjectController extends Controller
      */
     public function getTeamMembers(DeliveryProject $project)
     {
-        $teamMembers = $project->teamMembers()
-            ->with('basicData')
-            ->get();
+        // One entry per pivot row so that members holding multiple roles (e.g.
+        // someone who is both Project Manager AND an MM Member) all surface in
+        // the dropdown. belongsToMany() deduplicates by employee_id, so we query
+        // the junction table directly and join the name from employee_basic_data.
+        $rows = DB::table('delivery_project_employee as dpe')
+            ->leftJoin('employee_basic_data as ebd', 'ebd.employee_id', '=', 'dpe.employee_id')
+            ->where('dpe.delivery_projects_id', $project->id)
+            ->orderBy('dpe.created_at')
+            ->get([
+                'dpe.employee_id',
+                'dpe.role',
+                'dpe.module',
+                'dpe.employee_type',
+                'ebd.first_name',
+                'ebd.last_name',
+            ]);
+
+        $teamMembers = $rows->map(function ($r) {
+            $name = trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? ''));
+            return [
+                'employee_id'   => $r->employee_id,
+                'name'          => $name !== '' ? $name : ('Employee #' . $r->employee_id),
+                'role'          => $r->role,
+                'module'        => $r->module,
+                'employee_type' => $r->employee_type,
+            ];
+        });
+
+        // FK-fallback roles: PM / Co PM / Project Admin stored only on the project
+        // row (no pivot entry, e.g. projects created before the pivot flow). Mirror
+        // the Team Members table on the show page so the dropdown is complete.
+        $pivotIds = $rows->pluck('employee_id')->map(fn($id) => (string) $id)->all();
+        $fkRoles = [
+            ['id' => $project->project_manager_id, 'role' => 'Project Manager'],
+            ['id' => $project->co_pm_id,            'role' => 'Co Project Manager'],
+            ['id' => $project->project_admin_id,    'role' => 'Project Admin'],
+        ];
+        foreach ($fkRoles as $fk) {
+            if (!$fk['id'] || in_array((string) $fk['id'], $pivotIds, true)) {
+                continue;
+            }
+            $ebd = DB::table('employee_basic_data')
+                ->where('employee_id', $fk['id'])
+                ->first(['first_name', 'last_name']);
+            $name = $ebd ? trim(($ebd->first_name ?? '') . ' ' . ($ebd->last_name ?? '')) : '';
+            $teamMembers->push([
+                'employee_id'   => $fk['id'],
+                'name'          => $name !== '' ? $name : ('Employee #' . $fk['id']),
+                'role'          => $fk['role'],
+                'module'        => null,
+                'employee_type' => null,
+            ]);
+        }
 
         return response()->json([
             'success' => true,
-            'team_members' => $teamMembers
+            'team_members' => $teamMembers->values(),
         ]);
+    }
+
+    // ── project-role FK map ──────────────────────────────────────────────────
+    private const PROJECT_ROLE_COLUMNS = [
+        'Project Manager'    => 'project_manager_id',
+        'Co Project Manager' => 'co_pm_id',
+        'Project Admin'      => 'project_admin_id',
+    ];
+
+    /**
+     * Sync project_manager_id / co_pm_id / project_admin_id on the project row
+     * after a team-member role change.
+     *
+     * @param DeliveryProject $project
+     * @param string|int      $oldEmpId  – employee that previously held the URL param slot
+     * @param string|int      $newEmpId  – employee that will now be attached
+     * @param string          $newRole   – new role value
+     */
+    private function syncRoleColumns(DeliveryProject $project, $oldEmpId, $newEmpId, string $newRole): void
+    {
+        // Clear the old employee from any project-role column they held
+        foreach (self::PROJECT_ROLE_COLUMNS as $col) {
+            if ((string) $project->$col === (string) $oldEmpId) {
+                $project->$col = null;
+            }
+        }
+
+        // Assign the new employee to the matching column (if role is a project role)
+        if (isset(self::PROJECT_ROLE_COLUMNS[$newRole])) {
+            $project->{self::PROJECT_ROLE_COLUMNS[$newRole]} = $newEmpId ?: null;
+        }
+
+        $project->save();
     }
 
     public function storeTeamMember(Request $request, DeliveryProject $project)
     {
         $request->validate([
-            'employee_id' => 'required|exists:employee,employee_id',
-            'module' => 'nullable|string|max:50',
-            'assignment' => 'required|string',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'employee_id'   => 'required|exists:employee,employee_id',
+            'module'        => 'nullable|string|max:50',
+            'role'          => 'required|in:Member,Lead,Project Manager,Co Project Manager,Project Admin',
+            'employee_type' => 'required|in:Internal,External,Vendor',
+            'vendor_name'   => 'nullable|required_if:employee_type,Vendor|string|max:255',
+            'start_date'    => 'required|date',
+            'end_date'      => 'nullable|date|after_or_equal:start_date',
+            'notes'         => 'nullable|string',
         ]);
 
-        $exists = $project->teamMembers()
-            ->wherePivot('employee_id', $request->employee_id)
-            ->wherePivot('assignment', $request->assignment)
+        // Cek duplikat: satu employee boleh punya role sama selama entry sebelumnya
+        // sudah memiliki end_date. Jika masih aktif (end_date NULL), tolak.
+        $existsActive = \DB::table('delivery_project_employee')
+            ->where('delivery_projects_id', $project->id)
+            ->where('employee_id', $request->employee_id)
+            ->where('role', $request->role)
+            ->whereNull('end_date')
             ->exists();
 
-        if ($exists) {
+        if ($existsActive) {
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'This employee already has the same assignment in this project.'
+                    'message' => 'This employee already has the same active role. Please set an end date on the previous entry first.'
                 ], 422);
             }
-            return back()->withErrors(['error' => 'This employee already has the same assignment in this project.']);
+            return back()->with('error', 'This employee already has the same active role. Please set an end date on the previous entry first.');
         }
 
         $project->teamMembers()->attach($request->employee_id, [
-            'module' => $request->module,
-            'assignment' => $request->assignment,
-            'start_date' => $request->start_date,
-            'end_date' => $request->end_date,
+            'module'        => $request->module,
+            'role'          => $request->role,
+            'employee_type' => $request->employee_type,
+            'vendor_name'   => $request->employee_type === 'Vendor' ? $request->vendor_name : null,
+            'start_date'    => $request->start_date,
+            'end_date'      => $request->end_date,
+            'notes'         => $request->notes,
         ]);
 
-        if ($request->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Team member added successfully'
-            ]);
+        // Sync project-role FK column if applicable
+        if (isset(self::PROJECT_ROLE_COLUMNS[$request->role])) {
+            $project->{self::PROJECT_ROLE_COLUMNS[$request->role]} = $request->employee_id;
+            $project->save();
         }
 
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Team member added successfully']);
+        }
         return back()->with('success', 'Team member added successfully.');
     }
 
-    public function destroyTeamMember(DeliveryProject $project, $employeeId)
+    public function destroyTeamMember(Request $request, DeliveryProject $project, $employeeId)
     {
-        $project->teamMembers()->detach($employeeId);
+        $role = $request->input('role');
 
-        if (request()->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Team member removed successfully'
-            ]);
+        if ($role) {
+            // Targeted delete: remove only the specific role entry.
+            DB::table('delivery_project_employee')
+                ->where('delivery_projects_id', $project->id)
+                ->where('employee_id', $employeeId)
+                ->where('role', $role)
+                ->delete();
+
+            // Sync FK column only for this specific role
+            if (isset(self::PROJECT_ROLE_COLUMNS[$role])) {
+                $col = self::PROJECT_ROLE_COLUMNS[$role];
+                if ((string) $project->$col === (string) $employeeId) {
+                    $project->$col = null;
+                    $project->save();
+                }
+            }
+        } else {
+            // Legacy / bulk: remove all pivot entries for this employee
+            $project->teamMembers()->detach($employeeId);
+
+            // Clear all FK columns that referenced this employee
+            $dirty = false;
+            foreach (self::PROJECT_ROLE_COLUMNS as $col) {
+                if ((string) $project->$col === (string) $employeeId) {
+                    $project->$col = null;
+                    $dirty = true;
+                }
+            }
+            if ($dirty) $project->save();
         }
 
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Team member removed successfully']);
+        }
         return back()->with('success', 'Team member removed successfully.');
     }
 
     public function updateTeamMember(Request $request, DeliveryProject $project, $employeeId)
     {
+        // Hanya boleh mengubah: role, end_date, notes
+        // Employee, module, employee_type, vendor_name, start_date TIDAK dapat diubah
         $request->validate([
-            'module' => 'nullable|string|max:50',
-            'assignment' => 'required|string',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'old_role'  => 'required|string',
+            'role'      => 'required|in:Member,Lead,Project Manager,Co Project Manager,Project Admin',
+            'end_date'  => 'nullable|date',
+            'notes'     => 'nullable|string',
         ]);
 
-        $project->teamMembers()->updateExistingPivot($employeeId, [
-            'module' => $request->module,
-            'assignment' => $request->assignment,
-            'start_date' => $request->start_date,
-            'end_date' => $request->end_date,
-        ]);
+        $oldRole = $request->old_role;
+        $newRole = $request->role;
 
-        if ($request->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Team member updated successfully'
-            ]);
+        // If the role is changing, make sure the new role isn't already held
+        // by this employee with an active (null end_date) entry on a DIFFERENT row.
+        if ($newRole !== $oldRole) {
+            $conflictExists = \DB::table('delivery_project_employee')
+                ->where('delivery_projects_id', $project->id)
+                ->where('employee_id', $employeeId)
+                ->where('role', $newRole)
+                ->whereNull('end_date')
+                ->exists();
+
+            if ($conflictExists) {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'This employee already has an active entry with the selected role. Please set an end date on that entry first.',
+                    ], 422);
+                }
+                return back()->with('error', 'This employee already has an active entry with the selected role. Please set an end date on that entry first.');
+            }
         }
 
+        // Update pivot row yang spesifik (identifikasi via employee_id + old_role)
+        $affected = \DB::table('delivery_project_employee')
+            ->where('delivery_projects_id', $project->id)
+            ->where('employee_id', $employeeId)
+            ->where('role', $oldRole)
+            ->update([
+                'role'     => $newRole,
+                'end_date' => $request->end_date ?: null,
+                'notes'    => $request->notes,
+            ]);
+
+        // Sinkronkan FK column project-role jika role berubah
+        // Bersihkan FK kolom untuk old_role jika employee ini yang memegangnya
+        if (isset(self::PROJECT_ROLE_COLUMNS[$oldRole])) {
+            $oldCol = self::PROJECT_ROLE_COLUMNS[$oldRole];
+            if ((string) $project->$oldCol === (string) $employeeId) {
+                $project->$oldCol = null;
+            }
+        }
+
+        // Set FK kolom untuk new_role
+        if (isset(self::PROJECT_ROLE_COLUMNS[$newRole])) {
+            $newCol = self::PROJECT_ROLE_COLUMNS[$newRole];
+            $project->$newCol = $employeeId;
+        }
+
+        $project->save();
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Team member updated successfully']);
+        }
         return back()->with('success', 'Team member updated successfully.');
     }
 
-    public function destroy(DeliveryProject $project)
+    public function destroy(Request $request, $project)
     {
-        $project->delete();
+        // NOTE: We resolve the model manually (instead of route-model binding) so
+        // the operation is idempotent. A double-submitted DELETE (the second request
+        // arriving after the row is already gone) previously threw ModelNotFound and
+        // surfaced a scary "No query results" error even though the delete succeeded.
+        // Treating an already-deleted project as success matches the desired end state.
+        $model = DeliveryProject::find($project);
+
+        if ($model) {
+            try {
+                $model->delete();
+            } catch (\Throwable $e) {
+                Log::error('DeliveryProjectController@destroy', ['id' => $project, 'error' => $e->getMessage()]);
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Failed to delete project. It may still have related records.',
+                    ], 500);
+                }
+                return redirect()->route('projects.index')->with('error', 'Failed to delete the project.');
+            }
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Project deleted successfully.']);
+        }
         return redirect()->route('projects.index')->with('success', 'Project deleted successfully.');
     }
     
@@ -765,6 +1156,7 @@ class DeliveryProjectController extends Controller
 
     /**
      * Generate (or re-generate) an OneDrive folder + anonymous edit link for a project.
+     * Struktur hierarki: DELIVERY PROJECT / {Customer} / {ProjectFolder}
      * Idempotent: if a folder already exists, only the share link is recreated.
      */
     public function generateFolder(Request $request, DeliveryProject $project)
@@ -784,8 +1176,16 @@ class DeliveryProjectController extends Controller
                 $shareUrl = $oneDrive->createAnonymousLink($project->onedrive_folder_id);
                 $project->update(['onedrive_folder_url' => $shareUrl]);
             } else {
-                // First time — create folder then share link
-                $folderId = $oneDrive->createFolder($folderName);
+                // Hierarki: DELIVERY PROJECT > Customer > Project Folder
+                $project->load('client.basicData');
+                $deliveryProjectPath = env('ONEDRIVE_DELIVERY_PROJECT_PATH', 'DELIVERY PROJECT');
+                $customerName        = strtoupper(trim($project->client->basicData->name_1 ?? 'UNKNOWN'));
+
+                // Find or create customer folder inside DELIVERY PROJECT
+                $customerFolderId = $oneDrive->findOrCreateFolderInPath($deliveryProjectPath, $customerName);
+
+                // Create project sub-folder inside customer folder
+                $folderId = $oneDrive->createSubFolder($customerFolderId, $folderName);
                 $shareUrl = $oneDrive->createAnonymousLink($folderId);
                 $project->update([
                     'onedrive_folder_id'  => $folderId,
@@ -794,9 +1194,9 @@ class DeliveryProjectController extends Controller
             }
 
             return response()->json([
-                'success'    => true,
-                'message'    => 'OneDrive folder ready.',
-                'folder_url' => $shareUrl,
+                'success'     => true,
+                'message'     => 'OneDrive folder ready.',
+                'folder_url'  => $shareUrl,
             ]);
 
         } catch (\Exception $e) {
@@ -807,6 +1207,167 @@ class DeliveryProjectController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to generate OneDrive folder: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Upload a file to the project's OneDrive folder and save metadata to DB.
+     */
+    public function uploadDocument(Request $request, DeliveryProject $project)
+    {
+        if (!$project->onedrive_folder_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'OneDrive folder has not been created. Please create the folder first.',
+            ], 422);
+        }
+
+        $request->validate([
+            'file'          => 'required|file|max:102400',
+            'document_name' => 'nullable|string|max:255',
+            'document_type' => 'required|string|max:100',
+        ], [
+            'file.max' => 'Ukuran file maksimal 100 MB.',
+        ]);
+
+        $file         = $request->file('file');
+        $originalName = $file->getClientOriginalName();
+        $docName      = $request->input('document_name') ?: $originalName;
+
+        try {
+            $oneDrive = new OneDriveService();
+
+            $result   = $oneDrive->uploadFile(
+                $project->onedrive_folder_id,
+                $originalName,
+                file_get_contents($file->getRealPath()),
+                $file->getMimeType() ?: 'application/octet-stream'
+            );
+
+            // Create anonymous view link for the uploaded file
+            $shareUrl = $oneDrive->createAnonymousLink($result['id'], 'view');
+
+            $document = $project->documents()->create([
+                'document_name' => $docName,
+                'link_document' => $shareUrl,
+                'document_type' => $request->document_type,
+            ]);
+
+            return response()->json([
+                'success'  => true,
+                'message'  => 'Document uploaded successfully.',
+                'document' => [
+                    'id'            => $document->id,
+                    'document_name' => $document->document_name,
+                    'link_document' => $document->link_document,
+                    'document_type' => $document->document_type,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Document upload to OneDrive failed', [
+                'project_id' => $project->id,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Upload failed: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Create a OneDrive upload session so the client can upload the file directly.
+     * Returns only an uploadUrl — no file data passes through this server.
+     */
+    public function createDocumentUploadSession(Request $request, DeliveryProject $project)
+    {
+        if (!$project->onedrive_folder_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'OneDrive folder has not been created for this project.',
+            ], 422);
+        }
+
+        $request->validate([
+            'filename'      => 'required|string|max:255',
+            'document_name' => 'nullable|string|max:255',
+            'document_type' => 'required|string|max:100',
+        ]);
+
+        try {
+            $oneDrive  = new OneDriveService();
+            $uploadUrl = $oneDrive->createUploadSession(
+                $project->onedrive_folder_id,
+                $request->input('filename')
+            );
+
+            return response()->json([
+                'success'    => true,
+                'upload_url' => $uploadUrl,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('createDocumentUploadSession failed', [
+                'project_id' => $project->id,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create upload session: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * After the client has uploaded the file directly to OneDrive,
+     * create a share link and save the document metadata to the database.
+     */
+    public function finalizeDocumentUpload(Request $request, DeliveryProject $project)
+    {
+        if (!$project->onedrive_folder_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'OneDrive folder not found.',
+            ], 422);
+        }
+
+        $request->validate([
+            'onedrive_item_id' => 'required|string',
+            'document_name'    => 'nullable|string|max:255',
+            'document_type'    => 'required|string|max:100',
+            'filename'         => 'required|string|max:255',
+        ]);
+
+        try {
+            $oneDrive = new OneDriveService();
+            $shareUrl = $oneDrive->createAnonymousLink($request->input('onedrive_item_id'), 'view');
+
+            $docName  = $request->input('document_name') ?: $request->input('filename');
+            $document = $project->documents()->create([
+                'document_name' => $docName,
+                'link_document' => $shareUrl,
+                'document_type' => $request->input('document_type'),
+            ]);
+
+            return response()->json([
+                'success'  => true,
+                'message'  => 'Document uploaded successfully.',
+                'document' => [
+                    'id'            => $document->id,
+                    'document_name' => $document->document_name,
+                    'link_document' => $document->link_document,
+                    'document_type' => $document->document_type,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('finalizeDocumentUpload failed', [
+                'project_id' => $project->id,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to finalize upload: ' . $e->getMessage(),
             ], 500);
         }
     }

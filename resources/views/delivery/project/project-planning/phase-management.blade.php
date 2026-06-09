@@ -1,16 +1,22 @@
 @extends('dashboard')
 @section('title', 'Phase Management - ' . $project->name)
 @section('page-title', 'Phase Management')
-@section('page-subtitle', $project->name ?? 'Kelola fase proyek')
+@section('page-subtitle', $project->name ?? 'Manage project phases')
 
 {{-- ✅ ADD SWEETALERT2 CDN --}}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 
 @section('content')
 <div class="min-h-screen bg-gray-50 pb-20 sm:pb-6" data-project-id="{{ $project->id }}">
     <script>
         window.currentProjectId = {{ $project->id }};
+        // Contract window — used to constrain planning (activity) date pickers.
+        window.projectContractDates = {
+            start: @json($project->contract_start_date ? \Carbon\Carbon::parse($project->contract_start_date)->format('Y-m-d') : null),
+            end:   @json($project->contract_end_date ? \Carbon\Carbon::parse($project->contract_end_date)->format('Y-m-d') : null)
+        };
     </script>
     <!-- ======================================== -->
          <!-- MOBILE HEADER (< lg) -->
@@ -166,7 +172,7 @@
                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                             </svg>
-                            {{ $project->start_date ? \Carbon\Carbon::parse($project->start_date)->format('d M Y') : 'Not set' }}
+                            {{ $project->contract_start_date ? \Carbon\Carbon::parse($project->contract_start_date)->format('d M Y') : 'Not set' }}
                         </span>
                     </div>
                 </div>
@@ -312,6 +318,9 @@
     @include('delivery.project.project-planning.phase.partials.phase-modal', ['project' => $project])
     @include('delivery.project.project-planning.phase.partials.quick-modal', ['project' => $project])
 
+    {{-- Activity Detail Drawer (Table View only) --}}
+    @include('delivery.project.project-planning.phase.partials.activity-drawer')
+
     {{-- Content Views --}}
     <div class="px-4 sm:px-6 lg:px-8">
         <div id="tableViewContainer" class="view-container">
@@ -333,6 +342,190 @@
 <script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+
+{{-- HolidayCalendar helper: fetch + cache + working-day utils + Flatpickr factory --}}
+<script>
+window.HolidayCalendar = (function() {
+    let _holidayDateSet = new Set();   // 'YYYY-MM-DD' lookup
+    let _holidayMeta    = {};          // 'YYYY-MM-DD' → {name, type}
+    let _loaded         = false;
+    let _loadPromise    = null;
+
+    function isWeekend(d) {
+        const day = d.getDay();
+        return day === 0 || day === 6;
+    }
+
+    function toISO(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+    }
+
+    function isNonWorkingDay(d) {
+        if (isWeekend(d)) return true;
+        return _holidayDateSet.has(toISO(d));
+    }
+
+    function holidayInfo(d) {
+        return _holidayMeta[toISO(d)] || null;
+    }
+
+    /**
+     * Add N working days to start (inclusive: 1 day = start == end).
+     */
+    function addWorkingDays(start, n) {
+        const date = new Date(start.getTime());
+        if (n <= 0) return date;
+        let remaining = n - 1;
+        while (remaining > 0) {
+            date.setDate(date.getDate() + 1);
+            if (!isNonWorkingDay(date)) remaining--;
+        }
+        return date;
+    }
+
+    /**
+     * Count working days between start and end (inclusive both ends).
+     */
+    function countWorkingDays(start, end) {
+        if (end < start) return 0;
+        let count = 0;
+        const cursor = new Date(start.getTime());
+        while (cursor <= end) {
+            if (!isNonWorkingDay(cursor)) count++;
+            cursor.setDate(cursor.getDate() + 1);
+        }
+        return count;
+    }
+
+    /**
+     * Load holidays for [from..to] (years). Memoized.
+     */
+    function load(from, to) {
+        if (_loaded) return Promise.resolve();
+        if (_loadPromise) return _loadPromise;
+
+        const y = new Date().getFullYear();
+        from = from || (y - 1);
+        to   = to   || (y + 2);
+
+        _loadPromise = axios.get(`/api/holidays?from=${from}&to=${to}`)
+            .then(res => {
+                (res.data.holidays || []).forEach(h => {
+                    _holidayDateSet.add(h.date);
+                    _holidayMeta[h.date] = { name: h.name, type: h.type };
+                });
+                _loaded = true;
+            })
+            .catch(err => {
+                console.warn('HolidayCalendar: failed to load holidays', err);
+                _loaded = true; // don't keep retrying
+            });
+
+        return _loadPromise;
+    }
+
+    /**
+     * Initialize a Flatpickr instance on an input with weekends + holidays disabled.
+     * Returns the flatpickr instance.
+     */
+    function initPicker(input, options) {
+        if (!input) return null;
+        if (typeof flatpickr === 'undefined') {
+            console.warn('Flatpickr not loaded');
+            return null;
+        }
+
+        const cfg = Object.assign({
+            dateFormat: 'd/m/Y',
+            allowInput: true,
+            disableMobile: true,
+            // 'static' → tampilkan bulan sebagai <span> bukan <select>,
+            // sehingga label bulan selalu update saat navigasi dan tidak ada
+            // dropdown yang overlap/muncul di belakang tanggal.
+            monthSelectorType: 'static',
+            // Pastikan kalender selalu di-append ke body agar positioning
+            // benar di dalam modal (tidak terpengaruh overflow/scroll kontainer).
+            appendTo: document.body,
+            disable: [
+                function(date) { return isNonWorkingDay(date); }
+            ],
+            onDayCreate: function(_, __, ___, dayElem) {
+                const d = dayElem.dateObj;
+                if (isWeekend(d)) {
+                    dayElem.classList.add('fp-weekend');
+                }
+                const info = holidayInfo(d);
+                if (info) {
+                    dayElem.classList.add('fp-holiday');
+                    dayElem.title = info.name;
+                }
+            }
+        }, options || {});
+
+        return flatpickr(input, cfg);
+    }
+
+    return {
+        load: load,
+        isNonWorkingDay: isNonWorkingDay,
+        holidayInfo: holidayInfo,
+        addWorkingDays: addWorkingDays,
+        countWorkingDays: countWorkingDays,
+        initPicker: initPicker,
+        toISO: toISO,
+    };
+})();
+
+// Pre-load holidays as soon as the page is ready
+document.addEventListener('DOMContentLoaded', function() {
+    window.HolidayCalendar.load();
+});
+</script>
+
+<style>
+/* Flatpickr customization for Indonesian holidays */
+.flatpickr-day.fp-weekend:not(.flatpickr-disabled) { color: #ef4444; }
+.flatpickr-day.fp-holiday { color: #dc2626 !important; font-weight: 600; }
+.flatpickr-day.flatpickr-disabled.fp-holiday {
+    color: #dc2626 !important;
+    background: #fef2f2;
+    text-decoration: line-through;
+}
+.flatpickr-day.flatpickr-disabled.fp-weekend {
+    color: #9ca3af !important;
+}
+
+/*
+ * Fix: Flatpickr di dalam modal
+ * - z-index tinggi agar kalender muncul di atas backdrop modal (z-50 = 50)
+ * - monthSelectorType:'static' → .cur-month adalah <span>, bukan <select>,
+ *   sehingga tidak ada dropdown yang overlap dengan tanggal
+ */
+.flatpickr-calendar {
+    z-index: 99999 !important;
+}
+/* Pastikan header bulan/tahun tidak tertutup elemen lain di dalam kalender */
+.flatpickr-months {
+    position: relative;
+    z-index: 1;
+}
+/* Prev/next arrow selalu dapat diklik */
+.flatpickr-prev-month,
+.flatpickr-next-month {
+    position: relative;
+    z-index: 2;
+    cursor: pointer;
+}
+/* Nama bulan (static span) terlihat jelas */
+.flatpickr-current-month .cur-month {
+    font-weight: 600;
+    pointer-events: none;
+}
+</style>
 
 {{-- ✅ STEP 1: INITIALIZE PROJECT ID & GLOBAL VARIABLES FIRST --}}
 <script>
@@ -360,7 +553,7 @@
         
         // Fallback: from URL
         if (!pid) {
-            const urlMatch = window.location.pathname.match(/project-planning\/(\d+)/);
+            const urlMatch = window.location.pathname.match(/planning\/(\d+)/);
             if (urlMatch) {
                 pid = parseInt(urlMatch[1]);
             }
@@ -572,7 +765,7 @@ window.editItem = function(itemId) {
         };
         
         
-        axios.post('/project-planning/' + window.projectId + '/view-config', data)
+        axios.post('/planning/' + window.projectId + '/view-config', data)
             .then(function(response) {
             })
             .catch(function(error) {

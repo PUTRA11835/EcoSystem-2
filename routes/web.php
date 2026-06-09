@@ -11,6 +11,7 @@ use App\Http\Controllers\DeliveryProjectIssueController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StagingTicketController;
 use App\Http\Controllers\DeliveryProjectController;
+use App\Http\Controllers\DeliveryProjectCostController;
 use App\Http\Controllers\DeliveryProjectUpdateController;
 use App\Http\Controllers\DeliveryProjectPlanController;
 use App\Http\Controllers\DeliveryProjectPlanningController;
@@ -18,9 +19,12 @@ use App\Http\Controllers\DeliveryProjectGanttController;
 use App\Http\Controllers\DeliveryDynamicPhaseController;
 use App\Http\Controllers\ActivityStageController;
 use App\Http\Controllers\ActivityManagementController;
+use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\DeliveryProjectDataController;
 use App\Http\Controllers\DeliveryProjectStageManagementController;
 use App\Http\Controllers\DeliveryProjectPlanningExportController;
+use App\Http\Controllers\DeliveryProjectRiskController;
+use App\Http\Controllers\DeliveryProjectPaymentTermController;
 use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\TicketViewController;
@@ -201,14 +205,42 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // Project routes (CRUD)
     Route::resource('projects', DeliveryProjectController::class)->except(['edit', 'update']);
+    Route::patch('/projects/{project}/general-info', [DeliveryProjectController::class, 'updateGeneralInfo'])->name('projects.updateGeneralInfo');
     Route::patch('/projects/{project}/update-field', [DeliveryProjectController::class, 'updateField'])->name('projects.updateField');
     Route::patch('/projects/{project}/delivery-info', [DeliveryProjectController::class, 'updateDeliveryInfo'])->name('projects.updateDeliveryInfo');
     Route::patch('/projects/{project}/location-info', [DeliveryProjectController::class, 'updateLocationInfo'])->name('projects.updateLocationInfo');
+    Route::patch('/projects/{project}/financial-info', [DeliveryProjectController::class, 'updateFinancialInfo'])->name('projects.updateFinancialInfo');
     Route::post('/projects/{project}/generate-folder', [DeliveryProjectController::class, 'generateFolder'])->name('projects.generateFolder');
     Route::delete('/projects/{project}/folder', [DeliveryProjectController::class, 'deleteFolder'])->name('projects.deleteFolder');
 
+    // Term of Payment (TOP) Plan routes
+    Route::get('/projects/{project}/payment-terms',         [DeliveryProjectPaymentTermController::class, 'index'])->name('projects.paymentTerms.index');
+    Route::post('/projects/{project}/payment-terms',        [DeliveryProjectPaymentTermController::class, 'store'])->name('projects.paymentTerms.store');
+    Route::put('/projects/{project}/payment-terms/{term}',  [DeliveryProjectPaymentTermController::class, 'update'])->name('projects.paymentTerms.update');
+    Route::delete('/projects/{project}/payment-terms/{term}',[DeliveryProjectPaymentTermController::class, 'destroy'])->name('projects.paymentTerms.destroy');
+
+    // Risk Register routes
+    Route::get('/projects/{project}/risks',          [DeliveryProjectRiskController::class, 'index'])->name('projects.risks.index');
+    Route::post('/projects/{project}/risks',         [DeliveryProjectRiskController::class, 'store'])->name('projects.risks.store');
+    Route::put('/projects/{project}/risks/{risk}',   [DeliveryProjectRiskController::class, 'update'])->name('projects.risks.update');
+    Route::delete('/projects/{project}/risks/{risk}',[DeliveryProjectRiskController::class, 'destroy'])->name('projects.risks.destroy');
+
+    // Plan Cost routes
+    Route::get('/projects/{project}/costs',                                      [DeliveryProjectCostController::class, 'index'])->name('projects.costs.index');
+    Route::post('/projects/{project}/costs',                                     [DeliveryProjectCostController::class, 'store'])->name('projects.costs.store');
+    Route::post('/projects/{project}/costs/init',                                [DeliveryProjectCostController::class, 'init'])->name('projects.costs.init');
+    Route::put('/projects/{project}/costs/{cost}',                               [DeliveryProjectCostController::class, 'update'])->name('projects.costs.update');
+    Route::delete('/projects/{project}/costs/{cost}',                            [DeliveryProjectCostController::class, 'destroy'])->name('projects.costs.destroy');
+    // Cost item (expense line-items) routes
+    Route::get('/projects/{project}/costs/{cost}/items',                         [DeliveryProjectCostController::class, 'indexItems'])->name('projects.costs.items.index');
+    Route::post('/projects/{project}/costs/{cost}/items',                        [DeliveryProjectCostController::class, 'storeItem'])->name('projects.costs.items.store');
+    Route::delete('/projects/{project}/costs/{cost}/items/{item}',               [DeliveryProjectCostController::class, 'destroyItem'])->name('projects.costs.items.destroy');
+
     // Document management routes
     Route::post('/projects/{project}/documents', [DeliveryProjectController::class, 'storeDocument'])->name('project.documents.store');
+    Route::post('/projects/{project}/documents/upload', [DeliveryProjectController::class, 'uploadDocument'])->name('project.documents.upload');
+    Route::post('/projects/{project}/documents/create-upload-session', [DeliveryProjectController::class, 'createDocumentUploadSession'])->name('project.documents.create-upload-session');
+    Route::post('/projects/{project}/documents/finalize-upload', [DeliveryProjectController::class, 'finalizeDocumentUpload'])->name('project.documents.finalize-upload');
     Route::patch('/project/documents/{document}', [DeliveryProjectController::class, 'updateDocument'])->name('project.documents.update');
     Route::delete('/project/documents/{document}', [DeliveryProjectController::class, 'destroyDocument'])->name('project.documents.destroy');
 
@@ -228,9 +260,15 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/api/regions', [DeliveryProjectController::class, 'getRegions'])->name('api.regions');
     Route::get('/api/cities', [DeliveryProjectController::class, 'getCities'])->name('api.cities');
 
-    // Issues routes
+    // Issues routes (global pages)
     Route::get('/issues', [DeliveryProjectIssueController::class, 'index'])->name('issues.index');
     Route::get('/issues/{project}', [DeliveryProjectIssueController::class, 'show'])->name('issues.show');
+
+    // Project Issue Log routes (AJAX CRUD on the project detail page)
+    Route::get('/projects/{project}/issues',           [DeliveryProjectIssueController::class, 'apiIndex'])->name('projects.issues.index');
+    Route::post('/projects/{project}/issues',          [DeliveryProjectIssueController::class, 'store'])->name('projects.issues.store');
+    Route::put('/projects/{project}/issues/{issue}',   [DeliveryProjectIssueController::class, 'update'])->name('projects.issues.update');
+    Route::delete('/projects/{project}/issues/{issue}',[DeliveryProjectIssueController::class, 'destroy'])->name('projects.issues.destroy');
 
     // Profile routes
     Route::get('/staging-tickets', [StagingTicketController::class, 'view'])->name('staging.index');
@@ -249,6 +287,9 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::redirect('/projects-planning', '/planning')->name('projects-planning.index');
 
     // Project-specific planning routes
+    // Indonesian holidays for date pickers (national + cuti bersama)
+    Route::get('/api/holidays', [HolidayController::class, 'index'])->name('holidays.index');
+
     Route::prefix('planning/{project}')->name('planning.')->group(function () {
 
         // Main planning page
@@ -270,6 +311,9 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
         // View configuration
         Route::post('/view-config', [DeliveryDynamicPhaseController::class, 'updateViewConfig'])->name('view-config');
+
+        // Phase weight info
+        Route::get('/phases/{phaseId}/weight-info', [ActivityManagementController::class, 'getPhaseWeightInfo'])->name('phases.weight-info');
 
         // Activity Management
         Route::prefix('activities')->name('activities.')->group(function () {

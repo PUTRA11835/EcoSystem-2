@@ -66,7 +66,7 @@
                 @forelse($projects as $project)
                     <div class="project-card bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
                          onclick="window.location.href='{{ route('projects.show', $project->id) }}'"
-                         data-searchable-content="{{ strtolower(($project->client->basicData->name_1 ?? '') . ' ' . $project->project_type . ' ' . $project->description . ' ' . $project->pic . ' ' . $project->status . ' ' . $project->category) }}">
+                         data-searchable-content="{{ strtolower(($project->client->basicData->name_1 ?? '') . ' ' . $project->project_type . ' ' . $project->description . ' ' . $project->project_owner . '' . $project->status . ' ' . $project->category) }}">
                         {{-- Card Header --}}
                         <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
                             <div class="flex justify-between items-start">
@@ -85,10 +85,10 @@
                                 <p class="text-sm text-gray-500">Description:</p>
                                 <p class="text-sm font-medium text-gray-900 mt-1">{{ $project->description }}</p>
                             </div>
-                            {{-- PIC --}}
+                            {{-- Project Owner --}}
                             <div>
-                                <p class="text-sm text-gray-500">PIC / Project Manager:</p>
-                                <p class="text-sm font-medium text-gray-900 mt-1">{{ $project->pic ?? 'N/A' }}</p>
+                                <p class="text-sm text-gray-500">Project Owner:</p>
+                                <p class="text-sm font-medium text-gray-900 mt-1">{{ $project->project_owner ?? 'N/A' }}</p>
                             </div>
                             {{-- Status Badges --}}
                             <div class="flex flex-wrap gap-2">
@@ -162,7 +162,7 @@
                             @forelse($projects as $project)
                                 <tr class="project-row hover:bg-gray-50 transition-colors cursor-pointer"
                                     onclick="window.location.href='{{ route('projects.show', $project->id) }}'"
-                                    data-searchable-content="{{ strtolower(($project->client->basicData->name_1 ?? '') . ' ' . $project->project_type . ' ' . $project->description . ' ' . $project->pic . ' ' . $project->status . ' ' . $project->category) }}">
+                                    data-searchable-content="{{ strtolower(($project->client->basicData->name_1 ?? '') . ' ' . $project->project_type . ' ' . $project->description . ' ' . $project->project_owner . '' . $project->status . ' ' . $project->category) }}">
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm font-medium text-gray-900">
                                             {{ $project->client->basicData->name_1 ?? 'N/A' }}
@@ -177,7 +177,7 @@
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {{ $project->pic ?? 'N/A' }}
+                                        {{ $project->project_owner ?? 'N/A' }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         <div class="flex flex-col space-y-1">

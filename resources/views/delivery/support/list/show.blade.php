@@ -430,10 +430,10 @@
                     <span class="text-emerald-700 font-semibold" id="dlvCustomerFolderPreview">
                         {{ str_pad($support->client_id, 3, '0', STR_PAD_LEFT) }} {{ strtoupper($support->client->basicData->name_1 ?? 'CUSTOMER') }}
                     </span><span class="text-gray-400"> /</span><br>
-                    <span class="text-blue-700 font-semibold" id="dlvSubfolderPreview">{{ $support->onedrive_deliverable_folder_id ? '(folder sudah ada)' : 'nama sub-folder...' }}</span>
+                    <span class="text-blue-700 font-semibold" id="dlvSubfolderPreview">{{ $support->onedrive_deliverable_folder_id ? '(folder already exists)' : 'subfolder name...' }}</span>
                 </div>
 
-                {{-- Input nama sub-folder --}}
+                {{-- Subfolder name input --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">
                         Sub-Folder Name <span class="text-red-500">*</span>
@@ -441,14 +441,14 @@
                     <input type="text" id="dlvSubfolderName"
                            placeholder="e.g. CONTRACT#001 ATS 2026"
                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                           oninput="document.getElementById('dlvSubfolderPreview').textContent = this.value || 'nama sub-folder...'">
+                           oninput="document.getElementById('dlvSubfolderPreview').textContent = this.value || 'subfolder name...'">
                     <p class="text-xs text-gray-400 mt-1">Cannot contain: \ / : * ? " &lt; &gt; |</p>
                 </div>
 
                 @if($support->onedrive_deliverable_folder_url)
                 <div class="bg-emerald-50 rounded-lg p-3 text-xs text-emerald-700">
-                    <span class="font-semibold">Sub-folder sebelumnya sudah ada.</span>
-                    Membuat baru akan menggantikan referensi yang tersimpan.
+                    <span class="font-semibold">A subfolder already exists.</span>
+                    Creating a new one will replace the stored reference.
                 </div>
                 @endif
             </div>
@@ -1121,7 +1121,7 @@ function openDeliverableModal() {
     document.getElementById('deliverableModal').classList.remove('hidden');
     const input = document.getElementById('dlvSubfolderName');
     input.value = '';
-    document.getElementById('dlvSubfolderPreview').textContent = 'nama sub-folder...';
+    document.getElementById('dlvSubfolderPreview').textContent = 'subfolder name...';
     setTimeout(() => input.focus(), 100);
 }
 

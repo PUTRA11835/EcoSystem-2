@@ -58,8 +58,9 @@ class ProjectDetailResource extends JsonResource
             'team_members'    => $teamMembers,
             // calculated_progress disimpan 0–100 di DB, mobile butuh 0.0–1.0
             'progress_percent' => round(($this->calculated_progress ?? 0) / 100, 4),
-            'start_date'      => $this->start_date ? Carbon::parse($this->start_date)->toDateString() : null,
-            'end_date'        => $this->end_date ? Carbon::parse($this->end_date)->toDateString() : null,
+            // Contract window (manually entered) — boundary for planning dates
+            'contract_start_date' => $this->contract_start_date ? Carbon::parse($this->contract_start_date)->toDateString() : null,
+            'contract_end_date'   => $this->contract_end_date ? Carbon::parse($this->contract_end_date)->toDateString() : null,
             // phases diurutkan by order_sequence (sudah handled di relationship)
             'phases'          => ProjectPhaseResource::collection($this->phases),
             'updates'         => ProjectUpdateResource::collection($updates),

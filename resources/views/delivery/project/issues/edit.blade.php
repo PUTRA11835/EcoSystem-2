@@ -31,7 +31,7 @@
                                     rows="3" 
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm sm:text-base" 
                                     required
-                                    placeholder="Deskripsikan isu yang terjadi...">{{ old('highlight_issue', $update->highlight_issue) }}</textarea>
+                                    placeholder="Describe the issue...">{{ old('highlight_issue', $update->highlight_issue) }}</textarea>
                             @error('highlight_issue')
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                             @enderror
@@ -47,7 +47,7 @@
                                     rows="3" 
                                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm primary-focus text-sm sm:text-base" 
                                     required
-                                    placeholder="Tindakan yang akan diambil...">{{ old('action', $update->action) }}</textarea>
+                                    placeholder="Action to be taken...">{{ old('action', $update->action) }}</textarea>
                             @error('action')
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                             @enderror

@@ -31,6 +31,8 @@
             'customer_mandays_proposed'   => ['icon' => 'fa-file-invoice',  'color' => 'blue',   'title' => 'Customer Mandays Proposal — needs review'],
             'resolution_days_proposed'   => ['icon' => 'fa-users',         'color' => 'indigo', 'title' => 'Resolution Days Proposal — needs review'],
             'customer_mandays_canceled'   => ['icon' => 'fa-times-circle',  'color' => 'orange', 'title' => 'Customer Mandays Proposal canceled'],
+            'contract_end_reminder'       => ['icon' => 'fa-file-contract', 'color' => 'yellow', 'title' => 'Contract deadline reminder'],
+            'top_invoice_reminder'        => ['icon' => 'fa-file-invoice-dollar', 'color' => 'blue', 'title' => 'Invoice submission due'],
         ];
         $colorMap = [
             'yellow' => ['bg' => 'bg-yellow-100', 'icon' => 'text-yellow-600'],
@@ -84,7 +86,7 @@
                     <div class="shrink-0 text-right">
                         <p class="text-[11px] text-gray-400">{{ $notif->created_at->diffForHumans() }}</p>
                         @if(!$notif->is_read)
-                        <span class="inline-block w-2 h-2 bg-red-500 rounded-full mt-1 ml-auto"></span>
+                        <span class="js-unread-dot inline-block w-2 h-2 bg-red-500 rounded-full mt-1 ml-auto"></span>
                         @endif
                     </div>
                 </div>
@@ -95,7 +97,7 @@
                     </a>
                     @endif
                     @if(!$notif->is_read)
-                    <button onclick="markRead({{ $notif->id }})" class="text-xs text-gray-400 hover:text-gray-600">
+                    <button onclick="markRead({{ $notif->id }})" class="js-mark-read-btn text-xs text-gray-400 hover:text-gray-600">
                         Mark as read
                     </button>
                     @endif
@@ -118,22 +120,18 @@
 <script>
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
+// Mark a single notification as read (it STAYS on the page, just shown as read).
 function markRead(id) {
     const el = document.getElementById('notif-' + id);
     if (el) {
-        el.style.transition = 'opacity 0.25s ease, max-height 0.3s ease, padding 0.3s ease';
-        el.style.overflow = 'hidden';
-        el.style.opacity = '0';
-        el.style.maxHeight = el.offsetHeight + 'px';
-        setTimeout(() => {
-            el.style.maxHeight = '0';
-            el.style.paddingTop = '0';
-            el.style.paddingBottom = '0';
-        }, 10);
-        setTimeout(() => el.remove(), 320);
+        el.classList.remove('bg-red-50');
+        const dot = el.querySelector('.js-unread-dot');
+        if (dot) dot.remove();
+        const btn = el.querySelector('.js-mark-read-btn');
+        if (btn) btn.remove();
     }
-    fetch(`/api/notifications/${id}`, {
-        method: 'DELETE',
+    fetch(`/api/notifications/${id}/read`, {
+        method: 'PUT',
         credentials: 'same-origin',
         headers: { 'X-CSRF-TOKEN': csrfToken }
     }).catch(() => {});
