@@ -1095,6 +1095,11 @@ class EmailController extends Controller
     /**
      * Tentukan attachment_type berdasarkan MIME type.
      */
+    public function resolveAttachmentTypePublic(string $mimeType): string
+    {
+        return $this->resolveAttachmentType($mimeType);
+    }
+
     private function resolveAttachmentType(string $mimeType): string
     {
         if (str_starts_with($mimeType, 'image/')) return 'image';

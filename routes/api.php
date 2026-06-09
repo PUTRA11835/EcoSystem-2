@@ -305,6 +305,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/pending-member-changes', [TicketController::class, 'pendingMemberChanges']);
         Route::get('/available-ticket-leads', [TicketController::class, 'getAvailableTicketLeads']);
         Route::post('/', [TicketController::class, 'store']);
+        Route::post('/helpdesk-create', [TicketController::class, 'storeFromHelpdesk']);
 
         // Routes with specific names
         Route::get('/status/{status}', [TicketController::class, 'getByStatus']);

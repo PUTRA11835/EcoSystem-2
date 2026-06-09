@@ -1493,7 +1493,7 @@
     const ticketCustomerId            = {{ $ticket->customer_id ?? 'null' }};
     const currentUserId               = {{ $user->id ?? 'null' }};
     const ticketChannel = @json($ticket->channel ?? 'web');
-    const assignedDsId   = {{ isset($deliverySupport) && $deliverySupport ? $deliverySupport->id : 'null' }};
+    let assignedDsId   = {{ isset($deliverySupport) && $deliverySupport ? $deliverySupport->id : 'null' }};
     const currentTicketLeadId   = {{ $ticket->ticket_lead_id ?? 'null' }};
     const currentTicketLeadName = @json($ticket->ticketLead?->basicData ? trim(($ticket->ticketLead->basicData->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData->last_name ?? '')) : null);
     const assignedDsName = @json(isset($deliverySupport) && $deliverySupport ? $deliverySupport->name : null);
@@ -3245,6 +3245,7 @@
 
             if (data.success) {
                 showNotification('Ticket assigned to delivery support successfully!', 'success');
+                assignedDsId = Number(supportId);
                 closeAssignSupportModal();
                 if (data.data?.support_name) updateDsBadges(data.data.support_id || supportId, data.data.support_name, data.data.support_type ?? null);
                 showAssignSuccessModal(`/delivery/support/${supportId}`);

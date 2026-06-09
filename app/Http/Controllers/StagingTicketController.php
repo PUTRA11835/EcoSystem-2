@@ -300,13 +300,23 @@ class StagingTicketController extends Controller
         $request->validate([
             'ticket_type'     => 'required|string|in:Incident,Service Request,Change Request,Consult',
             'ticket_priority' => 'required|string|in:Very High,High,Medium,Low',
-            // Scale opsional. Daftar value masih didiskusikan — `nullable|string|max:50`
-            // membatasi panjang tapi tidak mengikat ke whitelist tertentu agar
-            // mudah diubah saat opsi final disepakati.
             'scale'           => 'nullable|string|max:50',
+            'name'            => 'nullable|string|max:255',
+            'no_hp'           => 'nullable|string|max:255',
+            'module'          => 'nullable|string|max:255',
+            'client'          => 'nullable|string|max:255',
         ]);
 
         $staging = StagingTicket::findOrFail($id);
+
+        // Override additional info fields jika dikirim dari modal (nilai bisa berbeda
+        // dari yang ada di staging, misal helpdesk menambahkan info saat validasi).
+        foreach (['name', 'no_hp', 'module', 'client'] as $field) {
+            if ($request->has($field)) {
+                $staging->$field = $request->input($field);
+            }
+        }
+        $staging->save();
 
         try {
             $ticketType     = $request->input('ticket_type');

@@ -46,10 +46,26 @@
         
         // Get user role_id from session
         $user = session('user', []);
-        $userRoleId = $user['role']['id'] ?? 1;
-        
+        $userRoleId   = $user['role']['id']   ?? 1;
+        $userRoleName = $user['role']['name'] ?? '';
+
         // Define menu visibility based on role
         $showAllMenus     = $userRoleId == \App\Enums\RoleId::EC_ADMINISTRATOR->value;
+        $showMasterMenu   = $userRoleId === \App\Enums\RoleId::EC_ADMINISTRATOR->value
+            || in_array($userRoleId, [
+                \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value,
+                \App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value,
+                \App\Enums\RoleId::DELIVERY_HELPDESK->value,
+                \App\Enums\RoleId::DELIVERY_PROJECT_HEAD->value,
+                \App\Enums\RoleId::DELIVERY_RPMO_HEAD->value,
+            ], true)
+            || in_array($userRoleName, [
+                'Delivery Support Administrator',
+                'Delivery Project Administrator',
+                'Delivery Project Manager',
+                'Delivery RPMO Administrator',
+                'Delivery RPMO Manager',
+            ], true);
         $showRpmoMenu     = in_array($userRoleId, \App\Enums\RoleId::PERIOD_MANAGEMENT_GROUP, true);
         $showLimitedMenus = in_array($userRoleId, [\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value, \App\Enums\RoleId::EC_USER->value], true);
         $showSlaMenu      = in_array($userRoleId, [
@@ -376,7 +392,8 @@
                     </div>
                 </div>
                 
-                <!-- MASTER Dropdown - Only for role_id 1 -->
+                @if($showMasterMenu)
+                <!-- MASTER Dropdown -->
                 <div class="mb-2">
                     <button onclick="toggleMasterDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('master*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -400,7 +417,8 @@
                         </a>
                     </div>
                 </div>
-                
+                @endif
+
                 @if($showAllMenus)
                 <!-- FINANCIAL - Only for role_id 1 -->
                 <div class="mb-2">
