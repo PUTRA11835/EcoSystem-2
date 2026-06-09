@@ -20,6 +20,7 @@ class TicketMessage extends Model
         'message',
         'message_html',
         'is_internal_note',
+        'message_type',
         'reply_to_id',
         'channel',
         'email_message_id',

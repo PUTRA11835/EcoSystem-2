@@ -6,6 +6,7 @@ use App\Enums\RoleId;
 use App\Models\Ticket;
 use App\Models\Customer;
 use App\Models\CustomerMandays;
+use App\Models\TicketSlaPause;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -173,6 +174,11 @@ class TicketViewController extends Controller
             $customerEmail = Customer::find($ticket->customer_id)?->email;
         }
 
+        $inMeeting = TicketSlaPause::where('ticket_id', $ticket->ticket_id)
+            ->where('pause_reason', 'meeting')
+            ->whereNull('ended_at')
+            ->exists();
+
         return view('ticket.show', [
             'user'             => $user,
             'ticket'           => $ticket,
@@ -182,6 +188,7 @@ class TicketViewController extends Controller
             'deliverySupport'  => $deliverySupport,
             'approvedMandays'  => $approvedMandays,
             'customerEmail'    => $customerEmail,
+            'inMeeting'        => $inMeeting,
         ]);
     }
 }

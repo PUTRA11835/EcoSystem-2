@@ -56,6 +56,8 @@ class TicketSlaEvent extends Model
             'sla_warning'           => 'SLA warning',
             'sla_breached'          => 'SLA breached',
             'ticket_closed'         => 'Ticket closed',
+            'meeting_started'       => 'Meeting started',
+            'meeting_ended'         => 'Meeting ended',
             default                 => $this->event_type,
         };
     }

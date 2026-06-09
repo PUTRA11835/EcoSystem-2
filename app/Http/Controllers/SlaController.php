@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\SlaPolicy;
 use App\Models\Ticket;
+use App\Models\TicketMessage;
 use App\Models\TicketSla;
+use App\Models\TicketSlaPause;
 use App\Services\SlaService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -226,29 +229,7 @@ class SlaController extends Controller
             ];
         }
 
-        $stopStatuses = ['waiting_on_customer', 'waiting_to_confirmation', 'waiting_on_3rd_party', 'hold'];
-
-        $events = $sla->events->map(fn ($e) => [
-            'event_type'       => $e->event_type,
-            'event_at'         => $e->event_at->toDateTimeString(),
-            'label'            => $e->event_label,
-            'jarvis_status'    => $e->jarvis_status,
-            'waiting_hours'    => $e->waiting_hours !== null ? (float) $e->waiting_hours : null,
-            'response_hours'   => $e->response_hours !== null ? (float) $e->response_hours : null,
-            'resolution_hours' => $e->resolution_hours !== null ? (float) $e->resolution_hours : null,
-            'notes'            => $e->notes,
-            'ball_after'       => match (true) {
-                $e->event_type === 'customer_replied'                               => 'helpdesk',
-                $e->event_type === 'ticket_validated'                               => 'helpdesk',
-                $e->event_type === 'agent_replied' && $e->jarvis_status === 'waiting_on_3rd_party' => 'sap',
-                $e->event_type === 'agent_replied' && in_array($e->jarvis_status, $stopStatuses) => 'customer',
-                $e->event_type === 'agent_replied'                                  => 'helpdesk',
-                default                                                             => null,
-            },
-            'message_preview'  => $e->message
-                ? mb_substr(strip_tags($e->message->message ?? $e->message->message_html ?? ''), 0, 120)
-                : null,
-        ]);
+        $events = $this->buildSlaEventLog($sla, $ticket->ticket_id, $ticket->status);
 
         return response()->json([
             'success' => true,
@@ -260,6 +241,192 @@ class SlaController extends Controller
                 'events'      => $events,
             ],
         ]);
+    }
+
+    /**
+     * Build SLA event log dari dua sumber:
+     * 1. ticket_sla_events — untuk special events (email_received, ticket_validated,
+     *    ticket_closed, meeting_*) yang tidak punya representasi di ticket_message.
+     * 2. ticket_message — source of truth untuk semua balasan (agent & customer).
+     *
+     * Waiting & resolution dihitung ulang dengan menelusuri timeline pesan secara
+     * kronologis, mirip SlaService::backfillEventsForTickets — sehingga semua
+     * balasan (email langsung, Jarvies web, apapun) punya timing yang benar
+     * tanpa bergantung apakah SLA trigger pernah jalan atau tidak.
+     */
+    private function buildSlaEventLog(TicketSla $sla, int $ticketId, ?string $currentTicketStatus = null): \Illuminate\Support\Collection
+    {
+        $stopStatuses     = ['waiting_on_customer', 'waiting_to_confirmation', 'waiting_on_3rd_party', 'hold'];
+        $runStatuses      = ['inprocess', 'open'];
+        $messageOnlyTypes = ['agent_replied', 'customer_replied'];
+        $is24h            = $sla->policy?->is_24_hours ?? true;
+
+        // ── 1. Special events ─────────────────────────────────────────────────
+        $specialEvents = $sla->events
+            ->reject(fn ($e) => in_array($e->event_type, $messageOnlyTypes))
+            ->map(fn ($e) => [
+                'event_type'       => $e->event_type,
+                'event_at'         => $e->event_at->toDateTimeString(),
+                'label'            => $e->event_label,
+                'jarvis_status'    => $e->jarvis_status,
+                'waiting_hours'    => $e->waiting_hours !== null ? (float) $e->waiting_hours : null,
+                'response_hours'   => $e->response_hours !== null ? (float) $e->response_hours : null,
+                'resolution_hours' => $e->resolution_hours !== null ? (float) $e->resolution_hours : null,
+                'notes'            => $e->notes,
+                'ball_after'       => $e->event_type === 'ticket_validated' ? 'helpdesk' : null,
+                'sender_name'      => null,
+                'message_preview'  => $e->message
+                    ? mb_substr(strip_tags($e->message->message ?? $e->message->message_html ?? ''), 0, 120)
+                    : null,
+                '_sort'            => $e->event_at->toDateTimeString(),
+            ]);
+
+        // ── 2. Stored message events ───────────────────────────────────────────
+        $storedByMsgId = $sla->events
+            ->filter(fn ($e) => in_array($e->event_type, $messageOnlyTypes))
+            ->keyBy('message_id');
+
+        // ── 3. Pauses — dua indeks ───────────────────────────────────────────
+        $allPauses = TicketSlaPause::where('ticket_id', $ticketId)
+            ->orderBy('started_at')
+            ->get();
+
+        $pauseStartedByMsg = $allPauses->whereNotNull('started_by_message_id')->keyBy('started_by_message_id');
+        $pauseEndedByMsg   = $allPauses->whereNotNull('ended_by_message_id')->keyBy('ended_by_message_id');
+
+        // ── 4. All non-internal messages ──────────────────────────────────────
+        $messages = TicketMessage::where('ticket_id', $ticketId)
+            ->where('is_internal_note', false)
+            ->orderBy('created_at')
+            ->get();
+
+        // ID agent message terakhir — untuk fallback "status sekarang"
+        $lastAgentMsgId = $messages
+            ->filter(fn ($m) => $m->sender_type !== 'customer')
+            ->last()?->id;
+
+        // ── 5. Stateful timeline walk ─────────────────────────────────────────
+        $ballHolder   = 'helpdesk';
+        $sessionStart = $sla->first_responded_at ?? $sla->sla_start_at;
+        $pauseStart   = null; // Carbon|null — kapan pause dimulai
+        $lastAgentAt  = null; // Carbon|null — waktu agent message terakhir (fallback waiting)
+
+        $messageEvents = $messages->map(function ($msg) use (
+            $storedByMsgId, $pauseStartedByMsg, $pauseEndedByMsg,
+            $stopStatuses, $runStatuses, $is24h,
+            $lastAgentMsgId, $currentTicketStatus, $sla,
+            &$ballHolder, &$sessionStart, &$pauseStart, &$lastAgentAt
+        ) {
+            $stored     = $storedByMsgId->get($msg->id);
+            $isCustomer = $msg->sender_type === 'customer';
+
+            $waitingH     = null;
+            $resolutionH  = null;
+            $ballAfter    = null;
+            $jarvisStatus = null;
+
+            if ($isCustomer) {
+                // ── Customer reply ─────────────────────────────────────────────
+                // Prioritas waiting_hours:
+                //   1. Stored customer_replied event
+                //   2. Pause record dengan ended_by_message_id = pesan ini
+                //   3. Timeline-computed: $pauseStart (formal SLA pause)
+                //   4. Waktu sejak agent reply terakhir (informal gap)
+
+                if ($stored?->waiting_hours !== null) {
+                    $waitingH = round((float) $stored->waiting_hours, 2);
+
+                } elseif (($endedPause = $pauseEndedByMsg->get($msg->id)) !== null
+                    && $endedPause->duration_hours !== null) {
+                    $waitingH = round((float) $endedPause->duration_hours, 2);
+
+                } elseif ($ballHolder !== 'helpdesk' && $pauseStart !== null) {
+                    $waitingH = round($this->sla->calcHours($pauseStart, $msg->created_at, $is24h), 2);
+
+                } elseif ($lastAgentAt !== null) {
+                    // Tidak ada formal pause — hitung gap sejak agent terakhir balas
+                    $waitingH = round($this->sla->calcHours($lastAgentAt, $msg->created_at, $is24h), 2);
+                }
+
+                // Reset state: ball kembali ke helpdesk
+                $ballHolder   = 'helpdesk';
+                $pauseStart   = null;
+                $sessionStart = $msg->created_at;
+                $ballAfter    = 'helpdesk';
+
+            } else {
+                // ── Agent reply ────────────────────────────────────────────────
+                $pauseStartedByThisMsg = $pauseStartedByMsg->get($msg->id);
+
+                // jarvisStatus priority:
+                //   1. Stored event
+                //   2. Pause record yang di-trigger pesan ini
+                //   3. (khusus pesan terakhir) status ticket saat ini
+                $jarvisStatus = $stored?->jarvis_status
+                    ?? $pauseStartedByThisMsg?->triggered_by_status;
+
+                if (!$jarvisStatus && $msg->id === $lastAgentMsgId && $currentTicketStatus
+                    && in_array($currentTicketStatus, $stopStatuses)) {
+                    $jarvisStatus = $currentTicketStatus;
+                }
+
+                // Pause anchor: gunakan pause record atau waktu pesan
+                // Untuk pesan terakhir, utamakan sla_paused_at karena lebih akurat
+                $effectivePauseStart = $pauseStartedByThisMsg?->started_at ?? $msg->created_at;
+                if ($msg->id === $lastAgentMsgId && $sla->sla_paused_at !== null) {
+                    $effectivePauseStart = $sla->sla_paused_at;
+                }
+
+                // Resolution = waktu aktif helpdesk sejak session terakhir (selalu dihitung fresh dari timeline)
+                if ($sessionStart !== null) {
+                    $resolutionH = round($this->sla->calcHours($sessionStart, $msg->created_at, $is24h), 2);
+                }
+
+                if ($jarvisStatus && in_array($jarvisStatus, $stopStatuses)) {
+                    if ($ballHolder === 'helpdesk') {
+                        $pauseStart = $effectivePauseStart;
+                    }
+                    $ballHolder = $jarvisStatus === 'waiting_on_3rd_party' ? 'sap' : 'customer';
+                    $ballAfter  = $ballHolder;
+
+                } elseif ($jarvisStatus && in_array($jarvisStatus, $runStatuses)) {
+                    if ($ballHolder !== 'helpdesk' && $pauseStart !== null) {
+                        $resolutionH  = 0;
+                        $pauseStart   = null;
+                        $sessionStart = $msg->created_at;
+                    }
+                    $ballHolder = 'helpdesk';
+                    $ballAfter  = 'helpdesk';
+
+                } else {
+                    $ballAfter = $ballHolder === 'helpdesk' ? 'helpdesk' : null;
+                }
+
+                // Update waktu agent terakhir balas (dipakai sebagai fallback waiting)
+                $lastAgentAt = $msg->created_at;
+            }
+
+            return [
+                'event_type'       => $isCustomer ? 'customer_replied' : 'agent_replied',
+                'event_at'         => $msg->created_at->toDateTimeString(),
+                'label'            => $isCustomer ? 'Customer replied' : 'Agent replied',
+                'jarvis_status'    => $jarvisStatus,
+                'waiting_hours'    => $waitingH,
+                'response_hours'   => null,
+                'resolution_hours' => $isCustomer ? null : $resolutionH,
+                'notes'            => $stored?->notes,
+                'ball_after'       => $ballAfter,
+                'sender_name'      => $msg->sender_name,
+                'message_preview'  => mb_substr(strip_tags($msg->message ?? $msg->message_html ?? ''), 0, 120) ?: null,
+                '_sort'            => $msg->created_at->toDateTimeString(),
+            ];
+        });
+
+        return $specialEvents
+            ->concat($messageEvents)
+            ->sortBy('_sort')
+            ->values()
+            ->map(fn ($e) => collect($e)->except('_sort')->all());
     }
 
     // ── API: SLA Report ───────────────────────────────────────────────────────
@@ -350,22 +517,7 @@ class SlaController extends Controller
         $policy = $sla?->policy;
         $pauses = $sla?->pauses ?? collect();
 
-        $stopStatuses = ['waiting_on_customer', 'waiting_to_confirmation', 'waiting_on_3rd_party', 'hold'];
-
-        $events = ($sla?->events ?? collect())->map(function ($e) use ($stopStatuses) {
-            $e->ball_after = match (true) {
-                $e->event_type === 'customer_replied'                                              => 'helpdesk',
-                $e->event_type === 'ticket_validated'                                              => 'helpdesk',
-                $e->event_type === 'agent_replied' && $e->jarvis_status === 'waiting_on_3rd_party' => 'sap',
-                $e->event_type === 'agent_replied' && in_array($e->jarvis_status, $stopStatuses)   => 'customer',
-                $e->event_type === 'agent_replied'                                                 => 'helpdesk',
-                default                                                                            => null,
-            };
-            $e->message_preview = $e->message
-                ? mb_substr(strip_tags($e->message->message ?? $e->message->message_html ?? ''), 0, 110)
-                : null;
-            return $e;
-        });
+        $events = $sla ? $this->buildSlaEventLog($sla, $ticket->ticket_id, $ticket->status) : collect();
 
         $docNumber = 'ECL/SLA/' . $ticket->ticket_number . '/' . now()->format('Ym');
 
@@ -399,6 +551,126 @@ class SlaController extends Controller
         $pdf->setPaper('A4', 'portrait');
 
         return $pdf->download('SLA-Ticket-' . $ticket->ticket_number . '.pdf');
+    }
+
+    // ── API: Meeting pause/resume ─────────────────────────────────────────────
+
+    public function startMeeting(Request $request, $id)
+    {
+        if (!$this->assertSlaAccess()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $v = Validator::make($request->all(), [
+            'started_at' => 'nullable|date',
+            'notes'      => 'nullable|string|max:1000',
+        ]);
+
+        if ($v->fails()) {
+            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        }
+
+        $ticket      = Ticket::with('sla.policy')->findOrFail($id);
+        $startAt     = $request->filled('started_at') ? Carbon::parse($request->started_at) : now();
+        $senderName  = session('user.name') ?? 'Helpdesk';
+        $senderId    = session('user.id');
+        $notes       = $request->input('notes');
+
+        try {
+            $this->sla->startMeeting($ticket, $startAt);
+
+            TicketMessage::create([
+                'ticket_id'        => $ticket->ticket_id,
+                'sender_type'      => 'system',
+                'sender_id'        => $senderId,
+                'sender_name'      => $senderName,
+                'message'          => $notes,
+                'is_internal_note' => true,
+                'message_type'     => 'meeting_started',
+                'channel'          => 'web',
+                'created_at'       => $startAt,
+                'updated_at'       => $startAt,
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Meeting dimulai — SLA clock dijeda.']);
+        } catch (\Throwable $e) {
+            Log::error('SlaController@startMeeting failed', ['ticket_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Gagal memulai meeting.'], 500);
+        }
+    }
+
+    public function endMeeting(Request $request, $id)
+    {
+        if (!$this->assertSlaAccess()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $v = Validator::make($request->all(), [
+            'ended_at' => 'nullable|date',
+            'notes'    => 'nullable|string|max:1000',
+        ]);
+
+        if ($v->fails()) {
+            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        }
+
+        $ticket     = Ticket::with('sla.policy')->findOrFail($id);
+        $endAt      = $request->filled('ended_at') ? Carbon::parse($request->ended_at) : now();
+        $senderName = session('user.name') ?? 'Helpdesk';
+        $senderId   = session('user.id');
+        $notes      = $request->input('notes');
+
+        try {
+            $this->sla->endMeeting($ticket, $endAt);
+
+            // Hitung durasi dari pause record meeting yang baru ditutup
+            $waitingH  = null;
+            $lastPause = TicketSlaPause::where('ticket_id', $ticket->ticket_id)
+                ->where('pause_reason', 'meeting')
+                ->whereNotNull('ended_at')
+                ->latest('ended_at')
+                ->first();
+            if ($lastPause) {
+                $waitingH = $lastPause->duration_hours;
+            }
+
+            // Fallback: hitung dari sla_paused_at jika pause record belum closed
+            if ($waitingH === null && $ticket->sla) {
+                $ticket->sla->refresh();
+                // Jika setelah endMeeting sla_paused_at sudah null, berarti durasi sudah dihitung
+                // Ambil dari total_waiting_hours delta atau biarkan null
+            }
+
+            $durationText = $waitingH !== null ? round((float) $waitingH, 2) . ' jam' : null;
+            $msgParts     = array_filter([$notes, $durationText ? "Durasi: {$durationText}" : null]);
+            $msgBody      = implode("\n", $msgParts) ?: 'Meeting selesai';
+
+            TicketMessage::create([
+                'ticket_id'        => $ticket->ticket_id,
+                'sender_type'      => 'system',
+                'sender_id'        => $senderId,
+                'sender_name'      => $senderName,
+                'message'          => $msgBody,
+                'is_internal_note' => true,
+                'message_type'     => 'meeting_ended',
+                'channel'          => 'web',
+                'created_at'       => $endAt,
+                'updated_at'       => $endAt,
+            ]);
+
+            return response()->json([
+                'success'       => true,
+                'message'       => 'Meeting selesai — SLA clock dilanjutkan.',
+                'waiting_hours' => $waitingH,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('SlaController@endMeeting failed', [
+                'ticket_id' => $id,
+                'error'     => $e->getMessage(),
+                'trace'     => $e->getTraceAsString(),
+            ]);
+            return response()->json(['success' => false, 'message' => 'Gagal mengakhiri meeting: ' . $e->getMessage()], 500);
+        }
     }
 
     // ── Private Formatters ────────────────────────────────────────────────────

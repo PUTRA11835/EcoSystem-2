@@ -513,10 +513,12 @@ class EmailController extends Controller
                         // attachment download (~1-3 detik) akan render gambar dengan src="cid:xxx"
                         // yang broken di browser, dan karena polling bersifat incremental append-only,
                         // tampilan rusak itu menetap sampai user manual refresh halaman.
+                        $savedMessage = null;
                         \DB::transaction(function () use (
                             $ticket, $customer, $fromEmail, $fromName,
                             $bodyPlain, $bodyHtml, $internetMsgId, $ccEmails,
-                            $receivedAt, $hasAttachments, $sender, $graphMsgId, $conversationId
+                            $receivedAt, $hasAttachments, $sender, $graphMsgId, $conversationId,
+                            &$savedMessage
                         ) {
                             // Tambah pesan ke tiket yang sudah ada
                             // cc_emails: kirim PHP array (bukan JSON string) karena TicketMessage
@@ -600,8 +602,33 @@ class EmailController extends Controller
                                     ->all();
                                 $ticketCcUpdate['cc_emails'] = $merged;
                             }
+                            // Customer balas → kembalikan ticket ke inprocess jika sedang pause
+                            $stopStatuses = ['waiting_on_customer', 'waiting_to_confirmation', 'waiting_on_3rd_party', 'hold'];
+                            if ($customer && in_array($ticket->status, $stopStatuses)) {
+                                $ticketCcUpdate['status'] = 'inprocess';
+                            }
                             $ticket->update($ticketCcUpdate);
+                            $savedMessage = $message;
                         });
+
+                        // Trigger SLA event setelah transaction commit (non-fatal)
+                        if ($savedMessage && $customer) {
+                            try {
+                                $ticket->refresh();
+                                app(\App\Services\SlaService::class)->recordMessageEvent(
+                                    $ticket,
+                                    $savedMessage,
+                                    'customer',
+                                    null
+                                );
+                            } catch (\Throwable $e) {
+                                Log::warning('EmailController@processInbox: SLA record gagal (non-fatal)', [
+                                    'ticket_id'  => $ticket->ticket_id,
+                                    'message_id' => $savedMessage->id,
+                                    'error'      => $e->getMessage(),
+                                ]);
+                            }
+                        }
 
                     } else {
                         // Dedup staging: skip jika sudah pernah masuk staging dengan internet_message_id ini
