@@ -2015,7 +2015,7 @@
             }
         });
 
-        // Handle image paste (Ctrl+V) — resize oversized pastes
+        // Handle image paste (Ctrl+V) — compress & resize before inserting
         quillEditor.root.addEventListener('paste', function (e) {
             const items = (e.clipboardData || e.originalEvent.clipboardData).items;
             for (const item of items) {
@@ -2025,9 +2025,24 @@
                     if (!file) continue;
                     const reader = new FileReader();
                     reader.onload = (ev) => {
-                        const range = quillEditor.getSelection(true);
-                        quillEditor.insertEmbed(range ? range.index : 0, 'image', ev.target.result, 'user');
-                        if (range) quillEditor.setSelection(range.index + 1, 0);
+                        const img = new Image();
+                        img.onload = () => {
+                            const MAX_W = 1024, MAX_H = 1024, QUALITY = 0.75;
+                            let w = img.width, h = img.height;
+                            if (w > MAX_W || h > MAX_H) {
+                                const ratio = Math.min(MAX_W / w, MAX_H / h);
+                                w = Math.round(w * ratio);
+                                h = Math.round(h * ratio);
+                            }
+                            const canvas = document.createElement('canvas');
+                            canvas.width = w; canvas.height = h;
+                            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                            const dataUrl = canvas.toDataURL('image/jpeg', QUALITY);
+                            const range = quillEditor.getSelection(true);
+                            quillEditor.insertEmbed(range ? range.index : 0, 'image', dataUrl, 'user');
+                            if (range) quillEditor.setSelection(range.index + 1, 0);
+                        };
+                        img.src = ev.target.result;
                     };
                     reader.readAsDataURL(file);
                 }
@@ -2940,7 +2955,8 @@
             commitToInput();
             commitCcInput();
 
-            if (hasFiles) {
+            const hasInlineImages = /<img[^>]+src=["']data:/i.test(htmlContent);
+            if (hasFiles || hasInlineImages) {
                 const formData = new FormData();
                 formData.append('message_body', htmlContent);
                 formData.append('message_type', messageType);
