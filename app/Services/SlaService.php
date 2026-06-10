@@ -355,6 +355,12 @@ class SlaService
     public function liveWaitingHours(TicketSla $sla): float
     {
         $total = (float) $sla->total_waiting_hours;
+
+        // Ticket sudah closed — tidak ada penambahan waktu live
+        if ($sla->isClosed()) {
+            return round($total, 2);
+        }
+
         $is24h = $sla->policy?->is_24_hours ?? true;
 
         if ($sla->ball_holder !== 'helpdesk' && $sla->sla_paused_at) {

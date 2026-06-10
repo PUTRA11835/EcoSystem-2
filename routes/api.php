@@ -277,8 +277,9 @@ Route::middleware(['web'])->group(function () {
     // ==================== CONSULTANT WORKLOAD ROUTES ====================
     Route::prefix('consultant-workload')->group(function () {
         Route::get('/', [\App\Http\Controllers\ConsultantWorkloadController::class, 'list']);
+        Route::get('/tickets/{ticketId}/consultant-progress', [\App\Http\Controllers\ConsultantWorkloadController::class, 'getConsultantProgress']);
+        Route::patch('/tickets/{ticketId}/consultant-progress', [\App\Http\Controllers\ConsultantWorkloadController::class, 'updateConsultantProgress']);
         Route::get('/{id}', [\App\Http\Controllers\ConsultantWorkloadController::class, 'detail']);
-        Route::patch('/tickets/{ticketId}/progress', [\App\Http\Controllers\ConsultantWorkloadController::class, 'updateProgress']);
     });
 
     // ==================== STAGING TICKET ROUTES ====================

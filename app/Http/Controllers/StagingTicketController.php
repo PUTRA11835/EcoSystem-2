@@ -154,10 +154,21 @@ class StagingTicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $staging = StagingTicket::with(['customer.basicData', 'endCustomer.basicData', 'validator.basicData', 'ticket', 'attachments'])
-            ->findOrFail($id);
+        try {
+            $staging = StagingTicket::with(['customer.basicData', 'endCustomer.basicData', 'validator.basicData', 'ticket', 'attachments'])
+                ->findOrFail($id);
 
-        return response()->json(['success' => true, 'data' => $this->formatStaging($staging)]);
+            return response()->json(['success' => true, 'data' => $this->formatStaging($staging)]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['success' => false, 'message' => 'Staging ticket not found.'], 404);
+        } catch (\Throwable $e) {
+            Log::error('StagingTicketController@show: failed', [
+                'id'    => $id,
+                'error' => $e->getMessage(),
+                'file'  => $e->getFile() . ':' . $e->getLine(),
+            ]);
+            return response()->json(['success' => false, 'message' => 'Failed to load staging ticket details.'], 500);
+        }
     }
 
     // ─── API: Customer submit (dari Jarvies) ──────────────────────────────────

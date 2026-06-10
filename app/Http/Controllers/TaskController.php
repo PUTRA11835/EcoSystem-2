@@ -156,7 +156,9 @@ class TaskController extends Controller
                 'e.eci',
                 'eq.qualification_modules',
                 'cmd.mandays',
-                'cmd.approved_additional'
+                'cmd.approved_additional',
+                'cmd.progress_percentage',
+                'cmd.progress_note'
             )
             ->get();
 
@@ -176,9 +178,11 @@ class TaskController extends Controller
                 'eci'                 => $row->eci ?? '—',
                 'module'              => $row->qualification_modules ?? '—',
                 'mandays'             => $mandays,
-                'approved_additional' => $additional,
-                'effective_md'        => $effectiveMd,
-                'remain_md'           => $remainShare,
+                'approved_additional'  => $additional,
+                'effective_md'         => $effectiveMd,
+                'remain_md'            => $remainShare,
+                'progress_percentage'  => (float) ($row->progress_percentage ?? 0),
+                'progress_note'        => $row->progress_note ?? null,
             ];
         }
 

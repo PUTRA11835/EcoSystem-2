@@ -171,7 +171,8 @@
                         </th>
                         <th class="px-5 py-3.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider" style="min-width:95px">Man Days</th>
                         <th class="px-5 py-3.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider" style="min-width:95px">End Date</th>
-                        <th class="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider" style="min-width:210px">Progress</th>
+                        <th class="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider" style="min-width:160px">Progress</th>
+                        <th class="pr-3 py-3.5 w-10"></th>
                     </tr>
                 </thead>
                 <tbody id="taskBody">
@@ -192,56 +193,6 @@
     </div>
 </div>
 
-{{-- Ticket Progress Modal --}}
-<div id="cpModal" class="fixed inset-0 z-50 hidden items-center justify-center">
-    <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onclick="closeCpModal()"></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 border border-gray-100">
-        <div class="flex items-center justify-between mb-4">
-            <div>
-                <h3 class="text-base font-bold text-gray-900">Update Progress</h3>
-                <p class="text-sm text-gray-500 mt-0.5 truncate max-w-xs font-medium" id="cpModalSubject">—</p>
-            </div>
-            <button onclick="closeCpModal()" class="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-500 transition shrink-0">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
-        </div>
-        <input type="hidden" id="cpModalTicketId">
-
-        <div class="mb-5">
-            <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Progress</label>
-            <div class="flex items-center gap-3">
-                <input type="range" id="cpModalSlider" min="0" max="100" step="5" value="0"
-                    oninput="const v=Math.min(100,Math.max(0,+this.value));this.value=v;document.getElementById('cpModalValue').value=v"
-                    class="flex-1 accent-indigo-500 h-2 rounded-full cursor-pointer">
-                <div class="relative">
-                    <input type="number" id="cpModalValue" min="0" max="100" value="0"
-                        oninput="const v=Math.min(100,Math.max(0,+this.value||0));document.getElementById('cpModalSlider').value=v"
-                        class="w-18 text-sm font-bold text-indigo-600 border border-indigo-200 rounded-xl px-2 py-1.5 pr-5 text-right focus:ring-2 focus:ring-indigo-400 focus:outline-none">
-                    <span class="absolute right-2 inset-y-0 flex items-center text-xs font-semibold text-indigo-400 pointer-events-none">%</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="mb-5">
-            <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Notes</label>
-            <textarea id="cpModalNote" rows="3" placeholder="What's the latest update?"
-                class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-indigo-400 focus:outline-none resize-none text-gray-700 placeholder-gray-400 hover:border-gray-300 transition"></textarea>
-        </div>
-
-        <div class="flex gap-2.5">
-            <button onclick="submitCpModal()"
-                class="flex-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-sm font-semibold py-2.5 rounded-xl transition shadow-sm shadow-indigo-200">
-                Save Changes
-            </button>
-            <button onclick="closeCpModal()"
-                class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition font-medium">
-                Cancel
-            </button>
-        </div>
-    </div>
-</div>
 
 <script>
     let allTasks = [];
@@ -475,17 +426,9 @@
         const displayMd = myMd || (t.man_days ? parseFloat(t.man_days) : null);
         const hasDetails = details.length > 0;
 
-        const expandBtn = hasDetails ?
-            `<button onclick="event.stopPropagation(); toggleDetail(${t.ticket_id})"
-                class="shrink-0 inline-flex items-center gap-1 text-xs font-semibold border border-indigo-200 text-indigo-500 px-2 py-0.5 rounded-lg hover:bg-indigo-50 transition"
-                title="Consultants">
-                <span id="det-icon-${t.ticket_id}" class="text-[10px]">▶</span>${details.length}
-           </button>` :
-            '';
-
         const detailSubTable = hasDetails ? `
     <tr id="det-${t.ticket_id}" class="hidden bg-indigo-50/30">
-        <td colspan="8" class="px-0 py-0">
+        <td colspan="9" class="px-0 py-0">
             <div class="ml-10 mr-5 my-3 rounded-xl border border-indigo-100 overflow-hidden shadow-sm">
                 <table class="w-full text-xs">
                     <thead>
@@ -495,6 +438,8 @@
                             <th class="px-4 py-2 text-right">Alloc MD</th>
                             <th class="px-4 py-2 text-right">Add. MD</th>
                             <th class="px-4 py-2 text-right">Remain</th>
+                            <th class="px-4 py-2 text-right">Progress</th>
+                            <th class="px-4 py-2 text-left">Catatan</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -504,13 +449,29 @@
                                 <p class="font-semibold text-gray-800">${d.emp_name}</p>
                                 <p class="text-gray-400 font-mono text-[11px]">${d.eci}</p>
                             </td>
-                            <td class="px-4 py-2 text-gray-500">${d.module}</td>
+                            <td class="px-4 py-2 text-gray-500">${d.module !== '—' ? d.module : '<span class="text-gray-300">—</span>'}</td>
                             <td class="px-4 py-2 text-right font-semibold text-gray-700">${d.mandays} md</td>
                             <td class="px-4 py-2 text-right font-semibold ${d.approved_additional > 0 ? 'text-indigo-600' : 'text-gray-300'}">${d.approved_additional > 0 ? d.approved_additional + ' md' : '—'}</td>
                             <td class="px-4 py-2 text-right">
                                 ${d.remain_md !== null && d.remain_md !== undefined
                                     ? `<span class="font-bold ${d.remain_md > 0 ? 'text-orange-600' : 'text-emerald-600'}">${d.remain_md} d</span>`
                                     : '<span class="text-gray-300">—</span>'}
+                            </td>
+                            <td class="px-4 py-2 text-right">
+                                <div class="flex items-center justify-end gap-1.5">
+                                    <div class="bg-gray-200 rounded-full h-1.5" style="width:60px">
+                                        <div id="sub-bar-${d.detail_id}" class="${progressBarColor(parseFloat(d.progress_percentage)||0)} h-1.5 rounded-full" style="width:${parseFloat(d.progress_percentage)||0}%"></div>
+                                    </div>
+                                    <span id="sub-pct-${d.detail_id}" class="font-bold text-gray-700">${parseFloat(d.progress_percentage)||0}%</span>
+                                    <button onclick="event.stopPropagation(); openCpModal(${t.ticket_id}, '${(t.ticket_number ?? '').replace(/'/g, "\\'")}', ${d.detail_id})"
+                                        class="inline-flex items-center gap-1 text-xs font-semibold bg-indigo-500 hover:bg-indigo-600 text-white px-2.5 py-1 rounded-lg transition" title="Edit Progress">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                        Edit
+                                    </button>
+                                </div>
+                            </td>
+                            <td id="sub-note-${d.detail_id}" class="px-4 py-2 text-gray-500 text-xs max-w-[180px]">
+                                ${d.progress_note ? `<span class="italic">${d.progress_note}</span>` : '<span class="text-gray-300">—</span>'}
                             </td>
                         </tr>`).join('')}
                         <tr class="border-t-2 border-indigo-200 bg-indigo-50/80 font-bold">
@@ -519,6 +480,8 @@
                             <td class="px-4 py-2 text-right text-gray-700">${details.reduce((s,d)=>s+(parseFloat(d.mandays)||0),0).toFixed(2)} md</td>
                             <td class="px-4 py-2 text-right text-indigo-600">${details.reduce((s,d)=>s+(parseFloat(d.approved_additional)||0),0).toFixed(2)} md</td>
                             <td class="px-4 py-2 text-right text-orange-600">${details.reduce((s,d)=>s+(parseFloat(d.remain_md)||0),0).toFixed(2)} d</td>
+                            <td class="px-4 py-2"></td>
+                            <td class="px-4 py-2"></td>
                         </tr>
                     </tbody>
                 </table>
@@ -553,16 +516,19 @@
         <td class="px-4 py-3" onclick="event.stopPropagation()">
             <div class="flex items-center gap-2">
                 <div class="bg-gray-100 rounded-full h-2" style="width:110px">
-                    <div class="${progressBarColor(pct)} h-2 rounded-full transition-all" style="width:${pct}%"></div>
+                    <div id="progress-bar-${t.ticket_id}" class="${progressBarColor(pct)} h-2 rounded-full transition-all" style="width:${pct}%"></div>
                 </div>
-                <span class="text-xs font-bold text-gray-600 w-8 text-right shrink-0">${pct}%</span>
-                <button onclick="event.stopPropagation(); openCpModal(${t.ticket_id}, '${(t.ticket_number??'').replace(/'/g,"\\'")}', ${pct}, '${(t.progress_note??'').replace(/'/g,"\\'")}')"
-                    class="shrink-0 inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition">
-                    <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                    Edit
-                </button>
-                ${expandBtn}
+                <span id="progress-pct-${t.ticket_id}" class="text-xs font-bold text-gray-600 w-8 text-right shrink-0">${pct}%</span>
             </div>
+        </td>
+        <td class="pr-3 py-3" onclick="event.stopPropagation()">
+            ${hasDetails ? `
+            <button onclick="toggleDetail(${t.ticket_id})"
+                class="inline-flex items-center gap-1 text-xs font-semibold bg-indigo-500 hover:bg-indigo-600 text-white px-2.5 py-1 rounded-lg transition-all"
+                title="Lihat consultants">
+                <span id="det-icon-${t.ticket_id}" class="inline-block transition-transform duration-200 text-[10px]">▶</span>
+                <span>${details.length}</span>
+            </button>` : ''}
         </td>
     </tr>`;
 
@@ -575,48 +541,141 @@
         if (!row) return;
         const hidden = row.classList.contains('hidden');
         row.classList.toggle('hidden', !hidden);
-        if (icon) icon.textContent = hidden ? '▼' : '▶';
+        if (icon) icon.style.transform = hidden ? 'rotate(90deg)' : '';
     }
 
-    // ── Ticket Progress Modal ──────────────────────────────────────────
-    function openCpModal(ticketId, ticketNumber, pct, note) {
-        document.getElementById('cpModalTicketId').value = ticketId;
-        document.getElementById('cpModalSubject').textContent = ticketNumber;
-        document.getElementById('cpModalSlider').value = pct;
-        document.getElementById('cpModalValue').value = pct;
-        document.getElementById('cpModalNote').value = note ?? '';
-        document.getElementById('cpModal').classList.remove('hidden');
-        document.getElementById('cpModal').classList.add('flex');
+    // ── Progress Modal ─────────────────────────────────────────────────
+    let _cpModalTicketId = null;
+
+    async function openCpModal(ticketId, ticketNumber, detailId) {
+        _cpModalTicketId = ticketId;
+        document.getElementById('cp-modal-title').textContent = 'Progress: ' + (ticketNumber || '#' + ticketId);
+        document.getElementById('cp-modal-body').innerHTML = '<div class="text-center py-6 text-gray-400">Memuat data…</div>';
+        document.getElementById('cp-modal-overlay').classList.remove('hidden');
+        document.getElementById('cp-modal-save-btn').disabled = false;
+        document.getElementById('cp-modal-save-btn').textContent = 'Simpan';
+
+        try {
+            const res  = await fetch(`/api/consultant-workload/tickets/${ticketId}/consultant-progress`);
+            const json = await res.json();
+            if (!json.success) { document.getElementById('cp-modal-body').innerHTML = '<p class="text-red-500 text-sm py-4 text-center">Gagal memuat data.</p>'; return; }
+
+            const filtered = detailId ? json.data.filter(d => d.detail_id == detailId) : json.data;
+            if (filtered.length === 1) {
+                document.getElementById('cp-modal-title').textContent = 'Progress: ' + filtered[0].emp_name;
+            }
+            const rows = filtered.map(d => `
+                <tr class="border-t border-gray-100" data-detail-id="${d.detail_id}" data-mandays="${d.mandays}">
+                    <td class="py-3 pr-4">
+                        <p class="font-semibold text-gray-800 text-sm">${d.emp_name}</p>
+                        <p class="text-gray-400 text-xs font-mono">${d.mandays} md</p>
+                    </td>
+                    <td class="py-3 pr-2 w-52">
+                        <div class="flex items-center gap-2">
+                            <input type="range"
+                                class="cp-modal-range flex-1 accent-indigo-500 cursor-pointer"
+                                min="0" max="100" step="5"
+                                value="${d.progress_percentage || 0}"
+                                oninput="cpSyncPct(this)">
+                            <input type="number"
+                                class="cp-modal-pct w-12 text-xs font-bold text-indigo-600 border border-indigo-200 rounded px-1 py-0.5 text-right"
+                                min="0" max="100"
+                                value="${d.progress_percentage || 0}"
+                                oninput="cpSyncRange(this)">
+                            <span class="text-gray-400 text-xs shrink-0">%</span>
+                        </div>
+                    </td>
+                    <td class="py-3 pl-2">
+                        <input type="text"
+                            class="cp-modal-note w-full text-xs border border-gray-200 rounded px-2 py-1 text-gray-600 placeholder-gray-300"
+                            placeholder="Catatan…"
+                            value="${(d.progress_note ?? '').replace(/"/g, '&quot;')}">
+                    </td>
+                </tr>`).join('');
+
+            document.getElementById('cp-modal-body').innerHTML = `
+                <table class="w-full text-xs">
+                    <thead><tr class="text-gray-400 uppercase text-[11px] tracking-wider">
+                        <th class="pb-2 text-left font-semibold">Consultant</th>
+                        <th class="pb-2 text-left font-semibold pl-1">Progress</th>
+                        <th class="pb-2 text-left font-semibold pl-2">Catatan</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+
+            cpRecalcOverall();
+        } catch (e) {
+            document.getElementById('cp-modal-body').innerHTML = '<p class="text-red-500 text-sm py-4 text-center">Error: ' + e.message + '</p>';
+        }
     }
 
     function closeCpModal() {
-        document.getElementById('cpModal').classList.add('hidden');
-        document.getElementById('cpModal').classList.remove('flex');
+        document.getElementById('cp-modal-overlay').classList.add('hidden');
+        _cpModalTicketId = null;
     }
 
+    function cpSyncPct(rangeEl) {
+        const row = rangeEl.closest('tr');
+        row.querySelector('.cp-modal-pct').value = rangeEl.value;
+        cpRecalcOverall();
+    }
+
+    function cpSyncRange(numEl) {
+        const v = Math.min(100, Math.max(0, +numEl.value || 0));
+        numEl.value = v;
+        numEl.closest('tr').querySelector('.cp-modal-range').value = v;
+        cpRecalcOverall();
+    }
+
+    function cpRecalcOverall() {}
+
     async function submitCpModal() {
-        const ticketId = document.getElementById('cpModalTicketId').value;
-        const pct = document.getElementById('cpModalValue').value;
-        const note = document.getElementById('cpModalNote').value;
+        if (!_cpModalTicketId) return;
+        const rows = document.querySelectorAll('#cp-modal-body tr[data-detail-id]');
+        const progresses = [...rows].map(r => ({
+            detail_id:           parseInt(r.dataset.detailId),
+            progress_percentage: parseFloat(r.querySelector('.cp-modal-range')?.value) || 0,
+            progress_note:       (r.querySelector('.cp-modal-note')?.value ?? '').trim() || null,
+        }));
+
+        const btn = document.getElementById('cp-modal-save-btn');
+        btn.disabled = true;
+        btn.textContent = 'Menyimpan…';
+
         try {
-            const res = await fetch(`/api/consultant-workload/tickets/${ticketId}/progress`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify({
-                    progress_percentage: pct,
-                    progress_note: note
-                }),
+            const res  = await fetch(`/api/consultant-workload/tickets/${_cpModalTicketId}/consultant-progress`, {
+                method:  'PATCH',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                body:    JSON.stringify({ progresses }),
             });
             const json = await res.json();
             if (json.success) {
-                closeCpModal();
-                loadTasks();
-            } else alert('Failed: ' + (json.message ?? 'Error'));
+                const overall = json.ticket_progress ?? 0;
+                const bar   = document.getElementById(`progress-bar-${_cpModalTicketId}`);
+                const pctEl = document.getElementById(`progress-pct-${_cpModalTicketId}`);
+                if (bar)   { bar.style.width = overall + '%'; bar.className = `${progressBarColor(overall)} h-2 rounded-full transition-all`; }
+                if (pctEl) pctEl.textContent = overall + '%';
+
+                // Update sub-tabel per consultant
+                progresses.forEach(p => {
+                    const subBar  = document.getElementById(`sub-bar-${p.detail_id}`);
+                    const subPct  = document.getElementById(`sub-pct-${p.detail_id}`);
+                    const subNote = document.getElementById(`sub-note-${p.detail_id}`);
+                    if (subBar)  { subBar.style.width = p.progress_percentage + '%'; subBar.className = `${progressBarColor(p.progress_percentage)} h-1.5 rounded-full`; }
+                    if (subPct)  subPct.textContent = p.progress_percentage + '%';
+                    if (subNote) subNote.innerHTML  = p.progress_note ? `<span class="italic">${p.progress_note}</span>` : '<span class="text-gray-300">—</span>';
+                });
+
+                btn.textContent = 'Tersimpan!';
+                btn.className   = btn.className.replace(/bg-indigo-\d+\s+hover:bg-indigo-\d+/, 'bg-emerald-500');
+                setTimeout(closeCpModal, 900);
+            } else {
+                alert('Gagal: ' + (json.message ?? 'Error'));
+                btn.disabled = false; btn.textContent = 'Simpan';
+            }
         } catch (e) {
             alert('Error: ' + e.message);
+            btn.disabled = false; btn.textContent = 'Simpan';
         }
     }
 
@@ -657,4 +716,40 @@
 
     document.addEventListener('DOMContentLoaded', loadTasks);
 </script>
+
+{{-- ── Modal Edit Progress ── --}}
+<div id="cp-modal-overlay"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+    onclick="if(event.target===this) closeCpModal()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+        {{-- Header --}}
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div class="flex items-center gap-2.5">
+                <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                </span>
+                <h3 id="cp-modal-title" class="text-base font-bold text-gray-800">Edit Progress</h3>
+            </div>
+            <button onclick="closeCpModal()" class="text-gray-400 hover:text-gray-600 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        {{-- Body --}}
+        <div id="cp-modal-body" class="px-6 py-3 max-h-80 overflow-y-auto">
+            <div class="text-center py-6 text-gray-400">Memuat data…</div>
+        </div>
+        {{-- Footer --}}
+        <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
+            <button onclick="closeCpModal()"
+                class="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                Batal
+            </button>
+            <button id="cp-modal-save-btn"
+                onclick="submitCpModal()"
+                class="px-5 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition">
+                Simpan
+            </button>
+        </div>
+    </div>
+</div>
 @endsection

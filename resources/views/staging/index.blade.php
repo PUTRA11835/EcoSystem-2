@@ -611,6 +611,7 @@ function fillModal(s) {
         const iframe = document.getElementById('emailBodyIframe');
         if (iframe) {
             const setIframeContent = (html) => {
+                if (!html) return; // guard: jangan panggil startsWith pada null/undefined
                 // Wrap bare text/HTML in basic styling for consistent look
                 const wrapped = html.startsWith('<') ? html
                     : `<div style="font-family:system-ui,sans-serif;font-size:14px;color:#374151;padding:4px;white-space:pre-wrap">${html}</div>`;
@@ -634,7 +635,7 @@ function fillModal(s) {
                 /\[[^\]]+\.(png|jpe?g|gif|bmp|webp)\]/i.test(s.email_body_html || '')
             );
             if (needsEmailImageResolve && s.id) {
-                setIframeContent(s.email_body_html); // show immediately while loading
+                setIframeContent(bodySource); // show immediately while loading (pakai bodySource, bukan s.email_body_html yang bisa null)
                 fetch(`/api/staging-tickets/${s.id}/preview-body`, {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'same-origin',

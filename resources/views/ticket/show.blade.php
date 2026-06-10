@@ -2915,7 +2915,13 @@
         }
 
         // Untuk reply employee → tampilkan modal pilih status dulu
+        // Kecuali tiket sudah closed/cancelled — langsung kirim tanpa mengubah status
         if (messageType === 'reply') {
+            const currentStatus = document.getElementById('detailStatus')?.value;
+            if (currentStatus === 'closed' || currentStatus === 'cancelled') {
+                await _doSendReply(messageType, null);
+                return;
+            }
             openSendStatusModal(messageType);
             return;
         }

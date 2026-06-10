@@ -202,6 +202,24 @@ class SlaController extends Controller
             return response()->json(['success' => true, 'data' => null]);
         }
 
+        // Jika tiket sudah closed/cancelled tapi SLA belum di-finalize, auto-finalize sekarang
+        if (
+            $ticket->status &&
+            in_array($ticket->status, SlaService::END_STATUSES) &&
+            !$sla->isClosed()
+        ) {
+            try {
+                $isCancelled = $ticket->status === 'cancelled';
+                $this->sla->closeTicketSla($sla, $ticket, null, $ticket->updated_at ?? now(), null, $isCancelled);
+                $sla->refresh();
+            } catch (\Throwable $e) {
+                Log::warning('SlaController@getTicketSla: auto-finalize gagal', [
+                    'ticket_id' => $id,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
+        }
+
         $policy   = $sla->policy;
         $liveWait = $this->sla->liveWaitingHours($sla);
 
@@ -266,8 +284,10 @@ class SlaController extends Controller
     {
         $stopStatuses     = ['waiting_on_customer', 'waiting_to_confirmation', 'waiting_on_3rd_party', 'hold'];
         $runStatuses      = ['inprocess', 'open'];
+        $endStatuses      = SlaService::END_STATUSES;
         $messageOnlyTypes = ['agent_replied', 'customer_replied'];
         $is24h            = $sla->policy?->is_24_hours ?? true;
+        $ticketIsClosed   = $sla->isClosed() || in_array($currentTicketStatus, $endStatuses);
 
         // ── 1. Special events ─────────────────────────────────────────────────
         $specialEvents = $sla->events
@@ -313,6 +333,8 @@ class SlaController extends Controller
                 $q->whereNull('message_type')
                   ->orWhereNotIn('message_type', ['meeting_started', 'meeting_ended']);
             })
+            // Setelah tiket di-close, tidak ada pesan yang dihitung dalam SLA timeline
+            ->when($sla->resolved_at, fn ($q) => $q->where('created_at', '<=', $sla->resolved_at))
             ->orderBy('created_at')
             ->get();
 
@@ -330,7 +352,7 @@ class SlaController extends Controller
         $messageEvents = $messages->map(function ($msg) use (
             $storedByMsgId, $pauseStartedByMsg, $pauseEndedByMsg,
             $stopStatuses, $runStatuses, $is24h,
-            $lastAgentMsgId, $currentTicketStatus, $sla,
+            $lastAgentMsgId, $currentTicketStatus, $sla, $ticketIsClosed,
             &$ballHolder, &$sessionStart, &$pauseStart, &$lastAgentAt
         ) {
             $stored     = $storedByMsgId->get($msg->id);
@@ -377,19 +399,20 @@ class SlaController extends Controller
                 // jarvisStatus priority:
                 //   1. Stored event
                 //   2. Pause record yang di-trigger pesan ini
-                //   3. (khusus pesan terakhir) status ticket saat ini
+                //   3. (khusus pesan terakhir) status ticket saat ini — hanya jika tiket BELUM closed
                 $jarvisStatus = $stored?->jarvis_status
                     ?? $pauseStartedByThisMsg?->triggered_by_status;
 
                 if (!$jarvisStatus && $msg->id === $lastAgentMsgId && $currentTicketStatus
-                    && in_array($currentTicketStatus, $stopStatuses)) {
+                    && in_array($currentTicketStatus, $stopStatuses)
+                    && !$ticketIsClosed) {
                     $jarvisStatus = $currentTicketStatus;
                 }
 
                 // Pause anchor: gunakan pause record atau waktu pesan
-                // Untuk pesan terakhir, utamakan sla_paused_at karena lebih akurat
+                // Untuk pesan terakhir, utamakan sla_paused_at — tapi hanya jika tiket belum closed
                 $effectivePauseStart = $pauseStartedByThisMsg?->started_at ?? $msg->created_at;
-                if ($msg->id === $lastAgentMsgId && $sla->sla_paused_at !== null) {
+                if ($msg->id === $lastAgentMsgId && $sla->sla_paused_at !== null && !$ticketIsClosed) {
                     $effectivePauseStart = $sla->sla_paused_at;
                 }
 

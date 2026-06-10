@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ConsultantMandays;
+use App\Models\ConsultantMandaysDetail;
 use App\Models\Employee;
 use App\Models\Ticket;
 use Illuminate\Http\Request;
@@ -243,11 +245,6 @@ class ConsultantWorkloadController extends Controller
     {
         if (empty($ticketIds)) return [];
 
-        // Ambil ticket.progress_percentage untuk dipakai hitung remain per consultant
-        $ticketProgress = DB::table('ticket')
-            ->whereIn('ticket_id', $ticketIds)
-            ->pluck('progress_percentage', 'ticket_id');
-
         $rows = DB::table('consultant_mandays as cm')
             ->join('consultant_mandays_detail as cmd', 'cmd.consultant_mandays_id', '=', 'cm.id')
             ->leftJoin('employee as e', 'e.employee_id', '=', 'cmd.employee_id')
@@ -272,7 +269,10 @@ class ConsultantWorkloadController extends Controller
                 'e.eci',
                 'eq.qualification_modules',
                 'cmd.mandays',
-                'cmd.approved_additional'
+                'cmd.approved_additional',
+                'cmd.progress_percentage as consultant_progress',
+                'cmd.progress_note as consultant_progress_note',
+                'cmd.progress_updated_at as consultant_progress_updated_at'
             )
             ->get();
 
@@ -282,19 +282,22 @@ class ConsultantWorkloadController extends Controller
             $mandays     = (float) $row->mandays;
             $additional  = (float) $row->approved_additional;
             $effectiveMd = $mandays + $additional;
-            $progress    = (float) ($ticketProgress[$tid] ?? 0);
-            $remainShare = round($effectiveMd * (1 - $progress / 100), 2);
+            $consultantPct = (float) ($row->consultant_progress ?? 0);
+            $remainShare = round($effectiveMd * (1 - $consultantPct / 100), 2);
 
             $map[$tid][] = [
-                'detail_id'           => $row->detail_id,
-                'employee_id'         => $row->employee_id,
-                'emp_name'            => trim($row->emp_name) ?: ($row->eci ?? '—'),
-                'eci'                 => $row->eci ?? '—',
-                'module'              => $row->qualification_modules ?? '—',
-                'mandays'             => $mandays,
-                'approved_additional' => $additional,
-                'effective_md'        => $effectiveMd,
-                'remain_md'           => $remainShare,
+                'detail_id'                    => $row->detail_id,
+                'employee_id'                  => $row->employee_id,
+                'emp_name'                     => trim($row->emp_name) ?: ($row->eci ?? '—'),
+                'eci'                          => $row->eci ?? '—',
+                'module'                       => $row->qualification_modules ?? '—',
+                'mandays'                      => $mandays,
+                'approved_additional'          => $additional,
+                'effective_md'                 => $effectiveMd,
+                'remain_md'                    => $remainShare,
+                'progress_percentage'          => $consultantPct,
+                'progress_note'                => $row->consultant_progress_note,
+                'progress_updated_at'          => $row->consultant_progress_updated_at,
             ];
         }
 
@@ -302,29 +305,117 @@ class ConsultantWorkloadController extends Controller
     }
 
     /**
-     * API: Update progress tiket oleh PIC.
+     * API: Ambil progress per consultant untuk sebuah tiket.
      */
-    public function updateProgress(Request $request, int $ticketId)
+    public function getConsultantProgress(int $ticketId)
+    {
+        try {
+            $cm = ConsultantMandays::where('ticket_id', $ticketId)->latest()->first();
+
+            if (!$cm) {
+                return response()->json(['success' => true, 'data' => []]);
+            }
+
+            $details = DB::table('consultant_mandays_detail as cmd')
+                ->leftJoin('employee as e', 'e.employee_id', '=', 'cmd.employee_id')
+                ->leftJoin('employee_basic_data as ebd', 'ebd.employee_id', '=', 'e.employee_id')
+                ->where('cmd.consultant_mandays_id', $cm->id)
+                ->select(
+                    'cmd.id as detail_id',
+                    'cmd.employee_id',
+                    DB::raw("TRIM(CONCAT(COALESCE(ebd.first_name,''), ' ', COALESCE(ebd.last_name,''))) as emp_name"),
+                    'e.eci',
+                    'cmd.module',
+                    'cmd.mandays',
+                    'cmd.approved_additional',
+                    'cmd.progress_percentage',
+                    'cmd.progress_note',
+                    'cmd.progress_updated_at'
+                )
+                ->get()
+                ->map(fn($d) => [
+                    'detail_id'          => $d->detail_id,
+                    'employee_id'        => $d->employee_id,
+                    'emp_name'           => trim($d->emp_name) ?: ($d->eci ?? '—'),
+                    'eci'                => $d->eci ?? '—',
+                    'module'             => $d->module ?? '—',
+                    'mandays'            => (float) $d->mandays,
+                    'progress_percentage' => (float) ($d->progress_percentage ?? 0),
+                    'progress_note'      => $d->progress_note,
+                    'progress_updated_at' => $d->progress_updated_at,
+                ]);
+
+            return response()->json(['success' => true, 'data' => $details]);
+        } catch (\Exception $e) {
+            Log::error('ConsultantWorkload@getConsultantProgress error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * API: Update progress per consultant, lalu recalculate ticket.progress_percentage
+     * sebagai weighted average berdasarkan mandays.
+     */
+    public function updateConsultantProgress(Request $request, int $ticketId)
     {
         try {
             $validated = $request->validate([
-                'progress_percentage' => 'required|numeric|min:0|max:100',
-                'progress_note'       => 'nullable|string|max:500',
+                'progresses'                           => 'required|array|min:1',
+                'progresses.*.detail_id'               => 'required|integer|exists:consultant_mandays_detail,id',
+                'progresses.*.progress_percentage'     => 'required|numeric|min:0|max:100',
+                'progresses.*.progress_note'           => 'nullable|string|max:500',
             ]);
 
-            $user  = session('user');
-            $empId = $user['id'] ?? null;
+            $now   = now();
+            $empId = session('user.id');
+
+            foreach ($validated['progresses'] as $item) {
+                ConsultantMandaysDetail::where('id', $item['detail_id'])->update([
+                    'progress_percentage' => $item['progress_percentage'],
+                    'progress_note'       => $item['progress_note'] ?? null,
+                    'progress_updated_at' => $now,
+                ]);
+            }
+
+            // Recalculate ticket.progress_percentage sebagai weighted average mandays
+            $cm = ConsultantMandays::where('ticket_id', $ticketId)->latest()->first();
+            $ticketProgress = 0.0;
+            $latestNote     = null;
+
+            if ($cm) {
+                $allDetails = ConsultantMandaysDetail::where('consultant_mandays_id', $cm->id)->get();
+                $totalMd    = $allDetails->sum(fn($d) => (float) $d->mandays);
+
+                if ($totalMd > 0) {
+                    $weightedSum    = $allDetails->sum(fn($d) => (float) $d->mandays * (float) $d->progress_percentage);
+                    $ticketProgress = round($weightedSum / $totalMd, 2);
+                } elseif ($allDetails->count() > 0) {
+                    $ticketProgress = round($allDetails->avg('progress_percentage'), 2);
+                }
+
+                // Ambil catatan terbaru dari consultant yang baru diupdate
+                $updatedIds = collect($validated['progresses'])->pluck('detail_id');
+                $latestNote = $allDetails
+                    ->whereIn('id', $updatedIds->toArray())
+                    ->whereNotNull('progress_note')
+                    ->sortByDesc('progress_updated_at')
+                    ->first()?->progress_note;
+            }
 
             Ticket::where('ticket_id', $ticketId)->update([
-                'progress_percentage' => $validated['progress_percentage'],
-                'progress_note'       => $validated['progress_note'] ?? null,
-                'last_progress_at'    => now(),
+                'progress_percentage' => $ticketProgress,
+                'progress_note'       => $latestNote,
+                'last_progress_at'    => $now,
                 'progress_updated_by' => $empId,
             ]);
 
-            return response()->json(['success' => true, 'message' => 'Progress updated']);
+            return response()->json([
+                'success'          => true,
+                'message'          => 'Progress updated',
+                'ticket_progress'  => $ticketProgress,
+            ]);
         } catch (\Exception $e) {
-            Log::error('ConsultantWorkload@updateProgress error: ' . $e->getMessage());
+            Log::error('ConsultantWorkload@updateConsultantProgress error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
