@@ -28,6 +28,11 @@ return new class extends Migration
             $roleId = $helpdeskRole->id;
         }
 
+        // Clean-install: employee test "ECI_HELPDESK" sengaja TIDAK dibuat lagi.
+        // Pembuatan role 'Helpdesk' di atas tetap dipertahankan. Data employee riil
+        // dimasukkan via Import CSV, bukan migration/seeder.
+        return;
+
         // 2. Add Helpdesk employee if not exists
         $helpdeskEmployee = DB::table('employee')->where('eci', 'ECI_HELPDESK')->first();
 

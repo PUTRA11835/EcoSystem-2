@@ -213,17 +213,13 @@ class EmployeeController extends Controller
                 Log::info('Filter applied: status', ['status' => $request->status]);
             }
 
-            // Filter by employee (ECI or name)
-            if ($request->has('employee') && $request->employee !== '') {
-                $search = $request->employee;
-                $query->where(function($q) use ($search) {
-                    $q->where('e.eci', 'like', "%{$search}%")
-                      ->orWhere('eb.first_name', 'like', "%{$search}%")
-                      ->orWhere('eb.last_name', 'like', "%{$search}%")
-                      ->orWhere('eb.search_term_1', 'like', "%{$search}%")
-                      ->orWhere('eb.search_term_2', 'like', "%{$search}%");
-                });
-                Log::info('Filter applied: employee', ['search' => $search]);
+            // Filter by employee (ECI or name).
+            // Pisahkan jadi per-kata supaya pencarian "Dado Widagdo" cocok walau
+            // first_name & nick_name terpisah, dan setiap kata dicari di SEMUA
+            // kolom nama (termasuk nick_name + full name gabungan).
+            if ($request->has('employee') && trim($request->employee) !== '') {
+                $this->applyNameSearch($query, $request->employee);
+                Log::info('Filter applied: employee', ['search' => $request->employee]);
             }
 
             // Filter by department
@@ -233,21 +229,22 @@ class EmployeeController extends Controller
             }
 
             // Global search
-            if ($request->has('search') && $request->search !== '') {
-                $search = $request->search;
-                $query->where(function($q) use ($search) {
-                    $q->where('e.eci', 'like', "%{$search}%")
-                      ->orWhere('eb.first_name', 'like', "%{$search}%")
-                      ->orWhere('eb.last_name', 'like', "%{$search}%")
-                      ->orWhere('eb.position', 'like', "%{$search}%")
-                      ->orWhere('eb.division', 'like', "%{$search}%")
-                      ->orWhere('eb.department', 'like', "%{$search}%")
-                      ->orWhere('eb.employee_subgroup', 'like', "%{$search}%");
-                });
-                Log::info('Global search applied', ['search' => $search]);
+            if ($request->has('search') && trim($request->search) !== '') {
+                $this->applyNameSearch($query, $request->search, true);
+                Log::info('Global search applied', ['search' => $request->search]);
             }
 
-            $employees = $query->orderBy('e.employee_id', 'desc')->get();
+            // Server-side pagination (mengikuti pola Master Customer)
+            $perPage = max(1, min((int) $request->get('per_page', 15), 100));
+            // Urutkan berdasarkan nama (A-Z); pakai full name gabungan agar konsisten
+            // dengan kolom "Full Name" di tabel, fallback ke ECI bila nama kosong.
+            $page = max(1, (int) $request->get('page', 1));
+            $paginator = $query
+                ->orderByRaw("TRIM(CONCAT(COALESCE(eb.first_name,''), ' ', COALESCE(eb.last_name,''))) = '' asc")
+                ->orderByRaw("TRIM(CONCAT(COALESCE(eb.first_name,''), ' ', COALESCE(eb.last_name,''))) asc")
+                ->orderBy('e.eci', 'asc')
+                ->paginate($perPage, ['*'], 'page', $page);
+            $employees = collect($paginator->items());
 
             // Fetch roles for all employees via pivot table (isolated so missing table won't break employee list)
             $roleAssignments = collect();
@@ -286,13 +283,22 @@ class EmployeeController extends Controller
 
             Log::info('=== API: EMPLOYEES FETCHED SUCCESSFULLY ===', [
                 'count' => $employees->count(),
+                'total' => $paginator->total(),
                 'filters_applied' => $request->all()
             ]);
 
             return response()->json([
                 'success' => true,
                 'data' => $employees,
-                'count' => $employees->count()
+                'count' => $employees->count(),
+                'pagination' => [
+                    'total' => $paginator->total(),
+                    'per_page' => $paginator->perPage(),
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'from' => $paginator->firstItem(),
+                    'to' => $paginator->lastItem(),
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -307,6 +313,45 @@ class EmployeeController extends Controller
                 'message' => 'Failed to fetch employees'
             ], 500);
         }
+    }
+
+    /**
+     * Terapkan pencarian nama ke query employee.
+     *
+     * Setiap kata pada $search harus cocok (AND antar-kata) di salah satu kolom
+     * nama (OR antar-kolom). Mencakup nick_name + full name gabungan sehingga
+     * pencarian seperti "wida" cocok dengan "Widagdo" di kolom mana pun, dan
+     * "Dado Widagdo" cocok walau tersimpan di first_name & nick_name terpisah.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  string  $search
+     * @param  bool  $includeOrg  Sertakan kolom organisasi (position/division/dll) untuk global search
+     */
+    private function applyNameSearch($query, string $search, bool $includeOrg = false): void
+    {
+        $terms = preg_split('/\s+/', trim($search), -1, PREG_SPLIT_NO_EMPTY);
+
+        $query->where(function ($outer) use ($terms, $includeOrg) {
+            foreach ($terms as $term) {
+                $like = '%' . $term . '%';
+                $outer->where(function ($q) use ($like, $includeOrg) {
+                    $q->where('e.eci', 'like', $like)
+                      ->orWhere('eb.first_name', 'like', $like)
+                      ->orWhere('eb.last_name', 'like', $like)
+                      ->orWhere('eb.nick_name', 'like', $like)
+                      ->orWhere('eb.search_term_1', 'like', $like)
+                      ->orWhere('eb.search_term_2', 'like', $like)
+                      ->orWhereRaw("CONCAT(COALESCE(eb.first_name,''), ' ', COALESCE(eb.last_name,'')) LIKE ?", [$like]);
+
+                    if ($includeOrg) {
+                        $q->orWhere('eb.position', 'like', $like)
+                          ->orWhere('eb.division', 'like', $like)
+                          ->orWhere('eb.department', 'like', $like)
+                          ->orWhere('eb.employee_subgroup', 'like', $like);
+                    }
+                });
+            }
+        });
     }
 
     /**

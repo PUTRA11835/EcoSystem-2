@@ -300,7 +300,7 @@
                     <div class="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 space-y-1 mb-3">
                         <p class="flex items-center gap-2"><i class="fas fa-check text-emerald-500"></i> Employee ID, ECI, status, role</p>
                         <p class="flex items-center gap-2"><i class="fas fa-check text-emerald-500"></i> Full name, gender, birth, position</p>
-                        <p class="flex items-center gap-2"><i class="fas fa-check text-emerald-500"></i> Division, department, since date</p>
+                        <p class="flex items-center gap-2"><i class="fas fa-check text-emerald-500"></i> Division, department, home base, grade, since date</p>
                     </div>
                     <a href="{{ route('admin.export.employees') }}"
                         class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition">

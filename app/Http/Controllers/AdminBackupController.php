@@ -207,6 +207,7 @@ class AdminBackupController extends Controller
                 'b.personnel_area', 'b.personnel_subarea',
                 'b.employee_group', 'b.employee_subgroup',
                 'b.position', 'b.division', 'b.department',
+                'b.home_base', 'b.grade',
                 'b.since_date',
                 'ei.identification_number as nik'
             )
@@ -231,6 +232,7 @@ class AdminBackupController extends Controller
                 'personnel_area', 'personnel_subarea',
                 'employee_group', 'employee_subgroup',
                 'position', 'division', 'department',
+                'home_base', 'grade',
                 'since_date', 'nik',
             ]);
             foreach ($rows as $r) {
@@ -242,6 +244,7 @@ class AdminBackupController extends Controller
                     $r->personnel_area, $r->personnel_subarea,
                     $r->employee_group, $r->employee_subgroup,
                     $r->position, $r->division, $r->department,
+                    $r->home_base, $r->grade,
                     $r->since_date, $r->nik,
                 ]);
             }
@@ -412,6 +415,7 @@ class AdminBackupController extends Controller
                 'personnel_area', 'personnel_subarea',
                 'employee_group', 'employee_subgroup',
                 'position', 'division', 'department',
+                'home_base', 'grade',
                 'since_date', 'nik',
             ]);
             // Example row
@@ -423,6 +427,7 @@ class AdminBackupController extends Controller
                 'Area A', 'Sub Area A',
                 'Group 1', 'Subgroup 1',
                 'Consultant', 'IT', 'Support',
+                'Jakarta', 'Junior Consultant',
                 '2023-01-01', '3201010101900001',
             ]);
             fclose($handle);
@@ -507,6 +512,8 @@ class AdminBackupController extends Controller
             'position'          => ['position', 'Position'],
             'division'          => ['division', 'Division'],
             'department'        => ['department', 'Department'],
+            'home_base'         => ['home_base', 'Home Base', 'homebase'],
+            'grade'             => ['grade', 'Grade'],
             'since_date'        => ['since_date', 'Since Date'],
             'nik'               => ['nik', 'NIK', 'nik (identification_type)', 'NIK (identification_type)'],
             'email'             => ['email', 'Email', 'email_work', 'Email Work'],
@@ -539,6 +546,10 @@ class AdminBackupController extends Controller
         };
 
         $roles    = DB::table('employee_role')->pluck('id', 'name');
+        // "User System Registered" wajib ada di employee_role_assignment agar employee
+        // bisa login ke EcoSystem (AuthController cek $hasSystemAccess). Selalu di-assign
+        // ke setiap employee, di samping role fungsionalnya (role_id dari kolom CSV).
+        $systemRoleId = DB::table('employee_role')->where('name', 'User System Registered')->value('id');
         $imported = 0;
         $updated  = 0;
         $errors   = [];
@@ -569,7 +580,7 @@ class AdminBackupController extends Controller
                 'nick_name'          => $get('nick_name'),
                 'gender'             => $get('gender'),
                 'religion'           => $get('religion'),
-                'birth_date'         => $get('birth_date'),
+                'birth_date'         => $this->normalizeDate($get('birth_date')),
                 'birth_place'        => $get('birth_place'),
                 'marital_status'     => $get('marital_status'),
                 'personnel_area'     => $get('personnel_area'),
@@ -579,18 +590,35 @@ class AdminBackupController extends Controller
                 'position'           => $get('position'),
                 'division'           => $get('division'),
                 'department'         => $get('department'),
-                'since_date'         => $get('since_date'),
+                'home_base'          => $get('home_base'),
+                'grade'              => $get('grade'),
+                'since_date'         => $this->normalizeDate($get('since_date')),
             ], fn($v) => $v !== null);
 
             $nik = $get('nik');
 
             try {
+                DB::beginTransaction();
                 $existing = DB::table('employee')->where('eci', $eci)->first();
 
                 if ($existing) {
                     $empUpdate = ['is_active' => $isActive, 'updated_at' => now()];
                     if ($roleId) $empUpdate['role_id'] = $roleId;
                     DB::table('employee')->where('eci', $eci)->update($empUpdate);
+
+                    // Pastikan assignment role fungsional + "User System Registered"
+                    // tetap ada (agar login & hak akses konsisten saat re-import).
+                    $assignRoleIds = array_values(array_unique(array_filter([$roleId, $systemRoleId])));
+                    if ($assignRoleIds) {
+                        DB::table('employee_role_assignment')->insertOrIgnore(
+                            array_map(fn ($rid) => [
+                                'employee_id' => $existing->employee_id,
+                                'role_id'     => $rid,
+                                'created_at'  => now(),
+                                'updated_at'  => now(),
+                            ], $assignRoleIds)
+                        );
+                    }
 
                     // Update email di auth_users jika CSV mengisi email dan auth_users belum punya email
                     $email = $get('email');
@@ -616,15 +644,18 @@ class AdminBackupController extends Controller
                         $this->upsertNik($existing->employee_id, $nik);
                     }
 
+                    DB::commit();
                     $updated++;
                 } else {
                     if (!$roleId) {
+                        DB::rollBack();
                         $errors[] = "Baris {$rowNum}: ECI '{$eci}' baru tapi Role tidak valid — baris dilewati";
                         continue;
                     }
 
                     $email = $get('email');
                     if (!$email) {
+                        DB::rollBack();
                         $errors[] = "Baris {$rowNum} ({$eci}): Kolom 'email' wajib diisi untuk employee baru";
                         continue;
                     }
@@ -637,13 +668,18 @@ class AdminBackupController extends Controller
                         'updated_at' => now(),
                     ]);
 
-                    // Role assignment
-                    DB::table('employee_role_assignment')->insertOrIgnore([
-                        'employee_id' => $employeeId,
-                        'role_id'     => $roleId,
-                        'created_at'  => now(),
-                        'updated_at'  => now(),
-                    ]);
+                    // Role assignment — role fungsional dari CSV + "User System
+                    // Registered" (wajib untuk akses login). insertOrIgnore mencegah
+                    // duplikat bila roleId kebetulan sama dengan systemRoleId.
+                    $assignRoleIds = array_values(array_unique(array_filter([$roleId, $systemRoleId])));
+                    DB::table('employee_role_assignment')->insertOrIgnore(
+                        array_map(fn ($rid) => [
+                            'employee_id' => $employeeId,
+                            'role_id'     => $rid,
+                            'created_at'  => now(),
+                            'updated_at'  => now(),
+                        ], $assignRoleIds)
+                    );
 
                     // Auth account — password default = ECI, sistem kirim email setup password saat login pertama
                     if (!DB::table('auth_users')->where('employee_id', $employeeId)->exists()) {
@@ -672,9 +708,11 @@ class AdminBackupController extends Controller
                         $this->upsertNik($employeeId, $nik);
                     }
 
+                    DB::commit();
                     $imported++;
                 }
             } catch (\Exception $e) {
+                DB::rollBack();
                 $errors[] = "Baris {$rowNum} ({$eci}): " . $e->getMessage();
             }
         }
@@ -693,6 +731,48 @@ class AdminBackupController extends Controller
             'updated'  => $updated,
             'errors'   => $errors,
         ]);
+    }
+
+    /**
+     * Normalisasi berbagai format tanggal ke 'Y-m-d' (format yang diterima MySQL DATE).
+     * Menangani: YYYY-MM-DD, YYYY/MM/DD, M/D/YYYY, D/M/YYYY (Excel/US), dengan dash atau slash.
+     * Heuristik M/D vs D/M: jika salah satu bagian > 12 maka itu pasti hari; bila ambigu
+     * (keduanya <= 12) diasumsikan M/D/YYYY (format yang dipakai file sumber). Nilai yang
+     * tidak bisa diparse dikembalikan apa adanya agar tervalidasi/terlaporkan sebagai error.
+     */
+    private function normalizeDate(?string $val): ?string
+    {
+        if ($val === null) return null;
+        $val = trim($val);
+        if ($val === '') return null;
+
+        // Sudah ISO: YYYY-MM-DD atau YYYY/MM/DD
+        if (preg_match('/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/', $val, $m)) {
+            return sprintf('%04d-%02d-%02d', (int) $m[1], (int) $m[2], (int) $m[3]);
+        }
+
+        // Tahun di akhir: a/b/YYYY (slash atau dash)
+        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $val, $m)) {
+            $a = (int) $m[1];
+            $b = (int) $m[2];
+            $year = (int) $m[3];
+
+            if ($a > 12 && $b <= 12) {            // D/M/Y
+                $day = $a; $month = $b;
+            } elseif ($b > 12 && $a <= 12) {      // M/D/Y
+                $month = $a; $day = $b;
+            } else {                              // ambigu → asumsi M/D/Y
+                $month = $a; $day = $b;
+            }
+
+            if ($month >= 1 && $month <= 12 && $day >= 1 && $day <= 31) {
+                return sprintf('%04d-%02d-%02d', $year, $month, $day);
+            }
+        }
+
+        // Fallback terakhir: serahkan ke strtotime; kalau gagal kembalikan nilai asli.
+        $ts = strtotime($val);
+        return $ts !== false ? date('Y-m-d', $ts) : $val;
     }
 
     private function upsertNik(int $employeeId, string $nik): void

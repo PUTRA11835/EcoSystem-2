@@ -35,6 +35,11 @@ return new class extends Migration
             ]);
         }
 
+        // Clean-install: employee test "ECI058" (Fithriya Nur Hana) sengaja TIDAK
+        // dibuat lagi. Pembuatan role "Delivery Project Administrator" di atas tetap
+        // dipertahankan. Data employee riil dimasukkan via Import CSV.
+        return;
+
         // 2. Skip entirely if this employee already exists (idempotent).
         if (DB::table('employee')->where('eci', self::ECI)->exists()) {
             return;
