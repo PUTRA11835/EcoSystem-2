@@ -129,7 +129,7 @@
                             'closed'                  => 'Closed',
                         ];
                     @endphp
-                    <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
+                    <span id="ticketStatusBadge" class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
                         {{ $statusLabels[$ticket->status] ?? ucfirst($ticket->status) }}
                     </span>
                     @if($ticket->ticket_type)
@@ -2924,6 +2924,56 @@
         await _doSendReply(messageType, null);
     }
 
+    function updateStatusUI(newStatus) {
+        if (!newStatus) return;
+        const statusLabels = {
+            'open':                    'Open',
+            'inprocess':               'Inprocess',
+            'waiting_on_customer':     'Waiting on Customer',
+            'waiting_on_3rd_party':    'Waiting on 3rd Party',
+            'waiting_to_confirmation': 'Waiting to Confirmation',
+            'hold':                    'Hold',
+            'cancelled':               'Cancelled',
+            'closed':                  'Closed',
+        };
+        const statusColors = {
+            'open':                    ['bg-blue-100',  'text-blue-700'],
+            'inprocess':               ['bg-yellow-100','text-yellow-700'],
+            'waiting_on_customer':     ['bg-amber-100', 'text-amber-700'],
+            'waiting_on_3rd_party':    ['bg-indigo-100','text-indigo-700'],
+            'waiting_to_confirmation': ['bg-teal-100',  'text-teal-700'],
+            'hold':                    ['bg-orange-100','text-orange-700'],
+            'cancelled':               ['bg-gray-100',  'text-gray-500'],
+            'closed':                  ['bg-green-100', 'text-green-700'],
+        };
+        const allColorClasses = ['bg-blue-100','text-blue-700','bg-yellow-100','text-yellow-700','bg-amber-100','text-amber-700','bg-indigo-100','text-indigo-700','bg-teal-100','text-teal-700','bg-orange-100','text-orange-700','bg-gray-100','text-gray-500','bg-green-100','text-green-700','bg-gray-100','text-gray-600'];
+        const label = statusLabels[newStatus] || newStatus;
+
+        // Right panel: hidden input + dropdown label
+        const detailInput = document.getElementById('detailStatus');
+        if (detailInput) detailInput.value = newStatus;
+        const propertiesPanel = document.getElementById('propertiesPanel');
+        if (propertiesPanel) {
+            const ddLabel = propertiesPanel.querySelector('.custom-dd-label');
+            if (ddLabel) ddLabel.textContent = label;
+        }
+
+        // Top header badge
+        const topBadge = document.getElementById('ticketStatusBadge');
+        if (topBadge) {
+            topBadge.classList.remove(...allColorClasses);
+            topBadge.classList.add(...(statusColors[newStatus] || ['bg-gray-100','text-gray-600']));
+            topBadge.textContent = label;
+        }
+
+        // Sidebar: mutate in-memory array then re-render (no API call)
+        const sidebarTicket = allSidebarTickets.find(t => t.ticket_id === ticketId);
+        if (sidebarTicket) {
+            sidebarTicket.status = newStatus;
+            filterSidebarTickets();
+        }
+    }
+
     async function _doSendReply(messageType, chosenStatus) {
         // Disable tombol kirim selama proses agar tidak double-submit
         const sendBtn = document.querySelector('button[onclick="sendReply(\'reply\')"]');
@@ -2996,6 +3046,7 @@
                 resetAttachments();
                 pendingMentions = []; // reset mentions
                 cancelReply();        // clear reply context
+                if (chosenStatus) updateStatusUI(chosenStatus);
                 await loadMessages();
                 showNotification(messageType === 'internal_note' ? 'Internal note added' : 'Reply sent', 'success');
             } else {
