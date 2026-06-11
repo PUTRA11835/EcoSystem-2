@@ -377,8 +377,6 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload');
         Route::get('/task', [TaskController::class, 'index'])->name('task');
         Route::get('/latest-update', [TicketController::class, 'latestUpdate'])->name('latest-update');
-        Route::post('/{id}/generate-folder', [TicketController::class, 'generateFolder'])->name('generate-folder');
-        Route::delete('/{id}/folder', [TicketController::class, 'deleteFolder'])->name('delete-folder');
         Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
     });
 

@@ -8,7 +8,6 @@ use App\Models\Customer;
 use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
-use App\Services\OneDriveService;
 use App\Services\SlaService;
 use App\Services\StagingTicketService;
 use App\Services\TicketNumberService;
@@ -59,58 +58,6 @@ class TicketController extends Controller
      * Lightweight endpoint untuk polling — kembalikan timestamp update terakhir dari DB lokal.
      * Tidak menyentuh Graph API, aman dipanggil dari browser setiap 30 detik.
      */
-    public function generateFolder(Request $request, $id)
-    {
-        $ticket = Ticket::where('ticket_id', $id)->firstOrFail();
-
-        $request->validate([
-            'folder_name' => ['nullable', 'string', 'max:255', 'not_regex:~[\\\\/:*?"<>|]~'],
-        ]);
-
-        $folderName   = trim($request->input('folder_name') ?: ($ticket->ticket_number . ' - ' . $ticket->description));
-        $parentFolder = config('services.microsoft_graph.ticket_parent_folder', 'TICKETING');
-        $oneDrive     = new OneDriveService();
-
-        try {
-            if ($ticket->onedrive_folder_id) {
-                $shareUrl = $oneDrive->createAnonymousLink($ticket->onedrive_folder_id);
-                $ticket->update(['onedrive_folder_url' => $shareUrl]);
-            } else {
-                $folderId            = $oneDrive->createFolderInPath($folderName, $parentFolder);
-                $deliverableFolderId = $oneDrive->createSubFolder($folderId, 'Deliverable');
-                $shareUrl            = $oneDrive->createAnonymousLink($folderId);
-                $ticket->update([
-                    'onedrive_folder_id'              => $folderId,
-                    'onedrive_folder_url'             => $shareUrl,
-                    'onedrive_deliverable_folder_id'  => $deliverableFolderId,
-                ]);
-            }
-
-            return response()->json(['success' => true, 'folder_url' => $shareUrl]);
-        } catch (\Throwable $e) {
-            Log::error('Ticket generateFolder failed', ['ticket_id' => $id, 'error' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
-    }
-
-    public function deleteFolder(Request $request, $id)
-    {
-        $ticket = Ticket::where('ticket_id', $id)->firstOrFail();
-
-        if (!$ticket->onedrive_folder_id) {
-            return response()->json(['success' => false, 'message' => 'No folder to delete.'], 400);
-        }
-
-        try {
-            (new OneDriveService())->deleteFolder($ticket->onedrive_folder_id);
-            $ticket->update(['onedrive_folder_id' => null, 'onedrive_folder_url' => null]);
-            return response()->json(['success' => true]);
-        } catch (\Throwable $e) {
-            Log::error('Ticket deleteFolder failed', ['ticket_id' => $id, 'error' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
-    }
-
     public function latestUpdate()
     {
         $latest = DB::table('ticket')

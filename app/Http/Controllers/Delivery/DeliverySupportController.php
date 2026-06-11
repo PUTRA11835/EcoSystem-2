@@ -936,7 +936,7 @@ class DeliverySupportController extends Controller
         $customerFolderName = str_pad($support->client_id, 3, '0', STR_PAD_LEFT)
             . ' ' . strtoupper($client->basicData->name_1);
 
-        $rootPath    = config('services.microsoft_graph.customer_deliverable_path', 'Delivery Support/Customer Deliverable');
+        $rootPath    = config('services.microsoft_graph.customer_deliverable_path', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE');
         $subfolderName = trim($request->input('subfolder_name'));
 
         try {

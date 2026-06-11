@@ -108,7 +108,13 @@ class TicketViewController extends Controller
         $deliverySupport = DB::table('delivery_support_activities')
             ->join('delivery_support', 'delivery_support_activities.delivery_support_id', '=', 'delivery_support.id')
             ->where('delivery_support_activities.ticket_id', $ticket->ticket_id)
-            ->select('delivery_support.id', 'delivery_support.name', 'delivery_support.type')
+            ->orderByDesc('delivery_support.id')
+            ->select(
+                'delivery_support.id',
+                'delivery_support.name',
+                'delivery_support.type',
+                'delivery_support.onedrive_deliverable_folder_id'
+            )
             ->first();
 
 

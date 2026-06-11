@@ -20,6 +20,8 @@ class CustomerAddress extends Model
         'rural_urban_village',
         'street',
         'house_number',
+        'building_name',
+        'full_address',
         'postal_code',
         'language',
         'cell_phone_country',

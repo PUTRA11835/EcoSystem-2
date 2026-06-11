@@ -404,6 +404,8 @@ class CustomerController extends Controller
                     'district' => $request->district,
                     'rural_urban_village' => $request->rural_urban_village,
                     'street' => $request->street,
+                    'building_name' => $request->building_name,
+                    'full_address' => $request->full_address,
                     'postal_code' => $request->postal_code,
                     'language' => $request->language,
                 ]);
@@ -540,6 +542,8 @@ class CustomerController extends Controller
                         'district' => $request->district,
                         'rural_urban_village' => $request->rural_urban_village,
                         'street' => $request->street,
+                        'building_name' => $request->building_name,
+                        'full_address' => $request->full_address,
                         'postal_code' => $request->postal_code,
                         'language' => $request->language,
                     ]);
@@ -551,6 +555,8 @@ class CustomerController extends Controller
                         'district' => $request->district,
                         'rural_urban_village' => $request->rural_urban_village,
                         'street' => $request->street,
+                        'building_name' => $request->building_name,
+                        'full_address' => $request->full_address,
                         'postal_code' => $request->postal_code,
                         'language' => $request->language,
                     ]);

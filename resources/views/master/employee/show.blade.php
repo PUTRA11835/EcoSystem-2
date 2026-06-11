@@ -59,6 +59,10 @@
                     <span id="headerStatusBadge" class="inline-block px-4 py-2 text-sm font-semibold rounded-full {{ $statusClass }}">
                         {{ $statusLabel }}
                     </span>
+                    @php $empType = $employee->employee_type ?: 'Internal'; @endphp
+                    <span id="headerTypeBadge" class="inline-block mt-2 px-4 py-2 text-sm font-semibold rounded-full {{ $empType === 'External' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700' }}">
+                        {{ $empType }}
+                    </span>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -249,6 +253,13 @@
             const badge = document.getElementById('headerStatusBadge');
             badge.textContent = d.status_label;
             badge.className   = 'inline-block px-4 py-2 text-sm font-semibold rounded-full ' + d.status_class;
+            const typeBadge = document.getElementById('headerTypeBadge');
+            if (typeBadge) {
+                const t = d.employee_type || 'Internal';
+                typeBadge.textContent = t;
+                typeBadge.className = 'inline-block mt-2 px-4 py-2 text-sm font-semibold rounded-full ' +
+                    (t === 'External' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700');
+            }
             document.getElementById('headerEci').textContent         = d.eci          || 'N/A';
             document.getElementById('headerEmail').textContent       = d.email_personal || 'N/A';
             document.getElementById('headerPhone').textContent       = d.phone        || 'N/A';
