@@ -196,8 +196,11 @@ class EmployeeController extends Controller
                     'eb.deletion_flag'
                 );
 
-            // Apply filters berdasarkan status
-            if ($request->has('status') && $request->status !== '') {
+            // Apply filters berdasarkan status.
+            // Pakai filled() (bukan has() + !== ''): middleware ConvertEmptyStringsToNull
+            // mengubah input kosong jadi null, sehingga "null !== ''" lolos dan filter
+            // telanjur jalan dengan nilai kosong. filled() false untuk null & ''.
+            if ($request->filled('status')) {
                 switch ($request->status) {
                     case 'active':
                         $query->where('eb.block', false)
@@ -217,19 +220,22 @@ class EmployeeController extends Controller
             // Pisahkan jadi per-kata supaya pencarian "Dado Widagdo" cocok walau
             // first_name & nick_name terpisah, dan setiap kata dicari di SEMUA
             // kolom nama (termasuk nick_name + full name gabungan).
-            if ($request->has('employee') && trim($request->employee) !== '') {
+            if ($request->filled('employee')) {
                 $this->applyNameSearch($query, $request->employee);
                 Log::info('Filter applied: employee', ['search' => $request->employee]);
             }
 
-            // Filter by department
-            if ($request->has('department') && $request->department !== '') {
+            // Filter by department.
+            // filled() mencegah filter jalan saat nilai null/'' — kalau tidak,
+            // "LIKE '%%'" akan MEMBUANG semua baris dengan department NULL (mis.
+            // hasil import yang kolom department-nya kosong).
+            if ($request->filled('department')) {
                 $query->where('eb.department', 'like', "%{$request->department}%");
                 Log::info('Filter applied: department', ['department' => $request->department]);
             }
 
             // Global search
-            if ($request->has('search') && trim($request->search) !== '') {
+            if ($request->filled('search')) {
                 $this->applyNameSearch($query, $request->search, true);
                 Log::info('Global search applied', ['search' => $request->search]);
             }

@@ -36,9 +36,9 @@
         </div>
     </div>
 
-    <!-- Table - Responsive with Horizontal Scroll -->
-    <div class="overflow-x-auto touch-pan-x">
-        <div class="min-w-[800px] lg:min-w-0">
+    <!-- Table - Responsive with Horizontal + Vertical Scroll -->
+    <div class="overflow-auto touch-pan-x touch-pan-y max-h-[70vh]">
+        <div class="min-w-[1100px]">
             <table class="w-full divide-y divide-gray-200" id="activitiesTable">
                 <thead class="bg-gray-50 sticky top-0 z-10">
                     <tr>
@@ -50,8 +50,10 @@
                         </th>
                         <th class="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 sm:w-32">Description</th>
                         <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-20 sm:w-28">Object</th>
-                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50 w-24 sm:w-32">Start</th>
-                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50 w-24 sm:w-32">End</th>
+                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50 w-24 sm:w-32">Plan Start</th>
+                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50 w-24 sm:w-32">Plan End</th>
+                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-teal-50 w-24 sm:w-32">Actual Start</th>
+                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-teal-50 w-24 sm:w-32">Actual End</th>
                         <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50 w-16 sm:w-24">Days</th>
                         <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24 sm:w-32">Status</th>
                         <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-32 sm:w-40">Progress</th>
@@ -59,7 +61,7 @@
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200" id="activitiesTableBody">
                     <tr>
-                        <td colspan="9" class="text-center p-4 sm:p-8">
+                        <td colspan="11" class="text-center p-4 sm:p-8">
                             <div class="flex flex-col items-center justify-center">
                                 <svg class="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -118,7 +120,7 @@
         if (tbody) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="9" class="text-center p-4 sm:p-8">
+                    <td colspan="11" class="text-center p-4 sm:p-8">
                         <div class="flex flex-col items-center justify-center">
                             <svg class="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -140,7 +142,7 @@
                 if (tbody) {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="9" class="text-center py-8 sm:py-12 text-red-600">
+                            <td colspan="11" class="text-center py-8 sm:py-12 text-red-600">
                                 <div class="flex flex-col items-center">
                                     <svg class="w-8 h-8 sm:w-12 sm:h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -262,7 +264,7 @@
         if (phasesData.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="9" class="text-center py-8 sm:py-12">
+                    <td colspan="11" class="text-center py-8 sm:py-12">
                         <div class="text-gray-500">
                             <svg class="mx-auto h-8 w-8 sm:h-12 sm:w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
@@ -344,6 +346,8 @@
             <td colspan="2" class="px-2 sm:px-3 py-3 sm:py-4 text-xs text-gray-600 italic">Phase Level</td>
             <td class="px-2 sm:px-3 py-3 sm:py-4 text-xs text-center bg-blue-50 font-medium">${phase.start_date || '-'}</td>
             <td class="px-2 sm:px-3 py-3 sm:py-4 text-xs text-center bg-blue-50 font-medium">${phase.end_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-3 sm:py-4 text-xs text-center bg-teal-50 font-medium">${phase.actual_start_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-3 sm:py-4 text-xs text-center bg-teal-50 font-medium">${phase.actual_end_date || '-'}</td>
             <td class="px-2 sm:px-3 py-3 sm:py-4 text-xs text-center bg-blue-50 font-bold">${phase.duration_in_days || '-'}</td>
             <td class="px-2 sm:px-3 py-3 sm:py-4 text-center">
                 <span class="px-2 py-1 text-xs font-bold rounded-full ${phase.status_badge || 'bg-gray-100 text-gray-800'}">
@@ -369,7 +373,7 @@
         row.style.display = 'table-row';
         
         row.innerHTML = `
-            <td colspan="9" class="px-2 sm:px-3 py-2 sm:py-3 pl-8 sm:pl-16 text-xs sm:text-sm text-gray-400 italic">
+            <td colspan="11" class="px-2 sm:px-3 py-2 sm:py-3 pl-8 sm:pl-16 text-xs sm:text-sm text-gray-400 italic">
                 No groups in this phase yet.
             </td>
         `;
@@ -467,6 +471,8 @@
             <td colspan="2" class="px-2 sm:px-3 py-2 sm:py-3 text-xs text-gray-500 truncate">${group.notes || 'Group'}</td>
             <td class="px-2 sm:px-3 py-2 sm:py-3 text-xs text-center bg-blue-50 font-medium">${group.start_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 sm:py-3 text-xs text-center bg-blue-50 font-medium">${group.end_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 sm:py-3 text-xs text-center bg-teal-50 font-medium">${group.actual_start_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 sm:py-3 text-xs text-center bg-teal-50 font-medium">${group.actual_end_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 sm:py-3 text-xs text-center bg-blue-50 font-semibold">${group.duration_in_days || '-'}</td>
             <td class="px-2 sm:px-3 py-2 sm:py-3 text-center">
                 <span class="px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs font-semibold rounded-full ${group.status_badge || 'bg-gray-100 text-gray-800'}">
@@ -583,6 +589,8 @@
             <td class="px-2 sm:px-3 py-2 text-xs text-gray-500 truncate" colspan="2">${stage.description || 'Stage'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-yellow-50 font-medium">${stage.start_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-yellow-50 font-medium">${stage.end_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center bg-teal-50 font-medium">${stage.actual_start_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center bg-teal-50 font-medium">${stage.actual_end_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-yellow-50 font-semibold">${stage.duration_in_days || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-center">
                 <span class="px-1.5 sm:px-2 py-0.5 text-xs font-medium rounded-full ${stage.status_badge || 'bg-gray-100 text-gray-800'}">${stage.status_text || 'Not Started'}</span>
@@ -687,6 +695,8 @@
             <td class="px-2 sm:px-3 py-2 text-xs text-center">${activity.object || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50">${activity.start_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50">${activity.end_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center bg-teal-50 ${activity.actual_start_date ? 'text-teal-700 font-medium' : ''}">${activity.actual_start_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center bg-teal-50 ${activity.actual_end_date ? 'text-teal-700 font-medium' : ''}">${activity.actual_end_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50 font-medium">${activity.duration_in_days || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-center">
                 <span class="px-1.5 sm:px-2 py-0.5 text-xs font-semibold rounded-full ${activity.status_badge || 'bg-gray-100 text-gray-800'}">${activity.status_text || 'Not Started'}</span>
@@ -756,7 +766,6 @@
                                 title="View details">
                             ${escapedName}
                         </button>
-                        <span class="ml-1.5 text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded hidden sm:inline flex-shrink-0">Direct</span>
                         ${complexityBadge}${newReqBadge}${actualDot}
                     </div>
                     <div class="hidden group-hover:flex items-center space-x-1 ml-2 flex-shrink-0">
@@ -794,6 +803,8 @@
             <td class="px-2 sm:px-3 py-2 text-xs text-center">${activity.object || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50">${activity.start_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50">${activity.end_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center bg-teal-50 ${activity.actual_start_date ? 'text-teal-700 font-medium' : ''}">${activity.actual_start_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center bg-teal-50 ${activity.actual_end_date ? 'text-teal-700 font-medium' : ''}">${activity.actual_end_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50 font-medium">${activity.duration_in_days || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-center">
                 <span class="px-1.5 sm:px-2 py-0.5 text-xs font-semibold rounded-full ${activity.status_badge || 'bg-gray-100 text-gray-800'}">${activity.status_text || 'Not Started'}</span>
@@ -1035,7 +1046,8 @@
     }
     
     /* Smoother scrolling on mobile */
-    .overflow-x-auto {
+    .overflow-x-auto,
+    .overflow-auto {
         -webkit-overflow-scrolling: touch;
         scroll-behavior: smooth;
     }

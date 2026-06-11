@@ -64,6 +64,13 @@ class DeliveryProjectController extends Controller
             'delivery_method' => 'nullable|in:Onsite,Hybrid,WFH',
             'warranty_period' => 'nullable|integer|min:0',
             'total_mandays' => 'nullable|integer|min:0',
+            'location_name' => 'nullable|string|max:255',
+            'location_type' => 'nullable|in:Head Office,Plant',
+            'location_country' => 'nullable|string|max:255',
+            'location_geographical' => 'nullable|string',
+            'location_region' => 'nullable|string',
+            'location_city' => 'nullable|string',
+            'location_street' => 'nullable|string',
             'team_members'                    => 'nullable|array',
             'team_members.*.employee_id'      => 'required|exists:employee,employee_id',
             'team_members.*.module'           => 'nullable|string|max:255',
@@ -91,7 +98,8 @@ class DeliveryProjectController extends Controller
             'io_number' => $request->io_number,
             'category' => 'Open',
             'phase' => null,
-            'status' => 'Monitoring',
+            // No planning baseline yet → SPI is undefined → On Track (no variance).
+            'status' => 'On Track',
             'created_by_id' => null,
         ];
 
@@ -100,7 +108,9 @@ class DeliveryProjectController extends Controller
             'delivery_owner_id', 'delivery_manager_id',
             'project_manager_id', 'co_pm_id', 'project_admin_id',
             'revenue', 'plan_cost', 'gross_profit', 'gross_profit_percentage',
-            'delivery_method', 'warranty_period', 'total_mandays'
+            'delivery_method', 'warranty_period', 'total_mandays',
+            'location_name', 'location_type', 'location_country',
+            'location_geographical', 'location_region', 'location_city', 'location_street'
         ]));
 
         try {
@@ -276,7 +286,7 @@ class DeliveryProjectController extends Controller
         if ($field === 'category') {
             $rules['value'] = ['required', Rule::in(['Open', 'In Process', 'Closed'])];
         } elseif ($field === 'status') {
-            $rules['value'] = ['required', Rule::in(['On Track', 'Monitoring', 'At Risk'])];
+            $rules['value'] = ['required', Rule::in(['On Track', 'At Risk', 'At Critical'])];
         } elseif ($field === 'phase') {
             $rules['value'] = ['required', Rule::in(['Prepare', 'Explore', 'Realize', 'Deploy'])];
         } elseif ($field === 'project_owner') {

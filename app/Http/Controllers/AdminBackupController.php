@@ -10,6 +10,13 @@ use Illuminate\Support\Facades\Storage;
 
 class AdminBackupController extends Controller
 {
+    /**
+     * Password default untuk akun yang dibuat lewat import employee.
+     * Employee login dengan ECI/email + password ini, lalu (karena
+     * is_already_cp = false) sistem memaksa set-password via link email.
+     */
+    private const DEFAULT_IMPORT_PASSWORD = 'password123';
+
     private function assertAdmin(): bool
     {
         return (int) session('user.role.id') === RoleId::EC_ADMINISTRATOR->value;
@@ -560,7 +567,16 @@ class AdminBackupController extends Controller
             if (count($row) === 1 && trim($row[0]) === '') continue;
 
             $eci = $get('eci');
-            if (!$eci) { $errors[] = "Baris {$rowNum}: ECI wajib diisi"; continue; }
+
+            // Pencocokan employee memakai FULL NAME (first + last), bukan ECI.
+            // Minimal salah satu nama wajib ada agar bisa dicocokkan.
+            $firstName = $get('first_name');
+            $lastName  = $get('last_name');
+            $fullName  = trim(($firstName ?? '') . ' ' . ($lastName ?? ''));
+            if ($fullName === '') {
+                $errors[] = "Baris {$rowNum}: Nama (First/Last Name) wajib diisi — dipakai untuk mencocokkan employee";
+                continue;
+            }
 
             $roleName = $get('role');
             $roleId   = $roleName ? ($roles[$roleName] ?? null) : null;
@@ -575,8 +591,11 @@ class AdminBackupController extends Controller
 
             $basicData = array_filter([
                 'title'              => $get('title'),
-                'first_name'         => $get('first_name'),
-                'last_name'          => $get('last_name'),
+                'first_name'         => $firstName,
+                'last_name'          => $lastName,
+                // search_term: kolom pencarian, samakan dgn create-dari-website
+                'search_term_1'      => $firstName ? strtoupper($firstName) : null,
+                'search_term_2'      => $lastName ? strtoupper($lastName) : null,
                 'nick_name'          => $get('nick_name'),
                 'gender'             => $get('gender'),
                 'religion'           => $get('religion'),
@@ -599,15 +618,63 @@ class AdminBackupController extends Controller
 
             try {
                 DB::beginTransaction();
-                $existing = DB::table('employee')->where('eci', $eci)->first();
+
+                // Cocokkan berdasarkan FULL NAME (case-insensitive). Butuh basic_data,
+                // sehingga employee tanpa nama tidak akan ke-match (akan jadi baru).
+                $existing = DB::table('employee as e')
+                    ->join('employee_basic_data as b', 'e.employee_id', '=', 'b.employee_id')
+                    ->whereRaw("LOWER(TRIM(CONCAT(COALESCE(b.first_name,''), ' ', COALESCE(b.last_name,'')))) = ?", [mb_strtolower($fullName)])
+                    ->orderBy('e.employee_id') // deterministik bila ada nama kembar
+                    ->select('e.employee_id', 'e.eci')
+                    ->first();
+
+                // Fallback: kalau nama tak ketemu (mis. employee lama yang punya baris
+                // employee + ECI tapi belum punya basic_data), cocokkan via ECI agar
+                // tidak salah dianggap baru lalu kena guard "ECI sudah dipakai".
+                if (!$existing && $eci) {
+                    $existing = DB::table('employee')->where('eci', $eci)
+                        ->select('employee_id', 'eci')->first();
+                }
+
+                $email = $get('email');
+
+                // Email auth WAJIB unik. Bila email CSV sudah dipakai akun lain
+                // (mis. email berpola nama-depan yang kebetulan sama), jangan pakai
+                // untuk baris ini — buat employee tanpa email + beri peringatan,
+                // agar import tetap jalan (admin isi/perbaiki email manual nanti).
+                $emailForAuth  = $email;
+                $emailConflict = false;
+                if ($email) {
+                    $taken = DB::table('auth_users')->where('email', $email)
+                        ->when($existing, fn ($q) => $q->where('employee_id', '!=', $existing->employee_id))
+                        ->exists();
+                    if ($taken) { $emailForAuth = null; $emailConflict = true; }
+                }
 
                 if ($existing) {
+                    // ── UPDATE: full name sama → update field-fieldnya ──
                     $empUpdate = ['is_active' => $isActive, 'updated_at' => now()];
                     if ($roleId) $empUpdate['role_id'] = $roleId;
-                    DB::table('employee')->where('eci', $eci)->update($empUpdate);
 
-                    // Pastikan assignment role fungsional + "User System Registered"
-                    // tetap ada (agar login & hak akses konsisten saat re-import).
+                    // ECI dari CSV adalah format terbaru & menjadi acuan ke depan →
+                    // timpa ECI lama bila berbeda. Username login (auth_users) ikut
+                    // disinkronkan di bawah. Skip + warn bila ECI sudah dipakai
+                    // employee LAIN (cegah pelanggaran unique).
+                    $syncEci = null;
+                    if ($eci && $eci !== $existing->eci) {
+                        $eciTaken = DB::table('employee')->where('eci', $eci)
+                            ->where('employee_id', '!=', $existing->employee_id)->exists();
+                        if ($eciTaken) {
+                            $errors[] = "[Peringatan] Baris {$rowNum} ({$fullName}): ECI '{$eci}' sudah dipakai employee lain — ECI lama '{$existing->eci}' dipertahankan";
+                        } else {
+                            $empUpdate['eci'] = $eci;
+                            $syncEci = $eci;
+                        }
+                    }
+
+                    DB::table('employee')->where('employee_id', $existing->employee_id)->update($empUpdate);
+
+                    // Pastikan assignment role fungsional + "User System Registered" ada
                     $assignRoleIds = array_values(array_unique(array_filter([$roleId, $systemRoleId])));
                     if ($assignRoleIds) {
                         DB::table('employee_role_assignment')->insertOrIgnore(
@@ -620,20 +687,14 @@ class AdminBackupController extends Controller
                         );
                     }
 
-                    // Update email di auth_users jika CSV mengisi email dan auth_users belum punya email
-                    $email = $get('email');
-                    if ($email) {
-                        DB::table('auth_users')
-                            ->where('employee_id', $existing->employee_id)
-                            ->whereNull('email')
-                            ->update(['email' => $email, 'updated_at' => now()]);
-                    }
-
                     if ($basicData) {
                         $basicData['updated_at'] = now();
                         if (DB::table('employee_basic_data')->where('employee_id', $existing->employee_id)->exists()) {
-                            DB::table('employee_basic_data')->where('employee_id', $existing->employee_id)->update($basicData);
+                            DB::table('employee_basic_data')
+                                ->where('employee_id', $existing->employee_id)
+                                ->update($basicData);
                         } else {
+                            // employee lama tanpa basic_data (mis. ke-match via ECI) → buat
                             $basicData['employee_id'] = $existing->employee_id;
                             $basicData['created_at']  = now();
                             DB::table('employee_basic_data')->insert($basicData);
@@ -644,19 +705,72 @@ class AdminBackupController extends Controller
                         $this->upsertNik($existing->employee_id, $nik);
                     }
 
+                    // Pastikan akun login ada & konsisten dgn default import.
+                    $authUser = DB::table('auth_users')->where('employee_id', $existing->employee_id)->first();
+                    if (!$authUser) {
+                        // Belum ada akun → buat dgn password default (is_already_cp=false)
+                        DB::table('auth_users')->insert([
+                            'employee_id'   => $existing->employee_id,
+                            'customer_id'   => null,
+                            'username'      => $syncEci ?? $existing->eci,
+                            'email'         => $emailForAuth,
+                            'phone'         => null,
+                            'password'      => \Illuminate\Support\Facades\Hash::make(self::DEFAULT_IMPORT_PASSWORD, ['rounds' => 8]),
+                            'is_active'     => $isActive,
+                            'is_already_cp' => false,
+                            'created_at'    => now(),
+                            'updated_at'    => now(),
+                        ]);
+                        if ($emailConflict) {
+                            $errors[] = "[Peringatan] Baris {$rowNum} ({$fullName}): email '{$email}' sudah dipakai akun lain — employee tetap dibuat tapi TANPA email, isi manual nanti";
+                        }
+                    } else {
+                        $authUpdate = ['updated_at' => now()];
+                        if ($emailForAuth && empty($authUser->email)) {
+                            $authUpdate['email'] = $emailForAuth;
+                        }
+                        // Sinkronkan username login dgn ECI baru. Skip + warn bila
+                        // username sudah dipakai akun lain (cegah pelanggaran unique).
+                        if ($syncEci && $syncEci !== $authUser->username) {
+                            $usernameTaken = DB::table('auth_users')->where('username', $syncEci)
+                                ->where('id', '!=', $authUser->id)->exists();
+                            if ($usernameTaken) {
+                                $errors[] = "[Peringatan] Baris {$rowNum} ({$fullName}): username login '{$syncEci}' sudah dipakai akun lain — username lama '{$authUser->username}' dipertahankan";
+                            } else {
+                                $authUpdate['username'] = $syncEci;
+                            }
+                        }
+                        // Reset ke password default HANYA bila employee belum pernah
+                        // set-password sendiri (is_already_cp=false). Jika sudah pernah,
+                        // password pribadinya tidak boleh ditimpa.
+                        if (!$authUser->is_already_cp) {
+                            $authUpdate['password'] = \Illuminate\Support\Facades\Hash::make(self::DEFAULT_IMPORT_PASSWORD, ['rounds' => 8]);
+                        }
+                        DB::table('auth_users')->where('employee_id', $existing->employee_id)->update($authUpdate);
+                    }
+
                     DB::commit();
                     $updated++;
                 } else {
+                    // ── CREATE: employee baru ──
                     if (!$roleId) {
                         DB::rollBack();
-                        $errors[] = "Baris {$rowNum}: ECI '{$eci}' baru tapi Role tidak valid — baris dilewati";
+                        $errors[] = "Baris {$rowNum} ({$fullName}): employee baru tapi Role tidak valid — baris dilewati";
                         continue;
                     }
-
-                    $email = $get('email');
+                    if (!$eci) {
+                        DB::rollBack();
+                        $errors[] = "Baris {$rowNum} ({$fullName}): Kolom 'ECI' wajib diisi untuk employee baru";
+                        continue;
+                    }
+                    if (DB::table('employee')->where('eci', $eci)->exists()) {
+                        DB::rollBack();
+                        $errors[] = "Baris {$rowNum} ({$fullName}): ECI '{$eci}' sudah dipakai employee lain — baris dilewati";
+                        continue;
+                    }
                     if (!$email) {
                         DB::rollBack();
-                        $errors[] = "Baris {$rowNum} ({$eci}): Kolom 'email' wajib diisi untuk employee baru";
+                        $errors[] = "Baris {$rowNum} ({$fullName}): Kolom 'email' wajib diisi untuk employee baru";
                         continue;
                     }
 
@@ -669,8 +783,7 @@ class AdminBackupController extends Controller
                     ]);
 
                     // Role assignment — role fungsional dari CSV + "User System
-                    // Registered" (wajib untuk akses login). insertOrIgnore mencegah
-                    // duplikat bila roleId kebetulan sama dengan systemRoleId.
+                    // Registered" (wajib untuk akses login).
                     $assignRoleIds = array_values(array_unique(array_filter([$roleId, $systemRoleId])));
                     DB::table('employee_role_assignment')->insertOrIgnore(
                         array_map(fn ($rid) => [
@@ -681,20 +794,22 @@ class AdminBackupController extends Controller
                         ], $assignRoleIds)
                     );
 
-                    // Auth account — password default = ECI, sistem kirim email setup password saat login pertama
-                    if (!DB::table('auth_users')->where('employee_id', $employeeId)->exists()) {
-                        DB::table('auth_users')->insert([
-                            'employee_id'   => $employeeId,
-                            'customer_id'   => null,
-                            'username'      => $eci,
-                            'email'         => $email,
-                            'phone'         => null,
-                            'password'      => \Illuminate\Support\Facades\Hash::make($eci, ['rounds' => 8]),
-                            'is_active'     => $isActive,
-                            'is_already_cp' => false,
-                            'created_at'    => now(),
-                            'updated_at'    => now(),
-                        ]);
+                    // Auth account — password default = password123. is_already_cp=false:
+                    // saat login pertama sistem kirim email link set-password.
+                    DB::table('auth_users')->insert([
+                        'employee_id'   => $employeeId,
+                        'customer_id'   => null,
+                        'username'      => $eci,
+                        'email'         => $emailForAuth,
+                        'phone'         => null,
+                        'password'      => \Illuminate\Support\Facades\Hash::make(self::DEFAULT_IMPORT_PASSWORD, ['rounds' => 8]),
+                        'is_active'     => $isActive,
+                        'is_already_cp' => false,
+                        'created_at'    => now(),
+                        'updated_at'    => now(),
+                    ]);
+                    if ($emailConflict) {
+                        $errors[] = "Baris {$rowNum} ({$fullName}): email '{$email}' sudah dipakai akun lain — akun dibuat TANPA email, isi manual nanti";
                     }
 
                     if ($basicData) {
@@ -713,7 +828,7 @@ class AdminBackupController extends Controller
                 }
             } catch (\Exception $e) {
                 DB::rollBack();
-                $errors[] = "Baris {$rowNum} ({$eci}): " . $e->getMessage();
+                $errors[] = "Baris {$rowNum} ({$fullName}): " . $e->getMessage();
             }
         }
 

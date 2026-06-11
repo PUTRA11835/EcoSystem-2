@@ -314,6 +314,134 @@ class DeliveryProjectPlanning extends Model
     }
 
     // =========================================================================
+    // PLANNED PROGRESS (schedule-based — what progress SHOULD be by today)
+    //
+    // Mirrors getCalculatedProgressAttribute() exactly, but at every leaf the
+    // ACTUAL progress is replaced by a date-driven planned completion fraction
+    // (see plannedFraction()). This keeps planned vs actual progress directly
+    // comparable: identical hierarchy & weights, only the leaf value differs.
+    // =========================================================================
+
+    /**
+     * Planned completion fraction (0-100) for a single leaf, based on TODAY's
+     * date relative to its planned start/end window (both inclusive):
+     *   - today before start          → 0
+     *   - today on/after end          → 100
+     *   - today within the window     → (elapsed days / total days) × 100
+     *
+     * Example: window 10–11 Jun (2 days), today 10 Jun → elapsed 1 / total 2 = 50%.
+     */
+    public static function plannedFraction($start, $end, ?Carbon $today = null): float
+    {
+        if (!$start || !$end) {
+            return 0.0;
+        }
+
+        $today = $today ? $today->copy()->startOfDay() : Carbon::today();
+        $start = Carbon::parse($start)->startOfDay();
+        $end   = Carbon::parse($end)->startOfDay();
+
+        if ($end->lt($start)) {
+            return 0.0; // malformed window
+        }
+        if ($today->gte($end)) {
+            return 100.0; // window already finished by today
+        }
+        if ($today->lt($start)) {
+            return 0.0; // window not started yet
+        }
+
+        $totalDays = $start->diffInDays($end) + 1;   // inclusive
+        $elapsed   = $start->diffInDays($today) + 1;  // inclusive (today counts)
+
+        if ($totalDays <= 0) {
+            return 100.0;
+        }
+
+        return min(100.0, max(0.0, round($elapsed / $totalDays * 100, 2)));
+    }
+
+    /**
+     * Schedule-based planned progress (0-100) for this node, mirroring
+     * getCalculatedProgressAttribute() but using plannedFraction() at leaves.
+     * Accessed as $planning->planned_progress (intentionally NOT in $appends so
+     * it never bloats JSON serialization of the table endpoint).
+     */
+    public function getPlannedProgressAttribute(): float
+    {
+        if ($this->is_group) {
+            $stages = $this->stages;
+
+            // ── Group with no stages → direct activities (Phase → Group → Activity)
+            if ($stages->isEmpty()) {
+                $directActivities = self::where('parent_id', $this->id)
+                    ->where('is_group', false)
+                    ->whereNull('stage_id')
+                    ->with('activity')
+                    ->get();
+
+                if ($directActivities->isNotEmpty()) {
+                    $totalWeight = 0;
+                    $weighted    = 0;
+
+                    foreach ($directActivities as $pa) {
+                        $weight = (float) ($pa->weight ?? 0);
+                        $totalWeight += $weight;
+                        $weighted    += $pa->planned_progress * $weight;
+                    }
+
+                    if ($totalWeight > 0) {
+                        return round($weighted / $totalWeight, 2);
+                    }
+
+                    // No weights set — simple average
+                    $avg = $directActivities->avg(fn ($pa) => $pa->planned_progress);
+                    return round($avg ?? 0, 2);
+                }
+
+                return 0.0;
+            }
+
+            // ── Group with stages → weighted by stage weight
+            $totalWeight = $stages->sum('weight');
+
+            if ($totalWeight == 0) {
+                return round($stages->avg(fn ($stage) => $stage->planned_progress) ?? 0, 2);
+            }
+
+            $weighted = 0;
+            foreach ($stages as $stage) {
+                $weighted += $stage->planned_progress * ($stage->weight ?? 0);
+            }
+
+            return round($weighted / $totalWeight, 2);
+        }
+
+        // ── Parent activity with sub-activities (children)
+        if (!$this->is_group && $this->children->isNotEmpty()) {
+            $children    = $this->children;
+            $totalWeight = $children->sum('weight');
+
+            if ($totalWeight == 0) {
+                return round($children->avg(fn ($child) => $child->planned_progress) ?? 0, 2);
+            }
+
+            $weighted = 0;
+            foreach ($children as $child) {
+                $weighted += $child->planned_progress * ($child->weight ?? 0);
+            }
+
+            return round($weighted / $totalWeight, 2);
+        }
+
+        // ── True leaf → planned dates (prefer planning record, fall back to activity)
+        $start = $this->start_date ?: ($this->activity?->start_date);
+        $end   = $this->end_date ?: ($this->activity?->end_date);
+
+        return self::plannedFraction($start, $end);
+    }
+
+    // =========================================================================
     // ACCESSORS (ALL ORIGINAL + UPDATED name/description for new structure)
     // =========================================================================
 
