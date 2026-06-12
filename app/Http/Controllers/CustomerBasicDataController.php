@@ -94,7 +94,7 @@ class CustomerBasicDataController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
-            'customer_code'        => ['sometimes', 'required', 'string', 'max:4', 'regex:/^[A-Za-z0-9]{1,4}$/', 'unique:customer,customer_code,' . $customerId . ',customer_id'],
+            'customer_code'        => ['sometimes', 'required', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/', 'unique:customer,customer_code,' . $customerId . ',customer_id'],
             'domain'               => 'nullable|string|max:255',
             'name_1'               => 'required|string|max:255',
             'name_2'               => 'nullable|string|max:255',
@@ -112,7 +112,6 @@ class CustomerBasicDataController extends Controller
             'block'                => 'nullable|boolean',
             'deletion_flag'        => 'nullable|boolean',
         ], [
-            'customer_code.max'   => 'Customer code must be at most 4 characters.',
             'customer_code.regex' => 'Customer code may only contain letters and numbers.',
             'customer_code.unique'=> 'This customer code is already in use.',
         ]);

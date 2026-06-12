@@ -339,14 +339,13 @@ class CustomerController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
-            'customer_code' => ['required', 'string', 'max:4', 'regex:/^[A-Za-z0-9]{1,4}$/', 'unique:customer,customer_code'],
+            'customer_code' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/', 'unique:customer,customer_code'],
             'email'         => 'nullable|email|unique:customer,email|max:255',
             'domain'        => 'nullable|string|max:255',
             'name_1'        => 'required|string|max:255',
             'contact_phone' => 'nullable|string|max:50',
         ], [
             'customer_code.required' => 'Customer code is required.',
-            'customer_code.max'      => 'Customer code must be at most 4 characters.',
             'customer_code.regex'    => 'Customer code may only contain letters and numbers.',
             'customer_code.unique'   => 'This customer code is already in use.',
         ]);
@@ -468,12 +467,11 @@ class CustomerController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
-            'customer_code' => ['sometimes', 'required', 'string', 'max:4', 'regex:/^[A-Za-z0-9]{1,4}$/', 'unique:customer,customer_code,' . $id . ',customer_id'],
+            'customer_code' => ['sometimes', 'required', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/', 'unique:customer,customer_code,' . $id . ',customer_id'],
             'email'         => 'nullable|email|max:255|unique:customer,email,' . $id . ',customer_id',
             'domain'        => 'nullable|string|max:255',
             'name_1'        => 'required|string|max:255',
         ], [
-            'customer_code.max'   => 'Customer code must be at most 4 characters.',
             'customer_code.regex' => 'Customer code may only contain letters and numbers.',
             'customer_code.unique'=> 'This customer code is already in use.',
         ]);

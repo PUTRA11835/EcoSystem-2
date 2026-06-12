@@ -751,7 +751,7 @@ class AdminBackupController extends Controller
             ], fn($v) => $v !== null);
 
             $nik       = $get('nik');
-            $cellPhone = $get('cell_phone');
+            $cellPhone = $this->normalizePhone($get('cell_phone'));
 
             try {
                 DB::beginTransaction();
@@ -1030,6 +1030,30 @@ class AdminBackupController extends Controller
         // Fallback terakhir: serahkan ke strtotime; kalau gagal kembalikan nilai asli.
         $ts = strtotime($val);
         return $ts !== false ? date('Y-m-d', $ts) : $val;
+    }
+
+    /**
+     * Normalisasi nomor telepon dari CSV/Excel.
+     * Excel sering merusak nomor panjang (HP Indonesia 11-15 digit):
+     *  - Kolom berformat Number → angka panjang di-export sebagai notasi ilmiah
+     *    ("6.28123E+12") → di sini dikembalikan ke string integer penuh.
+     *  - Excel menambah apostrof di depan ('6281...) → di-strip.
+     * Catatan: bila presisi SUDAH hilang di Excel (mis. "6281230000000"),
+     * server tidak bisa memulihkannya — kolom Phone WAJIB diformat Text di Excel
+     * sebelum diisi/di-export ke CSV.
+     */
+    private function normalizePhone(?string $v): ?string
+    {
+        if ($v === null) return null;
+        $v = trim($v, " \t\n\r\0\x0B'\"");
+        if ($v === '') return null;
+
+        // Notasi ilmiah (6.28123E+12) → integer penuh tanpa desimal.
+        if (preg_match('/^\d(?:\.\d+)?[eE]\+?\d+$/', $v)) {
+            $v = sprintf('%.0f', (float) $v);
+        }
+
+        return $v;
     }
 
     private function upsertNik(int $employeeId, string $nik): void
