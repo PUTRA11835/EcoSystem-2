@@ -73,6 +73,35 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                 </svg>
             </div>
+            <div class="dp-feature">
+                <div class="dp-icon">
+                    <svg style="width:1rem;height:1rem;" fill="none" stroke="#fff" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p style="font-size:.8125rem;color:#fff;font-weight:700;line-height:1.3;">Timesheet and Manday Tracking</p>
+                    <p style="font-size:.6875rem;color:rgba(255,255,255,.6);margin-top:.2rem;line-height:1.5;">
+                        Track time, monitor workloads, ship projects on schedule.
+                    </p>
+                </div>
+            </div>
+            <div class="dp-feature">
+                <div class="dp-icon">
+                    <svg style="width:1rem;height:1rem;" fill="none" stroke="#fff" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p style="font-size:.8125rem;color:#fff;font-weight:700;line-height:1.3;">Reporting and Analytics</p>
+                    <p style="font-size:.6875rem;color:rgba(255,255,255,.6);margin-top:.2rem;line-height:1.5;">
+                        Live dashboards. Instant decisions. Leadership always in the loop.
+                    </p>
+                </div>
+            </div>
+        </div>
 
             @if($type === 'reset')
                 <h2 style="font-size:1.625rem;font-weight:800;color:#0F172A;letter-spacing:-.035em;line-height:1.2;margin-bottom:.625rem;opacity:0;animation:fadeInUp .5s ease forwards;animation-delay:.43s;">
@@ -88,6 +117,30 @@
                 <p style="font-size:.875rem;color:#475569;line-height:1.7;margin-bottom:.375rem;opacity:0;animation:fadeInUp .5s ease forwards;animation-delay:.51s;">
                     We have sent an activation email to
                 </p>
+            </div>
+
+            {{-- ── Email pill ──────────────────────────────────────────── --}}
+            @if($email)
+            <div style="margin-bottom:1rem;
+                        opacity:0;animation:fadeInUp .5s ease forwards;animation-delay:.58s;">
+                <div style="display:inline-flex;align-items:center;gap:.625rem;
+                            background:#FEF2F2;
+                            border:1.5px solid rgba(160,0,0,.18);
+                            border-radius:12px;padding:.625rem 1.125rem;
+                            box-shadow:0 2px 8px rgba(160,0,0,.07);">
+                    <div style="width:28px;height:28px;border-radius:8px;
+                                background:rgba(160,0,0,.1);
+                                display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <svg style="width:.875rem;height:.875rem;color:#A00000;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <span style="font-size:.9375rem;font-weight:700;color:#A00000;letter-spacing:.01em;">
+                        {{ $email }}
+                    </span>
+                </div>
+            </div>
             @endif
 
             <div style="opacity:0;animation:fadeInUp .5s ease forwards;animation-delay:.55s;margin-bottom:1rem;">

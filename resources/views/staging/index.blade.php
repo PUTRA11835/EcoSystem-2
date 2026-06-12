@@ -4,95 +4,104 @@
 @section('page-subtitle', 'Tickets submitted by customers awaiting approval')
 
 @section('content')
-{{-- ===== STATS CARDS ===== --}}
-<div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-    <div class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md transition-all duration-200">
-        <p class="text-xs font-medium text-gray-500 mb-1">Pending Validation</p>
-        <p class="text-2xl font-bold text-gray-900" id="statUnvalidated">—</p>
-    </div>
-    <div class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md transition-all duration-200">
-        <p class="text-xs font-medium text-gray-500 mb-1">Approved</p>
-        <p class="text-2xl font-bold text-gray-900" id="statApproved">—</p>
-    </div>
-    <div class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md transition-all duration-200">
-        <p class="text-xs font-medium text-gray-500 mb-1">Rejected</p>
-        <p class="text-2xl font-bold text-gray-900" id="statRejected">—</p>
-    </div>
-</div>
 
-{{-- ===== TOOLBAR ===== --}}
-<div class="bg-white rounded-xl border border-gray-200 p-4 mb-6 shadow-sm">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div class="flex items-center gap-3">
-            <h3 class="text-sm font-semibold text-gray-700">Incoming Tickets</h3>
-            <span id="fetchEmailStatus" class="text-xs text-gray-400"></span>
+{{-- ── Header ────────────────────────────────────────────────────────────────── --}}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
+    <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl primary-gradient flex items-center justify-center shadow-sm">
+            <i class="fas fa-inbox text-white text-sm"></i>
         </div>
-        <div class="flex items-center gap-2 flex-wrap">
-            {{-- custom-dd manual (sama dengan Employee/Customer/Ticket filter).
-                 data-fixed="true" supaya panel tidak terpotong oleh container.
-                 Default selected = "Pending Validation" — di-set oleh init script. --}}
-            <div class="custom-dd relative" data-onchange="loadStagingTickets" data-fixed="true" style="min-width:170px">
-                <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                    <span class="custom-dd-label text-gray-700">Pending Validation</span>
-                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                </button>
-                <input type="hidden" id="filterStatus" value="unvalidated">
-                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
-                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
-                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-900 font-medium bg-gray-50 hover:bg-gray-50 transition-colors" data-value="unvalidated">Pending Validation</button>
-                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="approved">Approved</button>
-                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="rejected">Rejected</button>
-                </div>
-            </div>
-            <button onclick="handleRefresh()" id="btnRefresh"
-                class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Refresh
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 leading-tight">Incoming Ticket Validation</h1>
+            <p class="text-xs text-gray-400 mt-0.5">Tickets submitted by customers awaiting approval</p>
+        </div>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+        {{-- Status filter --}}
+        <div class="custom-dd relative" data-onchange="loadStagingTickets" data-fixed="true" style="min-width:170px">
+            <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-semibold hover:border-gray-300 transition-all text-left shadow-sm">
+                <span class="custom-dd-label text-gray-700">Pending Validation</span>
+                <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
             </button>
-            <a href="{{ route('staging.rejected') }}"
-                class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-                View Rejected
-                <span id="rejectedNavBadge" class="hidden bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center ml-1.5"></span>
-            </a>
+            <input type="hidden" id="filterStatus" value="unvalidated">
+            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
+                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
+                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-900 font-medium bg-gray-50 hover:bg-gray-50 transition-colors" data-value="unvalidated">Pending Validation</button>
+                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="approved">Approved</button>
+                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="rejected">Rejected</button>
+            </div>
+        </div>
+        <button onclick="handleRefresh()" id="btnRefresh"
+            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all shadow-sm">
+            <i class="fas fa-sync-alt text-xs"></i>Refresh
+        </button>
+        <a href="{{ route('staging.rejected') }}"
+            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm">
+            <i class="fas fa-times-circle text-red-400 text-xs"></i>View Rejected
+            <span id="rejectedNavBadge" class="hidden bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center"></span>
+        </a>
+    </div>
+</div>
+
+{{-- ── Stats Cards ──────────────────────────────────────────────────────────── --}}
+<div class="grid grid-cols-3 gap-2 mb-4">
+    <div class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-amber-200 transition-all duration-200">
+        <div class="flex items-center gap-1.5 mb-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Pending</p>
+        </div>
+        <p class="text-2xl font-bold text-amber-600 leading-none" id="statUnvalidated">—</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-green-200 transition-all duration-200">
+        <div class="flex items-center gap-1.5 mb-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Approved</p>
+        </div>
+        <p class="text-2xl font-bold text-green-600 leading-none" id="statApproved">—</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-red-200 transition-all duration-200">
+        <div class="flex items-center gap-1.5 mb-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Rejected</p>
+        </div>
+        <p class="text-2xl font-bold text-red-600 leading-none" id="statRejected">—</p>
+    </div>
+</div>
+
+{{-- ── Table ────────────────────────────────────────────────────────────────── --}}
+<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+    {{-- Table Toolbar --}}
+    <div class="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/60">
+        <span id="fetchEmailStatus" class="text-xs text-gray-400"></span>
+        <div id="paginationArea" class="hidden items-center gap-1">
+            <span class="text-xs text-gray-400 mr-2" id="pageInfo"></span>
+            <button id="btnPrev" onclick="changePage(-1)"
+                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+                Prev
+            </button>
+            <button id="btnNext" onclick="changePage(1)"
+                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                Next
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+            </button>
         </div>
     </div>
-</div>
-
-{{-- ===== PAGINATION ===== --}}
-<div id="paginationArea" class="items-center justify-between mb-4 hidden">
-    <span class="text-sm text-gray-500" id="pageInfo"></span>
-    <div class="flex items-center gap-1">
-        <button id="btnPrev" onclick="changePage(-1)"
-                class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-600">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-            </svg>
-        </button>
-        <button id="btnNext" onclick="changePage(1)"
-                class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-600">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-            </svg>
-        </button>
-    </div>
-</div>
-
-{{-- ===== TABLE ===== --}}
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
     <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="border-b border-gray-200 bg-gray-50 text-xs text-gray-500 font-bold uppercase tracking-wide">
-                    <th class="px-6 py-3 text-left">ID</th>
-                    <th class="px-6 py-3 text-left">Customer / Sender</th>
-                    <th class="px-6 py-3 text-left">Description / Subject</th>
-                    <th class="px-6 py-3 text-left">Priority</th>
-                    <th class="px-6 py-3 text-left">Channel</th>
-                    <th class="px-6 py-3 text-left">Status</th>
-                    <th class="px-6 py-3 text-left">Submit Date</th>
-                    <th class="px-6 py-3 text-left">Actions</th>
+        <table class="w-full text-sm border-collapse">
+            <thead class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
+                <tr>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:60px">#</th>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:180px">Customer / Sender</th>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:280px">Description / Subject</th>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:100px">Priority</th>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:90px">Channel</th>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:130px">Status</th>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:110px">Submit Date</th>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:90px">Action</th>
                 </tr>
             </thead>
-            <tbody id="stagingTableBody">
+            <tbody id="stagingTableBody" class="divide-y divide-gray-100 bg-white">
                 <tr>
                     <td colspan="8" class="px-6 py-12 text-center text-gray-400">
                         <i class="fas fa-spinner fa-spin text-2xl mb-2 block"></i>
@@ -229,68 +238,92 @@ async function loadStagingTickets(page = 1) {
 function renderTable(rows) {
     const tbody = document.getElementById('stagingTableBody');
     if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-12 text-center text-gray-400 text-sm">
-            <i class="fas fa-inbox text-3xl mb-3 block opacity-30"></i>No data found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-16 text-center">
+            <div class="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-inbox text-gray-300 text-2xl"></i>
+            </div>
+            <p class="text-gray-600 font-semibold text-sm mb-1">No tickets found</p>
+            <p class="text-gray-400 text-xs">Try changing the status filter</p>
+        </td></tr>`;
         return;
     }
 
-    const prioColor = { 'Very High': 'bg-purple-100 text-purple-700', High: 'bg-red-100 text-red-700', Medium: 'bg-blue-100 text-blue-700', Low: 'bg-green-100 text-green-700' };
-    const statusBadge = {
-        unvalidated: '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>Pending</span>',
-        approved:    '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700"><span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>Approved</span>',
-        rejected:    '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700"><span class="w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></span>Rejected</span>',
+    const badge = (label, cls, dot) =>
+        `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold ${cls}">
+            ${dot ? `<span class="w-1.5 h-1.5 rounded-full ${dot} flex-shrink-0"></span>` : ''}${label}
+         </span>`;
+
+    const prioCfg = {
+        'Very High': { cls: 'bg-red-50 text-red-700',    dot: 'bg-red-500'    },
+        'High':      { cls: 'bg-orange-50 text-orange-700', dot: 'bg-orange-500' },
+        'Medium':    { cls: 'bg-yellow-50 text-yellow-700', dot: 'bg-yellow-500' },
+        'Low':       { cls: 'bg-blue-50 text-blue-700',  dot: 'bg-blue-400'   },
+    };
+    const statusCfg = {
+        unvalidated: { label: 'Pending',  cls: 'bg-amber-50 text-amber-700',  dot: 'bg-amber-500'  },
+        approved:    { label: 'Approved', cls: 'bg-green-50 text-green-700',  dot: 'bg-green-500'  },
+        rejected:    { label: 'Rejected', cls: 'bg-red-50 text-red-700',      dot: 'bg-red-500'    },
     };
 
     tbody.innerHTML = rows.map(s => {
-        const date   = s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric' }) : '—';
-        const short  = s.description ? (s.description.length > 60 ? s.description.substring(0, 60) + '…' : s.description) : '—';
-        const prio   = s.ticket_priority;
-        const prioBadge = prio
-            ? `<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${prioColor[prio] ?? 'bg-gray-100 text-gray-600'}">${prio}</span>`
-            : `<span class="text-gray-400 text-xs italic">—</span>`;
-        const ch = s.channel === 'email'
-            ? '<span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md"><i class="fas fa-envelope text-[9px]"></i> Email</span>'
-            : '<span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md"><i class="fas fa-globe text-[9px]"></i> Web</span>';
+        const date  = s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric' }) : '—';
+        const short = s.description ? (s.description.length > 65 ? s.description.substring(0, 65) + '…' : s.description) : '—';
+
+        const pCfg = prioCfg[s.ticket_priority];
+        const prioBadge = pCfg
+            ? badge(s.ticket_priority, pCfg.cls, pCfg.dot)
+            : `<span class="text-gray-300 text-xs">—</span>`;
+
+        const chBadge = s.channel === 'email'
+            ? badge('<i class="fas fa-envelope text-[9px]"></i>&nbsp;Email', 'bg-blue-50 text-blue-700')
+            : badge('<i class="fas fa-globe text-[9px]"></i>&nbsp;Web',   'bg-gray-100 text-gray-600');
+
+        const sCfg = statusCfg[s.status] ?? { label: s.status, cls: 'bg-gray-100 text-gray-500', dot: 'bg-gray-400' };
+        const statusHtml = badge(sCfg.label, sCfg.cls, sCfg.dot)
+            + (s.status === 'approved' && s.ticket_number
+                ? `<br><a href="/ticket/${s.ticket_id}" class="text-[10px] text-green-600 hover:underline font-mono mt-0.5 inline-block">${escHtml(s.ticket_number)}</a>`
+                : '');
 
         const actionBtn = s.status === 'unvalidated'
             ? `<button onclick="openModal(${s.id})"
-                       class="inline-flex items-center px-3 py-1.5 primary-gradient text-white text-xs font-bold rounded-lg hover:opacity-90 transition-all">
-                   Validate
+                       class="inline-flex items-center gap-1 px-3 py-1.5 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">
+                   <i class="fas fa-clipboard-check text-[10px]"></i>Validate
                </button>`
             : `<button onclick="openModal(${s.id})"
-                       class="inline-flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-all">
-                   Detail
+                       class="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all">
+                   <i class="fas fa-eye text-[10px]"></i>Detail
                </button>`;
 
         const senderDisplay = s.customer_name ?? s.sender_name ?? 'Unknown';
 
-        return `<tr class="border-b border-gray-50 hover:bg-gray-50/60 transition-colors">
-            <td class="px-6 py-4 text-gray-500 font-mono text-xs">#${s.id}</td>
-            <td class="px-6 py-4">
-                <p class="font-semibold text-gray-900 text-xs">${escHtml(senderDisplay)}</p>
-                ${s.end_customer_name ? `<p class="text-[10px] text-gray-400">&#8627; ${escHtml(s.end_customer_name)}</p>` : ''}
+        return `<tr class="hover:bg-gray-50/60 transition-colors cursor-pointer">
+            <td class="px-3 py-3 text-gray-400 font-mono text-xs whitespace-nowrap">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 text-[11px] font-bold text-gray-500">#${s.id}</span>
+            </td>
+            <td class="px-3 py-3 whitespace-nowrap">
+                <p class="text-sm font-semibold text-gray-800 leading-snug">${escHtml(senderDisplay)}</p>
+                ${s.end_customer_name ? `<p class="text-[10px] text-gray-400 mt-0.5">↳ ${escHtml(s.end_customer_name)}</p>` : ''}
                 ${s.submitted_by_email ? `<p class="text-[10px] text-gray-400">${escHtml(s.submitted_by_email)}</p>` : ''}
             </td>
-            <td class="px-6 py-4 text-gray-600 max-w-xs text-xs">${escHtml(short)}</td>
-            <td class="px-6 py-4">${prioBadge}</td>
-            <td class="px-6 py-4">${ch}</td>
-            <td class="px-6 py-4">
-                ${statusBadge[s.status] ?? s.status}
-                ${s.status === 'approved' && s.ticket_number ? `<br><a href="/ticket/${s.ticket_id}" class="text-xs text-green-600 hover:underline font-mono mt-0.5 inline-block">${escHtml(s.ticket_number)}</a>` : ''}
+            <td class="px-3 py-3 text-sm text-gray-600" style="max-width:320px">
+                <span class="block truncate" title="${escHtml(s.description ?? '')}">${escHtml(short)}</span>
             </td>
-            <td class="px-6 py-4 text-gray-500 text-xs whitespace-nowrap">${date}</td>
-            <td class="px-6 py-4">${actionBtn}</td>
+            <td class="px-3 py-3 whitespace-nowrap">${prioBadge}</td>
+            <td class="px-3 py-3 whitespace-nowrap">${chBadge}</td>
+            <td class="px-3 py-3 whitespace-nowrap">${statusHtml}</td>
+            <td class="px-3 py-3 whitespace-nowrap"><span class="text-xs text-gray-500">${date}</span></td>
+            <td class="px-3 py-3 whitespace-nowrap">${actionBtn}</td>
         </tr>`;
     }).join('');
 }
 
 function renderPagination() {
     const area = document.getElementById('paginationArea');
-    if (!meta.total) { area.classList.add('hidden'); area.classList.remove('flex'); return; }
+    if (!meta.total || meta.last_page <= 1) { area.classList.add('hidden'); area.classList.remove('flex'); return; }
     area.classList.remove('hidden');
     area.classList.add('flex');
     document.getElementById('pageInfo').textContent =
-        `Showing ${Math.min((currentPage-1)*meta.per_page+1, meta.total)}–${Math.min(currentPage*meta.per_page, meta.total)} of ${meta.total}`;
+        `${Math.min((currentPage-1)*meta.per_page+1, meta.total)}–${Math.min(currentPage*meta.per_page, meta.total)} of ${meta.total}`;
     document.getElementById('btnPrev').disabled = currentPage <= 1;
     document.getElementById('btnNext').disabled = currentPage >= meta.last_page;
 }
@@ -303,6 +336,7 @@ function changePage(dir) {
 async function openModal(id) {
     currentStagingId   = id;
     currentStagingData = null;
+    _stagingDsSelected = { id: null, name: '' };
     document.getElementById('stagingModal').style.display = 'flex';
     document.getElementById('modalStagingId').textContent  = `Staging #${id}`;
     document.getElementById('modalStatusBadge').innerHTML  = '';
@@ -486,8 +520,7 @@ function fillModal(s) {
                     </select>
                     <p id="priorityError" class="hidden mt-1 text-xs text-red-500">Required.</p>
                 </div>
-                {{-- Scale: opsional. Daftar value masih didiskusikan — placeholder
-                     berikut bisa diubah belakangan tanpa migrasi (kolom VARCHAR). --}}
+                {{-- Scale: opsional. --}}
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Scale</label>
                     <select id="approveScale"
@@ -498,6 +531,62 @@ function fillModal(s) {
                         <option value="Complex">Complex</option>
                     </select>
                     <p class="mt-1 text-[11px] text-gray-400">Optional</p>
+                </div>
+            </div>
+            <div class="border-t border-gray-100 px-4 pt-3 pb-3">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Delivery Support <span class="text-gray-400 font-normal">(optional — for SLA matching)</span></label>
+                <input type="hidden" id="stagingDsHidden" value="">
+                <div id="stagingDsDd" class="relative">
+                    <input type="text" id="stagingDsSearch"
+                        placeholder="Select delivery support…"
+                        autocomplete="off"
+                        oninput="filterStagingDs(this.value)"
+                        onfocus="openStagingDsDd()"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
+                    <div id="stagingDsPanel" class="hidden absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-y-auto" style="max-height:200px;">
+                        <button type="button" class="staging-ds-opt w-full text-left px-3 py-2.5 text-sm text-gray-400 italic hover:bg-gray-50 transition"
+                            onclick="selectStagingDs(this.dataset.id, this.dataset.name)" data-id="" data-name="">— No delivery support</button>
+                        ${(() => {
+                            const filtered = DELIVERY_SUPPORTS.filter(ds => ds.client_id == s.customer_id);
+                            if (!filtered.length) {
+                                return '<div class="px-3 py-2.5 text-xs text-gray-400 italic">No delivery support found for this customer.</div>';
+                            }
+                            return filtered.map(ds =>
+                                '<button type="button" class="staging-ds-opt w-full text-left px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition" ' +
+                                'onclick="selectStagingDs(this.dataset.id, this.dataset.name)" ' +
+                                'data-id="' + ds.id + '" data-name="' + escHtml(ds.name) + '">' + escHtml(ds.name) + '</button>'
+                            ).join('');
+                        })()}
+                    </div>
+                </div>
+            </div>
+            <div class="border-t border-gray-100 px-4 pt-3 pb-4">
+                <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Additional Info <span class="font-normal normal-case">(optional)</span></p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Name</label>
+                        <input type="text" id="approveName" maxlength="255"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all"
+                               placeholder="Contact person name">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">No HP</label>
+                        <input type="text" id="approveNoHp" maxlength="255"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all"
+                               placeholder="Phone number">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Module</label>
+                        <input type="text" id="approveModule" maxlength="255"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all"
+                               placeholder="Related module">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Client</label>
+                        <input type="text" id="approveClient" maxlength="255"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all"
+                               placeholder="Client name">
+                    </div>
                 </div>
             </div>
         </div>`;
@@ -550,6 +639,7 @@ function fillModal(s) {
         const iframe = document.getElementById('emailBodyIframe');
         if (iframe) {
             const setIframeContent = (html) => {
+                if (!html) return; // guard: jangan panggil startsWith pada null/undefined
                 // Wrap bare text/HTML in basic styling for consistent look
                 const wrapped = html.startsWith('<') ? html
                     : `<div style="font-family:system-ui,sans-serif;font-size:14px;color:#374151;padding:4px;white-space:pre-wrap">${html}</div>`;
@@ -573,7 +663,7 @@ function fillModal(s) {
                 /\[[^\]]+\.(png|jpe?g|gif|bmp|webp)\]/i.test(s.email_body_html || '')
             );
             if (needsEmailImageResolve && s.id) {
-                setIframeContent(s.email_body_html); // show immediately while loading
+                setIframeContent(bodySource); // show immediately while loading (pakai bodySource, bukan s.email_body_html yang bisa null)
                 fetch(`/api/staging-tickets/${s.id}/preview-body`, {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'same-origin',
@@ -596,6 +686,30 @@ function fillModal(s) {
 
     // ── Footer buttons ──
     renderFooter(s);
+
+    // ── Pre-fill additional info fields (if staging already has data) ──
+    if (isUnvalidated) {
+        const prefill = [
+            ['approveName',   s.name   ?? ''],
+            ['approveNoHp',   s.no_hp  ?? ''],
+            ['approveModule', s.module ?? ''],
+            ['approveClient', s.client ?? ''],
+        ];
+        prefill.forEach(([id, val]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val;
+        });
+        // Pre-select priority if staging already has a value
+        if (s.ticket_priority) {
+            const prioEl = document.getElementById('approvePriority');
+            if (prioEl) prioEl.value = s.ticket_priority;
+        }
+        // Pre-select scale if staging already has a value
+        if (s.scale) {
+            const scaleEl = document.getElementById('approveScale');
+            if (scaleEl) scaleEl.value = s.scale;
+        }
+    }
 }
 
 function renderFooter(s) {
@@ -716,9 +830,14 @@ function cancelReject() {
 }
 
 async function submitApprove(id) {
-    const ticketType = document.getElementById('approveTicketType')?.value ?? '';
-    const priority   = document.getElementById('approvePriority')?.value   ?? '';
-    const scale      = document.getElementById('approveScale')?.value      ?? '';
+    const ticketType        = document.getElementById('approveTicketType')?.value ?? '';
+    const priority          = document.getElementById('approvePriority')?.value   ?? '';
+    const scale             = document.getElementById('approveScale')?.value      ?? '';
+    const name              = document.getElementById('approveName')?.value.trim()   ?? '';
+    const noHp              = document.getElementById('approveNoHp')?.value.trim()   ?? '';
+    const module            = document.getElementById('approveModule')?.value.trim() ?? '';
+    const client            = document.getElementById('approveClient')?.value.trim() ?? '';
+    const deliverySupportId = _stagingDsSelected.id || null;
 
     const typeErr = document.getElementById('typeError');
     const prioErr = document.getElementById('priorityError');
@@ -740,9 +859,14 @@ async function submitApprove(id) {
 
     try {
         const res = await apiFetch(`/api/staging-tickets/${id}/approve`, 'POST', {
-            ticket_type:     ticketType,
-            ticket_priority: priority,
-            scale:           scale || null,
+            ticket_type:          ticketType,
+            ticket_priority:      priority,
+            scale:                scale  || null,
+            name:                 name   || null,
+            no_hp:                noHp   || null,
+            module:               module || null,
+            client:               client || null,
+            delivery_support_id:  deliverySupportId,
         });
         const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
         console.groupEnd();
@@ -837,7 +961,7 @@ async function fetchEmailInbox(silent = false) {
     const btn    = document.getElementById('btnRefresh');
     const status = document.getElementById('fetchEmailStatus');
 
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i>'; }
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Refreshing…'; }
     if (status) { status.textContent = 'Refreshing...'; }
 
     const ts = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -898,9 +1022,56 @@ async function fetchEmailInbox(silent = false) {
         if (!silent) showNotif('Failed to connect to email server.', 'error');
         if (status) status.textContent = `Error ${now} (WIB)`;
     } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = 'Refresh'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt text-xs"></i> Refresh'; }
     }
 }
+
+// ── Delivery Support combobox (validation modal) ──────────────────────────────
+
+const DELIVERY_SUPPORTS = @json($deliverySupportsJson);
+
+let _stagingDsSelected = { id: null, name: '' };
+
+function openStagingDsDd() {
+    const input = document.getElementById('stagingDsSearch');
+    const panel = document.getElementById('stagingDsPanel');
+    if (!input || !panel) return;
+    input.select();
+    filterStagingDs('');
+    panel.classList.remove('hidden');
+}
+
+function filterStagingDs(q) {
+    const panel = document.getElementById('stagingDsPanel');
+    if (!panel) return;
+    const term = q.toLowerCase().trim();
+    panel.querySelectorAll('.staging-ds-opt').forEach(btn => {
+        btn.style.display = (!term || btn.dataset.name.toLowerCase().includes(term)) ? '' : 'none';
+    });
+    panel.classList.remove('hidden');
+}
+
+function selectStagingDs(id, name) {
+    _stagingDsSelected = { id: id ? parseInt(id) : null, name };
+    const hidden = document.getElementById('stagingDsHidden');
+    const input  = document.getElementById('stagingDsSearch');
+    if (hidden) hidden.value = id ?? '';
+    if (input)  input.value  = name;
+    const panel = document.getElementById('stagingDsPanel');
+    if (panel)  panel.classList.add('hidden');
+}
+
+document.addEventListener('click', function (e) {
+    const dd = document.getElementById('stagingDsDd');
+    if (dd && !dd.contains(e.target)) {
+        const input = document.getElementById('stagingDsSearch');
+        if (input) input.value = _stagingDsSelected.name;
+        const panel = document.getElementById('stagingDsPanel');
+        if (panel) panel.classList.add('hidden');
+    }
+});
+
+
 </script>
 {{-- Load custom-dd component (sama dengan halaman admin lain). filemtime
      cache buster supaya production auto-invalidate setiap deploy. --}}

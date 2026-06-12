@@ -792,72 +792,201 @@
 
 @elseif(($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) == \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value)
 {{-- ===================== DELIVERY SUPPORT HEAD DASHBOARD ===================== --}}
-<div class="space-y-6">
+@php
+    $stats      = $data['ticket_stats']     ?? [];
+    $sla        = $data['sla_summary']       ?? null;
+    $teamLoad   = $data['team_load']         ?? collect();
+    $recentTkts = $data['recent_tickets']    ?? collect();
+    $tsPending  = $data['timesheet_pending'] ?? 0;
 
-    {{-- Ticket Status Stats --}}
-    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-        @php
-            $stats = $data['ticket_stats'] ?? [];
-            $statCards = [
-                ['label' => 'Total',            'key' => 'total',                   'color' => 'text-gray-900'],
-                ['label' => 'Open',             'key' => 'open',                    'color' => 'text-blue-600'],
-                ['label' => 'Inprocess',        'key' => 'inprocess',               'color' => 'text-yellow-600'],
-                ['label' => 'Wait Customer',    'key' => 'waiting_on_customer',     'color' => 'text-amber-500'],
-                ['label' => 'Wait 3rd Party',   'key' => 'waiting_on_3rd_party',    'color' => 'text-indigo-600'],
-                ['label' => 'Wait Confirm',     'key' => 'waiting_to_confirmation', 'color' => 'text-teal-600'],
-                ['label' => 'Hold',             'key' => 'hold',                    'color' => 'text-orange-500'],
-                ['label' => 'Cancelled',        'key' => 'cancelled',               'color' => 'text-red-400'],
-                ['label' => 'Closed',           'key' => 'closed',                  'color' => 'text-green-600'],
-            ];
-        @endphp
-        @foreach($statCards as $card)
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-shadow">
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide leading-tight mb-2">{{ $card['label'] }}</p>
-            <p class="text-3xl font-bold {{ $card['color'] }}">{{ $stats[$card['key']] ?? 0 }}</p>
+    $statusCfg = [
+        'open'                    => ['label'=>'Open',           'dot'=>'bg-blue-500',   'text'=>'text-blue-700',   'bg'=>'bg-blue-50'  ],
+        'inprocess'               => ['label'=>'In Process',     'dot'=>'bg-yellow-500', 'text'=>'text-yellow-700', 'bg'=>'bg-yellow-50'],
+        'waiting_on_customer'     => ['label'=>'Wait Customer',  'dot'=>'bg-amber-500',  'text'=>'text-amber-700',  'bg'=>'bg-amber-50' ],
+        'waiting_on_3rd_party'    => ['label'=>'Wait 3rd Party', 'dot'=>'bg-indigo-500', 'text'=>'text-indigo-700', 'bg'=>'bg-indigo-50'],
+        'waiting_to_confirmation' => ['label'=>'Wait Confirm',   'dot'=>'bg-teal-500',   'text'=>'text-teal-700',   'bg'=>'bg-teal-50'  ],
+        'hold'                    => ['label'=>'Hold',           'dot'=>'bg-orange-500', 'text'=>'text-orange-700', 'bg'=>'bg-orange-50'],
+        'cancelled'               => ['label'=>'Cancelled',      'dot'=>'bg-gray-400',   'text'=>'text-gray-500',   'bg'=>'bg-gray-100' ],
+        'closed'                  => ['label'=>'Closed',         'dot'=>'bg-green-500',  'text'=>'text-green-700',  'bg'=>'bg-green-50' ],
+    ];
+    $prioCfg = [
+        'Very High' => 'text-red-700 bg-red-50',
+        'High'      => 'text-orange-700 bg-orange-50',
+        'Medium'    => 'text-yellow-700 bg-yellow-50',
+        'Low'       => 'text-blue-700 bg-blue-50',
+    ];
+@endphp
+<div class="space-y-5">
+
+    {{-- ── Row 1: Greeting + Alert Badges ─────────────────────────────────── --}}
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-xl font-bold text-gray-800">
+                @php
+                    $hour = now()->hour;
+                    $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
+                @endphp
+                {{ $greeting }}, {{ explode(' ', $user['name'] ?? 'Head')[0] }}
+            </h2>
+            <p class="text-xs text-gray-400 mt-0.5">{{ now()->format('l, d F Y') }} &mdash; Delivery Support Head</p>
         </div>
-        @endforeach
+        <div class="hidden sm:flex items-center gap-3">
+            @if($tsPending > 0)
+            <a href="{{ route('calendar.timesheets') }}"
+                class="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-amber-100 transition">
+                <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                {{ $tsPending }} timesheet{{ $tsPending > 1 ? 's' : '' }} pending
+            </a>
+            @endif
+            @if($sla && ($sla['breached'] ?? 0) > 0)
+            <a href="{{ route('sla.report') }}"
+                class="inline-flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-red-100 transition">
+                <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                {{ $sla['breached'] }} SLA breach{{ $sla['breached'] > 1 ? 'es' : '' }}
+            </a>
+            @endif
+            <span class="text-xs text-gray-400" id="headClock"></span>
+        </div>
     </div>
 
-    {{-- Main Grid: Chart + Team Load --}}
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    {{-- ── Row 2: KPI Cards ───────────────────────────────────────────────── --}}
+    @php
+        $activeTickets = ($stats['open'] ?? 0) + ($stats['inprocess'] ?? 0)
+            + ($stats['waiting_on_customer'] ?? 0) + ($stats['waiting_on_3rd_party'] ?? 0)
+            + ($stats['waiting_to_confirmation'] ?? 0) + ($stats['hold'] ?? 0);
+    @endphp
+    <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
+        {{-- Active Tickets --}}
+        <a href="{{ route('ticket.index') }}"
+            class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 hover:border-red-300 hover:shadow-md transition-all group">
+            <div class="w-9 h-9 rounded-xl bg-red-50 group-hover:bg-red-100 flex items-center justify-center mb-3 transition">
+                <i class="fas fa-fire text-red-600 text-sm"></i>
+            </div>
+            <p class="text-2xl font-bold text-gray-800">{{ $activeTickets }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">Active Tickets</p>
+        </a>
+        {{-- Total Tickets --}}
+        <a href="{{ route('ticket.index') }}"
+            class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 hover:border-blue-300 hover:shadow-md transition-all group">
+            <div class="w-9 h-9 rounded-xl bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center mb-3 transition">
+                <i class="fas fa-ticket-alt text-blue-600 text-sm"></i>
+            </div>
+            <p class="text-2xl font-bold text-gray-800">{{ number_format($stats['total'] ?? 0) }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">Total Tickets</p>
+        </a>
+        {{-- Timesheets Pending --}}
+        <a href="{{ route('calendar.timesheets') }}"
+            class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 hover:border-amber-300 hover:shadow-md transition-all group">
+            <div class="w-9 h-9 rounded-xl bg-amber-50 group-hover:bg-amber-100 flex items-center justify-center mb-3 transition">
+                <i class="fas fa-clock text-amber-600 text-sm"></i>
+            </div>
+            <p class="text-2xl font-bold {{ $tsPending > 0 ? 'text-amber-600' : 'text-gray-800' }}">{{ $tsPending }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">TS Pending Review</p>
+        </a>
+        {{-- SLA Compliance --}}
+        <a href="{{ route('sla.report') }}"
+            class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 hover:border-emerald-300 hover:shadow-md transition-all group">
+            <div class="w-9 h-9 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 flex items-center justify-center mb-3 transition">
+                <i class="fas fa-stopwatch text-emerald-600 text-sm"></i>
+            </div>
+            @if($sla && $sla['compliance_rate'] !== null)
+                <p class="text-2xl font-bold {{ $sla['compliance_rate'] >= 80 ? 'text-emerald-600' : ($sla['compliance_rate'] >= 60 ? 'text-yellow-600' : 'text-red-600') }}">
+                    {{ $sla['compliance_rate'] }}%
+                </p>
+            @else
+                <p class="text-2xl font-bold text-gray-400">—</p>
+            @endif
+            <p class="text-xs text-gray-400 mt-0.5">SLA Compliance</p>
+        </a>
+        {{-- SLA Breached --}}
+        <a href="{{ route('sla.report') }}"
+            class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 hover:border-rose-300 hover:shadow-md transition-all group">
+            <div class="w-9 h-9 rounded-xl bg-rose-50 group-hover:bg-rose-100 flex items-center justify-center mb-3 transition">
+                <i class="fas fa-exclamation-triangle text-rose-600 text-sm"></i>
+            </div>
+            @if($sla)
+                <p class="text-2xl font-bold {{ ($sla['breached'] ?? 0) > 0 ? 'text-rose-600' : 'text-gray-800' }}">{{ $sla['breached'] ?? 0 }}</p>
+            @else
+                <p class="text-2xl font-bold text-gray-400">—</p>
+            @endif
+            <p class="text-xs text-gray-400 mt-0.5">SLA Breached</p>
+        </a>
+        {{-- Team Members --}}
+        <a href="{{ route('master.employee.index') }}"
+            class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 hover:border-purple-300 hover:shadow-md transition-all group">
+            <div class="w-9 h-9 rounded-xl bg-purple-50 group-hover:bg-purple-100 flex items-center justify-center mb-3 transition">
+                <i class="fas fa-users text-purple-600 text-sm"></i>
+            </div>
+            <p class="text-2xl font-bold text-gray-800">{{ $data['employee'] ?? 0 }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">Team Members</p>
+        </a>
+    </div>
 
-        {{-- Ticket Submissions Chart --}}
-        <div class="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <div class="flex items-start justify-between mb-1">
+    {{-- ── Row 3: Ticket Status Strip ─────────────────────────────────────── --}}
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-4">
+        <div class="flex items-center justify-between mb-3">
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Ticket Status Breakdown</p>
+            <a href="{{ route('ticket.index') }}" class="text-xs font-semibold text-red-700 hover:text-red-800">View all →</a>
+        </div>
+        <div class="grid grid-cols-4 sm:grid-cols-8 gap-3">
+            @foreach($statusCfg as $key => $cfg)
+            <div class="text-center">
+                <p class="text-xl font-bold text-gray-800">{{ $stats[$key] ?? 0 }}</p>
+                <div class="flex items-center justify-center gap-1 mt-1">
+                    <span class="w-1.5 h-1.5 rounded-full {{ $cfg['dot'] }} flex-shrink-0"></span>
+                    <p class="text-[10px] text-gray-400 leading-tight">{{ $cfg['label'] }}</p>
+                </div>
+            </div>
+            @endforeach
+        </div>
+    </div>
+
+    {{-- ── Row 4: Chart + Agent Workload ──────────────────────────────────── --}}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {{-- Chart --}}
+        <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <div class="flex items-center justify-between mb-4">
                 <div>
-                    <h3 class="text-base font-bold text-gray-900">Ticket Submissions</h3>
-                    <p class="text-xs text-gray-500 mt-0.5">All tickets — last 30 days</p>
+                    <p class="text-sm font-semibold text-gray-800">Ticket Submissions</p>
+                    <p class="text-xs text-gray-400 mt-0.5">Last 30 days</p>
                 </div>
                 <span class="text-xs text-gray-400">{{ now()->format('d M Y') }}</span>
             </div>
-            <div class="mt-4">
-                <canvas id="ticketChartHead" height="100"></canvas>
-            </div>
+            <canvas id="headTicketChart" height="80"></canvas>
         </div>
 
-        {{-- Team Load --}}
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex flex-col">
+        {{-- Agent Workload --}}
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex flex-col">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-base font-bold text-gray-900">Team Load</h3>
-                <span class="text-xs text-gray-400">Active tickets / member</span>
+                <div>
+                    <p class="text-sm font-semibold text-gray-800">Agent Workload</p>
+                    <p class="text-xs text-gray-400 mt-0.5">Active tickets per agent</p>
+                </div>
+                <a href="{{ route('ticket.consultant-workload') }}" class="text-xs font-semibold text-red-700 hover:text-red-800">Full →</a>
             </div>
-            @php $teamLoad = $data['team_load'] ?? collect(); @endphp
             @if($teamLoad->isEmpty())
-            <div class="flex-1 flex items-center justify-center text-center py-8">
-                <p class="text-sm text-gray-400">No active tickets</p>
+            <div class="flex-1 flex items-center justify-center text-center py-6">
+                <div>
+                    <i class="fas fa-check-circle text-green-400 text-3xl mb-2"></i>
+                    <p class="text-xs text-gray-400">No active workload</p>
+                </div>
             </div>
             @else
             @php $maxLoad = $teamLoad->max('open_count') ?: 1; @endphp
             <div class="space-y-3 flex-1">
-                @foreach($teamLoad as $member)
+                @foreach($teamLoad as $m)
+                @php
+                    $pct   = round(($m->open_count / $maxLoad) * 100);
+                    $barCl = $pct >= 80 ? 'bg-red-500' : ($pct >= 50 ? 'bg-amber-500' : 'bg-emerald-500');
+                @endphp
                 <div>
                     <div class="flex items-center justify-between mb-1">
-                        <span class="text-xs font-semibold text-gray-700 truncate max-w-[70%]">{{ $member->name }}</span>
-                        <span class="text-xs font-bold text-gray-900">{{ $member->open_count }}</span>
+                        <span class="text-xs font-medium text-gray-700 truncate max-w-[75%]">{{ $m->name }}</span>
+                        <span class="text-xs font-bold text-gray-800">{{ $m->open_count }}</span>
                     </div>
-                    <div class="w-full bg-gray-100 rounded-full h-2">
-                        <div class="bg-red-600 h-2 rounded-full transition-all"
-                             style="width: {{ round(($member->open_count / $maxLoad) * 100) }}%"></div>
+                    <div class="w-full bg-gray-100 rounded-full h-1.5">
+                        <div class="{{ $barCl }} h-1.5 rounded-full transition-all" style="width:{{ $pct }}%"></div>
                     </div>
                 </div>
                 @endforeach
@@ -866,145 +995,104 @@
         </div>
     </div>
 
-    {{-- Quick Actions — full-width horizontal grid --}}
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        <a href="{{ route('ticket.index') }}"
-           class="flex flex-col items-center gap-3 p-5 bg-white rounded-xl border-2 border-gray-200 hover:border-red-400 hover:shadow-md transition-all group text-center">
-            <div class="w-14 h-14 rounded-xl bg-red-50 group-hover:bg-red-100 flex items-center justify-center transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-red-700">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 6v.75a3.75 3.75 0 0 1-7.5 0V6m-3 6.75h13.5m-13.5 0a3 3 0 0 0-3 3v3a3 3 0 0 0 3 3h13.5a3 3 0 0 0 3-3v-3a3 3 0 0 0-3-3m-6.75 6h.008v.008h-.008V18Z"/>
-                </svg>
-            </div>
-            <div>
-                <p class="text-sm font-bold text-gray-900 group-hover:text-red-900">All Tickets</p>
-                <p class="text-xs text-gray-500 mt-0.5">{{ ($stats['open'] ?? 0) }} open · {{ ($stats['very_high'] ?? 0) }} very high</p>
-            </div>
-        </a>
+    {{-- ── Row 5: Recent Tickets + Quick Nav ──────────────────────────────── --}}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-        <a href="{{ route('reporting') }}"
-           class="flex flex-col items-center gap-3 p-5 bg-white rounded-xl border-2 border-gray-200 hover:border-blue-400 hover:shadow-md transition-all group text-center">
-            <div class="w-14 h-14 rounded-xl bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-blue-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z"/>
-                </svg>
+        {{-- Recent Tickets --}}
+        <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center">
+                        <i class="fas fa-ticket-alt text-red-600 text-xs"></i>
+                    </div>
+                    <p class="text-sm font-semibold text-gray-800">Recent Tickets</p>
+                </div>
+                <a href="{{ route('ticket.index') }}" class="text-xs font-semibold text-red-700 hover:text-red-800">View all →</a>
             </div>
-            <div>
-                <p class="text-sm font-bold text-gray-900 group-hover:text-blue-900">Reporting</p>
-                <p class="text-xs text-gray-500 mt-0.5">View & export reports</p>
+            @if($recentTkts->isEmpty())
+            <div class="py-12 text-center text-sm text-gray-400">No tickets yet</div>
+            @else
+            <div class="divide-y divide-gray-50">
+                @foreach($recentTkts as $t)
+                @php
+                    $sc = $statusCfg[$t->status] ?? ['dot'=>'bg-gray-400','text'=>'text-gray-500','bg'=>'bg-gray-100','label'=>'Unknown'];
+                    $pc = $prioCfg[$t->ticket_priority ?? ''] ?? 'text-gray-500 bg-gray-100';
+                @endphp
+                <a href="{{ route('ticket.show', $t->ticket_id) }}"
+                    class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/80 transition-colors group">
+                    <span class="w-2 h-2 rounded-full {{ $sc['dot'] }} flex-shrink-0 mt-0.5"></span>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-gray-700 group-hover:text-red-700 transition-colors font-mono">#{{ $t->ticket_number }}</span>
+                            <span class="text-xs text-gray-500 truncate hidden sm:block">{{ Str::limit($t->description ?? '', 42) }}</span>
+                        </div>
+                        <p class="text-[10px] text-gray-400 mt-0.5">{{ $t->customer_name ?? '—' }} &middot; {{ $t->pic_name }} &middot; {{ \Carbon\Carbon::parse($t->created_at)->diffForHumans() }}</p>
+                    </div>
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                        @if($t->ticket_priority)
+                        <span class="text-[10px] font-semibold {{ $pc }} px-1.5 py-0.5 rounded-full hidden md:inline-flex">{{ $t->ticket_priority }}</span>
+                        @endif
+                        <span class="inline-flex items-center gap-1 text-[10px] font-semibold {{ $sc['text'] }} {{ $sc['bg'] }} px-2 py-0.5 rounded-full whitespace-nowrap">
+                            {{ $sc['label'] }}
+                        </span>
+                    </div>
+                </a>
+                @endforeach
             </div>
-        </a>
-
-        <a href="{{ route('reporting.md-recap') }}"
-           class="flex flex-col items-center gap-3 p-5 bg-white rounded-xl border-2 border-gray-200 hover:border-purple-400 hover:shadow-md transition-all group text-center">
-            <div class="w-14 h-14 rounded-xl bg-purple-50 group-hover:bg-purple-100 flex items-center justify-center transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-purple-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/>
-                </svg>
-            </div>
-            <div>
-                <p class="text-sm font-bold text-gray-900 group-hover:text-purple-900">MD Recap</p>
-                <p class="text-xs text-gray-500 mt-0.5">Mandays summary</p>
-            </div>
-        </a>
-
-        <a href="{{ route('master.employee.index') }}"
-           class="flex flex-col items-center gap-3 p-5 bg-white rounded-xl border-2 border-gray-200 hover:border-green-400 hover:shadow-md transition-all group text-center">
-            <div class="w-14 h-14 rounded-xl bg-green-50 group-hover:bg-green-100 flex items-center justify-center transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-green-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/>
-                </svg>
-            </div>
-            <div>
-                <p class="text-sm font-bold text-gray-900 group-hover:text-green-900">Employees</p>
-                <p class="text-xs text-gray-500 mt-0.5">{{ $data['employee'] ?? 0 }} active members</p>
-            </div>
-        </a>
-
-        <a href="{{ route('profile.my') }}"
-           class="flex flex-col items-center gap-3 p-5 bg-white rounded-xl border-2 border-gray-200 hover:border-gray-400 hover:shadow-md transition-all group text-center">
-            <div class="w-14 h-14 rounded-xl bg-gray-100 group-hover:bg-gray-200 flex items-center justify-center transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-gray-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/>
-                </svg>
-            </div>
-            <div>
-                <p class="text-sm font-bold text-gray-900">My Profile</p>
-                <p class="text-xs text-gray-500 mt-0.5">View & edit profile</p>
-            </div>
-        </a>
-    </div>
-
-    {{-- Recent Tickets — full width --}}
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <h3 class="text-sm font-bold text-gray-900">Recent Tickets</h3>
-            <a href="{{ route('ticket.index') }}" class="text-xs font-semibold text-red-800 hover:text-red-900">View all →</a>
+            @endif
         </div>
-        @php $recentTickets = $data['recent_tickets'] ?? collect(); @endphp
-        @if($recentTickets->isEmpty())
-        <div class="px-6 py-10 text-center text-sm text-gray-400">No tickets yet</div>
-        @else
-        @php
-            $statusColors = [
-                'open'                    => 'bg-blue-100 text-blue-700',
-                'inprocess'               => 'bg-yellow-100 text-yellow-700',
-                'waiting_on_customer'     => 'bg-amber-100 text-amber-700',
-                'waiting_on_3rd_party'    => 'bg-indigo-100 text-indigo-700',
-                'waiting_to_confirmation' => 'bg-teal-100 text-teal-700',
-                'hold'                    => 'bg-orange-100 text-orange-700',
-                'cancelled'               => 'bg-gray-100 text-gray-500',
-                'closed'                  => 'bg-green-100 text-green-700',
-            ];
-        @endphp
-        {{-- Table Header --}}
-        <div class="hidden md:grid grid-cols-12 gap-4 px-6 py-2.5 bg-gray-50 border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
-            <div class="col-span-2">Ticket #</div>
-            <div class="col-span-4">Description</div>
-            <div class="col-span-2">Customer</div>
-            <div class="col-span-2">PIC</div>
-            <div class="col-span-1">Date</div>
-            <div class="col-span-1 text-right">Status</div>
+
+        {{-- Quick Navigation --}}
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <p class="text-sm font-semibold text-gray-800 mb-4">Quick Navigation</p>
+            <div class="grid grid-cols-2 gap-2">
+                @php
+                    $navItems = [
+                        ['href'=>route('ticket.index'),               'icon'=>'fa-ticket-alt',   'bg'=>'bg-red-50',     'color'=>'text-red-600',    'label'=>'Tickets'],
+                        ['href'=>route('calendar.timesheets'),        'icon'=>'fa-clock',        'bg'=>'bg-amber-50',   'color'=>'text-amber-600',  'label'=>'TS Approval', 'badge'=>$tsPending],
+                        ['href'=>route('sla.report'),                 'icon'=>'fa-stopwatch',    'bg'=>'bg-emerald-50', 'color'=>'text-emerald-600','label'=>'SLA Report'],
+                        ['href'=>route('sla.config'),                 'icon'=>'fa-cog',          'bg'=>'bg-teal-50',    'color'=>'text-teal-600',   'label'=>'SLA Config'],
+                        ['href'=>route('ticket.consultant-workload'), 'icon'=>'fa-tasks',        'bg'=>'bg-purple-50',  'color'=>'text-purple-600', 'label'=>'Workload'],
+                        ['href'=>route('reporting.md-recap'),         'icon'=>'fa-calendar-alt', 'bg'=>'bg-indigo-50',  'color'=>'text-indigo-600', 'label'=>'MD Recap'],
+                        ['href'=>route('reporting'),                  'icon'=>'fa-chart-bar',    'bg'=>'bg-blue-50',    'color'=>'text-blue-600',   'label'=>'Reporting'],
+                        ['href'=>route('profile.my'),                 'icon'=>'fa-user',         'bg'=>'bg-gray-100',   'color'=>'text-gray-600',   'label'=>'My Profile'],
+                    ];
+                @endphp
+                @foreach($navItems as $nav)
+                <a href="{{ $nav['href'] }}"
+                    class="relative flex flex-col items-center gap-2 p-3 rounded-xl {{ $nav['bg'] }} hover:ring-2 hover:ring-offset-1 hover:ring-gray-200 transition-all group text-center">
+                    @if(!empty($nav['badge']) && $nav['badge'] > 0)
+                    <span class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                        {{ $nav['badge'] > 9 ? '9+' : $nav['badge'] }}
+                    </span>
+                    @endif
+                    <i class="fas {{ $nav['icon'] }} {{ $nav['color'] }} text-base"></i>
+                    <p class="text-[11px] font-semibold text-gray-600 leading-tight">{{ $nav['label'] }}</p>
+                </a>
+                @endforeach
+            </div>
+
+            {{-- SLA Quick Status --}}
+            <div class="mt-4 pt-4 border-t border-gray-100">
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">SLA Overview</p>
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            <span class="text-xs text-gray-500">Met</span>
+                        </div>
+                        <span class="text-xs font-semibold text-emerald-600">{{ $sla['met'] ?? '—' }}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                            <span class="text-xs text-gray-500">Breached</span>
+                        </div>
+                        <span class="text-xs font-semibold {{ ($sla['breached'] ?? 0) > 0 ? 'text-red-600' : 'text-gray-500' }}">{{ $sla['breached'] ?? '—' }}</span>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="divide-y divide-gray-50">
-            @foreach($recentTickets as $ticket)
-            @php
-                $sCls = $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600';
-                $sLabel = match($ticket->status) {
-                    'open'                    => 'Open',
-                    'inprocess'               => 'Inprocess',
-                    'waiting_on_customer'     => 'Waiting Customer',
-                    'waiting_on_3rd_party'    => 'Waiting 3rd Party',
-                    'waiting_to_confirmation' => 'Waiting Confirm',
-                    'hold'                    => 'Hold',
-                    'cancelled'               => 'Cancelled',
-                    'closed'                  => 'Closed',
-                    default                   => ucfirst($ticket->status),
-                };
-            @endphp
-            <a href="{{ route('ticket.show', $ticket->ticket_id) }}"
-               class="flex md:grid md:grid-cols-12 md:gap-4 items-center px-6 py-3.5 hover:bg-gray-50 transition-colors group">
-                <div class="col-span-2">
-                    <span class="text-sm font-bold text-gray-800 group-hover:text-red-800 transition-colors">{{ $ticket->ticket_number ?? '#'.$ticket->ticket_id }}</span>
-                </div>
-                <div class="col-span-4 hidden md:block">
-                    <span class="text-sm text-gray-600 truncate block">{{ Str::limit($ticket->description ?? '—', 45) }}</span>
-                </div>
-                <div class="col-span-2 hidden md:block">
-                    <span class="text-sm text-gray-600 truncate block">{{ $ticket->customer_name ?? 'Unknown' }}</span>
-                </div>
-                <div class="col-span-2 hidden md:block">
-                    <span class="text-sm text-gray-600 truncate block">{{ $ticket->pic_name }}</span>
-                </div>
-                <div class="col-span-1 hidden md:block">
-                    <span class="text-xs text-gray-400 whitespace-nowrap">{{ \Carbon\Carbon::parse($ticket->created_at)->format('d M') }}</span>
-                </div>
-                <div class="col-span-1 flex md:justify-end ml-auto md:ml-0">
-                    <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold {{ $sCls }} whitespace-nowrap">{{ $sLabel }}</span>
-                </div>
-            </a>
-            @endforeach
-        </div>
-        @endif
     </div>
 
 </div>
@@ -1012,15 +1100,26 @@
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-(function() {
+(function () {
+    // Live clock
+    const headClockEl = document.getElementById('headClock');
+    function tickHead() {
+        if (!headClockEl) return;
+        const now = new Date();
+        headClockEl.textContent = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+    tickHead();
+    setInterval(tickHead, 1000);
+
+    // Ticket chart
     const labels    = @json($data['ticket_chart']['labels'] ?? []);
-    const chartData = @json($data['ticket_chart']['data'] ?? []);
-    const ctx = document.getElementById('ticketChartHead');
+    const chartData = @json($data['ticket_chart']['data']   ?? []);
+    const ctx = document.getElementById('headTicketChart');
     if (!ctx) return;
     new Chart(ctx, {
         type: 'line',
         data: {
-            labels: labels,
+            labels,
             datasets: [{
                 label: 'Tickets',
                 data: chartData,
@@ -1037,25 +1136,479 @@
             responsive: true,
             plugins: {
                 legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => ctx.parsed.y + ' ticket' + (ctx.parsed.y !== 1 ? 's' : '')
-                    }
-                }
+                tooltip: { callbacks: { label: c => c.parsed.y + ' ticket' + (c.parsed.y !== 1 ? 's' : '') } }
             },
             scales: {
-                x: {
-                    grid: { display: false },
-                    ticks: { font: { size: 11 }, maxTicksLimit: 10, color: '#9ca3af' }
-                },
-                y: {
-                    beginAtZero: true,
-                    grid: { color: 'rgba(0,0,0,0.05)' },
-                    ticks: { stepSize: 1, precision: 0, color: '#9ca3af', font: { size: 11 } }
-                }
+                x: { grid: { display: false }, ticks: { font: { size: 11 }, maxTicksLimit: 10, color: '#9ca3af' } },
+                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { stepSize: 1, precision: 0, color: '#9ca3af', font: { size: 11 } } }
             }
         }
     });
+})();
+</script>
+@endpush
+
+@elseif(($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) == \App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value)
+{{-- ===================== DELIVERY SUPPORT MANAGER DASHBOARD ===================== --}}
+@php
+    $stats      = $data['ticket_stats']       ?? [];
+    $sla        = $data['sla_summary']        ?? null;
+    $teamLoad   = $data['team_load']          ?? collect();
+    $recentTkts = $data['recent_tickets']     ?? collect();
+    $urgents    = $data['urgent_tickets']     ?? collect();
+    $prioBd     = $data['priority_breakdown'] ?? [];
+    $vhCount    = $data['very_high_count']    ?? 0;
+    $unassign   = $data['unassigned_count']   ?? 0;
+    $slaWarn    = $data['sla_warning']        ?? 0;
+    $todayNew   = $data['today_new']          ?? 0;
+    $todayCl    = $data['today_closed']       ?? 0;
+
+    $activeTickets = ($stats['open'] ?? 0) + ($stats['inprocess'] ?? 0)
+        + ($stats['waiting_on_customer'] ?? 0) + ($stats['waiting_on_3rd_party'] ?? 0)
+        + ($stats['waiting_to_confirmation'] ?? 0) + ($stats['hold'] ?? 0);
+
+    $hour      = now()->hour;
+    $greeting  = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
+    $firstName = explode(' ', $user['name'] ?? 'Manager')[0];
+
+    $statusCfg = [
+        'open'                    => ['label'=>'Open',           'dot'=>'bg-blue-500',   'text'=>'text-blue-700',   'bg'=>'bg-blue-50'   ],
+        'inprocess'               => ['label'=>'In Process',     'dot'=>'bg-yellow-500', 'text'=>'text-yellow-700', 'bg'=>'bg-yellow-50' ],
+        'waiting_on_customer'     => ['label'=>'Wait Customer',  'dot'=>'bg-amber-500',  'text'=>'text-amber-700',  'bg'=>'bg-amber-50'  ],
+        'waiting_on_3rd_party'    => ['label'=>'Wait 3rd Party', 'dot'=>'bg-indigo-500', 'text'=>'text-indigo-700', 'bg'=>'bg-indigo-50' ],
+        'waiting_to_confirmation' => ['label'=>'Wait Confirm',   'dot'=>'bg-teal-500',   'text'=>'text-teal-700',   'bg'=>'bg-teal-50'   ],
+        'hold'                    => ['label'=>'Hold',           'dot'=>'bg-orange-500', 'text'=>'text-orange-700', 'bg'=>'bg-orange-50' ],
+        'cancelled'               => ['label'=>'Cancelled',      'dot'=>'bg-gray-400',   'text'=>'text-gray-500',   'bg'=>'bg-gray-100'  ],
+        'closed'                  => ['label'=>'Closed',         'dot'=>'bg-green-500',  'text'=>'text-green-700',  'bg'=>'bg-green-50'  ],
+    ];
+    $prioCfg = [
+        'Very High' => ['text'=>'text-red-700',    'bg'=>'bg-red-50',    'dot'=>'bg-red-500'   ],
+        'High'      => ['text'=>'text-orange-700', 'bg'=>'bg-orange-50', 'dot'=>'bg-orange-500'],
+        'Medium'    => ['text'=>'text-yellow-700', 'bg'=>'bg-yellow-50', 'dot'=>'bg-yellow-500'],
+        'Low'       => ['text'=>'text-blue-700',   'bg'=>'bg-blue-50',   'dot'=>'bg-blue-400'  ],
+    ];
+@endphp
+
+<div class="space-y-5">
+
+{{-- ── Row 1: Greeting + Alert Badges ──────────────────────────────────────── --}}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div>
+        <div class="flex items-center gap-2">
+            <h2 class="text-xl font-bold text-gray-800">{{ $greeting }}, {{ $firstName }}</h2>
+            <span class="text-xs font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2.5 py-0.5 rounded-full">Manager</span>
+        </div>
+        <p class="text-xs text-gray-400 mt-0.5">{{ now()->isoFormat('dddd, D MMMM Y') }} &mdash; <span id="mgrClock" class="font-mono"></span></p>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+        @if($vhCount > 0)
+        <a href="{{ route('ticket.index') }}" class="inline-flex items-center gap-1.5 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-red-100 transition">
+            <i class="fas fa-bolt text-xs animate-pulse"></i>{{ $vhCount }} Very High
+        </a>
+        @endif
+        @if(($sla['breached'] ?? 0) > 0)
+        <a href="{{ route('sla.report') }}" class="inline-flex items-center gap-1.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-rose-100 transition">
+            <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>{{ $sla['breached'] }} SLA breached
+        </a>
+        @endif
+        @if($unassign > 0)
+        <a href="{{ route('ticket.index') }}" class="inline-flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-indigo-100 transition">
+            <i class="fas fa-user-clock text-xs"></i>{{ $unassign }} unassigned
+        </a>
+        @endif
+    </div>
+</div>
+
+{{-- ── Row 2: KPI Cards ─────────────────────────────────────────────────────── --}}
+<div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
+
+    {{-- Active Tickets --}}
+    <a href="{{ route('ticket.index') }}" class="relative bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-4 hover:border-red-300 hover:shadow-md transition-all group overflow-hidden">
+        <div class="absolute inset-0 primary-gradient opacity-0 group-hover:opacity-5 transition-opacity rounded-2xl"></div>
+        <div class="w-9 h-9 rounded-xl bg-red-50 group-hover:bg-red-100 flex items-center justify-center mb-3 transition">
+            <i class="fas fa-fire text-red-600 text-sm"></i>
+        </div>
+        <p class="text-2xl font-bold text-gray-800">{{ $activeTickets }}</p>
+        <p class="text-xs text-gray-400 mt-0.5">Active Tickets</p>
+        <p class="text-[10px] text-gray-300 mt-0.5">{{ $stats['total'] ?? 0 }} total</p>
+    </a>
+
+    {{-- Unassigned --}}
+    <a href="{{ route('ticket.index') }}" class="relative bg-white rounded-2xl border-2 {{ $unassign > 0 ? 'border-indigo-300' : 'border-gray-200' }} shadow-sm p-4 hover:shadow-md transition-all group">
+        <div class="w-9 h-9 rounded-xl {{ $unassign > 0 ? 'bg-indigo-100' : 'bg-gray-100' }} flex items-center justify-center mb-3">
+            <i class="fas fa-user-clock {{ $unassign > 0 ? 'text-indigo-600' : 'text-gray-400' }} text-sm"></i>
+        </div>
+        <p class="text-2xl font-bold {{ $unassign > 0 ? 'text-indigo-700' : 'text-gray-800' }}">{{ $unassign }}</p>
+        <p class="text-xs text-gray-400 mt-0.5">Unassigned</p>
+        @if($unassign > 0)<p class="text-[10px] text-indigo-500 font-medium mt-0.5">Needs agent →</p>@endif
+    </a>
+
+    {{-- Very High Priority --}}
+    <a href="{{ route('ticket.index') }}" class="relative bg-white rounded-2xl border-2 {{ $vhCount > 0 ? 'border-red-300' : 'border-gray-200' }} shadow-sm p-4 hover:shadow-md transition-all group">
+        <div class="w-9 h-9 rounded-xl {{ $vhCount > 0 ? 'bg-red-100' : 'bg-gray-100' }} flex items-center justify-center mb-3">
+            <i class="fas fa-bolt {{ $vhCount > 0 ? 'text-red-600' : 'text-gray-400' }} text-sm"></i>
+        </div>
+        <p class="text-2xl font-bold {{ $vhCount > 0 ? 'text-red-700' : 'text-gray-800' }}">{{ $vhCount }}</p>
+        <p class="text-xs text-gray-400 mt-0.5">Very High</p>
+        @if($vhCount > 0)<p class="text-[10px] text-red-400 font-medium mt-0.5 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>Urgent</p>@endif
+    </a>
+
+    {{-- SLA Breached --}}
+    <a href="{{ route('sla.report') }}" class="bg-white rounded-2xl border-2 {{ ($sla['breached'] ?? 0) > 0 ? 'border-rose-300' : 'border-gray-200' }} shadow-sm p-4 hover:shadow-md transition-all group">
+        <div class="w-9 h-9 rounded-xl {{ ($sla['breached'] ?? 0) > 0 ? 'bg-rose-100' : 'bg-gray-100' }} flex items-center justify-center mb-3">
+            <i class="fas fa-exclamation-triangle {{ ($sla['breached'] ?? 0) > 0 ? 'text-rose-600' : 'text-gray-400' }} text-sm"></i>
+        </div>
+        <p class="text-2xl font-bold {{ ($sla['breached'] ?? 0) > 0 ? 'text-rose-600' : 'text-gray-800' }}">{{ $sla['breached'] ?? '—' }}</p>
+        <p class="text-xs text-gray-400 mt-0.5">SLA Breached</p>
+        @if($slaWarn > 0)<p class="text-[10px] text-orange-500 font-medium mt-0.5">+{{ $slaWarn }} at risk</p>@endif
+    </a>
+
+    {{-- SLA Compliance --}}
+    <a href="{{ route('sla.report') }}" class="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-4 hover:border-emerald-300 hover:shadow-md transition-all group">
+        <div class="w-9 h-9 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 flex items-center justify-center mb-3 transition">
+            <i class="fas fa-chart-pie text-emerald-600 text-sm"></i>
+        </div>
+        @if($sla && $sla['compliance_rate'] !== null)
+        <p class="text-2xl font-bold {{ $sla['compliance_rate'] >= 80 ? 'text-emerald-600' : ($sla['compliance_rate'] >= 60 ? 'text-yellow-600' : 'text-red-600') }}">{{ $sla['compliance_rate'] }}%</p>
+        @else
+        <p class="text-2xl font-bold text-gray-400">—</p>
+        @endif
+        <p class="text-xs text-gray-400 mt-0.5">SLA Compliance</p>
+        @if($sla && $sla['compliance_rate'] !== null)
+        <div class="mt-1.5 w-full bg-gray-100 rounded-full h-1">
+            <div class="h-1 rounded-full {{ ($sla['compliance_rate'] ?? 0) >= 80 ? 'bg-emerald-500' : (($sla['compliance_rate'] ?? 0) >= 60 ? 'bg-yellow-500' : 'bg-red-500') }}" style="width:{{ min($sla['compliance_rate'] ?? 0, 100) }}%"></div>
+        </div>
+        @endif
+    </a>
+
+    {{-- Team Size --}}
+    <a href="{{ route('master.employee.index') }}" class="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-4 hover:border-violet-300 hover:shadow-md transition-all group">
+        <div class="w-9 h-9 rounded-xl bg-violet-50 group-hover:bg-violet-100 flex items-center justify-center mb-3 transition">
+            <i class="fas fa-users text-violet-600 text-sm"></i>
+        </div>
+        <p class="text-2xl font-bold text-gray-800">{{ $teamLoad->count() }}</p>
+        <p class="text-xs text-gray-400 mt-0.5">Active Agents</p>
+        <p class="text-[10px] text-gray-300 mt-0.5">with open tickets</p>
+    </a>
+</div>
+
+{{-- ── Row 3: Status Strip ──────────────────────────────────────────────────── --}}
+<div class="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-4">
+    <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+            <div class="w-6 h-6 rounded-lg bg-gray-100 flex items-center justify-center">
+                <i class="fas fa-chart-bar text-gray-500 text-xs"></i>
+            </div>
+            <p class="text-xs font-semibold text-gray-600 uppercase tracking-wider">Team Ticket Status</p>
+        </div>
+        <a href="{{ route('ticket.index') }}" class="text-xs font-semibold text-red-700 hover:text-red-800">View all →</a>
+    </div>
+    <div class="grid grid-cols-4 sm:grid-cols-8 gap-2">
+        @foreach($statusCfg as $key => $cfg)
+        @php $count = $stats[$key] ?? 0; $total = max($stats['total'] ?? 1, 1); $pct = round($count / $total * 100); @endphp
+        <div class="text-center p-2 rounded-xl hover:{{ $cfg['bg'] }} transition-colors cursor-default group">
+            <p class="text-lg font-bold text-gray-800 group-hover:{{ $cfg['text'] }} transition-colors">{{ $count }}</p>
+            <div class="flex items-center justify-center gap-1 mt-1 mb-1.5">
+                <span class="w-1.5 h-1.5 rounded-full {{ $cfg['dot'] }} flex-shrink-0"></span>
+                <p class="text-[10px] text-gray-400 leading-tight">{{ $cfg['label'] }}</p>
+            </div>
+            <div class="w-full bg-gray-100 rounded-full h-1">
+                <div class="{{ $cfg['dot'] }} h-1 rounded-full" style="width:{{ $pct }}%"></div>
+            </div>
+        </div>
+        @endforeach
+    </div>
+</div>
+
+{{-- ── Row 4: Trend Chart + Priority Donut ─────────────────────────────────── --}}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+    <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <p class="text-sm font-semibold text-gray-800">Ticket Volume</p>
+                <p class="text-xs text-gray-400 mt-0.5">Last 30 days</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1.5 text-xs text-gray-400">
+                    <span class="w-2 h-2 rounded-full bg-blue-400"></span>{{ $todayNew }} new today
+                </div>
+                <div class="flex items-center gap-1.5 text-xs text-gray-400">
+                    <span class="w-2 h-2 rounded-full bg-green-400"></span>{{ $todayCl }} closed
+                </div>
+            </div>
+        </div>
+        <canvas id="mgrTicketChart" height="90"></canvas>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex flex-col">
+        <div class="flex items-center justify-between mb-4">
+            <p class="text-sm font-semibold text-gray-800">Priority (Active)</p>
+            <a href="{{ route('ticket.index') }}" class="text-xs text-red-700 hover:text-red-800 font-semibold">All →</a>
+        </div>
+        <div class="flex-1 flex items-center justify-center">
+            <canvas id="mgrPrioChart" width="140" height="140"></canvas>
+        </div>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-2 mt-4">
+            @foreach(['Very High','High','Medium','Low'] as $prio)
+            @php $pc = $prioCfg[$prio] ?? []; $cnt = $prioBd[$prio] ?? 0; @endphp
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full {{ $pc['dot'] ?? 'bg-gray-300' }} flex-shrink-0"></span>
+                <span class="text-xs text-gray-500 flex-1 truncate">{{ $prio }}</span>
+                <span class="text-xs font-bold text-gray-700">{{ $cnt }}</span>
+            </div>
+            @endforeach
+        </div>
+    </div>
+</div>
+
+{{-- ── Row 5: Agent Workload + Quick Actions ────────────────────────────────── --}}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+    {{-- Agent Workload --}}
+    <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+        <div class="flex items-center justify-between mb-5">
+            <div>
+                <p class="text-sm font-semibold text-gray-800">Agent Workload</p>
+                <p class="text-xs text-gray-400 mt-0.5">Active tickets per agent — {{ $teamLoad->sum('open_count') }} total open</p>
+            </div>
+            <a href="{{ route('ticket.consultant-workload') }}" class="text-xs font-semibold text-red-700 hover:text-red-800">Full view →</a>
+        </div>
+        @if($teamLoad->isEmpty())
+        <div class="flex flex-col items-center justify-center py-10 text-center">
+            <div class="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center mb-3">
+                <i class="fas fa-check-circle text-green-400 text-xl"></i>
+            </div>
+            <p class="text-sm font-semibold text-gray-500">All clear!</p>
+            <p class="text-xs text-gray-400 mt-1">No active agent workload</p>
+        </div>
+        @else
+        @php $maxLoad = $teamLoad->max('open_count') ?: 1; @endphp
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+            @foreach($teamLoad as $m)
+            @php
+                $pct   = round(($m->open_count / $maxLoad) * 100);
+                $barCl = $pct >= 80 ? 'bg-red-500' : ($pct >= 50 ? 'bg-amber-500' : 'bg-emerald-500');
+                $txtCl = $pct >= 80 ? 'text-red-600' : ($pct >= 50 ? 'text-amber-600' : 'text-emerald-600');
+            @endphp
+            <div>
+                <div class="flex items-center justify-between mb-1.5">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-6 h-6 rounded-full primary-gradient text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0">
+                            {{ strtoupper(substr($m->name ?? 'U', 0, 1)) }}
+                        </div>
+                        <span class="text-xs font-medium text-gray-700 truncate">{{ $m->name }}</span>
+                    </div>
+                    <span class="text-xs font-bold {{ $txtCl }} ml-2 flex-shrink-0">{{ $m->open_count }}</span>
+                </div>
+                <div class="w-full bg-gray-100 rounded-full h-1.5">
+                    <div class="{{ $barCl }} h-1.5 rounded-full transition-all duration-500" style="width:{{ $pct }}%"></div>
+                </div>
+            </div>
+            @endforeach
+        </div>
+        @endif
+    </div>
+
+    {{-- Quick Actions + Today's Summary --}}
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+        <p class="text-sm font-semibold text-gray-800 mb-4">Quick Actions</p>
+        <div class="grid grid-cols-2 gap-2">
+            @php
+                $navItems = [
+                    ['href'=>route('ticket.index'),               'icon'=>'fa-ticket-alt',  'bg'=>'bg-red-50',     'color'=>'text-red-700',    'label'=>'All Tickets'],
+                    ['href'=>route('ticket.consultant-workload'), 'icon'=>'fa-users-cog',   'bg'=>'bg-violet-50',  'color'=>'text-violet-600', 'label'=>'Workload'],
+                    ['href'=>route('sla.report'),                 'icon'=>'fa-stopwatch',   'bg'=>'bg-emerald-50', 'color'=>'text-emerald-600','label'=>'SLA Report', 'badge'=>($sla['breached'] ?? 0)],
+                    ['href'=>route('sla.config'),                 'icon'=>'fa-sliders-h',   'bg'=>'bg-teal-50',    'color'=>'text-teal-600',   'label'=>'SLA Config'],
+                    ['href'=>route('reporting'),                  'icon'=>'fa-chart-bar',   'bg'=>'bg-blue-50',    'color'=>'text-blue-600',   'label'=>'Reporting'],
+                    ['href'=>route('reporting.md-recap'),         'icon'=>'fa-calendar-alt','bg'=>'bg-indigo-50',  'color'=>'text-indigo-600', 'label'=>'MD Recap'],
+                    ['href'=>route('calendar.timesheets'),        'icon'=>'fa-clock',       'bg'=>'bg-amber-50',   'color'=>'text-amber-600',  'label'=>'Timesheets'],
+                    ['href'=>route('profile.my'),                 'icon'=>'fa-user-circle', 'bg'=>'bg-gray-100',   'color'=>'text-gray-600',   'label'=>'My Profile'],
+                ];
+            @endphp
+            @foreach($navItems as $nav)
+            <a href="{{ $nav['href'] }}" class="relative flex flex-col items-center gap-1.5 p-3 rounded-xl {{ $nav['bg'] }} hover:ring-2 hover:ring-offset-1 hover:ring-gray-300 transition-all text-center">
+                @if(!empty($nav['badge']) && $nav['badge'] > 0)
+                <span class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">{{ $nav['badge'] > 9 ? '9+' : $nav['badge'] }}</span>
+                @endif
+                <i class="fas {{ $nav['icon'] }} {{ $nav['color'] }} text-base"></i>
+                <p class="text-[11px] font-semibold text-gray-600 leading-tight">{{ $nav['label'] }}</p>
+            </a>
+            @endforeach
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-gray-100">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">Today's Summary</p>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-500 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>New today</span>
+                    <span class="text-xs font-bold text-gray-700">{{ $todayNew }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-500 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>Closed today</span>
+                    <span class="text-xs font-bold text-gray-700">{{ $todayCl }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-500 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>SLA breached</span>
+                    <span class="text-xs font-bold {{ ($sla['breached'] ?? 0) > 0 ? 'text-red-600' : 'text-gray-700' }}">{{ $sla['breached'] ?? '—' }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-500 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>SLA met</span>
+                    <span class="text-xs font-bold text-gray-700">{{ $sla['met'] ?? '—' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ── Row 6: Urgent Tickets ────────────────────────────────────────────────── --}}
+@if($urgents->isNotEmpty())
+<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center"><i class="fas fa-exclamation-triangle text-red-600 text-xs"></i></div>
+            <p class="text-sm font-semibold text-gray-800">Needs Immediate Attention</p>
+            <span class="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Very High + SLA Breached</span>
+        </div>
+        <a href="{{ route('ticket.index') }}" class="text-xs font-semibold text-red-700 hover:text-red-800">View all →</a>
+    </div>
+    <div class="divide-y divide-gray-50">
+        @foreach($urgents as $t)
+        @php
+            $sc = $statusCfg[$t->status] ?? ['dot'=>'bg-gray-400','text'=>'text-gray-500','bg'=>'bg-gray-100','label'=>'Unknown'];
+            $isBreached = ($t->sla_status ?? '') === 'breached';
+            $isVH = ($t->ticket_priority ?? '') === 'Very High';
+        @endphp
+        <a href="{{ route('ticket.show', $t->ticket_id) }}" class="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/80 transition-colors group">
+            <span class="w-2 h-2 rounded-full {{ $sc['dot'] }} flex-shrink-0 mt-0.5"></span>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xs font-bold text-gray-700 group-hover:text-red-700 transition-colors font-mono">#{{ $t->ticket_number }}</span>
+                    @if($isVH)<span class="text-[10px] font-bold text-red-700 bg-red-50 px-1.5 py-0.5 rounded-full"><i class="fas fa-bolt text-[8px] mr-0.5"></i>Very High</span>@endif
+                    @if($isBreached)<span class="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-full"><i class="fas fa-stopwatch text-[8px] mr-0.5"></i>SLA Breached</span>@endif
+                </div>
+                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $t->customer_name ?? '—' }}@if($t->sla_due_at) &middot; Due {{ \Carbon\Carbon::parse($t->sla_due_at)->diffForHumans() }}@endif</p>
+                <p class="text-[11px] text-gray-500 truncate">{{ \Str::limit($t->description ?? '', 60) }}</p>
+            </div>
+            <span class="text-[10px] font-semibold {{ $sc['text'] }} {{ $sc['bg'] }} px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">{{ $sc['label'] }}</span>
+        </a>
+        @endforeach
+    </div>
+</div>
+@endif
+
+{{-- ── Row 7: Recent Tickets ────────────────────────────────────────────────── --}}
+<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center"><i class="fas fa-history text-red-600 text-xs"></i></div>
+            <p class="text-sm font-semibold text-gray-800">Recent Tickets</p>
+        </div>
+        <a href="{{ route('ticket.index') }}" class="text-xs font-semibold text-red-700 hover:text-red-800">View all →</a>
+    </div>
+    @if($recentTkts->isEmpty())
+    <div class="py-12 text-center text-sm text-gray-400">No tickets yet</div>
+    @else
+    <div class="hidden md:grid grid-cols-12 gap-2 px-5 py-2.5 bg-gray-50/80 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+        <div class="col-span-2">Ticket #</div>
+        <div class="col-span-3">Description</div>
+        <div class="col-span-2">Customer</div>
+        <div class="col-span-2">PIC</div>
+        <div class="col-span-1 text-center">Priority</div>
+        <div class="col-span-1 text-center">SLA</div>
+        <div class="col-span-1 text-right">Status</div>
+    </div>
+    <div class="divide-y divide-gray-50">
+        @foreach($recentTkts as $t)
+        @php
+            $sc    = $statusCfg[$t->status] ?? ['dot'=>'bg-gray-400','text'=>'text-gray-500','bg'=>'bg-gray-100','label'=>'Unknown'];
+            $pc    = $prioCfg[$t->ticket_priority ?? ''] ?? ['text'=>'text-gray-400','bg'=>'bg-gray-100','dot'=>'bg-gray-300'];
+            $slaSc = match($t->sla_status ?? '') { 'met'=>'text-green-600 bg-green-50','breached'=>'text-red-600 bg-red-50','pending'=>'text-blue-600 bg-blue-50','paused'=>'text-amber-600 bg-amber-50',default=>'text-gray-400 bg-gray-100' };
+            $slaLb = match($t->sla_status ?? '') { 'met'=>'Met','breached'=>'Breached','pending'=>'Active','paused'=>'Paused',default=>'—' };
+        @endphp
+        <a href="{{ route('ticket.show', $t->ticket_id) }}" class="flex md:grid md:grid-cols-12 md:gap-2 items-center px-5 py-3 hover:bg-gray-50/80 transition-colors group">
+            <div class="col-span-2 flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full {{ $sc['dot'] }} flex-shrink-0"></span>
+                <span class="text-xs font-bold text-gray-700 group-hover:text-red-700 transition-colors font-mono">{{ $t->ticket_number }}</span>
+            </div>
+            <div class="col-span-3 hidden md:block">
+                <span class="text-xs text-gray-500 truncate block">{{ \Str::limit($t->description ?? '—', 40) }}</span>
+                <span class="text-[10px] text-gray-300">{{ \Carbon\Carbon::parse($t->updated_at)->diffForHumans() }}</span>
+            </div>
+            <div class="col-span-2 hidden md:block"><span class="text-xs text-gray-600 truncate block">{{ $t->customer_name ?? '—' }}</span></div>
+            <div class="col-span-2 hidden md:block">
+                <span class="text-xs text-gray-500 truncate block">{{ $t->pic_name ?? 'Unassigned' }}</span>
+                @if(($t->pic_name ?? 'Unassigned') === 'Unassigned')<span class="text-[10px] text-indigo-500 font-semibold">Needs PIC</span>@endif
+            </div>
+            <div class="col-span-1 hidden md:flex justify-center">
+                @if($t->ticket_priority)<span class="text-[10px] font-bold {{ $pc['text'] }} {{ $pc['bg'] }} px-1.5 py-0.5 rounded-full whitespace-nowrap">{{ $t->ticket_priority }}</span>@else<span class="text-gray-300 text-xs">—</span>@endif
+            </div>
+            <div class="col-span-1 hidden md:flex justify-center">
+                <span class="text-[10px] font-semibold {{ $slaSc }} px-1.5 py-0.5 rounded-full whitespace-nowrap">{{ $slaLb }}</span>
+            </div>
+            <div class="col-span-1 flex md:justify-end ml-auto md:ml-0">
+                <span class="text-[10px] font-semibold {{ $sc['text'] }} {{ $sc['bg'] }} px-2 py-0.5 rounded-full whitespace-nowrap">{{ $sc['label'] }}</span>
+            </div>
+        </a>
+        @endforeach
+    </div>
+    @endif
+</div>
+
+</div>
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    // Live clock
+    function tickMgr() { const el = document.getElementById('mgrClock'); if (el) el.textContent = new Date().toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit' }); }
+    tickMgr(); setInterval(tickMgr, 1000);
+
+    // Trend chart
+    const labels    = @json($data['ticket_chart']['labels'] ?? []);
+    const chartData = @json($data['ticket_chart']['data']   ?? []);
+    const ctx = document.getElementById('mgrTicketChart');
+    if (ctx) {
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    data: chartData,
+                    borderColor: '#7c3aed',
+                    backgroundColor: 'rgba(124,58,237,0.07)',
+                    borderWidth: 2.5,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#7c3aed',
+                    pointHoverRadius: 5,
+                    tension: 0.4,
+                    fill: true,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend:{display:false}, tooltip:{callbacks:{label:c=>c.parsed.y+' ticket'+(c.parsed.y!==1?'s':'')}} },
+                scales: {
+                    x:{grid:{display:false},ticks:{font:{size:10},maxTicksLimit:10,color:'#9ca3af'}},
+                    y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.04)'},ticks:{stepSize:1,precision:0,color:'#9ca3af',font:{size:10}}}
+                }
+            }
+        });
+    }
+
+    // Priority donut
+    const prioCtx = document.getElementById('mgrPrioChart');
+    if (prioCtx) {
+        const pd  = { 'Very High': @json($data['priority_breakdown']['Very High'] ?? 0), 'High': @json($data['priority_breakdown']['High'] ?? 0), 'Medium': @json($data['priority_breakdown']['Medium'] ?? 0), 'Low': @json($data['priority_breakdown']['Low'] ?? 0) };
+        const tot = Object.values(pd).reduce((a,b)=>a+b,0);
+        new Chart(prioCtx, {
+            type: 'doughnut',
+            data: { labels: Object.keys(pd), datasets: [{ data: Object.values(pd), backgroundColor:['#dc2626','#ea580c','#ca8a04','#2563eb'], borderColor:'#fff', borderWidth:2, hoverOffset:4 }] },
+            options: { responsive:false, cutout:'68%', plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>c.label+': '+c.raw+' ('+(tot>0?Math.round(c.raw/tot*100):0)+'%)'}} } },
+            plugins: [{ id:'center', beforeDraw(chart){ const {width,height,ctx}=chart; ctx.save(); ctx.font='bold 20px Inter,Arial,sans-serif'; ctx.fillStyle='#1f2937'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(tot,width/2,height/2-6); ctx.font='10px Inter,Arial,sans-serif'; ctx.fillStyle='#9ca3af'; ctx.fillText('active',width/2,height/2+12); ctx.restore(); } }]
+        });
+    }
 })();
 </script>
 @endpush

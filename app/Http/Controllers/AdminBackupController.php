@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class AdminBackupController extends Controller
 {
@@ -455,26 +457,29 @@ class AdminBackupController extends Controller
                 'Consultant', 'IT', 'Support',
                 'Jakarta', 'Junior Consultant',
                 '2023-01-01', '3201010101900001',
-            ]);
-            fclose($handle);
-        };
+            ],
+        ]);
 
-        return response()->stream($callback, 200, $headers);
+        $writer = new Xlsx($spreadsheet);
+        return response()->stream(
+            fn () => $writer->save('php://output'),
+            200,
+            [
+                'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="employees_import_template.xlsx"',
+                'Cache-Control'       => 'max-age=0',
+            ]
+        );
     }
 
     public function templateCustomers()
     {
         if (!$this->assertAdmin()) abort(403);
 
-        $headers = [
-            'Content-Type'        => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="customers_import_template.csv"',
-        ];
-
-        $callback = function () {
-            $handle = fopen('php://output', 'w');
-            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
-            fputcsv($handle, [
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->fromArray([
+            [
                 'Customer Code', 'Email', 'Status',
                 'Title', 'Company Name', 'Name 2',
                 'Customer Group', 'Customer Category', 'Industry Sector',
@@ -501,7 +506,16 @@ class AdminBackupController extends Controller
             fclose($handle);
         };
 
-        return response()->stream($callback, 200, $headers);
+        $writer = new Xlsx($spreadsheet);
+        return response()->stream(
+            fn () => $writer->save('php://output'),
+            200,
+            [
+                'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="customers_import_template.xlsx"',
+                'Cache-Control'       => 'max-age=0',
+            ]
+        );
     }
 
     // ── Import Employee ───────────────────────────────────────────────────────
@@ -1318,6 +1332,258 @@ class AdminBackupController extends Controller
             }
         }
         return null;
+    }
+
+    // ── Template Tickets ──────────────────────────────────────────────────────
+
+    public function templateTickets()
+    {
+        if (!$this->assertAdmin()) abort(403);
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->fromArray([
+            [
+                'Tiket', 'Description', 'Date', 'Customer', 'End Customer',
+                'PIC', 'Priority', 'Scale', 'Status', 'Type',
+                'Assign Delivery', 'Customer Mandays', 'Progress',
+                'Target Respon Time (Hour)', 'Respon Time (Hour)', 'Respon Time Status',
+                'Target Resolution Time', 'Due Date/Time Resolution Time',
+                'Resolution Time', 'Resolution Time Status',
+            ],
+            [
+                '100000001', 'Login page not responding', '01 Jun 2026', 'PT Example Tbk', '',
+                'John Doe', 'High', 'Simple', 'Inprocess', 'Incident',
+                '', '', '',
+                '', '', '',
+                '', '2026-06-30',
+                '', '',
+            ],
+        ]);
+
+        $writer = new Xlsx($spreadsheet);
+        return response()->stream(
+            fn () => $writer->save('php://output'),
+            200,
+            [
+                'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="tickets_import_template.xlsx"',
+                'Cache-Control'       => 'max-age=0',
+            ]
+        );
+    }
+
+    // ── Import Ticket (CSV) ───────────────────────────────────────────────────
+
+    public function importTickets(Request $request)
+    {
+        if (!$this->assertAdmin()) return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+
+        set_time_limit(300);
+
+        $request->validate(['file' => 'required|file|mimes:csv,txt|max:20480']);
+
+        $handle = fopen($request->file('file')->getRealPath(), 'r');
+
+        $bom = fread($handle, 3);
+        if ($bom !== "\xEF\xBB\xBF") rewind($handle);
+
+        $rawHeaders = fgetcsv($handle);
+        if (!$rawHeaders) {
+            fclose($handle);
+            return response()->json(['success' => false, 'message' => 'File CSV kosong atau tidak valid'], 422);
+        }
+
+        $headers = array_map(fn($h) => strtolower(trim($h ?? '')), $rawHeaders);
+
+        $aliasMap = [
+            'ticket_number' => ['tiket', 'ticket', 'ticket_number', 'ticket number', 'no tiket', 'no. tiket'],
+            'customer'      => ['customer', 'customer_code', 'customer code'],
+            'status'        => ['status'],
+            'priority'      => ['priority', 'ticket_priority', 'prioritas'],
+            'scale'         => ['scale', 'skala'],
+            'type'          => ['type', 'ticket type', 'ticket_type', 'tipe'],
+            'pic'           => ['pic'],
+            'end_date'      => ['due date/time resolution time', 'end_date', 'due date', 'due_date'],
+        ];
+
+        $colIndex = [];
+        foreach ($aliasMap as $field => $aliases) {
+            foreach ($headers as $i => $h) {
+                if (in_array($h, $aliases, true)) { $colIndex[$field] = $i; break; }
+            }
+        }
+
+        if (!isset($colIndex['ticket_number'])) {
+            fclose($handle);
+            return response()->json(['success' => false, 'message' => 'Kolom "Tiket" (ticket number) tidak ditemukan di CSV'], 422);
+        }
+
+        $statusMap = [
+            'open'                    => 'open',
+            'inprocess'               => 'inprocess',
+            'in process'              => 'inprocess',
+            'waiting on customer'     => 'waiting_on_customer',
+            'waiting_on_customer'     => 'waiting_on_customer',
+            'waiting on 3rd party'    => 'waiting_on_3rd_party',
+            'waiting_on_3rd_party'    => 'waiting_on_3rd_party',
+            'waiting to confirmation' => 'waiting_to_confirmation',
+            'waiting_to_confirmation' => 'waiting_to_confirmation',
+            'hold'                    => 'hold',
+            'cancelled'               => 'cancelled',
+            'canceled'                => 'cancelled',
+            'closed'                  => 'closed',
+        ];
+        $validPriorities = ['Very High', 'High', 'Medium', 'Low'];
+        $validScales     = ['Simple', 'Medium', 'Complex'];
+        $validTypes      = ['Incident', 'Service Request', 'Change Request', 'Consult'];
+
+        $updated = 0;
+        $skipped = 0;
+        $errors  = [];
+        $rowNum  = 1;
+
+        while (($row = fgetcsv($handle)) !== false) {
+            $rowNum++;
+
+            $ticketNumber = trim($row[$colIndex['ticket_number']] ?? '');
+            if ($ticketNumber === '' || $ticketNumber === '-') { $skipped++; continue; }
+
+            $ticket = DB::table('ticket')
+                ->where('ticket_number', $ticketNumber)
+                ->whereNull('deleted_at')
+                ->first();
+
+            if (!$ticket) {
+                $errors[] = "Row {$rowNum}: Ticket #{$ticketNumber} not found";
+                $skipped++;
+                continue;
+            }
+
+            // Validate customer existence if the column is present and filled
+            if (isset($colIndex['customer'])) {
+                $rawCustomer = trim($row[$colIndex['customer']] ?? '');
+                if ($rawCustomer !== '' && $rawCustomer !== '-') {
+                    $customerExists = DB::table('customer as c')
+                        ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
+                        ->where(function ($q) use ($rawCustomer) {
+                            $q->where('c.customer_code', $rawCustomer)
+                              ->orWhere('cbd.name_1', $rawCustomer);
+                        })
+                        ->exists();
+
+                    if (!$customerExists) {
+                        $errors[] = "Row {$rowNum} (#{$ticketNumber}): Customer '{$rawCustomer}' tidak ditemukan di master customer — baris dilewati";
+                        $skipped++;
+                        continue;
+                    }
+                }
+            }
+
+            $updateData = [];
+
+            if (isset($colIndex['status'])) {
+                $raw = strtolower(trim($row[$colIndex['status']] ?? ''));
+                if ($raw !== '' && $raw !== '-') {
+                    $mapped = $statusMap[$raw] ?? null;
+                    if ($mapped) {
+                        $updateData['status'] = $mapped;
+                    } else {
+                        $errors[] = "Row {$rowNum} (#{$ticketNumber}): Invalid status '{$row[$colIndex['status']]}'";
+                    }
+                }
+            }
+
+            if (isset($colIndex['priority'])) {
+                $raw = trim($row[$colIndex['priority']] ?? '');
+                if ($raw !== '' && $raw !== '-') {
+                    $matched = null;
+                    foreach ($validPriorities as $vp) {
+                        if (strcasecmp($raw, $vp) === 0) { $matched = $vp; break; }
+                    }
+                    if ($matched) {
+                        $updateData['ticket_priority'] = $matched;
+                    } else {
+                        $errors[] = "Row {$rowNum} (#{$ticketNumber}): Invalid priority '{$raw}' (accepted: Very High, High, Medium, Low)";
+                    }
+                }
+            }
+
+            if (isset($colIndex['scale'])) {
+                $raw = trim($row[$colIndex['scale']] ?? '');
+                if ($raw !== '' && $raw !== '-') {
+                    $matched = null;
+                    foreach ($validScales as $vs) {
+                        if (strcasecmp($raw, $vs) === 0) { $matched = $vs; break; }
+                    }
+                    if ($matched) {
+                        $updateData['scale'] = $matched;
+                    } else {
+                        $errors[] = "Row {$rowNum} (#{$ticketNumber}): Invalid scale '{$raw}' (accepted: Simple, Medium, Complex)";
+                    }
+                }
+            }
+
+            if (isset($colIndex['type'])) {
+                $raw = trim($row[$colIndex['type']] ?? '');
+                if ($raw !== '' && $raw !== '-') {
+                    $matched = null;
+                    foreach ($validTypes as $vt) {
+                        if (strcasecmp($raw, $vt) === 0) { $matched = $vt; break; }
+                    }
+                    if ($matched) {
+                        $updateData['ticket_type'] = $matched;
+                    } else {
+                        $errors[] = "Row {$rowNum} (#{$ticketNumber}): Invalid type '{$raw}' (accepted: Incident, Service Request, Change Request, Consult)";
+                    }
+                }
+            }
+
+            if (isset($colIndex['pic'])) {
+                $raw = trim($row[$colIndex['pic']] ?? '');
+                if ($raw !== '' && $raw !== '-') {
+                    $updateData['pic'] = $raw;
+                }
+            }
+
+            if (isset($colIndex['end_date'])) {
+                $raw = trim($row[$colIndex['end_date']] ?? '');
+                if ($raw !== '' && $raw !== '-') {
+                    $normalized = $this->normalizeDate($raw);
+                    if ($normalized) {
+                        $updateData['end_date'] = $normalized;
+                    }
+                }
+            }
+
+            if (empty($updateData)) {
+                $skipped++;
+                continue;
+            }
+
+            try {
+                $updateData['updated_at'] = now();
+                DB::table('ticket')->where('ticket_id', $ticket->ticket_id)->update($updateData);
+                $updated++;
+            } catch (\Exception $e) {
+                $errors[] = "Row {$rowNum} (#{$ticketNumber}): " . $e->getMessage();
+            }
+        }
+
+        fclose($handle);
+
+        Log::info('AdminBackupController: ticket import', [
+            'updated' => $updated, 'skipped' => $skipped, 'errors' => count($errors),
+            'by'      => session('user.eci') ?? session('user.name') ?? 'admin',
+        ]);
+
+        return response()->json([
+            'success'  => true,
+            'message'  => "Import complete: {$updated} updated" . ($skipped ? ", {$skipped} skipped" : '') . (count($errors) ? ', ' . count($errors) . ' error(s)' : ''),
+            'updated'  => $updated,
+            'skipped'  => $skipped,
+            'errors'   => $errors,
+        ]);
     }
 
     private function formatBytes(int $bytes): string

@@ -1001,7 +1001,17 @@ class DeliverySupportController extends Controller
             $subfolders = $oneDrive->listFolderChildrenByPath($customerFolderPath);
             return response()->json(['subfolders' => $subfolders, 'customer_folder' => $customerFolderName]);
         } catch (\Throwable $e) {
-            return response()->json(['subfolders' => [], 'error' => $e->getMessage()]);
+            $message = $e->getMessage();
+            // Berikan pesan error yang lebih jelas jika akun OneDrive service tidak ditemukan
+            if (str_contains($message, 'User not found') || str_contains($message, 'ResourceNotFound')) {
+                $message = 'OneDrive service account tidak ditemukan. Hubungi administrator untuk memeriksa konfigurasi MS_SENDER_EMAIL di Azure AD.';
+            }
+            Log::warning('getDeliverableSubfolders: OneDrive error', [
+                'support_id' => $support->id,
+                'path'       => $customerFolderPath,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json(['subfolders' => [], 'error' => $message]);
         }
     }
 

@@ -35,6 +35,8 @@ class TicketViewController extends Controller
         $user->role->role_id = (int) ($sessionUser['role']['id'] ?? 0);
         $user->role->role_name = $sessionUser['role']['name'] ?? 'Unknown';
 
+        $user->eci = $sessionUser['eci'] ?? null;
+
         return $user;
     }
 
@@ -65,10 +67,13 @@ class TicketViewController extends Controller
                 ->toArray();
         }
 
+        $isEciEmployee = str_starts_with(strtoupper($user->eci ?? ''), 'E');
+
         return view('ticket.index', [
             'user'              => $user,
             'customers'         => $customers,
             'currentEmployeeId' => $user->id,
+            'isEciEmployee'     => $isEciEmployee,
         ]);
     }
 
@@ -168,7 +173,7 @@ class TicketViewController extends Controller
             ->value('submitted_by_email');
 
         if (!$customerEmail) {
-            $customerEmail = DB::table('ticket_messages')
+            $customerEmail = DB::table('ticket_message')
                 ->where('ticket_id', $ticket->ticket_id)
                 ->where('sender_type', 'customer')
                 ->whereNotNull('sender_email')
@@ -185,6 +190,8 @@ class TicketViewController extends Controller
             ->whereNull('ended_at')
             ->exists();
 
+        $isEciEmployee = str_starts_with(strtoupper($user->eci ?? ''), 'E');
+
         return view('ticket.show', [
             'user'             => $user,
             'ticket'           => $ticket,
@@ -195,6 +202,7 @@ class TicketViewController extends Controller
             'approvedMandays'  => $approvedMandays,
             'customerEmail'    => $customerEmail,
             'inMeeting'        => $inMeeting,
+            'isEciEmployee'    => $isEciEmployee,
         ]);
     }
 }

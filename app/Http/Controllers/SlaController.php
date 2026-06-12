@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Customer;
+use App\Models\DeliverySupport;
 use App\Models\SlaPolicy;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
@@ -44,9 +44,9 @@ class SlaController extends Controller
             abort(403);
         }
 
-        $canManage = $this->canManagePolicies();
-        $customers = Customer::with('basicData')->where('is_active', true)->get();
-        return view('admin.sla.config', compact('customers', 'canManage'));
+        $canManage        = $this->canManagePolicies();
+        $deliverySupports = DeliverySupport::orderBy('name')->get(['id', 'name', 'type']);
+        return view('admin.sla.config', compact('deliverySupports', 'canManage'));
     }
 
     public function reportPage()
@@ -55,7 +55,7 @@ class SlaController extends Controller
             abort(403);
         }
 
-        $customers = Customer::with('basicData')->where('is_active', true)->get();
+        $customers = \App\Models\Customer::with('basicData')->where('is_active', true)->get();
         return view('admin.sla.report', compact('customers'));
     }
 
@@ -67,18 +67,13 @@ class SlaController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
-        $query = SlaPolicy::with('customer.basicData');
+        $query = SlaPolicy::with('deliverySupport');
 
-        if ($request->filled('customer_id')) {
-            if ($request->customer_id === 'global') {
-                $query->whereNull('customer_id');
-            } else {
-                $query->where('customer_id', $request->customer_id);
-            }
+        if ($request->filled('delivery_support_id')) {
+            $query->where('delivery_support_id', $request->delivery_support_id);
         }
 
-        $policies = $query->orderByRaw('customer_id IS NULL ASC')
-            ->orderBy('customer_id')
+        $policies = $query->orderBy('delivery_support_id')
             ->orderByRaw("FIELD(priority, 'Very High', 'High', 'Medium', 'Low')")
             ->orderByRaw("FIELD(scale, 'Simple', 'Medium', 'Complex')")
             ->get()
@@ -94,20 +89,20 @@ class SlaController extends Controller
         }
 
         $v = Validator::make($request->all(), [
-            'customer_id'      => 'nullable|exists:customer,customer_id',
-            'priority'         => 'required|in:Low,Medium,High,Very High',
-            'scale'            => 'required|in:Simple,Medium,Complex',
-            'response_hours'   => 'required|numeric|min:0.1|max:999',
-            'resolution_hours' => 'required|numeric|min:0.1|max:999',
-            'is_24_hours'      => 'boolean',
+            'delivery_support_id' => 'required|exists:delivery_support,id',
+            'priority'            => 'required|in:Low,Medium,High,Very High',
+            'scale'               => 'required|in:Simple,Medium,Complex',
+            'response_hours'      => 'required|numeric|min:0.1|max:999',
+            'resolution_hours'    => 'required|numeric|min:0.1|max:999',
+            'is_24_hours'         => 'boolean',
         ]);
 
         if ($v->fails()) {
             return response()->json(['success' => false, 'errors' => $v->errors()], 422);
         }
 
-        $customerId = $request->customer_id ?: null;
-        $exists = SlaPolicy::where('customer_id', $customerId)
+        $deliverySupportId = (int) $request->delivery_support_id;
+        $exists = SlaPolicy::where('delivery_support_id', $deliverySupportId)
             ->where('priority', $request->priority)
             ->where('scale', $request->scale)
             ->exists();
@@ -115,24 +110,24 @@ class SlaController extends Controller
         if ($exists) {
             return response()->json([
                 'success' => false,
-                'message' => 'A policy for this customer / priority / scale combination already exists.',
+                'message' => 'A policy for this delivery support / priority / scale combination already exists.',
             ], 422);
         }
 
         $policy = SlaPolicy::create([
-            'customer_id'      => $customerId,
-            'priority'         => $request->priority,
-            'scale'            => $request->scale,
-            'response_hours'   => $request->response_hours,
-            'resolution_hours' => $request->resolution_hours,
-            'is_24_hours'      => $request->priority === 'Very High' ? true : $request->boolean('is_24_hours', false),
-            'is_active'        => true,
-            'created_by'       => session('user.id'),
+            'delivery_support_id' => $deliverySupportId,
+            'priority'            => $request->priority,
+            'scale'               => $request->scale,
+            'response_hours'      => $request->response_hours,
+            'resolution_hours'    => $request->resolution_hours,
+            'is_24_hours'         => $request->priority === 'Very High' ? true : $request->boolean('is_24_hours', false),
+            'is_active'           => true,
+            'created_by'          => session('user.id'),
         ]);
 
         return response()->json([
             'success' => true,
-            'data'    => $this->formatPolicy($policy->load('customer.basicData')),
+            'data'    => $this->formatPolicy($policy->load('deliverySupport')),
         ], 201);
     }
 
@@ -162,7 +157,7 @@ class SlaController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $this->formatPolicy($policy->load('customer.basicData')),
+            'data'    => $this->formatPolicy($policy->load('deliverySupport')),
         ]);
     }
 
@@ -202,6 +197,24 @@ class SlaController extends Controller
             return response()->json(['success' => true, 'data' => null]);
         }
 
+        // Jika tiket sudah closed/cancelled tapi SLA belum di-finalize, auto-finalize sekarang
+        if (
+            $ticket->status &&
+            in_array($ticket->status, SlaService::END_STATUSES) &&
+            !$sla->isClosed()
+        ) {
+            try {
+                $isCancelled = $ticket->status === 'cancelled';
+                $this->sla->closeTicketSla($sla, $ticket, null, $ticket->updated_at ?? now(), null, $isCancelled);
+                $sla->refresh();
+            } catch (\Throwable $e) {
+                Log::warning('SlaController@getTicketSla: auto-finalize gagal', [
+                    'ticket_id' => $id,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
+        }
+
         $policy   = $sla->policy;
         $liveWait = $this->sla->liveWaitingHours($sla);
 
@@ -231,11 +244,19 @@ class SlaController extends Controller
 
         $events = $this->buildSlaEventLog($sla, $ticket->ticket_id, $ticket->status);
 
+        // Tampilkan 'meeting' sebagai ball_holder saat meeting sedang aktif
+        // (DB menyimpan 'customer' tapi label itu membingungkan bagi agen)
+        $activeMeeting = TicketSlaPause::where('ticket_id', $ticket->ticket_id)
+            ->where('pause_reason', 'meeting')
+            ->whereNull('ended_at')
+            ->exists();
+        $ballHolder = $activeMeeting ? 'meeting' : $sla->ball_holder;
+
         return response()->json([
             'success' => true,
             'data'    => [
                 'sla_mode'    => $sla->sla_mode,
-                'ball_holder' => $sla->ball_holder,
+                'ball_holder' => $ballHolder,
                 'response'    => $responseData,
                 'resolution'  => $resolutionData,
                 'events'      => $events,
@@ -258,8 +279,10 @@ class SlaController extends Controller
     {
         $stopStatuses     = ['waiting_on_customer', 'waiting_to_confirmation', 'waiting_on_3rd_party', 'hold'];
         $runStatuses      = ['inprocess', 'open'];
+        $endStatuses      = SlaService::END_STATUSES;
         $messageOnlyTypes = ['agent_replied', 'customer_replied'];
         $is24h            = $sla->policy?->is_24_hours ?? true;
+        $ticketIsClosed   = $sla->isClosed() || in_array($currentTicketStatus, $endStatuses);
 
         // ── 1. Special events ─────────────────────────────────────────────────
         $specialEvents = $sla->events
@@ -295,8 +318,18 @@ class SlaController extends Controller
         $pauseEndedByMsg   = $allPauses->whereNotNull('ended_by_message_id')->keyBy('ended_by_message_id');
 
         // ── 4. All non-internal messages ──────────────────────────────────────
+        // Meeting messages are tracked via TicketSlaEvent (specialEvents above);
+        // excluding them here prevents duplicates in the SLA timeline walk.
+        // Use explicit NULL guard: MySQL treats NULL NOT IN (...) as NULL (unknown),
+        // so a plain whereNotIn would silently drop all legacy rows with null message_type.
         $messages = TicketMessage::where('ticket_id', $ticketId)
             ->where('is_internal_note', false)
+            ->where(function ($q) {
+                $q->whereNull('message_type')
+                  ->orWhereNotIn('message_type', ['meeting_started', 'meeting_ended']);
+            })
+            // Setelah tiket di-close, tidak ada pesan yang dihitung dalam SLA timeline
+            ->when($sla->resolved_at, fn ($q) => $q->where('created_at', '<=', $sla->resolved_at))
             ->orderBy('created_at')
             ->get();
 
@@ -314,7 +347,7 @@ class SlaController extends Controller
         $messageEvents = $messages->map(function ($msg) use (
             $storedByMsgId, $pauseStartedByMsg, $pauseEndedByMsg,
             $stopStatuses, $runStatuses, $is24h,
-            $lastAgentMsgId, $currentTicketStatus, $sla,
+            $lastAgentMsgId, $currentTicketStatus, $sla, $ticketIsClosed,
             &$ballHolder, &$sessionStart, &$pauseStart, &$lastAgentAt
         ) {
             $stored     = $storedByMsgId->get($msg->id);
@@ -361,19 +394,20 @@ class SlaController extends Controller
                 // jarvisStatus priority:
                 //   1. Stored event
                 //   2. Pause record yang di-trigger pesan ini
-                //   3. (khusus pesan terakhir) status ticket saat ini
+                //   3. (khusus pesan terakhir) status ticket saat ini — hanya jika tiket BELUM closed
                 $jarvisStatus = $stored?->jarvis_status
                     ?? $pauseStartedByThisMsg?->triggered_by_status;
 
                 if (!$jarvisStatus && $msg->id === $lastAgentMsgId && $currentTicketStatus
-                    && in_array($currentTicketStatus, $stopStatuses)) {
+                    && in_array($currentTicketStatus, $stopStatuses)
+                    && !$ticketIsClosed) {
                     $jarvisStatus = $currentTicketStatus;
                 }
 
                 // Pause anchor: gunakan pause record atau waktu pesan
-                // Untuk pesan terakhir, utamakan sla_paused_at karena lebih akurat
+                // Untuk pesan terakhir, utamakan sla_paused_at — tapi hanya jika tiket belum closed
                 $effectivePauseStart = $pauseStartedByThisMsg?->started_at ?? $msg->created_at;
-                if ($msg->id === $lastAgentMsgId && $sla->sla_paused_at !== null) {
+                if ($msg->id === $lastAgentMsgId && $sla->sla_paused_at !== null && !$ticketIsClosed) {
                     $effectivePauseStart = $sla->sla_paused_at;
                 }
 
@@ -562,41 +596,102 @@ class SlaController extends Controller
         }
 
         $v = Validator::make($request->all(), [
-            'started_at' => 'nullable|date',
-            'notes'      => 'nullable|string|max:1000',
+            'started_at'   => 'nullable|date',
+            'notes'        => 'nullable|string|max:1000',
+            'meeting_link' => 'nullable|url|max:2048',
         ]);
 
         if ($v->fails()) {
             return response()->json(['success' => false, 'errors' => $v->errors()], 422);
         }
 
-        $ticket      = Ticket::with('sla.policy')->findOrFail($id);
+        $ticket      = Ticket::with(['sla.policy', 'customer'])->findOrFail($id);
         $startAt     = $request->filled('started_at') ? Carbon::parse($request->started_at) : now();
         $senderName  = session('user.name') ?? 'Helpdesk';
-        $senderId    = session('user.id');
+        $senderId    = (int) session('user.id');
         $notes       = $request->input('notes');
+        $meetingLink = $request->input('meeting_link');
 
         try {
             $this->sla->startMeeting($ticket, $startAt);
 
-            TicketMessage::create([
-                'ticket_id'        => $ticket->ticket_id,
-                'sender_type'      => 'system',
-                'sender_id'        => $senderId,
-                'sender_name'      => $senderName,
-                'message'          => $notes,
-                'is_internal_note' => true,
-                'message_type'     => 'meeting_started',
-                'channel'          => 'web',
-                'created_at'       => $startAt,
-                'updated_at'       => $startAt,
-            ]);
+            // Bangun HTML undangan meeting (tanpa footer — TicketMessageController menambahkannya)
+            $html      = $this->buildMeetingEmailHtml($ticket, $senderName, $notes, $meetingLink, $startAt);
+            $msgParts  = array_filter([$notes, $meetingLink ? "Link: {$meetingLink}" : null]);
+            $plainBody = implode("\n", $msgParts) ?: 'Meeting dimulai';
 
-            return response()->json(['success' => true, 'message' => 'Meeting dimulai — SLA clock dijeda.']);
+            // Kirim via infrastruktur email yang SAMA dengan chat reply biasa
+            $emailMsg = app(TicketMessageController::class)->sendSystemReplyEmail(
+                $ticket,
+                $senderId,
+                $senderName,
+                $html,
+                $plainBody,
+                'meeting_started'
+            );
+
+            // Fallback: jika tidak ada customer email atau email gagal, simpan sebagai
+            // pesan internal agar meeting card tetap muncul di room chat
+            if (!$emailMsg) {
+                TicketMessage::create([
+                    'ticket_id'        => $ticket->ticket_id,
+                    'sender_type'      => 'system',
+                    'sender_id'        => $senderId,
+                    'sender_name'      => $senderName,
+                    'message'          => $plainBody,
+                    'is_internal_note' => true,
+                    'message_type'     => 'meeting_started',
+                    'channel'          => 'web',
+                    'created_at'       => $startAt,
+                    'updated_at'       => $startAt,
+                ]);
+            }
+
+            return response()->json([
+                'success'    => true,
+                'message'    => 'Meeting dimulai — SLA clock dijeda.',
+                'email_sent' => (bool) $emailMsg,
+            ]);
         } catch (\Throwable $e) {
             Log::error('SlaController@startMeeting failed', ['ticket_id' => $id, 'error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Gagal memulai meeting.'], 500);
         }
+    }
+
+    private function buildMeetingEmailHtml(
+        Ticket  $ticket,
+        string  $senderName,
+        ?string $notes,
+        ?string $meetingLink,
+        Carbon  $startAt
+    ): string {
+        $ticketNum  = e($ticket->ticket_number ?? '');
+        $agent      = e($senderName);
+        $timeStr    = $startAt->timezone('Asia/Jakarta')->format('d M Y, H:i') . ' WIB';
+        $notesHtml  = $notes
+            ? '<p style="margin:0 0 12px 0;">' . nl2br(e($notes)) . '</p>'
+            : '';
+        $linkBlock  = $meetingLink
+            ? '<div style="margin:20px 0;padding:16px 20px;background:#f5f3ff;border-radius:10px;border-left:4px solid #7c3aed;">
+                 <p style="margin:0 0 8px 0;font-size:13px;font-weight:600;color:#5b21b6;">Link Meeting</p>
+                 <a href="' . e($meetingLink) . '" style="color:#7c3aed;font-size:14px;font-weight:600;word-break:break-all;">' . e($meetingLink) . '</a>
+               </div>'
+            : '';
+
+        return <<<HTML
+        <p style="margin:0 0 12px 0;">Halo,</p>
+        <p style="margin:0 0 12px 0;">
+            Kami mengundang Anda untuk mengikuti <strong>sesi meeting</strong> terkait tiket
+            <strong style="color:#374151;">#{$ticketNum}</strong>.
+        </p>
+        <table style="width:100%;background:#f9fafb;border-radius:8px;padding:12px 16px;margin-bottom:16px;border-collapse:collapse;">
+            <tr><td style="padding:4px 0;font-size:13px;color:#6b7280;width:120px;">Waktu</td><td style="padding:4px 0;font-size:13px;font-weight:600;color:#374151;">{$timeStr}</td></tr>
+            <tr><td style="padding:4px 0;font-size:13px;color:#6b7280;">Host</td><td style="padding:4px 0;font-size:13px;font-weight:600;color:#374151;">{$agent} &mdash; PT Eclectic Consulting</td></tr>
+        </table>
+        {$notesHtml}
+        {$linkBlock}
+        <p style="margin:12px 0 0 0;font-size:13px;color:#6b7280;">Untuk pertanyaan lebih lanjut, silakan balas email ini.</p>
+        HTML;
     }
 
     public function endMeeting(Request $request, $id)
@@ -677,23 +772,21 @@ class SlaController extends Controller
 
     private function formatPolicy(SlaPolicy $p): array
     {
-        $customerName = null;
-        if ($p->customer && $p->customer->basicData) {
-            $bd           = $p->customer->basicData;
-            $customerName = trim(($bd->title ?? '') . ' ' . ($bd->name_1 ?? ''));
-        }
+        $dsName = $p->deliverySupport
+            ? trim($p->deliverySupport->name . ($p->deliverySupport->type ? ' (' . $p->deliverySupport->type . ')' : ''))
+            : null;
 
         return [
-            'id'               => $p->id,
-            'customer_id'      => $p->customer_id,
-            'customer_name'    => $customerName,
-            'priority'         => $p->priority,
-            'scale'            => $p->scale,
-            'response_hours'   => (float) $p->response_hours,
-            'resolution_hours' => (float) $p->resolution_hours,
-            'is_24_hours'      => (bool) $p->is_24_hours,
-            'is_active'        => (bool) $p->is_active,
-            'created_at'       => $p->created_at?->toDateTimeString(),
+            'id'                   => $p->id,
+            'delivery_support_id'  => $p->delivery_support_id,
+            'delivery_support_name'=> $dsName,
+            'priority'             => $p->priority,
+            'scale'                => $p->scale,
+            'response_hours'       => (float) $p->response_hours,
+            'resolution_hours'     => (float) $p->resolution_hours,
+            'is_24_hours'          => (bool) $p->is_24_hours,
+            'is_active'            => (bool) $p->is_active,
+            'created_at'           => $p->created_at?->toDateTimeString(),
         ];
     }
 

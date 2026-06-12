@@ -277,8 +277,9 @@ Route::middleware(['web'])->group(function () {
     // ==================== CONSULTANT WORKLOAD ROUTES ====================
     Route::prefix('consultant-workload')->group(function () {
         Route::get('/', [\App\Http\Controllers\ConsultantWorkloadController::class, 'list']);
+        Route::get('/tickets/{ticketId}/consultant-progress', [\App\Http\Controllers\ConsultantWorkloadController::class, 'getConsultantProgress']);
+        Route::patch('/tickets/{ticketId}/consultant-progress', [\App\Http\Controllers\ConsultantWorkloadController::class, 'updateConsultantProgress']);
         Route::get('/{id}', [\App\Http\Controllers\ConsultantWorkloadController::class, 'detail']);
-        Route::patch('/tickets/{ticketId}/progress', [\App\Http\Controllers\ConsultantWorkloadController::class, 'updateProgress']);
     });
 
     // ==================== STAGING TICKET ROUTES ====================
@@ -305,6 +306,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/pending-member-changes', [TicketController::class, 'pendingMemberChanges']);
         Route::get('/available-ticket-leads', [TicketController::class, 'getAvailableTicketLeads']);
         Route::post('/', [TicketController::class, 'store']);
+        Route::post('/helpdesk-create', [TicketController::class, 'storeFromHelpdesk']);
 
         // Routes with specific names
         Route::get('/status/{status}', [TicketController::class, 'getByStatus']);
@@ -488,6 +490,7 @@ Route::middleware(['web'])->group(function () {
         // Import
         Route::post('/import/employees', [AdminBackupController::class, 'importEmployees']);
         Route::post('/import/customers', [AdminBackupController::class, 'importCustomers']);
+        Route::post('/import/tickets',   [AdminBackupController::class, 'importTickets']);
         Route::post('/import/tickets/zip', [TicketMigrationController::class, 'importZip']);
         Route::post('/import/tickets/from-api', [TicketMigrationController::class, 'importFromApi']);
 

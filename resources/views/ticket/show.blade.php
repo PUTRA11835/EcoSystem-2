@@ -43,7 +43,7 @@
 
     {{-- Filter Tabs --}}
     @php $ticketManagerOrEmployee = array_merge(\App\Enums\RoleId::TICKET_MANAGER_GROUP, [\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value]); @endphp
-    @if(in_array($user->role->role_id, $ticketManagerOrEmployee, true))
+    @if(in_array($user->role->role_id, $ticketManagerOrEmployee, true) && !($isEciEmployee ?? false))
     <div class="px-4 pb-3">
         <div class="flex bg-white bg-opacity-10 rounded-lg p-0.5 gap-0.5">
             <button id="sidebarTabAll" onclick="switchSidebarView('all')"
@@ -123,7 +123,7 @@
                             'closed'                  => 'Closed',
                         ];
                     @endphp
-                    <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
+                    <span id="ticketStatusBadge" class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
                         {{ $statusLabels[$ticket->status] ?? ucfirst($ticket->status) }}
                     </span>
                     @if($ticket->ticket_type)
@@ -772,41 +772,74 @@
         </div>
 
         {{-- ── Additional Info Panel ── --}}
-        @if($ticket->name || $ticket->no_hp || $ticket->module || $ticket->client)
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
             <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
                  onclick="toggleSidebarPanel('additionalInfoPanel', 'additionalInfoChevron')">
                 <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Additional Info</h4>
-                <i id="additionalInfoChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
+                <div class="flex items-center gap-2">
+                    @if($canEditProps)
+                    <button id="additionalInfoSaveBtn" onclick="event.stopPropagation(); saveAdditionalInfo()"
+                            class="inline-flex items-center px-2.5 py-1 primary-gradient text-white text-[10px] font-semibold rounded-md hover:opacity-90 transition-all duration-200">
+                        Save
+                    </button>
+                    @endif
+                    <i id="additionalInfoChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
+                </div>
             </div>
             <div id="additionalInfoPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
-                @if($ticket->name)
+                {{-- Contact Name --}}
                 <div>
-                    <span class="text-[10px] text-gray-400 font-semibold uppercase">Name</span>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->name }}</p>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Contact Name</label>
+                    @if($canEditProps)
+                    <input id="additionalInfoName" type="text" value="{{ $ticket->name ?: $ticket->submitted_by_name }}"
+                           placeholder="Enter contact name..."
+                           class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    @else
+                    <span class="{{ $roValCls }}">{{ $ticket->name ?: ($ticket->submitted_by_name ?? '—') }}</span>
+                    @endif
+                </div>
+                {{-- Phone Number --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Phone Number</label>
+                    @if($canEditProps)
+                    <input id="additionalInfoNoHp" type="text" value="{{ $ticket->no_hp }}"
+                           placeholder="Enter phone number..."
+                           class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    @else
+                    <span class="{{ $roValCls }}">{{ $ticket->no_hp ?? '—' }}</span>
+                    @endif
+                </div>
+                @if($ticket->submitted_by_email)
+                {{-- Contact Email (always read-only) --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Contact Email</label>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->submitted_by_email }}</p>
                 </div>
                 @endif
-                @if($ticket->no_hp)
+                {{-- Module --}}
                 <div>
-                    <span class="text-[10px] text-gray-400 font-semibold uppercase">No HP</span>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->no_hp }}</p>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Module</label>
+                    @if($canEditProps)
+                    <input id="additionalInfoModule" type="text" value="{{ $ticket->module }}"
+                           placeholder="Enter module name..."
+                           class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    @else
+                    <span class="{{ $roValCls }}">{{ $ticket->module ?? '—' }}</span>
+                    @endif
                 </div>
-                @endif
-                @if($ticket->module)
+                {{-- Client --}}
                 <div>
-                    <span class="text-[10px] text-gray-400 font-semibold uppercase">Module</span>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->module }}</p>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Client</label>
+                    @if($canEditProps)
+                    <input id="additionalInfoClient" type="text" value="{{ $ticket->client }}"
+                           placeholder="Enter client name..."
+                           class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    @else
+                    <span class="{{ $roValCls }}">{{ $ticket->client ?? '—' }}</span>
+                    @endif
                 </div>
-                @endif
-                @if($ticket->client)
-                <div>
-                    <span class="text-[10px] text-gray-400 font-semibold uppercase">Client</span>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->client }}</p>
-                </div>
-                @endif
             </div>
         </div>
-        @endif
 
     </div>
 </div>
@@ -1665,16 +1698,34 @@
         </div>
 
         {{-- Body --}}
-        <div class="px-6 pb-2">
-            <div id="meetingActiveInfo" class="hidden mb-4 flex items-center gap-2 text-sm px-3 py-2 rounded-lg">
+        <div class="px-6 pb-2 space-y-3">
+            <div id="meetingActiveInfo" class="hidden flex items-center gap-2 text-sm px-3 py-2 rounded-lg">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
                 <span id="meetingActiveInfoText"></span>
             </div>
+
+            {{-- Link meeting — hanya tampil saat mulai meeting --}}
+            <div id="meetingLinkWrap">
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                    Link Meeting
+                    <span class="text-gray-400 font-normal">(opsional)</span>
+                </label>
+                <div class="flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 transition-all">
+                    <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                    </svg>
+                    <input id="meetingLink" type="url"
+                        class="flex-1 text-sm bg-transparent focus:outline-none"
+                        placeholder="https://meet.google.com/… atau https://zoom.us/…">
+                </div>
+                <p class="mt-1 text-xs text-gray-400">Link akan dikirim via email ke customer</p>
+            </div>
+
             <div>
                 <label id="meetingNotesLabel" class="block text-sm font-medium text-gray-700 mb-1.5"></label>
-                <textarea id="meetingNotes" rows="3"
+                <textarea id="meetingNotes" rows="2"
                     class="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all bg-white"
                     placeholder="(opsional)"></textarea>
             </div>
@@ -1707,7 +1758,7 @@
     const ticketCustomerId            = {{ $ticket->customer_id ?? 'null' }};
     const currentUserId               = {{ $user->id ?? 'null' }};
     const ticketChannel = @json($ticket->channel ?? 'web');
-    const assignedDsId   = {{ isset($deliverySupport) && $deliverySupport ? $deliverySupport->id : 'null' }};
+    let assignedDsId   = {{ isset($deliverySupport) && $deliverySupport ? $deliverySupport->id : 'null' }};
     const currentTicketLeadId   = {{ $ticket->ticket_lead_id ?? 'null' }};
     const currentTicketLeadName = @json($ticket->ticketLead?->basicData ? trim(($ticket->ticketLead->basicData->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData->last_name ?? '')) : null);
     const assignedDsName = @json(isset($deliverySupport) && $deliverySupport ? $deliverySupport->name : null);
@@ -1991,7 +2042,7 @@
             }
         });
 
-        // Handle image paste (Ctrl+V) — resize oversized pastes
+        // Handle image paste (Ctrl+V) — compress & resize before inserting
         quillEditor.root.addEventListener('paste', function (e) {
             const items = (e.clipboardData || e.originalEvent.clipboardData).items;
             for (const item of items) {
@@ -2001,9 +2052,24 @@
                     if (!file) continue;
                     const reader = new FileReader();
                     reader.onload = (ev) => {
-                        const range = quillEditor.getSelection(true);
-                        quillEditor.insertEmbed(range ? range.index : 0, 'image', ev.target.result, 'user');
-                        if (range) quillEditor.setSelection(range.index + 1, 0);
+                        const img = new Image();
+                        img.onload = () => {
+                            const MAX_W = 1024, MAX_H = 1024, QUALITY = 0.75;
+                            let w = img.width, h = img.height;
+                            if (w > MAX_W || h > MAX_H) {
+                                const ratio = Math.min(MAX_W / w, MAX_H / h);
+                                w = Math.round(w * ratio);
+                                h = Math.round(h * ratio);
+                            }
+                            const canvas = document.createElement('canvas');
+                            canvas.width = w; canvas.height = h;
+                            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                            const dataUrl = canvas.toDataURL('image/jpeg', QUALITY);
+                            const range = quillEditor.getSelection(true);
+                            quillEditor.insertEmbed(range ? range.index : 0, 'image', dataUrl, 'user');
+                            if (range) quillEditor.setSelection(range.index + 1, 0);
+                        };
+                        img.src = ev.target.result;
                     };
                     reader.readAsDataURL(file);
                 }
@@ -2562,8 +2628,22 @@
             }) + ' (WIB)';
             const byLine = msg.sender_name
                 ? `<p class="text-[11px] ${byClr} mt-0.5">oleh ${escHtml(msg.sender_name)}</p>` : '';
-            const notesLine = msg.message_body
-                ? `<p class="text-xs text-gray-600 mt-1.5 whitespace-pre-wrap">${escHtml(msg.message_body)}</p>` : '';
+
+            // Pisahkan link dari notes (link disimpan sebagai "Link: https://…" di baris terakhir)
+            let notesText = msg.message_body || '';
+            let linkHtml  = '';
+            const linkMatch = notesText.match(/(?:^|\n)Link:\s*(https?:\/\/\S+)/i);
+            if (linkMatch) {
+                const url = linkMatch[1];
+                linkHtml  = `<a href="${url}" target="_blank" rel="noopener noreferrer"
+                    class="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-700 text-white hover:bg-purple-800 transition-colors">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    Join Meeting
+                </a>`;
+                notesText = notesText.replace(/(?:^|\n)Link:\s*https?:\/\/\S+/i, '').trim();
+            }
+            const notesLine = notesText && notesText !== 'Meeting dimulai' && notesText !== 'Meeting selesai'
+                ? `<p class="text-xs text-gray-600 mt-1.5 whitespace-pre-wrap">${escHtml(notesText)}</p>` : '';
             return `<div class="flex justify-center my-3 px-4">
                 <div class="flex items-start gap-2.5 px-4 py-3 rounded-xl border ${cardBg} w-full max-w-md">
                     <svg class="w-4 h-4 mt-0.5 flex-shrink-0 ${iconClr}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2579,6 +2659,7 @@
                         </div>
                         ${byLine}
                         ${notesLine}
+                        ${linkHtml}
                     </div>
                 </div>
             </div>`;
@@ -2861,13 +2942,69 @@
         }
 
         // Untuk reply employee → tampilkan modal pilih status dulu
+        // Kecuali tiket sudah closed/cancelled — langsung kirim tanpa mengubah status
         if (messageType === 'reply') {
+            const currentStatus = document.getElementById('detailStatus')?.value;
+            if (currentStatus === 'closed' || currentStatus === 'cancelled') {
+                await _doSendReply(messageType, null);
+                return;
+            }
             openSendStatusModal(messageType);
             return;
         }
 
         // Internal note langsung kirim tanpa modal
         await _doSendReply(messageType, null);
+    }
+
+    function updateStatusUI(newStatus) {
+        if (!newStatus) return;
+        const statusLabels = {
+            'open':                    'Open',
+            'inprocess':               'Inprocess',
+            'waiting_on_customer':     'Waiting on Customer',
+            'waiting_on_3rd_party':    'Waiting on 3rd Party',
+            'waiting_to_confirmation': 'Waiting to Confirmation',
+            'hold':                    'Hold',
+            'cancelled':               'Cancelled',
+            'closed':                  'Closed',
+        };
+        const statusColors = {
+            'open':                    ['bg-blue-100',  'text-blue-700'],
+            'inprocess':               ['bg-yellow-100','text-yellow-700'],
+            'waiting_on_customer':     ['bg-amber-100', 'text-amber-700'],
+            'waiting_on_3rd_party':    ['bg-indigo-100','text-indigo-700'],
+            'waiting_to_confirmation': ['bg-teal-100',  'text-teal-700'],
+            'hold':                    ['bg-orange-100','text-orange-700'],
+            'cancelled':               ['bg-gray-100',  'text-gray-500'],
+            'closed':                  ['bg-green-100', 'text-green-700'],
+        };
+        const allColorClasses = ['bg-blue-100','text-blue-700','bg-yellow-100','text-yellow-700','bg-amber-100','text-amber-700','bg-indigo-100','text-indigo-700','bg-teal-100','text-teal-700','bg-orange-100','text-orange-700','bg-gray-100','text-gray-500','bg-green-100','text-green-700','bg-gray-100','text-gray-600'];
+        const label = statusLabels[newStatus] || newStatus;
+
+        // Right panel: hidden input + dropdown label
+        const detailInput = document.getElementById('detailStatus');
+        if (detailInput) detailInput.value = newStatus;
+        const propertiesPanel = document.getElementById('propertiesPanel');
+        if (propertiesPanel) {
+            const ddLabel = propertiesPanel.querySelector('.custom-dd-label');
+            if (ddLabel) ddLabel.textContent = label;
+        }
+
+        // Top header badge
+        const topBadge = document.getElementById('ticketStatusBadge');
+        if (topBadge) {
+            topBadge.classList.remove(...allColorClasses);
+            topBadge.classList.add(...(statusColors[newStatus] || ['bg-gray-100','text-gray-600']));
+            topBadge.textContent = label;
+        }
+
+        // Sidebar: mutate in-memory array then re-render (no API call)
+        const sidebarTicket = allSidebarTickets.find(t => t.ticket_id === ticketId);
+        if (sidebarTicket) {
+            sidebarTicket.status = newStatus;
+            filterSidebarTickets();
+        }
     }
 
     async function _doSendReply(messageType, chosenStatus) {
@@ -2901,7 +3038,8 @@
             commitToInput();
             commitCcInput();
 
-            if (hasFiles) {
+            const hasInlineImages = /<img[^>]+src=["']data:/i.test(htmlContent);
+            if (hasFiles || hasInlineImages) {
                 const formData = new FormData();
                 formData.append('message_body', htmlContent);
                 formData.append('message_type', messageType);
@@ -2941,6 +3079,7 @@
                 resetAttachments();
                 pendingMentions = []; // reset mentions
                 cancelReply();        // clear reply context
+                if (chosenStatus) updateStatusUI(chosenStatus);
                 await loadMessages();
                 showNotification(messageType === 'internal_note' ? 'Internal note added' : 'Reply sent', 'success');
             } else {
@@ -3282,18 +3421,22 @@
         const activeInfo = document.getElementById('meetingActiveInfo');
         const activeText = document.getElementById('meetingActiveInfoText');
         const notesArea  = document.getElementById('meetingNotes');
+        const linkWrap   = document.getElementById('meetingLinkWrap');
+        const linkInput  = document.getElementById('meetingLink');
         if (!modal) return;
 
         notesArea.value = '';
+        if (linkInput) linkInput.value = '';
 
         if (inMeeting) {
             header.className    = 'flex items-center justify-between px-6 py-4 rounded-t-2xl bg-red-50';
             iconWrap.className  = 'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100 text-red-600';
             title.className     = 'text-base font-semibold text-red-800';
             title.textContent   = 'Akhiri Meeting';
-            activeInfo.className = 'mb-4 flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200';
+            activeInfo.className = 'flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200';
             activeText.textContent = 'Meeting sedang berlangsung — SLA clock sedang dijeda.';
             activeInfo.classList.remove('hidden');
+            if (linkWrap) linkWrap.classList.add('hidden');   // sembunyikan link saat end
             notesLbl.textContent = 'Ringkasan meeting (opsional)';
             notesArea.placeholder = 'Apa yang dibahas dalam meeting ini…';
             confirmBtn.textContent = 'Akhiri Meeting';
@@ -3304,6 +3447,7 @@
             title.className     = 'text-base font-semibold text-purple-800';
             title.textContent   = 'Mulai Meeting';
             activeInfo.classList.add('hidden');
+            if (linkWrap) linkWrap.classList.remove('hidden'); // tampilkan link saat start
             notesLbl.textContent = 'Topik / catatan meeting (opsional)';
             notesArea.placeholder = 'Apa yang akan dibahas…';
             confirmBtn.textContent = 'Mulai Meeting';
@@ -3311,7 +3455,7 @@
         }
 
         modal.classList.remove('hidden');
-        setTimeout(() => notesArea.focus(), 50);
+        setTimeout(() => (linkInput || notesArea)?.focus(), 50);
     }
 
     function closeMeetingPanel() {
@@ -3322,6 +3466,7 @@
     async function confirmMeeting() {
         const btn    = document.getElementById('meetingConfirmBtn');
         const notes  = document.getElementById('meetingNotes')?.value?.trim() || null;
+        const link   = document.getElementById('meetingLink')?.value?.trim() || null;
         if (!btn) return;
 
         btn.disabled = true;
@@ -3332,16 +3477,19 @@
             ? `/api/tickets/${ticketId}/sla/meeting/end`
             : `/api/tickets/${ticketId}/sla/meeting/start`;
 
+        const payload = inMeeting ? { notes } : { notes, meeting_link: link };
+
         try {
             const res  = await fetch(endpoint, {
                 method: 'POST',
                 headers: getHeaders(),
                 credentials: 'same-origin',
-                body: JSON.stringify({ notes }),
+                body: JSON.stringify(payload),
             });
             const data = await res.json();
 
             if (data.success) {
+                const wasInMeeting = inMeeting;
                 inMeeting = !inMeeting;
                 closeMeetingPanel();
 
@@ -3355,8 +3503,9 @@
                 }
 
                 showNotification(data.message, 'success');
+                btn.disabled = false;
                 // Reload pesan agar kartu meeting muncul di chat
-                await loadMessages();
+                try { await loadMessages(); } catch (_) {}
             } else {
                 showNotification(data.message || 'Gagal', 'error');
                 btn.textContent = origText;
@@ -3460,6 +3609,34 @@
             }
         } catch (e) {
             showNotification('Error: ' + e.message, 'error');
+        }
+    }
+
+    // ==================== ADDITIONAL INFO SAVE ====================
+    async function saveAdditionalInfo() {
+        const btn = document.getElementById('additionalInfoSaveBtn');
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}`, {
+                method: 'PUT',
+                headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    name:   document.getElementById('additionalInfoName').value.trim()   || null,
+                    no_hp:  document.getElementById('additionalInfoNoHp').value.trim()   || null,
+                    module: document.getElementById('additionalInfoModule').value.trim() || null,
+                    client: document.getElementById('additionalInfoClient').value.trim() || null,
+                }),
+            });
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Failed to save');
+            showNotification('Additional info saved', 'success');
+        } catch (e) {
+            showNotification(e.message || 'Error saving additional info', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save';
         }
     }
 
@@ -3713,6 +3890,7 @@
 
             if (data.success) {
                 showNotification('Ticket assigned to delivery support successfully!', 'success');
+                assignedDsId = Number(supportId);
                 closeAssignSupportModal();
                 if (data.data?.support_name) updateDsBadges(data.data.support_id || supportId, data.data.support_name, data.data.support_type ?? null);
                 showAssignSuccessModal(`/delivery/support/${supportId}`);

@@ -276,6 +276,18 @@ class TicketMessageController extends Controller
                         'ticket_reply',
                         $senderName . ' replied: ' . ($replyPreview ?: '(reply)')
                     );
+
+                    // Notifikasi bell Jarvies ke customer
+                    if ($ticket->customer_id) {
+                        \App\Services\CustomerNotificationService::notify(
+                            customerId: (int) $ticket->customer_id,
+                            type:       'ticket_reply',
+                            ticketId:   (int) $ticket->ticket_id,
+                            fromName:   $senderName,
+                            preview:    \Illuminate\Support\Str::limit(strip_tags($messageBody), 100),
+                            link:       '/tickets/' . $ticket->ticket_id,
+                        );
+                    }
                 }
 
             } else {
@@ -497,6 +509,14 @@ class TicketMessageController extends Controller
             }
 
             $ticket->update($ticketUpdate);
+
+            // Notifikasi ke PIC + member aktif — bunyi chat + entri biru di bell
+            $replyPreview = mb_substr(strip_tags($messageBody), 0, 80);
+            $this->notifyTicketParticipants(
+                $ticket, $message, 0, $senderName,
+                'ticket_reply',
+                $senderName . ' (customer): ' . ($replyPreview ?: '(message)')
+            );
 
             // Trigger SLA event untuk customer reply (non-fatal)
             try {
@@ -994,6 +1014,42 @@ class TicketMessageController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Kirim email sistem (mis. meeting invitation) ke customer menggunakan infrastruktur
+     * yang SAMA dengan sendEmailThenSave — threading, resolve email, logging semuanya
+     * seragam dengan reply biasa. Setelah TicketMessage tersimpan, message_type diupdate.
+     *
+     * @return TicketMessage|null  null jika tidak ada customer email atau email gagal dikirim
+     */
+    public function sendSystemReplyEmail(
+        Ticket $ticket,
+        int    $senderId,
+        string $senderName,
+        string $htmlBody,
+        string $plainBody,
+        string $messageType
+    ): ?TicketMessage {
+        $message = $this->sendEmailThenSave(
+            $ticket,
+            [
+                'sender_type'  => 'employee',
+                'sender_id'    => $senderId,
+                'sender_name'  => $senderName,
+                'message'      => $plainBody,
+                'message_html' => $htmlBody,
+            ],
+            [],
+            $ticket->ticket_id,
+            $senderId
+        );
+
+        if ($message) {
+            $message->update(['message_type' => $messageType]);
+        }
+
+        return $message;
     }
 
     /**

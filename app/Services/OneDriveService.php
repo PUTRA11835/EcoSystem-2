@@ -8,12 +8,19 @@ use Illuminate\Support\Facades\Log;
 class OneDriveService
 {
     private string $baseUrl;
-    private string $userEmail;
+    private string $driveBase;
 
     public function __construct()
     {
-        $this->baseUrl   = rtrim(config('services.microsoft_graph.base_url', 'https://graph.microsoft.com/v1.0'), '/');
-        $this->userEmail = config('services.microsoft_graph.sender_email');
+        $this->baseUrl = rtrim(config('services.microsoft_graph.base_url', 'https://graph.microsoft.com/v1.0'), '/');
+
+        $siteId = config('services.microsoft_graph.sharepoint_site_id');
+        if ($siteId) {
+            $this->driveBase = "{$this->baseUrl}/sites/{$siteId}";
+        } else {
+            $email = config('services.microsoft_graph.sender_email');
+            $this->driveBase = "{$this->baseUrl}/users/{$email}";
+        }
     }
 
     private function getAccessToken(): string
@@ -47,7 +54,7 @@ class OneDriveService
         $token = $this->getAccessToken();
 
         $response = Http::withToken($token)->post(
-            "{$this->baseUrl}/users/{$this->userEmail}/drive/root/children",
+            "{$this->driveBase}/drive/root/children",
             [
                 'name'                              => $folderName,
                 'folder'                            => new \stdClass(),
@@ -75,7 +82,7 @@ class OneDriveService
     {
         $token    = $this->getAccessToken();
         $response = Http::withToken($token)->delete(
-            "{$this->baseUrl}/users/{$this->userEmail}/drive/items/{$folderId}"
+            "{$this->driveBase}/drive/items/{$folderId}"
         );
 
         if (!$response->successful() && $response->status() !== 404) {
@@ -99,7 +106,7 @@ class OneDriveService
         $encodedParent = implode('/', array_map('rawurlencode', explode('/', $parentPath)));
 
         $response = Http::withToken($token)->post(
-            "{$this->baseUrl}/users/{$this->userEmail}/drive/root:/{$encodedParent}:/children",
+            "{$this->driveBase}/drive/root:/{$encodedParent}:/children",
             [
                 'name'                              => $folderName,
                 'folder'                            => new \stdClass(),
@@ -130,7 +137,7 @@ class OneDriveService
         $encoded = implode('/', array_map('rawurlencode', explode('/', $folderPath)));
 
         $response = Http::withToken($token)->get(
-            "{$this->baseUrl}/users/{$this->userEmail}/drive/root:/{$encoded}:/children",
+            "{$this->driveBase}/drive/root:/{$encoded}:/children",
             ['$select' => 'id,name,folder,webUrl', '$top' => 200]
         );
 
@@ -140,6 +147,13 @@ class OneDriveService
         }
 
         if (!$response->successful()) {
+            $errorCode = $response->json('error.code', '');
+
+            // Folder belum dibuat — return kosong, bukan error
+            if ($response->status() === 404 && in_array($errorCode, ['itemNotFound', 'ItemNotFound'])) {
+                return [];
+            }
+
             Log::error('OneDrive listFolderChildrenByPath failed', [
                 'path'   => $folderPath,
                 'status' => $response->status(),
@@ -184,7 +198,7 @@ class OneDriveService
         $token = $this->getAccessToken();
 
         $response = Http::withToken($token)->post(
-            "{$this->baseUrl}/users/{$this->userEmail}/drive/items/{$parentFolderId}/children",
+            "{$this->driveBase}/drive/items/{$parentFolderId}/children",
             [
                 'name'                              => $folderName,
                 'folder'                            => new \stdClass(),
@@ -217,7 +231,7 @@ class OneDriveService
 
         $response = Http::withToken($token)
             ->withBody($fileContent, $mimeType)
-            ->put("{$this->baseUrl}/users/{$this->userEmail}/drive/items/{$folderId}:/{$encoded}:/content");
+            ->put("{$this->driveBase}/drive/items/{$folderId}:/{$encoded}:/content");
 
         if (!$response->successful()) {
             Log::error('OneDrive uploadFile failed', [
@@ -245,7 +259,7 @@ class OneDriveService
         $token = $this->getAccessToken();
 
         $response = Http::withToken($token)->get(
-            "{$this->baseUrl}/users/{$this->userEmail}/drive/items/{$parentFolderId}/children",
+            "{$this->driveBase}/drive/items/{$parentFolderId}/children",
             ['$select' => 'id,name,folder', '$top' => 200]
         );
 
@@ -301,7 +315,7 @@ class OneDriveService
         $encoded = rawurlencode($fileName);
 
         $response = Http::withToken($token)->post(
-            "{$this->baseUrl}/users/{$this->userEmail}/drive/items/{$folderId}:/{$encoded}:/createUploadSession",
+            "{$this->driveBase}/drive/items/{$folderId}:/{$encoded}:/createUploadSession",
             [
                 'item' => [
                     '@microsoft.graph.conflictBehavior' => 'rename',
@@ -333,7 +347,7 @@ class OneDriveService
         $token = $this->getAccessToken();
 
         $response = Http::withToken($token)->post(
-            "{$this->baseUrl}/users/{$this->userEmail}/drive/items/{$folderId}/createLink",
+            "{$this->driveBase}/drive/items/{$folderId}/createLink",
             [
                 'type'  => $type,
                 'scope' => 'anonymous',

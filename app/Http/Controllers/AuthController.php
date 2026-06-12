@@ -19,7 +19,7 @@ class AuthController extends Controller
     public const REMEMBER_COOKIE = 'remember_ecosystem';
 
     /** Durasi remember-me dalam hari */
-    private const REMEMBER_DAYS = 30;
+    private const REMEMBER_DAYS = 1;
 
     // =========================================================================
     // HELPER: Bangun session data dari employee_id

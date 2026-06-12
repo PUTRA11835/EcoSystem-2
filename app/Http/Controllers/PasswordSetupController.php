@@ -166,7 +166,7 @@ class PasswordSetupController extends Controller
     public static function generateAndSendToken(object $authUser, string $type = 'setup'): void
     {
         $token   = Str::random(64);
-        $expires = now()->addHours(24);
+        $expires = now()->addMinutes(30);
 
         // Simpan hash di DB; URL memakai plaintext token
         DB::table('auth_users')->where('id', $authUser->id)->update([
@@ -203,7 +203,7 @@ class PasswordSetupController extends Controller
     Reset My Password
   </a>
 </p>
-<p>This link is valid for <strong>24 hours</strong>.</p>
+<p>This link is valid for <strong>30 minutes</strong>.</p>
 <p>If you did not request a password reset, you can safely ignore this email. Your password will not change.</p>
 <br>
 <p>Regards,<br><strong>The {$appName} Team</strong></p>
@@ -220,7 +220,7 @@ HTML;
     Set My Password
   </a>
 </p>
-<p>This link is valid for <strong>24 hours</strong>.</p>
+<p>This link is valid for <strong>30 minutes</strong>.</p>
 <p>If you did not request this, please contact your administrator.</p>
 <br>
 <p>Regards,<br><strong>The {$appName} Team</strong></p>

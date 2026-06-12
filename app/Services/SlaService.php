@@ -187,21 +187,13 @@ class SlaService
             return;
         }
 
-        $priority   = $ticket->ticket_priority ?? 'Medium';
-        $scale      = $ticket->scale ?? 'Simple';
-        $customerId = $ticket->customer_id;
+        $priority          = $ticket->ticket_priority ?? 'Medium';
+        $scale             = $ticket->scale ?? 'Simple';
+        $deliverySupportId = \Illuminate\Support\Facades\DB::table('delivery_support_activities')
+            ->where('ticket_id', $ticket->ticket_id)
+            ->value('delivery_support_id');
 
-        $policy = SlaPolicy::findFor($customerId, $priority, $scale);
-
-        if (!$policy) {
-            Log::info('SlaService@attachToTicket: no matching policy found', [
-                'ticket_id'   => $ticket->ticket_id,
-                'customer_id' => $customerId,
-                'priority'    => $priority,
-                'scale'       => $scale,
-            ]);
-            return;
-        }
+        $policy = SlaPolicy::findFor($deliverySupportId, $priority, $scale);
 
         $slaStartAt  = $staging?->created_at ?? $ticket->created_at;
         $respondedAt = $ticket->created_at;
@@ -210,8 +202,12 @@ class SlaService
             $slaStartAt = $respondedAt;
         }
 
-        $validationHours = $this->calcHours($slaStartAt, $respondedAt, $policy->is_24_hours);
-        $responseStatus  = $validationHours <= (float) $policy->response_hours ? 'met' : 'breached';
+        // Calculate validation hours; use business hours as default when policy not yet known
+        $is24h           = $policy ? $policy->is_24_hours : false;
+        $validationHours = $this->calcHours($slaStartAt, $respondedAt, $is24h);
+        $responseStatus  = $policy
+            ? ($validationHours <= (float) $policy->response_hours ? 'met' : 'breached')
+            : 'pending';
 
         // Cek apakah ada staging SLA record yang perlu di-update
         $existingSla = $staging
@@ -222,13 +218,11 @@ class SlaService
             // Update record staging → jadikan record tiket resmi
             $existingSla->update([
                 'ticket_id'                 => $ticket->ticket_id,
-                'sla_policy_id'             => $policy->id,
+                'sla_policy_id'             => $policy?->id,
                 'sla_mode'                  => 'full',
                 'sla_start_at'              => $slaStartAt,
-                // Response deadline: dari email masuk + response_hours
-                'response_due_at'           => $slaStartAt->copy()->addHours((float) $policy->response_hours),
-                // Resolution deadline: dari VALIDASI + resolution_hours (bukan dari email masuk)
-                'resolution_due_at'         => $respondedAt->copy()->addHours((float) $policy->resolution_hours),
+                'response_due_at'           => $policy ? $slaStartAt->copy()->addHours((float) $policy->response_hours) : null,
+                'resolution_due_at'         => $policy ? $respondedAt->copy()->addHours((float) $policy->resolution_hours) : null,
                 'first_responded_at'        => $respondedAt,
                 'validation_duration_hours' => $validationHours,
                 'response_status'           => $responseStatus,
@@ -247,13 +241,11 @@ class SlaService
             TicketSla::create([
                 'staging_ticket_id'         => $staging?->id,
                 'ticket_id'                 => $ticket->ticket_id,
-                'sla_policy_id'             => $policy->id,
+                'sla_policy_id'             => $policy?->id,
                 'sla_mode'                  => 'full',
                 'sla_start_at'              => $slaStartAt,
-                // Response deadline: dari email masuk + response_hours
-                'response_due_at'           => $slaStartAt->copy()->addHours((float) $policy->response_hours),
-                // Resolution deadline: dari VALIDASI + resolution_hours (bukan dari email masuk)
-                'resolution_due_at'         => $respondedAt->copy()->addHours((float) $policy->resolution_hours),
+                'response_due_at'           => $policy ? $slaStartAt->copy()->addHours((float) $policy->response_hours) : null,
+                'resolution_due_at'         => $policy ? $respondedAt->copy()->addHours((float) $policy->resolution_hours) : null,
                 'first_responded_at'        => $respondedAt,
                 'validation_duration_hours' => $validationHours,
                 'response_status'           => $responseStatus,
@@ -274,6 +266,10 @@ class SlaService
         }
 
         // Event: ticket_validated
+        $notesText = $policy
+            ? 'Response SLA: ' . $validationHours . ' hrs (' . $responseStatus . ')'
+            : 'SLA clock running — policy will be applied when delivery support is assigned';
+
         TicketSlaEvent::create([
             'ticket_id'         => $ticket->ticket_id,
             'staging_ticket_id' => $staging?->id,
@@ -281,16 +277,89 @@ class SlaService
             'event_at'          => $respondedAt,
             'response_hours'    => $validationHours,
             'triggered_by_type' => 'system',
-            'notes'             => 'Response SLA: ' . $validationHours . ' hrs (' . $responseStatus . ')',
+            'notes'             => $notesText,
         ]);
 
         Log::info('SlaService@attachToTicket: SLA record promoted/created', [
             'ticket_id'        => $ticket->ticket_id,
             'staging_id'       => $staging?->id,
-            'policy_id'        => $policy->id,
+            'policy_id'        => $policy?->id,
             'response_status'  => $responseStatus,
             'validation_hours' => $validationHours,
             'was_staging'      => $existingSla !== null,
+            'policy_deferred'  => $policy === null,
+        ]);
+    }
+
+    // ── 3b. syncPolicy ───────────────────────────────────────────────────────
+
+    /**
+     * Apply (or re-apply) SLA policy to a ticket that already has an SLA record
+     * but whose delivery support was not yet known at validation time.
+     *
+     * Safe to call multiple times; skips if the SLA is already finalised (met/breached).
+     */
+    public function syncPolicy(Ticket $ticket, ?int $deliverySupportId = null): void
+    {
+        $sla = TicketSla::where('ticket_id', $ticket->ticket_id)->first();
+
+        if (!$sla) {
+            // SLA record never created — try attaching now (delivery support is now known)
+            $this->attachToTicket($ticket);
+            return;
+        }
+
+        // Already has a resolved response status — don't regress
+        if (in_array($sla->response_status, ['met', 'breached'], true) && $sla->sla_policy_id) {
+            return;
+        }
+
+        $priority = $ticket->ticket_priority ?? 'Medium';
+        $scale    = $ticket->scale ?? 'Simple';
+
+        // Use explicitly provided ID, fallback to lookup from delivery_support_activities
+        if ($deliverySupportId === null) {
+            $deliverySupportId = \Illuminate\Support\Facades\DB::table('delivery_support_activities')
+                ->where('ticket_id', $ticket->ticket_id)
+                ->value('delivery_support_id');
+        }
+
+        $policy = SlaPolicy::findFor($deliverySupportId, $priority, $scale);
+
+        if (!$policy) {
+            Log::info('SlaService@syncPolicy: still no matching policy after delivery support assignment', [
+                'ticket_id'           => $ticket->ticket_id,
+                'delivery_support_id' => $deliverySupportId,
+            ]);
+            return;
+        }
+
+        $slaStartAt  = $sla->sla_start_at;
+        $respondedAt = $sla->first_responded_at ?? $sla->sla_start_at;
+
+        $validationHours = $this->calcHours($slaStartAt, $respondedAt, $policy->is_24_hours);
+        $responseStatus  = $validationHours <= (float) $policy->response_hours ? 'met' : 'breached';
+
+        $sla->update([
+            'sla_policy_id'             => $policy->id,
+            'response_due_at'           => $slaStartAt->copy()->addHours((float) $policy->response_hours),
+            'resolution_due_at'         => $respondedAt->copy()->addHours((float) $policy->resolution_hours),
+            'validation_duration_hours' => $validationHours,
+            'response_status'           => $responseStatus,
+        ]);
+
+        // Update the ticket_validated event note to reflect the now-known policy
+        TicketSlaEvent::where('ticket_id', $ticket->ticket_id)
+            ->where('event_type', 'ticket_validated')
+            ->update([
+                'response_hours' => $validationHours,
+                'notes'          => 'Response SLA: ' . $validationHours . ' hrs (' . $responseStatus . ') — policy applied after delivery support assigned',
+            ]);
+
+        Log::info('SlaService@syncPolicy: policy applied retroactively', [
+            'ticket_id'       => $ticket->ticket_id,
+            'policy_id'       => $policy->id,
+            'response_status' => $responseStatus,
         ]);
     }
 
@@ -355,6 +424,12 @@ class SlaService
     public function liveWaitingHours(TicketSla $sla): float
     {
         $total = (float) $sla->total_waiting_hours;
+
+        // Ticket sudah closed — tidak ada penambahan waktu live
+        if ($sla->isClosed()) {
+            return round($total, 2);
+        }
+
         $is24h = $sla->policy?->is_24_hours ?? true;
 
         if ($sla->ball_holder !== 'helpdesk' && $sla->sla_paused_at) {
