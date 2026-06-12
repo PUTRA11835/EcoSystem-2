@@ -43,7 +43,7 @@
 
     {{-- Filter Tabs --}}
     @php $ticketManagerOrEmployee = array_merge(\App\Enums\RoleId::TICKET_MANAGER_GROUP, [\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value]); @endphp
-    @if(in_array($user->role->role_id, $ticketManagerOrEmployee, true) && !($isEciEmployee ?? false))
+    @if(in_array($user->role->role_id, $ticketManagerOrEmployee, true) && !($isExternalEmployee ?? false))
     <div class="px-4 pb-3">
         <div class="flex bg-white bg-opacity-10 rounded-lg p-0.5 gap-0.5">
             <button id="sidebarTabAll" onclick="switchSidebarView('all')"

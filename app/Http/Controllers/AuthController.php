@@ -48,6 +48,7 @@ class AuthController extends Controller
                 'ea.cell_phone as phone_number',
                 'eb.position',
                 'eb.employee_subgroup as department',
+                'eb.employee_type',
                 'r.id as role_id',
                 'r.name as role_name'
             )
@@ -68,16 +69,17 @@ class AuthController extends Controller
         return [
             'token'    => $token,
             'userData' => [
-                'id'         => (int) $employee->employee_id,
-                'type'       => 'employee',
-                'eci'        => $employee->eci,
-                'name'       => $employee->full_name,
-                'nick_name'  => $employee->nick_name ?: explode(' ', trim($employee->full_name))[0],
-                'email'      => $authEmail ?? $employee->email,
-                'phone'      => $employee->phone_number,
-                'position'   => $employee->position,
-                'department' => $employee->department,
-                'role'       => [
+                'id'            => (int) $employee->employee_id,
+                'type'          => 'employee',
+                'employee_type' => $employee->employee_type ?? 'Internal',
+                'eci'           => $employee->eci,
+                'name'          => $employee->full_name,
+                'nick_name'     => $employee->nick_name ?: explode(' ', trim($employee->full_name))[0],
+                'email'         => $authEmail ?? $employee->email,
+                'phone'         => $employee->phone_number,
+                'position'      => $employee->position,
+                'department'    => $employee->department,
+                'role'          => [
                     'id'   => (int) $employee->role_id,
                     'name' => $employee->role_name,
                 ],

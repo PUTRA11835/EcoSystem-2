@@ -91,11 +91,23 @@ class TicketController extends Controller
                 'role_id' => $sessionUser['role']['id']
             ]);
 
-            $filterUnassigned = $request->boolean('unassigned');
-            $isEciEmployee    = str_starts_with(strtoupper($sessionUser['eci'] ?? ''), 'E');
+            $filterUnassigned  = $request->boolean('unassigned');
+            $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+
+            // External employee: hanya bisa lihat ticket yang dia handle (sebagai lead atau member)
+            if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
+                Log::info('External employee viewing own tickets only', ['employee_id' => $sessionUser['id']]);
+                $employeeId = $sessionUser['id'];
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->where(function ($q) use ($employeeId) {
+                        $q->where('ticket_lead_id', $employeeId)
+                          ->orWhereHas('members', fn ($i) => $i->where('ticket_member.employee_id', $employeeId));
+                    })
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
+                    ->get();
 
             // Admin: bisa lihat semua ticket, atau filter unassigned jika ?unassigned=1
-            if ($sessionUser['role']['id'] === RoleId::EC_ADMINISTRATOR->value) {
+            } elseif ($sessionUser['role']['id'] === RoleId::EC_ADMINISTRATOR->value) {
                 Log::info('Admin viewing tickets', ['unassigned' => $filterUnassigned]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
@@ -106,54 +118,28 @@ class TicketController extends Controller
                 $tickets = $query->get();
 
             // Employee: tampilkan ticket unassigned (belum ada PIC) — frontend /api/tickets maps to "Unassign" tab
-            // Exception: ECI employees (EXXXXX) hanya bisa lihat tiket milik mereka sendiri
             } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_USER->value) {
-                if ($isEciEmployee) {
-                    Log::info('ECI Employee viewing own tickets only', ['eci' => $sessionUser['eci']]);
-                    $employeeId = $sessionUser['id'];
-                    $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
-                        ->where(function ($q) use ($employeeId) {
-                            $q->where('ticket_lead_id', $employeeId)
-                              ->orWhereHas('members', fn ($i) => $i->where('ticket_member.employee_id', $employeeId));
-                        })
-                        ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
-                        ->get();
-                } else {
-                    Log::info('Employee viewing unassigned tickets');
-                    $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
-                        ->whereNull('ticket_lead_id')
-                        ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
-                        ->get();
-                }
+                Log::info('Employee viewing unassigned tickets');
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('ticket_lead_id')
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
+                    ->get();
 
             // Helpdesk, RPMO, Head of Project, Head of Support:
             // lihat semua ticket organisasi, atau filter unassigned jika ?unassigned=1
-            // Exception: ECI employees (EXXXXX) hanya bisa lihat tiket milik mereka sendiri
             } elseif (in_array(
                 $sessionUser['role']['id'],
                 array_merge(RoleId::HEAD_GROUP, RoleId::HELPDESK_GROUP),
                 true
             )) {
-                if ($isEciEmployee) {
-                    Log::info('ECI Staff viewing own tickets only', ['role_id' => $sessionUser['role']['id'], 'eci' => $sessionUser['eci']]);
-                    $employeeId = $sessionUser['id'];
-                    $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
-                        ->where(function ($q) use ($employeeId) {
-                            $q->where('ticket_lead_id', $employeeId)
-                              ->orWhereHas('members', fn ($i) => $i->where('ticket_member.employee_id', $employeeId));
-                        })
-                        ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
-                        ->get();
-                } else {
-                    Log::info('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
+                Log::info('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
 
-                    $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
-                        ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
-                    if ($filterUnassigned) {
-                        $query->whereNull('ticket_lead_id');
-                    }
-                    $tickets = $query->get();
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+                if ($filterUnassigned) {
+                    $query->whereNull('ticket_lead_id');
                 }
+                $tickets = $query->get();
 
             // Support Manager: "All Tickets" = semua tiket organisasi (sama seperti Head)
             // "My Tickets" = hanya tiket dari delivery yang dia kelola (/api/tickets/my)
@@ -706,8 +692,22 @@ class TicketController extends Controller
 
             Log::info('My Tickets - Session User:', $sessionUser);
 
+            $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+
+            // External employee (non-admin): hanya ticket yang mereka handle
+            if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
+                $employeeId = $sessionUser['id'];
+                Log::info('My Tickets - External employee', ['employee_id' => $employeeId]);
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->where(function ($query) use ($employeeId) {
+                        $query->where('ticket.ticket_lead_id', $employeeId)
+                            ->orWhereHas('members', fn ($inner) => $inner->where('ticket_member.employee_id', $employeeId));
+                    })
+                    ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
+                    ->get();
+
             // Employee / Helpdesk: tampilkan tiket dimana mereka PIC atau member
-            if (in_array($sessionUser['role']['id'], array_merge([RoleId::DELIVERY_SUPPORT_USER->value], RoleId::HELPDESK_GROUP), true)) {
+            } elseif (in_array($sessionUser['role']['id'], array_merge([RoleId::DELIVERY_SUPPORT_USER->value], RoleId::HELPDESK_GROUP), true)) {
                 $employeeId = $sessionUser['id'];
 
                 Log::info('My Tickets - Filtering for employee/helpdesk', ['employee_id' => $employeeId]);
@@ -1406,6 +1406,20 @@ class TicketController extends Controller
                 }
             }
 
+            // External employee: hanya bisa lihat ticket yang dia handle
+            $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+            if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
+                $employeeId = $sessionUser['id'];
+                $isLead     = (int) $ticket->ticket_lead_id === $employeeId;
+                $isMember   = $ticket->members->contains('employee_id', $employeeId);
+                if (!$isLead && !$isMember) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Access denied'
+                    ], 403);
+                }
+            }
+
             // Employee harus punya DSM qualification (kecuali Admin)
             if ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_USER->value && !$this->isEmployeeQualified($sessionUser['id'])) {
                 return response()->json([
@@ -1486,6 +1500,15 @@ class TicketController extends Controller
 
         if (!$sessionUser) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        // External employee tidak boleh mengambil unassigned ticket maupun update apapun
+        $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+        if ($isExternalEmployee && !$isAdmin) {
+            return response()->json([
+                'success' => false,
+                'message' => 'External employees cannot update tickets'
+            ], 403);
         }
 
         // Employees other than admin/helpdesk may ONLY self-assign PIC on unassigned tickets.
