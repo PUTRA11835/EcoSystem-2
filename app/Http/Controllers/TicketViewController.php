@@ -35,7 +35,8 @@ class TicketViewController extends Controller
         $user->role->role_id = (int) ($sessionUser['role']['id'] ?? 0);
         $user->role->role_name = $sessionUser['role']['name'] ?? 'Unknown';
 
-        $user->eci = $sessionUser['eci'] ?? null;
+        $user->eci           = $sessionUser['eci'] ?? null;
+        $user->employee_type = $sessionUser['employee_type'] ?? 'Internal';
 
         return $user;
     }
@@ -67,13 +68,13 @@ class TicketViewController extends Controller
                 ->toArray();
         }
 
-        $isEciEmployee = str_starts_with(strtoupper($user->eci ?? ''), 'E');
+        $isExternalEmployee = strtolower($user->employee_type ?? 'internal') === 'external';
 
         return view('ticket.index', [
-            'user'              => $user,
-            'customers'         => $customers,
-            'currentEmployeeId' => $user->id,
-            'isEciEmployee'     => $isEciEmployee,
+            'user'               => $user,
+            'customers'          => $customers,
+            'currentEmployeeId'  => $user->id,
+            'isExternalEmployee' => $isExternalEmployee,
         ]);
     }
 
@@ -190,19 +191,19 @@ class TicketViewController extends Controller
             ->whereNull('ended_at')
             ->exists();
 
-        $isEciEmployee = str_starts_with(strtoupper($user->eci ?? ''), 'E');
+        $isExternalEmployee = strtolower($user->employee_type ?? 'internal') === 'external';
 
         return view('ticket.show', [
-            'user'             => $user,
-            'ticket'           => $ticket,
-            'consultants'      => $consultants,
-            'employees'        => $employees,
-            'ticketId'         => $id,
-            'deliverySupport'  => $deliverySupport,
-            'approvedMandays'  => $approvedMandays,
-            'customerEmail'    => $customerEmail,
-            'inMeeting'        => $inMeeting,
-            'isEciEmployee'    => $isEciEmployee,
+            'user'               => $user,
+            'ticket'             => $ticket,
+            'consultants'        => $consultants,
+            'employees'          => $employees,
+            'ticketId'           => $id,
+            'deliverySupport'    => $deliverySupport,
+            'approvedMandays'    => $approvedMandays,
+            'customerEmail'      => $customerEmail,
+            'inMeeting'          => $inMeeting,
+            'isExternalEmployee' => $isExternalEmployee,
         ]);
     }
 }

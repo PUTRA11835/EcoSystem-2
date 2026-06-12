@@ -14,14 +14,14 @@
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4 mb-5">
     <div class="flex items-center gap-2.5 flex-wrap">
         {{-- View toggles --}}
-        @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value && !($isEciEmployee ?? false))
+        @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value && !($isExternalEmployee ?? false))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
             <button onclick="toggleView('my')" id="btnViewMy" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">My Tickets</button>
             <button onclick="toggleView('all')" id="btnViewAll" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">All Tickets</button>
         </div>
         @endif
 
-        @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_HELPDESK->value && !($isEciEmployee ?? false))
+        @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_HELPDESK->value && !($isExternalEmployee ?? false))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
             <button onclick="toggleView('all')" id="btnViewAllHd" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
                 <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
@@ -747,7 +747,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     let totalPages = 0;
     let userRole                      = {{ $user->role->role_id ?? 0 }};
     let currentEmployeeId             = {{ $currentEmployeeId ?? 'null' }};
-    const IS_ECI_EMPLOYEE             = {{ ($isEciEmployee ?? false) ? 'true' : 'false' }};
+    const IS_EXTERNAL_EMPLOYEE        = {{ ($isExternalEmployee ?? false) ? 'true' : 'false' }};
     const EC_ADMINISTRATOR_ROLE       = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
     const DELIVERY_SUPPORT_USER_ROLE  = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};
     const EC_USER_ROLE                = {{ \App\Enums\RoleId::EC_USER->value }};
@@ -756,7 +756,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     const HEAD_ROLES                  = [{{ \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value }}, {{ \App\Enums\RoleId::DELIVERY_PROJECT_HEAD->value }}];
     // Roles that use the All/Unassigned toggle (Helpdesk only)
     const STAFF_TOGGLE_ROLES          = [HELPDESK_ROLE];
-    let currentView = (userRole === DELIVERY_SUPPORT_USER_ROLE || (IS_ECI_EMPLOYEE && userRole !== SUPPORT_MANAGER_ROLE && !HEAD_ROLES.includes(userRole))) ? 'my' : 'all';
+    let currentView = (userRole === DELIVERY_SUPPORT_USER_ROLE || (IS_EXTERNAL_EMPLOYEE && userRole !== SUPPORT_MANAGER_ROLE && !HEAD_ROLES.includes(userRole))) ? 'my' : 'all';
     let sortField = null; // 'last_update' | 'ticket_number' | 'date'
     let sortDir   = null; // 'desc' | 'asc'
 
@@ -856,7 +856,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
             let endpoint = '/api/tickets';
             if (userRole === EC_USER_ROLE) endpoint = '/api/tickets/my';
-            else if (IS_ECI_EMPLOYEE && userRole !== SUPPORT_MANAGER_ROLE && !HEAD_ROLES.includes(userRole)) endpoint = '/api/tickets/my';
+            else if (IS_EXTERNAL_EMPLOYEE && userRole !== SUPPORT_MANAGER_ROLE && !HEAD_ROLES.includes(userRole)) endpoint = '/api/tickets/my';
             else if ((userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE) && currentView === 'my') endpoint = '/api/tickets/my';
             else if (userRole === SUPPORT_MANAGER_ROLE && currentView === 'my') endpoint = '/api/tickets/my';
 
