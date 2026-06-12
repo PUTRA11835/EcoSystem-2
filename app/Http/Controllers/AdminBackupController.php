@@ -1118,9 +1118,17 @@ class AdminBackupController extends Controller
         // parent referenced by a row above it (not yet inserted) still maps.
         $pendingParents = [];
 
+        // CSV mungkin disimpan dalam Windows-1252/Latin-1 (mis. nama perusahaan
+        // beraksen). Byte non-UTF-8 yang lolos ke array $errors akan membuat
+        // response()->json() melempar "Malformed UTF-8 characters" (HTTP 500).
+        // Normalisasi tiap sel ke UTF-8 saat dibaca agar aman untuk DB & JSON.
         $get = function (string $col, array $row) use ($headerMap): ?string {
             if (!isset($headerMap[$col])) return null;
-            $val = trim($row[$headerMap[$col]] ?? '');
+            $val = $row[$headerMap[$col]] ?? '';
+            if ($val !== '' && !mb_check_encoding($val, 'UTF-8')) {
+                $val = mb_convert_encoding($val, 'UTF-8', 'Windows-1252');
+            }
+            $val = trim($val);
             return $val !== '' ? $val : null;
         };
 
@@ -1243,6 +1251,12 @@ class AdminBackupController extends Controller
             DB::table('customer')->where('customer_id', $cid)
                 ->update(['parent_customer_id' => $parent->customer_id, 'updated_at' => now()]);
         }
+
+        // Insurance: pesan exception DB pun bisa membawa byte non-UTF-8.
+        $errors = array_map(
+            fn($e) => mb_check_encoding($e, 'UTF-8') ? $e : mb_convert_encoding($e, 'UTF-8', 'Windows-1252'),
+            $errors
+        );
 
         Log::info('AdminBackupController: customer import', [
             'imported' => $imported, 'updated' => $updated, 'errors' => count($errors),
