@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Log;
 
 class TaskController extends Controller
 {
-    private const ACTIVE_STATUSES = ['open', 'inprocess', 'hold', 'reply', 'wait_to_close'];
+    private const ACTIVE_STATUSES = ['open', 'inprocess', 'hold', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation'];
 
     public function index()
     {
@@ -43,7 +43,7 @@ class TaskController extends Controller
                     'ticket.last_progress_at', 'ticket.module', 'ticket.start_date', 'ticket.end_date',
                     'customer_basic_data.name_1 as customer_name',
                 ])
-                ->orderByRaw("FIELD(ticket.status, 'inprocess', 'reply', 'open', 'hold', 'wait_to_close')")
+                ->orderByRaw("FIELD(ticket.status, 'inprocess', 'open', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold')")
                 ->get();
 
             if ($tickets->isEmpty()) {
@@ -156,7 +156,9 @@ class TaskController extends Controller
                 'e.eci',
                 'eq.qualification_modules',
                 'cmd.mandays',
-                'cmd.approved_additional'
+                'cmd.approved_additional',
+                'cmd.progress_percentage',
+                'cmd.progress_note'
             )
             ->get();
 
@@ -176,9 +178,11 @@ class TaskController extends Controller
                 'eci'                 => $row->eci ?? '—',
                 'module'              => $row->qualification_modules ?? '—',
                 'mandays'             => $mandays,
-                'approved_additional' => $additional,
-                'effective_md'        => $effectiveMd,
-                'remain_md'           => $remainShare,
+                'approved_additional'  => $additional,
+                'effective_md'         => $effectiveMd,
+                'remain_md'            => $remainShare,
+                'progress_percentage'  => (float) ($row->progress_percentage ?? 0),
+                'progress_note'        => $row->progress_note ?? null,
             ];
         }
 

@@ -347,7 +347,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (endDate.value && endDate.value < this.value) endDate.value = this.value;
     });
 
-    endDate.addEventListener('change', function() {
+    endDate.addEventListener('blur', function() {
         if (this.value && startDate.value && this.value < startDate.value) {
             showNotification('End date cannot be before start date', 'warning');
             this.value = startDate.value;

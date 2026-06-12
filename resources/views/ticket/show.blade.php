@@ -129,7 +129,7 @@
                             'closed'                  => 'Closed',
                         ];
                     @endphp
-                    <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
+                    <span id="ticketStatusBadge" class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
                         {{ $statusLabels[$ticket->status] ?? ucfirst($ticket->status) }}
                     </span>
                     @if($ticket->ticket_type)
@@ -2048,7 +2048,7 @@
             }
         });
 
-        // Handle image paste (Ctrl+V) — resize oversized pastes
+        // Handle image paste (Ctrl+V) — compress & resize before inserting
         quillEditor.root.addEventListener('paste', function (e) {
             const items = (e.clipboardData || e.originalEvent.clipboardData).items;
             for (const item of items) {
@@ -2058,9 +2058,24 @@
                     if (!file) continue;
                     const reader = new FileReader();
                     reader.onload = (ev) => {
-                        const range = quillEditor.getSelection(true);
-                        quillEditor.insertEmbed(range ? range.index : 0, 'image', ev.target.result, 'user');
-                        if (range) quillEditor.setSelection(range.index + 1, 0);
+                        const img = new Image();
+                        img.onload = () => {
+                            const MAX_W = 1024, MAX_H = 1024, QUALITY = 0.75;
+                            let w = img.width, h = img.height;
+                            if (w > MAX_W || h > MAX_H) {
+                                const ratio = Math.min(MAX_W / w, MAX_H / h);
+                                w = Math.round(w * ratio);
+                                h = Math.round(h * ratio);
+                            }
+                            const canvas = document.createElement('canvas');
+                            canvas.width = w; canvas.height = h;
+                            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                            const dataUrl = canvas.toDataURL('image/jpeg', QUALITY);
+                            const range = quillEditor.getSelection(true);
+                            quillEditor.insertEmbed(range ? range.index : 0, 'image', dataUrl, 'user');
+                            if (range) quillEditor.setSelection(range.index + 1, 0);
+                        };
+                        img.src = ev.target.result;
                     };
                     reader.readAsDataURL(file);
                 }
@@ -2933,13 +2948,69 @@
         }
 
         // Untuk reply employee → tampilkan modal pilih status dulu
+        // Kecuali tiket sudah closed/cancelled — langsung kirim tanpa mengubah status
         if (messageType === 'reply') {
+            const currentStatus = document.getElementById('detailStatus')?.value;
+            if (currentStatus === 'closed' || currentStatus === 'cancelled') {
+                await _doSendReply(messageType, null);
+                return;
+            }
             openSendStatusModal(messageType);
             return;
         }
 
         // Internal note langsung kirim tanpa modal
         await _doSendReply(messageType, null);
+    }
+
+    function updateStatusUI(newStatus) {
+        if (!newStatus) return;
+        const statusLabels = {
+            'open':                    'Open',
+            'inprocess':               'Inprocess',
+            'waiting_on_customer':     'Waiting on Customer',
+            'waiting_on_3rd_party':    'Waiting on 3rd Party',
+            'waiting_to_confirmation': 'Waiting to Confirmation',
+            'hold':                    'Hold',
+            'cancelled':               'Cancelled',
+            'closed':                  'Closed',
+        };
+        const statusColors = {
+            'open':                    ['bg-blue-100',  'text-blue-700'],
+            'inprocess':               ['bg-yellow-100','text-yellow-700'],
+            'waiting_on_customer':     ['bg-amber-100', 'text-amber-700'],
+            'waiting_on_3rd_party':    ['bg-indigo-100','text-indigo-700'],
+            'waiting_to_confirmation': ['bg-teal-100',  'text-teal-700'],
+            'hold':                    ['bg-orange-100','text-orange-700'],
+            'cancelled':               ['bg-gray-100',  'text-gray-500'],
+            'closed':                  ['bg-green-100', 'text-green-700'],
+        };
+        const allColorClasses = ['bg-blue-100','text-blue-700','bg-yellow-100','text-yellow-700','bg-amber-100','text-amber-700','bg-indigo-100','text-indigo-700','bg-teal-100','text-teal-700','bg-orange-100','text-orange-700','bg-gray-100','text-gray-500','bg-green-100','text-green-700','bg-gray-100','text-gray-600'];
+        const label = statusLabels[newStatus] || newStatus;
+
+        // Right panel: hidden input + dropdown label
+        const detailInput = document.getElementById('detailStatus');
+        if (detailInput) detailInput.value = newStatus;
+        const propertiesPanel = document.getElementById('propertiesPanel');
+        if (propertiesPanel) {
+            const ddLabel = propertiesPanel.querySelector('.custom-dd-label');
+            if (ddLabel) ddLabel.textContent = label;
+        }
+
+        // Top header badge
+        const topBadge = document.getElementById('ticketStatusBadge');
+        if (topBadge) {
+            topBadge.classList.remove(...allColorClasses);
+            topBadge.classList.add(...(statusColors[newStatus] || ['bg-gray-100','text-gray-600']));
+            topBadge.textContent = label;
+        }
+
+        // Sidebar: mutate in-memory array then re-render (no API call)
+        const sidebarTicket = allSidebarTickets.find(t => t.ticket_id === ticketId);
+        if (sidebarTicket) {
+            sidebarTicket.status = newStatus;
+            filterSidebarTickets();
+        }
     }
 
     async function _doSendReply(messageType, chosenStatus) {
@@ -2973,7 +3044,8 @@
             commitToInput();
             commitCcInput();
 
-            if (hasFiles) {
+            const hasInlineImages = /<img[^>]+src=["']data:/i.test(htmlContent);
+            if (hasFiles || hasInlineImages) {
                 const formData = new FormData();
                 formData.append('message_body', htmlContent);
                 formData.append('message_type', messageType);
@@ -3013,6 +3085,7 @@
                 resetAttachments();
                 pendingMentions = []; // reset mentions
                 cancelReply();        // clear reply context
+                if (chosenStatus) updateStatusUI(chosenStatus);
                 await loadMessages();
                 showNotification(messageType === 'internal_note' ? 'Internal note added' : 'Reply sent', 'success');
             } else {
