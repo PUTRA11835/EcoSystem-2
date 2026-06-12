@@ -530,7 +530,17 @@ function setCustomDropdownValue(hiddenId, value) {
     if (!dd)     return;
     const panel = dd.querySelector('.custom-dd-panel') || dd._ddPanel;
     const item  = panel?.querySelector(`.custom-dd-item[data-value="${CSS.escape(value)}"]`);
-    const text  = item ? item.textContent.trim()
-                       : (panel?.querySelector('.custom-dd-item[data-value=""]')?.textContent.trim() || '');
+    // Nilai cocok dengan opsi → pakai label opsi. Nilai TIDAK cocok (mis. hasil
+    // import dengan istilah di luar daftar dropdown) → tampilkan nilai mentahnya
+    // apa adanya, jangan jatuh ke placeholder (data sudah benar di hidden input).
+    // Nilai kosong → pakai teks placeholder ("Select …").
+    let text;
+    if (item) {
+        text = item.textContent.trim();
+    } else if (value !== '' && value != null) {
+        text = String(value);
+    } else {
+        text = panel?.querySelector('.custom-dd-item[data-value=""]')?.textContent.trim() || '';
+    }
     _selectItem(dd, value, text);
 }

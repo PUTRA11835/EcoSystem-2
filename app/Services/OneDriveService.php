@@ -141,6 +141,11 @@ class OneDriveService
             ['$select' => 'id,name,folder,webUrl', '$top' => 200]
         );
 
+        // Folder belum ada (belum pernah dibuat) → perlakukan sebagai kosong, bukan error.
+        if ($response->status() === 404) {
+            return [];
+        }
+
         if (!$response->successful()) {
             $errorCode = $response->json('error.code', '');
 
@@ -257,6 +262,11 @@ class OneDriveService
             "{$this->driveBase}/drive/items/{$parentFolderId}/children",
             ['$select' => 'id,name,folder', '$top' => 200]
         );
+
+        // Folder induk tidak ditemukan (ID basi/terhapus) → perlakukan sebagai kosong.
+        if ($response->status() === 404) {
+            return [];
+        }
 
         if (!$response->successful()) {
             Log::error('OneDrive listSubFoldersByParentId failed', [

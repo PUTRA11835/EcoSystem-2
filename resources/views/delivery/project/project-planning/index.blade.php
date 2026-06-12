@@ -47,8 +47,8 @@
                     <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Semua Status</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="On Track">On Track</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Monitoring">Monitoring</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="At Risk">At Risk</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="At Critical">At Critical</button>
                     </div>
                 </div>
             </div>
@@ -78,9 +78,9 @@
                         } elseif ($projectStatus === 'at_risk') {
                             $statusColor = '#f59e0b';
                             $statusBgClass = 'bg-yellow-50';
-                        } elseif ($projectStatus === 'monitoring') {
-                            $statusColor = '#fef9c3';
-                            $statusBgClass = 'bg-yellow-50';
+                        } elseif ($projectStatus === 'at_critical') {
+                            $statusColor = '#ef4444';
+                            $statusBgClass = 'bg-red-50';
                         } else { // default: on_track
                             $statusColor = '#10b981';
                             $statusBgClass = 'bg-green-50';
@@ -285,9 +285,9 @@
                             } elseif ($projectStatus === 'at_risk') {
                                 $statusColor = '#f59e0b';
                                 $statusBgClass = 'bg-yellow-50';
-                            } elseif ($projectStatus === 'monitoring') {
-                                $statusColor = '#fef9c3';
-                                $statusBgClass = 'bg-yellow-50';
+                            } elseif ($projectStatus === 'at_critical') {
+                                $statusColor = '#ef4444';
+                                $statusBgClass = 'bg-red-50';
                             } else { // default: on_track
                                 $statusColor = '#10b981';
                                 $statusBgClass = 'bg-green-50';

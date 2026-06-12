@@ -400,6 +400,7 @@
                         <p class="flex items-center gap-2"><i class="fas fa-check text-violet-500"></i> Company name, group, category</p>
                         <p class="flex items-center gap-2"><i class="fas fa-check text-violet-500"></i> Industry sector, account executives</p>
                         <p class="flex items-center gap-2"><i class="fas fa-check text-violet-500"></i> Parent customer code</p>
+                        <p class="flex items-center gap-2"><i class="fas fa-check text-violet-500"></i> Phone, fax & alamat (gedung, jalan, kota, dst.)</p>
                     </div>
                     <a href="{{ route('admin.export.customers') }}"
                         class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition">
