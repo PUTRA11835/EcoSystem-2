@@ -47,7 +47,16 @@ class StagingTicketController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        return view('staging.index', compact('user'));
+        $deliverySupports = \App\Models\DeliverySupport::orderBy('name')
+            ->get(['id', 'client_id', 'name', 'type']);
+
+        $deliverySupportsJson = $deliverySupports->map(fn($ds) => [
+            'id'        => $ds->id,
+            'client_id' => $ds->client_id,
+            'name'      => $ds->name . ($ds->type ? ' (' . $ds->type . ')' : ''),
+        ])->values();
+
+        return view('staging.index', compact('user', 'deliverySupports', 'deliverySupportsJson'));
     }
 
     /**
@@ -298,13 +307,14 @@ class StagingTicketController extends Controller
         }
 
         $request->validate([
-            'ticket_type'     => 'required|string|in:Incident,Service Request,Change Request,Consult',
-            'ticket_priority' => 'required|string|in:Very High,High,Medium,Low',
-            'scale'           => 'nullable|string|max:50',
-            'name'            => 'nullable|string|max:255',
-            'no_hp'           => 'nullable|string|max:255',
-            'module'          => 'nullable|string|max:255',
-            'client'          => 'nullable|string|max:255',
+            'ticket_type'         => 'required|string|in:Incident,Service Request,Change Request,Consult',
+            'ticket_priority'     => 'required|string|in:Very High,High,Medium,Low',
+            'scale'               => 'nullable|string|max:50',
+            'name'                => 'nullable|string|max:255',
+            'no_hp'               => 'nullable|string|max:255',
+            'module'              => 'nullable|string|max:255',
+            'client'              => 'nullable|string|max:255',
+            'delivery_support_id' => 'nullable|exists:delivery_support,id',
         ]);
 
         $staging = StagingTicket::findOrFail($id);
@@ -346,8 +356,25 @@ class StagingTicketController extends Controller
                 }
             }
 
+            // Apply SLA policy immediately if delivery support was selected at validation time
+            if ($request->filled('delivery_support_id')) {
+                app(\App\Services\SlaService::class)->syncPolicy($ticket, (int) $request->delivery_support_id);
+            }
+
             // Kirim notifikasi balasan otomatis ke customer
             $this->sendApprovalNotification($staging, $ticket, $sessionUser, $firstMessage);
+
+            // Notifikasi bell Jarvies — ticket berhasil dibuat
+            if ($staging->customer_id) {
+                \App\Services\CustomerNotificationService::notify(
+                    customerId: (int) $staging->customer_id,
+                    type:       'ticket_assigned',
+                    ticketId:   (int) $ticket->ticket_id,
+                    fromName:   'Helpdesk Support',
+                    preview:    'Your ticket request has been validated. Ticket #' . $ticket->ticket_number . ' is now open.',
+                    link:       '/tickets/' . $ticket->ticket_id,
+                );
+            }
 
             return response()->json([
                 'success' => true,
@@ -399,6 +426,18 @@ class StagingTicketController extends Controller
 
         try {
             $this->service->reject($staging, $sessionUser['id'], $request->reason);
+
+            // Notifikasi bell Jarvies — ticket request ditolak
+            if ($staging->customer_id) {
+                \App\Services\CustomerNotificationService::notify(
+                    customerId: (int) $staging->customer_id,
+                    type:       'ticket_rejected',
+                    ticketId:   null,
+                    fromName:   'Helpdesk Support',
+                    preview:    'Your ticket request has been rejected. Reason: ' . \Illuminate\Support\Str::limit($request->reason, 80),
+                    link:       '/tickets',
+                );
+            }
 
             return response()->json([
                 'success' => true,

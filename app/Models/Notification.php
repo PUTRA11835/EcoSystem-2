@@ -12,6 +12,7 @@ class Notification extends Model
 
     protected $fillable = [
         'employee_id',
+        'customer_id',
         'type',
         'ticket_id',
         'message_id',
@@ -31,6 +32,9 @@ class Notification extends Model
     protected static function booted(): void
     {
         static::created(function (self $notification) {
+            // Customer notifications (Jarvies bell) don't use Web Push
+            if (!$notification->employee_id) return;
+
             // Send Web Push after the HTTP response so it doesn't add latency
             app()->terminating(function () use ($notification) {
                 try {

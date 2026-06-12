@@ -49,7 +49,7 @@
 
     {{-- Filter Tabs --}}
     @php $ticketManagerOrEmployee = array_merge(\App\Enums\RoleId::TICKET_MANAGER_GROUP, [\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value]); @endphp
-    @if(in_array($user->role->role_id, $ticketManagerOrEmployee, true))
+    @if(in_array($user->role->role_id, $ticketManagerOrEmployee, true) && !($isEciEmployee ?? false))
     <div class="px-4 pb-3">
         <div class="flex bg-white bg-opacity-10 rounded-lg p-0.5 gap-0.5">
             <button id="sidebarTabAll" onclick="switchSidebarView('all')"
@@ -723,43 +723,6 @@
                     </p>
                 </div>
                 @endif
-                {{-- Nama, No HP, Module, Client --}}
-                <div class="pt-3 border-t border-gray-200 space-y-3">
-                    <div>
-                        <label class="text-xs font-semibold text-gray-500 mb-1 block">Nama</label>
-                        <input id="additionalInfoName" type="text" value="{{ $ticket->name ?: $ticket->submitted_by_name }}"
-                               placeholder="Isi nama pengirim..."
-                               class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold text-gray-500 mb-1 block">No HP</label>
-                        <input id="additionalInfoNoHp" type="text" value="{{ $ticket->no_hp }}"
-                               placeholder="Isi nomor HP..."
-                               class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
-                    </div>
-                    @if($ticket->submitted_by_email)
-                    <div>
-                        <label class="text-xs font-semibold text-gray-500 mb-1 block">Email Pengirim</label>
-                        <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->submitted_by_email }}</p>
-                    </div>
-                    @endif
-                    <div>
-                        <label class="text-xs font-semibold text-gray-500 mb-1 block">Module</label>
-                        <input id="additionalInfoModule" type="text" value="{{ $ticket->module }}"
-                               placeholder="Isi module..."
-                               class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold text-gray-500 mb-1 block">Client</label>
-                        <input id="additionalInfoClient" type="text" value="{{ $ticket->client }}"
-                               placeholder="Isi nama client..."
-                               class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
-                    </div>
-                    <button id="additionalInfoSaveBtn" onclick="saveAdditionalInfo()"
-                            class="w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors">
-                        Save
-                    </button>
-                </div>
                 {{-- Man Days (from approved customer mandays proposal) --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Man Days</label>
@@ -811,6 +774,76 @@
                     </button>
                 </div>
                 @endif
+            </div>
+        </div>
+
+        {{-- ── Additional Info Panel ── --}}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
+            <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+                 onclick="toggleSidebarPanel('additionalInfoPanel', 'additionalInfoChevron')">
+                <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Additional Info</h4>
+                <div class="flex items-center gap-2">
+                    @if($canEditProps)
+                    <button id="additionalInfoSaveBtn" onclick="event.stopPropagation(); saveAdditionalInfo()"
+                            class="inline-flex items-center px-2.5 py-1 primary-gradient text-white text-[10px] font-semibold rounded-md hover:opacity-90 transition-all duration-200">
+                        Save
+                    </button>
+                    @endif
+                    <i id="additionalInfoChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
+                </div>
+            </div>
+            <div id="additionalInfoPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
+                {{-- Contact Name --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Contact Name</label>
+                    @if($canEditProps)
+                    <input id="additionalInfoName" type="text" value="{{ $ticket->name ?: $ticket->submitted_by_name }}"
+                           placeholder="Enter contact name..."
+                           class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    @else
+                    <span class="{{ $roValCls }}">{{ $ticket->name ?: ($ticket->submitted_by_name ?? '—') }}</span>
+                    @endif
+                </div>
+                {{-- Phone Number --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Phone Number</label>
+                    @if($canEditProps)
+                    <input id="additionalInfoNoHp" type="text" value="{{ $ticket->no_hp }}"
+                           placeholder="Enter phone number..."
+                           class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    @else
+                    <span class="{{ $roValCls }}">{{ $ticket->no_hp ?? '—' }}</span>
+                    @endif
+                </div>
+                @if($ticket->submitted_by_email)
+                {{-- Contact Email (always read-only) --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Contact Email</label>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->submitted_by_email }}</p>
+                </div>
+                @endif
+                {{-- Module --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Module</label>
+                    @if($canEditProps)
+                    <input id="additionalInfoModule" type="text" value="{{ $ticket->module }}"
+                           placeholder="Enter module name..."
+                           class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    @else
+                    <span class="{{ $roValCls }}">{{ $ticket->module ?? '—' }}</span>
+                    @endif
+                </div>
+                {{-- Client --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Client</label>
+                    @if($canEditProps)
+                    <input id="additionalInfoClient" type="text" value="{{ $ticket->client }}"
+                           placeholder="Enter client name..."
+                           class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    @else
+                    <span class="{{ $roValCls }}">{{ $ticket->client ?? '—' }}</span>
+                    @endif
+                </div>
             </div>
         </div>
 

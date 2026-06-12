@@ -276,6 +276,18 @@ class TicketMessageController extends Controller
                         'ticket_reply',
                         $senderName . ' replied: ' . ($replyPreview ?: '(reply)')
                     );
+
+                    // Notifikasi bell Jarvies ke customer
+                    if ($ticket->customer_id) {
+                        \App\Services\CustomerNotificationService::notify(
+                            customerId: (int) $ticket->customer_id,
+                            type:       'ticket_reply',
+                            ticketId:   (int) $ticket->ticket_id,
+                            fromName:   $senderName,
+                            preview:    \Illuminate\Support\Str::limit(strip_tags($messageBody), 100),
+                            link:       '/tickets/' . $ticket->ticket_id,
+                        );
+                    }
                 }
 
             } else {
@@ -497,6 +509,14 @@ class TicketMessageController extends Controller
             }
 
             $ticket->update($ticketUpdate);
+
+            // Notifikasi ke PIC + member aktif — bunyi chat + entri biru di bell
+            $replyPreview = mb_substr(strip_tags($messageBody), 0, 80);
+            $this->notifyTicketParticipants(
+                $ticket, $message, 0, $senderName,
+                'ticket_reply',
+                $senderName . ' (customer): ' . ($replyPreview ?: '(message)')
+            );
 
             // Trigger SLA event untuk customer reply (non-fatal)
             try {

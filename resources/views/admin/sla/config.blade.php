@@ -53,24 +53,21 @@
                 {{-- Right: filter + action --}}
                 <div class="flex items-center gap-2">
 
-                    {{-- Customer filter (custom-dd) --}}
-                    <div class="custom-dd relative" data-onchange="loadPolicies" data-fixed="true" style="min-width:160px">
+                    {{-- Delivery Support filter (custom-dd) --}}
+                    <div class="custom-dd relative" data-onchange="loadPolicies" data-fixed="true" style="min-width:180px">
                         <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 hover:border-gray-400 transition-all text-left gap-2">
-                            <span class="custom-dd-label">All Customers</span>
+                            <span class="custom-dd-label">All Delivery Supports</span>
                             <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                             </svg>
                         </button>
-                        <input type="hidden" id="filterCustomer" value="">
-                        <div class="custom-dd-panel hidden absolute top-full right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px; min-width:200px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-gray-50 transition-colors" data-value="">All Customers</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="global">
-                                <span class="inline-flex items-center gap-1.5"><i class="fas fa-globe text-purple-500 text-xs"></i>Global (Default)</span>
-                            </button>
+                        <input type="hidden" id="filterDeliverySupport" value="">
+                        <div class="custom-dd-panel hidden absolute top-full right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px; min-width:220px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-gray-50 transition-colors" data-value="">All Delivery Supports</button>
                             <div class="border-t border-gray-100 my-1"></div>
-                            @foreach($customers as $c)
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $c->customer_id }}">
-                                {{ optional($c->basicData)->name_1 ?? 'Customer #'.$c->customer_id }}
+                            @foreach($deliverySupports as $ds)
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $ds->id }}">
+                                {{ $ds->name }}{{ $ds->type ? ' ('.$ds->type.')' : '' }}
                             </button>
                             @endforeach
                         </div>
@@ -92,7 +89,7 @@
                 <thead>
                     <tr class="bg-gray-50 border-b border-gray-200">
                         <th class="text-left px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Policy</th>
-                        <th class="text-left px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Customer</th>
+                        <th class="text-left px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Delivery Support</th>
                         <th class="text-left px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Priority</th>
                         <th class="text-left px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Scale</th>
                         <th class="text-center px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Response</th>
@@ -144,16 +141,25 @@
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Customer</label>
-                    <select name="customer_id" id="addCustomer" onchange="updatePreview()"
-                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
-                        <option value="">Global (applies to all customers)</option>
-                        @foreach($customers as $c)
-                            <option value="{{ $c->customer_id }}" data-name="{{ optional($c->basicData)->name_1 ?? 'Customer' }}">
-                                {{ optional($c->basicData)->name_1 ?? 'Customer #'.$c->customer_id }}
-                            </option>
-                        @endforeach
-                    </select>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Delivery Support <span class="text-red-500">*</span></label>
+                    <input type="hidden" name="delivery_support_id" id="addDsHidden" value="">
+                    <div id="addDsDd" class="relative">
+                        <input type="text" id="addDsSearch"
+                            placeholder="Select delivery support..."
+                            autocomplete="off"
+                            oninput="filterDeliverySupports(this.value)"
+                            onfocus="openDsDd()"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300 transition">
+                        <div id="addDsPanel" class="hidden absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-y-auto" style="max-height:220px;">
+                            @foreach($deliverySupports as $ds)
+                            <button type="button" class="ds-opt w-full text-left px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition"
+                                data-id="{{ $ds->id }}"
+                                data-name="{{ $ds->name }}{{ $ds->type ? ' ('.$ds->type.')' : '' }}">
+                                {{ $ds->name }}{{ $ds->type ? ' ('.$ds->type.')' : '' }}
+                            </button>
+                            @endforeach
+                        </div>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
@@ -312,6 +318,47 @@
 </div>
 
 <script>
+// ── Delivery Support combobox ─────────────────────────────────────────────────
+
+let _dsSelected = { id: '', name: '' };
+
+function openDsDd() {
+    document.getElementById('addDsSearch').select();
+    document.getElementById('addDsPanel').classList.remove('hidden');
+    filterDeliverySupports('');
+}
+
+function filterDeliverySupports(q) {
+    const term = q.toLowerCase().trim();
+    document.querySelectorAll('#addDsPanel .ds-opt').forEach(btn => {
+        btn.style.display = (!term || btn.dataset.name.toLowerCase().includes(term)) ? '' : 'none';
+    });
+    document.getElementById('addDsPanel').classList.remove('hidden');
+}
+
+function selectDeliverySupport(id, name) {
+    _dsSelected = { id, name };
+    document.getElementById('addDsHidden').value = id;
+    document.getElementById('addDsSearch').value = name;
+    document.getElementById('addDsPanel').classList.add('hidden');
+    updatePreview();
+}
+
+document.addEventListener('click', function (e) {
+    const dd = document.getElementById('addDsDd');
+    if (dd && !dd.contains(e.target)) {
+        // Restore last confirmed selection on blur
+        document.getElementById('addDsSearch').value = _dsSelected.name;
+        document.getElementById('addDsPanel').classList.add('hidden');
+    }
+});
+
+document.querySelectorAll('.ds-opt').forEach(btn => {
+    btn.addEventListener('click', () => selectDeliverySupport(btn.dataset.id, btn.dataset.name));
+});
+
+// ── SLA config ────────────────────────────────────────────────────────────────
+
 const CAN_MANAGE = {{ $canManage ? 'true' : 'false' }};
 const COL_COUNT  = CAN_MANAGE ? 9 : 8;
 
@@ -324,15 +371,14 @@ const PRIO_CFG   = {
     'Low':       { bg: 'bg-blue-50',   text: 'text-blue-700',   dot: 'bg-blue-400'   },
 };
 
-function makeLabel(customerName, priority, scale) {
-    const short = customerName ? customerName.toUpperCase().replace(/\s+/g,'').substring(0,10) : 'GLOBAL';
+function makeLabel(dsName, priority, scale) {
+    const short = dsName ? dsName.toUpperCase().replace(/\s+/g,'').substring(0,10) : '—';
     return `${short}${PRIO_NUM[priority] || '?'}: ${priority} / ${scale}`;
 }
 
 // ── Preview (Add modal) ───────────────────────────────────────────────────────
 function updatePreview() {
-    const custSel  = document.getElementById('addCustomer');
-    const custName = custSel.selectedIndex > 0 ? custSel.options[custSel.selectedIndex].dataset.name : null;
+    const dsName = _dsSelected.name || null;
     const priority = document.getElementById('addPriority').value;
     const scale    = document.getElementById('addScale').value;
     const is24hEl  = document.getElementById('add24h');
@@ -351,13 +397,13 @@ function updatePreview() {
         labelEl.classList.add('cursor-pointer', 'hover:bg-gray-100');
         noteEl.textContent = 'Count all hours; otherwise business hours only (Mon–Fri 09:00–18:00)';
     }
-    document.getElementById('labelPreview').textContent = makeLabel(custName, priority, scale);
+    document.getElementById('labelPreview').textContent = makeLabel(dsName, priority, scale);
 }
 
 // ── Load & Render ─────────────────────────────────────────────────────────────
 async function loadPolicies() {
-    const cid   = document.getElementById('filterCustomer').value;
-    const url   = '/api/admin/sla/policies' + (cid ? '?customer_id=' + cid : '');
+    const dsid  = document.getElementById('filterDeliverySupport').value;
+    const url   = '/api/admin/sla/policies' + (dsid ? '?delivery_support_id=' + dsid : '');
     const tbody = document.getElementById('policyTableBody');
 
     tbody.innerHTML = `<tr><td colspan="${COL_COUNT}" class="py-16 text-center">
@@ -382,7 +428,7 @@ async function loadPolicies() {
 function renderPolicies(policies) {
     document.getElementById('kpiTotal').textContent  = policies.length;
     document.getElementById('kpiActive').textContent = policies.filter(p => p.is_active).length;
-    document.getElementById('kpiGlobal').textContent = policies.filter(p => !p.customer_id).length;
+    document.getElementById('kpiGlobal').textContent = policies.filter(p => !p.delivery_support_id).length;
     document.getElementById('kpi24h').textContent    = policies.filter(p => p.is_24_hours).length;
 
     const tbody = document.getElementById('policyTableBody');
@@ -399,26 +445,24 @@ function renderPolicies(policies) {
         return;
     }
 
-    // Group rows by customer
-    let lastCustomer = '__init__';
+    // Group rows by delivery support
+    let lastDs = '__init__';
     let rowBg = 'bg-white';
 
     tbody.innerHTML = policies.map(p => {
-        if (p.customer_name !== lastCustomer) {
-            lastCustomer = p.customer_name;
+        if (p.delivery_support_name !== lastDs) {
+            lastDs = p.delivery_support_name;
             rowBg = rowBg === 'bg-white' ? 'bg-gray-50/50' : 'bg-white';
         }
 
         const prioConf = PRIO_CFG[p.priority] || { bg:'bg-gray-100', text:'text-gray-600', dot:'bg-gray-400' };
-        const label    = makeLabel(p.customer_name, p.priority, p.scale);
+        const label    = makeLabel(p.delivery_support_name, p.priority, p.scale);
 
-        const custCell = p.customer_name
+        const dsCell = p.delivery_support_name
             ? `<div class="flex items-center gap-2">
-                <span class="text-xs font-medium text-gray-700">${p.customer_name}</span>
+                <span class="text-xs font-medium text-gray-700">${p.delivery_support_name}</span>
                </div>`
-            : `<span class="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
-                <i class="fas fa-globe text-[9px]"></i>Global
-               </span>`;
+            : `<span class="text-xs text-gray-400 italic">—</span>`;
 
         const modeCell = p.is_24_hours
             ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full"><i class="fas fa-infinity text-[9px]"></i>24/7</span>`
@@ -450,7 +494,7 @@ function renderPolicies(policies) {
             <td class="px-4 py-3">
                 <span class="text-xs font-mono font-semibold text-gray-500 whitespace-nowrap">${label}</span>
             </td>
-            <td class="px-4 py-3">${custCell}</td>
+            <td class="px-4 py-3">${dsCell}</td>
             <td class="px-4 py-3">
                 <span class="inline-flex items-center gap-1.5 text-xs font-semibold ${prioConf.text} ${prioConf.bg} px-2.5 py-1 rounded-full whitespace-nowrap">
                     <span class="w-1.5 h-1.5 rounded-full ${prioConf.dot}"></span>${PRIO_LABEL[p.priority] || p.priority}
@@ -485,14 +529,17 @@ function openAddModal() {
     updatePreview();
     document.getElementById('addModal').classList.remove('hidden');
 }
-function closeAddModal() { document.getElementById('addModal').classList.add('hidden'); }
+function closeAddModal() {
+    document.getElementById('addModal').classList.add('hidden');
+    selectDeliverySupport('', '');
+}
 
 function openEditModal(p) {
     document.getElementById('editPolicyId').value        = p.id;
     document.getElementById('editResponseHours').value   = p.response_hours;
     document.getElementById('editResolutionHours').value = p.resolution_hours;
     document.getElementById('editIsActive').checked      = p.is_active;
-    document.getElementById('editPolicyLabel').textContent = makeLabel(p.customer_name, p.priority, p.scale);
+    document.getElementById('editPolicyLabel').textContent = makeLabel(p.delivery_support_name, p.priority, p.scale);
 
     const el24    = document.getElementById('edit24h');
     const lbl24   = document.getElementById('edit24hLabel');
@@ -532,6 +579,8 @@ async function submitAddPolicy(e) {
     e.preventDefault();
     hideErr('add');
     const form = e.target;
+    const dsId = document.getElementById('addDsHidden').value;
+    if (!dsId) { showErr('add', 'Please select a delivery support.'); return; }
     const btn  = document.getElementById('addSubmitBtn');
     btn.disabled = true; btn.textContent = 'Saving...';
     try {
@@ -539,12 +588,12 @@ async function submitAddPolicy(e) {
             method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
             body: JSON.stringify({
-                customer_id:      form.customer_id.value || null,
-                priority:         form.priority.value,
-                scale:            form.scale.value,
-                response_hours:   parseFloat(form.response_hours.value),
-                resolution_hours: parseFloat(form.resolution_hours.value),
-                is_24_hours:      form.is_24_hours.checked,
+                delivery_support_id: parseInt(dsId),
+                priority:            form.priority.value,
+                scale:               form.scale.value,
+                response_hours:      parseFloat(form.response_hours.value),
+                resolution_hours:    parseFloat(form.resolution_hours.value),
+                is_24_hours:         form.is_24_hours.checked,
             }),
         });
         const json = await res.json();

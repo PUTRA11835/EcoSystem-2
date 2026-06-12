@@ -145,6 +145,7 @@ class TicketController extends Controller
             ]);
 
             $filterUnassigned = $request->boolean('unassigned');
+            $isEciEmployee    = str_starts_with(strtoupper($sessionUser['eci'] ?? ''), 'E');
 
             // Admin: bisa lihat semua ticket, atau filter unassigned jika ?unassigned=1
             if ($sessionUser['role']['id'] === RoleId::EC_ADMINISTRATOR->value) {
@@ -158,54 +159,61 @@ class TicketController extends Controller
                 $tickets = $query->get();
 
             // Employee: tampilkan ticket unassigned (belum ada PIC) — frontend /api/tickets maps to "Unassign" tab
+            // Exception: ECI employees (EXXXXX) hanya bisa lihat tiket milik mereka sendiri
             } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_USER->value) {
-                Log::info('Employee viewing unassigned tickets');
-
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
-                    ->whereNull('ticket_lead_id')
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
-                    ->get();
+                if ($isEciEmployee) {
+                    Log::info('ECI Employee viewing own tickets only', ['eci' => $sessionUser['eci']]);
+                    $employeeId = $sessionUser['id'];
+                    $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                        ->where(function ($q) use ($employeeId) {
+                            $q->where('ticket_lead_id', $employeeId)
+                              ->orWhereHas('members', fn ($i) => $i->where('ticket_member.employee_id', $employeeId));
+                        })
+                        ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
+                        ->get();
+                } else {
+                    Log::info('Employee viewing unassigned tickets');
+                    $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                        ->whereNull('ticket_lead_id')
+                        ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
+                        ->get();
+                }
 
             // Helpdesk, RPMO, Head of Project, Head of Support:
             // lihat semua ticket organisasi, atau filter unassigned jika ?unassigned=1
+            // Exception: ECI employees (EXXXXX) hanya bisa lihat tiket milik mereka sendiri
             } elseif (in_array(
                 $sessionUser['role']['id'],
                 array_merge(RoleId::HEAD_GROUP, RoleId::HELPDESK_GROUP),
                 true
             )) {
-                Log::info('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
+                if ($isEciEmployee) {
+                    Log::info('ECI Staff viewing own tickets only', ['role_id' => $sessionUser['role']['id'], 'eci' => $sessionUser['eci']]);
+                    $employeeId = $sessionUser['id'];
+                    $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                        ->where(function ($q) use ($employeeId) {
+                            $q->where('ticket_lead_id', $employeeId)
+                              ->orWhereHas('members', fn ($i) => $i->where('ticket_member.employee_id', $employeeId));
+                        })
+                        ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
+                        ->get();
+                } else {
+                    Log::info('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
-                if ($filterUnassigned) {
-                    $query->whereNull('ticket_lead_id');
+                    $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                        ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+                    if ($filterUnassigned) {
+                        $query->whereNull('ticket_lead_id');
+                    }
+                    $tickets = $query->get();
                 }
-                $tickets = $query->get();
 
-            // Support Manager: lihat ticket yang dia handle (via delivery_support.support_manager_id)
-            // + unassigned tickets; ?unassigned=1 mengembalikan hanya unassigned
+            // Support Manager: "All Tickets" = semua tiket organisasi (sama seperti Head)
+            // "My Tickets" = hanya tiket dari delivery yang dia kelola (/api/tickets/my)
             } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_MANAGER->value) {
-                $employeeId = $sessionUser['id'];
-                Log::info('Support Manager viewing tickets', ['employee_id' => $employeeId, 'unassigned' => $filterUnassigned]);
-
-                // Delivery IDs yang dia kelola
-                $managedDeliveryIds = DB::table('delivery_support')
-                    ->where('support_manager_id', $employeeId)
-                    ->pluck('id');
-
-                // Ticket IDs via delivery_support_activities
-                $managedTicketIds = DB::table('delivery_support_activities')
-                    ->whereIn('delivery_support_id', $managedDeliveryIds)
-                    ->whereNotNull('ticket_id')
-                    ->pluck('ticket_id')
-                    ->unique()
-                    ->values();
+                Log::info('Support Manager viewing all tickets', ['employee_id' => $sessionUser['id']]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
-                    ->where(function ($q) use ($managedTicketIds) {
-                        $q->whereIn('ticket_id', $managedTicketIds)
-                          ->orWhereNull('ticket_lead_id');
-                    })
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
 
                 if ($filterUnassigned) {
@@ -1773,6 +1781,26 @@ class TicketController extends Controller
                 'status' => $request->status
             ]);
 
+            // Notifikasi bell Jarvies — status berubah
+            if ($ticket->customer_id) {
+                $statusLabel = match ($request->status) {
+                    'closed'      => 'Closed',
+                    'cancelled'   => 'Cancelled',
+                    'open'        => 'Open',
+                    'in_progress' => 'In Progress',
+                    'resolved'    => 'Resolved',
+                    default       => ucfirst(str_replace('_', ' ', $request->status)),
+                };
+                \App\Services\CustomerNotificationService::notify(
+                    customerId: (int) $ticket->customer_id,
+                    type:       in_array($request->status, ['closed', 'cancelled']) ? 'ticket_closed' : 'ticket_status_changed',
+                    ticketId:   (int) $ticket->ticket_id,
+                    fromName:   'Helpdesk Support',
+                    preview:    'Your ticket #' . ($ticket->ticket_number ?? $ticket->ticket_id) . ' status has been updated to ' . $statusLabel . '.',
+                    link:       '/tickets/' . $ticket->ticket_id,
+                );
+            }
+
             // Trigger SLA state transition (non-fatal)
             try {
                 $ticket->load('sla');
@@ -2758,6 +2786,10 @@ class TicketController extends Controller
 
             DB::commit();
 
+            // Now that the ticket is linked to a delivery support, apply the SLA policy
+            // (policy could not be matched at validation time because DS was not yet assigned)
+            app(\App\Services\SlaService::class)->syncPolicy($ticket);
+
             Log::info('Ticket assigned to delivery support', [
                 'ticket_id' => $ticket->ticket_id,
                 'ticket_number' => $ticket->ticket_number,
@@ -2977,6 +3009,9 @@ class TicketController extends Controller
             }
 
             DB::commit();
+
+            // Apply SLA policy now that ticket is linked to a delivery support
+            app(\App\Services\SlaService::class)->syncPolicy($ticket);
 
             Log::info('Created delivery support from ticket', [
                 'ticket_id' => $ticket->ticket_id,
