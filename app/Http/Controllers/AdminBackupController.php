@@ -426,16 +426,11 @@ class AdminBackupController extends Controller
     {
         if (!$this->assertAdmin()) abort(403);
 
-        $headers = [
-            'Content-Type'        => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="employees_import_template.csv"',
-        ];
-
-        $callback = function () {
-            $handle = fopen('php://output', 'w');
-            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->fromArray([
             // Header columns — snake_case, compatible with both full names and Excel-truncated variants
-            fputcsv($handle, [
+            [
                 'ECI', 'role', 'status', 'email', 'phone',
                 'title', 'nick_name', 'gender', 'religion',
                 'first_name', 'last_name',
@@ -445,9 +440,9 @@ class AdminBackupController extends Controller
                 'position', 'division', 'department',
                 'home_base', 'grade',
                 'since_date', 'nik',
-            ]);
+            ],
             // Example row
-            fputcsv($handle, [
+            [
                 'ECI001', 'Delivery Support User', 'Active', 'john.doe@example.com', '081234567890',
                 'Mr.', 'John', 'Male', 'Islam',
                 'John', 'Doe',
@@ -490,8 +485,8 @@ class AdminBackupController extends Controller
                 'Alamat Lengkap', 'Nama Gedung/Tempat', 'Street',
                 'Postal Code', 'Country', 'Region/Province',
                 'City', 'District', 'Urban Villages',
-            ]);
-            fputcsv($handle, [
+            ],
+            [
                 'MANTAP', 'company@example.com', 'Active',
                 'PT', 'Bank Mandiri Taspen', '',
                 'BUMN', '', 'Technology',
@@ -502,9 +497,8 @@ class AdminBackupController extends Controller
                 'Graha Mantap', 'Jl. Proklamasi No. 31',
                 '10320', 'Indonesia', 'DKI Jakarta',
                 'Jakarta Pusat', 'Menteng', '',
-            ]);
-            fclose($handle);
-        };
+            ],
+        ]);
 
         $writer = new Xlsx($spreadsheet);
         return response()->stream(
