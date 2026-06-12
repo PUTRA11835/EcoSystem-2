@@ -193,6 +193,16 @@
                         </div>
 
                         <div class="flex flex-col">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Building Name</label>
+                            <input type="text" id="buildingName" placeholder="Nama gedung / tempat" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                        </div>
+
+                        <div class="flex flex-col">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Full Address</label>
+                            <textarea id="fullAddress" rows="2" placeholder="Alamat lengkap" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800"></textarea>
+                        </div>
+
+                        <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Postal Code</label>
                             <input type="text" id="postalCode" placeholder="Postal code" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
                         </div>
@@ -599,6 +609,8 @@
             name_1: document.getElementById('companyName').value,
             search_term_1: document.getElementById('searchTerm').value || document.getElementById('companyName').value.toUpperCase(),
             street: document.getElementById('street').value,
+            building_name: document.getElementById('buildingName').value,
+            full_address: document.getElementById('fullAddress').value,
             postal_code: document.getElementById('postalCode').value,
             country: document.getElementById('country').value,
             region: document.getElementById('region').value,

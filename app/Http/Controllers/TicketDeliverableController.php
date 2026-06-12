@@ -31,12 +31,43 @@ class TicketDeliverableController extends Controller
             ->get()
             ->map(fn($d) => $this->format($d));
 
+        // Folder ticket diturunkan dari delivery support yang di-assign ke ticket.
+        [$state, $message, $support] = $this->resolveFolderState($ticket);
+
         return response()->json([
-            'success'      => true,
-            'data'         => $deliverables,
-            'has_folder'   => !empty($ticket->onedrive_folder_id),
-            'folder_url'   => $ticket->onedrive_folder_url,
+            'success'        => true,
+            'data'           => $deliverables,
+            'has_folder'     => $state === 'ready',
+            'folder_state'   => $state,           // no_support | no_support_folder | ready
+            'folder_message' => $message,
+            'folder_url'     => $ticket->onedrive_folder_url,
         ]);
+    }
+
+    /**
+     * Tentukan kesiapan folder deliverable untuk sebuah ticket.
+     * Folder ticket berada di dalam folder Customer Deliverable milik support yang di-assign.
+     *
+     * @return array{0:string,1:?string,2:?\App\Models\DeliverySupport}
+     *   [state, message, support]
+     */
+    private function resolveFolderState(Ticket $ticket): array
+    {
+        $support = $ticket->deliverySupports()->orderByDesc('delivery_support.id')->first();
+
+        if (!$support) {
+            return ['no_support', 'Ticket belum dihubungkan ke delivery support. Hubungkan ticket ke support terlebih dahulu.', null];
+        }
+
+        if (empty($support->onedrive_deliverable_folder_id)) {
+            return [
+                'no_support_folder',
+                "Folder Customer Deliverable untuk support '{$support->name}' belum dibuat. Silakan generate folder dari halaman delivery support.",
+                $support,
+            ];
+        }
+
+        return ['ready', null, $support];
     }
 
     /**
@@ -63,11 +94,11 @@ class TicketDeliverableController extends Controller
         $fileName = null;
 
         if ($request->hasFile('file') && $request->file('file')->isValid()) {
-            if (empty($ticket->onedrive_folder_id)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Ticket does not have a OneDrive folder yet. Please generate the folder first.',
-                ], 422);
+            // Folder ticket diturunkan dari folder Customer Deliverable milik support yang di-assign:
+            //   .../{client} {NAMA}/{support subfolder}/TICKETING/{ticket_number}/
+            [$state, $message, $support] = $this->resolveFolderState($ticket);
+            if ($state !== 'ready') {
+                return response()->json(['success' => false, 'message' => $message], 422);
             }
 
             $uploadedFile = $request->file('file');
@@ -78,15 +109,25 @@ class TicketDeliverableController extends Controller
             try {
                 $oneDrive = new OneDriveService();
 
-                // Resolve target folder: gunakan sub-folder "Deliverable" jika tersedia.
-                // Untuk tiket lama yang belum punya sub-folder, buat sekarang dan simpan ID-nya.
-                $targetFolderId = $ticket->onedrive_deliverable_folder_id;
-                if (!$targetFolderId) {
-                    $targetFolderId = $oneDrive->createSubFolder($ticket->onedrive_folder_id, 'Deliverable');
-                    $ticket->update(['onedrive_deliverable_folder_id' => $targetFolderId]);
-                }
+                // Rantai folder (idempotent, case-insensitive): TICKETING -> {ticket_number}
+                $ticketingId    = $oneDrive->findOrCreateSubFolderById($support->onedrive_deliverable_folder_id, 'TICKETING');
+                $ticketFolderId = $oneDrive->findOrCreateSubFolderById(
+                    $ticketingId,
+                    $ticket->ticket_number ?: ('Ticket-' . $ticket->ticket_id)
+                );
 
-                $result  = $oneDrive->uploadFile($targetFolderId, $fileName, $fileContent, $mimeType);
+                // Cache folder ticket + share link (untuk tombol "Open folder")
+                $update = ['onedrive_deliverable_folder_id' => $ticketFolderId];
+                if (empty($ticket->onedrive_folder_url) || $ticket->onedrive_deliverable_folder_id !== $ticketFolderId) {
+                    try {
+                        $update['onedrive_folder_url'] = $oneDrive->createAnonymousLink($ticketFolderId);
+                    } catch (\Throwable $e) {
+                        Log::warning('Deliverable folder share link failed', ['ticket_id' => $ticketId, 'error' => $e->getMessage()]);
+                    }
+                }
+                $ticket->update($update);
+
+                $result  = $oneDrive->uploadFile($ticketFolderId, $fileName, $fileContent, $mimeType);
                 $fileId  = $result['id'];
                 $fileUrl = $result['webUrl'] ?? $result['downloadUrl'] ?? null;
             } catch (\Throwable $e) {

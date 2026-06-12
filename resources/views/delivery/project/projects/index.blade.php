@@ -100,8 +100,8 @@
                                 </span>
                                 <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
                                     {{ $project->status === 'On Track' ? 'bg-green-100 text-green-800' :
-                                       ($project->status === 'Monitoring' ? 'bg-yellow-100 text-yellow-800' : 
-                                       ($project->status === 'At Risk' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800')) }}">
+                                       ($project->status === 'At Risk' ? 'bg-yellow-100 text-yellow-800' :
+                                       ($project->status === 'At Critical' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800')) }}">
                                     {{ $project->status ?? 'N/A' }}
                                 </span>
                             </div>
@@ -189,8 +189,8 @@
                                             </span>
                                             <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
                                                 {{ $project->status === 'On Track' ? 'bg-green-100 text-green-800' :
-                                                   ($project->status === 'Monitoring' ? 'bg-yellow-100 text-yellow-800' : 
-                                                   ($project->status === 'At Risk' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800')) }}">
+                                                   ($project->status === 'At Risk' ? 'bg-yellow-100 text-yellow-800' :
+                                                   ($project->status === 'At Critical' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800')) }}">
                                                 {{ $project->status ?? 'N/A' }}
                                             </span>
                                         </div>

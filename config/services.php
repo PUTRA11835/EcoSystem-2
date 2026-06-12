@@ -40,6 +40,7 @@ return [
         'client_id'             => env('MS_CLIENT_ID'),
         'client_secret'         => env('MS_CLIENT_SECRET'),
         'sender_email'          => env('MS_SENDER_EMAIL'),
+        'sharepoint_site_id'    => env('SHAREPOINT_SITE_ID'),
         'base_url'              => env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'),
         'ticket_parent_folder'            => env('ONEDRIVE_TICKET_PARENT_FOLDER', 'TICKETING'),
         'customer_deliverable_path'       => env('ONEDRIVE_CUSTOMER_DELIVERABLE_PATH', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE'),

@@ -936,7 +936,7 @@ class DeliverySupportController extends Controller
         $customerFolderName = str_pad($support->client_id, 3, '0', STR_PAD_LEFT)
             . ' ' . strtoupper($client->basicData->name_1);
 
-        $rootPath    = config('services.microsoft_graph.customer_deliverable_path', 'Delivery Support/Customer Deliverable');
+        $rootPath    = config('services.microsoft_graph.customer_deliverable_path', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE');
         $subfolderName = trim($request->input('subfolder_name'));
 
         try {
@@ -1001,7 +1001,17 @@ class DeliverySupportController extends Controller
             $subfolders = $oneDrive->listFolderChildrenByPath($customerFolderPath);
             return response()->json(['subfolders' => $subfolders, 'customer_folder' => $customerFolderName]);
         } catch (\Throwable $e) {
-            return response()->json(['subfolders' => [], 'error' => $e->getMessage()]);
+            $message = $e->getMessage();
+            // Berikan pesan error yang lebih jelas jika akun OneDrive service tidak ditemukan
+            if (str_contains($message, 'User not found') || str_contains($message, 'ResourceNotFound')) {
+                $message = 'OneDrive service account tidak ditemukan. Hubungi administrator untuk memeriksa konfigurasi MS_SENDER_EMAIL di Azure AD.';
+            }
+            Log::warning('getDeliverableSubfolders: OneDrive error', [
+                'support_id' => $support->id,
+                'path'       => $customerFolderPath,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json(['subfolders' => [], 'error' => $message]);
         }
     }
 

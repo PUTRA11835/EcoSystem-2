@@ -219,34 +219,6 @@
     </div>
 </div>
 
-{{-- Progress Modal --}}
-<div id="progressModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
-        <h3 class="text-base font-bold text-gray-900 mb-1">Update Ticket Progress</h3>
-        <p class="text-sm text-gray-500 mb-4 truncate" id="progressModalSubject">—</p>
-        <input type="hidden" id="progressTicketId">
-        <div class="mb-4">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Progress (%)</label>
-            <div class="flex items-center gap-3 mt-2">
-                <input type="range" id="progressSlider" min="0" max="100" step="5" value="0"
-                    oninput="document.getElementById('progressValue').textContent = this.value + '%'"
-                    class="flex-1 accent-red-600">
-                <span id="progressValue" class="text-sm font-bold text-red-600 w-10 text-right">0%</span>
-            </div>
-        </div>
-        <div class="mb-5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</label>
-            <textarea id="progressNote" rows="2" placeholder="Latest update..."
-                class="mt-2 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 resize-none"></textarea>
-        </div>
-        <div class="flex gap-2">
-            <button id="btnSubmitProgress" onclick="submitProgress()"
-                class="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2.5 rounded-lg transition">Save</button>
-            <button onclick="closeProgressModal()"
-                class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">Cancel</button>
-        </div>
-    </div>
-</div>
 
 
 <script>
@@ -396,9 +368,15 @@
             effectiveMd = 0,
             remainMd = 0;
         tickets.forEach(t => {
-            allocMd += ticketTotalMd(t);
-            effectiveMd += ticketTotalEffectiveMd(t);
-            remainMd += ticketRemainMd(t);
+            const myD = (t.consultant_details ?? []).find(d => d.employee_id == c.employee_id);
+            if (myD) {
+                const alloc  = parseFloat(myD.mandays) || 0;
+                const add    = parseFloat(myD.approved_additional) || 0;
+                const remain = parseFloat(myD.remain_md) || 0;
+                allocMd     += alloc;
+                effectiveMd += alloc + add;
+                remainMd    += remain;
+            }
         });
         return {
             ticket_count: tickets.length,
@@ -471,6 +449,11 @@
     }
 
     function ticketRemainMd(t) {
+        // Gunakan remain_md per-consultant yang sudah dihitung di backend
+        const details = t.consultant_details ?? [];
+        if (details.length > 0) {
+            return Math.round(details.reduce((s, d) => s + (parseFloat(d.remain_md) || 0), 0) * 100) / 100;
+        }
         const pct = parseFloat(t.progress_percentage) || 0;
         return Math.round(ticketTotalEffectiveMd(t) * (1 - pct / 100) * 100) / 100;
     }
@@ -478,16 +461,22 @@
     function consultantRows(c) {
         const visibleTickets = c.tickets.filter(t => t.status === 'inprocess');
 
-        // Recalculate main row values from visible tickets (ticket-level alloc/add/remain)
+        // Akumulasi hanya dari mandays consultant ini (bukan total semua consultant per tiket)
         let totalAllocMdMain = 0,
             totalAddMdMain = 0,
             totalEffectiveMdMain = 0,
             totalRemainMain = 0;
         visibleTickets.forEach(t => {
-            totalAllocMdMain += ticketTotalMd(t);
-            totalAddMdMain += ticketTotalAddMd(t);
-            totalEffectiveMdMain += ticketTotalEffectiveMd(t);
-            totalRemainMain += ticketRemainMd(t);
+            const myD = (t.consultant_details ?? []).find(d => d.employee_id == c.employee_id);
+            if (myD) {
+                const alloc   = parseFloat(myD.mandays) || 0;
+                const add     = parseFloat(myD.approved_additional) || 0;
+                const remain  = parseFloat(myD.remain_md) || 0;
+                totalAllocMdMain     += alloc;
+                totalAddMdMain       += add;
+                totalEffectiveMdMain += alloc + add;
+                totalRemainMain      += remain;
+            }
         });
         const ticketCount = visibleTickets.length;
         const wPct = totalEffectiveMdMain > 0 ? Math.round(totalRemainMain / totalEffectiveMdMain * 100 * 10) / 10 : 0;
@@ -608,11 +597,13 @@
         const roleCls = isTicketLead ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-sky-100 text-sky-700 border border-sky-200';
         const roleLabel = isTicketLead ? 'Ticket Lead' : 'Member';
 
-        const ticketAllocMd = ticketTotalMd(t);
-        const ticketAddMd = ticketTotalAddMd(t);
-        const ticketRemain = ticketRemainMd(t);
+        // Hanya ambil mandays milik consultant ini (bukan total semua consultant)
+        const myDetail    = (t.consultant_details ?? []).find(d => d.employee_id == empId);
+        const myAllocMd   = myDetail ? parseFloat(myDetail.mandays) || 0 : 0;
+        const myAddMd     = myDetail ? parseFloat(myDetail.approved_additional) || 0 : 0;
+        const myRemainMd  = myDetail ? parseFloat(myDetail.remain_md) || 0 : 0;
+        const myPct       = myDetail ? parseFloat(myDetail.progress_percentage) || 0 : 0;
 
-        // Progress dari ticket (bukan per-consultant)
         const ticketPct = parseFloat(t.progress_percentage) || 0;
         const updAt = t.last_progress_at ?
             new Date(t.last_progress_at).toLocaleDateString('en-GB', {
@@ -622,9 +613,9 @@
             }) :
             '—';
 
-        const remainCell = ticketAllocMd > 0
-            ? `<span class="font-semibold ${ticketRemain > 0 ? 'text-orange-600' : 'text-green-600'}">${ticketRemain.toFixed(2)} d</span>
-               <span class="ml-1 text-xs font-bold bg-orange-100 text-orange-700 rounded px-1 py-0.5">↑${Math.ceil(ticketRemain)} d</span>`
+        const remainCell = myAllocMd > 0
+            ? `<span class="font-semibold ${myRemainMd > 0 ? 'text-orange-600' : 'text-green-600'}">${myRemainMd.toFixed(2)} d</span>
+               <span class="ml-1 text-xs font-bold bg-orange-100 text-orange-700 rounded px-1 py-0.5">↑${Math.ceil(myRemainMd)} d</span>`
             : `<span class="text-gray-300">—</span>`;
 
         return `
@@ -641,19 +632,19 @@
         <td class="px-3 py-2.5">
             <span class="px-1.5 py-0.5 rounded text-xs font-medium ${prCls}">${t.ticket_priority ?? '—'}</span>
         </td>
-        <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${ticketAllocMd > 0 ? ticketAllocMd.toFixed(2) + ' days' : '—'}</td>
+        <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${myAllocMd > 0 ? myAllocMd.toFixed(2) + ' days' : '—'}</td>
         <td class="px-3 py-2.5 text-right text-xs text-gray-500">
-            ${ticketAddMd > 0
-                ? `<span class="text-indigo-600 font-semibold">${ticketAddMd.toFixed(2)} days</span>`
+            ${myAddMd > 0
+                ? `<span class="text-indigo-600 font-semibold">${myAddMd.toFixed(2)} days</span>`
                 : '<span class="text-gray-300">—</span>'}
         </td>
         <td class="px-3 py-2.5 text-right">${remainCell}</td>
         <td class="px-3 py-2.5">
             <div class="flex items-center gap-2">
                 <div class="bg-gray-200 rounded-full h-2" style="width:90px">
-                    <div class="${progressBarColor(ticketPct)} h-2 rounded-full" style="width:${ticketPct}%"></div>
+                    <div class="${progressBarColor(myPct)} h-2 rounded-full" style="width:${myPct}%"></div>
                 </div>
-                <span class="text-xs font-bold ${ticketPct>=75?'text-green-700':ticketPct>=40?'text-yellow-600':'text-red-600'}">${ticketPct}%</span>
+                <span class="text-xs font-bold ${myPct>=75?'text-green-700':myPct>=40?'text-yellow-600':'text-red-600'}">${myPct}%</span>
             </div>
             <div class="text-xs text-gray-400 mt-0.5">Updated: ${updAt}</div>
         </td>
@@ -695,58 +686,6 @@
         document.getElementById('cardLight').textContent = low;
         document.getElementById('cardTickets').textContent = tickets;
     }
-
-    // ── Progress Modal ─────────────────────────────────────────────────
-    function openProgressModal(ticketId, subject, currentPct, currentNote) {
-        document.getElementById('progressTicketId').value = ticketId;
-        document.getElementById('progressModalSubject').textContent = subject;
-        document.getElementById('progressSlider').value = currentPct;
-        document.getElementById('progressValue').textContent = currentPct + '%';
-        document.getElementById('progressNote').value = currentNote ?? '';
-        document.getElementById('progressModal').classList.remove('hidden');
-        document.getElementById('progressModal').classList.add('flex');
-    }
-
-    function closeProgressModal() {
-        document.getElementById('progressModal').classList.add('hidden');
-        document.getElementById('progressModal').classList.remove('flex');
-    }
-
-    async function submitProgress() {
-        const ticketId = document.getElementById('progressTicketId').value;
-        const pct = document.getElementById('progressSlider').value;
-        const note = document.getElementById('progressNote').value;
-        const btn = document.getElementById('btnSubmitProgress');
-        btn.disabled = true; btn.textContent = 'Saving…';
-        try {
-            const res = await fetch(`/api/consultant-workload/tickets/${ticketId}/progress`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify({
-                    progress_percentage: pct,
-                    progress_note: note
-                }),
-            });
-            const json = await res.json();
-            if (json.success) {
-                closeProgressModal();
-                loadWorkload();
-            } else {
-                showNotification(json.message ?? 'Failed to save progress.', 'error');
-                btn.disabled = false; btn.textContent = 'Save';
-            }
-        } catch (e) {
-            showNotification('Error: ' + e.message, 'error');
-            btn.disabled = false; btn.textContent = 'Save';
-        }
-    }
-
-    document.getElementById('progressModal').addEventListener('click', function(e) {
-        if (e.target === this) closeProgressModal();
-    });
 
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
