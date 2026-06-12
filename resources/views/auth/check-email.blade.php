@@ -73,36 +73,6 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                 </svg>
             </div>
-            <div class="dp-feature">
-                <div class="dp-icon">
-                    <svg style="width:1rem;height:1rem;" fill="none" stroke="#fff" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                </div>
-                <div>
-                    <p style="font-size:.8125rem;color:#fff;font-weight:700;line-height:1.3;">Timesheet and Manday Tracking</p>
-                    <p style="font-size:.6875rem;color:rgba(255,255,255,.6);margin-top:.2rem;line-height:1.5;">
-                        Track time, monitor workloads, ship projects on schedule.
-                    </p>
-                </div>
-            </div>
-            <div class="dp-feature">
-                <div class="dp-icon">
-                    <svg style="width:1rem;height:1rem;" fill="none" stroke="#fff" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                    </svg>
-                </div>
-                <div>
-                    <p style="font-size:.8125rem;color:#fff;font-weight:700;line-height:1.3;">Reporting and Analytics</p>
-                    <p style="font-size:.6875rem;color:rgba(255,255,255,.6);margin-top:.2rem;line-height:1.5;">
-                        Live dashboards. Instant decisions. Leadership always in the loop.
-                    </p>
-                </div>
-            </div>
-        </div>
-
             @if($type === 'reset')
                 <h2 style="font-size:1.625rem;font-weight:800;color:#0F172A;letter-spacing:-.035em;line-height:1.2;margin-bottom:.625rem;opacity:0;animation:fadeInUp .5s ease forwards;animation-delay:.43s;">
                     Email Sent
@@ -117,7 +87,7 @@
                 <p style="font-size:.875rem;color:#475569;line-height:1.7;margin-bottom:.375rem;opacity:0;animation:fadeInUp .5s ease forwards;animation-delay:.51s;">
                     We have sent an activation email to
                 </p>
-            </div>
+            @endif
 
             {{-- ── Email pill ──────────────────────────────────────────── --}}
             @if($email)
@@ -143,15 +113,14 @@
             </div>
             @endif
 
+            {{-- Fallback teks saat email tidak diketahui (pill di atas tidak tampil) --}}
+            @if(!$email)
             <div style="opacity:0;animation:fadeInUp .5s ease forwards;animation-delay:.55s;margin-bottom:1rem;">
-                @if($email)
-                    <span class="ce-email-chip">{{ $email }}</span>
-                @else
-                    <span style="font-size:.875rem;color:#64748B;font-style:italic;">
-                        {{ $type === 'reset' ? 'the email address you entered' : 'the email address registered to your account' }}
-                    </span>
-                @endif
+                <span style="font-size:.875rem;color:#64748B;font-style:italic;">
+                    {{ $type === 'reset' ? 'the email address you entered' : 'the email address registered to your account' }}
+                </span>
             </div>
+            @endif
 
             <p style="font-size:.8125rem;color:#64748B;line-height:1.7;margin-bottom:1.5rem;opacity:0;animation:fadeInUp .5s ease forwards;animation-delay:.59s;">
                 @if($type === 'reset')
