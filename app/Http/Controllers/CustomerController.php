@@ -96,8 +96,25 @@ class CustomerController extends Controller
                 ->sortBy('name')
                 ->values();
 
+            // Customer Groups untuk dropdown (struktural grouping)
+            $customerGroups = \App\Models\CustomerGroup::orderBy('name')
+                ->get(['id', 'name']);
+
+            // Kandidat parent: top-level customers (tanpa parent) selain diri sendiri
+            $parentOptions = Customer::topLevel()
+                ->with('basicData')
+                ->where('customer_id', '!=', $id)
+                ->where('is_active', true)
+                ->get()
+                ->map(fn($c) => [
+                    'id'   => $c->customer_id,
+                    'name' => $c->basicData->name_1 ?? $c->customer_code,
+                ])
+                ->sortBy('name')
+                ->values();
+
             // Pass customer, user and employees to view
-            return view('master.customer.show', compact('customer', 'user', 'employees'));
+            return view('master.customer.show', compact('customer', 'user', 'employees', 'customerGroups', 'parentOptions'));
             
         } catch (\Exception $e) {
             Log::error('=== WEB: ERROR SHOWING CUSTOMER DETAIL ===', [
@@ -160,6 +177,7 @@ class CustomerController extends Controller
                     'is_active' => $customer->is_active,
                     'name_1' => $customer->basicData->name_1 ?? null,
                     'customer_group' => $customer->basicData->customer_group ?? null,
+                    'customer_group_id' => $customer->customer_group_id,
                     'customer_category' => $customer->basicData->customer_category ?? null,
                     'industry_sector' => $customer->basicData->industry_sector ?? null,
                     'block' => $customer->basicData->block ?? false,
@@ -327,6 +345,30 @@ class CustomerController extends Controller
     }
 
     /**
+     * Get end customers (children) of a given parent customer (API).
+     * Dipakai dropdown "For customer" saat validate staging ticket dari email.
+     */
+    public function endCustomers($id)
+    {
+        try {
+            $children = Customer::where('parent_customer_id', $id)
+                ->with('basicData')
+                ->orderBy('customer_id')
+                ->get()
+                ->map(fn ($c) => [
+                    'id'   => $c->customer_id,
+                    'code' => $c->customer_code,
+                    'name' => $c->basicData->name_1 ?? $c->customer_code,
+                ]);
+
+            return response()->json(['success' => true, 'data' => $children]);
+        } catch (\Exception $e) {
+            Log::error('endCustomers error', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to fetch end customers'], 500);
+        }
+    }
+
+    /**
      * Store new customer (API) - Creates customer + basic data + address + contact
      */
     public function store(Request $request)
@@ -344,6 +386,8 @@ class CustomerController extends Controller
             'domain'        => 'nullable|string|max:255',
             'name_1'        => 'required|string|max:255',
             'contact_phone' => 'nullable|string|max:50',
+            'customer_group_id'  => 'nullable|integer|exists:customer_groups,id',
+            'parent_customer_id' => 'nullable|integer|exists:customer,customer_id',
         ], [
             'customer_code.required' => 'Customer code is required.',
             'customer_code.regex'    => 'Customer code may only contain letters and numbers.',
@@ -361,6 +405,12 @@ class CustomerController extends Controller
         DB::beginTransaction();
 
         try {
+            // Customer Group struktural — kolom teks lama di-mirror dari nama grup
+            $groupId   = $request->customer_group_id ?: null;
+            $groupName = $groupId
+                ? optional(\App\Models\CustomerGroup::find($groupId))->name
+                : ($request->customer_group ?: null);
+
             // Prepare customer data (company record only — no login here)
             $customerData = [
                 'customer_code'      => strtoupper($request->customer_code),
@@ -368,6 +418,7 @@ class CustomerController extends Controller
                 'domain'             => $request->domain ?: null,
                 'is_active'          => 1,
                 'parent_customer_id' => $request->parent_customer_id ?: null,
+                'customer_group_id'  => $groupId,
             ];
 
             // Prepare basic data
@@ -378,7 +429,7 @@ class CustomerController extends Controller
                 'search_term_1' => strtoupper($request->name_1),
                 'search_term_2' => $request->search_term_2,
                 'external_number' => $request->external_number,
-                'customer_group' => $request->customer_group,
+                'customer_group' => $groupName,
                 'customer_category' => $request->customer_category,
                 'credit_limit_type' => $request->credit_limit_type,
                 'industry_sector' => $request->industry_sector,
@@ -471,6 +522,8 @@ class CustomerController extends Controller
             'email'         => 'nullable|email|max:255|unique:customer,email,' . $id . ',customer_id',
             'domain'        => 'nullable|string|max:255',
             'name_1'        => 'required|string|max:255',
+            'customer_group_id'  => 'nullable|integer|exists:customer_groups,id',
+            'parent_customer_id' => 'nullable|integer|exists:customer,customer_id',
         ], [
             'customer_code.regex' => 'Customer code may only contain letters and numbers.',
             'customer_code.unique'=> 'This customer code is already in use.',
@@ -496,6 +549,13 @@ class CustomerController extends Controller
                 ], 404);
             }
 
+            // Customer Group struktural — resolve nama untuk mirror ke kolom teks.
+            $hasGroupField = $request->has('customer_group_id');
+            $groupId   = $hasGroupField ? ($request->customer_group_id ?: null) : $customer->customer_group_id;
+            $groupName = $groupId
+                ? optional(\App\Models\CustomerGroup::find($groupId))->name
+                : ($hasGroupField ? null : $request->customer_group);
+
             // Update customer (email is optional company contact email)
             $updateData = ['email' => $request->email ?: null];
             if ($request->has('domain')) {
@@ -503,6 +563,13 @@ class CustomerController extends Controller
             }
             if ($request->filled('customer_code')) {
                 $updateData['customer_code'] = strtoupper($request->customer_code);
+            }
+            // Parent & group dapat ditambah/dihapus saat edit (kirim string kosong = hapus)
+            if ($request->has('parent_customer_id')) {
+                $updateData['parent_customer_id'] = $request->parent_customer_id ?: null;
+            }
+            if ($hasGroupField) {
+                $updateData['customer_group_id'] = $groupId;
             }
             $customer->update($updateData);
 
@@ -516,7 +583,7 @@ class CustomerController extends Controller
                     'search_term_1' => strtoupper($request->name_1),
                     'search_term_2' => $request->search_term_2,
                     'external_number' => $request->external_number,
-                    'customer_group' => $request->customer_group,
+                    'customer_group' => $groupName,
                     'customer_category' => $request->customer_category,
                     'credit_limit_type' => $request->credit_limit_type,
                     'industry_sector' => $request->industry_sector,

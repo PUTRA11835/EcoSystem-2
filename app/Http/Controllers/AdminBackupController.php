@@ -357,12 +357,16 @@ class AdminBackupController extends Controller
         $rows = DB::table('customer as c')
             ->leftJoin('customer_basic_data as b', 'c.customer_id', '=', 'b.customer_id')
             ->leftJoin('customer as p', 'c.parent_customer_id', '=', 'p.customer_id')
+            ->leftJoin('customer_groups as cg', 'c.customer_group_id', '=', 'cg.id')
             ->leftJoinSub($firstAddr, 'fa', 'c.customer_id', '=', 'fa.customer_id')
             ->leftJoin('customer_address as a', 'fa.address_id', '=', 'a.address_id')
             ->select(
                 'c.customer_id', 'c.customer_code', 'c.email', 'c.is_active',
                 'b.title', 'b.name_1', 'b.name_2',
-                'b.customer_group', 'b.customer_category', 'b.industry_sector',
+                // Customer Group struktural — utamakan nama dari relasi customer_groups,
+                // fallback ke kolom teks lama bila FK belum terisi.
+                DB::raw('COALESCE(cg.name, b.customer_group) as customer_group'),
+                'b.customer_category', 'b.industry_sector',
                 'b.ec_account_executive', 'b.sap_account_executive',
                 'p.customer_code as parent_customer_code',
                 'a.telephone', 'a.fax', 'a.full_address', 'a.building_name',
@@ -1169,12 +1173,19 @@ class AdminBackupController extends Controller
             $isActive     = $get('Status', $row) !== null
                 ? (strtolower($get('Status', $row)) === 'active' ? 1 : 0)
                 : 1;
+            // Customer Group struktural — resolve nama ke customer_groups
+            // (find-or-create). null bila kolom kosong → FK tidak disentuh saat
+            // update, parity dengan mirror kolom teks yang juga di-skip saat kosong.
+            $group   = $this->resolveCustomerGroup($get('Customer Group', $row));
+            $groupId = $group['id'] ?? null;
 
             $basicData = array_filter([
                 'name_1'                => $companyName,
                 'name_2'               => $get('Name 2', $row),
                 'title'                => $get('Title', $row),
-                'customer_group'       => $get('Customer Group', $row),
+                // Mirror nama kanonik grup (bukan nilai mentah CSV) agar konsisten
+                // dengan FK customer_group_id dan dengan syncGroupNameToBasicData().
+                'customer_group'       => $group['name'] ?? null,
                 'customer_category'    => $get('Customer Category', $row),
                 'industry_sector'      => $get('Industry Sector', $row),
                 'ec_account_executive' => $get('EC Account Executive', $row),
@@ -1193,6 +1204,9 @@ class AdminBackupController extends Controller
 
                 if ($existing) {
                     $empUpdate = ['is_active' => $isActive, 'updated_at' => now()];
+                    // Hanya overwrite grup bila CSV menyertakan nilai (kolom kosong
+                    // = tidak mengubah grup existing).
+                    if ($groupId !== null) $empUpdate['customer_group_id'] = $groupId;
                     if ($customerCode && $customerCode !== $existing->customer_code) {
                         $taken = DB::table('customer')->where('customer_code', $customerCode)
                             ->where('customer_id', '!=', $existing->customer_id)->exists();
@@ -1239,11 +1253,12 @@ class AdminBackupController extends Controller
                     }
 
                     $customerId = DB::table('customer')->insertGetId([
-                        'customer_code' => $customerCode,
-                        'email'         => $email,
-                        'is_active'     => $isActive,
-                        'created_at'    => now(),
-                        'updated_at'    => now(),
+                        'customer_code'     => $customerCode,
+                        'email'             => $email,
+                        'is_active'         => $isActive,
+                        'customer_group_id' => $groupId,
+                        'created_at'        => now(),
+                        'updated_at'        => now(),
                     ]);
 
                     $basicData['customer_id'] = $customerId;
@@ -1294,6 +1309,34 @@ class AdminBackupController extends Controller
             'updated'  => $updated,
             'errors'   => $errors,
         ]);
+    }
+
+    /**
+     * Resolve nama "Customer Group" dari CSV ke customer_groups (find-or-create),
+     * meniru pola backfill migration customer_groups. Match case-insensitive agar
+     * tidak menabrak UNIQUE constraint pada kolom `name` (mis. "bumn" vs "BUMN").
+     * Mengembalikan ['id' => int, 'name' => string] dengan nama kanonik grup
+     * (untuk di-mirror ke kolom teks lama), atau null bila kolom kosong.
+     */
+    private function resolveCustomerGroup(?string $name): ?array
+    {
+        if ($name === null || trim($name) === '') return null;
+        $name = trim($name);
+
+        $existing = DB::table('customer_groups')
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+            ->first();
+        if ($existing) return ['id' => $existing->id, 'name' => $existing->name];
+
+        $id = DB::table('customer_groups')->insertGetId([
+            'name'       => $name,
+            'code'       => strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $name), 0, 10)) ?: null,
+            'is_active'  => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return ['id' => $id, 'name' => $name];
     }
 
     /**

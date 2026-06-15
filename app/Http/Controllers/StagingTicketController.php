@@ -326,6 +326,7 @@ class StagingTicketController extends Controller
             'module'              => 'nullable|string|max:255',
             'client'              => 'nullable|string|max:255',
             'delivery_support_id' => 'nullable|exists:delivery_support,id',
+            'end_customer_id'     => 'nullable|integer|exists:customer,customer_id',
         ]);
 
         $staging = StagingTicket::findOrFail($id);
@@ -335,6 +336,21 @@ class StagingTicketController extends Controller
         foreach (['name', 'no_hp', 'module', 'client'] as $field) {
             if ($request->has($field)) {
                 $staging->$field = $request->input($field);
+            }
+        }
+
+        // "For customer" — saat tiket masuk via email & ter-route ke parent customer
+        // (lewat domain), helpdesk dapat memilih end-customer (anak) tujuan tiket.
+        // Hanya terima child yang benar-benar milik parent ini agar tidak salah assign.
+        if ($request->has('end_customer_id')) {
+            $endCustomerId = $request->input('end_customer_id') ?: null;
+            if ($endCustomerId) {
+                $isValidChild = Customer::where('customer_id', $endCustomerId)
+                    ->where('parent_customer_id', $staging->customer_id)
+                    ->exists();
+                $staging->end_customer_id = $isValidChild ? $endCustomerId : null;
+            } else {
+                $staging->end_customer_id = null;
             }
         }
         $staging->save();

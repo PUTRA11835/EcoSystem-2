@@ -150,6 +150,23 @@
     </div>
 </div>
 
+{{-- New customer group modal --}}
+<div id="newGroupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-1">New Customer Group</h3>
+            <p class="text-sm text-gray-600 mb-4">Enter a name for the new customer group.</p>
+            <input type="text" id="newGroupName" placeholder="Customer group name"
+                   class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();confirmNewGroup();}">
+            <div class="flex gap-3 mt-6">
+                <button type="button" onclick="closeNewGroupModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+                <button type="button" onclick="confirmNewGroup()" class="flex-1 px-4 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     const customerId = {{ $customer->customer_id }};
     let currentSection = 'basic-data';
@@ -312,7 +329,9 @@
                 
                 // Customer Information
                 setValue('externalNumber', basicData.external_number);
-                setValue('customerGroup', basicData.customer_group);
+                // Customer Group & Parent — native <select> (select-enhance); set value + fire change
+                setSelect('customerGroupId', basicData.customer_group_id ?? '');
+                setSelect('customerParentId', basicData.parent_customer_id ?? '');
                 setValue('customerCategory', basicData.customer_category);
                 setValue('industrySector', basicData.industry_sector);
                 setValue('creditLimitType', basicData.credit_limit_type);
@@ -349,7 +368,8 @@
             search_term_1: getValue('searchTerm1'),
             search_term_2: getValue('searchTerm2'),
             external_number: getValue('externalNumber'),
-            customer_group: getValue('customerGroup'),
+            customer_group_id: getValue('customerGroupId') || null,
+            parent_customer_id: getValue('customerParentId') || null,
             customer_category: getValue('customerCategory'),
             credit_limit_type: getValue('creditLimitType'),
             industry_sector: getValue('industrySector'),
@@ -400,6 +420,77 @@
     function setValue(id, value) {
         const el = document.getElementById(id);
         if (el) el.value = value || '';
+    }
+
+    // Set a native <select> value and notify select-enhance to re-render its label.
+    function setSelect(id, value) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = (value === null || value === undefined) ? '' : String(value);
+        el.dispatchEvent(new Event('change'));
+    }
+
+    let _newGroupResolver = null;
+
+    function openNewGroupModal() {
+        const modal = document.getElementById('newGroupModal');
+        const input = document.getElementById('newGroupName');
+        input.value = '';
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        setTimeout(() => input.focus(), 50);
+        return new Promise((resolve) => { _newGroupResolver = resolve; });
+    }
+
+    function closeNewGroupModal() {
+        const modal = document.getElementById('newGroupModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        if (_newGroupResolver) { _newGroupResolver(null); _newGroupResolver = null; }
+    }
+
+    function confirmNewGroup() {
+        const name = (document.getElementById('newGroupName').value || '').trim();
+        const modal = document.getElementById('newGroupModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        if (_newGroupResolver) { _newGroupResolver(name); _newGroupResolver = null; }
+    }
+
+    // Create a brand-new customer group during edit, then select it.
+    async function createCustomerGroupInline() {
+        const name = (await openNewGroupModal() || '').trim();
+        if (!name) return;
+        try {
+            const res = await fetch('/api/customer-groups', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ name })
+            });
+            const data = await res.json();
+            if (data.success) {
+                const sel = document.getElementById('customerGroupId');
+                if (sel) {
+                    const opt = document.createElement('option');
+                    opt.value = data.data.id;
+                    opt.textContent = data.data.name;
+                    sel.appendChild(opt);
+                    setSelect('customerGroupId', data.data.id);
+                }
+                showNotification('Customer group created. Remember to Save Changes.', 'success');
+            } else {
+                showNotification(data.message || 'Failed to create group', 'error');
+            }
+        } catch (e) {
+            console.error('createCustomerGroupInline error', e);
+            showNotification('An error occurred while creating group', 'error');
+        }
     }
 
     function getCheckbox(id) {

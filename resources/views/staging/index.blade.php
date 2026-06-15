@@ -560,6 +560,14 @@ function fillModal(s) {
                     </div>
                 </div>
             </div>
+            <div id="forCustomerWrap" class="hidden border-t border-gray-100 px-4 pt-3 pb-3">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">For customer <span class="text-gray-400 font-normal">(end-customer under this parent)</span></label>
+                <select id="approveEndCustomer"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
+                    <option value="">— On behalf of the parent itself —</option>
+                </select>
+                <p class="mt-1 text-[11px] text-gray-400">This email was routed to the parent customer. Choose which end-customer it is actually for.</p>
+            </div>
             <div class="border-t border-gray-100 px-4 pt-3 pb-4">
                 <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Additional Info <span class="font-normal normal-case">(optional)</span></p>
                 <div class="grid grid-cols-2 gap-3">
@@ -709,6 +717,43 @@ function fillModal(s) {
             const scaleEl = document.getElementById('approveScale');
             if (scaleEl) scaleEl.value = s.scale;
         }
+
+        // ── "For customer": tampil hanya jika customer ter-match adalah parent
+        //    yang punya end-customers (kasus tiket email di-route via domain). ──
+        if (s.customer_id) {
+            loadForCustomerOptions(s.customer_id, s.end_customer_id);
+        }
+    }
+}
+
+async function loadForCustomerOptions(parentId, selectedEndCustomerId) {
+    try {
+        const res = await fetch(`/api/customers/${parentId}/end-customers`, {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        });
+        const data = await res.json();
+        if (!data.success || !Array.isArray(data.data) || !data.data.length) return;
+
+        const sel  = document.getElementById('approveEndCustomer');
+        const wrap = document.getElementById('forCustomerWrap');
+        if (!sel || !wrap) return;
+
+        data.data.forEach(ec => {
+            const opt = document.createElement('option');
+            opt.value = ec.id;
+            opt.textContent = ec.name + (ec.code ? ` (${ec.code})` : '');
+            sel.appendChild(opt);
+        });
+
+        if (selectedEndCustomerId) {
+            sel.value = String(selectedEndCustomerId);
+            sel.dispatchEvent(new Event('change'));
+        }
+
+        wrap.classList.remove('hidden');
+    } catch (e) {
+        console.error('loadForCustomerOptions error', e);
     }
 }
 
@@ -838,6 +883,7 @@ async function submitApprove(id) {
     const module            = document.getElementById('approveModule')?.value.trim() ?? '';
     const client            = document.getElementById('approveClient')?.value.trim() ?? '';
     const deliverySupportId = _stagingDsSelected.id || null;
+    const endCustomerId     = document.getElementById('approveEndCustomer')?.value || null;
 
     const typeErr = document.getElementById('typeError');
     const prioErr = document.getElementById('priorityError');
@@ -867,6 +913,7 @@ async function submitApprove(id) {
             module:               module || null,
             client:               client || null,
             delivery_support_id:  deliverySupportId,
+            end_customer_id:      endCustomerId,
         });
         const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
         console.groupEnd();

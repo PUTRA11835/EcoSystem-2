@@ -25,7 +25,7 @@
         <div class="px-4 py-3">
             {{-- Back Button & Title --}}
             <div class="flex items-center justify-between mb-3">
-                <a href="{{ route('planning.index') }}" 
+                <a href="{{ route('projects.show', $project) }}"
                    class="flex items-center text-gray-600 hover:text-gray-900">
                     <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
@@ -143,6 +143,13 @@
         <div class="px-6 py-4">
             <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
                 <div class="flex-1 min-w-0 pr-4">
+                    <a href="{{ route('projects.show', $project) }}"
+                       class="inline-flex items-center mb-3 text-sm font-medium text-gray-600 hover:text-gray-900">
+                        <svg class="-ml-1 mr-1 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                        </svg>
+                        Back
+                    </a>
                     <div class="flex items-center space-x-3">
                         <h2 class="text-2xl font-bold text-gray-900">Phase Management</h2>
                         <span class="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-full flex-shrink-0">
@@ -314,14 +321,6 @@
                             </div>
                         </div>
                     </div>
-                    
-                    <a href="{{ route('planning.index') }}" 
-                       class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                        <svg class="-ml-1 mr-2 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                        </svg>
-                        Back
-                    </a>
                 </div>
             </div>
         </div>
