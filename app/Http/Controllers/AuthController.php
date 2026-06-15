@@ -92,9 +92,10 @@ class AuthController extends Controller
                 'phone'         => $employee->phone_number,
                 'position'      => $employee->position,
                 'department'    => $employee->department,
+                // Legacy: primary role (backward compat — masih dipakai banyak fitur)
                 'role'          => [
-                    'id'   => (int) $employee->role_id,
-                    'name' => $employee->role_name,
+                    'id'   => $primaryRoleId,
+                    'name' => $primaryRoleName,
                 ],
                 // Baru: semua roles (dipakai sistem baru)
                 'role_ids'   => $roleIds,

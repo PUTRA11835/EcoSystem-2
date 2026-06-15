@@ -149,7 +149,7 @@ class PeriodService
      * Return the 2 periods that are in the active window for a given date.
      * Used by the frontend to inform users which periods they can normally submit to.
      */
-    public function getActiveWindowPeriods(Carbon $reference = null): array
+    public function getActiveWindowPeriods(?Carbon $reference = null): array
     {
         $now       = $reference ?? now();
         $cur       = ReportingPeriod::periodFor($now);

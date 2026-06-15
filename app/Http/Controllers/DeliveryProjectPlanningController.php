@@ -12,7 +12,7 @@ class DeliveryProjectPlanningController extends Controller
     /**
      * Show planning index page - List all projects or show specific project
      */
-    public function index(DeliveryProject $project = null)
+    public function index(?DeliveryProject $project = null)
     {
         // If no project is provided, show all projects
         if (!$project) {
