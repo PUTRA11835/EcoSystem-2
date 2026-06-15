@@ -30,6 +30,11 @@ class CheckMenuAccess
                 ], 403);
             }
 
+            // Jangan redirect ke dashboard jika route saat ini IS dashboard (akan looping)
+            if ($request->routeIs('dashboard')) {
+                abort(403, 'Akun Anda tidak memiliki izin untuk mengakses dashboard. Hubungi administrator.');
+            }
+
             return redirect()->route('dashboard')
                 ->with('warning', 'Akses ditolak. Akun Anda tidak memiliki izin untuk mengakses halaman tersebut. Hubungi administrator jika Anda membutuhkan akses.');
         }
