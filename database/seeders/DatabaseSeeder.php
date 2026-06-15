@@ -13,15 +13,19 @@ class DatabaseSeeder extends Seeder
     {
 
         $this->call([
-            // ECOSYSTEM Core Seeders
-            RoleSeeder::class,
-            EmployeeSeeder::class,
-            UserSystemRolesSeeder::class,
-            CustomerSeeder::class,
+            // ── Clean install: hanya role + admin ──────────────────────────────
+            // Data employee/customer riil dimasukkan via Import CSV (Backup & Export),
+            // bukan via seeder. Login admin: ECI_ADMIN / password123.
+            RoleSeeder::class,           // wajib: isi tabel employee_role (FK role_id)
+            EmployeeSeeder::class,       // hanya akun ECI_ADMIN
+            UserSystemRolesSeeder::class, // beri admin baris employee_role_assignment
 
-            DeliveryProjectSeeder::class,
-            DbmlMissingTablesSeeder::class,
-            ConsultantWorkloadSeeder::class,
+            // ── Seeder data dummy — dinonaktifkan untuk clean install ───────────
+            // Aktifkan kembali bila butuh data contoh untuk development.
+            // CustomerSeeder::class,        // customer dummy
+            // DeliveryProjectSeeder::class, // delivery project dummy
+            // DbmlMissingTablesSeeder::class, // membuat seed_employee dummy
+            // ConsultantWorkloadSeeder::class, // butuh ECI_HELPDESK (akan skip)
         ]);
     }
 }

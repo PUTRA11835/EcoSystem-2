@@ -9,7 +9,7 @@ class SlaPolicy extends Model
     protected $table = 'sla_policies';
 
     protected $fillable = [
-        'customer_id',
+        'delivery_support_id',
         'priority',
         'scale',
         'response_hours',
@@ -32,9 +32,9 @@ class SlaPolicy extends Model
         return $this->attributes['priority'] === 'Very High' ? true : (bool) $value;
     }
 
-    public function customer()
+    public function deliverySupport()
     {
-        return $this->belongsTo(Customer::class, 'customer_id', 'customer_id');
+        return $this->belongsTo(\App\Models\DeliverySupport::class, 'delivery_support_id', 'id');
     }
 
     public function createdBy()
@@ -48,24 +48,14 @@ class SlaPolicy extends Model
     }
 
     /**
-     * Cari policy yang cocok: customer-specific lebih diprioritaskan dari global.
-     * Fallback ke NULL customer_id (global default) jika tidak ada yang spesifik.
+     * Cari policy yang cocok untuk delivery support + priority + scale tertentu.
      */
-    public static function findFor(?int $customerId, string $priority, string $scale): ?self
+    public static function findFor(?int $deliverySupportId, string $priority, string $scale): ?self
     {
         return self::where('priority', $priority)
             ->where('scale', $scale)
             ->where('is_active', true)
-            ->where(function ($q) use ($customerId) {
-                if ($customerId !== null) {
-                    $q->where('customer_id', $customerId)
-                      ->orWhereNull('customer_id');
-                } else {
-                    // Tiket tanpa customer → hanya cari global policy
-                    $q->whereNull('customer_id');
-                }
-            })
-            ->orderByRaw('customer_id IS NULL ASC')
+            ->where('delivery_support_id', $deliverySupportId)
             ->first();
     }
 }

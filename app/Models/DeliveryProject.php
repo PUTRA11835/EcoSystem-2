@@ -329,29 +329,118 @@ class DeliveryProject extends Model
         $plannings = $this->plannings()
             ->where('is_group', false)
             ->get();
-        
+
+        // Category still reflects the raw planning lifecycle.
         if ($plannings->isEmpty()) {
             $this->category = 'Open';
-            $this->status = 'Monitoring';
-            return;
-        }
-        
-        $allCompleted = $plannings->where('status', '!=', 'completed')->isEmpty();
-        $hasInProgress = $plannings->whereIn('status', ['in_progress', 'delayed'])->isNotEmpty();
-        $allNotStarted = $plannings->where('status', '!=', 'not_started')->isEmpty();
-        
-        if ($allCompleted) {
-            $this->category = 'Closed';
-            $this->status = 'On Track';
-        } elseif ($hasInProgress) {
-            $this->category = 'In Process';
-
-            $hasDelayed = $plannings->where('status', 'delayed')->isNotEmpty();
-            $this->status = $hasDelayed ? 'At Risk' : 'On Track';
         } else {
-            $this->category = 'Open';
-            $this->status = 'Monitoring';
+            $allCompleted = $plannings->where('status', '!=', 'completed')->isEmpty();
+            $hasInProgress = $plannings->whereIn('status', ['in_progress', 'delayed'])->isNotEmpty();
+
+            if ($allCompleted) {
+                $this->category = 'Closed';
+            } elseif ($hasInProgress) {
+                $this->category = 'In Process';
+            } else {
+                $this->category = 'Open';
+            }
         }
+
+        // Status now tracks the Schedule Performance Index (SPI) band so the
+        // project-list badge matches the SPI card on the detail page. When there
+        // is no schedule baseline yet (SPI null) there is no variance to report,
+        // so fall back to On Track.
+        $this->status = $this->spiStatusLabel() ?? 'On Track';
+    }
+
+    /**
+     * Schedule Performance Index (SPI) = actual overall progress / planned
+     * overall progress. Mirrors the calculation in progress-overview.blade.php
+     * so the list badge and the detail-page SPI card stay in sync.
+     * Returns null when there is no schedule baseline (planned progress == 0).
+     */
+    public function calculateSpi(): ?float
+    {
+        $groups = $this->plannings->where('is_group', true);
+
+        foreach ($groups as $group) {
+            $group->loadMissing('stages');
+        }
+
+        $visiblePhases = $this->phases()
+            ->where('is_visible', true)
+            ->get();
+
+        if ($visiblePhases->isEmpty()) {
+            return null;
+        }
+
+        $totalPhaseWeight = 0;
+        $weightedPhaseProgress = 0;
+        $weightedPhasePlanned = 0;
+
+        foreach ($visiblePhases as $phase) {
+            $phaseWeight = $phase->weight ?? 0;
+            $phaseGroups = $groups->where('phase_id', $phase->id);
+
+            if ($phaseGroups->count() > 0) {
+                $totalGroupWeight = 0;
+                $weightedGroupProgress = 0;
+                $weightedGroupPlanned = 0;
+
+                foreach ($phaseGroups as $group) {
+                    $groupWeight = $group->calculated_weight ?? $group->weight ?? 0;
+                    $groupProgress = $group->calculated_progress ?? $group->progress_percentage ?? 0;
+                    $groupPlanned = $group->planned_progress ?? 0;
+
+                    $totalGroupWeight += $groupWeight;
+                    $weightedGroupProgress += ($groupProgress * $groupWeight);
+                    $weightedGroupPlanned += ($groupPlanned * $groupWeight);
+                }
+
+                $phaseProgress = $totalGroupWeight > 0 ? ($weightedGroupProgress / $totalGroupWeight) : 0;
+                $phasePlanned = $totalGroupWeight > 0 ? ($weightedGroupPlanned / $totalGroupWeight) : 0;
+            } else {
+                $phaseProgress = 0;
+                $phasePlanned = 0;
+            }
+
+            $totalPhaseWeight += $phaseWeight;
+            $weightedPhaseProgress += ($phaseProgress * $phaseWeight);
+            $weightedPhasePlanned += ($phasePlanned * $phaseWeight);
+        }
+
+        if ($totalPhaseWeight <= 0) {
+            return null;
+        }
+
+        $overallProgressRaw = $weightedPhaseProgress / $totalPhaseWeight;
+        $plannedProgressRaw = $weightedPhasePlanned / $totalPhaseWeight;
+
+        return $plannedProgressRaw > 0
+            ? round($overallProgressRaw / $plannedProgressRaw, 2)
+            : null;
+    }
+
+    /**
+     * Map the SPI value to its status band label. Shared band with the SPI card:
+     * >=0.95 On Track, 0.80-0.949 At Risk, <0.80 At Critical. Returns null when
+     * there is no baseline yet so the caller can decide on a fallback.
+     */
+    public function spiStatusLabel(): ?string
+    {
+        $spi = $this->calculateSpi();
+
+        if ($spi === null) {
+            return null;
+        }
+        if ($spi >= 0.95) {
+            return 'On Track';
+        }
+        if ($spi >= 0.80) {
+            return 'At Risk';
+        }
+        return 'At Critical';
     }
 
     public function getOverallProgressAttribute()

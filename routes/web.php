@@ -177,8 +177,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/export/tickets',   [AdminBackupController::class, 'exportTickets'])->name('export.tickets');
         Route::get('/import/template/employees', [AdminBackupController::class, 'templateEmployees'])->name('import.template.employees');
         Route::get('/import/template/customers', [AdminBackupController::class, 'templateCustomers'])->name('import.template.customers');
+        Route::get('/import/template/tickets',   [AdminBackupController::class, 'templateTickets'])->name('import.template.tickets');
         Route::post('/import/employees', [AdminBackupController::class, 'importEmployees'])->name('import.employees');
         Route::post('/import/customers', [AdminBackupController::class, 'importCustomers'])->name('import.customers');
+        Route::post('/import/tickets',   [AdminBackupController::class, 'importTickets'])->name('import.tickets');
         Route::get('/export/tickets/zip', [TicketMigrationController::class, 'exportZip'])->name('export.tickets.zip');
         Route::get('/sounds', [AdminNotificationSoundController::class, 'index'])->name('sounds')->middleware('menu:control-center.sounds');
         Route::post('/sounds', [AdminNotificationSoundController::class, 'store'])->name('sounds.store');
@@ -379,8 +381,6 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload')->middleware('menu:ticket.consultant-workload');
         Route::get('/task', [TaskController::class, 'index'])->name('task')->middleware('menu:ticket.my-tasks');
         Route::get('/latest-update', [TicketController::class, 'latestUpdate'])->name('latest-update');
-        Route::post('/{id}/generate-folder', [TicketController::class, 'generateFolder'])->name('generate-folder');
-        Route::delete('/{id}/folder', [TicketController::class, 'deleteFolder'])->name('delete-folder');
         Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
     });
 

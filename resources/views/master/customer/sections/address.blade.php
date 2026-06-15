@@ -93,10 +93,22 @@
                 <input type="text" id="houseNumber" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
 
+            <!-- Building Name (Nama Gedung/Tempat) -->
+            <div class="col-span-2">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Building Name</label>
+                <input type="text" id="buildingName" placeholder="Nama gedung / tempat" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+
             <!-- Postal Code -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Postal Code</label>
                 <input type="text" id="postalCode" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+
+            <!-- Full Address (Alamat Lengkap) -->
+            <div class="col-span-6">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Full Address</label>
+                <textarea id="fullAddress" rows="2" placeholder="Alamat lengkap (gabungan gedung, jalan, kecamatan, kota, kode pos)" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"></textarea>
             </div>
         </div>
     </div>
@@ -478,6 +490,8 @@
                 document.getElementById('village').value = address.rural_urban_village || '';
                 document.getElementById('street').value = address.street || '';
                 document.getElementById('houseNumber').value = address.house_number || '';
+                document.getElementById('buildingName').value = address.building_name || '';
+                document.getElementById('fullAddress').value = address.full_address || '';
                 document.getElementById('postalCode').value = address.postal_code || '';
                 document.getElementById('language').value = address.language || '';
                 document.getElementById('cellPhoneCountry').value = address.cell_phone_country || '';
@@ -511,6 +525,8 @@
             country: document.getElementById('country').value,
             street: document.getElementById('street').value,
             house_number: document.getElementById('houseNumber').value,
+            building_name: document.getElementById('buildingName').value,
+            full_address: document.getElementById('fullAddress').value,
             rural_urban_village: document.getElementById('village').value,
             district: document.getElementById('district').value,
             city: document.getElementById('city').value,
@@ -566,7 +582,7 @@
      */
     function clearAddressForm() {
         document.getElementById('editAddressId').value = '';
-        ['addressType','region','city','district','village','street','houseNumber','postalCode',
+        ['addressType','region','city','district','village','street','houseNumber','buildingName','fullAddress','postalCode',
          'language','cellPhone','telephone','telephoneExt','fax','faxExt','email','website',
          'preferredCommunication','addrValidFrom','addrValidTo'].forEach(id => {
             const el = document.getElementById(id);

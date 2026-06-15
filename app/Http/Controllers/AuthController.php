@@ -19,7 +19,7 @@ class AuthController extends Controller
     public const REMEMBER_COOKIE = 'remember_ecosystem';
 
     /** Durasi remember-me dalam hari */
-    private const REMEMBER_DAYS = 30;
+    private const REMEMBER_DAYS = 1;
 
     // =========================================================================
     // HELPER: Bangun session data dari employee_id
@@ -46,7 +46,10 @@ class AuthController extends Controller
                 'ea.email_personal as email',
                 'ea.cell_phone as phone_number',
                 'eb.position',
-                'eb.employee_subgroup as department'
+                'eb.employee_subgroup as department',
+                'eb.employee_type',
+                'r.id as role_id',
+                'r.name as role_name'
             )
             ->first();
 
@@ -79,19 +82,19 @@ class AuthController extends Controller
         return [
             'token'    => $token,
             'userData' => [
-                'id'         => (int) $employee->employee_id,
-                'type'       => 'employee',
-                'eci'        => $employee->eci,
-                'name'       => $employee->full_name,
-                'nick_name'  => $employee->nick_name ?: explode(' ', trim($employee->full_name))[0],
-                'email'      => $authEmail ?? $employee->email,
-                'phone'      => $employee->phone_number,
-                'position'   => $employee->position,
-                'department' => $employee->department,
-                // Legacy: primary role (backward compat — masih dipakai banyak fitur)
-                'role'       => [
-                    'id'   => $primaryRoleId,
-                    'name' => $primaryRoleName,
+                'id'            => (int) $employee->employee_id,
+                'type'          => 'employee',
+                'employee_type' => $employee->employee_type ?? 'Internal',
+                'eci'           => $employee->eci,
+                'name'          => $employee->full_name,
+                'nick_name'     => $employee->nick_name ?: explode(' ', trim($employee->full_name))[0],
+                'email'         => $authEmail ?? $employee->email,
+                'phone'         => $employee->phone_number,
+                'position'      => $employee->position,
+                'department'    => $employee->department,
+                'role'          => [
+                    'id'   => (int) $employee->role_id,
+                    'name' => $employee->role_name,
                 ],
                 // Baru: semua roles (dipakai sistem baru)
                 'role_ids'   => $roleIds,

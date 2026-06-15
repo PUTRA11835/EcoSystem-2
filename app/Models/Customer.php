@@ -29,6 +29,7 @@ class Customer extends Authenticatable
         'domain',
         'is_active',
         'parent_customer_id',
+        'customer_group_id',
     ];
 
     /**
@@ -188,6 +189,32 @@ class Customer extends Authenticatable
     public function isParentCustomer(): bool
     {
         return $this->parent_customer_id === null;
+    }
+
+    /**
+     * Customer Group struktural (grouping datar, anggota tetap mandiri).
+     */
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(CustomerGroup::class, 'customer_group_id', 'id');
+    }
+
+    /**
+     * Mirror nama grup ke kolom teks lama `customer_basic_data.customer_group`
+     * agar filter list, header card, dan API Jarvies yang membaca kolom teks
+     * tetap berfungsi setelah grouping di-upgrade menjadi berbasis FK.
+     *
+     * Dipanggil dari controller setiap kali `customer_group_id` berubah.
+     */
+    public function syncGroupNameToBasicData(): void
+    {
+        $groupName = $this->customer_group_id
+            ? optional(CustomerGroup::find($this->customer_group_id))->name
+            : null;
+
+        if ($this->basicData) {
+            $this->basicData->update(['customer_group' => $groupName]);
+        }
     }
 
     /**
@@ -706,6 +733,7 @@ class Customer extends Authenticatable
                 'domain' => self::normalizeDomain($customerData['domain'] ?? null),
                 'is_active' => $customerData['is_active'] ?? true,
                 'parent_customer_id' => $customerData['parent_customer_id'] ?? null,
+                'customer_group_id' => $customerData['customer_group_id'] ?? null,
             ]);
 
             // Create basic data (tanpa customer_code karena sudah pindah ke tabel customer)

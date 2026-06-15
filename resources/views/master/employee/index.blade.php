@@ -80,6 +80,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 </tbody>
             </table>
         </div>
+
+        <!-- Pagination -->
+        <div id="employeePagination" class="flex items-center justify-between mt-4 px-1 min-h-[36px]"></div>
     </div>
 </div>
 
@@ -319,9 +322,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 <input type="hidden" id="homeBase" value="">
                                 <div class="custom-dd-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 overflow-y-auto" style="max-height:220px;">
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Home Base</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Jakarta">Jakarta</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Yogyakarta">Yogyakarta</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Surabaya">Surabaya</button>
+                                    @foreach(($homeBaseOptions ?? []) as $hb)
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $hb }}">{{ $hb }}</button>
+                                    @endforeach
                                 </div>
                             </div>
                         </div>
@@ -336,13 +339,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 <input type="hidden" id="grade" value="">
                                 <div class="custom-dd-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 overflow-y-auto" style="max-height:220px;">
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Grade</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Management Trainee">Management Trainee</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Junior Consultant">Junior Consultant</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Associate Consultant">Associate Consultant</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Middle Consultant">Middle Consultant</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Senior Consultant">Senior Consultant</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Principal Consultant">Principal Consultant</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Expert Consultant">Expert Consultant</button>
+                                    @foreach(($gradeOptions ?? []) as $g)
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $g }}">{{ $g }}</button>
+                                    @endforeach
                                 </div>
                             </div>
                         </div>
@@ -508,6 +507,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     let employees = [];
     let currentEmployeeId = null;
     let deleteEmployeeId = null;
+    let currentPage = 1;
+    let paginationMeta = null;
+    const PER_PAGE = 15;
 
     /**
      * Tampilkan semua error validasi dari response API sebagai toast.
@@ -540,9 +542,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         }
     }
 
-    async function fetchEmployees(filters = {}) {
+    async function fetchEmployees(filters = {}, page = currentPage) {
         try {
-            const params = new URLSearchParams(filters);
+            const params = new URLSearchParams({ ...filters, page, per_page: PER_PAGE });
             const response = await fetch(`/api/employees?${params}`, {
                 method: 'GET',
                 headers: {
@@ -554,16 +556,93 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             });
 
             const data = await response.json();
-            
+
             if (data.success) {
+                // Jika halaman saat ini melampaui jumlah halaman hasil (mis. setelah
+                // filter/hapus membuat data menyusut), mundur ke halaman terakhir
+                // yang valid lalu fetch ulang — cegah tampilan kosong.
+                if (data.pagination && data.pagination.total > 0
+                    && data.pagination.current_page > data.pagination.last_page) {
+                    currentPage = data.pagination.last_page;
+                    return fetchEmployees(filters, currentPage);
+                }
                 employees = data.data;
+                paginationMeta = data.pagination || null;
+                currentPage = paginationMeta ? paginationMeta.current_page : currentPage;
                 renderTable(employees);
+                renderPagination();
             } else {
                 showNotification(data.message || 'Failed to fetch employees', 'error');
             }
         } catch (error) {
             showNotification('An error occurred while fetching employees', 'error');
         }
+    }
+
+    function renderPagination() {
+        const el = document.getElementById('employeePagination');
+        if (!el || !paginationMeta) return;
+
+        const { total, current_page, last_page, from, to } = paginationMeta;
+
+        if (last_page <= 1) {
+            el.innerHTML = `<span class="text-xs text-gray-500">Showing ${total} employee${total !== 1 ? 's' : ''}</span>`;
+            return;
+        }
+
+        // Build page buttons (max 5 around current)
+        const pages = [];
+        const delta = 2;
+        for (let i = Math.max(1, current_page - delta); i <= Math.min(last_page, current_page + delta); i++) {
+            pages.push(i);
+        }
+        if (pages[0] > 1) {
+            pages.unshift('...');
+            pages.unshift(1);
+        }
+        if (pages[pages.length - 1] < last_page) {
+            pages.push('...');
+            pages.push(last_page);
+        }
+
+        const btn = (label, page, disabled = false, active = false) => {
+            const base = 'inline-flex items-center justify-center w-8 h-8 text-xs font-medium rounded-lg border transition-all';
+            const cls = active
+                ? `${base} primary-gradient text-white border-transparent`
+                : disabled
+                    ? `${base} bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed`
+                    : `${base} bg-white text-gray-600 border-gray-300 hover:bg-gray-50`;
+            const click = (!disabled && !active) ? `onclick="goToPage(${page})"` : '';
+            return `<button type="button" ${click} class="${cls}" ${disabled ? 'disabled' : ''}>${label}</button>`;
+        };
+
+        const pageButtons = pages.map(p =>
+            p === '...'
+                ? `<span class="text-xs text-gray-400 px-1">…</span>`
+                : btn(p, p, false, p === current_page)
+        ).join('');
+
+        el.innerHTML = `
+            <span class="text-xs text-gray-500">Showing ${from}–${to} of ${total} employees</span>
+            <div class="flex items-center gap-1">
+                ${btn('&lsaquo;', current_page - 1, current_page === 1)}
+                ${pageButtons}
+                ${btn('&rsaquo;', current_page + 1, current_page === last_page)}
+            </div>
+        `;
+    }
+
+    function getCurrentFilters() {
+        return {
+            status: document.getElementById('filterStatus').value,
+            employee: document.getElementById('filterEmployee').value,
+            department: document.getElementById('filterDepartment').value,
+        };
+    }
+
+    function goToPage(page) {
+        currentPage = page;
+        fetchEmployees(getCurrentFilters());
     }
 
     // Fungsi untuk navigasi ke halaman detail saat baris diklik
@@ -623,7 +702,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             return `
             <tr class="employee-row" onclick="navigateToDetail(${emp.id}, event)">
                 <td class="px-4 py-3.5 text-sm"><strong class="font-semibold text-gray-900">${emp.eci || '-'}</strong></td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${fullName}</td>
+                <td class="px-4 py-3.5 text-sm text-gray-600">${fullName}${emp.employee_type === 'External' ? ' <span class="inline-block ml-1.5 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 align-middle">External</span>' : ''}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.position || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.division || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.employee_subgroup || '-'}</td>
@@ -930,12 +1009,8 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     }
 
     function applyFilters() {
-        const filters = {
-            status: document.getElementById('filterStatus').value,
-            employee: document.getElementById('filterEmployee').value,
-            department: document.getElementById('filterDepartment').value,
-        };
-        fetchEmployees(filters);
+        currentPage = 1;
+        fetchEmployees(getCurrentFilters());
     }
 
     let _employeeSearchTimer;
@@ -952,7 +1027,8 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         }
         document.getElementById('filterEmployee').value = '';
         document.getElementById('filterDepartment').value = '';
-        fetchEmployees();
+        currentPage = 1;
+        fetchEmployees({});
     }
 
 

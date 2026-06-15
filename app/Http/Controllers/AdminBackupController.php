@@ -7,9 +7,18 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class AdminBackupController extends Controller
 {
+    /**
+     * Password default untuk akun yang dibuat lewat import employee.
+     * Employee login dengan ECI/email + password ini, lalu (karena
+     * is_already_cp = false) sistem memaksa set-password via link email.
+     */
+    private const DEFAULT_IMPORT_PASSWORD = 'password123';
+
     private function assertAdmin(): bool
     {
         return (int) session('user.role.id') === RoleId::EC_ADMINISTRATOR->value;
@@ -208,6 +217,7 @@ class AdminBackupController extends Controller
                 'b.personnel_area', 'b.personnel_subarea',
                 'b.employee_group', 'b.employee_subgroup',
                 'b.position', 'b.division', 'b.department',
+                'b.home_base', 'b.grade',
                 'b.since_date',
                 'ei.identification_number as nik'
             )
@@ -232,6 +242,7 @@ class AdminBackupController extends Controller
                 'personnel_area', 'personnel_subarea',
                 'employee_group', 'employee_subgroup',
                 'position', 'division', 'department',
+                'home_base', 'grade',
                 'since_date', 'nik',
             ]);
             foreach ($rows as $r) {
@@ -243,6 +254,7 @@ class AdminBackupController extends Controller
                     $r->personnel_area, $r->personnel_subarea,
                     $r->employee_group, $r->employee_subgroup,
                     $r->position, $r->division, $r->department,
+                    $r->home_base, $r->grade,
                     $r->since_date, $r->nik,
                 ]);
             }
@@ -337,15 +349,30 @@ class AdminBackupController extends Controller
     {
         if (!$this->assertAdmin()) abort(403);
 
+        // Alamat utama (baris pertama / address_id terkecil) per customer, agar
+        // tidak menggandakan baris customer saat ada >1 alamat.
+        $firstAddr = DB::table('customer_address')
+            ->selectRaw('MIN(address_id) as address_id, customer_id')
+            ->groupBy('customer_id');
+
         $rows = DB::table('customer as c')
             ->leftJoin('customer_basic_data as b', 'c.customer_id', '=', 'b.customer_id')
             ->leftJoin('customer as p', 'c.parent_customer_id', '=', 'p.customer_id')
+            ->leftJoin('customer_groups as cg', 'c.customer_group_id', '=', 'cg.id')
+            ->leftJoinSub($firstAddr, 'fa', 'c.customer_id', '=', 'fa.customer_id')
+            ->leftJoin('customer_address as a', 'fa.address_id', '=', 'a.address_id')
             ->select(
                 'c.customer_id', 'c.customer_code', 'c.email', 'c.is_active',
                 'b.title', 'b.name_1', 'b.name_2',
-                'b.customer_group', 'b.customer_category', 'b.industry_sector',
+                // Customer Group struktural — utamakan nama dari relasi customer_groups,
+                // fallback ke kolom teks lama bila FK belum terisi.
+                DB::raw('COALESCE(cg.name, b.customer_group) as customer_group'),
+                'b.customer_category', 'b.industry_sector',
                 'b.ec_account_executive', 'b.sap_account_executive',
                 'p.customer_code as parent_customer_code',
+                'a.telephone', 'a.fax', 'a.full_address', 'a.building_name',
+                'a.street', 'a.postal_code', 'a.country', 'a.region',
+                'a.city', 'a.district', 'a.rural_urban_village',
                 'c.created_at'
             )
             ->orderBy('c.customer_id')
@@ -366,6 +393,10 @@ class AdminBackupController extends Controller
                 'Customer Group', 'Customer Category', 'Industry Sector',
                 'EC Account Executive', 'SAP Account Executive',
                 'Parent Customer Code',
+                'Phone', 'Fax',
+                'Alamat Lengkap', 'Nama Gedung/Tempat', 'Street',
+                'Postal Code', 'Country', 'Region/Province',
+                'City', 'District', 'Urban Villages',
                 'Created At',
             ]);
             foreach ($rows as $r) {
@@ -376,6 +407,10 @@ class AdminBackupController extends Controller
                     $r->customer_group ?? '', $r->customer_category ?? '', $r->industry_sector ?? '',
                     $r->ec_account_executive ?? '', $r->sap_account_executive ?? '',
                     $r->parent_customer_code ?? '',
+                    $r->telephone ?? '', $r->fax ?? '',
+                    $r->full_address ?? '', $r->building_name ?? '', $r->street ?? '',
+                    $r->postal_code ?? '', $r->country ?? '', $r->region ?? '',
+                    $r->city ?? '', $r->district ?? '', $r->rural_urban_village ?? '',
                     $r->created_at,
                 ]);
             }
@@ -396,72 +431,90 @@ class AdminBackupController extends Controller
     {
         if (!$this->assertAdmin()) abort(403);
 
-        $headers = [
-            'Content-Type'        => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="employees_import_template.csv"',
-        ];
-
-        $callback = function () {
-            $handle = fopen('php://output', 'w');
-            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->fromArray([
             // Header columns — snake_case, compatible with both full names and Excel-truncated variants
-            fputcsv($handle, [
-                'ECI', 'role', 'status', 'email',
+            [
+                'ECI', 'role', 'status', 'email', 'phone',
                 'title', 'nick_name', 'gender', 'religion',
                 'first_name', 'last_name',
                 'marital_status', 'birth_date', 'birth_place',
                 'personnel_area', 'personnel_subarea',
                 'employee_group', 'employee_subgroup',
                 'position', 'division', 'department',
+                'home_base', 'grade',
                 'since_date', 'nik',
-            ]);
+            ],
             // Example row
-            fputcsv($handle, [
-                'ECI001', 'Delivery Support User', 'Active', 'john.doe@example.com',
+            [
+                'ECI001', 'Delivery Support User', 'Active', 'john.doe@example.com', '081234567890',
                 'Mr.', 'John', 'Male', 'Islam',
                 'John', 'Doe',
                 'Single', '1990-01-15', 'Jakarta',
                 'Area A', 'Sub Area A',
                 'Group 1', 'Subgroup 1',
                 'Consultant', 'IT', 'Support',
+                'Jakarta', 'Junior Consultant',
                 '2023-01-01', '3201010101900001',
-            ]);
-            fclose($handle);
-        };
+            ],
+        ]);
 
-        return response()->stream($callback, 200, $headers);
+        $writer = new Xlsx($spreadsheet);
+        return response()->stream(
+            fn () => $writer->save('php://output'),
+            200,
+            [
+                'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="employees_import_template.xlsx"',
+                'Cache-Control'       => 'max-age=0',
+            ]
+        );
     }
 
     public function templateCustomers()
     {
         if (!$this->assertAdmin()) abort(403);
 
-        $headers = [
-            'Content-Type'        => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="customers_import_template.csv"',
-        ];
-
-        $callback = function () {
-            $handle = fopen('php://output', 'w');
-            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
-            fputcsv($handle, [
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->fromArray([
+            [
                 'Customer Code', 'Email', 'Status',
                 'Title', 'Company Name', 'Name 2',
                 'Customer Group', 'Customer Category', 'Industry Sector',
                 'EC Account Executive', 'SAP Account Executive',
                 'Parent Customer Code',
-            ]);
-            fputcsv($handle, [
-                'CUST001', 'company@example.com', 'Active',
-                'PT', 'Example Company Tbk', '',
-                'Corporate', '', 'Technology',
-                'John Smith', '',
+                // ── Komunikasi & Alamat (1 alamat utama per baris) ──
+                'Phone', 'Fax',
+                'Alamat Lengkap', 'Nama Gedung/Tempat', 'Street',
+                'Postal Code', 'Country', 'Region/Province',
+                'City', 'District', 'Urban Villages',
+            ],
+            [
+                'MANTAP', 'company@example.com', 'Active',
+                'PT', 'Bank Mandiri Taspen', '',
+                'BUMN', '', 'Technology',
+                'K25019', '',
                 '',
-            ]);
-            fclose($handle);
-        };
+                '+62 21 2123 1772', '+62 21 2123 1984',
+                'Graha Mantap, Jl. Proklamasi No. 31, Menteng, Jakarta Pusat 10320',
+                'Graha Mantap', 'Jl. Proklamasi No. 31',
+                '10320', 'Indonesia', 'DKI Jakarta',
+                'Jakarta Pusat', 'Menteng', '',
+            ],
+        ]);
 
-        return response()->stream($callback, 200, $headers);
+        $writer = new Xlsx($spreadsheet);
+        return response()->stream(
+            fn () => $writer->save('php://output'),
+            200,
+            [
+                'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="customers_import_template.xlsx"',
+                'Cache-Control'       => 'max-age=0',
+            ]
+        );
     }
 
     // ── Import Employee ───────────────────────────────────────────────────────
@@ -508,23 +561,43 @@ class AdminBackupController extends Controller
             'position'          => ['position', 'Position'],
             'division'          => ['division', 'Division'],
             'department'        => ['department', 'Department'],
+            'home_base'         => ['home_base', 'Home Base', 'homebase', 'based', 'Based'],
+            'grade'             => ['grade', 'Grade', 'grade / level', 'Grade / Level', 'grade/level', 'Grade/Level'],
             'since_date'        => ['since_date', 'Since Date'],
             'nik'               => ['nik', 'NIK', 'nik (identification_type)', 'NIK (identification_type)'],
             'email'             => ['email', 'Email', 'email_work', 'Email Work'],
+            // Cell phone → disimpan ke employee_address.cell_phone (alamat primary),
+            // bukan auth_users.phone (login identifier).
+            'cell_phone'        => ['phone', 'Phone', 'cell_phone', 'Cell Phone', 'cellphone', 'no_hp', 'No HP'],
         ];
 
         // Build colIndex: canonical_field => column index in CSV
-        $colIndex = [];
-        foreach ($aliasMap as $field => $aliases) {
-            foreach ($rawHeaders as $i => $header) {
-                $h = strtolower(trim($header));
-                foreach ($aliases as $alias) {
-                    if (strtolower(trim($alias)) === $h) {
-                        $colIndex[$field] = $i;
-                        break 2;
+        $buildColIndex = function (array $headerRow) use ($aliasMap): array {
+            $idx = [];
+            foreach ($aliasMap as $field => $aliases) {
+                foreach ($headerRow as $i => $header) {
+                    $h = strtolower(trim($header));
+                    foreach ($aliases as $alias) {
+                        if (strtolower(trim($alias)) === $h) {
+                            $idx[$field] = $i;
+                            break 2;
+                        }
                     }
                 }
             }
+            return $idx;
+        };
+
+        // Cari baris header asli. File dari Excel kadang punya baris judul
+        // ("Employee") sebelum baris header sebenarnya — lewati sampai ketemu
+        // baris yang memuat kolom "ECI" (maks. 5 baris pertama).
+        $colIndex = $buildColIndex($rawHeaders);
+        $headerAttempts = 0;
+        while (!isset($colIndex['eci']) && $headerAttempts < 5) {
+            $next = fgetcsv($handle);
+            if ($next === false) break;
+            $headerAttempts++;
+            $colIndex = $buildColIndex($next);
         }
 
         if (!isset($colIndex['eci'])) {
@@ -540,6 +613,28 @@ class AdminBackupController extends Controller
         };
 
         $roles    = DB::table('employee_role')->pluck('id', 'name');
+        // Lookup role case-insensitive (key: lowercase+trim nama → id). Kolom CSV
+        // "role" bisa berisi BANYAK role dipisah koma; tiap nama dicocokkan ke sini.
+        $rolesCI = collect($roles)->mapWithKeys(fn ($id, $name) => [mb_strtolower(trim($name)) => $id])->all();
+
+        // Alias role: nama jabatan di CSV yang tak persis sama dgn nama role di DB.
+        // Key: lowercase+trim nama CSV → nama role kanonik di DB. Diterapkan sebelum
+        // lookup $rolesCI (mis. "Sales Marketing Executive" → "Sales Marketing Head").
+        $roleAliases = [
+            'sales marketing executive' => 'Sales Marketing Head',
+            'system registered'         => 'User System Registered',
+        ];
+
+        // Peta kanonik Grade & Home Base (key: lowercase+trim → nilai kanonik).
+        // Dipakai menormalkan nilai CSV agar konsisten dgn opsi dropdown UI.
+        $gradeCanon = collect(\App\Models\Grade::options())
+            ->mapWithKeys(fn ($n) => [mb_strtolower(trim($n)) => $n])->all();
+        $homeBaseCanon = collect(\App\Enums\HomeBase::options())
+            ->mapWithKeys(fn ($n) => [mb_strtolower(trim($n)) => $n])->all();
+        // "User System Registered" wajib ada di employee_role_assignment agar employee
+        // bisa login ke EcoSystem (AuthController cek $hasSystemAccess). Selalu di-assign
+        // ke setiap employee, di samping role fungsionalnya (role_id dari kolom CSV).
+        $systemRoleId = DB::table('employee_role')->where('name', 'User System Registered')->value('id');
         $imported = 0;
         $updated  = 0;
         $errors   = [];
@@ -550,27 +645,100 @@ class AdminBackupController extends Controller
             if (count($row) === 1 && trim($row[0]) === '') continue;
 
             $eci = $get('eci');
-            if (!$eci) { $errors[] = "Baris {$rowNum}: ECI wajib diisi"; continue; }
 
-            $roleName = $get('role');
-            $roleId   = $roleName ? ($roles[$roleName] ?? null) : null;
-            if ($roleName && !$roleId) {
-                $errors[] = "Baris {$rowNum}: Role '{$roleName}' tidak ditemukan";
+            // Pencocokan employee memakai FULL NAME (first + last), bukan ECI.
+            // Minimal salah satu nama wajib ada agar bisa dicocokkan.
+            $firstName = $get('first_name');
+            $lastName  = $get('last_name');
+            $fullName  = trim(($firstName ?? '') . ' ' . ($lastName ?? ''));
+            if ($fullName === '') {
+                $errors[] = "Baris {$rowNum}: Nama (First/Last Name) wajib diisi — dipakai untuk mencocokkan employee";
                 continue;
+            }
+
+            // Kolom "role" bisa berisi BANYAK role dipisah koma
+            // (mis. "EC Director, EC User, User System Registered"). Semua role
+            // valid di-assign ke employee_role_assignment; role fungsional pertama
+            // (selain "User System Registered") jadi employee.role_id (primary).
+            $roleRaw = $get('role');
+            $roleIds = [];          // semua role valid (untuk assignment)
+            $roleId  = null;        // primary → employee.role_id
+            if ($roleRaw !== null) {
+                $unknownRoles = [];
+                foreach (array_filter(array_map('trim', explode(',', $roleRaw)), fn ($n) => $n !== '') as $rn) {
+                    $key = mb_strtolower($rn);
+                    if (isset($roleAliases[$key])) $key = mb_strtolower($roleAliases[$key]);
+                    $rid = $rolesCI[$key] ?? null;
+                    if ($rid) {
+                        $roleIds[] = $rid;
+                        if ($roleId === null && $rid !== $systemRoleId) $roleId = $rid;
+                    } else {
+                        $unknownRoles[] = $rn;
+                    }
+                }
+                $roleIds = array_values(array_unique($roleIds));
+                // Bila satu-satunya role valid adalah "User System Registered",
+                // jadikan ia primary agar baris tetap punya role_id.
+                if ($roleId === null && $roleIds) $roleId = $roleIds[0];
+                if ($unknownRoles) {
+                    $errors[] = "[Peringatan] Baris {$rowNum}: Role tidak dikenali (dilewati): " . implode(', ', $unknownRoles);
+                }
             }
 
             $isActive = $get('status') !== null
                 ? (strtolower($get('status')) === 'active' ? 1 : 0)
                 : 1;
 
+            // Normalisasi Home Base & Grade ke nilai kanonik (case-insensitive).
+            // Tak dikenali → tetap disimpan apa adanya + peringatan non-fatal
+            // (UI tetap menampilkan nilai mentah, tapi tak terhubung ke daftar).
+            $homeBase = $get('home_base');
+            if ($homeBase !== null) {
+                $key = mb_strtolower(trim($homeBase));
+                if (isset($homeBaseCanon[$key])) {
+                    $homeBase = $homeBaseCanon[$key];
+                } else {
+                    $errors[] = "[Peringatan] Baris {$rowNum} ({$fullName}): Home Base '{$homeBase}' tidak dikenali — tersimpan apa adanya";
+                }
+            }
+
+            $grade = $get('grade');
+            if ($grade !== null) {
+                $key = mb_strtolower(trim($grade));
+                if (isset($gradeCanon[$key])) {
+                    $grade = $gradeCanon[$key];
+                } else {
+                    // Fallback: CSV sering pakai bentuk singkat — bisa kata AWAL
+                    // ("Senior" → "Senior Consultant", "Management" → "Management
+                    // Trainee") MAUPUN kata AKHIR ("Trainee" → "Management Trainee").
+                    // Cocokkan bila nilai = prefix/suffix (per-kata) dari tepat SATU
+                    // grade kanonik (ambigu/tak ada → biarkan + peringatan).
+                    $matches = [];
+                    foreach ($gradeCanon as $canonLower => $canonName) {
+                        if (str_starts_with($canonLower, $key . ' ')
+                            || str_ends_with($canonLower, ' ' . $key)) {
+                            $matches[] = $canonName;
+                        }
+                    }
+                    if (count($matches) === 1) {
+                        $grade = $matches[0];
+                    } else {
+                        $errors[] = "[Peringatan] Baris {$rowNum} ({$fullName}): Grade '{$grade}' tidak dikenali — tersimpan apa adanya, tidak terhubung ke daftar Grade";
+                    }
+                }
+            }
+
             $basicData = array_filter([
                 'title'              => $get('title'),
-                'first_name'         => $get('first_name'),
-                'last_name'          => $get('last_name'),
+                'first_name'         => $firstName,
+                'last_name'          => $lastName,
+                // search_term: kolom pencarian, samakan dgn create-dari-website
+                'search_term_1'      => $firstName ? strtoupper($firstName) : null,
+                'search_term_2'      => $lastName ? strtoupper($lastName) : null,
                 'nick_name'          => $get('nick_name'),
                 'gender'             => $get('gender'),
                 'religion'           => $get('religion'),
-                'birth_date'         => $get('birth_date'),
+                'birth_date'         => $this->normalizeDate($get('birth_date')),
                 'birth_place'        => $get('birth_place'),
                 'marital_status'     => $get('marital_status'),
                 'personnel_area'     => $get('personnel_area'),
@@ -580,32 +748,96 @@ class AdminBackupController extends Controller
                 'position'           => $get('position'),
                 'division'           => $get('division'),
                 'department'         => $get('department'),
-                'since_date'         => $get('since_date'),
+                'home_base'          => $homeBase,
+                'grade'              => $grade,
+                // Internal/External diturunkan dari home_base ("Others" → External).
+                'employee_type'      => \App\Models\EmployeeBasicData::deriveEmployeeType($homeBase),
+                'since_date'         => $this->normalizeDate($get('since_date')),
             ], fn($v) => $v !== null);
 
-            $nik = $get('nik');
+            $nik       = $get('nik');
+            $cellPhone = $this->normalizePhone($get('cell_phone'));
 
             try {
-                $existing = DB::table('employee')->where('eci', $eci)->first();
+                DB::beginTransaction();
+
+                // Cocokkan berdasarkan FULL NAME (case-insensitive). Butuh basic_data,
+                // sehingga employee tanpa nama tidak akan ke-match (akan jadi baru).
+                $existing = DB::table('employee as e')
+                    ->join('employee_basic_data as b', 'e.employee_id', '=', 'b.employee_id')
+                    ->whereRaw("LOWER(TRIM(CONCAT(COALESCE(b.first_name,''), ' ', COALESCE(b.last_name,'')))) = ?", [mb_strtolower($fullName)])
+                    ->orderBy('e.employee_id') // deterministik bila ada nama kembar
+                    ->select('e.employee_id', 'e.eci')
+                    ->first();
+
+                // Fallback: kalau nama tak ketemu (mis. employee lama yang punya baris
+                // employee + ECI tapi belum punya basic_data), cocokkan via ECI agar
+                // tidak salah dianggap baru lalu kena guard "ECI sudah dipakai".
+                if (!$existing && $eci) {
+                    $existing = DB::table('employee')->where('eci', $eci)
+                        ->select('employee_id', 'eci')->first();
+                }
+
+                $email = $get('email');
+
+                // Email auth WAJIB unik. Bila email CSV sudah dipakai akun lain
+                // (mis. email berpola nama-depan yang kebetulan sama), jangan pakai
+                // untuk baris ini — buat employee tanpa email + beri peringatan,
+                // agar import tetap jalan (admin isi/perbaiki email manual nanti).
+                $emailForAuth  = $email;
+                $emailConflict = false;
+                if ($email) {
+                    $taken = DB::table('auth_users')->where('email', $email)
+                        ->when($existing, fn ($q) => $q->where('employee_id', '!=', $existing->employee_id))
+                        ->exists();
+                    if ($taken) { $emailForAuth = null; $emailConflict = true; }
+                }
 
                 if ($existing) {
+                    // ── UPDATE: full name sama → update field-fieldnya ──
                     $empUpdate = ['is_active' => $isActive, 'updated_at' => now()];
                     DB::table('employee')->where('eci', $eci)->update($empUpdate);
+                    if ($roleId) $empUpdate['role_id'] = $roleId;
 
-                    // Update email di auth_users jika CSV mengisi email dan auth_users belum punya email
-                    $email = $get('email');
-                    if ($email) {
-                        DB::table('auth_users')
-                            ->where('employee_id', $existing->employee_id)
-                            ->whereNull('email')
-                            ->update(['email' => $email, 'updated_at' => now()]);
+                    // ECI dari CSV adalah format terbaru & menjadi acuan ke depan →
+                    // timpa ECI lama bila berbeda. Username login (auth_users) ikut
+                    // disinkronkan di bawah. Skip + warn bila ECI sudah dipakai
+                    // employee LAIN (cegah pelanggaran unique).
+                    $syncEci = null;
+                    if ($eci && $eci !== $existing->eci) {
+                        $eciTaken = DB::table('employee')->where('eci', $eci)
+                            ->where('employee_id', '!=', $existing->employee_id)->exists();
+                        if ($eciTaken) {
+                            $errors[] = "[Peringatan] Baris {$rowNum} ({$fullName}): ECI '{$eci}' sudah dipakai employee lain — ECI lama '{$existing->eci}' dipertahankan";
+                        } else {
+                            $empUpdate['eci'] = $eci;
+                            $syncEci = $eci;
+                        }
+                    }
+
+                    DB::table('employee')->where('employee_id', $existing->employee_id)->update($empUpdate);
+
+                    // Pastikan SEMUA role dari CSV + "User System Registered" ter-assign
+                    $assignRoleIds = array_values(array_unique(array_filter(array_merge($roleIds, [$systemRoleId]))));
+                    if ($assignRoleIds) {
+                        DB::table('employee_role_assignment')->insertOrIgnore(
+                            array_map(fn ($rid) => [
+                                'employee_id' => $existing->employee_id,
+                                'role_id'     => $rid,
+                                'created_at'  => now(),
+                                'updated_at'  => now(),
+                            ], $assignRoleIds)
+                        );
                     }
 
                     if ($basicData) {
                         $basicData['updated_at'] = now();
                         if (DB::table('employee_basic_data')->where('employee_id', $existing->employee_id)->exists()) {
-                            DB::table('employee_basic_data')->where('employee_id', $existing->employee_id)->update($basicData);
+                            DB::table('employee_basic_data')
+                                ->where('employee_id', $existing->employee_id)
+                                ->update($basicData);
                         } else {
+                            // employee lama tanpa basic_data (mis. ke-match via ECI) → buat
                             $basicData['employee_id'] = $existing->employee_id;
                             $basicData['created_at']  = now();
                             DB::table('employee_basic_data')->insert($basicData);
@@ -616,18 +848,75 @@ class AdminBackupController extends Controller
                         $this->upsertNik($existing->employee_id, $nik);
                     }
 
-                    $updated++;
-                } else {
-                    if (!$roleId) {
-                        $errors[] = "Baris {$rowNum}: ECI '{$eci}' baru tapi Role tidak valid — baris dilewati";
-                        continue;
+                    if ($cellPhone) {
+                        $this->upsertCellPhone($existing->employee_id, $cellPhone);
                     }
 
-                    $email = $get('email');
-                    if (!$email) {
-                        $errors[] = "Baris {$rowNum} ({$eci}): Kolom 'email' wajib diisi untuk employee baru";
+                    // Pastikan akun login ada & konsisten dgn default import.
+                    $authUser = DB::table('auth_users')->where('employee_id', $existing->employee_id)->first();
+                    if (!$authUser) {
+                        // Belum ada akun → buat dgn password default (is_already_cp=false)
+                        DB::table('auth_users')->insert([
+                            'employee_id'   => $existing->employee_id,
+                            'customer_id'   => null,
+                            'username'      => $syncEci ?? $existing->eci,
+                            'email'         => $emailForAuth,
+                            'phone'         => null,
+                            'password'      => \Illuminate\Support\Facades\Hash::make(self::DEFAULT_IMPORT_PASSWORD, ['rounds' => 8]),
+                            'is_active'     => $isActive,
+                            'is_already_cp' => false,
+                            'created_at'    => now(),
+                            'updated_at'    => now(),
+                        ]);
+                        if ($emailConflict) {
+                            $errors[] = "[Peringatan] Baris {$rowNum} ({$fullName}): email '{$email}' sudah dipakai akun lain — employee tetap dibuat tapi TANPA email, isi manual nanti";
+                        }
+                    } else {
+                        $authUpdate = ['updated_at' => now()];
+                        if ($emailForAuth && empty($authUser->email)) {
+                            $authUpdate['email'] = $emailForAuth;
+                        }
+                        // Sinkronkan username login dgn ECI baru. Skip + warn bila
+                        // username sudah dipakai akun lain (cegah pelanggaran unique).
+                        if ($syncEci && $syncEci !== $authUser->username) {
+                            $usernameTaken = DB::table('auth_users')->where('username', $syncEci)
+                                ->where('id', '!=', $authUser->id)->exists();
+                            if ($usernameTaken) {
+                                $errors[] = "[Peringatan] Baris {$rowNum} ({$fullName}): username login '{$syncEci}' sudah dipakai akun lain — username lama '{$authUser->username}' dipertahankan";
+                            } else {
+                                $authUpdate['username'] = $syncEci;
+                            }
+                        }
+                        // Reset ke password default HANYA bila employee belum pernah
+                        // set-password sendiri (is_already_cp=false). Jika sudah pernah,
+                        // password pribadinya tidak boleh ditimpa.
+                        if (!$authUser->is_already_cp) {
+                            $authUpdate['password'] = \Illuminate\Support\Facades\Hash::make(self::DEFAULT_IMPORT_PASSWORD, ['rounds' => 8]);
+                        }
+                        DB::table('auth_users')->where('employee_id', $existing->employee_id)->update($authUpdate);
+                    }
+
+                    DB::commit();
+                    $updated++;
+                } else {
+                    // ── CREATE: employee baru ──
+                    if (!$roleId) {
+                        DB::rollBack();
+                        $errors[] = "Baris {$rowNum} ({$fullName}): employee baru tapi Role tidak valid — baris dilewati";
                         continue;
                     }
+                    if (!$eci) {
+                        DB::rollBack();
+                        $errors[] = "Baris {$rowNum} ({$fullName}): Kolom 'ECI' wajib diisi untuk employee baru";
+                        continue;
+                    }
+                    if (DB::table('employee')->where('eci', $eci)->exists()) {
+                        DB::rollBack();
+                        $errors[] = "Baris {$rowNum} ({$fullName}): ECI '{$eci}' sudah dipakai employee lain — baris dilewati";
+                        continue;
+                    }
+                    // Email kosong di CSV → employee tetap dibuat, auth_users.email = null
+                    // (admin bisa isi manual nanti). $emailForAuth sudah null bila $email null.
 
                     $employeeId = DB::table('employee')->insertGetId([
                         'eci'        => $eci,
@@ -636,28 +925,34 @@ class AdminBackupController extends Controller
                         'updated_at' => now(),
                     ]);
 
-                    // Role assignment
-                    DB::table('employee_role_assignment')->insertOrIgnore([
-                        'employee_id' => $employeeId,
-                        'role_id'     => $roleId,
-                        'created_at'  => now(),
-                        'updated_at'  => now(),
-                    ]);
+                    // Role assignment — SEMUA role dari CSV + "User System
+                    // Registered" (wajib untuk akses login).
+                    $assignRoleIds = array_values(array_unique(array_filter(array_merge($roleIds, [$systemRoleId]))));
+                    DB::table('employee_role_assignment')->insertOrIgnore(
+                        array_map(fn ($rid) => [
+                            'employee_id' => $employeeId,
+                            'role_id'     => $rid,
+                            'created_at'  => now(),
+                            'updated_at'  => now(),
+                        ], $assignRoleIds)
+                    );
 
-                    // Auth account — password default = ECI, sistem kirim email setup password saat login pertama
-                    if (!DB::table('auth_users')->where('employee_id', $employeeId)->exists()) {
-                        DB::table('auth_users')->insert([
-                            'employee_id'   => $employeeId,
-                            'customer_id'   => null,
-                            'username'      => $eci,
-                            'email'         => $email,
-                            'phone'         => null,
-                            'password'      => \Illuminate\Support\Facades\Hash::make($eci, ['rounds' => 8]),
-                            'is_active'     => $isActive,
-                            'is_already_cp' => false,
-                            'created_at'    => now(),
-                            'updated_at'    => now(),
-                        ]);
+                    // Auth account — password default = password123. is_already_cp=false:
+                    // saat login pertama sistem kirim email link set-password.
+                    DB::table('auth_users')->insert([
+                        'employee_id'   => $employeeId,
+                        'customer_id'   => null,
+                        'username'      => $eci,
+                        'email'         => $emailForAuth,
+                        'phone'         => null,
+                        'password'      => \Illuminate\Support\Facades\Hash::make(self::DEFAULT_IMPORT_PASSWORD, ['rounds' => 8]),
+                        'is_active'     => $isActive,
+                        'is_already_cp' => false,
+                        'created_at'    => now(),
+                        'updated_at'    => now(),
+                    ]);
+                    if ($emailConflict) {
+                        $errors[] = "Baris {$rowNum} ({$fullName}): email '{$email}' sudah dipakai akun lain — akun dibuat TANPA email, isi manual nanti";
                     }
 
                     if ($basicData) {
@@ -671,10 +966,16 @@ class AdminBackupController extends Controller
                         $this->upsertNik($employeeId, $nik);
                     }
 
+                    if ($cellPhone) {
+                        $this->upsertCellPhone($employeeId, $cellPhone);
+                    }
+
+                    DB::commit();
                     $imported++;
                 }
             } catch (\Exception $e) {
-                $errors[] = "Baris {$rowNum} ({$eci}): " . $e->getMessage();
+                DB::rollBack();
+                $errors[] = "Baris {$rowNum} ({$fullName}): " . $e->getMessage();
             }
         }
 
@@ -692,6 +993,72 @@ class AdminBackupController extends Controller
             'updated'  => $updated,
             'errors'   => $errors,
         ]);
+    }
+
+    /**
+     * Normalisasi berbagai format tanggal ke 'Y-m-d' (format yang diterima MySQL DATE).
+     * Menangani: YYYY-MM-DD, YYYY/MM/DD, M/D/YYYY, D/M/YYYY (Excel/US), dengan dash atau slash.
+     * Heuristik M/D vs D/M: jika salah satu bagian > 12 maka itu pasti hari; bila ambigu
+     * (keduanya <= 12) diasumsikan M/D/YYYY (format yang dipakai file sumber). Nilai yang
+     * tidak bisa diparse dikembalikan apa adanya agar tervalidasi/terlaporkan sebagai error.
+     */
+    private function normalizeDate(?string $val): ?string
+    {
+        if ($val === null) return null;
+        $val = trim($val);
+        if ($val === '') return null;
+
+        // Sudah ISO: YYYY-MM-DD atau YYYY/MM/DD
+        if (preg_match('/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/', $val, $m)) {
+            return sprintf('%04d-%02d-%02d', (int) $m[1], (int) $m[2], (int) $m[3]);
+        }
+
+        // Tahun di akhir: a/b/YYYY (slash atau dash)
+        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $val, $m)) {
+            $a = (int) $m[1];
+            $b = (int) $m[2];
+            $year = (int) $m[3];
+
+            if ($a > 12 && $b <= 12) {            // D/M/Y
+                $day = $a; $month = $b;
+            } elseif ($b > 12 && $a <= 12) {      // M/D/Y
+                $month = $a; $day = $b;
+            } else {                              // ambigu → asumsi M/D/Y
+                $month = $a; $day = $b;
+            }
+
+            if ($month >= 1 && $month <= 12 && $day >= 1 && $day <= 31) {
+                return sprintf('%04d-%02d-%02d', $year, $month, $day);
+            }
+        }
+
+        // Fallback terakhir: serahkan ke strtotime; kalau gagal kembalikan nilai asli.
+        $ts = strtotime($val);
+        return $ts !== false ? date('Y-m-d', $ts) : $val;
+    }
+
+    /**
+     * Normalisasi nomor telepon dari CSV/Excel.
+     * Excel sering merusak nomor panjang (HP Indonesia 11-15 digit):
+     *  - Kolom berformat Number → angka panjang di-export sebagai notasi ilmiah
+     *    ("6.28123E+12") → di sini dikembalikan ke string integer penuh.
+     *  - Excel menambah apostrof di depan ('6281...) → di-strip.
+     * Catatan: bila presisi SUDAH hilang di Excel (mis. "6281230000000"),
+     * server tidak bisa memulihkannya — kolom Phone WAJIB diformat Text di Excel
+     * sebelum diisi/di-export ke CSV.
+     */
+    private function normalizePhone(?string $v): ?string
+    {
+        if ($v === null) return null;
+        $v = trim($v, " \t\n\r\0\x0B'\"");
+        if ($v === '') return null;
+
+        // Notasi ilmiah (6.28123E+12) → integer penuh tanpa desimal.
+        if (preg_match('/^\d(?:\.\d+)?[eE]\+?\d+$/', $v)) {
+            $v = sprintf('%.0f', (float) $v);
+        }
+
+        return $v;
     }
 
     private function upsertNik(int $employeeId, string $nik): void
@@ -712,6 +1079,36 @@ class AdminBackupController extends Controller
                 'identification_number' => $nik,
                 'created_at'            => now(),
                 'updated_at'            => now(),
+            ]);
+        }
+    }
+
+    /**
+     * Simpan nomor HP ke employee_address.cell_phone pada alamat PRIMARY employee.
+     * Bila employee belum punya alamat, buat alamat primary baru bertipe 'Home'
+     * (mengikuti pola EmployeeAddressController: address_type wajib, satu primary).
+     */
+    private function upsertCellPhone(int $employeeId, string $cellPhone): void
+    {
+        $primary = DB::table('employee_address')
+            ->where('employee_id', $employeeId)
+            ->orderBy('is_primary', 'desc')
+            ->orderBy('address_id', 'asc')
+            ->first();
+
+        if ($primary) {
+            DB::table('employee_address')
+                ->where('address_id', $primary->address_id)
+                ->update(['cell_phone' => $cellPhone, 'updated_at' => now()]);
+        } else {
+            DB::table('employee_address')->insert([
+                'employee_id'  => $employeeId,
+                'address_type' => 'Home',
+                'cell_phone'   => $cellPhone,
+                'is_primary'   => true,
+                'is_verified'  => false,
+                'created_at'   => now(),
+                'updated_at'   => now(),
             ]);
         }
     }
@@ -750,9 +1147,17 @@ class AdminBackupController extends Controller
         // parent referenced by a row above it (not yet inserted) still maps.
         $pendingParents = [];
 
+        // CSV mungkin disimpan dalam Windows-1252/Latin-1 (mis. nama perusahaan
+        // beraksen). Byte non-UTF-8 yang lolos ke array $errors akan membuat
+        // response()->json() melempar "Malformed UTF-8 characters" (HTTP 500).
+        // Normalisasi tiap sel ke UTF-8 saat dibaca agar aman untuk DB & JSON.
         $get = function (string $col, array $row) use ($headerMap): ?string {
             if (!isset($headerMap[$col])) return null;
-            $val = trim($row[$headerMap[$col]] ?? '');
+            $val = $row[$headerMap[$col]] ?? '';
+            if ($val !== '' && !mb_check_encoding($val, 'UTF-8')) {
+                $val = mb_convert_encoding($val, 'UTF-8', 'Windows-1252');
+            }
+            $val = trim($val);
             return $val !== '' ? $val : null;
         };
 
@@ -769,12 +1174,19 @@ class AdminBackupController extends Controller
             $isActive     = $get('Status', $row) !== null
                 ? (strtolower($get('Status', $row)) === 'active' ? 1 : 0)
                 : 1;
+            // Customer Group struktural — resolve nama ke customer_groups
+            // (find-or-create). null bila kolom kosong → FK tidak disentuh saat
+            // update, parity dengan mirror kolom teks yang juga di-skip saat kosong.
+            $group   = $this->resolveCustomerGroup($get('Customer Group', $row));
+            $groupId = $group['id'] ?? null;
 
             $basicData = array_filter([
                 'name_1'                => $companyName,
                 'name_2'               => $get('Name 2', $row),
                 'title'                => $get('Title', $row),
-                'customer_group'       => $get('Customer Group', $row),
+                // Mirror nama kanonik grup (bukan nilai mentah CSV) agar konsisten
+                // dengan FK customer_group_id dan dengan syncGroupNameToBasicData().
+                'customer_group'       => $group['name'] ?? null,
                 'customer_category'    => $get('Customer Category', $row),
                 'industry_sector'      => $get('Industry Sector', $row),
                 'ec_account_executive' => $get('EC Account Executive', $row),
@@ -793,6 +1205,9 @@ class AdminBackupController extends Controller
 
                 if ($existing) {
                     $empUpdate = ['is_active' => $isActive, 'updated_at' => now()];
+                    // Hanya overwrite grup bila CSV menyertakan nilai (kolom kosong
+                    // = tidak mengubah grup existing).
+                    if ($groupId !== null) $empUpdate['customer_group_id'] = $groupId;
                     if ($customerCode && $customerCode !== $existing->customer_code) {
                         $taken = DB::table('customer')->where('customer_code', $customerCode)
                             ->where('customer_id', '!=', $existing->customer_id)->exists();
@@ -815,6 +1230,7 @@ class AdminBackupController extends Controller
                         $basicData['created_at']  = now();
                         DB::table('customer_basic_data')->insert($basicData);
                     }
+                    $this->upsertCustomerAddress($existing->customer_id, $get, $row);
                     if ($parentCode !== null) $pendingParents[$existing->customer_id] = $parentCode;
                     $updated++;
                 } else {
@@ -838,17 +1254,19 @@ class AdminBackupController extends Controller
                     }
 
                     $customerId = DB::table('customer')->insertGetId([
-                        'customer_code' => $customerCode,
-                        'email'         => $email,
-                        'is_active'     => $isActive,
-                        'created_at'    => now(),
-                        'updated_at'    => now(),
+                        'customer_code'     => $customerCode,
+                        'email'             => $email,
+                        'is_active'         => $isActive,
+                        'customer_group_id' => $groupId,
+                        'created_at'        => now(),
+                        'updated_at'        => now(),
                     ]);
 
                     $basicData['customer_id'] = $customerId;
                     $basicData['created_at']  = now();
                     $basicData['updated_at']  = now();
                     DB::table('customer_basic_data')->insert($basicData);
+                    $this->upsertCustomerAddress($customerId, $get, $row);
                     if ($parentCode !== null) $pendingParents[$customerId] = $parentCode;
                     $imported++;
                 }
@@ -874,6 +1292,12 @@ class AdminBackupController extends Controller
                 ->update(['parent_customer_id' => $parent->customer_id, 'updated_at' => now()]);
         }
 
+        // Insurance: pesan exception DB pun bisa membawa byte non-UTF-8.
+        $errors = array_map(
+            fn($e) => mb_check_encoding($e, 'UTF-8') ? $e : mb_convert_encoding($e, 'UTF-8', 'Windows-1252'),
+            $errors
+        );
+
         Log::info('AdminBackupController: customer import', [
             'imported' => $imported, 'updated' => $updated, 'errors' => count($errors),
             'by'       => session('user.eci') ?? session('user.name') ?? 'admin',
@@ -886,6 +1310,76 @@ class AdminBackupController extends Controller
             'updated'  => $updated,
             'errors'   => $errors,
         ]);
+    }
+
+    /**
+     * Resolve nama "Customer Group" dari CSV ke customer_groups (find-or-create),
+     * meniru pola backfill migration customer_groups. Match case-insensitive agar
+     * tidak menabrak UNIQUE constraint pada kolom `name` (mis. "bumn" vs "BUMN").
+     * Mengembalikan ['id' => int, 'name' => string] dengan nama kanonik grup
+     * (untuk di-mirror ke kolom teks lama), atau null bila kolom kosong.
+     */
+    private function resolveCustomerGroup(?string $name): ?array
+    {
+        if ($name === null || trim($name) === '') return null;
+        $name = trim($name);
+
+        $existing = DB::table('customer_groups')
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+            ->first();
+        if ($existing) return ['id' => $existing->id, 'name' => $existing->name];
+
+        $id = DB::table('customer_groups')->insertGetId([
+            'name'       => $name,
+            'code'       => strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $name), 0, 10)) ?: null,
+            'is_active'  => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return ['id' => $id, 'name' => $name];
+    }
+
+    /**
+     * Buat/sinkron 1 record alamat utama dari kolom alamat CSV import customer.
+     * Idempotent: bila customer sudah punya alamat, baris pertama di-update;
+     * jika belum ada, baris baru disisipkan. Tidak melakukan apa-apa bila
+     * seluruh kolom alamat kosong.
+     *
+     * @param callable $get  closure(string $col, array $row): ?string
+     */
+    private function upsertCustomerAddress(int $customerId, callable $get, array $row): void
+    {
+        $address = array_filter([
+            'building_name'       => $get('Nama Gedung/Tempat', $row),
+            'full_address'        => $get('Alamat Lengkap', $row),
+            'street'              => $get('Street', $row),
+            'postal_code'         => $get('Postal Code', $row),
+            'country'             => $get('Country', $row),
+            'region'              => $get('Region/Province', $row),
+            'city'                => $get('City', $row),
+            'district'            => $get('District', $row),
+            'rural_urban_village' => $get('Urban Villages', $row),
+            'telephone'           => $get('Phone', $row),
+            'fax'                 => $get('Fax', $row),
+        ], fn($v) => $v !== null);
+
+        // Semua kolom alamat kosong → tidak ada yang perlu disimpan
+        if (empty($address)) return;
+
+        $existing = DB::table('customer_address')->where('customer_id', $customerId)
+            ->orderBy('address_id')->first();
+
+        if ($existing) {
+            $address['updated_at'] = now();
+            DB::table('customer_address')->where('address_id', $existing->address_id)->update($address);
+        } else {
+            $address['customer_id']  = $customerId;
+            $address['address_type'] = 'Primary';
+            $address['created_at']   = now();
+            $address['updated_at']   = now();
+            DB::table('customer_address')->insert($address);
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -914,6 +1408,258 @@ class AdminBackupController extends Controller
             }
         }
         return null;
+    }
+
+    // ── Template Tickets ──────────────────────────────────────────────────────
+
+    public function templateTickets()
+    {
+        if (!$this->assertAdmin()) abort(403);
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->fromArray([
+            [
+                'Tiket', 'Description', 'Date', 'Customer', 'End Customer',
+                'PIC', 'Priority', 'Scale', 'Status', 'Type',
+                'Assign Delivery', 'Customer Mandays', 'Progress',
+                'Target Respon Time (Hour)', 'Respon Time (Hour)', 'Respon Time Status',
+                'Target Resolution Time', 'Due Date/Time Resolution Time',
+                'Resolution Time', 'Resolution Time Status',
+            ],
+            [
+                '100000001', 'Login page not responding', '01 Jun 2026', 'PT Example Tbk', '',
+                'John Doe', 'High', 'Simple', 'Inprocess', 'Incident',
+                '', '', '',
+                '', '', '',
+                '', '2026-06-30',
+                '', '',
+            ],
+        ]);
+
+        $writer = new Xlsx($spreadsheet);
+        return response()->stream(
+            fn () => $writer->save('php://output'),
+            200,
+            [
+                'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="tickets_import_template.xlsx"',
+                'Cache-Control'       => 'max-age=0',
+            ]
+        );
+    }
+
+    // ── Import Ticket (CSV) ───────────────────────────────────────────────────
+
+    public function importTickets(Request $request)
+    {
+        if (!$this->assertAdmin()) return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+
+        set_time_limit(300);
+
+        $request->validate(['file' => 'required|file|mimes:csv,txt|max:20480']);
+
+        $handle = fopen($request->file('file')->getRealPath(), 'r');
+
+        $bom = fread($handle, 3);
+        if ($bom !== "\xEF\xBB\xBF") rewind($handle);
+
+        $rawHeaders = fgetcsv($handle);
+        if (!$rawHeaders) {
+            fclose($handle);
+            return response()->json(['success' => false, 'message' => 'File CSV kosong atau tidak valid'], 422);
+        }
+
+        $headers = array_map(fn($h) => strtolower(trim($h ?? '')), $rawHeaders);
+
+        $aliasMap = [
+            'ticket_number' => ['tiket', 'ticket', 'ticket_number', 'ticket number', 'no tiket', 'no. tiket'],
+            'customer'      => ['customer', 'customer_code', 'customer code'],
+            'status'        => ['status'],
+            'priority'      => ['priority', 'ticket_priority', 'prioritas'],
+            'scale'         => ['scale', 'skala'],
+            'type'          => ['type', 'ticket type', 'ticket_type', 'tipe'],
+            'pic'           => ['pic'],
+            'end_date'      => ['due date/time resolution time', 'end_date', 'due date', 'due_date'],
+        ];
+
+        $colIndex = [];
+        foreach ($aliasMap as $field => $aliases) {
+            foreach ($headers as $i => $h) {
+                if (in_array($h, $aliases, true)) { $colIndex[$field] = $i; break; }
+            }
+        }
+
+        if (!isset($colIndex['ticket_number'])) {
+            fclose($handle);
+            return response()->json(['success' => false, 'message' => 'Kolom "Tiket" (ticket number) tidak ditemukan di CSV'], 422);
+        }
+
+        $statusMap = [
+            'open'                    => 'open',
+            'inprocess'               => 'inprocess',
+            'in process'              => 'inprocess',
+            'waiting on customer'     => 'waiting_on_customer',
+            'waiting_on_customer'     => 'waiting_on_customer',
+            'waiting on 3rd party'    => 'waiting_on_3rd_party',
+            'waiting_on_3rd_party'    => 'waiting_on_3rd_party',
+            'waiting to confirmation' => 'waiting_to_confirmation',
+            'waiting_to_confirmation' => 'waiting_to_confirmation',
+            'hold'                    => 'hold',
+            'cancelled'               => 'cancelled',
+            'canceled'                => 'cancelled',
+            'closed'                  => 'closed',
+        ];
+        $validPriorities = ['Very High', 'High', 'Medium', 'Low'];
+        $validScales     = ['Simple', 'Medium', 'Complex'];
+        $validTypes      = ['Incident', 'Service Request', 'Change Request', 'Consult'];
+
+        $updated = 0;
+        $skipped = 0;
+        $errors  = [];
+        $rowNum  = 1;
+
+        while (($row = fgetcsv($handle)) !== false) {
+            $rowNum++;
+
+            $ticketNumber = trim($row[$colIndex['ticket_number']] ?? '');
+            if ($ticketNumber === '' || $ticketNumber === '-') { $skipped++; continue; }
+
+            $ticket = DB::table('ticket')
+                ->where('ticket_number', $ticketNumber)
+                ->whereNull('deleted_at')
+                ->first();
+
+            if (!$ticket) {
+                $errors[] = "Row {$rowNum}: Ticket #{$ticketNumber} not found";
+                $skipped++;
+                continue;
+            }
+
+            // Validate customer existence if the column is present and filled
+            if (isset($colIndex['customer'])) {
+                $rawCustomer = trim($row[$colIndex['customer']] ?? '');
+                if ($rawCustomer !== '' && $rawCustomer !== '-') {
+                    $customerExists = DB::table('customer as c')
+                        ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
+                        ->where(function ($q) use ($rawCustomer) {
+                            $q->where('c.customer_code', $rawCustomer)
+                              ->orWhere('cbd.name_1', $rawCustomer);
+                        })
+                        ->exists();
+
+                    if (!$customerExists) {
+                        $errors[] = "Row {$rowNum} (#{$ticketNumber}): Customer '{$rawCustomer}' tidak ditemukan di master customer — baris dilewati";
+                        $skipped++;
+                        continue;
+                    }
+                }
+            }
+
+            $updateData = [];
+
+            if (isset($colIndex['status'])) {
+                $raw = strtolower(trim($row[$colIndex['status']] ?? ''));
+                if ($raw !== '' && $raw !== '-') {
+                    $mapped = $statusMap[$raw] ?? null;
+                    if ($mapped) {
+                        $updateData['status'] = $mapped;
+                    } else {
+                        $errors[] = "Row {$rowNum} (#{$ticketNumber}): Invalid status '{$row[$colIndex['status']]}'";
+                    }
+                }
+            }
+
+            if (isset($colIndex['priority'])) {
+                $raw = trim($row[$colIndex['priority']] ?? '');
+                if ($raw !== '' && $raw !== '-') {
+                    $matched = null;
+                    foreach ($validPriorities as $vp) {
+                        if (strcasecmp($raw, $vp) === 0) { $matched = $vp; break; }
+                    }
+                    if ($matched) {
+                        $updateData['ticket_priority'] = $matched;
+                    } else {
+                        $errors[] = "Row {$rowNum} (#{$ticketNumber}): Invalid priority '{$raw}' (accepted: Very High, High, Medium, Low)";
+                    }
+                }
+            }
+
+            if (isset($colIndex['scale'])) {
+                $raw = trim($row[$colIndex['scale']] ?? '');
+                if ($raw !== '' && $raw !== '-') {
+                    $matched = null;
+                    foreach ($validScales as $vs) {
+                        if (strcasecmp($raw, $vs) === 0) { $matched = $vs; break; }
+                    }
+                    if ($matched) {
+                        $updateData['scale'] = $matched;
+                    } else {
+                        $errors[] = "Row {$rowNum} (#{$ticketNumber}): Invalid scale '{$raw}' (accepted: Simple, Medium, Complex)";
+                    }
+                }
+            }
+
+            if (isset($colIndex['type'])) {
+                $raw = trim($row[$colIndex['type']] ?? '');
+                if ($raw !== '' && $raw !== '-') {
+                    $matched = null;
+                    foreach ($validTypes as $vt) {
+                        if (strcasecmp($raw, $vt) === 0) { $matched = $vt; break; }
+                    }
+                    if ($matched) {
+                        $updateData['ticket_type'] = $matched;
+                    } else {
+                        $errors[] = "Row {$rowNum} (#{$ticketNumber}): Invalid type '{$raw}' (accepted: Incident, Service Request, Change Request, Consult)";
+                    }
+                }
+            }
+
+            if (isset($colIndex['pic'])) {
+                $raw = trim($row[$colIndex['pic']] ?? '');
+                if ($raw !== '' && $raw !== '-') {
+                    $updateData['pic'] = $raw;
+                }
+            }
+
+            if (isset($colIndex['end_date'])) {
+                $raw = trim($row[$colIndex['end_date']] ?? '');
+                if ($raw !== '' && $raw !== '-') {
+                    $normalized = $this->normalizeDate($raw);
+                    if ($normalized) {
+                        $updateData['end_date'] = $normalized;
+                    }
+                }
+            }
+
+            if (empty($updateData)) {
+                $skipped++;
+                continue;
+            }
+
+            try {
+                $updateData['updated_at'] = now();
+                DB::table('ticket')->where('ticket_id', $ticket->ticket_id)->update($updateData);
+                $updated++;
+            } catch (\Exception $e) {
+                $errors[] = "Row {$rowNum} (#{$ticketNumber}): " . $e->getMessage();
+            }
+        }
+
+        fclose($handle);
+
+        Log::info('AdminBackupController: ticket import', [
+            'updated' => $updated, 'skipped' => $skipped, 'errors' => count($errors),
+            'by'      => session('user.eci') ?? session('user.name') ?? 'admin',
+        ]);
+
+        return response()->json([
+            'success'  => true,
+            'message'  => "Import complete: {$updated} updated" . ($skipped ? ", {$skipped} skipped" : '') . (count($errors) ? ', ' . count($errors) . ' error(s)' : ''),
+            'updated'  => $updated,
+            'skipped'  => $skipped,
+            'errors'   => $errors,
+        ]);
     }
 
     private function formatBytes(int $bytes): string

@@ -14,7 +14,7 @@
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4 mb-5">
     <div class="flex items-center gap-2.5 flex-wrap">
         {{-- View toggles --}}
-        @if($user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value))
+        @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value && !($isExternalEmployee ?? false))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
             <button onclick="toggleView('my')" id="btnViewMy" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">My Tickets</button>
             <button onclick="toggleView('all')" id="btnViewAll" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">All Tickets</button>
@@ -748,14 +748,16 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     let userRoleIds                   = {!! json_encode($user->role_ids) !!};
     let userRole                      = userRoleIds[0] ?? 0;
     let currentEmployeeId             = {{ $currentEmployeeId ?? 'null' }};
+    const IS_EXTERNAL_EMPLOYEE        = {{ ($isExternalEmployee ?? false) ? 'true' : 'false' }};
     const EC_ADMINISTRATOR_ROLE       = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
     const DELIVERY_SUPPORT_USER_ROLE  = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};
     const EC_USER_ROLE                = {{ \App\Enums\RoleId::EC_USER->value }};
     const HELPDESK_ROLE               = {{ \App\Enums\RoleId::DELIVERY_HELPDESK->value }};
     const SUPPORT_MANAGER_ROLE        = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value }};
+    const HEAD_ROLES                  = [{{ \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value }}, {{ \App\Enums\RoleId::DELIVERY_PROJECT_HEAD->value }}];
     // Roles that use the All/Unassigned toggle (Helpdesk only)
     const STAFF_TOGGLE_ROLES          = [HELPDESK_ROLE];
-    let currentView = (userRole === DELIVERY_SUPPORT_USER_ROLE || userRole === SUPPORT_MANAGER_ROLE) ? 'my' : 'all';
+    let currentView = (userRole === DELIVERY_SUPPORT_USER_ROLE || (IS_EXTERNAL_EMPLOYEE && userRole !== SUPPORT_MANAGER_ROLE && !HEAD_ROLES.includes(userRole))) ? 'my' : 'all';
     let sortField = null; // 'last_update' | 'ticket_number' | 'date'
     let sortDir   = null; // 'desc' | 'asc'
 
@@ -855,6 +857,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
             let endpoint = '/api/tickets';
             if (userRole === EC_USER_ROLE) endpoint = '/api/tickets/my';
+            else if (IS_EXTERNAL_EMPLOYEE && userRole !== SUPPORT_MANAGER_ROLE && !HEAD_ROLES.includes(userRole)) endpoint = '/api/tickets/my';
             else if ((userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE) && currentView === 'my') endpoint = '/api/tickets/my';
             else if (userRole === SUPPORT_MANAGER_ROLE && currentView === 'my') endpoint = '/api/tickets/my';
 

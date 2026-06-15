@@ -30,9 +30,10 @@ class DeliveryProjectDataController extends Controller
             $groups = $this->getPhaseGroupsHierarchical($project, $phase);
             
             $phaseDates = $this->calculatePhaseDates($groups);
+            $phaseActualDates = $this->calculatePhaseActualDates($groups);
             $phaseProgress = $this->calculatePhaseProgress($groups, $phase->weight);
             $phaseStatus = $this->calculatePhaseStatus($groups, $phaseProgress);
-            
+
             $data[] = [
                 'phase' => [
                     'id' => $phase->id,
@@ -42,6 +43,8 @@ class DeliveryProjectDataController extends Controller
                     'weight' => $phase->weight,
                     'start_date' => $phaseDates['start'] ? $phaseDates['start']->format('d M Y') : '-',
                     'end_date' => $phaseDates['end'] ? $phaseDates['end']->format('d M Y') : '-',
+                    'actual_start_date' => $phaseActualDates['start'] ? $phaseActualDates['start']->format('d M Y') : '-',
+                    'actual_end_date' => $phaseActualDates['end'] ? $phaseActualDates['end']->format('d M Y') : '-',
                     'duration_in_days' => $phaseDates['duration'],
                     'progress' => $phaseProgress,
                     'status' => $phaseStatus['status'],
@@ -307,9 +310,10 @@ class DeliveryProjectDataController extends Controller
     private function formatGroupRecursive($group, $level = 0)
     {
         $calculatedDates = $this->calculateGroupDates($group);
+        $calculatedActualDates = $this->calculateGroupActualDates($group);
         $calculatedProgress = $this->calculateGroupProgress($group);
         $calculatedStatus = $this->calculateGroupStatus($group);
-        
+
         $formatted = [
             'id' => $group->id,
             'type' => 'group',
@@ -325,6 +329,8 @@ class DeliveryProjectDataController extends Controller
             'status_badge' => $calculatedStatus['badge'],
             'start_date' => $calculatedDates['start'] ? $calculatedDates['start']->format('d M Y') : '-',
             'end_date' => $calculatedDates['end'] ? $calculatedDates['end']->format('d M Y') : '-',
+            'actual_start_date' => $calculatedActualDates['start'] ? $calculatedActualDates['start']->format('d M Y') : '-',
+            'actual_end_date' => $calculatedActualDates['end'] ? $calculatedActualDates['end']->format('d M Y') : '-',
             'duration_in_days' => $calculatedDates['duration'],
             'notes' => $group->notes,
             'sub_groups' => [],
@@ -386,6 +392,8 @@ class DeliveryProjectDataController extends Controller
             'status_badge' => $this->getStatusBadgeClass($stage->status ?? 'not_started'),
             'start_date' => $stage->planned_start_date ? $stage->planned_start_date->format('d M Y') : '-',
             'end_date' => $stage->planned_end_date ? $stage->planned_end_date->format('d M Y') : '-',
+            'actual_start_date' => $stage->actual_start_date ? $stage->actual_start_date->format('d M Y') : '-',
+            'actual_end_date' => $stage->actual_end_date ? $stage->actual_end_date->format('d M Y') : '-',
             'duration_in_days' => $stage->duration_days ?? null,
             'color' => $stage->color ?? '#06b6d4',
             'planning_id' => $stage->planning_id,
@@ -460,6 +468,8 @@ class DeliveryProjectDataController extends Controller
             $formatted['progress_percentage'] = $activity->calculated_progress ?? $activity->progress_percentage ?? 0;
             $formatted['start_date'] = $activity->start_date ? $activity->start_date->format('d M Y') : '-';
             $formatted['end_date'] = $activity->end_date ? $activity->end_date->format('d M Y') : '-';
+            $formatted['actual_start_date'] = $activity->actual_start_date ? $activity->actual_start_date->format('d M Y') : null;
+            $formatted['actual_end_date'] = $activity->actual_end_date ? $activity->actual_end_date->format('d M Y') : null;
             $formatted['duration_in_days'] = $activity->duration_in_days ?? null;
             $formatted['status'] = $activity->status ?? 'not_started';
             $formatted['status_text'] = $activity->status_text ?? ucwords(str_replace('_', ' ', $activity->status ?? 'not_started'));
@@ -551,6 +561,56 @@ class DeliveryProjectDataController extends Controller
             $duration = $start->diffInDays($end) + 1;
         }
         
+        return [
+            'start' => $startDate ? Carbon::parse($startDate) : null,
+            'end' => $endDate ? Carbon::parse($endDate) : null,
+            'duration' => $duration
+        ];
+    }
+
+    /**
+     * Aggregate ACTUAL start/end dates for a group from its stages & sub-groups.
+     * Mirrors calculateGroupDates() but reads actual_* columns.
+     */
+    private function calculateGroupActualDates($group)
+    {
+        $allDates = collect();
+
+        if ($group->stages) {
+            foreach ($group->stages as $stage) {
+                if ($stage->actual_start_date) {
+                    $allDates->push(['type' => 'start', 'date' => $stage->actual_start_date]);
+                }
+                if ($stage->actual_end_date) {
+                    $allDates->push(['type' => 'end', 'date' => $stage->actual_end_date]);
+                }
+            }
+        }
+
+        if ($group->children) {
+            foreach ($group->children->where('is_group', true) as $subGroup) {
+                $subDates = $this->calculateGroupActualDates($subGroup);
+                if ($subDates['start']) {
+                    $allDates->push(['type' => 'start', 'date' => $subDates['start']]);
+                }
+                if ($subDates['end']) {
+                    $allDates->push(['type' => 'end', 'date' => $subDates['end']]);
+                }
+            }
+        }
+
+        if ($allDates->isEmpty()) {
+            return ['start' => null, 'end' => null, 'duration' => null];
+        }
+
+        $startDate = $allDates->where('type', 'start')->pluck('date')->min();
+        $endDate = $allDates->where('type', 'end')->pluck('date')->max();
+
+        $duration = null;
+        if ($startDate && $endDate) {
+            $duration = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
+        }
+
         return [
             'start' => $startDate ? Carbon::parse($startDate) : null,
             'end' => $endDate ? Carbon::parse($endDate) : null,
@@ -722,6 +782,46 @@ class DeliveryProjectDataController extends Controller
             'end' => $endDate,
             'duration' => $duration
         ];
+    }
+
+    /**
+     * Aggregate ACTUAL start/end dates for a phase from its formatted groups.
+     * Mirrors calculatePhaseDates() but reads the actual_* keys.
+     */
+    private function calculatePhaseActualDates($groups)
+    {
+        if (empty($groups)) {
+            return ['start' => null, 'end' => null, 'duration' => null];
+        }
+
+        $allDates = collect();
+
+        foreach ($groups as $group) {
+            if (!empty($group['actual_start_date']) && $group['actual_start_date'] !== '-') {
+                try {
+                    $allDates->push(['type' => 'start', 'date' => Carbon::parse($group['actual_start_date'])]);
+                } catch (\Exception $e) {
+                    // Skip invalid date
+                }
+            }
+
+            if (!empty($group['actual_end_date']) && $group['actual_end_date'] !== '-') {
+                try {
+                    $allDates->push(['type' => 'end', 'date' => Carbon::parse($group['actual_end_date'])]);
+                } catch (\Exception $e) {
+                    // Skip invalid date
+                }
+            }
+        }
+
+        if ($allDates->isEmpty()) {
+            return ['start' => null, 'end' => null, 'duration' => null];
+        }
+
+        $startDate = $allDates->where('type', 'start')->pluck('date')->min();
+        $endDate = $allDates->where('type', 'end')->pluck('date')->max();
+
+        return ['start' => $startDate, 'end' => $endDate, 'duration' => null];
     }
 
     private function calculatePhaseProgress($groups, $phaseWeight)

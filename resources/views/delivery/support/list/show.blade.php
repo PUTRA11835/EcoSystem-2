@@ -1023,27 +1023,21 @@ async function fetchDeliverableSubfolders() {
             empty.classList.add('hidden');
             data.subfolders.forEach(folder => {
                 const row = document.createElement('div');
-                row.className = 'flex items-center gap-1 px-3 py-2 hover:bg-emerald-50 group';
+                row.className = 'flex items-center gap-1 px-3 py-2 hover:bg-emerald-50 group cursor-pointer';
+                row.title = 'Open folder in OneDrive';
+                row.onclick = () => openDeliverableLink(folder.id, row);
                 row.innerHTML = `
                     <svg class="w-4 h-4 flex-shrink-0 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
                     </svg>
                     <span class="flex-1 min-w-0 text-sm text-gray-700 truncate px-1">${escapeHtml(folder.name)}</span>
-                    <button type="button"
-                            onclick="copyDeliverableLink('${escapeHtml(folder.id)}', this)"
-                            title="Copy shareable link (anyone with link can view &amp; upload)"
-                            class="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-100 transition-colors opacity-0 group-hover:opacity-100">
-                        <svg class="dlv-copy-icon w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                        </svg>
-                        <svg class="dlv-spin-icon hidden animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                        </svg>
-                        <svg class="dlv-check-icon hidden w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                        </svg>
-                    </button>`;
+                    <svg class="dlv-open-icon w-3.5 h-3.5 flex-shrink-0 text-gray-400 group-hover:text-emerald-600 opacity-0 group-hover:opacity-100 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
+                    <svg class="dlv-spin-icon hidden animate-spin w-3.5 h-3.5 flex-shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>`;
                 list.appendChild(row);
             });
         } else {
@@ -1065,13 +1059,15 @@ function escapeHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-async function copyDeliverableLink(folderId, btn) {
-    const copyIcon  = btn.querySelector('.dlv-copy-icon');
-    const spinIcon  = btn.querySelector('.dlv-spin-icon');
-    const checkIcon = btn.querySelector('.dlv-check-icon');
+async function openDeliverableLink(folderId, row) {
+    const openIcon = row.querySelector('.dlv-open-icon');
+    const spinIcon = row.querySelector('.dlv-spin-icon');
 
-    btn.disabled = true;
-    copyIcon.classList.add('hidden');
+    // Buka tab kosong dulu di dalam gesture klik agar tidak diblok popup blocker,
+    // lalu arahkan ke URL share setelah fetch selesai.
+    const tab = window.open('', '_blank');
+
+    openIcon.classList.add('hidden');
     spinIcon.classList.remove('hidden');
 
     try {
@@ -1086,24 +1082,18 @@ async function copyDeliverableLink(folderId, btn) {
         });
         const data = await res.json();
 
-        if (data.success) {
-            await navigator.clipboard.writeText(data.url);
-            spinIcon.classList.add('hidden');
-            checkIcon.classList.remove('hidden');
-            showToast('Link copied! Anyone with this link can view and upload files.', 'success');
-            setTimeout(() => {
-                checkIcon.classList.add('hidden');
-                copyIcon.classList.remove('hidden');
-                btn.disabled = false;
-            }, 2000);
+        if (data.success && data.url) {
+            if (tab) { tab.location.href = data.url; }
+            else { window.open(data.url, '_blank', 'noopener'); }
         } else {
             throw new Error(data.message || 'Failed to get link');
         }
     } catch (err) {
+        if (tab) { tab.close(); }
+        showToast('Failed to open folder: ' + err.message, 'error');
+    } finally {
         spinIcon.classList.add('hidden');
-        copyIcon.classList.remove('hidden');
-        btn.disabled = false;
-        showToast('Failed to get link: ' + err.message, 'error');
+        openIcon.classList.remove('hidden');
     }
 }
 

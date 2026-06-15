@@ -166,7 +166,7 @@ class PasswordSetupController extends Controller
     public static function generateAndSendToken(object $authUser, string $type = 'setup'): void
     {
         $token   = Str::random(64);
-        $expires = now()->addHours(24);
+        $expires = now()->addMinutes(30);
 
         // Simpan hash di DB; URL memakai plaintext token
         DB::table('auth_users')->where('id', $authUser->id)->update([
@@ -186,8 +186,14 @@ class PasswordSetupController extends Controller
             // Token is always validated by EcoSystem (where it is stored).
             // After successful setup, customers are redirected to Jarvies automatically.
             $isCustomer = !empty($authUser->customer_id);
-            $baseUrl = rtrim(config('app.url'), '/');
+            // PENTING: link email HARUS dibangun dari base URL publik yang tetap
+            // (APP_URL), BUKAN dari host/scheme request. Penerima email adalah
+            // pihak eksternal, sedangkan request admin bisa datang dari host/port
+            // internal (mis. dev-me.eclectic.co.id:80) yang tidak reachable oleh
+            // mereka -> ERR_CONNECTION_TIMED_OUT. Set APP_URL di .env server ke
+            // base URL yang pasti bisa diakses publik (scheme + host + port benar).
             // URL memakai plaintext token; DB menyimpan hash-nya
+            $baseUrl = rtrim(config('app.url'), '/');
             $link    = $baseUrl . '/change-password?token=' . $token;
             $appName = $isCustomer ? 'Jarvies' : config('app.name', 'ECoSystem');
 
@@ -203,7 +209,7 @@ class PasswordSetupController extends Controller
     Reset My Password
   </a>
 </p>
-<p>This link is valid for <strong>24 hours</strong>.</p>
+<p>This link is valid for <strong>30 minutes</strong>.</p>
 <p>If you did not request a password reset, you can safely ignore this email. Your password will not change.</p>
 <br>
 <p>Regards,<br><strong>The {$appName} Team</strong></p>
@@ -220,7 +226,7 @@ HTML;
     Set My Password
   </a>
 </p>
-<p>This link is valid for <strong>24 hours</strong>.</p>
+<p>This link is valid for <strong>30 minutes</strong>.</p>
 <p>If you did not request this, please contact your administrator.</p>
 <br>
 <p>Regards,<br><strong>The {$appName} Team</strong></p>

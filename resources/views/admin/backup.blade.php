@@ -51,7 +51,7 @@
             </div>
         </div>
 
-        {{-- Ticket Export --}}
+        {{-- Ticket Export + Import --}}
         <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
             <div class="px-5 pt-5 pb-4 border-b border-gray-100">
                 <div class="flex items-center gap-3">
@@ -59,45 +59,82 @@
                         <i class="fas fa-ticket-alt text-orange-500"></i>
                     </div>
                     <div>
-                        <h3 class="text-sm font-semibold text-gray-800">Ticket Export</h3>
-                        <p class="text-xs text-gray-400">Filter by period, download CSV</p>
+                        <h3 class="text-sm font-semibold text-gray-800">Ticket Data</h3>
+                        <p class="text-xs text-gray-400">Export CSV or import from CSV</p>
                     </div>
                 </div>
             </div>
             <div class="p-5 flex-1 flex flex-col gap-4">
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Year</label>
-                        <select id="ticketYear" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300">
-                            @for($y = date('Y'); $y >= 2024; $y--)
-                                <option value="{{ $y }}" {{ $y == date('Y') ? 'selected' : '' }}>{{ $y }}</option>
-                            @endfor
-                        </select>
+
+                {{-- Export section --}}
+                <div>
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Export</p>
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Year</label>
+                            <select id="ticketYear" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300">
+                                @for($y = date('Y'); $y >= 2024; $y--)
+                                    <option value="{{ $y }}" {{ $y == date('Y') ? 'selected' : '' }}>{{ $y }}</option>
+                                @endfor
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Month</label>
+                            <select id="ticketMonth" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300">
+                                <option value="0">All Months</option>
+                                <option value="1">January</option><option value="2">February</option>
+                                <option value="3">March</option><option value="4">April</option>
+                                <option value="5">May</option><option value="6">June</option>
+                                <option value="7">July</option><option value="8">August</option>
+                                <option value="9">September</option><option value="10">October</option>
+                                <option value="11">November</option><option value="12">December</option>
+                            </select>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Month</label>
-                        <select id="ticketMonth" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300">
-                            <option value="0">All Months</option>
-                            <option value="1">January</option><option value="2">February</option>
-                            <option value="3">March</option><option value="4">April</option>
-                            <option value="5">May</option><option value="6">June</option>
-                            <option value="7">July</option><option value="8">August</option>
-                            <option value="9">September</option><option value="10">October</option>
-                            <option value="11">November</option><option value="12">December</option>
-                        </select>
+                    <div class="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 space-y-1 mb-3">
+                        <p class="flex items-center gap-2"><i class="fas fa-check text-orange-400"></i> Ticket number, subject, status, priority, scale, type</p>
+                        <p class="flex items-center gap-2"><i class="fas fa-check text-orange-400"></i> Customer, PIC, mandays, SLA fields</p>
                     </div>
-                </div>
-                <div class="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 space-y-1">
-                    <p class="flex items-center gap-2"><i class="fas fa-check text-orange-400 text-xs"></i> Ticket number, subject, status, priority</p>
-                    <p class="flex items-center gap-2"><i class="fas fa-check text-orange-400 text-xs"></i> Type, category, customer & company</p>
-                    <p class="flex items-center gap-2"><i class="fas fa-check text-orange-400 text-xs"></i> PIC info, created & updated date</p>
-                </div>
-                <div class="mt-auto">
                     <button id="btnExportTickets"
-                        class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition">
+                        class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition">
                         <i class="fas fa-download text-xs"></i> Download CSV
                     </button>
                 </div>
+
+                <div class="border-t border-gray-100"></div>
+
+                {{-- Import section --}}
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import</p>
+                        <a href="{{ route('admin.import.template.tickets') }}" class="text-xs text-orange-500 hover:underline flex items-center gap-1">
+                            <i class="fas fa-file-excel text-xs"></i> Download Template (.xlsx)
+                        </a>
+                    </div>
+                    <div class="bg-amber-50 rounded-xl p-3 text-xs text-amber-700 space-y-0.5 mb-2">
+                        <p class="font-semibold mb-1">Updatable fields:</p>
+                        <p>Status · Priority · Scale · Type · PIC · Due Date</p>
+                        <p class="text-amber-500 mt-1">Match by ticket number — unrecognised rows are skipped.</p>
+                    </div>
+                    <div id="ticketDropzone"
+                        class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-colors"
+                        onclick="document.getElementById('ticketFileInput').click()"
+                        ondragover="event.preventDefault();this.classList.add('border-orange-400','bg-orange-50')"
+                        ondragleave="this.classList.remove('border-orange-400','bg-orange-50')"
+                        ondrop="handleDrop(event,'ticket')">
+                        <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-1"></i>
+                        <p class="text-xs text-gray-400">Drop CSV here or <span class="text-orange-500 font-medium">browse</span></p>
+                        <p id="ticketFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
+                    </div>
+                    <input type="file" id="ticketFileInput" accept=".csv,.txt" class="hidden" onchange="onFileSelect(event,'ticket')">
+                    <button id="btnImportTicket" onclick="runImport('ticket')"
+                        class="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-100 text-orange-700 text-sm font-medium hover:bg-orange-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled>
+                        <i class="fas fa-upload text-xs"></i> Import Tickets
+                    </button>
+                    <div id="ticketResult" class="hidden mt-3"></div>
+                </div>
+
             </div>
         </div>
 
@@ -300,7 +337,7 @@
                     <div class="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 space-y-1 mb-3">
                         <p class="flex items-center gap-2"><i class="fas fa-check text-emerald-500"></i> Employee ID, ECI, status, role</p>
                         <p class="flex items-center gap-2"><i class="fas fa-check text-emerald-500"></i> Full name, gender, birth, position</p>
-                        <p class="flex items-center gap-2"><i class="fas fa-check text-emerald-500"></i> Division, department, since date</p>
+                        <p class="flex items-center gap-2"><i class="fas fa-check text-emerald-500"></i> Division, department, home base, grade, since date</p>
                     </div>
                     <a href="{{ route('admin.export.employees') }}"
                         class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition">
@@ -315,7 +352,7 @@
                     <div class="flex items-center justify-between mb-2">
                         <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import</p>
                         <a href="{{ route('admin.import.template.employees') }}" class="text-xs text-emerald-600 hover:underline flex items-center gap-1">
-                            <i class="fas fa-file-csv text-xs"></i> Download Template
+                            <i class="fas fa-file-excel text-xs"></i> Download Template (.xlsx)
                         </a>
                     </div>
                     <div id="empDropzone"
@@ -363,6 +400,7 @@
                         <p class="flex items-center gap-2"><i class="fas fa-check text-violet-500"></i> Company name, group, category</p>
                         <p class="flex items-center gap-2"><i class="fas fa-check text-violet-500"></i> Industry sector, account executives</p>
                         <p class="flex items-center gap-2"><i class="fas fa-check text-violet-500"></i> Parent customer code</p>
+                        <p class="flex items-center gap-2"><i class="fas fa-check text-violet-500"></i> Phone, fax & alamat (gedung, jalan, kota, dst.)</p>
                     </div>
                     <a href="{{ route('admin.export.customers') }}"
                         class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition">
@@ -377,7 +415,7 @@
                     <div class="flex items-center justify-between mb-2">
                         <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import</p>
                         <a href="{{ route('admin.import.template.customers') }}" class="text-xs text-violet-600 hover:underline flex items-center gap-1">
-                            <i class="fas fa-file-csv text-xs"></i> Download Template
+                            <i class="fas fa-file-excel text-xs"></i> Download Template (.xlsx)
                         </a>
                     </div>
                     <div id="custDropzone"
@@ -446,20 +484,20 @@ function handleDrop(e, type) {
     }
 }
 
+const ticketFiles = {};
+
 function setFile(type, file) {
-    if (type === 'emp') {
-        empFiles.file = file;
-    } else {
-        custFiles.file = file;
-    }
+    if (type === 'emp')    empFiles.file    = file;
+    else if (type === 'cust') custFiles.file = file;
+    else if (type === 'ticket') ticketFiles.file = file;
+
     const nameEl = document.getElementById(type + 'FileName');
     nameEl.textContent = file.name + ' (' + formatBytes(file.size) + ')';
     nameEl.classList.remove('hidden');
 
-    const btn = document.getElementById(type === 'emp' ? 'btnImportEmp' : 'btnImportCust');
-    btn.disabled = false;
+    const btnMap = { emp: 'btnImportEmp', cust: 'btnImportCust', ticket: 'btnImportTicket' };
+    document.getElementById(btnMap[type]).disabled = false;
 
-    // Clear previous result
     const result = document.getElementById(type + 'Result');
     result.classList.add('hidden');
     result.innerHTML = '';
@@ -474,10 +512,13 @@ function formatBytes(b) {
 // ── Run Import ────────────────────────────────────────────────────────────────
 
 async function runImport(type) {
-    const file    = type === 'emp' ? empFiles.file : custFiles.file;
-    const btnId   = type === 'emp' ? 'btnImportEmp' : 'btnImportCust';
+    const fileMap     = { emp: empFiles.file, cust: custFiles.file, ticket: ticketFiles.file };
+    const btnMap      = { emp: 'btnImportEmp', cust: 'btnImportCust', ticket: 'btnImportTicket' };
+    const endpointMap = { emp: '/api/admin/import/employees', cust: '/api/admin/import/customers', ticket: '/api/admin/import/tickets' };
+    const file     = fileMap[type];
+    const btnId    = btnMap[type];
     const resultId = type + 'Result';
-    const endpoint = type === 'emp' ? '/api/admin/import/employees' : '/api/admin/import/customers';
+    const endpoint = endpointMap[type];
 
     if (!file) return;
 
@@ -504,26 +545,29 @@ async function runImport(type) {
     } catch (e) {
         showToast('Import failed: ' + e.message, 'error');
     } finally {
-        const color = type === 'emp' ? 'emerald' : 'violet';
         btn.disabled = false;
-        btn.innerHTML = `<i class="fas fa-upload text-xs"></i> Import ${type === 'emp' ? 'Employee' : 'Customer'}`;
+        const labelMap = { emp: 'Employee', cust: 'Customer', ticket: 'Tickets' };
+        btn.innerHTML = `<i class="fas fa-upload text-xs"></i> Import ${labelMap[type] ?? type}`;
     }
 }
 
 function showImportResult(type, json) {
-    const el    = document.getElementById(type + 'Result');
-    const color = json.success ? 'green' : 'red';
+    const el     = document.getElementById(type + 'Result');
     const errors = json.errors ?? [];
-
     el.classList.remove('hidden');
 
     if (json.success) {
+        const statsHtml = type === 'ticket'
+            ? `<span class="flex items-center gap-1"><i class="fas fa-sync text-blue-500"></i> ${json.updated} updated</span>
+               <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped} skipped</span>`
+            : `<span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.imported} ditambahkan</span>
+               <span class="flex items-center gap-1"><i class="fas fa-sync text-blue-500"></i> ${json.updated} diperbarui</span>`;
+
         el.innerHTML = `
             <div class="bg-green-50 border border-green-200 rounded-xl p-3">
                 <p class="text-xs font-semibold text-green-700 mb-1"><i class="fas fa-check-circle mr-1"></i>${htmlEsc(json.message)}</p>
-                <div class="flex gap-3 text-xs text-gray-600">
-                    <span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.imported} ditambahkan</span>
-                    <span class="flex items-center gap-1"><i class="fas fa-sync text-blue-500"></i> ${json.updated} diperbarui</span>
+                <div class="flex gap-3 text-xs text-gray-600 flex-wrap">
+                    ${statsHtml}
                     ${errors.length ? `<button onclick="openErrorModal(${JSON.stringify(errors).replace(/"/g,'&quot;')})" class="flex items-center gap-1 text-orange-500 hover:underline"><i class="fas fa-exclamation-triangle"></i> ${errors.length} error</button>` : ''}
                 </div>
             </div>`;

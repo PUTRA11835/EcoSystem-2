@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Customer;
+use App\Models\DeliverySupport;
 use App\Models\SlaPolicy;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
@@ -44,9 +44,9 @@ class SlaController extends Controller
             abort(403);
         }
 
-        $canManage = $this->canManagePolicies();
-        $customers = Customer::with('basicData')->where('is_active', true)->get();
-        return view('admin.sla.config', compact('customers', 'canManage'));
+        $canManage        = $this->canManagePolicies();
+        $deliverySupports = DeliverySupport::orderBy('name')->get(['id', 'name', 'type']);
+        return view('admin.sla.config', compact('deliverySupports', 'canManage'));
     }
 
     public function reportPage()
@@ -55,7 +55,7 @@ class SlaController extends Controller
             abort(403);
         }
 
-        $customers = Customer::with('basicData')->where('is_active', true)->get();
+        $customers = \App\Models\Customer::with('basicData')->where('is_active', true)->get();
         return view('admin.sla.report', compact('customers'));
     }
 
@@ -67,18 +67,13 @@ class SlaController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
-        $query = SlaPolicy::with('customer.basicData');
+        $query = SlaPolicy::with('deliverySupport');
 
-        if ($request->filled('customer_id')) {
-            if ($request->customer_id === 'global') {
-                $query->whereNull('customer_id');
-            } else {
-                $query->where('customer_id', $request->customer_id);
-            }
+        if ($request->filled('delivery_support_id')) {
+            $query->where('delivery_support_id', $request->delivery_support_id);
         }
 
-        $policies = $query->orderByRaw('customer_id IS NULL ASC')
-            ->orderBy('customer_id')
+        $policies = $query->orderBy('delivery_support_id')
             ->orderByRaw("FIELD(priority, 'Very High', 'High', 'Medium', 'Low')")
             ->orderByRaw("FIELD(scale, 'Simple', 'Medium', 'Complex')")
             ->get()
@@ -94,20 +89,20 @@ class SlaController extends Controller
         }
 
         $v = Validator::make($request->all(), [
-            'customer_id'      => 'nullable|exists:customer,customer_id',
-            'priority'         => 'required|in:Low,Medium,High,Very High',
-            'scale'            => 'required|in:Simple,Medium,Complex',
-            'response_hours'   => 'required|numeric|min:0.1|max:999',
-            'resolution_hours' => 'required|numeric|min:0.1|max:999',
-            'is_24_hours'      => 'boolean',
+            'delivery_support_id' => 'required|exists:delivery_support,id',
+            'priority'            => 'required|in:Low,Medium,High,Very High',
+            'scale'               => 'required|in:Simple,Medium,Complex',
+            'response_hours'      => 'required|numeric|min:0.1|max:999',
+            'resolution_hours'    => 'required|numeric|min:0.1|max:999',
+            'is_24_hours'         => 'boolean',
         ]);
 
         if ($v->fails()) {
             return response()->json(['success' => false, 'errors' => $v->errors()], 422);
         }
 
-        $customerId = $request->customer_id ?: null;
-        $exists = SlaPolicy::where('customer_id', $customerId)
+        $deliverySupportId = (int) $request->delivery_support_id;
+        $exists = SlaPolicy::where('delivery_support_id', $deliverySupportId)
             ->where('priority', $request->priority)
             ->where('scale', $request->scale)
             ->exists();
@@ -115,24 +110,24 @@ class SlaController extends Controller
         if ($exists) {
             return response()->json([
                 'success' => false,
-                'message' => 'A policy for this customer / priority / scale combination already exists.',
+                'message' => 'A policy for this delivery support / priority / scale combination already exists.',
             ], 422);
         }
 
         $policy = SlaPolicy::create([
-            'customer_id'      => $customerId,
-            'priority'         => $request->priority,
-            'scale'            => $request->scale,
-            'response_hours'   => $request->response_hours,
-            'resolution_hours' => $request->resolution_hours,
-            'is_24_hours'      => $request->priority === 'Very High' ? true : $request->boolean('is_24_hours', false),
-            'is_active'        => true,
-            'created_by'       => session('user.id'),
+            'delivery_support_id' => $deliverySupportId,
+            'priority'            => $request->priority,
+            'scale'               => $request->scale,
+            'response_hours'      => $request->response_hours,
+            'resolution_hours'    => $request->resolution_hours,
+            'is_24_hours'         => $request->priority === 'Very High' ? true : $request->boolean('is_24_hours', false),
+            'is_active'           => true,
+            'created_by'          => session('user.id'),
         ]);
 
         return response()->json([
             'success' => true,
-            'data'    => $this->formatPolicy($policy->load('customer.basicData')),
+            'data'    => $this->formatPolicy($policy->load('deliverySupport')),
         ], 201);
     }
 
@@ -162,7 +157,7 @@ class SlaController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $this->formatPolicy($policy->load('customer.basicData')),
+            'data'    => $this->formatPolicy($policy->load('deliverySupport')),
         ]);
     }
 
@@ -777,23 +772,21 @@ class SlaController extends Controller
 
     private function formatPolicy(SlaPolicy $p): array
     {
-        $customerName = null;
-        if ($p->customer && $p->customer->basicData) {
-            $bd           = $p->customer->basicData;
-            $customerName = trim(($bd->title ?? '') . ' ' . ($bd->name_1 ?? ''));
-        }
+        $dsName = $p->deliverySupport
+            ? trim($p->deliverySupport->name . ($p->deliverySupport->type ? ' (' . $p->deliverySupport->type . ')' : ''))
+            : null;
 
         return [
-            'id'               => $p->id,
-            'customer_id'      => $p->customer_id,
-            'customer_name'    => $customerName,
-            'priority'         => $p->priority,
-            'scale'            => $p->scale,
-            'response_hours'   => (float) $p->response_hours,
-            'resolution_hours' => (float) $p->resolution_hours,
-            'is_24_hours'      => (bool) $p->is_24_hours,
-            'is_active'        => (bool) $p->is_active,
-            'created_at'       => $p->created_at?->toDateTimeString(),
+            'id'                   => $p->id,
+            'delivery_support_id'  => $p->delivery_support_id,
+            'delivery_support_name'=> $dsName,
+            'priority'             => $p->priority,
+            'scale'                => $p->scale,
+            'response_hours'       => (float) $p->response_hours,
+            'resolution_hours'     => (float) $p->resolution_hours,
+            'is_24_hours'          => (bool) $p->is_24_hours,
+            'is_active'            => (bool) $p->is_active,
+            'created_at'           => $p->created_at?->toDateTimeString(),
         ];
     }
 

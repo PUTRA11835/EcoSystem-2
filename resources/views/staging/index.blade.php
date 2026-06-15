@@ -340,6 +340,7 @@ function changePage(dir) {
 async function openModal(id) {
     currentStagingId   = id;
     currentStagingData = null;
+    _stagingDsSelected = { id: null, name: '' };
     document.getElementById('stagingModal').style.display = 'flex';
     document.getElementById('modalStagingId').textContent  = `Staging #${id}`;
     document.getElementById('modalStatusBadge').innerHTML  = '';
@@ -536,6 +537,41 @@ function fillModal(s) {
                     <p class="mt-1 text-[11px] text-gray-400">Optional</p>
                 </div>
             </div>
+            <div class="border-t border-gray-100 px-4 pt-3 pb-3">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Delivery Support <span class="text-gray-400 font-normal">(optional — for SLA matching)</span></label>
+                <input type="hidden" id="stagingDsHidden" value="">
+                <div id="stagingDsDd" class="relative">
+                    <input type="text" id="stagingDsSearch"
+                        placeholder="Select delivery support…"
+                        autocomplete="off"
+                        oninput="filterStagingDs(this.value)"
+                        onfocus="openStagingDsDd()"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
+                    <div id="stagingDsPanel" class="hidden absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-y-auto" style="max-height:200px;">
+                        <button type="button" class="staging-ds-opt w-full text-left px-3 py-2.5 text-sm text-gray-400 italic hover:bg-gray-50 transition"
+                            onclick="selectStagingDs(this.dataset.id, this.dataset.name)" data-id="" data-name="">— No delivery support</button>
+                        ${(() => {
+                            const filtered = DELIVERY_SUPPORTS.filter(ds => ds.client_id == s.customer_id);
+                            if (!filtered.length) {
+                                return '<div class="px-3 py-2.5 text-xs text-gray-400 italic">No delivery support found for this customer.</div>';
+                            }
+                            return filtered.map(ds =>
+                                '<button type="button" class="staging-ds-opt w-full text-left px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition" ' +
+                                'onclick="selectStagingDs(this.dataset.id, this.dataset.name)" ' +
+                                'data-id="' + ds.id + '" data-name="' + escHtml(ds.name) + '">' + escHtml(ds.name) + '</button>'
+                            ).join('');
+                        })()}
+                    </div>
+                </div>
+            </div>
+            <div id="forCustomerWrap" class="hidden border-t border-gray-100 px-4 pt-3 pb-3">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">For customer <span class="text-gray-400 font-normal">(end-customer under this parent)</span></label>
+                <select id="approveEndCustomer"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
+                    <option value="">— On behalf of the parent itself —</option>
+                </select>
+                <p class="mt-1 text-[11px] text-gray-400">This email was routed to the parent customer. Choose which end-customer it is actually for.</p>
+            </div>
             <div class="border-t border-gray-100 px-4 pt-3 pb-4">
                 <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Additional Info <span class="font-normal normal-case">(optional)</span></p>
                 <div class="grid grid-cols-2 gap-3">
@@ -685,6 +721,43 @@ function fillModal(s) {
             const scaleEl = document.getElementById('approveScale');
             if (scaleEl) scaleEl.value = s.scale;
         }
+
+        // ── "For customer": tampil hanya jika customer ter-match adalah parent
+        //    yang punya end-customers (kasus tiket email di-route via domain). ──
+        if (s.customer_id) {
+            loadForCustomerOptions(s.customer_id, s.end_customer_id);
+        }
+    }
+}
+
+async function loadForCustomerOptions(parentId, selectedEndCustomerId) {
+    try {
+        const res = await fetch(`/api/customers/${parentId}/end-customers`, {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        });
+        const data = await res.json();
+        if (!data.success || !Array.isArray(data.data) || !data.data.length) return;
+
+        const sel  = document.getElementById('approveEndCustomer');
+        const wrap = document.getElementById('forCustomerWrap');
+        if (!sel || !wrap) return;
+
+        data.data.forEach(ec => {
+            const opt = document.createElement('option');
+            opt.value = ec.id;
+            opt.textContent = ec.name + (ec.code ? ` (${ec.code})` : '');
+            sel.appendChild(opt);
+        });
+
+        if (selectedEndCustomerId) {
+            sel.value = String(selectedEndCustomerId);
+            sel.dispatchEvent(new Event('change'));
+        }
+
+        wrap.classList.remove('hidden');
+    } catch (e) {
+        console.error('loadForCustomerOptions error', e);
     }
 }
 
@@ -806,13 +879,15 @@ function cancelReject() {
 }
 
 async function submitApprove(id) {
-    const ticketType = document.getElementById('approveTicketType')?.value ?? '';
-    const priority   = document.getElementById('approvePriority')?.value   ?? '';
-    const scale      = document.getElementById('approveScale')?.value      ?? '';
-    const name       = document.getElementById('approveName')?.value.trim()   ?? '';
-    const noHp       = document.getElementById('approveNoHp')?.value.trim()   ?? '';
-    const module     = document.getElementById('approveModule')?.value.trim() ?? '';
-    const client     = document.getElementById('approveClient')?.value.trim() ?? '';
+    const ticketType        = document.getElementById('approveTicketType')?.value ?? '';
+    const priority          = document.getElementById('approvePriority')?.value   ?? '';
+    const scale             = document.getElementById('approveScale')?.value      ?? '';
+    const name              = document.getElementById('approveName')?.value.trim()   ?? '';
+    const noHp              = document.getElementById('approveNoHp')?.value.trim()   ?? '';
+    const module            = document.getElementById('approveModule')?.value.trim() ?? '';
+    const client            = document.getElementById('approveClient')?.value.trim() ?? '';
+    const deliverySupportId = _stagingDsSelected.id || null;
+    const endCustomerId     = document.getElementById('approveEndCustomer')?.value || null;
 
     const typeErr = document.getElementById('typeError');
     const prioErr = document.getElementById('priorityError');
@@ -834,13 +909,15 @@ async function submitApprove(id) {
 
     try {
         const res = await apiFetch(`/api/staging-tickets/${id}/approve`, 'POST', {
-            ticket_type:     ticketType,
-            ticket_priority: priority,
-            scale:           scale  || null,
-            name:            name   || null,
-            no_hp:           noHp   || null,
-            module:          module || null,
-            client:          client || null,
+            ticket_type:          ticketType,
+            ticket_priority:      priority,
+            scale:                scale  || null,
+            name:                 name   || null,
+            no_hp:                noHp   || null,
+            module:               module || null,
+            client:               client || null,
+            delivery_support_id:  deliverySupportId,
+            end_customer_id:      endCustomerId,
         });
         const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
         console.groupEnd();
@@ -999,6 +1076,53 @@ async function fetchEmailInbox(silent = false) {
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt text-xs"></i> Refresh'; }
     }
 }
+
+// ── Delivery Support combobox (validation modal) ──────────────────────────────
+
+const DELIVERY_SUPPORTS = @json($deliverySupportsJson);
+
+let _stagingDsSelected = { id: null, name: '' };
+
+function openStagingDsDd() {
+    const input = document.getElementById('stagingDsSearch');
+    const panel = document.getElementById('stagingDsPanel');
+    if (!input || !panel) return;
+    input.select();
+    filterStagingDs('');
+    panel.classList.remove('hidden');
+}
+
+function filterStagingDs(q) {
+    const panel = document.getElementById('stagingDsPanel');
+    if (!panel) return;
+    const term = q.toLowerCase().trim();
+    panel.querySelectorAll('.staging-ds-opt').forEach(btn => {
+        btn.style.display = (!term || btn.dataset.name.toLowerCase().includes(term)) ? '' : 'none';
+    });
+    panel.classList.remove('hidden');
+}
+
+function selectStagingDs(id, name) {
+    _stagingDsSelected = { id: id ? parseInt(id) : null, name };
+    const hidden = document.getElementById('stagingDsHidden');
+    const input  = document.getElementById('stagingDsSearch');
+    if (hidden) hidden.value = id ?? '';
+    if (input)  input.value  = name;
+    const panel = document.getElementById('stagingDsPanel');
+    if (panel)  panel.classList.add('hidden');
+}
+
+document.addEventListener('click', function (e) {
+    const dd = document.getElementById('stagingDsDd');
+    if (dd && !dd.contains(e.target)) {
+        const input = document.getElementById('stagingDsSearch');
+        if (input) input.value = _stagingDsSelected.name;
+        const panel = document.getElementById('stagingDsPanel');
+        if (panel) panel.classList.add('hidden');
+    }
+});
+
+
 </script>
 {{-- Load custom-dd component (sama dengan halaman admin lain). filemtime
      cache buster supaya production auto-invalidate setiap deploy. --}}

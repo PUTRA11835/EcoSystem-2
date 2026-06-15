@@ -18,7 +18,28 @@ class TicketViewController extends Controller
      */
     private function getUserObject(): ?SessionUser
     {
-        return SessionUser::fromSession(session('user'));
+        $sessionUser = session('user');
+
+        if (!$sessionUser) {
+            return null;
+        }
+
+        // Convert array to object for Blade compatibility
+        $user = new \stdClass();
+        $user->id = $sessionUser['id'] ?? null;
+        $user->name = $sessionUser['name'] ?? $sessionUser['email'] ?? 'Unknown';
+        $user->email = $sessionUser['email'] ?? null;
+        $user->type = $sessionUser['type'] ?? null;
+
+        // Create role object
+        $user->role = new \stdClass();
+        $user->role->role_id = (int) ($sessionUser['role']['id'] ?? 0);
+        $user->role->role_name = $sessionUser['role']['name'] ?? 'Unknown';
+
+        $user->eci           = $sessionUser['eci'] ?? null;
+        $user->employee_type = $sessionUser['employee_type'] ?? 'Internal';
+
+        return $user;
     }
 
     /**
@@ -48,10 +69,13 @@ class TicketViewController extends Controller
                 ->toArray();
         }
 
+        $isExternalEmployee = strtolower($user->employee_type ?? 'internal') === 'external';
+
         return view('ticket.index', [
-            'user'              => $user,
-            'customers'         => $customers,
-            'currentEmployeeId' => $user->id,
+            'user'               => $user,
+            'customers'          => $customers,
+            'currentEmployeeId'  => $user->id,
+            'isExternalEmployee' => $isExternalEmployee,
         ]);
     }
 
@@ -91,7 +115,13 @@ class TicketViewController extends Controller
         $deliverySupport = DB::table('delivery_support_activities')
             ->join('delivery_support', 'delivery_support_activities.delivery_support_id', '=', 'delivery_support.id')
             ->where('delivery_support_activities.ticket_id', $ticket->ticket_id)
-            ->select('delivery_support.id', 'delivery_support.name', 'delivery_support.type')
+            ->orderByDesc('delivery_support.id')
+            ->select(
+                'delivery_support.id',
+                'delivery_support.name',
+                'delivery_support.type',
+                'delivery_support.onedrive_deliverable_folder_id'
+            )
             ->first();
 
 
@@ -162,16 +192,19 @@ class TicketViewController extends Controller
             ->whereNull('ended_at')
             ->exists();
 
+        $isExternalEmployee = strtolower($user->employee_type ?? 'internal') === 'external';
+
         return view('ticket.show', [
-            'user'             => $user,
-            'ticket'           => $ticket,
-            'consultants'      => $consultants,
-            'employees'        => $employees,
-            'ticketId'         => $id,
-            'deliverySupport'  => $deliverySupport,
-            'approvedMandays'  => $approvedMandays,
-            'customerEmail'    => $customerEmail,
-            'inMeeting'        => $inMeeting,
+            'user'               => $user,
+            'ticket'             => $ticket,
+            'consultants'        => $consultants,
+            'employees'          => $employees,
+            'ticketId'           => $id,
+            'deliverySupport'    => $deliverySupport,
+            'approvedMandays'    => $approvedMandays,
+            'customerEmail'      => $customerEmail,
+            'inMeeting'          => $inMeeting,
+            'isExternalEmployee' => $isExternalEmployee,
         ]);
     }
 }

@@ -1148,6 +1148,471 @@
 </script>
 @endpush
 
+@elseif(($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) == \App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value)
+{{-- ===================== DELIVERY SUPPORT MANAGER DASHBOARD ===================== --}}
+@php
+    $stats      = $data['ticket_stats']       ?? [];
+    $sla        = $data['sla_summary']        ?? null;
+    $teamLoad   = $data['team_load']          ?? collect();
+    $recentTkts = $data['recent_tickets']     ?? collect();
+    $urgents    = $data['urgent_tickets']     ?? collect();
+    $prioBd     = $data['priority_breakdown'] ?? [];
+    $vhCount    = $data['very_high_count']    ?? 0;
+    $unassign   = $data['unassigned_count']   ?? 0;
+    $slaWarn    = $data['sla_warning']        ?? 0;
+    $todayNew   = $data['today_new']          ?? 0;
+    $todayCl    = $data['today_closed']       ?? 0;
+
+    $activeTickets = ($stats['open'] ?? 0) + ($stats['inprocess'] ?? 0)
+        + ($stats['waiting_on_customer'] ?? 0) + ($stats['waiting_on_3rd_party'] ?? 0)
+        + ($stats['waiting_to_confirmation'] ?? 0) + ($stats['hold'] ?? 0);
+
+    $hour      = now()->hour;
+    $greeting  = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
+    $firstName = explode(' ', $user['name'] ?? 'Manager')[0];
+
+    $statusCfg = [
+        'open'                    => ['label'=>'Open',           'dot'=>'bg-blue-500',   'text'=>'text-blue-700',   'bg'=>'bg-blue-50'   ],
+        'inprocess'               => ['label'=>'In Process',     'dot'=>'bg-yellow-500', 'text'=>'text-yellow-700', 'bg'=>'bg-yellow-50' ],
+        'waiting_on_customer'     => ['label'=>'Wait Customer',  'dot'=>'bg-amber-500',  'text'=>'text-amber-700',  'bg'=>'bg-amber-50'  ],
+        'waiting_on_3rd_party'    => ['label'=>'Wait 3rd Party', 'dot'=>'bg-indigo-500', 'text'=>'text-indigo-700', 'bg'=>'bg-indigo-50' ],
+        'waiting_to_confirmation' => ['label'=>'Wait Confirm',   'dot'=>'bg-teal-500',   'text'=>'text-teal-700',   'bg'=>'bg-teal-50'   ],
+        'hold'                    => ['label'=>'Hold',           'dot'=>'bg-orange-500', 'text'=>'text-orange-700', 'bg'=>'bg-orange-50' ],
+        'cancelled'               => ['label'=>'Cancelled',      'dot'=>'bg-gray-400',   'text'=>'text-gray-500',   'bg'=>'bg-gray-100'  ],
+        'closed'                  => ['label'=>'Closed',         'dot'=>'bg-green-500',  'text'=>'text-green-700',  'bg'=>'bg-green-50'  ],
+    ];
+    $prioCfg = [
+        'Very High' => ['text'=>'text-red-700',    'bg'=>'bg-red-50',    'dot'=>'bg-red-500'   ],
+        'High'      => ['text'=>'text-orange-700', 'bg'=>'bg-orange-50', 'dot'=>'bg-orange-500'],
+        'Medium'    => ['text'=>'text-yellow-700', 'bg'=>'bg-yellow-50', 'dot'=>'bg-yellow-500'],
+        'Low'       => ['text'=>'text-blue-700',   'bg'=>'bg-blue-50',   'dot'=>'bg-blue-400'  ],
+    ];
+@endphp
+
+<div class="space-y-5">
+
+{{-- ── Row 1: Greeting + Alert Badges ──────────────────────────────────────── --}}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div>
+        <div class="flex items-center gap-2">
+            <h2 class="text-xl font-bold text-gray-800">{{ $greeting }}, {{ $firstName }}</h2>
+            <span class="text-xs font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2.5 py-0.5 rounded-full">Manager</span>
+        </div>
+        <p class="text-xs text-gray-400 mt-0.5">{{ now()->isoFormat('dddd, D MMMM Y') }} &mdash; <span id="mgrClock" class="font-mono"></span></p>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+        @if($vhCount > 0)
+        <a href="{{ route('ticket.index') }}" class="inline-flex items-center gap-1.5 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-red-100 transition">
+            <i class="fas fa-bolt text-xs animate-pulse"></i>{{ $vhCount }} Very High
+        </a>
+        @endif
+        @if(($sla['breached'] ?? 0) > 0)
+        <a href="{{ route('sla.report') }}" class="inline-flex items-center gap-1.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-rose-100 transition">
+            <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>{{ $sla['breached'] }} SLA breached
+        </a>
+        @endif
+        @if($unassign > 0)
+        <a href="{{ route('ticket.index') }}" class="inline-flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-indigo-100 transition">
+            <i class="fas fa-user-clock text-xs"></i>{{ $unassign }} unassigned
+        </a>
+        @endif
+    </div>
+</div>
+
+{{-- ── Row 2: KPI Cards ─────────────────────────────────────────────────────── --}}
+<div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
+
+    {{-- Active Tickets --}}
+    <a href="{{ route('ticket.index') }}" class="relative bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-4 hover:border-red-300 hover:shadow-md transition-all group overflow-hidden">
+        <div class="absolute inset-0 primary-gradient opacity-0 group-hover:opacity-5 transition-opacity rounded-2xl"></div>
+        <div class="w-9 h-9 rounded-xl bg-red-50 group-hover:bg-red-100 flex items-center justify-center mb-3 transition">
+            <i class="fas fa-fire text-red-600 text-sm"></i>
+        </div>
+        <p class="text-2xl font-bold text-gray-800">{{ $activeTickets }}</p>
+        <p class="text-xs text-gray-400 mt-0.5">Active Tickets</p>
+        <p class="text-[10px] text-gray-300 mt-0.5">{{ $stats['total'] ?? 0 }} total</p>
+    </a>
+
+    {{-- Unassigned --}}
+    <a href="{{ route('ticket.index') }}" class="relative bg-white rounded-2xl border-2 {{ $unassign > 0 ? 'border-indigo-300' : 'border-gray-200' }} shadow-sm p-4 hover:shadow-md transition-all group">
+        <div class="w-9 h-9 rounded-xl {{ $unassign > 0 ? 'bg-indigo-100' : 'bg-gray-100' }} flex items-center justify-center mb-3">
+            <i class="fas fa-user-clock {{ $unassign > 0 ? 'text-indigo-600' : 'text-gray-400' }} text-sm"></i>
+        </div>
+        <p class="text-2xl font-bold {{ $unassign > 0 ? 'text-indigo-700' : 'text-gray-800' }}">{{ $unassign }}</p>
+        <p class="text-xs text-gray-400 mt-0.5">Unassigned</p>
+        @if($unassign > 0)<p class="text-[10px] text-indigo-500 font-medium mt-0.5">Needs agent →</p>@endif
+    </a>
+
+    {{-- Very High Priority --}}
+    <a href="{{ route('ticket.index') }}" class="relative bg-white rounded-2xl border-2 {{ $vhCount > 0 ? 'border-red-300' : 'border-gray-200' }} shadow-sm p-4 hover:shadow-md transition-all group">
+        <div class="w-9 h-9 rounded-xl {{ $vhCount > 0 ? 'bg-red-100' : 'bg-gray-100' }} flex items-center justify-center mb-3">
+            <i class="fas fa-bolt {{ $vhCount > 0 ? 'text-red-600' : 'text-gray-400' }} text-sm"></i>
+        </div>
+        <p class="text-2xl font-bold {{ $vhCount > 0 ? 'text-red-700' : 'text-gray-800' }}">{{ $vhCount }}</p>
+        <p class="text-xs text-gray-400 mt-0.5">Very High</p>
+        @if($vhCount > 0)<p class="text-[10px] text-red-400 font-medium mt-0.5 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>Urgent</p>@endif
+    </a>
+
+    {{-- SLA Breached --}}
+    <a href="{{ route('sla.report') }}" class="bg-white rounded-2xl border-2 {{ ($sla['breached'] ?? 0) > 0 ? 'border-rose-300' : 'border-gray-200' }} shadow-sm p-4 hover:shadow-md transition-all group">
+        <div class="w-9 h-9 rounded-xl {{ ($sla['breached'] ?? 0) > 0 ? 'bg-rose-100' : 'bg-gray-100' }} flex items-center justify-center mb-3">
+            <i class="fas fa-exclamation-triangle {{ ($sla['breached'] ?? 0) > 0 ? 'text-rose-600' : 'text-gray-400' }} text-sm"></i>
+        </div>
+        <p class="text-2xl font-bold {{ ($sla['breached'] ?? 0) > 0 ? 'text-rose-600' : 'text-gray-800' }}">{{ $sla['breached'] ?? '—' }}</p>
+        <p class="text-xs text-gray-400 mt-0.5">SLA Breached</p>
+        @if($slaWarn > 0)<p class="text-[10px] text-orange-500 font-medium mt-0.5">+{{ $slaWarn }} at risk</p>@endif
+    </a>
+
+    {{-- SLA Compliance --}}
+    <a href="{{ route('sla.report') }}" class="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-4 hover:border-emerald-300 hover:shadow-md transition-all group">
+        <div class="w-9 h-9 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 flex items-center justify-center mb-3 transition">
+            <i class="fas fa-chart-pie text-emerald-600 text-sm"></i>
+        </div>
+        @if($sla && $sla['compliance_rate'] !== null)
+        <p class="text-2xl font-bold {{ $sla['compliance_rate'] >= 80 ? 'text-emerald-600' : ($sla['compliance_rate'] >= 60 ? 'text-yellow-600' : 'text-red-600') }}">{{ $sla['compliance_rate'] }}%</p>
+        @else
+        <p class="text-2xl font-bold text-gray-400">—</p>
+        @endif
+        <p class="text-xs text-gray-400 mt-0.5">SLA Compliance</p>
+        @if($sla && $sla['compliance_rate'] !== null)
+        <div class="mt-1.5 w-full bg-gray-100 rounded-full h-1">
+            <div class="h-1 rounded-full {{ ($sla['compliance_rate'] ?? 0) >= 80 ? 'bg-emerald-500' : (($sla['compliance_rate'] ?? 0) >= 60 ? 'bg-yellow-500' : 'bg-red-500') }}" style="width:{{ min($sla['compliance_rate'] ?? 0, 100) }}%"></div>
+        </div>
+        @endif
+    </a>
+
+    {{-- Team Size --}}
+    <a href="{{ route('master.employee.index') }}" class="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-4 hover:border-violet-300 hover:shadow-md transition-all group">
+        <div class="w-9 h-9 rounded-xl bg-violet-50 group-hover:bg-violet-100 flex items-center justify-center mb-3 transition">
+            <i class="fas fa-users text-violet-600 text-sm"></i>
+        </div>
+        <p class="text-2xl font-bold text-gray-800">{{ $teamLoad->count() }}</p>
+        <p class="text-xs text-gray-400 mt-0.5">Active Agents</p>
+        <p class="text-[10px] text-gray-300 mt-0.5">with open tickets</p>
+    </a>
+</div>
+
+{{-- ── Row 3: Status Strip ──────────────────────────────────────────────────── --}}
+<div class="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-4">
+    <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+            <div class="w-6 h-6 rounded-lg bg-gray-100 flex items-center justify-center">
+                <i class="fas fa-chart-bar text-gray-500 text-xs"></i>
+            </div>
+            <p class="text-xs font-semibold text-gray-600 uppercase tracking-wider">Team Ticket Status</p>
+        </div>
+        <a href="{{ route('ticket.index') }}" class="text-xs font-semibold text-red-700 hover:text-red-800">View all →</a>
+    </div>
+    <div class="grid grid-cols-4 sm:grid-cols-8 gap-2">
+        @foreach($statusCfg as $key => $cfg)
+        @php $count = $stats[$key] ?? 0; $total = max($stats['total'] ?? 1, 1); $pct = round($count / $total * 100); @endphp
+        <div class="text-center p-2 rounded-xl hover:{{ $cfg['bg'] }} transition-colors cursor-default group">
+            <p class="text-lg font-bold text-gray-800 group-hover:{{ $cfg['text'] }} transition-colors">{{ $count }}</p>
+            <div class="flex items-center justify-center gap-1 mt-1 mb-1.5">
+                <span class="w-1.5 h-1.5 rounded-full {{ $cfg['dot'] }} flex-shrink-0"></span>
+                <p class="text-[10px] text-gray-400 leading-tight">{{ $cfg['label'] }}</p>
+            </div>
+            <div class="w-full bg-gray-100 rounded-full h-1">
+                <div class="{{ $cfg['dot'] }} h-1 rounded-full" style="width:{{ $pct }}%"></div>
+            </div>
+        </div>
+        @endforeach
+    </div>
+</div>
+
+{{-- ── Row 4: Trend Chart + Priority Donut ─────────────────────────────────── --}}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+    <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <p class="text-sm font-semibold text-gray-800">Ticket Volume</p>
+                <p class="text-xs text-gray-400 mt-0.5">Last 30 days</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1.5 text-xs text-gray-400">
+                    <span class="w-2 h-2 rounded-full bg-blue-400"></span>{{ $todayNew }} new today
+                </div>
+                <div class="flex items-center gap-1.5 text-xs text-gray-400">
+                    <span class="w-2 h-2 rounded-full bg-green-400"></span>{{ $todayCl }} closed
+                </div>
+            </div>
+        </div>
+        <canvas id="mgrTicketChart" height="90"></canvas>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex flex-col">
+        <div class="flex items-center justify-between mb-4">
+            <p class="text-sm font-semibold text-gray-800">Priority (Active)</p>
+            <a href="{{ route('ticket.index') }}" class="text-xs text-red-700 hover:text-red-800 font-semibold">All →</a>
+        </div>
+        <div class="flex-1 flex items-center justify-center">
+            <canvas id="mgrPrioChart" width="140" height="140"></canvas>
+        </div>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-2 mt-4">
+            @foreach(['Very High','High','Medium','Low'] as $prio)
+            @php $pc = $prioCfg[$prio] ?? []; $cnt = $prioBd[$prio] ?? 0; @endphp
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full {{ $pc['dot'] ?? 'bg-gray-300' }} flex-shrink-0"></span>
+                <span class="text-xs text-gray-500 flex-1 truncate">{{ $prio }}</span>
+                <span class="text-xs font-bold text-gray-700">{{ $cnt }}</span>
+            </div>
+            @endforeach
+        </div>
+    </div>
+</div>
+
+{{-- ── Row 5: Agent Workload + Quick Actions ────────────────────────────────── --}}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+    {{-- Agent Workload --}}
+    <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+        <div class="flex items-center justify-between mb-5">
+            <div>
+                <p class="text-sm font-semibold text-gray-800">Agent Workload</p>
+                <p class="text-xs text-gray-400 mt-0.5">Active tickets per agent — {{ $teamLoad->sum('open_count') }} total open</p>
+            </div>
+            <a href="{{ route('ticket.consultant-workload') }}" class="text-xs font-semibold text-red-700 hover:text-red-800">Full view →</a>
+        </div>
+        @if($teamLoad->isEmpty())
+        <div class="flex flex-col items-center justify-center py-10 text-center">
+            <div class="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center mb-3">
+                <i class="fas fa-check-circle text-green-400 text-xl"></i>
+            </div>
+            <p class="text-sm font-semibold text-gray-500">All clear!</p>
+            <p class="text-xs text-gray-400 mt-1">No active agent workload</p>
+        </div>
+        @else
+        @php $maxLoad = $teamLoad->max('open_count') ?: 1; @endphp
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+            @foreach($teamLoad as $m)
+            @php
+                $pct   = round(($m->open_count / $maxLoad) * 100);
+                $barCl = $pct >= 80 ? 'bg-red-500' : ($pct >= 50 ? 'bg-amber-500' : 'bg-emerald-500');
+                $txtCl = $pct >= 80 ? 'text-red-600' : ($pct >= 50 ? 'text-amber-600' : 'text-emerald-600');
+            @endphp
+            <div>
+                <div class="flex items-center justify-between mb-1.5">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-6 h-6 rounded-full primary-gradient text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0">
+                            {{ strtoupper(substr($m->name ?? 'U', 0, 1)) }}
+                        </div>
+                        <span class="text-xs font-medium text-gray-700 truncate">{{ $m->name }}</span>
+                    </div>
+                    <span class="text-xs font-bold {{ $txtCl }} ml-2 flex-shrink-0">{{ $m->open_count }}</span>
+                </div>
+                <div class="w-full bg-gray-100 rounded-full h-1.5">
+                    <div class="{{ $barCl }} h-1.5 rounded-full transition-all duration-500" style="width:{{ $pct }}%"></div>
+                </div>
+            </div>
+            @endforeach
+        </div>
+        @endif
+    </div>
+
+    {{-- Quick Actions + Today's Summary --}}
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+        <p class="text-sm font-semibold text-gray-800 mb-4">Quick Actions</p>
+        <div class="grid grid-cols-2 gap-2">
+            @php
+                $navItems = [
+                    ['href'=>route('ticket.index'),               'icon'=>'fa-ticket-alt',  'bg'=>'bg-red-50',     'color'=>'text-red-700',    'label'=>'All Tickets'],
+                    ['href'=>route('ticket.consultant-workload'), 'icon'=>'fa-users-cog',   'bg'=>'bg-violet-50',  'color'=>'text-violet-600', 'label'=>'Workload'],
+                    ['href'=>route('sla.report'),                 'icon'=>'fa-stopwatch',   'bg'=>'bg-emerald-50', 'color'=>'text-emerald-600','label'=>'SLA Report', 'badge'=>($sla['breached'] ?? 0)],
+                    ['href'=>route('sla.config'),                 'icon'=>'fa-sliders-h',   'bg'=>'bg-teal-50',    'color'=>'text-teal-600',   'label'=>'SLA Config'],
+                    ['href'=>route('reporting'),                  'icon'=>'fa-chart-bar',   'bg'=>'bg-blue-50',    'color'=>'text-blue-600',   'label'=>'Reporting'],
+                    ['href'=>route('reporting.md-recap'),         'icon'=>'fa-calendar-alt','bg'=>'bg-indigo-50',  'color'=>'text-indigo-600', 'label'=>'MD Recap'],
+                    ['href'=>route('calendar.timesheets'),        'icon'=>'fa-clock',       'bg'=>'bg-amber-50',   'color'=>'text-amber-600',  'label'=>'Timesheets'],
+                    ['href'=>route('profile.my'),                 'icon'=>'fa-user-circle', 'bg'=>'bg-gray-100',   'color'=>'text-gray-600',   'label'=>'My Profile'],
+                ];
+            @endphp
+            @foreach($navItems as $nav)
+            <a href="{{ $nav['href'] }}" class="relative flex flex-col items-center gap-1.5 p-3 rounded-xl {{ $nav['bg'] }} hover:ring-2 hover:ring-offset-1 hover:ring-gray-300 transition-all text-center">
+                @if(!empty($nav['badge']) && $nav['badge'] > 0)
+                <span class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">{{ $nav['badge'] > 9 ? '9+' : $nav['badge'] }}</span>
+                @endif
+                <i class="fas {{ $nav['icon'] }} {{ $nav['color'] }} text-base"></i>
+                <p class="text-[11px] font-semibold text-gray-600 leading-tight">{{ $nav['label'] }}</p>
+            </a>
+            @endforeach
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-gray-100">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">Today's Summary</p>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-500 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>New today</span>
+                    <span class="text-xs font-bold text-gray-700">{{ $todayNew }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-500 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>Closed today</span>
+                    <span class="text-xs font-bold text-gray-700">{{ $todayCl }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-500 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>SLA breached</span>
+                    <span class="text-xs font-bold {{ ($sla['breached'] ?? 0) > 0 ? 'text-red-600' : 'text-gray-700' }}">{{ $sla['breached'] ?? '—' }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-500 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>SLA met</span>
+                    <span class="text-xs font-bold text-gray-700">{{ $sla['met'] ?? '—' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ── Row 6: Urgent Tickets ────────────────────────────────────────────────── --}}
+@if($urgents->isNotEmpty())
+<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center"><i class="fas fa-exclamation-triangle text-red-600 text-xs"></i></div>
+            <p class="text-sm font-semibold text-gray-800">Needs Immediate Attention</p>
+            <span class="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Very High + SLA Breached</span>
+        </div>
+        <a href="{{ route('ticket.index') }}" class="text-xs font-semibold text-red-700 hover:text-red-800">View all →</a>
+    </div>
+    <div class="divide-y divide-gray-50">
+        @foreach($urgents as $t)
+        @php
+            $sc = $statusCfg[$t->status] ?? ['dot'=>'bg-gray-400','text'=>'text-gray-500','bg'=>'bg-gray-100','label'=>'Unknown'];
+            $isBreached = ($t->sla_status ?? '') === 'breached';
+            $isVH = ($t->ticket_priority ?? '') === 'Very High';
+        @endphp
+        <a href="{{ route('ticket.show', $t->ticket_id) }}" class="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/80 transition-colors group">
+            <span class="w-2 h-2 rounded-full {{ $sc['dot'] }} flex-shrink-0 mt-0.5"></span>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xs font-bold text-gray-700 group-hover:text-red-700 transition-colors font-mono">#{{ $t->ticket_number }}</span>
+                    @if($isVH)<span class="text-[10px] font-bold text-red-700 bg-red-50 px-1.5 py-0.5 rounded-full"><i class="fas fa-bolt text-[8px] mr-0.5"></i>Very High</span>@endif
+                    @if($isBreached)<span class="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-full"><i class="fas fa-stopwatch text-[8px] mr-0.5"></i>SLA Breached</span>@endif
+                </div>
+                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $t->customer_name ?? '—' }}@if($t->sla_due_at) &middot; Due {{ \Carbon\Carbon::parse($t->sla_due_at)->diffForHumans() }}@endif</p>
+                <p class="text-[11px] text-gray-500 truncate">{{ \Str::limit($t->description ?? '', 60) }}</p>
+            </div>
+            <span class="text-[10px] font-semibold {{ $sc['text'] }} {{ $sc['bg'] }} px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">{{ $sc['label'] }}</span>
+        </a>
+        @endforeach
+    </div>
+</div>
+@endif
+
+{{-- ── Row 7: Recent Tickets ────────────────────────────────────────────────── --}}
+<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center"><i class="fas fa-history text-red-600 text-xs"></i></div>
+            <p class="text-sm font-semibold text-gray-800">Recent Tickets</p>
+        </div>
+        <a href="{{ route('ticket.index') }}" class="text-xs font-semibold text-red-700 hover:text-red-800">View all →</a>
+    </div>
+    @if($recentTkts->isEmpty())
+    <div class="py-12 text-center text-sm text-gray-400">No tickets yet</div>
+    @else
+    <div class="hidden md:grid grid-cols-12 gap-2 px-5 py-2.5 bg-gray-50/80 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+        <div class="col-span-2">Ticket #</div>
+        <div class="col-span-3">Description</div>
+        <div class="col-span-2">Customer</div>
+        <div class="col-span-2">PIC</div>
+        <div class="col-span-1 text-center">Priority</div>
+        <div class="col-span-1 text-center">SLA</div>
+        <div class="col-span-1 text-right">Status</div>
+    </div>
+    <div class="divide-y divide-gray-50">
+        @foreach($recentTkts as $t)
+        @php
+            $sc    = $statusCfg[$t->status] ?? ['dot'=>'bg-gray-400','text'=>'text-gray-500','bg'=>'bg-gray-100','label'=>'Unknown'];
+            $pc    = $prioCfg[$t->ticket_priority ?? ''] ?? ['text'=>'text-gray-400','bg'=>'bg-gray-100','dot'=>'bg-gray-300'];
+            $slaSc = match($t->sla_status ?? '') { 'met'=>'text-green-600 bg-green-50','breached'=>'text-red-600 bg-red-50','pending'=>'text-blue-600 bg-blue-50','paused'=>'text-amber-600 bg-amber-50',default=>'text-gray-400 bg-gray-100' };
+            $slaLb = match($t->sla_status ?? '') { 'met'=>'Met','breached'=>'Breached','pending'=>'Active','paused'=>'Paused',default=>'—' };
+        @endphp
+        <a href="{{ route('ticket.show', $t->ticket_id) }}" class="flex md:grid md:grid-cols-12 md:gap-2 items-center px-5 py-3 hover:bg-gray-50/80 transition-colors group">
+            <div class="col-span-2 flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full {{ $sc['dot'] }} flex-shrink-0"></span>
+                <span class="text-xs font-bold text-gray-700 group-hover:text-red-700 transition-colors font-mono">{{ $t->ticket_number }}</span>
+            </div>
+            <div class="col-span-3 hidden md:block">
+                <span class="text-xs text-gray-500 truncate block">{{ \Str::limit($t->description ?? '—', 40) }}</span>
+                <span class="text-[10px] text-gray-300">{{ \Carbon\Carbon::parse($t->updated_at)->diffForHumans() }}</span>
+            </div>
+            <div class="col-span-2 hidden md:block"><span class="text-xs text-gray-600 truncate block">{{ $t->customer_name ?? '—' }}</span></div>
+            <div class="col-span-2 hidden md:block">
+                <span class="text-xs text-gray-500 truncate block">{{ $t->pic_name ?? 'Unassigned' }}</span>
+                @if(($t->pic_name ?? 'Unassigned') === 'Unassigned')<span class="text-[10px] text-indigo-500 font-semibold">Needs PIC</span>@endif
+            </div>
+            <div class="col-span-1 hidden md:flex justify-center">
+                @if($t->ticket_priority)<span class="text-[10px] font-bold {{ $pc['text'] }} {{ $pc['bg'] }} px-1.5 py-0.5 rounded-full whitespace-nowrap">{{ $t->ticket_priority }}</span>@else<span class="text-gray-300 text-xs">—</span>@endif
+            </div>
+            <div class="col-span-1 hidden md:flex justify-center">
+                <span class="text-[10px] font-semibold {{ $slaSc }} px-1.5 py-0.5 rounded-full whitespace-nowrap">{{ $slaLb }}</span>
+            </div>
+            <div class="col-span-1 flex md:justify-end ml-auto md:ml-0">
+                <span class="text-[10px] font-semibold {{ $sc['text'] }} {{ $sc['bg'] }} px-2 py-0.5 rounded-full whitespace-nowrap">{{ $sc['label'] }}</span>
+            </div>
+        </a>
+        @endforeach
+    </div>
+    @endif
+</div>
+
+</div>
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    // Live clock
+    function tickMgr() { const el = document.getElementById('mgrClock'); if (el) el.textContent = new Date().toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit' }); }
+    tickMgr(); setInterval(tickMgr, 1000);
+
+    // Trend chart
+    const labels    = @json($data['ticket_chart']['labels'] ?? []);
+    const chartData = @json($data['ticket_chart']['data']   ?? []);
+    const ctx = document.getElementById('mgrTicketChart');
+    if (ctx) {
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    data: chartData,
+                    borderColor: '#7c3aed',
+                    backgroundColor: 'rgba(124,58,237,0.07)',
+                    borderWidth: 2.5,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#7c3aed',
+                    pointHoverRadius: 5,
+                    tension: 0.4,
+                    fill: true,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend:{display:false}, tooltip:{callbacks:{label:c=>c.parsed.y+' ticket'+(c.parsed.y!==1?'s':'')}} },
+                scales: {
+                    x:{grid:{display:false},ticks:{font:{size:10},maxTicksLimit:10,color:'#9ca3af'}},
+                    y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.04)'},ticks:{stepSize:1,precision:0,color:'#9ca3af',font:{size:10}}}
+                }
+            }
+        });
+    }
+
+    // Priority donut
+    const prioCtx = document.getElementById('mgrPrioChart');
+    if (prioCtx) {
+        const pd  = { 'Very High': @json($data['priority_breakdown']['Very High'] ?? 0), 'High': @json($data['priority_breakdown']['High'] ?? 0), 'Medium': @json($data['priority_breakdown']['Medium'] ?? 0), 'Low': @json($data['priority_breakdown']['Low'] ?? 0) };
+        const tot = Object.values(pd).reduce((a,b)=>a+b,0);
+        new Chart(prioCtx, {
+            type: 'doughnut',
+            data: { labels: Object.keys(pd), datasets: [{ data: Object.values(pd), backgroundColor:['#dc2626','#ea580c','#ca8a04','#2563eb'], borderColor:'#fff', borderWidth:2, hoverOffset:4 }] },
+            options: { responsive:false, cutout:'68%', plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>c.label+': '+c.raw+' ('+(tot>0?Math.round(c.raw/tot*100):0)+'%)'}} } },
+            plugins: [{ id:'center', beforeDraw(chart){ const {width,height,ctx}=chart; ctx.save(); ctx.font='bold 20px Inter,Arial,sans-serif'; ctx.fillStyle='#1f2937'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(tot,width/2,height/2-6); ctx.font='10px Inter,Arial,sans-serif'; ctx.fillStyle='#9ca3af'; ctx.fillText('active',width/2,height/2+12); ctx.restore(); } }]
+        });
+    }
+})();
+</script>
+@endpush
+
 @elseif(($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) == \App\Enums\RoleId::EC_ADMINISTRATOR->value)
 {{-- ===================== EC ADMINISTRATOR DASHBOARD ===================== --}}
 @php

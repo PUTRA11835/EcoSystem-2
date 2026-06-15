@@ -11,7 +11,6 @@ use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
-use App\Services\OneDriveService;
 use App\Services\SlaService;
 use App\Services\StagingTicketService;
 use App\Services\TicketNumberService;
@@ -62,58 +61,6 @@ class TicketController extends Controller
      * Lightweight endpoint untuk polling — kembalikan timestamp update terakhir dari DB lokal.
      * Tidak menyentuh Graph API, aman dipanggil dari browser setiap 30 detik.
      */
-    public function generateFolder(Request $request, $id)
-    {
-        $ticket = Ticket::where('ticket_id', $id)->firstOrFail();
-
-        $request->validate([
-            'folder_name' => ['nullable', 'string', 'max:255', 'not_regex:~[\\\\/:*?"<>|]~'],
-        ]);
-
-        $folderName   = trim($request->input('folder_name') ?: ($ticket->ticket_number . ' - ' . $ticket->description));
-        $parentFolder = config('services.microsoft_graph.ticket_parent_folder', 'TICKETING');
-        $oneDrive     = new OneDriveService();
-
-        try {
-            if ($ticket->onedrive_folder_id) {
-                $shareUrl = $oneDrive->createAnonymousLink($ticket->onedrive_folder_id);
-                $ticket->update(['onedrive_folder_url' => $shareUrl]);
-            } else {
-                $folderId            = $oneDrive->createFolderInPath($folderName, $parentFolder);
-                $deliverableFolderId = $oneDrive->createSubFolder($folderId, 'Deliverable');
-                $shareUrl            = $oneDrive->createAnonymousLink($folderId);
-                $ticket->update([
-                    'onedrive_folder_id'              => $folderId,
-                    'onedrive_folder_url'             => $shareUrl,
-                    'onedrive_deliverable_folder_id'  => $deliverableFolderId,
-                ]);
-            }
-
-            return response()->json(['success' => true, 'folder_url' => $shareUrl]);
-        } catch (\Throwable $e) {
-            Log::error('Ticket generateFolder failed', ['ticket_id' => $id, 'error' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
-    }
-
-    public function deleteFolder(Request $request, $id)
-    {
-        $ticket = Ticket::where('ticket_id', $id)->firstOrFail();
-
-        if (!$ticket->onedrive_folder_id) {
-            return response()->json(['success' => false, 'message' => 'No folder to delete.'], 400);
-        }
-
-        try {
-            (new OneDriveService())->deleteFolder($ticket->onedrive_folder_id);
-            $ticket->update(['onedrive_folder_id' => null, 'onedrive_folder_url' => null]);
-            return response()->json(['success' => true]);
-        } catch (\Throwable $e) {
-            Log::error('Ticket deleteFolder failed', ['ticket_id' => $id, 'error' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
-    }
-
     public function latestUpdate()
     {
         $latest = DB::table('ticket')
@@ -145,10 +92,23 @@ class TicketController extends Controller
                 'role_id' => $sessionUser['role']['id']
             ]);
 
-            $filterUnassigned = $request->boolean('unassigned');
+            $filterUnassigned  = $request->boolean('unassigned');
+            $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+
+            // External employee: hanya bisa lihat ticket yang dia handle (sebagai lead atau member)
+            if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
+                Log::info('External employee viewing own tickets only', ['employee_id' => $sessionUser['id']]);
+                $employeeId = $sessionUser['id'];
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->where(function ($q) use ($employeeId) {
+                        $q->where('ticket_lead_id', $employeeId)
+                          ->orWhereHas('members', fn ($i) => $i->where('ticket_member.employee_id', $employeeId));
+                    })
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
+                    ->get();
 
             // Admin: bisa lihat semua ticket, atau filter unassigned jika ?unassigned=1
-            if ($sessionUser['role']['id'] === RoleId::EC_ADMINISTRATOR->value) {
+            } elseif ($sessionUser['role']['id'] === RoleId::EC_ADMINISTRATOR->value) {
                 Log::info('Admin viewing tickets', ['unassigned' => $filterUnassigned]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
@@ -161,7 +121,6 @@ class TicketController extends Controller
             // Employee: tampilkan ticket unassigned (belum ada PIC) — frontend /api/tickets maps to "Unassign" tab
             } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_USER->value) {
                 Log::info('Employee viewing unassigned tickets');
-
                 $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
                     ->whereNull('ticket_lead_id')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
@@ -183,30 +142,12 @@ class TicketController extends Controller
                 }
                 $tickets = $query->get();
 
-            // Support Manager: lihat ticket yang dia handle (via delivery_support.support_manager_id)
-            // + unassigned tickets; ?unassigned=1 mengembalikan hanya unassigned
+            // Support Manager: "All Tickets" = semua tiket organisasi (sama seperti Head)
+            // "My Tickets" = hanya tiket dari delivery yang dia kelola (/api/tickets/my)
             } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_MANAGER->value) {
-                $employeeId = $sessionUser['id'];
-                Log::info('Support Manager viewing tickets', ['employee_id' => $employeeId, 'unassigned' => $filterUnassigned]);
-
-                // Delivery IDs yang dia kelola
-                $managedDeliveryIds = DB::table('delivery_support')
-                    ->where('support_manager_id', $employeeId)
-                    ->pluck('id');
-
-                // Ticket IDs via delivery_support_activities
-                $managedTicketIds = DB::table('delivery_support_activities')
-                    ->whereIn('delivery_support_id', $managedDeliveryIds)
-                    ->whereNotNull('ticket_id')
-                    ->pluck('ticket_id')
-                    ->unique()
-                    ->values();
+                Log::info('Support Manager viewing all tickets', ['employee_id' => $sessionUser['id']]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
-                    ->where(function ($q) use ($managedTicketIds) {
-                        $q->whereIn('ticket_id', $managedTicketIds)
-                          ->orWhereNull('ticket_lead_id');
-                    })
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
 
                 if ($filterUnassigned) {
@@ -752,8 +693,22 @@ class TicketController extends Controller
 
             Log::info('My Tickets - Session User:', $sessionUser);
 
+            $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+
+            // External employee (non-admin): hanya ticket yang mereka handle
+            if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
+                $employeeId = $sessionUser['id'];
+                Log::info('My Tickets - External employee', ['employee_id' => $employeeId]);
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->where(function ($query) use ($employeeId) {
+                        $query->where('ticket.ticket_lead_id', $employeeId)
+                            ->orWhereHas('members', fn ($inner) => $inner->where('ticket_member.employee_id', $employeeId));
+                    })
+                    ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
+                    ->get();
+
             // Employee / Helpdesk: tampilkan tiket dimana mereka PIC atau member
-            if (in_array($sessionUser['role']['id'], array_merge([RoleId::DELIVERY_SUPPORT_USER->value], RoleId::HELPDESK_GROUP), true)) {
+            } elseif (in_array($sessionUser['role']['id'], array_merge([RoleId::DELIVERY_SUPPORT_USER->value], RoleId::HELPDESK_GROUP), true)) {
                 $employeeId = $sessionUser['id'];
 
                 Log::info('My Tickets - Filtering for employee/helpdesk', ['employee_id' => $employeeId]);
@@ -1452,6 +1407,20 @@ class TicketController extends Controller
                 }
             }
 
+            // External employee: hanya bisa lihat ticket yang dia handle
+            $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+            if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
+                $employeeId = $sessionUser['id'];
+                $isLead     = (int) $ticket->ticket_lead_id === $employeeId;
+                $isMember   = $ticket->members->contains('employee_id', $employeeId);
+                if (!$isLead && !$isMember) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Access denied'
+                    ], 403);
+                }
+            }
+
             // Employee harus punya DSM qualification (kecuali Admin)
             if ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_USER->value && !$this->isEmployeeQualified($sessionUser['id'])) {
                 return response()->json([
@@ -1532,6 +1501,15 @@ class TicketController extends Controller
 
         if (!$sessionUser) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        // External employee tidak boleh mengambil unassigned ticket maupun update apapun
+        $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+        if ($isExternalEmployee && !$isAdmin) {
+            return response()->json([
+                'success' => false,
+                'message' => 'External employees cannot update tickets'
+            ], 403);
         }
 
         // Employees other than admin/helpdesk may ONLY self-assign PIC on unassigned tickets.
@@ -1773,6 +1751,26 @@ class TicketController extends Controller
             $ticket->update([
                 'status' => $request->status
             ]);
+
+            // Notifikasi bell Jarvies — status berubah
+            if ($ticket->customer_id) {
+                $statusLabel = match ($request->status) {
+                    'closed'      => 'Closed',
+                    'cancelled'   => 'Cancelled',
+                    'open'        => 'Open',
+                    'in_progress' => 'In Progress',
+                    'resolved'    => 'Resolved',
+                    default       => ucfirst(str_replace('_', ' ', $request->status)),
+                };
+                \App\Services\CustomerNotificationService::notify(
+                    customerId: (int) $ticket->customer_id,
+                    type:       in_array($request->status, ['closed', 'cancelled']) ? 'ticket_closed' : 'ticket_status_changed',
+                    ticketId:   (int) $ticket->ticket_id,
+                    fromName:   'Helpdesk Support',
+                    preview:    'Your ticket #' . ($ticket->ticket_number ?? $ticket->ticket_id) . ' status has been updated to ' . $statusLabel . '.',
+                    link:       '/tickets/' . $ticket->ticket_id,
+                );
+            }
 
             // Trigger SLA state transition (non-fatal)
             try {
@@ -2759,6 +2757,10 @@ class TicketController extends Controller
 
             DB::commit();
 
+            // Now that the ticket is linked to a delivery support, apply the SLA policy
+            // (policy could not be matched at validation time because DS was not yet assigned)
+            app(\App\Services\SlaService::class)->syncPolicy($ticket);
+
             Log::info('Ticket assigned to delivery support', [
                 'ticket_id' => $ticket->ticket_id,
                 'ticket_number' => $ticket->ticket_number,
@@ -2978,6 +2980,9 @@ class TicketController extends Controller
             }
 
             DB::commit();
+
+            // Apply SLA policy now that ticket is linked to a delivery support
+            app(\App\Services\SlaService::class)->syncPolicy($ticket);
 
             Log::info('Created delivery support from ticket', [
                 'ticket_id' => $ticket->ticket_id,

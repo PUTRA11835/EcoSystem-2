@@ -359,9 +359,9 @@
     /**
      * Load all addresses for this employee
      */
-    async function loadAddresses() {
+    async function loadAddresses(autoSelect = false) {
         try {
-            
+
             const response = await fetch(`/api/employees/${employeeId}/addresses`, {
                 method: 'GET',
                 headers: {
@@ -376,6 +376,17 @@
             if (data.success && data.data && data.data.length > 0) {
                 addressesData = data.data;
                 renderAddressTable(data.data);
+                // Saat load awal: auto-pilih alamat primary (atau pertama) agar form
+                // di atas — termasuk Cell Phone — langsung terisi tanpa perlu klik baris.
+                if (autoSelect) {
+                    const primary = data.data.find(a => a.is_primary) || data.data[0];
+                    if (primary) {
+                        const radio = document.querySelector(`input[name="selectedAddress"][value="${primary.address_id}"]`);
+                        if (radio) radio.checked = true;
+                        selectedAddressId = primary.address_id;
+                        loadAddressToForm(primary.address_id);
+                    }
+                }
             } else {
                 addressesData = [];
                 renderEmptyTable();
@@ -726,7 +737,7 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        loadAddresses();
+        loadAddresses(true);
     });
 
 

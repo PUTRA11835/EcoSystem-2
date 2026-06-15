@@ -48,6 +48,7 @@ class EmployeeBasicData extends Model
         'authorization_group',
         'home_base',
         'grade',
+        'employee_type', // Internal / External (turunan dari home_base; lihat deriveEmployeeType)
 
         // Status Administrasi
         'block',
@@ -68,6 +69,16 @@ class EmployeeBasicData extends Model
      * This ensures full_name is included in JSON responses.
      */
     protected $appends = ['full_name'];
+
+    /**
+     * Aturan tunggal penentu jenis employee.
+     * Home Base "Others" = External (penanda dari file import HR), selain itu Internal.
+     * Dipakai importer & controller agar employee_type selalu konsisten dgn home_base.
+     */
+    public static function deriveEmployeeType(?string $homeBase): string
+    {
+        return mb_strtolower(trim((string) $homeBase)) === 'others' ? 'External' : 'Internal';
+    }
 
     /**
      * Relationship with Employee

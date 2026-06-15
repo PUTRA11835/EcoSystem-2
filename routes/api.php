@@ -22,6 +22,7 @@ use App\Http\Controllers\CustomerBankController;
 use App\Http\Controllers\CustomerAttachmentController;
 use App\Http\Controllers\CustomerHistoryController;
 use App\Http\Controllers\CustomerCredentialController;
+use App\Http\Controllers\CustomerGroupController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TicketMessageController;
@@ -215,10 +216,23 @@ Route::middleware(['web'])->group(function () {
         Route::get('/grouping-data', [CustomerController::class, 'getGroupingData']);
         Route::get('/{id}', [CustomerController::class, 'show']);
         Route::get('/{id}/header', [CustomerController::class, 'headerData']);
+        Route::get('/{id}/end-customers', [CustomerController::class, 'endCustomers']);
         Route::put('/{id}', [CustomerController::class, 'update']);
         Route::delete('/{id}', [CustomerController::class, 'destroy']);
         Route::post('/{id}/soft-delete', [CustomerController::class, 'softDelete']);
         Route::post('/{id}/restore', [CustomerController::class, 'restore']);
+    });
+
+    // Customer Group endpoints (struktural grouping)
+    Route::prefix('customer-groups')->group(function () {
+        Route::get('/', [CustomerGroupController::class, 'index']);
+        Route::post('/', [CustomerGroupController::class, 'store']);
+        Route::get('/grouping-data', [CustomerGroupController::class, 'groupingData']);
+        Route::get('/available-customers', [CustomerGroupController::class, 'availableCustomers']);
+        Route::put('/{id}', [CustomerGroupController::class, 'update']);
+        Route::delete('/{id}', [CustomerGroupController::class, 'destroy']);
+        Route::post('/{id}/members', [CustomerGroupController::class, 'addMember']);
+        Route::delete('/{id}/members/{customerId}', [CustomerGroupController::class, 'removeMember']);
     });
 
     // Customer Basic Data endpoints
@@ -509,6 +523,7 @@ Route::middleware(['web'])->group(function () {
         // Import
         Route::post('/import/employees', [AdminBackupController::class, 'importEmployees']);
         Route::post('/import/customers', [AdminBackupController::class, 'importCustomers']);
+        Route::post('/import/tickets',   [AdminBackupController::class, 'importTickets']);
         Route::post('/import/tickets/zip', [TicketMigrationController::class, 'importZip']);
         Route::post('/import/tickets/from-api', [TicketMigrationController::class, 'importFromApi']);
 

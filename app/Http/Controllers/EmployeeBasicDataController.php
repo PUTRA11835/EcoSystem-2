@@ -62,6 +62,7 @@ class EmployeeBasicDataController extends Controller
                         'authorization_group' => null,
                         'home_base' => null,
                         'grade' => null,
+                        'employee_type' => null,
                         'block' => false,
                         'deletion_flag' => false,
                         'created_at' => null,
@@ -194,6 +195,8 @@ class EmployeeBasicDataController extends Controller
             // Prepare data
             $basicDataInput = $request->all();
             $basicDataInput['employee_id'] = $employeeId;
+            // Internal/External diturunkan dari home_base ("Others" → External).
+            $basicDataInput['employee_type'] = EmployeeBasicData::deriveEmployeeType($basicDataInput['home_base'] ?? null);
             
             // Auto-generate search_term_1 and search_term_2 if not provided
             if (empty($basicDataInput['search_term_1']) && !empty($basicDataInput['first_name'])) {
@@ -347,6 +350,11 @@ class EmployeeBasicDataController extends Controller
             }
             if (isset($updateData['last_name'])) {
                 $updateData['search_term_2'] = strtoupper($updateData['last_name']);
+            }
+
+            // Bila home_base ikut diupdate, sinkronkan employee_type ("Others" → External).
+            if (array_key_exists('home_base', $updateData)) {
+                $updateData['employee_type'] = EmployeeBasicData::deriveEmployeeType($updateData['home_base']);
             }
 
             // Set last changed info dengan ECI
