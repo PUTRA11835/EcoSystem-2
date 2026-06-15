@@ -47,9 +47,7 @@ class AuthController extends Controller
                 'ea.cell_phone as phone_number',
                 'eb.position',
                 'eb.employee_subgroup as department',
-                'eb.employee_type',
-                'r.id as role_id',
-                'r.name as role_name'
+                'eb.employee_type'
             )
             ->first();
 

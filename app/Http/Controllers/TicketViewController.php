@@ -18,28 +18,7 @@ class TicketViewController extends Controller
      */
     private function getUserObject(): ?SessionUser
     {
-        $sessionUser = session('user');
-
-        if (!$sessionUser) {
-            return null;
-        }
-
-        // Convert array to object for Blade compatibility
-        $user = new \stdClass();
-        $user->id = $sessionUser['id'] ?? null;
-        $user->name = $sessionUser['name'] ?? $sessionUser['email'] ?? 'Unknown';
-        $user->email = $sessionUser['email'] ?? null;
-        $user->type = $sessionUser['type'] ?? null;
-
-        // Create role object
-        $user->role = new \stdClass();
-        $user->role->role_id = (int) ($sessionUser['role']['id'] ?? 0);
-        $user->role->role_name = $sessionUser['role']['name'] ?? 'Unknown';
-
-        $user->eci           = $sessionUser['eci'] ?? null;
-        $user->employee_type = $sessionUser['employee_type'] ?? 'Internal';
-
-        return $user;
+        return SessionUser::fromSession(session('user'));
     }
 
     /**

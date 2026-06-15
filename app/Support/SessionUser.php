@@ -22,19 +22,24 @@ class SessionUser
     /** Semua role lengkap [['id' => ..., 'name' => ...], ...] */
     public array $roles;
 
+    public ?string $eci;
+    public string  $employee_type;
+
     public static function fromSession(?array $sessionUser): ?self
     {
         if (!$sessionUser) {
             return null;
         }
 
-        $user           = new self();
-        $user->id       = (int) ($sessionUser['id'] ?? 0);
-        $user->name     = $sessionUser['name'] ?? $sessionUser['email'] ?? 'Unknown';
-        $user->email    = $sessionUser['email'] ?? '';
-        $user->type     = $sessionUser['type'] ?? 'employee';
-        $user->role_ids = array_map('intval', $sessionUser['role_ids'] ?? []);
-        $user->roles    = $sessionUser['roles'] ?? [];
+        $user                = new self();
+        $user->id            = (int) ($sessionUser['id'] ?? 0);
+        $user->name          = $sessionUser['name'] ?? $sessionUser['email'] ?? 'Unknown';
+        $user->email         = $sessionUser['email'] ?? '';
+        $user->type          = $sessionUser['type'] ?? 'employee';
+        $user->role_ids      = array_map('intval', $sessionUser['role_ids'] ?? []);
+        $user->roles         = $sessionUser['roles'] ?? [];
+        $user->eci           = $sessionUser['eci'] ?? null;
+        $user->employee_type = $sessionUser['employee_type'] ?? 'Internal';
 
         // Backward compat: primary role object
         $user->role          = new \stdClass();
