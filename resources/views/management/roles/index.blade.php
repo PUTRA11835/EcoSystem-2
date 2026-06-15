@@ -395,10 +395,27 @@ function filterMenuRows() {
 async function toggleMenuAccess(menuId, checkbox) {
     const key = `${currentRoleId}-${menuId}`;
     if (savingMenu[key]) { checkbox.checked = !checkbox.checked; return; }
-    savingMenu[key] = true;
-    checkbox.disabled = true;
 
     const grant = checkbox.checked;
+    const menuName = checkbox.title || 'menu ini';
+    const roleName = document.getElementById('menuAccessTitle').textContent.replace('Menu Access — ', '');
+
+    if (grant) {
+        const confirmed = confirm(`Berikan akses "${menuName}" ke role "${roleName}"?`);
+        if (!confirmed) {
+            checkbox.checked = false;
+            return;
+        }
+    } else {
+        const confirmed = confirm(`Cabut akses "${menuName}" dari role "${roleName}"?`);
+        if (!confirmed) {
+            checkbox.checked = true;
+            return;
+        }
+    }
+
+    savingMenu[key] = true;
+    checkbox.disabled = true;
     let ok = false;
     try {
         if (grant) {

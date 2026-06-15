@@ -359,7 +359,7 @@
 </div>
 
 {{-- ── Create Ticket Modal (Helpdesk) ────────────────────────────────────── --}}
-@if($user->hasAnyRole(\App\Enums\RoleId::HELPDESK_GROUP))
+@if(!$user->hasRole(\App\Enums\RoleId::EC_ADMINISTRATOR->value) && $can('ui.ticket.btn-create'))
 <div id="helpdeskCreateModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
     <div class="min-h-full flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl">

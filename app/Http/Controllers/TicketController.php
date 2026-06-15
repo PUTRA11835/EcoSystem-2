@@ -747,10 +747,22 @@ class TicketController extends Controller
                     ->get();
 
             } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid role'
-                ], 403);
+                // Fallback for roles configured via web (not hardcoded here):
+                // show tickets where the user is PIC or member.
+                $employeeId = $sessionUser['id'];
+                Log::info('My Tickets - Fallback for role', [
+                    'employee_id' => $employeeId,
+                    'role_id'     => $sessionUser['role']['id'] ?? null,
+                ]);
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->where(function ($query) use ($employeeId) {
+                        $query->where('ticket.ticket_lead_id', $employeeId)
+                            ->orWhereHas('members', function ($inner) use ($employeeId) {
+                                $inner->where('ticket_member.employee_id', $employeeId);
+                            });
+                    })
+                    ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
+                    ->get();
             }
 
             Log::info('My Tickets fetched', ['count' => $tickets->count()]);

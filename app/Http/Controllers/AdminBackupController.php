@@ -533,7 +533,14 @@ class AdminBackupController extends Controller
         $bom = fread($handle, 3);
         if ($bom !== "\xEF\xBB\xBF") rewind($handle);
 
-        $rawHeaders = fgetcsv($handle);
+        // Auto-detect delimiter: Excel Indonesia sering export dengan ";" bukan ","
+        $firstLine = fgets($handle);
+        rewind($handle);
+        if ($bom !== "\xEF\xBB\xBF") rewind($handle);
+        else fseek($handle, 3);
+        $delimiter = substr_count($firstLine, ';') >= substr_count($firstLine, ',') ? ';' : ',';
+
+        $rawHeaders = fgetcsv($handle, 0, $delimiter);
         if (!$rawHeaders) {
             fclose($handle);
             return response()->json(['success' => false, 'message' => 'File CSV kosong atau tidak valid'], 422);
@@ -594,7 +601,7 @@ class AdminBackupController extends Controller
         $colIndex = $buildColIndex($rawHeaders);
         $headerAttempts = 0;
         while (!isset($colIndex['eci']) && $headerAttempts < 5) {
-            $next = fgetcsv($handle);
+            $next = fgetcsv($handle, 0, $delimiter);
             if ($next === false) break;
             $headerAttempts++;
             $colIndex = $buildColIndex($next);
@@ -640,7 +647,7 @@ class AdminBackupController extends Controller
         $errors   = [];
         $rowNum   = 1;
 
-        while (($row = fgetcsv($handle)) !== false) {
+        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
             $rowNum++;
             if (count($row) === 1 && trim($row[0]) === '') continue;
 
@@ -796,8 +803,6 @@ class AdminBackupController extends Controller
                 if ($existing) {
                     // ── UPDATE: full name sama → update field-fieldnya ──
                     $empUpdate = ['is_active' => $isActive, 'updated_at' => now()];
-                    DB::table('employee')->where('eci', $eci)->update($empUpdate);
-                    if ($roleId) $empUpdate['role_id'] = $roleId;
 
                     // ECI dari CSV adalah format terbaru & menjadi acuan ke depan →
                     // timpa ECI lama bila berbeda. Username login (auth_users) ikut
