@@ -18,7 +18,6 @@ class Employee extends Model
     protected $fillable = [
         'eci',
         'is_active',
-        'modules',
         'monthly_capacity_md',
     ];
 

@@ -38,6 +38,8 @@ use App\Http\Controllers\AdminJobController;
 use App\Http\Controllers\AdminBackupController;
 use App\Http\Controllers\AdminNotificationSoundController;
 use App\Http\Controllers\TicketMigrationController;
+use App\Http\Controllers\ModuleController;
+use App\Http\Controllers\EmployeeModuleController;
 
 // ==================== HEALTH CHECK (public, no auth) ====================
 Route::get('/health', function () {
@@ -182,6 +184,23 @@ Route::middleware(['web'])->group(function () {
         Route::get('/', [EmployeeAttachmentController::class, 'index']);
         Route::post('/', [EmployeeAttachmentController::class, 'store']);
         Route::delete('/{attachmentId}', [EmployeeAttachmentController::class, 'destroy']);
+    });
+
+    // Employee Module endpoints
+    Route::prefix('employees/{employeeId}/modules')->group(function () {
+        Route::get('/', [EmployeeModuleController::class, 'index']);
+        Route::post('/sync', [EmployeeModuleController::class, 'sync']);
+        Route::post('/attach', [EmployeeModuleController::class, 'attach']);
+        Route::delete('/{moduleId}', [EmployeeModuleController::class, 'detach']);
+    });
+
+    // Module master data endpoints
+    Route::prefix('modules')->group(function () {
+        Route::get('/', [ModuleController::class, 'index']);
+        Route::post('/', [ModuleController::class, 'store']);
+        Route::get('/{id}', [ModuleController::class, 'show']);
+        Route::put('/{id}', [ModuleController::class, 'update']);
+        Route::delete('/{id}', [ModuleController::class, 'destroy']);
     });
 
 // ==================== CUSTOMER ROUTES ====================

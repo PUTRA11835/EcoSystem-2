@@ -48,7 +48,16 @@
                 <!-- Module/Course (for Education, Certification, Training) -->
                 <div class="col-span-2" id="moduleField">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Module/Course</label>
-                    <input type="text" id="qualificationModule" placeholder="e.g., Computer Science" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                    <div class="custom-dd relative">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select Module</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="qualificationModuleId" value="">
+                        <div id="moduleDropdownPanel" class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-50 transition-colors" data-value="">Select Module</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Language (for Language type) -->
@@ -257,6 +266,34 @@
     let selectedQualificationId = null;
     let deleteQualificationId = null;
 
+    async function loadModuleDropdown() {
+        try {
+            const res = await fetch('/api/modules?is_active=true', { credentials: 'same-origin' });
+            const data = await res.json();
+            const panel = document.getElementById('moduleDropdownPanel');
+            if (!data.success) return;
+            panel.innerHTML = `<button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-50 transition-colors" data-value="">Select Module</button>`;
+            data.data.forEach(m => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors';
+                btn.dataset.value = m.id;
+                btn.textContent = m.name;
+                panel.appendChild(btn);
+            });
+        } catch (e) {
+            console.error('Failed to load modules', e);
+        }
+    }
+
+    function setModuleDropdownValue(moduleId, moduleName) {
+        document.getElementById('qualificationModuleId').value = moduleId || '';
+        const btn = document.querySelector('#moduleField .custom-dd-btn .custom-dd-label');
+        if (btn) btn.textContent = moduleName || 'Select Module';
+        if (!moduleName) btn.classList.add('text-gray-500');
+        else btn.classList.remove('text-gray-500');
+    }
+
     /**
      * Toggle fields based on qualification type
      */
@@ -316,6 +353,7 @@
         
         tbody.innerHTML = qualifications.map(qual => {
             const moduleOrLanguage = qual.module || qual.language || '-';
+            // qual.module sudah berupa nama (dari relasi via getFullInformation)
             const validity = formatValidity(qual.valid_from, qual.valid_to);
             const statusBadge = getStatusBadge(qual);
 
@@ -446,7 +484,7 @@
                 setCustomDropdownValue('qualificationType', qual.qualification_type || '');
                 toggleQualificationFields(); // Toggle fields based on type
 
-                document.getElementById('qualificationModule').value = qual.module || '';
+                setModuleDropdownValue(qual.module_id || '', qual.module || '');
                 setCustomDropdownValue('qualificationLanguage', qual.language || '');
                 document.getElementById('qualificationLevel').value = qual.qualification_level || '';
                 document.getElementById('qualificationFirstYear').value = qual.first_year || '';
@@ -473,7 +511,7 @@
     function clearQualificationForm() {
         document.getElementById('editQualificationId').value = '';
         setCustomDropdownValue('qualificationType', '');
-        document.getElementById('qualificationModule').value = '';
+        setModuleDropdownValue('', '');
         setCustomDropdownValue('qualificationLanguage', '');
         document.getElementById('qualificationLevel').value = '';
         document.getElementById('qualificationFirstYear').value = '';
@@ -516,7 +554,7 @@
 
         const qualificationData = {
             qualification_type: qualificationType,
-            module: document.getElementById('qualificationModule').value || null,
+            module_id: document.getElementById('qualificationModuleId').value ? parseInt(document.getElementById('qualificationModuleId').value) : null,
             language: document.getElementById('qualificationLanguage').value || null,
             qualification_level: document.getElementById('qualificationLevel').value || null,
             first_year: document.getElementById('qualificationFirstYear').value || null,
@@ -659,7 +697,8 @@
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
         loadQualifications();
-        toggleQualificationFields(); // Initialize field visibility
+        loadModuleDropdown();
+        toggleQualificationFields();
     });
 
 

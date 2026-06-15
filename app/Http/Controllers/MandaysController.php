@@ -101,13 +101,12 @@ class MandaysController extends Controller
             ->unique()
             ->values();
 
-        $modules = EmployeeQualification::whereIn('employee_id', $employeeIds)
-            ->whereNotNull('module')
-            ->where('module', '<>', '')
-            ->distinct()
-            ->pluck('module')
-            ->sort()
-            ->values();
+        $modules = \App\Models\Module::whereHas('employees', function ($q) use ($employeeIds) {
+                $q->whereIn('employee_qualification.employee_id', $employeeIds);
+            })
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
         return response()->json(['success' => true, 'data' => $modules]);
     }

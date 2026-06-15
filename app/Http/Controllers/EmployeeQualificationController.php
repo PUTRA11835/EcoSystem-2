@@ -22,10 +22,14 @@ class EmployeeQualificationController extends Controller
             ]);
 
             $employee = Employee::findOrFail($employeeId);
-            $qualifications = EmployeeQualification::where('employee_id', $employeeId)
+            $qualifications = EmployeeQualification::with('module')
+                ->where('employee_id', $employeeId)
                 ->orderBy('first_year', 'desc')
                 ->orderBy('qualification_id', 'desc')
-                ->get();
+                ->get()
+                ->map(fn($q) => array_merge($q->toArray(), [
+                    'module' => $q->module?->name,
+                ]));
 
             if ($qualifications->isEmpty()) {
                 Log::info('No qualification records found for employee', [
@@ -87,7 +91,8 @@ class EmployeeQualificationController extends Controller
             ]);
 
             $employee = Employee::findOrFail($employeeId);
-            $qualification = EmployeeQualification::where('employee_id', $employeeId)
+            $qualification = EmployeeQualification::with('module')
+                ->where('employee_id', $employeeId)
                 ->where('qualification_id', $qualificationId)
                 ->first();
 
@@ -108,10 +113,14 @@ class EmployeeQualificationController extends Controller
                 'qualification_id' => $qualificationId
             ]);
 
+            $data = array_merge($qualification->toArray(), [
+                'module' => $qualification->module?->name,
+            ]);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Qualification record retrieved successfully',
-                'data' => $qualification
+                'data' => $data,
             ]);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
@@ -152,25 +161,26 @@ class EmployeeQualificationController extends Controller
         $validator = Validator::make($request->all(), [
             // 🎯 Qualification Details
             'qualification_type' => 'required|string|max:50',
-            'module' => 'nullable|string|max:255',
+            'module_id' => 'nullable|integer|exists:modules,id',
             'language' => 'nullable|string|max:100',
             'qualification_level' => 'nullable|string|max:100',
             'first_year' => 'nullable|string|max:50',
-            
+
             // 📋 Flags
             'certified' => 'boolean',
             'dpm' => 'boolean',
             'dsm' => 'boolean',
-            
+
             // ⏳ Validity Period
             'valid_from' => 'nullable|date',
             'valid_to' => 'nullable|date|after_or_equal:valid_from',
-            
+
             // 📎 Attachments
             'verify_link' => 'nullable|url|max:500',
             'drive_link' => 'nullable|url|max:500',
         ], [
             'qualification_type.required' => 'Qualification type is required',
+            'module_id.exists' => 'Module not found',
             'valid_to.after_or_equal' => 'Valid to date must be after or equal to valid from date',
             'verify_link.url' => 'Verify link must be a valid URL',
             'drive_link.url' => 'Drive link must be a valid URL',
@@ -196,7 +206,7 @@ class EmployeeQualificationController extends Controller
 
             // Prepare data
             $qualificationInput = $request->only([
-                'qualification_type', 'module', 'language', 'qualification_level',
+                'qualification_type', 'module_id', 'language', 'qualification_level',
                 'first_year', 'certified', 'dpm', 'dsm',
                 'valid_from', 'valid_to',
                 'verify_link', 'drive_link'
@@ -273,25 +283,26 @@ class EmployeeQualificationController extends Controller
         $validator = Validator::make($request->all(), [
             // 🎯 Qualification Details
             'qualification_type' => 'required|string|max:50',
-            'module' => 'nullable|string|max:255',
+            'module_id' => 'nullable|integer|exists:modules,id',
             'language' => 'nullable|string|max:100',
             'qualification_level' => 'nullable|string|max:100',
             'first_year' => 'nullable|string|max:50',
-            
+
             // 📋 Flags
             'certified' => 'boolean',
             'dpm' => 'boolean',
             'dsm' => 'boolean',
-            
+
             // ⏳ Validity Period
             'valid_from' => 'nullable|date',
             'valid_to' => 'nullable|date|after_or_equal:valid_from',
-            
+
             // 📎 Attachments
             'verify_link' => 'nullable|url|max:500',
             'drive_link' => 'nullable|url|max:500',
         ], [
             'qualification_type.required' => 'Qualification type is required',
+            'module_id.exists' => 'Module not found',
             'valid_to.after_or_equal' => 'Valid to date must be after or equal to valid from date',
             'verify_link.url' => 'Verify link must be a valid URL',
             'drive_link.url' => 'Drive link must be a valid URL',
@@ -333,7 +344,7 @@ class EmployeeQualificationController extends Controller
 
             // Prepare update data
             $updateData = $request->only([
-                'qualification_type', 'module', 'language', 'qualification_level',
+                'qualification_type', 'module_id', 'language', 'qualification_level',
                 'first_year', 'certified', 'dpm', 'dsm',
                 'valid_from', 'valid_to',
                 'verify_link', 'drive_link'
@@ -424,7 +435,7 @@ class EmployeeQualificationController extends Controller
             }
 
             $qualificationType = $qualification->qualification_type;
-            $moduleOrLanguage = $qualification->module ?? $qualification->language;
+            $moduleOrLanguage = $qualification->module?->name ?? $qualification->language;
             $qualification->delete();
 
             DB::commit();

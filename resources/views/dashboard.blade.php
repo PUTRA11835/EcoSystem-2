@@ -690,6 +690,79 @@
                             <span class="nav-text text-sm">Akses Menu</span>
                         </a>
                         @endif
+                        @if($can('management.employee'))
+                        <div class="mt-1">
+                            <button onclick="toggleMasterMgmtDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ Request::is('management/employee*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-users text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm flex-1">Employee</span>
+                                <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ Request::is('management/employee*') ? 'rotate-180' : '' }}" id="masterMgmtChevron"></i>
+                            </button>
+                            <div id="masterMgmtDropdown" class="nav-text {{ Request::is('management/employee*') ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
+                                @if($can('management.employee.basic-data'))
+                                <a href="{{ route('management.employee.basic-data.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/basic-data*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-id-card text-xs"></i></span>
+                                    <span class="nav-text text-xs">Basic Data</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.address'))
+                                <a href="{{ route('management.employee.address.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/address*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-map-marker-alt text-xs"></i></span>
+                                    <span class="nav-text text-xs">Address</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.identification'))
+                                <a href="{{ route('management.employee.identification.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/identification*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-fingerprint text-xs"></i></span>
+                                    <span class="nav-text text-xs">Identification</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.family'))
+                                <a href="{{ route('management.employee.family.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/family*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-users text-xs"></i></span>
+                                    <span class="nav-text text-xs">Family</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.education'))
+                                <a href="{{ route('management.employee.education.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/education*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-graduation-cap text-xs"></i></span>
+                                    <span class="nav-text text-xs">Education</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.qualification'))
+                                <a href="{{ route('management.employee.qualification.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/qualification*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-certificate text-xs"></i></span>
+                                    <span class="nav-text text-xs">Qualification</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.contract'))
+                                <a href="{{ route('management.employee.contract.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/contract*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-file-contract text-xs"></i></span>
+                                    <span class="nav-text text-xs">Contract</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.bank'))
+                                <a href="{{ route('management.employee.bank.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/bank*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-university text-xs"></i></span>
+                                    <span class="nav-text text-xs">Bank Account</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.payment'))
+                                <a href="{{ route('management.employee.payment.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/payment*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-money-bill text-xs"></i></span>
+                                    <span class="nav-text text-xs">Basic Payment</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.attachment'))
+                                <a href="{{ route('management.employee.attachment.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/attachment*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-paperclip text-xs"></i></span>
+                                    <span class="nav-text text-xs">Attachment</span>
+                                </a>
+                                @endif
+                            </div>
+                        </div>
+                        @endif
                     </div>
                 </div>
                 @endif
@@ -907,6 +980,15 @@
         function toggleManajemenDropdown() {
             const submenu = document.getElementById('manajemenDropdown');
             const chevron = document.getElementById('manajemenChevron');
+            if (!submenu) return;
+            const isOpen = !submenu.classList.contains('hidden');
+            submenu.classList.toggle('hidden', isOpen);
+            if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
+        }
+
+        function toggleMasterMgmtDropdown() {
+            const submenu = document.getElementById('masterMgmtDropdown');
+            const chevron = document.getElementById('masterMgmtChevron');
             if (!submenu) return;
             const isOpen = !submenu.classList.contains('hidden');
             submenu.classList.toggle('hidden', isOpen);

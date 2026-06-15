@@ -138,10 +138,10 @@ class TaskController extends Controller
             ->leftJoin('employee_basic_data as ebd', 'ebd.employee_id', '=', 'e.employee_id')
             ->leftJoinSub(
                 DB::table('employee_qualification')
-                    ->whereNotNull('module')
-                    ->where('module', '!=', '')
-                    ->select('employee_id', DB::raw("GROUP_CONCAT(DISTINCT module ORDER BY module SEPARATOR ', ') as qualification_modules"))
-                    ->groupBy('employee_id'),
+                    ->join('modules', 'modules.id', '=', 'employee_qualification.module_id')
+                    ->where('modules.is_active', true)
+                    ->select('employee_qualification.employee_id', DB::raw("GROUP_CONCAT(DISTINCT modules.name ORDER BY modules.name SEPARATOR ', ') as qualification_modules"))
+                    ->groupBy('employee_qualification.employee_id'),
                 'eq',
                 'eq.employee_id',
                 '=',
