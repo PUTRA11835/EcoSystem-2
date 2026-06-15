@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\Employee;
@@ -30,7 +31,7 @@ class ConsultantWorkloadController extends Controller
 
             $consultants = Employee::with(['basicData', 'roles'])
                 ->where('is_active', true)
-                ->where('role_id', 2) // Delivery Support User only
+                ->withAnyRole([RoleId::DELIVERY_SUPPORT_USER->value])
                 ->get();
 
             // Pre-load weighted progress per ticket dari consultant_mandays_detail

@@ -4,7 +4,7 @@
 @section('page-subtitle', 'Manage and track all support requests')
 @section('content')
 {{-- Quill.js (untuk editor pesan di modal Create Ticket Helpdesk) --}}
-@if(in_array($user->role->role_id ?? 0, \App\Enums\RoleId::HELPDESK_GROUP, true))
+@if($user->hasAnyRole(\App\Enums\RoleId::HELPDESK_GROUP))
 <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 @endif
@@ -14,14 +14,14 @@
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4 mb-5">
     <div class="flex items-center gap-2.5 flex-wrap">
         {{-- View toggles --}}
-        @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value)
+        @if($user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
             <button onclick="toggleView('my')" id="btnViewMy" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">My Tickets</button>
             <button onclick="toggleView('all')" id="btnViewAll" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">All Tickets</button>
         </div>
         @endif
 
-        @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_HELPDESK->value)
+        @if($user->hasRole(\App\Enums\RoleId::DELIVERY_HELPDESK->value))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
             <button onclick="toggleView('all')" id="btnViewAllHd" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
                 <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
@@ -32,7 +32,7 @@
         </div>
         @endif
 
-        @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value)
+        @if($user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
             <button onclick="toggleView('all')" id="btnViewAllSm" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
                 <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
@@ -43,14 +43,14 @@
         </div>
         @endif
 
-        @if($user->role->role_id === \App\Enums\RoleId::EC_ADMINISTRATOR->value || in_array($user->role->role_id, \App\Enums\RoleId::HELPDESK_GROUP, true))
-        <button onclick="{{ $user->role->role_id === \App\Enums\RoleId::EC_ADMINISTRATOR->value ? 'openCreateTicketModal()' : 'openHelpdeskCreateModal()' }}"
+        @if($can('ui.ticket.btn-create'))
+        <button onclick="{{ $user->hasRole(\App\Enums\RoleId::EC_ADMINISTRATOR->value) ? 'openCreateTicketModal()' : 'openHelpdeskCreateModal()' }}"
             class="inline-flex items-center gap-1.5 px-3.5 py-1.5 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">
             <i class="fas fa-plus text-xs"></i>Create Ticket
         </button>
         @endif
 
-        @if(in_array($user->role->role_id, [\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value, \App\Enums\RoleId::DELIVERY_HELPDESK->value]))
+        @if($user->hasAnyRole([\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value, \App\Enums\RoleId::DELIVERY_HELPDESK->value]))
         <a href="{{ route('ticket.export') }}"
            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all">
             <i class="fas fa-file-excel text-green-600 text-xs"></i>Export
@@ -359,7 +359,7 @@
 </div>
 
 {{-- ── Create Ticket Modal (Helpdesk) ────────────────────────────────────── --}}
-@if(in_array($user->role->role_id, \App\Enums\RoleId::HELPDESK_GROUP, true))
+@if($user->hasAnyRole(\App\Enums\RoleId::HELPDESK_GROUP))
 <div id="helpdeskCreateModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
     <div class="min-h-full flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
@@ -518,7 +518,7 @@
 </div>
 
 <!-- Create Ticket Modal (Admin) -->
-@if($user->role->role_id === \App\Enums\RoleId::EC_ADMINISTRATOR->value)
+@if($user->hasRole(\App\Enums\RoleId::EC_ADMINISTRATOR->value))
 <div id="createTicketModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
     <div class="min-h-full flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
@@ -745,7 +745,8 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     let currentPage = 1;
     let totalItems = 0;
     let totalPages = 0;
-    let userRole                      = {{ $user->role->role_id ?? 0 }};
+    let userRoleIds                   = {!! json_encode($user->role_ids) !!};
+    let userRole                      = userRoleIds[0] ?? 0;
     let currentEmployeeId             = {{ $currentEmployeeId ?? 'null' }};
     const EC_ADMINISTRATOR_ROLE       = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
     const DELIVERY_SUPPORT_USER_ROLE  = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};

@@ -7,6 +7,7 @@ use App\Models\Ticket;
 use App\Models\Customer;
 use App\Models\CustomerMandays;
 use App\Models\TicketSlaPause;
+use App\Support\SessionUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -15,27 +16,9 @@ class TicketViewController extends Controller
     /**
      * Convert session user array to object format for Blade views
      */
-    private function getUserObject()
+    private function getUserObject(): ?SessionUser
     {
-        $sessionUser = session('user');
-
-        if (!$sessionUser) {
-            return null;
-        }
-
-        // Convert array to object for Blade compatibility
-        $user = new \stdClass();
-        $user->id = $sessionUser['id'] ?? null;
-        $user->name = $sessionUser['name'] ?? $sessionUser['email'] ?? 'Unknown';
-        $user->email = $sessionUser['email'] ?? null;
-        $user->type = $sessionUser['type'] ?? null;
-
-        // Create role object
-        $user->role = new \stdClass();
-        $user->role->role_id = (int) ($sessionUser['role']['id'] ?? 0);
-        $user->role->role_name = $sessionUser['role']['name'] ?? 'Unknown';
-
-        return $user;
+        return SessionUser::fromSession(session('user'));
     }
 
     /**
@@ -51,7 +34,7 @@ class TicketViewController extends Controller
 
         // Get customers for Admin create ticket dropdown
         $customers = [];
-        if ($user->role->role_id === RoleId::EC_ADMINISTRATOR->value) {
+        if ($user->hasRole(RoleId::EC_ADMINISTRATOR->value)) {
             $customers = Customer::with('basicData')
                 ->where('is_active', true)
                 ->get()

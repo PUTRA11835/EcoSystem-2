@@ -293,9 +293,10 @@ class DashboardController extends Controller
             ->first();
 
         // Distribusi per role
-        $byRole = DB::table('employee as e')
-            ->join('employee_role as r', 'e.role_id', '=', 'r.id')
-            ->selectRaw('r.name as role_name, COUNT(*) as count')
+        $byRole = DB::table('employee_role_assignment as era')
+            ->join('employee as e', 'era.employee_id', '=', 'e.employee_id')
+            ->join('employee_role as r', 'era.role_id', '=', 'r.id')
+            ->selectRaw('r.name as role_name, COUNT(DISTINCT e.employee_id) as count')
             ->where('e.is_active', true)
             ->groupBy('r.id', 'r.name')
             ->orderByDesc('count')

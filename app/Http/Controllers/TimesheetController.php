@@ -881,7 +881,7 @@ class TimesheetController extends Controller
             }
 
             // Create notification for every active Head with the target role
-            $heads = Employee::where('role_id', $targetRole)->where('is_active', true)->get();
+            $heads = Employee::withRole($targetRole)->where('is_active', true)->get();
 
             foreach ($heads as $head) {
                 Notification::create([

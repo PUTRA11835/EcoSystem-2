@@ -4,6 +4,9 @@
 @section('page-title', 'Employee Management')
 
 @section('content')
+<script>
+const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }};
+</script>
 <div class="bg-white rounded-xl p-6 shadow-sm">
     <!-- Page Header -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b-2 border-gray-100">
@@ -51,9 +54,11 @@
     <div class="mt-6">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
             <h3 class="text-lg font-semibold text-gray-900">Employee List</h3>
+            @if($can('master.employee.create'))
             <button onclick="openCreateModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Create Employee
             </button>
+            @endif
         </div>
 
         <div class="overflow-x-auto border border-gray-200 rounded-lg">
@@ -629,13 +634,13 @@
                     </span>
                 </td>
                 <td class="px-4 py-3.5 text-sm">
-                    <div class="action-buttons" onclick="event.stopPropagation()">
+                    ${canEmployeeAction ? `<div class="action-buttons" onclick="event.stopPropagation()">
                         <button onclick="openEmpMenu(event, ${emp.id})" class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 transition-all">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
                             </svg>
                         </button>
-                    </div>
+                    </div>` : ''}
                 </td>
             </tr>
         `;
@@ -1237,6 +1242,7 @@
 </script>
 
 {{-- Floating action menu (fixed position to avoid table stacking context) --}}
+@if($can('master.employee.action'))
 <div id="floatingEmpMenu" class="hidden fixed z-[9999] w-44 bg-white border border-gray-200 rounded-lg shadow-xl py-1" onclick="event.stopPropagation()">
     <button onclick="empMenuChangePassword()" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-all">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-blue-500">
@@ -1258,5 +1264,6 @@
         Delete
     </button>
 </div>
+@endif
 
 @endsection

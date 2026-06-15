@@ -47,7 +47,7 @@
                 <span id="tsBadgeLabel">—</span>
                 <span id="tsBadgeStatus" class="font-semibold"></span>
             </div>
-            @if(!$isApprovalMode && !$isHoSMode)
+            @if(!$isApprovalMode && !$isHoSMode && $can('timesheet.create'))
             <button onclick="openTimesheetModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Create Timesheet
             </button>
@@ -369,10 +369,12 @@
             @else
             <p class="text-gray-700 font-semibold mb-1">No Timesheets Found</p>
             <p class="text-gray-400 text-xs mb-5">Try adjusting your filters or create a new timesheet</p>
+            @if($can('timesheet.create'))
             <button onclick="openTimesheetModal()"
                 class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-xl hover:opacity-90 transition-all shadow-sm">
                 <i class="fas fa-plus text-xs"></i>Create Timesheet
             </button>
+            @endif
             @endif
         </div>
     </div>

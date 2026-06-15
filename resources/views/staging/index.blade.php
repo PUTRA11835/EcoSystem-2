@@ -4,6 +4,10 @@
 @section('page-subtitle', 'Tickets submitted by customers awaiting approval')
 
 @section('content')
+<script>
+const canApproveStaging = {{ $can('staging.approve') ? 'true' : 'false' }};
+const canRejectStaging  = {{ $can('staging.reject')  ? 'true' : 'false' }};
+</script>
 
 {{-- ── Header ────────────────────────────────────────────────────────────────── --}}
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
@@ -688,14 +692,14 @@ function renderFooter(s) {
     const footer = document.getElementById('modalFooter');
     if (s.status === 'unvalidated') {
         footer.innerHTML = `
-            <button onclick="showRejectInput(${s.id})" id="btnReject"
+            ${canRejectStaging ? `<button onclick="showRejectInput(${s.id})" id="btnReject"
                     class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                 Reject
-            </button>
-            <button onclick="submitApprove(${s.id})" id="btnApprove"
+            </button>` : ''}
+            ${canApproveStaging ? `<button onclick="submitApprove(${s.id})" id="btnApprove"
                     class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Approve
-            </button>`;
+            </button>` : ''}`;
     } else {
         footer.innerHTML = `
             <button onclick="closeModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Close</button>`;

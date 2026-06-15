@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\EmailController;
 use App\Models\Customer;
+use App\Models\Employee;
 use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
@@ -633,27 +634,15 @@ class TicketMessageController extends Controller
             // Collect all recipient employee IDs (unique, exclude sender)
             $recipientIds = collect($mentionedEmployeeIds)->map(fn ($id) => (int) $id)->toArray();
 
-            // Fan-out role mentions → individual employees
-            // Query both sources: employee.role_id (primary) and employee_role_assignment (pivot).
-            // The pivot is only populated at migration time; employees added/role-changed afterwards
-            // only appear in employee.role_id — so both must be checked to avoid silent misses.
+            // Fan-out role mentions → individual employees via assignment pivot
             if (!empty($mentionedRoleIds)) {
-                $byPrimaryRole = DB::table('employee as e')
-                    ->whereIn('e.role_id', $mentionedRoleIds)
-                    ->where('e.is_active', true)
-                    ->pluck('e.employee_id')
+                $byRole = Employee::withAnyRole($mentionedRoleIds)
+                    ->where('is_active', true)
+                    ->pluck('employee_id')
                     ->map(fn ($id) => (int) $id)
                     ->toArray();
 
-                $byPivot = DB::table('employee_role_assignment as era')
-                    ->join('employee as e', 'era.employee_id', '=', 'e.employee_id')
-                    ->whereIn('era.role_id', $mentionedRoleIds)
-                    ->where('e.is_active', true)
-                    ->pluck('era.employee_id')
-                    ->map(fn ($id) => (int) $id)
-                    ->toArray();
-
-                $recipientIds = array_merge($recipientIds, $byPrimaryRole, $byPivot);
+                $recipientIds = array_merge($recipientIds, $byRole);
             }
 
             $recipientIds = array_unique($recipientIds);

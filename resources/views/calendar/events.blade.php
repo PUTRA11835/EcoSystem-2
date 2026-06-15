@@ -11,9 +11,11 @@
             <h2 class="text-2xl font-bold text-gray-900">Events Calendar</h2>
             <p class="text-gray-600 mt-1">View and manage your events</p>
         </div>
+        @if($can('calendar.events.create'))
         <button onclick="openEventModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
             Create Event
         </button>
+        @endif
     </div>
 
     <!-- Calendar Controls & View Selector -->

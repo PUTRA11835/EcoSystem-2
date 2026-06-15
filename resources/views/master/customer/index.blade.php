@@ -61,9 +61,11 @@
                     </svg>
                     View Grouping
                 </a>
+                @if($can('master.customer.create'))
                 <button onclick="openCreateModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                     Create Customer
                 </button>
+                @endif
             </div>
         </div>
 

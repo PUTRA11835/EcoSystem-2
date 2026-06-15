@@ -6,6 +6,7 @@ use App\Enums\RoleId;
 use App\Exports\TicketExport;
 use App\Http\Controllers\EmailController;
 use App\Models\Customer;
+use App\Models\Employee;
 use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
@@ -1196,15 +1197,15 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
-        $pics = DB::table('employee')
-            ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
-            ->where('employee.role_id', RoleId::DELIVERY_SUPPORT_USER->value)
-            ->select(
-                'employee.employee_id',
-                DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as name")
-            )
-            ->orderBy('employee_basic_data.first_name')
-            ->get();
+        $pics = Employee::withRole(RoleId::DELIVERY_SUPPORT_USER->value)
+            ->with('basicData:employee_id,first_name,last_name')
+            ->get()
+            ->map(fn($e) => [
+                'employee_id' => $e->employee_id,
+                'name'        => trim(($e->basicData->first_name ?? '') . ' ' . ($e->basicData->last_name ?? '')),
+            ])
+            ->sortBy('name')
+            ->values();
 
         return response()->json(['success' => true, 'data' => $pics]);
     }

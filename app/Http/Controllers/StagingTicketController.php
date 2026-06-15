@@ -9,6 +9,7 @@ use App\Models\StagingTicket;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
 use App\Services\StagingTicketService;
+use App\Support\SessionUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -37,13 +38,11 @@ class StagingTicketController extends Controller
      */
     public function view(Request $request)
     {
-        $sessionUser = session('user');
-        $user = (object) [
-            'role' => (object) ['role_id' => $sessionUser['role']['id'] ?? 0],
-        ];
+        $user = SessionUser::fromSession(session('user'));
 
         // Admin, Helpdesk, dan Head of Support yang boleh akses
-        if (!in_array($user->role->role_id, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
+        $allowed = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP);
+        if (!$user || !$user->hasAnyRole($allowed)) {
             abort(403, 'Unauthorized');
         }
 
@@ -55,12 +54,10 @@ class StagingTicketController extends Controller
      */
     public function viewRejected(Request $request)
     {
-        $sessionUser = session('user');
-        $user = (object) [
-            'role' => (object) ['role_id' => $sessionUser['role']['id'] ?? 0],
-        ];
+        $user = SessionUser::fromSession(session('user'));
 
-        if (!in_array($user->role->role_id, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
+        $allowed = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP);
+        if (!$user || !$user->hasAnyRole($allowed)) {
             abort(403, 'Unauthorized');
         }
 

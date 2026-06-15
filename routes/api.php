@@ -517,6 +517,36 @@ Route::middleware(['web'])->group(function () {
     // Notification sounds list (accessible to all authenticated users)
     Route::get('/notification-sounds', [AdminNotificationSoundController::class, 'list']);
 
+    // ==================== ROLE & MENU MANAGEMENT ====================
+    Route::get('/my-menus', [\App\Http\Controllers\MenuController::class, 'getMyMenus']);
+
+    // Menu management
+    Route::get('/menus',                                            [\App\Http\Controllers\MenuController::class, 'index']);
+    Route::get('/menus/all',                                        [\App\Http\Controllers\MenuController::class, 'allWithPermissions']);
+    Route::get('/menus/with-roles',                                 [\App\Http\Controllers\MenuController::class, 'withRoles']);
+    Route::post('/menus',                                           [\App\Http\Controllers\MenuController::class, 'store']);
+    Route::put('/menus/{menuId}',                                   [\App\Http\Controllers\MenuController::class, 'update']);
+    Route::delete('/menus/{menuId}',                                [\App\Http\Controllers\MenuController::class, 'destroy']);
+    Route::put('/menus/{menuId}/roles/{roleId}',                    [\App\Http\Controllers\MenuController::class, 'updateRolePermission']);
+    Route::delete('/menus/{menuId}/roles/{roleId}',                 [\App\Http\Controllers\MenuController::class, 'removeRolePermission']);
+
+    // Role management
+    Route::get('/roles',                                            [\App\Http\Controllers\RoleController::class, 'index']);
+    Route::post('/roles',                                           [\App\Http\Controllers\RoleController::class, 'store']);
+    Route::get('/roles/{id}',                                       [\App\Http\Controllers\RoleController::class, 'show']);
+    Route::put('/roles/{id}',                                       [\App\Http\Controllers\RoleController::class, 'update']);
+    Route::delete('/roles/{id}',                                    [\App\Http\Controllers\RoleController::class, 'destroy']);
+    Route::get('/roles/{id}/permissions',                           [\App\Http\Controllers\RoleController::class, 'permissions']);
+    Route::put('/roles/{id}/permissions/{menuId}',                  [\App\Http\Controllers\RoleController::class, 'updatePermission']);
+    Route::delete('/roles/{id}/permissions/{menuId}',               [\App\Http\Controllers\RoleController::class, 'removePermission']);
+    Route::get('/roles/{id}/employees',                             [\App\Http\Controllers\RoleController::class, 'employees']);
+
+    // Employee ↔ Role assignment
+    Route::get('/employees/{employeeId}/roles',                     [\App\Http\Controllers\RoleController::class, 'employeeRoles']);
+    Route::post('/employees/{employeeId}/roles',                    [\App\Http\Controllers\RoleController::class, 'assignRoles']);
+    Route::put('/employees/{employeeId}/roles',                     [\App\Http\Controllers\RoleController::class, 'syncRoles']);
+    Route::delete('/employees/{employeeId}/roles/{roleId}',         [\App\Http\Controllers\RoleController::class, 'revokeRole']);
+
     }); // end auth.session protected group
 });
 

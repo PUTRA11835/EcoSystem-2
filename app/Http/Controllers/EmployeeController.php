@@ -458,7 +458,6 @@ class EmployeeController extends Controller
             // Create employee — default primary role: EC User (3)
             $employeeId = DB::table('employee')->insertGetId([
                 'eci'       => $request->eci,
-                'role_id'   => RoleId::EC_USER->value,
                 'is_active' => 1,
             ]);
 
@@ -831,8 +830,9 @@ class EmployeeController extends Controller
             $q = $request->input('q', '');
 
             $employees = DB::table('employee as e')
-                ->join('employee_role as r', 'e.role_id', '=', 'r.id')
                 ->leftJoin('employee_basic_data as bd', 'e.employee_id', '=', 'bd.employee_id')
+                ->leftJoin('employee_role_assignment as era', 'e.employee_id', '=', 'era.employee_id')
+                ->leftJoin('employee_role as r', 'era.role_id', '=', 'r.id')
                 ->where('e.employee_id', '!=', $currentId)
                 ->where('e.is_active', true)
                 ->where(function ($q2) {
@@ -851,8 +851,9 @@ class EmployeeController extends Controller
                     'e.employee_id as id',
                     DB::raw("CONCAT(COALESCE(bd.first_name,''), ' ', COALESCE(bd.last_name,'')) as full_name"),
                     DB::raw("COALESCE(NULLIF(bd.nick_name,''), CONCAT(COALESCE(bd.first_name,''), ' ', COALESCE(bd.last_name,''))) as display_name"),
-                    'r.name as role_name'
+                    DB::raw("GROUP_CONCAT(r.name ORDER BY r.id SEPARATOR ', ') as role_name")
                 )
+                ->groupBy('e.employee_id', 'bd.first_name', 'bd.last_name', 'bd.nick_name', 'bd.block', 'bd.deletion_flag')
                 ->orderBy('bd.first_name')
                 ->limit(20)
                 ->get();
@@ -1018,10 +1019,6 @@ public function getRoles()
 
             DB::table('employee_role_assignment')->insert($pivotRows);
 
-            // Keep legacy role_id in sync with the first role
-            DB::table('employee')
-                ->where('employee_id', $id)
-                ->update(['role_id' => $roleIds[0]]);
 
             $roles = DB::table('employee_role')->whereIn('id', $roleIds)->select('id', 'name')->get();
 

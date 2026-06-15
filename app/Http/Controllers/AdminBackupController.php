@@ -194,13 +194,14 @@ class AdminBackupController extends Controller
 
         $rows = DB::table('employee as e')
             ->leftJoin('employee_basic_data as b', 'e.employee_id', '=', 'b.employee_id')
-            ->leftJoin('employee_role as r', 'e.role_id', '=', 'r.id')
+            ->leftJoin('employee_role_assignment as era', 'e.employee_id', '=', 'era.employee_id')
+            ->leftJoin('employee_role as r', 'era.role_id', '=', 'r.id')
             ->leftJoin('employee_identification as ei', function ($join) {
                 $join->on('ei.employee_id', '=', 'e.employee_id')
                      ->where('ei.identification_type', 'KTP');
             })
             ->select(
-                'e.eci', 'r.name as role_name', 'e.is_active',
+                'e.eci', DB::raw("GROUP_CONCAT(r.name ORDER BY r.id SEPARATOR ', ') as role_name"), 'e.is_active',
                 'b.title', 'b.nick_name', 'b.gender', 'b.religion',
                 'b.first_name', 'b.last_name',
                 'b.marital_status', 'b.birth_date', 'b.birth_place',
@@ -589,7 +590,6 @@ class AdminBackupController extends Controller
 
                 if ($existing) {
                     $empUpdate = ['is_active' => $isActive, 'updated_at' => now()];
-                    if ($roleId) $empUpdate['role_id'] = $roleId;
                     DB::table('employee')->where('eci', $eci)->update($empUpdate);
 
                     // Update email di auth_users jika CSV mengisi email dan auth_users belum punya email
@@ -630,7 +630,6 @@ class AdminBackupController extends Controller
                     }
 
                     $employeeId = DB::table('employee')->insertGetId([
-                        'role_id'    => $roleId,
                         'eci'        => $eci,
                         'is_active'  => $isActive,
                         'created_at' => now(),

@@ -1274,7 +1274,7 @@ class MandaysController extends Controller
     private function notifyRoles(array $roleIds, string $type, string $fromName, ?int $fromId, string $preview, string $link): void
     {
         try {
-            Employee::whereIn('role_id', $roleIds)
+            Employee::withAnyRole($roleIds)
                 ->where('is_active', true)
                 ->pluck('employee_id')
                 ->each(function ($empId) use ($type, $fromName, $fromId, $preview, $link) {

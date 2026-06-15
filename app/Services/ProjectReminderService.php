@@ -44,7 +44,7 @@ class ProjectReminderService
         $today = Carbon::today();
 
         // Recipients: all active Head of Project + Delivery Project Administrator.
-        $recipientIds = Employee::whereIn('role_id', [
+        $recipientIds = Employee::withAnyRole([
                 RoleId::DELIVERY_PROJECT_HEAD->value,
                 RoleId::DELIVERY_PROJECT_ADMIN->value,
             ])

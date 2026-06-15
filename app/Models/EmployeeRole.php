@@ -26,4 +26,11 @@ class EmployeeRole extends Model
         return $this->belongsToMany(Employee::class, 'employee_role_assignment', 'role_id', 'employee_id', 'id', 'employee_id')
                     ->withTimestamps();
     }
+
+    public function menus()
+    {
+        return $this->belongsToMany(Menu::class, 'role_menu', 'role_id', 'menu_id')
+            ->withPivot('can_view', 'can_create', 'can_edit', 'can_delete')
+            ->withTimestamps();
+    }
 }

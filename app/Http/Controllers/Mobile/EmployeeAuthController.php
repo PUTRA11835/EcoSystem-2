@@ -65,7 +65,6 @@ class EmployeeAuthController extends Controller
         $employee = DB::table('employee as e')
             ->join('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
             ->leftJoin('employee_address as ea', 'e.employee_id', '=', 'ea.employee_id')
-            ->leftJoin('employee_role as r', 'e.role_id', '=', 'r.id')
             ->where('e.employee_id', $authUser->employee_id)
             ->select(
                 'e.employee_id',
@@ -75,9 +74,7 @@ class EmployeeAuthController extends Controller
                 'ea.email_personal as email_personal',
                 'ea.cell_phone as phone_number',
                 'eb.position',
-                'eb.employee_subgroup as department',
-                'r.id as role_id',
-                'r.name as role_name'
+                'eb.employee_subgroup as department'
             )
             ->first();
 
@@ -88,6 +85,18 @@ class EmployeeAuthController extends Controller
                 'code'    => 'ACCOUNT_INACTIVE',
             ], 403);
         }
+
+        // Ambil semua roles dari employee_role_assignment
+        $allRoles = DB::table('employee_role_assignment as era')
+            ->join('employee_role as er', 'era.role_id', '=', 'er.id')
+            ->where('era.employee_id', $authUser->employee_id)
+            ->select('er.id', 'er.name')
+            ->get();
+
+        $roleIds   = $allRoles->pluck('id')->map(fn($id) => (int) $id)->toArray();
+        $rolesData = $allRoles->map(fn($r) => ['id' => (int) $r->id, 'name' => $r->name])->toArray();
+        $primaryRoleId   = $roleIds[0] ?? (int) $employee->role_id;
+        $primaryRoleName = $rolesData[0]['name'] ?? $employee->role_name;
 
         // Hapus token lama agar tidak menumpuk
         $authUser->tokens()->delete();
@@ -115,7 +124,7 @@ class EmployeeAuthController extends Controller
             'auth_user_id' => $authUser->id,
             'employee_id'  => $employee->employee_id,
             'eci'          => $employee->eci,
-            'role'         => $employee->role_name,
+            'role'         => $primaryRoleName,
             'ip'           => $request->ip(),
         ]);
 
@@ -126,7 +135,7 @@ class EmployeeAuthController extends Controller
                 'access_token'  => $accessToken->plainTextToken,
                 'refresh_token' => $refreshToken->plainTextToken,
                 'token_type'    => 'Bearer',
-                'expires_in'    => 15 * 60, // dalam detik
+                'expires_in'    => 15 * 60,
                 'user'          => [
                     'id'         => $employee->employee_id,
                     'eci'        => $employee->eci,
@@ -136,9 +145,11 @@ class EmployeeAuthController extends Controller
                     'position'   => $employee->position,
                     'department' => $employee->department,
                     'role'       => [
-                        'id'   => $employee->role_id,
-                        'name' => $employee->role_name,
+                        'id'   => $primaryRoleId,
+                        'name' => $primaryRoleName,
                     ],
+                    'role_ids'   => $roleIds,
+                    'roles'      => $rolesData,
                 ],
             ],
         ], 200);
@@ -280,7 +291,6 @@ class EmployeeAuthController extends Controller
         $employee = DB::table('employee as e')
             ->join('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
             ->leftJoin('employee_address as ea', 'e.employee_id', '=', 'ea.employee_id')
-            ->leftJoin('employee_role as r', 'e.role_id', '=', 'r.id')
             ->where('e.employee_id', $authUser->employee_id)
             ->select(
                 'e.employee_id',
@@ -289,9 +299,7 @@ class EmployeeAuthController extends Controller
                 'ea.email_personal as email_personal',
                 'ea.cell_phone as phone_number',
                 'eb.position',
-                'eb.employee_subgroup as department',
-                'r.id as role_id',
-                'r.name as role_name'
+                'eb.employee_subgroup as department'
             )
             ->first();
 
@@ -301,6 +309,17 @@ class EmployeeAuthController extends Controller
                 'message' => 'Data employee tidak ditemukan.',
             ], 404);
         }
+
+        $allRoles = DB::table('employee_role_assignment as era')
+            ->join('employee_role as er', 'era.role_id', '=', 'er.id')
+            ->where('era.employee_id', $authUser->employee_id)
+            ->select('er.id', 'er.name')
+            ->get();
+
+        $roleIds         = $allRoles->pluck('id')->map(fn($id) => (int) $id)->toArray();
+        $rolesData       = $allRoles->map(fn($r) => ['id' => (int) $r->id, 'name' => $r->name])->toArray();
+        $primaryRoleId   = $roleIds[0] ?? 0;
+        $primaryRoleName = $rolesData[0]['name'] ?? '';
 
         return response()->json([
             'success' => true,
@@ -313,9 +332,11 @@ class EmployeeAuthController extends Controller
                 'position'   => $employee->position,
                 'department' => $employee->department,
                 'role'       => [
-                    'id'   => $employee->role_id,
-                    'name' => $employee->role_name,
+                    'id'   => $primaryRoleId,
+                    'name' => $primaryRoleName,
                 ],
+                'role_ids'   => $roleIds,
+                'roles'      => $rolesData,
             ],
         ], 200);
     }

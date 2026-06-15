@@ -65,11 +65,13 @@
         <div class="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200">
             <div class="flex justify-between items-center flex-wrap gap-4">
                 <h3 class="text-lg font-medium text-gray-900">All Support Items</h3>
+                @if($can('delivery-support.add-new'))
                 <a href="{{ route('delivery.support.create') }}"
                    class="primary-gradient text-white font-bold py-2 px-4 rounded-lg hover:opacity-90 transition duration-300 text-sm">
                     <i class="fas fa-plus mr-2"></i>
                     Add Delivery Support
                 </a>
+                @endif
             </div>
         </div>
 

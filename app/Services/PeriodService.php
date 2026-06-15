@@ -50,13 +50,14 @@ class PeriodService
      */
     public function canSubmitTimesheet(int $employeeId, Carbon $date): array
     {
-        $roleId = Employee::where('employee_id', $employeeId)->value('role_id');
-        if ($roleId === null) {
+        $employee = Employee::with('roles')->where('employee_id', $employeeId)->first();
+        if ($employee === null) {
             return ['allowed' => false, 'reason' => 'Employee not found.'];
         }
 
-        $roleId = (int) $roleId;
-        $domain = $this->getDomainForRole($roleId);
+        $roleIds = $employee->getRoleIds();
+        $roleId  = $roleIds[0] ?? 0;
+        $domain  = $this->getDomainForRole($roleId);
 
         // Roles without a domain bypass all period restrictions
         if ($domain === null) {
