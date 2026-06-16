@@ -156,10 +156,27 @@ class TicketController extends Controller
                 $tickets = $query->get();
 
             } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Access denied'
-                ], 403);
+                // Fallback: cek apakah role punya izin `tickets.inbox` di tabel role_menu.
+                // Ini memungkinkan custom role yang diberi akses lewat UI bisa melihat semua tiket.
+                $employee = Employee::find($sessionUser['id']);
+                if (!$employee || !$employee->hasPermission('tickets.inbox')) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Access denied'
+                    ], 403);
+                }
+
+                Log::info('Custom role viewing tickets via role_menu permission', [
+                    'role_id' => $sessionUser['role']['id'],
+                    'employee_id' => $sessionUser['id'],
+                ]);
+
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+                if ($filterUnassigned) {
+                    $query->whereNull('ticket_lead_id');
+                }
+                $tickets = $query->get();
             }
 
             Log::info('Tickets fetched', ['count' => $tickets->count()]);
