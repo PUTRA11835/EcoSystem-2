@@ -32,17 +32,18 @@ class TicketViewController extends Controller
             return redirect()->route('login');
         }
 
-        // Get customers for Admin create ticket dropdown
+        // Get customers for create ticket dropdown (all users with btn-create permission)
         $customers = [];
-        if ($user->hasRole(RoleId::EC_ADMINISTRATOR->value)) {
+        $employee = \App\Models\Employee::find($user->id);
+        if ($employee && in_array('ui.ticket.btn-create', $employee->allPermissionSlugs())) {
             $customers = Customer::with('basicData')
                 ->where('is_active', true)
                 ->get()
                 ->map(function ($customer) {
                     return [
-                        'customer_id' => $customer->customer_id,
+                        'customer_id'   => $customer->customer_id,
                         'customer_code' => $customer->customer_code,
-                        'name' => $customer->basicData->name_1 ?? $customer->email ?? 'Unknown'
+                        'name'          => $customer->basicData->name_1 ?? $customer->email ?? 'Unknown'
                     ];
                 })
                 ->toArray();

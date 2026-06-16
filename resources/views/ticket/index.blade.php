@@ -3,8 +3,8 @@
 @section('page-title', 'Support Tickets')
 @section('page-subtitle', 'Manage and track all support requests')
 @section('content')
-{{-- Quill.js (untuk editor pesan di modal Create Ticket Helpdesk) --}}
-@if($user->hasAnyRole(\App\Enums\RoleId::HELPDESK_GROUP))
+{{-- Quill.js (untuk editor pesan di modal Create Ticket) --}}
+@if($can('ui.ticket.btn-create'))
 <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 @endif
@@ -44,7 +44,7 @@
         @endif
 
         @if($can('ui.ticket.btn-create'))
-        <button onclick="{{ $user->hasRole(\App\Enums\RoleId::EC_ADMINISTRATOR->value) ? 'openCreateTicketModal()' : 'openHelpdeskCreateModal()' }}"
+        <button onclick="openCreateTicketModal()"
             class="inline-flex items-center gap-1.5 px-3.5 py-1.5 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">
             <i class="fas fa-plus text-xs"></i>Create Ticket
         </button>
@@ -358,156 +358,6 @@
     </button>
 </div>
 
-{{-- ── Create Ticket Modal (Helpdesk) ────────────────────────────────────── --}}
-@if(!$user->hasRole(\App\Enums\RoleId::EC_ADMINISTRATOR->value) && $can('ui.ticket.btn-create'))
-<div id="helpdeskCreateModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
-    <div class="min-h-full flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
-            <div class="flex items-center justify-between px-6 py-5 border-b border-gray-200">
-                <h3 class="text-xl font-bold text-gray-900">Create New Ticket</h3>
-                <button onclick="closeHelpdeskCreateModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-            <form id="helpdeskCreateForm" onsubmit="submitHelpdeskCreateTicket(event)" class="p-6 space-y-4">
-                {{-- Customer Email --}}
-                <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                        Customer Email <span class="text-red-500">*</span>
-                    </label>
-                    <input type="email" id="hd_customer_email" required
-                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                        placeholder="customer@example.com">
-                </div>
-
-                {{-- CC --}}
-                <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                        CC <span class="text-gray-400 font-normal normal-case">(optional, pisah koma)</span>
-                    </label>
-                    <input type="text" id="hd_cc_emails"
-                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                        placeholder="cc1@example.com, cc2@example.com">
-                </div>
-
-                {{-- Subject / Description --}}
-                <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                        Subject / Description <span class="text-red-500">*</span>
-                    </label>
-                    <input type="text" id="hd_description" required maxlength="1000"
-                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                        placeholder="Describe the issue...">
-                </div>
-
-                {{-- Priority + Ticket Type (2 col) --}}
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Priority <span class="text-red-500">*</span></label>
-                        <select id="hd_priority" required
-                            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                            <option value="Very High">Very High</option>
-                            <option value="High">High</option>
-                            <option value="Medium" selected>Medium</option>
-                            <option value="Low">Low</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                            Ticket Type <span class="text-red-500">*</span>
-                        </label>
-                        <select id="hd_ticket_type" required
-                            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                            <option value="">-- Select Type --</option>
-                            <option value="Incident">Incident</option>
-                            <option value="Service Request">Service Request</option>
-                            <option value="Change Request">Change Request</option>
-                            <option value="Consult">Consult</option>
-                        </select>
-                    </div>
-                </div>
-
-                {{-- Scale --}}
-                <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                        Scale <span class="text-gray-400 font-normal normal-case">(optional, untuk SLA)</span>
-                    </label>
-                    <select id="hd_scale"
-                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                        <option value="">-- Select Scale --</option>
-                        <option value="Simple" selected>Simple</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Complex">Complex</option>
-                    </select>
-                </div>
-
-                {{-- Additional Info --}}
-                <div class="border-t border-gray-100 pt-3">
-                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Additional Info <span class="font-normal normal-case">(optional)</span></p>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Name</label>
-                            <input type="text" id="hd_name" maxlength="255"
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                                placeholder="Contact person name">
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">No HP</label>
-                            <input type="text" id="hd_no_hp" maxlength="255"
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                                placeholder="Phone number">
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Module</label>
-                            <input type="text" id="hd_module" maxlength="255"
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                                placeholder="Related module">
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Client</label>
-                            <input type="text" id="hd_client" maxlength="255"
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                                placeholder="Client name">
-                        </div>
-                    </div>
-                </div>
-
-                {{-- Body / Message (Quill rich-text, supports paste screenshot) --}}
-                <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                        Message <span class="text-gray-400 font-normal normal-case">(optional — supports paste image)</span>
-                    </label>
-                    <div id="hdBodyEditor" class="border border-gray-300 rounded-lg overflow-hidden" style="min-height:140px; background:#fff;"></div>
-                </div>
-
-                {{-- Attachments --}}
-                <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                        Attachments <span class="text-gray-400 font-normal normal-case">(optional, max 20 MB/file)</span>
-                    </label>
-                    <input type="file" id="hd_attachments" multiple
-                        class="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200">
-                </div>
-
-                <div id="hdCreateError" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3"></div>
-
-                <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                    <button type="button" onclick="closeHelpdeskCreateModal()"
-                        class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-                        Cancel
-                    </button>
-                    <button type="submit" id="btnHdCreateTicket"
-                        class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                        <i class="fas fa-paper-plane text-xs"></i>Send & Create Ticket
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-@endif
 {{-- ── Access Denied State ────────────────────────────────────────────────── --}}
 <div id="accessDeniedState" class="hidden flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-200 shadow-sm text-center">
     <div class="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
@@ -517,8 +367,8 @@
     <p id="accessDeniedMessage" class="text-gray-400 text-xs max-w-sm">Your account role isn't permitted to view the Ticket module. Please sign in with an account that has ticket access (e.g. Admin, Helpdesk, or RPMO).</p>
 </div>
 
-<!-- Create Ticket Modal (Admin) -->
-@if($user->hasRole(\App\Enums\RoleId::EC_ADMINISTRATOR->value))
+<!-- Create Ticket Modal -->
+@if($can('ui.ticket.btn-create'))
 <div id="createTicketModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
     <div class="min-h-full flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
@@ -536,27 +386,29 @@
                     <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
                         Customer <span class="text-red-500">*</span>
                     </label>
-                    <div class="relative">
-                        <input type="text" id="customerSearch"
-                            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                            placeholder="Search customer..."
-                            autocomplete="off"
-                            onfocus="showCustomerDropdown()"
-                            oninput="filterCustomers()">
-                        <input type="hidden" id="newCustomerId" required>
-                        <div id="customerDropdown" class="hidden absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    <div class="custom-dd relative w-full" id="ddCreateCustomer" data-fixed="true" data-searchable="true" data-search-placeholder="Search customer...">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-colors bg-white">
+                            <span class="custom-dd-label text-gray-400">Select customer...</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="newCustomerId">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] overflow-y-auto" style="max-height:240px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-50" data-value="">-- Select customer --</button>
                             @foreach($customers as $customer)
-                                <div class="customer-option px-4 py-3 hover:bg-gray-100 cursor-pointer text-sm border-b border-gray-100 last:border-0"
-                                     data-id="{{ $customer['customer_id'] }}"
-                                     data-name="{{ $customer['name'] }}"
-                                     data-code="{{ $customer['customer_code'] }}"
-                                     onclick="selectCustomer(this)">
-                                    <div class="font-medium text-gray-900">{{ $customer['name'] }}</div>
-                                    <div class="text-xs text-gray-500">{{ $customer['customer_code'] }}</div>
-                                </div>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" data-value="{{ $customer['customer_id'] }}">{{ $customer['name'] }} ({{ $customer['customer_code'] }})</button>
                             @endforeach
                         </div>
                     </div>
+                </div>
+
+                {{-- CC Emails --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        CC <span class="text-gray-400 font-normal normal-case">(optional, pisah koma)</span>
+                    </label>
+                    <input type="text" id="newCcEmails"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                        placeholder="cc1@example.com, cc2@example.com">
                 </div>
 
                 {{-- Subject / Description --}}
@@ -639,6 +491,23 @@
                                 placeholder="Client name">
                         </div>
                     </div>
+                </div>
+
+                {{-- Body / Message (Quill rich-text) --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        Message <span class="text-gray-400 font-normal normal-case">(optional — supports paste image)</span>
+                    </label>
+                    <div id="adminBodyEditor" class="border border-gray-300 rounded-lg overflow-hidden" style="min-height:140px; background:#fff;"></div>
+                </div>
+
+                {{-- Attachments --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        Attachments <span class="text-gray-400 font-normal normal-case">(optional, max 20 MB/file)</span>
+                    </label>
+                    <input type="file" id="newAttachments" multiple
+                        class="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200">
                 </div>
 
                 <div id="adminCreateError" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3"></div>
@@ -1676,140 +1545,54 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
 
     // ==================== HELPDESK: CREATE TICKET ====================
-    let hdQuillEditor = null;
-
-    function initHdQuill() {
-        if (hdQuillEditor) return;
-        hdQuillEditor = new Quill('#hdBodyEditor', {
+    // ==================== CREATE TICKET ====================
+    let adminQuillEditor = null;
+    function initAdminQuill() {
+        if (adminQuillEditor) return;
+        adminQuillEditor = new Quill('#adminBodyEditor', {
             theme: 'snow',
-            placeholder: 'Email body content',
-            modules: {
-                toolbar: [
-                    ['bold', 'italic', 'underline'],
-                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-                    ['link', 'image'],
-                    ['clean'],
-                ],
-            },
+            placeholder: 'Write an initial message... (optional)',
+            modules: { toolbar: [
+                [{ header: [1, 2, false] }],
+                ['bold', 'italic', 'underline'],
+                [{ list: 'ordered' }, { list: 'bullet' }],
+                ['link', 'image'],
+                ['clean'],
+            ]},
         });
-
-        // Handle clipboard paste of images
-        hdQuillEditor.root.addEventListener('paste', function (e) {
-            const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
-            if (!items) return;
+        adminQuillEditor.root.addEventListener('paste', function (e) {
+            const items = e.clipboardData?.items || [];
             for (const item of items) {
-                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                if (item.type.startsWith('image/')) {
                     e.preventDefault();
-                    const file = item.getAsFile();
                     const reader = new FileReader();
-                    reader.onload = function (evt) {
-                        const range = hdQuillEditor.getSelection(true);
-                        hdQuillEditor.insertEmbed(range.index, 'image', evt.target.result);
-                        hdQuillEditor.setSelection(range.index + 1);
+                    reader.onload = evt => {
+                        const range = adminQuillEditor.getSelection(true);
+                        adminQuillEditor.insertEmbed(range.index, 'image', evt.target.result);
+                        adminQuillEditor.setSelection(range.index + 1);
                     };
-                    reader.readAsDataURL(file);
+                    reader.readAsDataURL(item.getAsFile());
                 }
             }
         });
     }
-
-    function openHelpdeskCreateModal() {
-        document.getElementById('helpdeskCreateModal').classList.remove('hidden');
-        // Defer init so the div is visible before Quill measures it
-        setTimeout(initHdQuill, 50);
+    function openCreateTicketModal() {
+        document.getElementById('createTicketModal').classList.remove('hidden');
+        if (typeof initCustomDropdowns === 'function') initCustomDropdowns(document.getElementById('createTicketModal'));
+        setTimeout(initAdminQuill, 50);
     }
-    function closeHelpdeskCreateModal() {
-        document.getElementById('helpdeskCreateModal').classList.add('hidden');
-        document.getElementById('helpdeskCreateForm').reset();
-        document.getElementById('hdCreateError').classList.add('hidden');
-        const btn = document.getElementById('btnHdCreateTicket');
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane text-xs"></i>Send & Create Ticket'; }
-        if (hdQuillEditor) { hdQuillEditor.setContents([]); }
-    }
-
-    async function submitHelpdeskCreateTicket(e) {
-        e.preventDefault();
-        const btn = document.getElementById('btnHdCreateTicket');
-        const errEl = document.getElementById('hdCreateError');
-
-        // Validate ticket_type (required)
-        const ticketType = document.getElementById('hd_ticket_type').value;
-        if (!ticketType) {
-            errEl.textContent = 'Ticket Type is required.';
-            errEl.classList.remove('hidden');
-            return;
-        }
-
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Sending…';
-        errEl.classList.add('hidden');
-
-        const bodyHtml = hdQuillEditor ? hdQuillEditor.root.innerHTML : '';
-
-        const form = new FormData();
-        form.append('customer_email', document.getElementById('hd_customer_email').value);
-        form.append('cc_emails', document.getElementById('hd_cc_emails').value);
-        form.append('description', document.getElementById('hd_description').value);
-        form.append('ticket_priority', document.getElementById('hd_priority').value);
-        form.append('ticket_type', ticketType);
-        form.append('scale', document.getElementById('hd_scale').value);
-        form.append('body', bodyHtml);
-        const hdName   = document.getElementById('hd_name').value;
-        const hdNoHp   = document.getElementById('hd_no_hp').value;
-        const hdModule = document.getElementById('hd_module').value;
-        const hdClient = document.getElementById('hd_client').value;
-        if (hdName)   form.append('name',   hdName);
-        if (hdNoHp)   form.append('no_hp',  hdNoHp);
-        if (hdModule) form.append('module', hdModule);
-        if (hdClient) form.append('client', hdClient);
-        const files = document.getElementById('hd_attachments').files;
-        for (let i = 0; i < files.length; i++) {
-            form.append('attachments[]', files[i]);
-        }
-
-        try {
-            const res = await fetch('/api/tickets/helpdesk-create', {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-                credentials: 'same-origin',
-                body: form,
-            });
-            const result = await res.json();
-            if (result.success) {
-                showNotification(
-                    `Ticket ${result.ticket_number} created${result.email_sent ? ' & email sent!' : ' (email failed, check logs)'}`,
-                    result.email_sent ? 'success' : 'warning'
-                );
-                closeHelpdeskCreateModal();
-                loadTickets();
-            } else {
-                errEl.textContent = result.message || 'Failed to create ticket.';
-                errEl.classList.remove('hidden');
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-paper-plane text-xs"></i>Send & Create Ticket';
-            }
-        } catch (err) {
-            errEl.textContent = 'Network error: ' + err.message;
-            errEl.classList.remove('hidden');
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-paper-plane text-xs"></i>Send & Create Ticket';
-        }
-    }
-
-    // ==================== ADMIN: CREATE TICKET ====================
-    function openCreateTicketModal() { document.getElementById('createTicketModal').classList.remove('hidden'); }
     function closeCreateTicketModal() {
         document.getElementById('createTicketModal').classList.add('hidden');
         document.getElementById('createTicketForm').reset();
-        document.getElementById('customerSearch').value = '';
-        document.getElementById('newCustomerId').value = '';
+        if (typeof setCustomDropdownValue === 'function') setCustomDropdownValue('newCustomerId', '');
+        const ccEl = document.getElementById('newCcEmails');
+        if (ccEl) ccEl.value = '';
         document.getElementById('adminCreateError').classList.add('hidden');
         const btn = document.getElementById('btnCreateTicket');
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plus text-xs"></i>Create Ticket'; }
-        document.querySelectorAll('.customer-option').forEach(opt => opt.classList.remove('hidden'));
+        if (adminQuillEditor) { adminQuillEditor.setContents([]); }
+        const att = document.getElementById('newAttachments');
+        if (att) att.value = '';
     }
 
     async function submitCreateTicket(e) {
@@ -1820,6 +1603,15 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Creating…';
         errEl.classList.add('hidden');
 
+        const customerIdVal = document.getElementById('newCustomerId').value;
+        if (!customerIdVal) {
+            errEl.textContent = 'Customer is required.';
+            errEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-plus text-xs"></i>Create Ticket';
+            return;
+        }
+
         const ticketTypeVal = document.getElementById('newTicketType').value;
         if (!ticketTypeVal) {
             errEl.textContent = 'Ticket Type is required.';
@@ -1829,28 +1621,37 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             return;
         }
 
-        const data = {
-            description:     document.getElementById('newDescription').value,
-            ticket_priority: document.getElementById('newPriority').value,
-            customer_id:     document.getElementById('newCustomerId').value,
-            ticket_type:     ticketTypeVal,
-            scale:           document.getElementById('newScale').value || null,
-            name:            document.getElementById('newName').value || null,
-            no_hp:           document.getElementById('newNoHp').value || null,
-            module:          document.getElementById('newModule').value || null,
-            client:          document.getElementById('newClient').value || null,
-        };
+        const bodyHtml = adminQuillEditor ? adminQuillEditor.root.innerHTML : '';
+        const form = new FormData();
+        form.append('description',     document.getElementById('newDescription').value);
+        form.append('ticket_priority', document.getElementById('newPriority').value);
+        form.append('customer_id',     document.getElementById('newCustomerId').value);
+        form.append('ticket_type',     ticketTypeVal);
+        form.append('cc_emails',       document.getElementById('newCcEmails').value || '');
+        form.append('scale',           document.getElementById('newScale').value || '');
+        form.append('name',            document.getElementById('newName').value || '');
+        form.append('no_hp',           document.getElementById('newNoHp').value || '');
+        form.append('module',          document.getElementById('newModule').value || '');
+        form.append('client',          document.getElementById('newClient').value || '');
+        form.append('body',            bodyHtml || '');
+        const files = document.getElementById('newAttachments').files;
+        for (let i = 0; i < files.length; i++) form.append('attachments[]', files[i]);
+        const isAdmin = userRole === EC_ADMINISTRATOR_ROLE;
+        const endpoint = isAdmin ? '/api/tickets' : '/api/tickets/helpdesk-create';
         try {
-            const response = await fetch('/api/tickets', {
+            const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
                 credentials: 'same-origin',
-                body: JSON.stringify(data)
+                body: form
             });
             const result = await response.json();
             if (result.success) {
-                showNotification('Ticket created successfully!', 'success');
+                const msg = isAdmin
+                    ? 'Ticket created successfully!'
+                    : `Ticket ${result.ticket_number} created${result.email_sent ? ' & email sent!' : ''}`;
+                showNotification(msg, result.email_sent === false ? 'warning' : 'success');
                 closeCreateTicketModal();
                 loadTickets();
             } else {
@@ -1900,72 +1701,10 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             if (document.getElementById('createTicketModal') && !document.getElementById('createTicketModal').classList.contains('hidden')) {
                 closeCreateTicketModal();
             }
-            if (document.getElementById('helpdeskCreateModal') && !document.getElementById('helpdeskCreateModal').classList.contains('hidden')) {
-                closeHelpdeskCreateModal();
-            }
         }
     });
 
 
-    // ==================== CUSTOMER SEARCHABLE DROPDOWN ====================
-    function showCustomerDropdown() {
-        const dropdown = document.getElementById('customerDropdown');
-        if (dropdown) {
-            dropdown.classList.remove('hidden');
-            filterCustomers();
-        }
-    }
-
-    function hideCustomerDropdown() {
-        const dropdown = document.getElementById('customerDropdown');
-        if (dropdown) {
-            setTimeout(() => dropdown.classList.add('hidden'), 200);
-        }
-    }
-
-    function filterCustomers() {
-        const searchInput = document.getElementById('customerSearch');
-        const dropdown = document.getElementById('customerDropdown');
-        if (!searchInput || !dropdown) return;
-
-        const searchTerm = searchInput.value.toLowerCase();
-        const options = dropdown.querySelectorAll('.customer-option');
-        let hasVisible = false;
-
-        options.forEach(option => {
-            const name = option.dataset.name.toLowerCase();
-            const code = option.dataset.code.toLowerCase();
-            if (name.includes(searchTerm) || code.includes(searchTerm)) {
-                option.classList.remove('hidden');
-                hasVisible = true;
-            } else {
-                option.classList.add('hidden');
-            }
-        });
-
-        if (!hasVisible) {
-            dropdown.innerHTML = '<div class="px-4 py-3 text-sm text-gray-500">No customers found</div>';
-        }
-    }
-
-    function selectCustomer(element) {
-        const customerId = element.dataset.id;
-        const customerName = element.dataset.name;
-        const customerCode = element.dataset.code;
-
-        document.getElementById('newCustomerId').value = customerId;
-        document.getElementById('customerSearch').value = `${customerName} (${customerCode})`;
-        document.getElementById('customerDropdown').classList.add('hidden');
-    }
-
-    // Close dropdown when clicking outside
-    document.addEventListener('click', function(e) {
-        const searchInput = document.getElementById('customerSearch');
-        const dropdown = document.getElementById('customerDropdown');
-        if (searchInput && dropdown && !searchInput.contains(e.target) && !dropdown.contains(e.target)) {
-            dropdown.classList.add('hidden');
-        }
-    });
 </script>
 
 {{-- Load custom-dd component (sama dengan Employee/Customer Management).
