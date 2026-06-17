@@ -50,6 +50,7 @@ class ProfileController extends Controller
                 'eb.department',
                 'eb.direct_supervision',
                 'eb.manager',
+                'eb.employee_type',
                 'eb.authorization_group',
                 'eb.block',
                 'eb.deletion_flag',

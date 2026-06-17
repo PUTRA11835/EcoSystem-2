@@ -85,6 +85,30 @@
     </div>
 </div>
 
+<!-- ── Modal: Custom Confirm ───────────────────────────────────────────────── -->
+<div id="confirmModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm animate-in">
+        <div class="p-6 text-center">
+            <div id="confirmIconWrap" class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i id="confirmIcon" class="text-xl"></i>
+            </div>
+            <h3 id="confirmTitle" class="text-base font-semibold text-gray-800 mb-2"></h3>
+            <p id="confirmMessage" class="text-sm text-gray-500 mb-6 leading-relaxed"></p>
+            <div class="flex gap-3">
+                <button id="confirmCancelBtn"
+                    class="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
+                    Batal
+                </button>
+                <button id="confirmOkBtn"
+                    class="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition">
+                    Ya, Lanjutkan
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ── Modal: Menu Access ─────────────────────────────────────────────────── -->
 <div id="menuAccessModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
@@ -215,20 +239,31 @@ async function submitRole(e) {
 
     if (json.success) {
         closeModal('roleModal');
+        showToast(id ? 'Role berhasil diperbarui.' : 'Role berhasil ditambahkan.', 'success');
         loadRoles();
     } else {
-        alert(json.message || 'Gagal menyimpan role.');
+        showToast(json.message || 'Gagal menyimpan role.', 'error');
     }
 }
 
 async function deleteRole(id, name) {
-    if (!confirm(`Hapus role "${name}"? Aksi ini tidak dapat diurungkan.`)) return;
+    const ok = await customConfirm({
+        title:    `Hapus Role?`,
+        message:  `Anda akan menghapus role "${name}". Aksi ini tidak dapat diurungkan.`,
+        okLabel:  'Ya, Hapus',
+        okClass:  'bg-red-600 hover:bg-red-700',
+        icon:     'fas fa-trash',
+        iconBg:   'bg-red-50',
+        iconColor:'text-red-500',
+    });
+    if (!ok) return;
     const res  = await fetch(`/api/roles/${id}`, { method: 'DELETE', headers: jsonHeaders() });
     const json = await res.json();
     if (json.success) {
+        showToast(`Role "${name}" berhasil dihapus.`, 'success');
         loadRoles();
     } else {
-        alert(json.message || 'Gagal menghapus role.');
+        showToast(json.message || 'Gagal menghapus role.', 'error');
     }
 }
 
@@ -401,17 +436,27 @@ async function toggleMenuAccess(menuId, checkbox) {
     const roleName = document.getElementById('menuAccessTitle').textContent.replace('Menu Access — ', '');
 
     if (grant) {
-        const confirmed = confirm(`Berikan akses "${menuName}" ke role "${roleName}"?`);
-        if (!confirmed) {
-            checkbox.checked = false;
-            return;
-        }
+        const confirmed = await customConfirm({
+            title:    'Berikan Akses?',
+            message:  `Berikan akses "${menuName}" ke role "${roleName}"?`,
+            okLabel:  'Ya, Berikan',
+            okClass:  'bg-green-600 hover:bg-green-700',
+            icon:     'fas fa-key',
+            iconBg:   'bg-green-50',
+            iconColor:'text-green-600',
+        });
+        if (!confirmed) { checkbox.checked = false; return; }
     } else {
-        const confirmed = confirm(`Cabut akses "${menuName}" dari role "${roleName}"?`);
-        if (!confirmed) {
-            checkbox.checked = true;
-            return;
-        }
+        const confirmed = await customConfirm({
+            title:    'Cabut Akses?',
+            message:  `Cabut akses "${menuName}" dari role "${roleName}"?`,
+            okLabel:  'Ya, Cabut',
+            okClass:  'bg-red-600 hover:bg-red-700',
+            icon:     'fas fa-ban',
+            iconBg:   'bg-red-50',
+            iconColor:'text-red-500',
+        });
+        if (!confirmed) { checkbox.checked = true; return; }
     }
 
     savingMenu[key] = true;
@@ -434,13 +479,15 @@ async function toggleMenuAccess(menuId, checkbox) {
 
     if (!ok) {
         checkbox.checked = !grant;
+        showToast('Gagal mengubah akses. Coba lagi.', 'error');
     } else {
         if (grant) {
             roleMenuPermissions[menuId] = { can_view: true, can_create: false, can_edit: false, can_delete: false };
+            showToast(`Akses "${menuName}" berhasil diberikan.`, 'success');
         } else {
             delete roleMenuPermissions[menuId];
-            // Cascade: uncheck semua children secara silent (tidak perlu API call, cukup hapus dari state)
             await cascadeRevokeChildren(menuId);
+            showToast(`Akses "${menuName}" berhasil dicabut.`, 'success');
         }
         renderMenuAccessTree();
     }
@@ -476,6 +523,41 @@ function findMenuNode(nodes, id) {
         if (found) return found;
     }
     return null;
+}
+
+// ── Custom Confirm Dialog ─────────────────────────────────────────────────────
+
+function customConfirm({ title, message, okLabel = 'Ya, Lanjutkan', okClass = 'bg-red-600 hover:bg-red-700', icon = 'fas fa-exclamation-triangle', iconBg = 'bg-red-50', iconColor = 'text-red-500' } = {}) {
+    return new Promise(resolve => {
+        const modal      = document.getElementById('confirmModal');
+        const titleEl    = document.getElementById('confirmTitle');
+        const msgEl      = document.getElementById('confirmMessage');
+        const okBtn      = document.getElementById('confirmOkBtn');
+        const cancelBtn  = document.getElementById('confirmCancelBtn');
+        const iconWrap   = document.getElementById('confirmIconWrap');
+        const iconEl     = document.getElementById('confirmIcon');
+
+        titleEl.textContent  = title || '';
+        msgEl.textContent    = message || '';
+        okBtn.textContent    = okLabel;
+        okBtn.className      = `flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition ${okClass}`;
+        iconWrap.className   = `w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${iconBg}`;
+        iconEl.className     = `${icon} text-xl ${iconColor}`;
+
+        modal.classList.remove('hidden');
+
+        function done(val) {
+            modal.classList.add('hidden');
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+            resolve(val);
+        }
+        const onOk     = () => done(true);
+        const onCancel = () => done(false);
+
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+    });
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
