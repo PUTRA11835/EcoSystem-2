@@ -93,5 +93,6 @@ enum RoleId: int
         self::DELIVERY_SUPPORT_HEAD->value,
         self::DELIVERY_HELPDESK->value,
         self::DELIVERY_RPMO_HEAD->value,
+        self::DELIVERY_SUPPORT_MANAGER->value,
     ];
 }
