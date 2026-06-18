@@ -1019,18 +1019,18 @@ class AdminBackupController extends Controller
             return sprintf('%04d-%02d-%02d', (int) $m[1], (int) $m[2], (int) $m[3]);
         }
 
-        // Tahun di akhir: a/b/YYYY (slash atau dash)
-        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $val, $m)) {
+        // Tahun di akhir: a/b/YYYY (slash, dash, atau titik)
+        if (preg_match('/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/', $val, $m)) {
             $a = (int) $m[1];
             $b = (int) $m[2];
             $year = (int) $m[3];
 
-            if ($a > 12 && $b <= 12) {            // D/M/Y
+            if ($a > 12 && $b <= 12) {            // D/M/Y pasti
                 $day = $a; $month = $b;
-            } elseif ($b > 12 && $a <= 12) {      // M/D/Y
+            } elseif ($b > 12 && $a <= 12) {      // M/D/Y pasti
                 $month = $a; $day = $b;
-            } else {                              // ambigu → asumsi M/D/Y
-                $month = $a; $day = $b;
+            } else {                              // ambigu → asumsi D/M/Y (format Indonesia)
+                $day = $a; $month = $b;
             }
 
             if ($month >= 1 && $month <= 12 && $day >= 1 && $day <= 31) {
@@ -1492,10 +1492,12 @@ class AdminBackupController extends Controller
             'end_date'      => ['due date/time resolution time', 'end_date', 'due date', 'due_date'],
         ];
 
+        // Last-match wins: bila ada kolom duplikat (misal "Priority","Priority"),
+        // kita inginkan kolom TERAKHIR yang cocok agar format lama tidak dipilih.
         $colIndex = [];
         foreach ($aliasMap as $field => $aliases) {
             foreach ($headers as $i => $h) {
-                if (in_array($h, $aliases, true)) { $colIndex[$field] = $i; break; }
+                if (in_array($h, $aliases, true)) { $colIndex[$field] = $i; }
             }
         }
 
@@ -1517,7 +1519,9 @@ class AdminBackupController extends Controller
             'hold'                    => 'hold',
             'cancelled'               => 'cancelled',
             'canceled'                => 'cancelled',
+            'cancel'                  => 'cancelled',
             'closed'                  => 'closed',
+            'close'                   => 'closed',
         ];
         $validPriorities = ['Very High', 'High', 'Medium', 'Low'];
         $validScales     = ['Simple', 'Medium', 'Complex'];
@@ -1531,6 +1535,9 @@ class AdminBackupController extends Controller
 
         while (($row = fgetcsv($handle)) !== false) {
             $rowNum++;
+
+            // Nilai error Excel (#N/A, #REF!, dll.) → kosongkan agar diperlakukan sebagai tidak ada
+            $row = array_map(fn($v) => ($v !== null && preg_match('/^#/', ltrim($v))) ? '' : $v, $row);
 
             $ticketNumber = trim($row[$colIndex['ticket_number']] ?? '');
             if ($ticketNumber === '' || $ticketNumber === '-') { $skipped++; continue; }
@@ -1662,7 +1669,7 @@ class AdminBackupController extends Controller
                         'ticket_type'     => $typeCreate,
                         'scale'           => $scaleCreate,
                         'status'          => $statusCreate,
-                        'pic'             => $picCreate,
+                        'pic'             => $picCreate ?? 'Helpdesk',
                         'start_date'      => $startDateCreate,
                         'end_date'        => $endDateCreate,
                         'created_at'      => now(),
@@ -1810,6 +1817,140 @@ class AdminBackupController extends Controller
         ]);
     }
 
+    // ── Import Ticket Members (CSV) ───────────────────────────────────────────────
+
+    public function importTicketMembers(Request $request)
+    {
+        if (!$this->assertAdmin()) return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+
+        set_time_limit(300);
+
+        $request->validate(['file' => 'required|file|mimes:csv,txt|max:20480']);
+
+        $handle = fopen($request->file('file')->getRealPath(), 'r');
+
+        $bom = fread($handle, 3);
+        if ($bom !== "\xEF\xBB\xBF") rewind($handle);
+
+        $rawHeaders = fgetcsv($handle);
+        if (!$rawHeaders) {
+            fclose($handle);
+            return response()->json(['success' => false, 'message' => 'File CSV kosong atau tidak valid'], 422);
+        }
+
+        $headers = array_map(fn($h) => strtolower(trim($h ?? '')), $rawHeaders);
+
+        $colTicket = null;
+        $colMember = null;
+        $colEmpId  = null;
+
+        foreach ($headers as $i => $h) {
+            if (in_array($h, ['tiket', 'ticket', 'ticket_number', 'no tiket', 'no. tiket'])) $colTicket = $i;
+            if (in_array($h, ['member', 'nama', 'nama member', 'name', 'employee']))          $colMember = $i;
+            if (in_array($h, ['emp id', 'emp_id', 'eci', 'employee id', 'employee_id']))      $colEmpId  = $i;
+        }
+
+        if ($colTicket === null || $colEmpId === null) {
+            fclose($handle);
+            return response()->json(['success' => false, 'message' => "Kolom wajib tidak ditemukan. Butuh: 'Tiket', 'EMP ID'"], 422);
+        }
+
+        $leadsSet     = 0;
+        $membersAdded = 0;
+        $skipped      = 0;
+        $errors       = [];
+        $rowNum       = 0;
+        $seenTickets  = [];
+
+        while (($row = fgetcsv($handle)) !== false) {
+            $rowNum++;
+
+            $row = array_map(fn($v) => ($v !== null && preg_match('/^#/', ltrim($v))) ? '' : $v, $row);
+
+            $ticketNumber = trim($row[$colTicket] ?? '');
+            $memberName   = $colMember !== null ? trim($row[$colMember] ?? '') : '';
+            $empId        = trim($row[$colEmpId] ?? '');
+
+            if ($ticketNumber === '' || !preg_match('/^\d+$/', $ticketNumber)) {
+                $skipped++;
+                continue;
+            }
+
+            if ($empId === '' || $empId === '-') {
+                $skipped++;
+                continue;
+            }
+
+            $employee = DB::table('employee')->where('eci', $empId)->first();
+            if (!$employee) {
+                $errors[] = "Row {$rowNum} (#{$ticketNumber}): Employee dengan ECI '{$empId}' tidak ditemukan";
+                $skipped++;
+                continue;
+            }
+
+            $ticket = DB::table('ticket')->where('ticket_number', $ticketNumber)->first();
+            if (!$ticket) {
+                $errors[] = "Row {$rowNum} (#{$ticketNumber}): Ticket tidak ditemukan";
+                $skipped++;
+                continue;
+            }
+
+            try {
+                if (!isset($seenTickets[$ticketNumber])) {
+                    $seenTickets[$ticketNumber] = true;
+                    $picName = ($memberName !== '' && $memberName !== '-') ? $memberName : $empId;
+                    DB::table('ticket')
+                        ->where('ticket_id', $ticket->ticket_id)
+                        ->update([
+                            'ticket_lead_id' => $employee->employee_id,
+                            'pic'            => $picName,
+                            'updated_at'     => now(),
+                        ]);
+                    $leadsSet++;
+                } else {
+                    $exists = DB::table('ticket_member')
+                        ->where('ticket_id', $ticket->ticket_id)
+                        ->where('employee_id', $employee->employee_id)
+                        ->exists();
+
+                    if (!$exists) {
+                        DB::table('ticket_member')->insert([
+                            'ticket_id'   => $ticket->ticket_id,
+                            'employee_id' => $employee->employee_id,
+                            'is_active'   => true,
+                            'created_at'  => now(),
+                            'updated_at'  => now(),
+                        ]);
+                        $membersAdded++;
+                    } else {
+                        $skipped++;
+                    }
+                }
+            } catch (\Exception $e) {
+                $errors[] = "Row {$rowNum} (#{$ticketNumber}): " . $e->getMessage();
+            }
+        }
+
+        fclose($handle);
+
+        Log::info('AdminBackupController: ticket member import', [
+            'leads_set'     => $leadsSet,
+            'members_added' => $membersAdded,
+            'skipped'       => $skipped,
+            'errors'        => count($errors),
+            'by'            => session('user.eci') ?? session('user.name') ?? 'admin',
+        ]);
+
+        return response()->json([
+            'success'       => true,
+            'message'       => "Import complete: {$leadsSet} ticket lead diset, {$membersAdded} member ditambahkan" . ($skipped ? ", {$skipped} dilewati" : '') . (count($errors) ? ', ' . count($errors) . ' error(s)' : ''),
+            'leads_set'     => $leadsSet,
+            'members_added' => $membersAdded,
+            'skipped'       => $skipped,
+            'errors'        => $errors,
+        ]);
+    }
+
     // ── Template Resolution Days ──────────────────────────────────────────────────
 
     public function templateResolutionDays()
@@ -1869,8 +2010,8 @@ class AdminBackupController extends Controller
             'ticket_number'      => ['ticket number', 'ticket_number', 'tiket', 'no tiket', 'no. tiket'],
             'employee_eci'       => ['employee eci', 'employee_eci', 'eci'],
             'module'             => ['module', 'modul'],
-            'mandays'            => ['mandays', 'man days', 'md'],
-            'additional_mandays' => ['additional mandays', 'additional_mandays', 'additional md', 'tambahan md'],
+            'mandays'            => ['mandays', 'man days', 'md', 'resolution days'],
+            'additional_mandays' => ['additional mandays', 'additional_mandays', 'additional md', 'tambahan md', 'additional days'],
             'notes'              => ['notes', 'catatan', 'keterangan'],
         ];
 
@@ -1923,6 +2064,8 @@ class AdminBackupController extends Controller
 
             foreach ($rows as $row) {
                 $eci = $get('employee_eci', $row);
+                // Normalisasi nilai error Excel (#N/A, #REF!, dll)
+                if ($eci && preg_match('/^#[A-Z\/]+[!?]?$/', $eci)) $eci = null;
                 if (!$eci) { $errors[] = "Ticket #{$ticketNumber}: kolom Employee ECI kosong di satu baris — baris dilewati"; continue; }
 
                 $employee = \Illuminate\Support\Facades\DB::table('employee')->where('eci', $eci)->select('employee_id')->first();
@@ -1933,9 +2076,17 @@ class AdminBackupController extends Controller
                 $module = $get('module', $row);
                 $notes  = $get('notes', $row);
 
+                // Deduplikasi: kalau employee ini sudah ada, ambil nilai terbesar
+                $empId = $employee->employee_id;
+                if (isset($detailRows[$empId])) {
+                    $prev = $detailRows[$empId];
+                    if (($md + $addMd) <= ($prev['mandays'] + $prev['additional_mandays'])) continue;
+                    $totalMd -= $prev['mandays'] + $prev['additional_mandays'];
+                }
+
                 $totalMd += $md + $addMd;
-                $detailRows[] = [
-                    'employee_id'        => $employee->employee_id,
+                $detailRows[$empId] = [
+                    'employee_id'        => $empId,
                     'module'             => $module,
                     'mandays'            => $md,
                     'additional_mandays' => $addMd,
@@ -1945,6 +2096,7 @@ class AdminBackupController extends Controller
             }
 
             if (empty($detailRows)) continue;
+            $detailRows = array_values($detailRows);
 
             try {
                 \Illuminate\Support\Facades\DB::beginTransaction();
@@ -2119,7 +2271,7 @@ class AdminBackupController extends Controller
             'date'           => ['date', 'tanggal'],
             'start_time'     => ['start time', 'start_time', 'jam mulai'],
             'end_time'       => ['end time', 'end_time', 'jam selesai'],
-            'description'    => ['description', 'deskripsi', 'keterangan'],
+            'description'    => ['description', 'description ticket', 'deskripsi', 'keterangan'],
             'ticket_number'  => ['ticket number', 'ticket_number', 'tiket', 'no tiket'],
             'activity_type'  => ['activity type', 'activity_type', 'tipe aktivitas'],
             'status'         => ['status'],
@@ -2161,6 +2313,8 @@ class AdminBackupController extends Controller
             $rowNum++;
 
             $eci = $get('employee_eci', $row);
+            // Normalisasi nilai error Excel (#N/A, #REF!, dll)
+            if ($eci && preg_match('/^#[A-Z\/]+[!?]?$/', $eci)) $eci = null;
             if (!$eci) { $errors[] = "Baris {$rowNum}: Employee ECI kosong — dilewati"; $skipped++; continue; }
 
             $employee = \Illuminate\Support\Facades\DB::table('employee')->where('eci', $eci)->select('employee_id')->first();

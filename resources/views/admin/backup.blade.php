@@ -540,6 +540,46 @@
 
     </div>
 
+    {{-- ── Row 6: Ticket Member Import ── --}}
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+        <div class="px-5 pt-5 pb-4 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
+                    <i class="fas fa-user-tag text-teal-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-800">Ticket Members Import</h3>
+                    <p class="text-xs text-gray-400">Set ticket lead & member dari CSV legacy</p>
+                </div>
+            </div>
+        </div>
+        <div class="p-5 flex flex-col gap-4 max-w-lg">
+            <div class="bg-teal-50 rounded-xl p-3 text-xs text-teal-700 space-y-0.5">
+                <p class="font-semibold mb-1">Format CSV: <span class="font-normal">Tiket · Description · MEMBER · EMP ID</span></p>
+                <p>Baris <strong>pertama</strong> per nomor tiket → dijadikan <strong>Ticket Lead</strong> (ticket_lead_id &amp; PIC)</p>
+                <p>Baris berikutnya → ditambahkan sebagai <strong>Member</strong></p>
+                <p class="text-teal-500 mt-1">Baris tanpa EMP ID / nomor tiket tidak valid otomatis dilewati.</p>
+            </div>
+            <div id="tmDropzone"
+                class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-teal-400 hover:bg-teal-50 transition-colors"
+                onclick="document.getElementById('tmFileInput').click()"
+                ondragover="event.preventDefault();this.classList.add('border-teal-400','bg-teal-50')"
+                ondragleave="this.classList.remove('border-teal-400','bg-teal-50')"
+                ondrop="handleDrop(event,'tm')">
+                <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-1"></i>
+                <p class="text-xs text-gray-400">Drop CSV here or <span class="text-teal-600 font-medium">browse</span></p>
+                <p id="tmFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
+            </div>
+            <input type="file" id="tmFileInput" accept=".csv,.txt" class="hidden" onchange="onFileSelect(event,'tm')">
+            <button id="btnImportTm" onclick="runImport('tm')"
+                class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-teal-100 text-teal-700 text-sm font-medium hover:bg-teal-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled>
+                <i class="fas fa-upload text-xs"></i> Import Ticket Members
+            </button>
+            <div id="tmResult" class="hidden mt-1"></div>
+        </div>
+    </div>
+
 </div>
 
 {{-- ── Import Error Detail Modal ── --}}
@@ -594,6 +634,7 @@ function handleDrop(e, type) {
 }
 
 const ticketFiles = {};
+const tmFiles     = {};
 const rdFiles = {};
 const tsFiles = {};
 
@@ -601,6 +642,7 @@ function setFile(type, file) {
     if      (type === 'emp')    empFiles.file    = file;
     else if (type === 'cust')   custFiles.file   = file;
     else if (type === 'ticket') ticketFiles.file = file;
+    else if (type === 'tm')     tmFiles.file     = file;
     else if (type === 'rd')     rdFiles.file     = file;
     else if (type === 'ts')     tsFiles.file     = file;
 
@@ -608,7 +650,7 @@ function setFile(type, file) {
     nameEl.textContent = file.name + ' (' + formatBytes(file.size) + ')';
     nameEl.classList.remove('hidden');
 
-    const btnMap = { emp: 'btnImportEmp', cust: 'btnImportCust', ticket: 'btnImportTicket', rd: 'btnImportRd', ts: 'btnImportTs' };
+    const btnMap = { emp: 'btnImportEmp', cust: 'btnImportCust', ticket: 'btnImportTicket', tm: 'btnImportTm', rd: 'btnImportRd', ts: 'btnImportTs' };
     document.getElementById(btnMap[type]).disabled = false;
 
     const result = document.getElementById(type + 'Result');
@@ -629,6 +671,7 @@ async function runImport(type) {
         emp:    empFiles.file,
         cust:   custFiles.file,
         ticket: ticketFiles.file,
+        tm:     tmFiles.file,
         rd:     rdFiles.file,
         ts:     tsFiles.file,
     };
@@ -636,6 +679,7 @@ async function runImport(type) {
         emp:    'btnImportEmp',
         cust:   'btnImportCust',
         ticket: 'btnImportTicket',
+        tm:     'btnImportTm',
         rd:     'btnImportRd',
         ts:     'btnImportTs',
     };
@@ -643,6 +687,7 @@ async function runImport(type) {
         emp:    '/api/admin/import/employees',
         cust:   '/api/admin/import/customers',
         ticket: '/api/admin/import/tickets',
+        tm:     '/api/admin/import/ticket-members',
         rd:     '/api/admin/import/resolution-days',
         ts:     '/api/admin/import/timesheet',
     };
@@ -677,7 +722,7 @@ async function runImport(type) {
         showToast('Import failed: ' + e.message, 'error');
     } finally {
         btn.disabled = false;
-        const labelMap = { emp: 'Employee', cust: 'Customer', ticket: 'Tickets', rd: 'Resolution Days', ts: 'Timesheet' };
+        const labelMap = { emp: 'Employee', cust: 'Customer', ticket: 'Tickets', tm: 'Ticket Members', rd: 'Resolution Days', ts: 'Timesheet' };
         btn.innerHTML = `<i class="fas fa-upload text-xs"></i> Import ${labelMap[type] ?? type}`;
     }
 }
@@ -693,6 +738,10 @@ function showImportResult(type, json) {
             statsHtml = `<span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.created} created</span>
                          <span class="flex items-center gap-1"><i class="fas fa-sync text-blue-500"></i> ${json.updated} updated</span>
                          <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped} skipped</span>`;
+        } else if (type === 'tm') {
+            statsHtml = `<span class="flex items-center gap-1"><i class="fas fa-user-tie text-teal-500"></i> ${json.leads_set} lead diset</span>
+                         <span class="flex items-center gap-1"><i class="fas fa-users text-blue-500"></i> ${json.members_added} member ditambahkan</span>
+                         <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped} dilewati</span>`;
         } else if (type === 'ts') {
             statsHtml = `<span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.imported} ditambahkan</span>
                          <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped ?? 0} dilewati</span>`;
