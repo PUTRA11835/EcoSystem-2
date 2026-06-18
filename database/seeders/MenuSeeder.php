@@ -114,9 +114,20 @@ class MenuSeeder extends Seeder
             ['slug' => 'legal',                        'name' => 'Legal',                   'type' => 'page',     'parent_slug' => null,          'route_name' => 'legal',                        'icon' => 'fa-balance-scale',     'order_seq' => 15],
 
             // ── Manajemen (Admin only) ────────────────────────────────────────────
-            ['slug' => 'management',                   'name' => 'Manajemen',               'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-shield-alt',        'order_seq' => 16],
-            ['slug' => 'management.roles',             'name' => 'Role',                    'type' => 'page',     'parent_slug' => 'management',  'route_name' => 'management.roles.index',       'icon' => null,                   'order_seq' => 1],
-            ['slug' => 'management.permissions',       'name' => 'Akses Menu',              'type' => 'page',     'parent_slug' => 'management',  'route_name' => 'management.permissions.index', 'icon' => null,                   'order_seq' => 2],
+            ['slug' => 'management',                            'name' => 'Manajemen',               'type' => 'group',    'parent_slug' => null,                   'route_name' => null,                                    'icon' => 'fa-shield-alt',  'order_seq' => 16],
+            ['slug' => 'management.roles',                      'name' => 'Role',                    'type' => 'page',     'parent_slug' => 'management',           'route_name' => 'management.roles.index',                'icon' => null,             'order_seq' => 1],
+            ['slug' => 'management.permissions',                'name' => 'Akses Menu',              'type' => 'page',     'parent_slug' => 'management',           'route_name' => 'management.permissions.index',          'icon' => null,             'order_seq' => 2],
+            ['slug' => 'management.employee',                   'name' => 'Setting Master Employee', 'type' => 'group',    'parent_slug' => 'management',           'route_name' => null,                                    'icon' => null,             'order_seq' => 3],
+            ['slug' => 'management.employee.basic-data',        'name' => 'Basic Data',              'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.basic-data.index',  'icon' => null,             'order_seq' => 1],
+            ['slug' => 'management.employee.address',           'name' => 'Address',                 'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.address.index',     'icon' => null,             'order_seq' => 2],
+            ['slug' => 'management.employee.identification',    'name' => 'Identification',          'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.identification.index','icon' => null,            'order_seq' => 3],
+            ['slug' => 'management.employee.family',            'name' => 'Family',                  'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.family.index',      'icon' => null,             'order_seq' => 4],
+            ['slug' => 'management.employee.education',         'name' => 'Education',               'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.education.index',   'icon' => null,             'order_seq' => 5],
+            ['slug' => 'management.employee.qualification',     'name' => 'Qualification',           'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.qualification.index','icon' => null,            'order_seq' => 6],
+            ['slug' => 'management.employee.contract',          'name' => 'Contract',                'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.contract.index',    'icon' => null,             'order_seq' => 7],
+            ['slug' => 'management.employee.bank',              'name' => 'Bank',                    'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.bank.index',        'icon' => null,             'order_seq' => 8],
+            ['slug' => 'management.employee.payment',           'name' => 'Payment',                 'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.payment.index',     'icon' => null,             'order_seq' => 9],
+            ['slug' => 'management.employee.attachment',        'name' => 'Attachment',              'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.attachment.index',  'icon' => null,             'order_seq' => 10],
         ];
 
         // ── Upsert menus (idempotent) ────────────────────────────────────────────
@@ -240,9 +251,20 @@ class MenuSeeder extends Seeder
             // Legal
             'legal'                       => [self::ADMIN=>$v],
             // Manajemen
-            'management'                  => [self::ADMIN=>$v],
-            'management.roles'            => [self::ADMIN=>$vced],
-            'management.permissions'      => [self::ADMIN=>$vced],
+            'management'                            => [self::ADMIN=>$v],
+            'management.roles'                      => [self::ADMIN=>$vced],
+            'management.permissions'                => [self::ADMIN=>$vced],
+            'management.employee'                   => [self::ADMIN=>$v],
+            'management.employee.basic-data'        => [self::ADMIN=>$vced],
+            'management.employee.address'           => [self::ADMIN=>$vced],
+            'management.employee.identification'    => [self::ADMIN=>$vced],
+            'management.employee.family'            => [self::ADMIN=>$vced],
+            'management.employee.education'         => [self::ADMIN=>$vced],
+            'management.employee.qualification'     => [self::ADMIN=>$vced],
+            'management.employee.contract'          => [self::ADMIN=>$vced],
+            'management.employee.bank'              => [self::ADMIN=>$vced],
+            'management.employee.payment'           => [self::ADMIN=>$vced],
+            'management.employee.attachment'        => [self::ADMIN=>$vced],
         ];
 
         foreach ($matrix as $slug => $rolePerms) {

@@ -436,23 +436,45 @@ class ConsultantWorkloadController extends Controller
     }
 
     /**
-     * Load modules dari employee_qualification per employee.
+     * Load modules per employee dari consultant_mandays_detail (modul tiket aktif),
+     * dengan fallback ke employee_qualification jika tidak ada data mandays.
      * Return: [employee_id => "Module1, Module2"]
      */
     public static function modulesMapForEmployees(array $empIds): array
     {
         if (empty($empIds)) return [];
 
-        $rows = DB::table('employee_qualification')
-            ->join('modules', 'modules.id', '=', 'employee_qualification.module_id')
-            ->whereIn('employee_qualification.employee_id', $empIds)
-            ->where('modules.is_active', true)
-            ->select('employee_qualification.employee_id', 'modules.name as module')
+        // Ambil modul dari consultant_mandays_detail (tiket aktif)
+        $mandaysRows = DB::table('consultant_mandays_detail as cmd')
+            ->join('consultant_mandays as cm', 'cm.id', '=', 'cmd.consultant_mandays_id')
+            ->join('ticket as t', 't.ticket_id', '=', 'cm.ticket_id')
+            ->whereIn('cmd.employee_id', $empIds)
+            ->whereIn('t.status', ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'])
+            ->whereNull('t.deleted_at')
+            ->whereNotNull('cmd.module')
+            ->where('cmd.module', '!=', '')
+            ->select('cmd.employee_id', 'cmd.module')
+            ->distinct()
             ->get();
 
         $map = [];
-        foreach ($rows as $row) {
+        foreach ($mandaysRows as $row) {
             $map[$row->employee_id][] = $row->module;
+        }
+
+        // Fallback ke employee_qualification untuk employee yang belum punya data mandays
+        $missingIds = array_diff($empIds, array_keys($map));
+        if (!empty($missingIds)) {
+            $qualRows = DB::table('employee_qualification')
+                ->join('modules', 'modules.id', '=', 'employee_qualification.module_id')
+                ->whereIn('employee_qualification.employee_id', $missingIds)
+                ->where('modules.is_active', true)
+                ->select('employee_qualification.employee_id', 'modules.name as module')
+                ->get();
+
+            foreach ($qualRows as $row) {
+                $map[$row->employee_id][] = $row->module;
+            }
         }
 
         return array_map(

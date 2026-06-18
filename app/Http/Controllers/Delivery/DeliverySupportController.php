@@ -749,7 +749,8 @@ class DeliverySupportController extends Controller
     public function search(Request $request)
     {
         try {
-            $query = DeliverySupport::with(['client.basicData']);
+            $query = DeliverySupport::with(['client.basicData'])
+                ->where('calculated_progress', '<', 100);
 
             // Filter by client if provided
             if ($request->filled('client_id')) {

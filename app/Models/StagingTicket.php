@@ -15,6 +15,7 @@ class StagingTicket extends Model
         'description',
         'body',
         'ticket_priority',
+        'ticket_type',
         'scale',
         'status',
         'rejection_reason',

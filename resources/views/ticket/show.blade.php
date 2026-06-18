@@ -3836,16 +3836,14 @@
         const select = document.getElementById('deliverySupportSelect');
         if (!select) return;
 
-        // Gunakan cache jika sudah pernah di-fetch
-        if (deliverySupportList.length > 0) {
-            populateDeliverySupportSelect(select);
-            return;
-        }
-
         select.innerHTML = '<option value="">Loading...</option>';
 
         try {
-            const response = await fetch('/api/delivery/support/search', {
+            const url = ticketCustomerId
+                ? `/api/delivery/support/search?client_id=${ticketCustomerId}`
+                : '/api/delivery/support/search';
+
+            const response = await fetch(url, {
                 headers: getHeaders(),
                 credentials: 'same-origin'
             });
@@ -3855,7 +3853,7 @@
             if (data.success && data.data) {
                 deliverySupportList = data.data;
                 if (data.data.length === 0) {
-                    select.innerHTML = '<option value="">No delivery support found</option>';
+                    select.innerHTML = '<option value="">No delivery support found for this customer</option>';
                     return;
                 }
                 populateDeliverySupportSelect(select);

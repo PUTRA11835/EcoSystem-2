@@ -239,6 +239,7 @@ class StagingTicketController extends Controller
             'description'          => 'required|string|max:5000',
             'body'                 => 'nullable|string',
             'ticket_priority'      => 'nullable|in:Very High,High,Medium,Low',
+            'ticket_type'          => 'nullable|string|in:Incident,Service Request,Change Request,Consult',
             'sender_name'          => 'nullable|string|max:255',
             'submitted_by_email'   => 'nullable|email|max:255',
             'cc_emails'            => 'nullable|string',    // JSON string dari JARVIES
@@ -1320,7 +1321,7 @@ class StagingTicketController extends Controller
             'description'         => $s->description,
             'body'                => $s->body,           // ← full message body dari Jarvies/web form
             'ticket_priority'     => $s->ticket?->ticket_priority ?? $s->ticket_priority,
-            'ticket_type'         => $s->ticket?->ticket_type,
+            'ticket_type'         => $s->ticket?->ticket_type ?? $s->ticket_type,
             'scale'               => $s->ticket?->scale ?? $s->scale,
             'status'              => $s->status,
             'rejection_reason'    => $s->rejection_reason,

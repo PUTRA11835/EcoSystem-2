@@ -711,6 +711,11 @@ function fillModal(s) {
             const el = document.getElementById(id);
             if (el) el.value = val;
         });
+        // Pre-select type if staging already has a value
+        if (s.ticket_type) {
+            const typeEl = document.getElementById('approveTicketType');
+            if (typeEl) typeEl.value = s.ticket_type;
+        }
         // Pre-select priority if staging already has a value
         if (s.ticket_priority) {
             const prioEl = document.getElementById('approvePriority');
