@@ -37,8 +37,8 @@ enum RoleId: int
     case DELIVERY_PROJECT_ADMIN = 12;
     // DB name: Delivery Project User (employee_role.id = 15)
     case DELIVERY_PROJECT_USER = 15;
-    // DB name: Delivery Support Manager (employee_role.id = 20)
-    case DELIVERY_SUPPORT_MANAGER = 20;
+    // DB name: Delivery Support Manager (employee_role.id = 14)
+    case DELIVERY_SUPPORT_MANAGER = 14;
 
     // ── Grup yang sering dipakai bersama ────────────────────────────────────
 
