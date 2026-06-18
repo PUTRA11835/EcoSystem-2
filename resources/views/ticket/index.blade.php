@@ -56,6 +56,7 @@
             <i class="fas fa-file-excel text-green-600 text-xs"></i>Export
         </a>
         @endif
+
     </div>
 </div>
 
@@ -325,6 +326,9 @@
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:200px;">Due Date/Time Resolution Time</th>
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:140px;">Resolution Time</th>
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:160px;">Resolution Time Status</th>
+                        @if($can('sla.report'))
+                        <th class="px-3 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:110px;">SLA Report</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody id="ticketsListBody" class="divide-y divide-gray-100 bg-white"></tbody>
@@ -617,6 +621,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     let userRoleIds                   = {!! json_encode($user->role_ids) !!};
     let userRole                      = userRoleIds[0] ?? 0;
     let currentEmployeeId             = {{ $currentEmployeeId ?? 'null' }};
+    const CAN_VIEW_SLA_REPORT         = {{ $can('sla.report') ? 'true' : 'false' }};
     const IS_EXTERNAL_EMPLOYEE        = {{ ($isExternalEmployee ?? false) ? 'true' : 'false' }};
     const EC_ADMINISTRATOR_ROLE       = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
     const DELIVERY_SUPPORT_USER_ROLE  = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};
@@ -1055,6 +1060,26 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                     <td class="px-3 py-3 whitespace-nowrap">${slaStatusBadge(sla.resolution_status)}</td>
                 `;
             })()}
+            ${CAN_VIEW_SLA_REPORT ? `
+            <td class="px-3 py-3 whitespace-nowrap" onclick="event.stopPropagation()">
+                ${ticket.sla
+                    ? `<div class="flex items-center gap-1">
+                           <button onclick="openSlaDetail(${ticket.ticket_id}, '${(ticket.ticket_number||'').replace(/'/g,"\\'")}'); event.stopPropagation();"
+                               class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition text-[10px] font-medium">
+                               <i class="fas fa-history text-xs"></i><span>Log</span>
+                           </button>
+                           <a href="/admin/sla/tickets/${ticket.ticket_id}/log-pdf" target="_blank" onclick="event.stopPropagation();"
+                               class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 text-gray-400 hover:text-red-600 transition text-[10px] font-medium">
+                               <i class="fas fa-download text-xs"></i><span>Log PDF</span>
+                           </a>
+                           <a href="/admin/sla/tickets/${ticket.ticket_id}/pdf" target="_blank" onclick="event.stopPropagation();"
+                               class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-orange-300 hover:bg-orange-50 text-gray-400 hover:text-orange-600 transition text-[10px] font-medium">
+                               <i class="fas fa-download text-xs"></i><span>Summary PDF</span>
+                           </a>
+                       </div>`
+                    : `<span class="text-gray-300 text-xs">—</span>`
+                }
+            </td>` : ''}
         </tr>`;
     }
 
@@ -1698,14 +1723,264 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     // Event listeners
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
+            if (document.getElementById('slaDetailModal') && !document.getElementById('slaDetailModal').classList.contains('hidden')) {
+                closeSlaDetail();
+                return;
+            }
             if (document.getElementById('createTicketModal') && !document.getElementById('createTicketModal').classList.contains('hidden')) {
                 closeCreateTicketModal();
             }
         }
     });
 
+    // ── SLA Log Modal ─────────────────────────────────────────────────────────
+    const STATUS_CFG_SLA = {
+        'pending_validation': { bg:'bg-gray-100',  text:'text-gray-500',  dot:'bg-gray-400',  label:'Pending'  },
+        'pending':            { bg:'bg-blue-50',   text:'text-blue-700',  dot:'bg-blue-500',  label:'Active'   },
+        'paused':             { bg:'bg-amber-50',  text:'text-amber-700', dot:'bg-amber-500', label:'Paused'   },
+        'met':                { bg:'bg-green-50',  text:'text-green-700', dot:'bg-green-500', label:'Met'      },
+        'breached':           { bg:'bg-red-50',    text:'text-red-700',   dot:'bg-red-500',   label:'Breached' },
+    };
+    const EVENT_ROW_CFG_SLA = {
+        email_received:       { dot: '#6366f1', rowBg: '#fafaff', label: 'Email / Request Received'  },
+        ticket_validated:     { dot: '#16a34a', rowBg: '#f6fef7', label: 'Ticket Created'            },
+        agent_replied:        { dot: '#2563eb', rowBg: '#f5f9ff', label: 'Helpdesk Reply'            },
+        customer_replied:     { dot: '#ea580c', rowBg: '#fff8f4', label: 'Customer Reply'            },
+        resolution_sent:      { dot: '#0d9488', rowBg: '#f4fefc', label: 'Resolution Sent'           },
+        escalated_to_sap:     { dot: '#7c3aed', rowBg: '#faf7ff', label: 'Escalated to SAP'         },
+        escalated_to_support: { dot: '#6b7280', rowBg: '#f9fafb', label: 'Returned to Helpdesk'     },
+        sla_warning:          { dot: '#ca8a04', rowBg: '#fffdf0', label: 'SLA Warning'               },
+        sla_breached:         { dot: '#dc2626', rowBg: '#fff8f8', label: 'SLA Breached'              },
+        ticket_closed:        { dot: '#374151', rowBg: '#f9fafb', label: 'Ticket Closed'             },
+        meeting_started:      { dot: '#7c3aed', rowBg: '#faf7ff', label: 'Meeting Started'           },
+        meeting_ended:        { dot: '#7c3aed', rowBg: '#faf7ff', label: 'Meeting Ended'             },
+    };
+    const BALL_ICON_SLA = {
+        helpdesk: { icon: '▶', label: 'Helpdesk' },
+        customer: { icon: '⏸', label: 'Customer' },
+        sap:      { icon: '⏸', label: 'SAP'      },
+        meeting:  { icon: '⏸', label: 'Meeting'  },
+    };
+
+    function _slaToHMM(hours) {
+        if (hours === null || hours === undefined) return null;
+        const h = Math.floor(hours);
+        const m = Math.round((hours - h) * 60);
+        return `${h}:${String(m).padStart(2, '0')}`;
+    }
+    function _slaToHLabel(hours) {
+        if (hours === null || hours === undefined) return null;
+        const mins = Math.round(hours * 60);
+        return `${hours.toFixed(2)} h(${mins} min)`;
+    }
+
+    let _currentSlaTicketId = null;
+
+    async function openSlaDetail(ticketId, ticketNum) {
+        _currentSlaTicketId = ticketId;
+        document.getElementById('slaDetailTicketNum').textContent = '#' + ticketNum;
+        document.getElementById('slaDetailBadges').classList.add('hidden');
+        document.getElementById('slaDetailBadges').innerHTML = '';
+        document.getElementById('slaDetailStatsBar').classList.add('hidden');
+        document.getElementById('slaDetailPdfBtn').href = '/admin/sla/tickets/' + ticketId + '/log-pdf';
+        document.getElementById('slaDetailPdfBtn').classList.remove('hidden');
+        document.getElementById('slaDetailContent').innerHTML = `
+            <div class="flex flex-col items-center justify-center gap-3 py-20 text-gray-300">
+                <i class="fas fa-spinner fa-spin text-3xl"></i>
+                <p class="text-sm text-gray-400">Loading SLA log…</p>
+            </div>`;
+        document.getElementById('slaDetailModal').classList.remove('hidden');
+        await _fetchSlaDetail(ticketId);
+    }
+
+    async function refreshSlaDetail() {
+        if (!_currentSlaTicketId) return;
+        const icon = document.getElementById('slaDetailRefreshIcon');
+        icon && icon.classList.add('fa-spin');
+        await _fetchSlaDetail(_currentSlaTicketId);
+        icon && icon.classList.remove('fa-spin');
+    }
+
+    async function _fetchSlaDetail(ticketId) {
+        try {
+            const res  = await fetch('/api/tickets/' + ticketId + '/sla', { credentials: 'include' });
+            const json = await res.json();
+            if (!json.success || !json.data) {
+                document.getElementById('slaDetailContent').innerHTML =
+                    `<div class="flex flex-col items-center gap-2 py-16 text-gray-300"><i class="fas fa-inbox text-3xl"></i><p class="text-sm text-gray-400">No SLA data available for this ticket.</p></div>`;
+                return;
+            }
+            _renderSlaDetail(json.data);
+        } catch {
+            document.getElementById('slaDetailContent').innerHTML =
+                `<div class="flex flex-col items-center gap-2 py-16 text-red-300"><i class="fas fa-exclamation-triangle text-3xl"></i><p class="text-sm text-red-400">Failed to load SLA log.</p></div>`;
+        }
+    }
+
+    function _renderSlaDetail(data) {
+        const respSc = STATUS_CFG_SLA[data.response && data.response.status] || STATUS_CFG_SLA['pending'];
+        const resSc  = STATUS_CFG_SLA[data.resolution && data.resolution.status] || STATUS_CFG_SLA['pending'];
+
+        document.getElementById('slaStatResponseVal').textContent   = data.response && data.response.actual_hours != null ? data.response.actual_hours + ' hrs' : '—';
+        document.getElementById('slaStatResponseStatus').innerHTML  = `<span class="${respSc.text} font-semibold">${respSc.label}</span><span class="text-slate-400"> / target ${data.response ? data.response.target_hours : '—'} hrs</span>`;
+        document.getElementById('slaStatResolutionVal').textContent = data.resolution && data.resolution.actual_hours != null ? data.resolution.actual_hours + ' hrs' : (data.sla_mode === 'response_only' ? 'N/A' : '—');
+        document.getElementById('slaStatResolutionStatus').innerHTML = data.resolution
+            ? `<span class="${resSc.text} font-semibold">${resSc.label}</span><span class="text-slate-400"> / target ${data.resolution.target_hours} hrs</span>`
+            : `<span class="text-slate-400">Response-only mode</span>`;
+
+        const totalWait = data.total_waiting_hours != null ? data.total_waiting_hours : 0;
+        document.getElementById('slaStatWaitingVal').textContent   = totalWait > 0 ? totalWait.toFixed(2) + ' hrs' : '0 hrs';
+        document.getElementById('slaStatBallHolder').textContent   = data.ball_holder ? (data.ball_holder.charAt(0).toUpperCase() + data.ball_holder.slice(1)) : '—';
+        document.getElementById('slaDetailStatsBar').classList.remove('hidden');
+
+        const badgesEl = document.getElementById('slaDetailBadges');
+        badgesEl.innerHTML = `
+            <span class="inline-flex items-center gap-1 text-[11px] font-semibold ${respSc.text} ${respSc.bg} px-2.5 py-1 rounded-full whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full ${respSc.dot} flex-shrink-0"></span>Response: ${respSc.label}
+            </span>
+            ${data.resolution ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold ${resSc.text} ${resSc.bg} px-2.5 py-1 rounded-full whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full ${resSc.dot} flex-shrink-0"></span>Resolution: ${resSc.label}
+            </span>` : ''}`;
+        badgesEl.classList.remove('hidden');
+        badgesEl.classList.add('flex');
+
+        if (!data.events || !data.events.length) {
+            document.getElementById('slaDetailContent').innerHTML = `
+                <div class="flex flex-col items-center gap-3 py-20 text-gray-300">
+                    <i class="fas fa-table text-3xl"></i>
+                    <p class="text-sm text-gray-400">No events recorded yet</p>
+                </div>`;
+            return;
+        }
+
+        let lastDate = null;
+        const rows = data.events.map(function(e) {
+            const dt      = e.event_at ? new Date(e.event_at) : null;
+            const dateStr = dt ? dt.toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
+            const timeStr = dt ? dt.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }) : '—';
+            const showDate = dateStr !== lastDate;
+            lastDate = dateStr;
+            const evCfg   = EVENT_ROW_CFG_SLA[e.event_type] || { dot: '#9ca3af', rowBg: '#fff', label: e.event_type };
+            const ballCfg = e.ball_after ? (BALL_ICON_SLA[e.ball_after] || null) : null;
+            const waitCell = e.waiting_hours !== null && e.waiting_hours !== undefined ? `<span class="text-[11px] font-semibold text-amber-600 whitespace-nowrap">${_slaToHLabel(e.waiting_hours)}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
+            const respCell = e.response_hours !== null && e.response_hours !== undefined ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_slaToHLabel(e.response_hours)}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
+            const resCell  = e.resolution_hours !== null && e.resolution_hours !== undefined ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_slaToHLabel(e.resolution_hours)}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
+            const statusCell = e.jarvis_status ? `<span class="text-[10px] text-gray-500 whitespace-nowrap">${e.jarvis_status.replace(/_/g,' ')}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
+            const ballCell = ballCfg ? `<span class="text-[11px] font-semibold text-gray-600 whitespace-nowrap">${ballCfg.icon} ${ballCfg.label}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
+            const senderPrefix = e.sender_name ? `<span class="font-semibold text-gray-700">${e.sender_name}:</span> ` : '';
+            const bodyText = e.message_preview || e.notes || null;
+            const msgText  = bodyText
+                ? `<span title="${(e.message_preview || '').replace(/"/g,'&quot;')}" class="text-gray-500 text-xs">${senderPrefix}${bodyText.substring(0, 80)}${bodyText.length > 80 ? '…' : ''}</span>`
+                : (e.sender_name ? `<span class="font-semibold text-gray-700 text-xs">${e.sender_name}</span>` : `<span class="text-gray-300 text-xs">—</span>`);
+            const dateSep = showDate ? `<tr><td colspan="9" style="background:#f3f4f6;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:4px 12px;"><span style="font-size:10px;font-weight:600;color:#6b7280;letter-spacing:0.04em;">${dt ? dt.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : dateStr}</span></td></tr>` : '';
+            return `${dateSep}<tr style="background:${evCfg.rowBg};border-left:3px solid ${evCfg.dot};" class="border-b border-gray-100/80 hover:brightness-[0.97] transition-all">
+                <td class="px-3 py-2.5 text-xs text-gray-400 whitespace-nowrap">${showDate ? dateStr : ''}</td>
+                <td class="px-3 py-2.5 text-xs text-gray-600 font-mono whitespace-nowrap">${timeStr}</td>
+                <td class="px-3 py-2.5 text-right whitespace-nowrap">${waitCell}</td>
+                <td class="px-3 py-2.5 text-right whitespace-nowrap">${respCell}</td>
+                <td class="px-3 py-2.5 text-right whitespace-nowrap">${resCell}</td>
+                <td class="px-3 py-2.5 whitespace-nowrap"><div class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:${evCfg.dot};"></span><span class="text-xs text-gray-700">${evCfg.label}</span></div></td>
+                <td class="px-3 py-2.5">${statusCell}</td>
+                <td class="px-3 py-2.5">${ballCell}</td>
+                <td class="px-3 py-2.5 max-w-[220px] truncate">${msgText}</td>
+            </tr>`;
+        }).join('');
+
+        const netHoursLabel = data.resolution && data.resolution.net_hours != null ? ` <span class="font-normal normal-case text-gray-400">(${_slaToHMM(data.resolution.net_hours)})</span>` : '';
+        document.getElementById('slaDetailContent').innerHTML = `
+            <table class="w-full text-sm border-collapse" style="min-width:820px">
+                <thead>
+                    <tr class="sticky top-0 z-10" style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Date</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Time</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-right">Waiting</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-right">Response</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-right">Resolution${netHoursLabel}</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left" style="padding-left:16px;">Event</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Status</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Ball</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase text-left">Message</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+    }
+
+    function closeSlaDetail() {
+        document.getElementById('slaDetailModal').classList.add('hidden');
+        document.getElementById('slaDetailStatsBar').classList.add('hidden');
+        document.getElementById('slaDetailBadges').classList.add('hidden');
+        _currentSlaTicketId = null;
+    }
 
 </script>
+
+{{-- SLA Log Modal --}}
+@if($can('sla.report'))
+<div id="slaDetailModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onclick="closeSlaDetail()"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden">
+            <div class="flex-shrink-0 bg-white border-b border-gray-100">
+                <div class="flex items-center justify-between px-6 py-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                            <i class="fas fa-table text-gray-500 text-sm"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-800">SLA Log</h3>
+                            <p class="text-xs text-gray-400 mt-0.5">Ticket <span id="slaDetailTicketNum" class="font-mono font-semibold text-gray-600"></span></p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div id="slaDetailBadges" class="hidden items-center gap-2 flex-wrap"></div>
+                        <button onclick="refreshSlaDetail()" title="Refresh SLA Log"
+                            class="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 bg-white px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                            <i class="fas fa-sync-alt text-xs" id="slaDetailRefreshIcon"></i> Refresh
+                        </button>
+                        <a id="slaDetailPdfBtn" href="#" target="_blank"
+                            class="hidden inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                            <i class="fas fa-file-pdf text-xs"></i> Download PDF
+                        </a>
+                        <button onclick="closeSlaDetail()"
+                            class="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition">
+                            <i class="fas fa-times text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="slaDetailStatsBar" class="hidden px-6 pb-4">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Response</p>
+                            <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaStatResponseVal">—</p>
+                            <p class="text-[10px] mt-0.5" id="slaStatResponseStatus"></p>
+                        </div>
+                        <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Resolution</p>
+                            <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaStatResolutionVal">—</p>
+                            <p class="text-[10px] mt-0.5" id="slaStatResolutionStatus"></p>
+                        </div>
+                        <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Waiting</p>
+                            <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaStatWaitingVal">—</p>
+                            <p class="text-[10px] text-gray-400 mt-0.5">total pause time</p>
+                        </div>
+                        <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Ball Holder</p>
+                            <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaStatBallHolder">—</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="slaDetailContent" class="overflow-auto flex-1 bg-gray-50/30">
+                <div class="flex items-center justify-center h-32 text-gray-300">
+                    <i class="fas fa-spinner fa-spin text-3xl"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 {{-- Load custom-dd component (sama dengan Employee/Customer Management).
      filemtime cache buster supaya production auto-invalidate setiap deploy. --}}

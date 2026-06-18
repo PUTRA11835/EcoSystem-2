@@ -633,18 +633,18 @@ function renderTable(tickets) {
                 </span>
             </td>
             <td class="px-5 py-3">
-                <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div class="flex items-center justify-end gap-1">
                     <button onclick="openDetail(${t.ticket_id}, '${t.ticket_number}')" title="View SLA Log"
-                        class="w-7 h-7 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 flex items-center justify-center text-gray-400 hover:text-indigo-600 transition">
-                        <i class="fas fa-table text-xs"></i>
+                        class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition text-[10px] font-medium">
+                        <i class="fas fa-history text-xs"></i><span>Log</span>
                     </button>
                     <a href="/admin/sla/tickets/${t.ticket_id}/log-pdf" target="_blank" title="Download SLA Log PDF"
-                        class="w-7 h-7 rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 flex items-center justify-center text-gray-400 hover:text-red-600 transition">
-                        <i class="fas fa-file-pdf text-xs"></i>
+                        class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 text-gray-400 hover:text-red-600 transition text-[10px] font-medium">
+                        <i class="fas fa-download text-xs"></i><span>Log PDF</span>
                     </a>
                     <a href="/admin/sla/tickets/${t.ticket_id}/pdf" target="_blank" title="Download SLA Summary PDF"
-                        class="w-7 h-7 rounded-lg border border-gray-200 hover:border-orange-300 hover:bg-orange-50 flex items-center justify-center text-gray-400 hover:text-orange-600 transition">
-                        <i class="fas fa-file-alt text-xs"></i>
+                        class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-orange-300 hover:bg-orange-50 text-gray-400 hover:text-orange-600 transition text-[10px] font-medium">
+                        <i class="fas fa-download text-xs"></i><span>Summary PDF</span>
                     </a>
                 </div>
             </td>

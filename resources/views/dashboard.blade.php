@@ -527,6 +527,7 @@
                 </div>
                 @endif
 
+
                 @if($can('delivery'))
                 <!-- DELIVERY Dropdown -->
                 <div class="mb-2">
@@ -594,27 +595,15 @@
                 </div>
                 @endif
 
-                @if($showSlaMenu)
-                <!-- SLA - Admin, Delivery Support Head, Helpdesk -->
-                @php $slaOpen = Request::is('sla*'); @endphp
+                @if($canManageSla)
+                <!-- SLA Config - Admin only -->
                 <div class="mb-2">
-                    <button onclick="toggleSlaDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $slaOpen ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="{{ route('sla.config') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('sla/config*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-stopwatch"></i>
                         </span>
-                        <span class="nav-text flex-1 font-medium">SLA</span>
-                        <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $slaOpen ? 'rotate-180' : '' }}" id="slaChevron"></i>
-                    </button>
-                    <div id="slaDropdown" class="nav-text {{ $slaOpen ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
-                        <a href="{{ route('sla.config') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('sla/config*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-sliders-h text-xs"></i></span>
-                            <span class="nav-text text-sm">SLA Config</span>
-                        </a>
-                        <a href="{{ route('sla.report') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('sla/report*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-chart-line text-xs"></i></span>
-                            <span class="nav-text text-sm">SLA Report</span>
-                        </a>
-                    </div>
+                        <span class="nav-text font-medium">SLA Config</span>
+                    </a>
                 </div>
                 @endif
 
@@ -962,15 +951,6 @@
         function toggleAdminDropdown() {
             const submenu = document.getElementById('adminDropdown');
             const chevron = document.getElementById('adminChevron');
-            if (!submenu) return;
-            const isOpen = !submenu.classList.contains('hidden');
-            submenu.classList.toggle('hidden', isOpen);
-            if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
-        }
-
-        function toggleSlaDropdown() {
-            const submenu = document.getElementById('slaDropdown');
-            const chevron = document.getElementById('slaChevron');
             if (!submenu) return;
             const isOpen = !submenu.classList.contains('hidden');
             submenu.classList.toggle('hidden', isOpen);

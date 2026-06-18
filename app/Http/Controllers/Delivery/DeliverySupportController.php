@@ -327,7 +327,9 @@ class DeliverySupportController extends Controller
         // Get clients for modal form
         $clients = Customer::with('basicData')->get();
 
-        return view('delivery.support.list.show', compact('support', 'employees', 'clients'));
+        $canManage = in_array(session('user.role.id'), [1, 5], true);
+
+        return view('delivery.support.list.show', compact('support', 'employees', 'clients', 'canManage'));
     }
 
     /**
