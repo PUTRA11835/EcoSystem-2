@@ -2218,7 +2218,6 @@
                 </div>
                 <div class="min-w-0">
                     <div class="text-xs font-semibold text-gray-800 truncate">${escHtml(item.display)}</div>
-                    <div class="text-[10px] text-gray-400 truncate">${escHtml(item.sub)}</div>
                 </div>
             </div>`
         ).join('');

@@ -917,7 +917,7 @@ class EmployeeController extends Controller
                 ->select(
                     'e.employee_id as id',
                     DB::raw("CONCAT(COALESCE(bd.first_name,''), ' ', COALESCE(bd.last_name,'')) as full_name"),
-                    DB::raw("COALESCE(NULLIF(bd.nick_name,''), CONCAT(COALESCE(bd.first_name,''), ' ', COALESCE(bd.last_name,''))) as display_name"),
+                    DB::raw("TRIM(CONCAT(COALESCE(bd.first_name,''), ' ', COALESCE(bd.last_name,''))) as display_name"),
                     DB::raw("GROUP_CONCAT(r.name ORDER BY r.id SEPARATOR ', ') as role_name")
                 )
                 ->groupBy('e.employee_id', 'bd.first_name', 'bd.last_name', 'bd.nick_name', 'bd.block', 'bd.deletion_flag')

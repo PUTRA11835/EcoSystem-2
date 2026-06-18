@@ -504,7 +504,8 @@
     }
 
     function consultantRows(c) {
-        const visibleTickets = c.tickets.filter(t => t.status === 'inprocess');
+        const activeStatuses = ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'];
+        const visibleTickets = c.tickets.filter(t => activeStatuses.includes(t.status));
 
         // Akumulasi hanya dari mandays consultant ini (bukan total semua consultant per tiket)
         let totalAllocMdMain = 0,
