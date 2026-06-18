@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\Employee;
@@ -30,7 +31,7 @@ class ConsultantWorkloadController extends Controller
 
             $consultants = Employee::with(['basicData', 'roles'])
                 ->where('is_active', true)
-                ->where('role_id', 2) // Delivery Support User only
+                ->withAnyRole([RoleId::DELIVERY_SUPPORT_USER->value])
                 ->get();
 
             // Pre-load weighted progress per ticket dari consultant_mandays_detail
@@ -251,10 +252,10 @@ class ConsultantWorkloadController extends Controller
             ->leftJoin('employee_basic_data as ebd', 'ebd.employee_id', '=', 'e.employee_id')
             ->leftJoinSub(
                 DB::table('employee_qualification')
-                    ->whereNotNull('module')
-                    ->where('module', '!=', '')
-                    ->select('employee_id', DB::raw("GROUP_CONCAT(DISTINCT module ORDER BY module SEPARATOR ', ') as qualification_modules"))
-                    ->groupBy('employee_id'),
+                    ->join('modules', 'modules.id', '=', 'employee_qualification.module_id')
+                    ->where('modules.is_active', true)
+                    ->select('employee_qualification.employee_id', DB::raw("GROUP_CONCAT(DISTINCT modules.name ORDER BY modules.name SEPARATOR ', ') as qualification_modules"))
+                    ->groupBy('employee_qualification.employee_id'),
                 'eq',
                 'eq.employee_id',
                 '=',
@@ -435,23 +436,45 @@ class ConsultantWorkloadController extends Controller
     }
 
     /**
-     * Load modules dari employee_qualification per employee.
+     * Load modules per employee dari consultant_mandays_detail (modul tiket aktif),
+     * dengan fallback ke employee_qualification jika tidak ada data mandays.
      * Return: [employee_id => "Module1, Module2"]
      */
     public static function modulesMapForEmployees(array $empIds): array
     {
         if (empty($empIds)) return [];
 
-        $rows = DB::table('employee_qualification')
-            ->whereIn('employee_id', $empIds)
-            ->whereNotNull('module')
-            ->where('module', '!=', '')
-            ->select('employee_id', 'module')
+        // Ambil modul dari consultant_mandays_detail (tiket aktif)
+        $mandaysRows = DB::table('consultant_mandays_detail as cmd')
+            ->join('consultant_mandays as cm', 'cm.id', '=', 'cmd.consultant_mandays_id')
+            ->join('ticket as t', 't.ticket_id', '=', 'cm.ticket_id')
+            ->whereIn('cmd.employee_id', $empIds)
+            ->whereIn('t.status', ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'])
+            ->whereNull('t.deleted_at')
+            ->whereNotNull('cmd.module')
+            ->where('cmd.module', '!=', '')
+            ->select('cmd.employee_id', 'cmd.module')
+            ->distinct()
             ->get();
 
         $map = [];
-        foreach ($rows as $row) {
+        foreach ($mandaysRows as $row) {
             $map[$row->employee_id][] = $row->module;
+        }
+
+        // Fallback ke employee_qualification untuk employee yang belum punya data mandays
+        $missingIds = array_diff($empIds, array_keys($map));
+        if (!empty($missingIds)) {
+            $qualRows = DB::table('employee_qualification')
+                ->join('modules', 'modules.id', '=', 'employee_qualification.module_id')
+                ->whereIn('employee_qualification.employee_id', $missingIds)
+                ->where('modules.is_active', true)
+                ->select('employee_qualification.employee_id', 'modules.name as module')
+                ->get();
+
+            foreach ($qualRows as $row) {
+                $map[$row->employee_id][] = $row->module;
+            }
         }
 
         return array_map(

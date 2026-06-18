@@ -186,8 +186,14 @@ class PasswordSetupController extends Controller
             // Token is always validated by EcoSystem (where it is stored).
             // After successful setup, customers are redirected to Jarvies automatically.
             $isCustomer = !empty($authUser->customer_id);
-            $baseUrl = rtrim(config('app.url'), '/');
+            // PENTING: link email HARUS dibangun dari base URL publik yang tetap
+            // (APP_URL), BUKAN dari host/scheme request. Penerima email adalah
+            // pihak eksternal, sedangkan request admin bisa datang dari host/port
+            // internal (mis. dev-me.eclectic.co.id:80) yang tidak reachable oleh
+            // mereka -> ERR_CONNECTION_TIMED_OUT. Set APP_URL di .env server ke
+            // base URL yang pasti bisa diakses publik (scheme + host + port benar).
             // URL memakai plaintext token; DB menyimpan hash-nya
+            $baseUrl = rtrim(config('app.url'), '/');
             $link    = $baseUrl . '/change-password?token=' . $token;
             $appName = $isCustomer ? 'Jarvies' : config('app.name', 'ECoSystem');
 

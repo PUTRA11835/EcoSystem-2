@@ -204,13 +204,14 @@ class AdminBackupController extends Controller
 
         $rows = DB::table('employee as e')
             ->leftJoin('employee_basic_data as b', 'e.employee_id', '=', 'b.employee_id')
-            ->leftJoin('employee_role as r', 'e.role_id', '=', 'r.id')
+            ->leftJoin('employee_role_assignment as era', 'e.employee_id', '=', 'era.employee_id')
+            ->leftJoin('employee_role as r', 'era.role_id', '=', 'r.id')
             ->leftJoin('employee_identification as ei', function ($join) {
                 $join->on('ei.employee_id', '=', 'e.employee_id')
                      ->where('ei.identification_type', 'KTP');
             })
             ->select(
-                'e.eci', 'r.name as role_name', 'e.is_active',
+                'e.eci', DB::raw("GROUP_CONCAT(r.name ORDER BY r.id SEPARATOR ', ') as role_name"), 'e.is_active',
                 'b.title', 'b.nick_name', 'b.gender', 'b.religion',
                 'b.first_name', 'b.last_name',
                 'b.marital_status', 'b.birth_date', 'b.birth_place',
@@ -358,12 +359,16 @@ class AdminBackupController extends Controller
         $rows = DB::table('customer as c')
             ->leftJoin('customer_basic_data as b', 'c.customer_id', '=', 'b.customer_id')
             ->leftJoin('customer as p', 'c.parent_customer_id', '=', 'p.customer_id')
+            ->leftJoin('customer_groups as cg', 'c.customer_group_id', '=', 'cg.id')
             ->leftJoinSub($firstAddr, 'fa', 'c.customer_id', '=', 'fa.customer_id')
             ->leftJoin('customer_address as a', 'fa.address_id', '=', 'a.address_id')
             ->select(
                 'c.customer_id', 'c.customer_code', 'c.email', 'c.is_active',
                 'b.title', 'b.name_1', 'b.name_2',
-                'b.customer_group', 'b.customer_category', 'b.industry_sector',
+                // Customer Group struktural — utamakan nama dari relasi customer_groups,
+                // fallback ke kolom teks lama bila FK belum terisi.
+                DB::raw('COALESCE(cg.name, b.customer_group) as customer_group'),
+                'b.customer_category', 'b.industry_sector',
                 'b.ec_account_executive', 'b.sap_account_executive',
                 'p.customer_code as parent_customer_code',
                 'a.telephone', 'a.fax', 'a.full_address', 'a.building_name',
@@ -529,7 +534,14 @@ class AdminBackupController extends Controller
         $bom = fread($handle, 3);
         if ($bom !== "\xEF\xBB\xBF") rewind($handle);
 
-        $rawHeaders = fgetcsv($handle);
+        // Auto-detect delimiter: Excel Indonesia sering export dengan ";" bukan ","
+        $firstLine = fgets($handle);
+        rewind($handle);
+        if ($bom !== "\xEF\xBB\xBF") rewind($handle);
+        else fseek($handle, 3);
+        $delimiter = substr_count($firstLine, ';') >= substr_count($firstLine, ',') ? ';' : ',';
+
+        $rawHeaders = fgetcsv($handle, 0, $delimiter);
         if (!$rawHeaders) {
             fclose($handle);
             return response()->json(['success' => false, 'message' => 'File CSV kosong atau tidak valid'], 422);
@@ -590,7 +602,7 @@ class AdminBackupController extends Controller
         $colIndex = $buildColIndex($rawHeaders);
         $headerAttempts = 0;
         while (!isset($colIndex['eci']) && $headerAttempts < 5) {
-            $next = fgetcsv($handle);
+            $next = fgetcsv($handle, 0, $delimiter);
             if ($next === false) break;
             $headerAttempts++;
             $colIndex = $buildColIndex($next);
@@ -636,7 +648,7 @@ class AdminBackupController extends Controller
         $errors   = [];
         $rowNum   = 1;
 
-        while (($row = fgetcsv($handle)) !== false) {
+        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
             $rowNum++;
             if (count($row) === 1 && trim($row[0]) === '') continue;
 
@@ -752,7 +764,7 @@ class AdminBackupController extends Controller
             ], fn($v) => $v !== null);
 
             $nik       = $get('nik');
-            $cellPhone = $get('cell_phone');
+            $cellPhone = $this->normalizePhone($get('cell_phone'));
 
             try {
                 DB::beginTransaction();
@@ -792,7 +804,6 @@ class AdminBackupController extends Controller
                 if ($existing) {
                     // ── UPDATE: full name sama → update field-fieldnya ──
                     $empUpdate = ['is_active' => $isActive, 'updated_at' => now()];
-                    if ($roleId) $empUpdate['role_id'] = $roleId;
 
                     // ECI dari CSV adalah format terbaru & menjadi acuan ke depan →
                     // timpa ECI lama bila berbeda. Username login (auth_users) ikut
@@ -914,7 +925,6 @@ class AdminBackupController extends Controller
                     // (admin bisa isi manual nanti). $emailForAuth sudah null bila $email null.
 
                     $employeeId = DB::table('employee')->insertGetId([
-                        'role_id'    => $roleId,
                         'eci'        => $eci,
                         'is_active'  => $isActive,
                         'created_at' => now(),
@@ -1033,6 +1043,30 @@ class AdminBackupController extends Controller
         return $ts !== false ? date('Y-m-d', $ts) : $val;
     }
 
+    /**
+     * Normalisasi nomor telepon dari CSV/Excel.
+     * Excel sering merusak nomor panjang (HP Indonesia 11-15 digit):
+     *  - Kolom berformat Number → angka panjang di-export sebagai notasi ilmiah
+     *    ("6.28123E+12") → di sini dikembalikan ke string integer penuh.
+     *  - Excel menambah apostrof di depan ('6281...) → di-strip.
+     * Catatan: bila presisi SUDAH hilang di Excel (mis. "6281230000000"),
+     * server tidak bisa memulihkannya — kolom Phone WAJIB diformat Text di Excel
+     * sebelum diisi/di-export ke CSV.
+     */
+    private function normalizePhone(?string $v): ?string
+    {
+        if ($v === null) return null;
+        $v = trim($v, " \t\n\r\0\x0B'\"");
+        if ($v === '') return null;
+
+        // Notasi ilmiah (6.28123E+12) → integer penuh tanpa desimal.
+        if (preg_match('/^\d(?:\.\d+)?[eE]\+?\d+$/', $v)) {
+            $v = sprintf('%.0f', (float) $v);
+        }
+
+        return $v;
+    }
+
     private function upsertNik(int $employeeId, string $nik): void
     {
         $existing = DB::table('employee_identification')
@@ -1119,9 +1153,17 @@ class AdminBackupController extends Controller
         // parent referenced by a row above it (not yet inserted) still maps.
         $pendingParents = [];
 
+        // CSV mungkin disimpan dalam Windows-1252/Latin-1 (mis. nama perusahaan
+        // beraksen). Byte non-UTF-8 yang lolos ke array $errors akan membuat
+        // response()->json() melempar "Malformed UTF-8 characters" (HTTP 500).
+        // Normalisasi tiap sel ke UTF-8 saat dibaca agar aman untuk DB & JSON.
         $get = function (string $col, array $row) use ($headerMap): ?string {
             if (!isset($headerMap[$col])) return null;
-            $val = trim($row[$headerMap[$col]] ?? '');
+            $val = $row[$headerMap[$col]] ?? '';
+            if ($val !== '' && !mb_check_encoding($val, 'UTF-8')) {
+                $val = mb_convert_encoding($val, 'UTF-8', 'Windows-1252');
+            }
+            $val = trim($val);
             return $val !== '' ? $val : null;
         };
 
@@ -1138,12 +1180,19 @@ class AdminBackupController extends Controller
             $isActive     = $get('Status', $row) !== null
                 ? (strtolower($get('Status', $row)) === 'active' ? 1 : 0)
                 : 1;
+            // Customer Group struktural — resolve nama ke customer_groups
+            // (find-or-create). null bila kolom kosong → FK tidak disentuh saat
+            // update, parity dengan mirror kolom teks yang juga di-skip saat kosong.
+            $group   = $this->resolveCustomerGroup($get('Customer Group', $row));
+            $groupId = $group['id'] ?? null;
 
             $basicData = array_filter([
                 'name_1'                => $companyName,
                 'name_2'               => $get('Name 2', $row),
                 'title'                => $get('Title', $row),
-                'customer_group'       => $get('Customer Group', $row),
+                // Mirror nama kanonik grup (bukan nilai mentah CSV) agar konsisten
+                // dengan FK customer_group_id dan dengan syncGroupNameToBasicData().
+                'customer_group'       => $group['name'] ?? null,
                 'customer_category'    => $get('Customer Category', $row),
                 'industry_sector'      => $get('Industry Sector', $row),
                 'ec_account_executive' => $get('EC Account Executive', $row),
@@ -1162,6 +1211,9 @@ class AdminBackupController extends Controller
 
                 if ($existing) {
                     $empUpdate = ['is_active' => $isActive, 'updated_at' => now()];
+                    // Hanya overwrite grup bila CSV menyertakan nilai (kolom kosong
+                    // = tidak mengubah grup existing).
+                    if ($groupId !== null) $empUpdate['customer_group_id'] = $groupId;
                     if ($customerCode && $customerCode !== $existing->customer_code) {
                         $taken = DB::table('customer')->where('customer_code', $customerCode)
                             ->where('customer_id', '!=', $existing->customer_id)->exists();
@@ -1208,11 +1260,12 @@ class AdminBackupController extends Controller
                     }
 
                     $customerId = DB::table('customer')->insertGetId([
-                        'customer_code' => $customerCode,
-                        'email'         => $email,
-                        'is_active'     => $isActive,
-                        'created_at'    => now(),
-                        'updated_at'    => now(),
+                        'customer_code'     => $customerCode,
+                        'email'             => $email,
+                        'is_active'         => $isActive,
+                        'customer_group_id' => $groupId,
+                        'created_at'        => now(),
+                        'updated_at'        => now(),
                     ]);
 
                     $basicData['customer_id'] = $customerId;
@@ -1245,6 +1298,12 @@ class AdminBackupController extends Controller
                 ->update(['parent_customer_id' => $parent->customer_id, 'updated_at' => now()]);
         }
 
+        // Insurance: pesan exception DB pun bisa membawa byte non-UTF-8.
+        $errors = array_map(
+            fn($e) => mb_check_encoding($e, 'UTF-8') ? $e : mb_convert_encoding($e, 'UTF-8', 'Windows-1252'),
+            $errors
+        );
+
         Log::info('AdminBackupController: customer import', [
             'imported' => $imported, 'updated' => $updated, 'errors' => count($errors),
             'by'       => session('user.eci') ?? session('user.name') ?? 'admin',
@@ -1257,6 +1316,34 @@ class AdminBackupController extends Controller
             'updated'  => $updated,
             'errors'   => $errors,
         ]);
+    }
+
+    /**
+     * Resolve nama "Customer Group" dari CSV ke customer_groups (find-or-create),
+     * meniru pola backfill migration customer_groups. Match case-insensitive agar
+     * tidak menabrak UNIQUE constraint pada kolom `name` (mis. "bumn" vs "BUMN").
+     * Mengembalikan ['id' => int, 'name' => string] dengan nama kanonik grup
+     * (untuk di-mirror ke kolom teks lama), atau null bila kolom kosong.
+     */
+    private function resolveCustomerGroup(?string $name): ?array
+    {
+        if ($name === null || trim($name) === '') return null;
+        $name = trim($name);
+
+        $existing = DB::table('customer_groups')
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+            ->first();
+        if ($existing) return ['id' => $existing->id, 'name' => $existing->name];
+
+        $id = DB::table('customer_groups')->insertGetId([
+            'name'       => $name,
+            'code'       => strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $name), 0, 10)) ?: null,
+            'is_active'  => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return ['id' => $id, 'name' => $name];
     }
 
     /**

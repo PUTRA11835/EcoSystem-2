@@ -47,8 +47,7 @@
 
 @section('content')
 @php
-    $roleId = session('user')['role']['id'] ?? 0;
-    $canManage = in_array($roleId, [\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value], true); // EC Administrator or Delivery Support Head
+    $canManage = $can('reporting.export-excel') || $can('reporting.close-period');
 @endphp
 
 <div class="bg-white rounded-xl p-6 shadow-sm">

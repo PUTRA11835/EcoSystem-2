@@ -10,6 +10,7 @@ use App\Models\ConsultantMandaysDetail;
 use App\Models\CustomerMandays;
 use App\Models\ReportingPeriod;
 use App\Services\PeriodService;
+use App\Support\SessionUser;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,17 +23,10 @@ class ReportingController extends Controller
 
     public function index()
     {
-        $sessionUser = session('user');
-        if (!$sessionUser) {
+        $user = SessionUser::fromSession(session('user'));
+        if (!$user) {
             return redirect()->route('login');
         }
-
-        $user = new \stdClass();
-        $user->id   = $sessionUser['id'] ?? null;
-        $user->name = $sessionUser['name'] ?? $sessionUser['email'] ?? 'Unknown';
-        $user->role = new \stdClass();
-        $user->role->role_id   = $sessionUser['role']['id'] ?? 0;
-        $user->role->role_name = $sessionUser['role']['name'] ?? 'Unknown';
 
         return view('reporting.reporting', ['user' => $user]);
     }

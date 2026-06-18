@@ -50,13 +50,14 @@ class PeriodService
      */
     public function canSubmitTimesheet(int $employeeId, Carbon $date): array
     {
-        $roleId = Employee::where('employee_id', $employeeId)->value('role_id');
-        if ($roleId === null) {
+        $employee = Employee::with('roles')->where('employee_id', $employeeId)->first();
+        if ($employee === null) {
             return ['allowed' => false, 'reason' => 'Employee not found.'];
         }
 
-        $roleId = (int) $roleId;
-        $domain = $this->getDomainForRole($roleId);
+        $roleIds = $employee->getRoleIds();
+        $roleId  = $roleIds[0] ?? 0;
+        $domain  = $this->getDomainForRole($roleId);
 
         // Roles without a domain bypass all period restrictions
         if ($domain === null) {
@@ -148,7 +149,7 @@ class PeriodService
      * Return the 2 periods that are in the active window for a given date.
      * Used by the frontend to inform users which periods they can normally submit to.
      */
-    public function getActiveWindowPeriods(Carbon $reference = null): array
+    public function getActiveWindowPeriods(?Carbon $reference = null): array
     {
         $now       = $reference ?? now();
         $cur       = ReportingPeriod::periodFor($now);

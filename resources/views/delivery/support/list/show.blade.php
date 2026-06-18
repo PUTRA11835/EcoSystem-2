@@ -255,6 +255,53 @@
                     @endif
                 </div>
             </div>
+            {{-- SLA Configuration --}}
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <div class="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center">
+                            <i class="fas fa-stopwatch text-red-600 text-xs"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-semibold text-gray-900">SLA Configuration</h3>
+                            <p class="text-xs text-gray-400">Response &amp; resolution targets untuk delivery ini</p>
+                        </div>
+                    </div>
+                    @if($canManage)
+                    <button onclick="openSlaAddModal()"
+                        class="inline-flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                        <i class="fas fa-plus text-xs"></i> Add Policy
+                    </button>
+                    @endif
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-gray-50 border-b border-gray-200">
+                                <th class="text-left px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Priority</th>
+                                <th class="text-left px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Scale</th>
+                                <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Response (h)</th>
+                                <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Resolution (h)</th>
+                                <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Mode</th>
+                                <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                                @if($canManage)
+                                <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                                @endif
+                            </tr>
+                        </thead>
+                        <tbody id="slaPolicyTableBody">
+                            <tr>
+                                <td colspan="{{ $canManage ? 7 : 6 }}" class="py-10 text-center">
+                                    <div class="flex flex-col items-center gap-2 text-gray-300">
+                                        <i class="fas fa-spinner fa-spin text-2xl"></i>
+                                        <p class="text-xs">Loading policies...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
         {{-- Sidebar --}}
@@ -1167,7 +1214,401 @@ async function generateDeliverableFolder() {
     }
 }
 
+// ── SLA Policies (scoped to this delivery support) ───────────────────────────
+
+const SLA_DS_ID    = {{ $support->id }};
+const SLA_CAN_MGMT = {{ $canManage ? 'true' : 'false' }};
+const SLA_COL      = SLA_CAN_MGMT ? 7 : 6;
+
+const SLA_PRIO_NUM   = { 'Very High': 1, 'High': 2, 'Medium': 3, 'Low': 4 };
+const SLA_PRIO_LABEL = { 'Very High': '1: Very High', 'High': '2: High', 'Medium': '3: Medium', 'Low': '4: Low' };
+const SLA_PRIO_CFG   = {
+    'Very High': { bg: 'bg-red-50',    text: 'text-red-700',    dot: 'bg-red-500'    },
+    'High':      { bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' },
+    'Medium':    { bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' },
+    'Low':       { bg: 'bg-blue-50',   text: 'text-blue-700',   dot: 'bg-blue-400'   },
+};
+
+let _slaPolicies = [];
+
+async function loadSlaPolicies() {
+    const tbody = document.getElementById('slaPolicyTableBody');
+    tbody.innerHTML = `<tr><td colspan="${SLA_COL}" class="py-10 text-center">
+        <div class="flex flex-col items-center gap-2 text-gray-300">
+            <i class="fas fa-spinner fa-spin text-2xl"></i>
+            <p class="text-xs">Loading...</p>
+        </div></td></tr>`;
+    try {
+        const res  = await fetch(`/api/admin/sla/policies?delivery_support_id=${SLA_DS_ID}`, { credentials: 'include' });
+        const json = await res.json();
+        _slaPolicies = json.data || [];
+        renderSlaPolicies(_slaPolicies);
+    } catch {
+        tbody.innerHTML = `<tr><td colspan="${SLA_COL}" class="py-8 text-center text-red-400 text-xs">
+            <i class="fas fa-exclamation-triangle mr-1"></i>Gagal memuat SLA policies.</td></tr>`;
+    }
+}
+
+function renderSlaPolicies(policies) {
+    const tbody = document.getElementById('slaPolicyTableBody');
+    if (!policies.length) {
+        tbody.innerHTML = `<tr><td colspan="${SLA_COL}" class="py-10 text-center">
+            <div class="flex flex-col items-center gap-2">
+                <i class="fas fa-file-contract text-gray-300 text-2xl mb-1"></i>
+                <p class="text-sm font-medium text-gray-400">Belum ada SLA policy</p>
+                ${SLA_CAN_MGMT ? `<p class="text-xs text-gray-300">Klik "Add Policy" untuk membuat policy pertama</p>` : ''}
+            </div></td></tr>`;
+        return;
+    }
+    tbody.innerHTML = policies.map(p => {
+        const pc  = SLA_PRIO_CFG[p.priority] || { bg:'bg-gray-100', text:'text-gray-600', dot:'bg-gray-400' };
+        const modeCell = p.is_24_hours
+            ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full"><i class="fas fa-infinity text-[9px]"></i> 24/7</span>`
+            : `<span class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Business</span>`;
+        const statusCell = p.is_active
+            ? `<span class="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 px-2.5 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>Active</span>`
+            : `<span class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>Inactive</span>`;
+        const actions = SLA_CAN_MGMT
+            ? `<div class="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onclick='openSlaEditModal(${JSON.stringify(p)})' title="Edit"
+                    class="w-7 h-7 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 flex items-center justify-center text-gray-400 hover:text-blue-600 transition">
+                    <i class="fas fa-edit text-xs"></i>
+                </button>
+                <button onclick="deleteSlaPolicy(${p.id})" title="Delete"
+                    class="w-7 h-7 rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 flex items-center justify-center text-gray-400 hover:text-red-500 transition">
+                    <i class="fas fa-trash text-xs"></i>
+                </button>
+               </div>` : '';
+        return `
+        <tr class="bg-white border-b border-gray-100 hover:bg-red-50/20 transition-colors group">
+            <td class="px-4 py-3">
+                <span class="inline-flex items-center gap-1.5 text-xs font-semibold ${pc.text} ${pc.bg} px-2.5 py-1 rounded-full whitespace-nowrap">
+                    <span class="w-1.5 h-1.5 rounded-full ${pc.dot}"></span>${SLA_PRIO_LABEL[p.priority] || p.priority}
+                </span>
+            </td>
+            <td class="px-4 py-3"><span class="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded">${p.scale}</span></td>
+            <td class="px-4 py-3 text-center"><span class="text-sm font-bold text-gray-800">${p.response_hours}</span></td>
+            <td class="px-4 py-3 text-center"><span class="text-sm font-bold text-gray-800">${p.resolution_hours}</span></td>
+            <td class="px-4 py-3 text-center">${modeCell}</td>
+            <td class="px-4 py-3 text-center">${statusCell}</td>
+            ${SLA_CAN_MGMT ? `<td class="px-4 py-3 text-center">${actions}</td>` : ''}
+        </tr>`;
+    }).join('');
+}
+
+// ── SLA Add Modal ─────────────────────────────────────────────────────────────
+function openSlaAddModal() {
+    document.getElementById('slaAddForm').reset();
+    document.getElementById('slaAddError').classList.add('hidden');
+    slaUpdateAdd24h();
+    document.getElementById('slaAddModal').classList.remove('hidden');
+}
+function closeSlaAddModal() {
+    document.getElementById('slaAddModal').classList.add('hidden');
+}
+function slaUpdateAdd24h() {
+    const prio   = document.getElementById('slaAddPriority').value;
+    const el     = document.getElementById('slaAdd24h');
+    const label  = document.getElementById('slaAdd24hLabel');
+    const note   = document.getElementById('slaAdd24hNote');
+    if (prio === 'Very High') {
+        el.checked = true; el.disabled = true;
+        label.classList.add('opacity-75','cursor-not-allowed');
+        label.classList.remove('cursor-pointer','hover:bg-gray-100');
+        note.textContent = 'Wajib 24/7 — priority Very High selalu menggunakan kalender penuh.';
+    } else {
+        el.disabled = false;
+        label.classList.remove('opacity-75','cursor-not-allowed');
+        label.classList.add('cursor-pointer','hover:bg-gray-100');
+        note.textContent = 'Hitung semua jam; jika tidak, hanya jam kerja (Sen–Jum 09:00–18:00)';
+    }
+}
+async function submitSlaAddPolicy(e) {
+    e.preventDefault();
+    const form   = document.getElementById('slaAddForm');
+    const btn    = document.getElementById('slaAddSubmitBtn');
+    const errDiv = document.getElementById('slaAddError');
+    const errTxt = document.getElementById('slaAddErrorText');
+    errDiv.classList.add('hidden');
+    btn.disabled = true;
+    const fd = new FormData(form);
+    fd.set('delivery_support_id', SLA_DS_ID);
+    const payload = Object.fromEntries(fd.entries());
+    payload.is_24_hours = form.querySelector('[name=is_24_hours]').checked;
+    try {
+        const res  = await fetch('/api/admin/sla/policies', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+            body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (json.success) {
+            closeSlaAddModal();
+            showToast('SLA policy berhasil ditambahkan!', 'success');
+            loadSlaPolicies();
+        } else {
+            errTxt.textContent = json.message || 'Gagal menyimpan policy.';
+            errDiv.classList.remove('hidden');
+        }
+    } catch {
+        errTxt.textContent = 'Terjadi kesalahan. Coba lagi.';
+        errDiv.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+// ── SLA Edit Modal ────────────────────────────────────────────────────────────
+function openSlaEditModal(p) {
+    document.getElementById('slaEditId').value         = p.id;
+    document.getElementById('slaEditPriority').value   = p.priority;
+    document.getElementById('slaEditScale').value      = p.scale;
+    document.getElementById('slaEditResponse').value   = p.response_hours;
+    document.getElementById('slaEditResolution').value = p.resolution_hours;
+    document.getElementById('slaEdit24h').checked      = p.is_24_hours;
+    document.getElementById('slaEditActive').checked   = p.is_active;
+    document.getElementById('slaEditError').classList.add('hidden');
+    slaUpdateEdit24h();
+    document.getElementById('slaEditModal').classList.remove('hidden');
+}
+function closeSlaEditModal() {
+    document.getElementById('slaEditModal').classList.add('hidden');
+}
+function slaUpdateEdit24h() {
+    const prio  = document.getElementById('slaEditPriority').value;
+    const el    = document.getElementById('slaEdit24h');
+    const label = document.getElementById('slaEdit24hLabel');
+    const note  = document.getElementById('slaEdit24hNote');
+    if (prio === 'Very High') {
+        el.checked = true; el.disabled = true;
+        label.classList.add('opacity-75','cursor-not-allowed');
+        label.classList.remove('cursor-pointer','hover:bg-gray-100');
+        note.textContent = 'Wajib 24/7 — priority Very High selalu menggunakan kalender penuh.';
+    } else {
+        el.disabled = false;
+        label.classList.remove('opacity-75','cursor-not-allowed');
+        label.classList.add('cursor-pointer','hover:bg-gray-100');
+        note.textContent = 'Hitung semua jam; jika tidak, hanya jam kerja (Sen–Jum 09:00–18:00)';
+    }
+}
+async function submitSlaEditPolicy(e) {
+    e.preventDefault();
+    const id     = document.getElementById('slaEditId').value;
+    const btn    = document.getElementById('slaEditSubmitBtn');
+    const errDiv = document.getElementById('slaEditError');
+    const errTxt = document.getElementById('slaEditErrorText');
+    errDiv.classList.add('hidden');
+    btn.disabled = true;
+    const payload = {
+        priority:         document.getElementById('slaEditPriority').value,
+        scale:            document.getElementById('slaEditScale').value,
+        response_hours:   document.getElementById('slaEditResponse').value,
+        resolution_hours: document.getElementById('slaEditResolution').value,
+        is_24_hours:      document.getElementById('slaEdit24h').checked,
+        is_active:        document.getElementById('slaEditActive').checked,
+        delivery_support_id: SLA_DS_ID,
+    };
+    try {
+        const res  = await fetch(`/api/admin/sla/policies/${id}`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+            body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (json.success) {
+            closeSlaEditModal();
+            showToast('SLA policy berhasil diperbarui!', 'success');
+            loadSlaPolicies();
+        } else {
+            errTxt.textContent = json.message || 'Gagal memperbarui policy.';
+            errDiv.classList.remove('hidden');
+        }
+    } catch {
+        errTxt.textContent = 'Terjadi kesalahan. Coba lagi.';
+        errDiv.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function deleteSlaPolicy(id) {
+    if (!confirm('Hapus SLA policy ini?')) return;
+    try {
+        const res  = await fetch(`/api/admin/sla/policies/${id}`, {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+        });
+        const json = await res.json();
+        if (json.success) {
+            showToast('SLA policy dihapus.', 'success');
+            loadSlaPolicies();
+        } else {
+            showToast(json.message || 'Gagal menghapus policy.', 'error');
+        }
+    } catch {
+        showToast('Terjadi kesalahan.', 'error');
+    }
+}
+
+// Auto-load on page ready
+document.addEventListener('DOMContentLoaded', loadSlaPolicies);
+
 </script>
+
+{{-- ── SLA Add Modal ──────────────────────────────────────────────────────── --}}
+<div id="slaAddModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onclick="closeSlaAddModal()"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+                        <i class="fas fa-plus text-red-600 text-xs"></i>
+                    </div>
+                    <h3 class="text-sm font-semibold text-gray-800">Add SLA Policy</h3>
+                </div>
+                <button onclick="closeSlaAddModal()" class="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-xs"></i>
+                </button>
+            </div>
+            <form id="slaAddForm" onsubmit="submitSlaAddPolicy(event)" class="p-6 space-y-4">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Priority <span class="text-red-500">*</span></label>
+                        <select name="priority" id="slaAddPriority" required onchange="slaUpdateAdd24h()"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                            <option value="Very High">1: Very High</option>
+                            <option value="High">2: High</option>
+                            <option value="Medium" selected>3: Medium</option>
+                            <option value="Low">4: Low</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Scale <span class="text-red-500">*</span></label>
+                        <select name="scale" id="slaAddScale" required
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                            <option value="Simple" selected>Simple</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Complex">Complex</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response (Jam) <span class="text-red-500">*</span></label>
+                        <input type="number" name="response_hours" step="0.5" min="0.5" required placeholder="mis. 4"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Resolution (Jam) <span class="text-red-500">*</span></label>
+                        <input type="number" name="resolution_hours" step="0.5" min="0.5" required placeholder="mis. 24"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                    </div>
+                </div>
+                <label id="slaAdd24hLabel" class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50/80 cursor-pointer hover:bg-gray-100 transition">
+                    <input type="checkbox" name="is_24_hours" id="slaAdd24h" class="mt-0.5 w-4 h-4 rounded accent-red-700">
+                    <div>
+                        <p class="text-sm font-medium text-gray-700">24/7 Calendar Hours</p>
+                        <p class="text-xs text-gray-400 mt-0.5" id="slaAdd24hNote">Hitung semua jam; jika tidak, hanya jam kerja (Sen–Jum 09:00–18:00)</p>
+                    </div>
+                </label>
+                <div id="slaAddError" class="hidden items-center gap-2 bg-red-50 rounded-xl px-4 py-3 border border-red-100">
+                    <i class="fas fa-exclamation-circle text-red-500 flex-shrink-0 text-xs"></i>
+                    <span id="slaAddErrorText" class="text-xs text-red-600"></span>
+                </div>
+                <div class="flex gap-3 pt-1">
+                    <button type="button" onclick="closeSlaAddModal()"
+                        class="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+                    <button type="submit" id="slaAddSubmitBtn"
+                        class="flex-1 bg-red-700 hover:bg-red-800 text-white rounded-xl py-2.5 text-sm font-semibold transition">Save Policy</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- ── SLA Edit Modal ─────────────────────────────────────────────────────── --}}
+<div id="slaEditModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onclick="closeSlaEditModal()"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                        <i class="fas fa-edit text-blue-600 text-xs"></i>
+                    </div>
+                    <h3 class="text-sm font-semibold text-gray-800">Edit SLA Policy</h3>
+                </div>
+                <button onclick="closeSlaEditModal()" class="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-xs"></i>
+                </button>
+            </div>
+            <form id="slaEditForm" onsubmit="submitSlaEditPolicy(event)" class="p-6 space-y-4">
+                <input type="hidden" id="slaEditId">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Priority</label>
+                        <select id="slaEditPriority" required onchange="slaUpdateEdit24h()"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                            <option value="Very High">1: Very High</option>
+                            <option value="High">2: High</option>
+                            <option value="Medium">3: Medium</option>
+                            <option value="Low">4: Low</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Scale</label>
+                        <select id="slaEditScale" required
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                            <option value="Simple">Simple</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Complex">Complex</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response (Jam)</label>
+                        <input type="number" id="slaEditResponse" step="0.5" min="0.5" required
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Resolution (Jam)</label>
+                        <input type="number" id="slaEditResolution" step="0.5" min="0.5" required
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    </div>
+                </div>
+                <label id="slaEdit24hLabel" class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50/80 cursor-pointer hover:bg-gray-100 transition">
+                    <input type="checkbox" id="slaEdit24h" class="mt-0.5 w-4 h-4 rounded accent-blue-600">
+                    <div>
+                        <p class="text-sm font-medium text-gray-700">24/7 Calendar Hours</p>
+                        <p class="text-xs text-gray-400 mt-0.5" id="slaEdit24hNote">Hitung semua jam; jika tidak, hanya jam kerja (Sen–Jum 09:00–18:00)</p>
+                    </div>
+                </label>
+                <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50/80 cursor-pointer hover:bg-gray-100 transition">
+                    <input type="checkbox" id="slaEditActive" class="mt-0.5 w-4 h-4 rounded accent-green-600">
+                    <div>
+                        <p class="text-sm font-medium text-gray-700">Active</p>
+                        <p class="text-xs text-gray-400 mt-0.5">Policy aktif akan digunakan untuk penghitungan SLA tiket</p>
+                    </div>
+                </label>
+                <div id="slaEditError" class="hidden items-center gap-2 bg-red-50 rounded-xl px-4 py-3 border border-red-100">
+                    <i class="fas fa-exclamation-circle text-red-500 flex-shrink-0 text-xs"></i>
+                    <span id="slaEditErrorText" class="text-xs text-red-600"></span>
+                </div>
+                <div class="flex gap-3 pt-1">
+                    <button type="button" onclick="closeSlaEditModal()"
+                        class="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+                    <button type="submit" id="slaEditSubmitBtn"
+                        class="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2.5 text-sm font-semibold transition">Update Policy</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 {{-- Load custom-dd script + cache buster supaya production auto-invalidate setiap deploy. --}}
 @php

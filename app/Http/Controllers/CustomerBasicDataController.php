@@ -35,7 +35,7 @@ class CustomerBasicDataController extends Controller
             // save tanpa harus full reload.
             $customerCols = DB::table('customer')
                 ->where('customer_id', $customerId)
-                ->select('customer_code', 'domain', 'email')
+                ->select('customer_code', 'domain', 'email', 'customer_group_id', 'parent_customer_id')
                 ->first();
 
             if (!$basicData) {
@@ -44,9 +44,11 @@ class CustomerBasicDataController extends Controller
                     'success' => true,
                     'message' => 'No basic data found',
                     'data'    => $customerCols ? (object) [
-                        'customer_code' => $customerCols->customer_code,
-                        'domain'        => $customerCols->domain,
-                        'email'         => $customerCols->email,
+                        'customer_code'      => $customerCols->customer_code,
+                        'domain'             => $customerCols->domain,
+                        'email'              => $customerCols->email,
+                        'customer_group_id'  => $customerCols->customer_group_id,
+                        'parent_customer_id' => $customerCols->parent_customer_id,
                     ] : null,
                 ]);
             }
@@ -54,9 +56,11 @@ class CustomerBasicDataController extends Controller
             // Merge kolom dari `customer` ke response basicData agar JS bisa
             // setValue('customerDomain', basicData.domain) tanpa join terpisah.
             if ($customerCols) {
-                $basicData->customer_code = $customerCols->customer_code;
-                $basicData->domain        = $customerCols->domain;
-                $basicData->email         = $customerCols->email;
+                $basicData->customer_code      = $customerCols->customer_code;
+                $basicData->domain             = $customerCols->domain;
+                $basicData->email              = $customerCols->email;
+                $basicData->customer_group_id  = $customerCols->customer_group_id;
+                $basicData->parent_customer_id = $customerCols->parent_customer_id;
             }
 
             Log::info('=== API: CUSTOMER BASIC DATA FETCHED SUCCESSFULLY ===');
@@ -94,7 +98,7 @@ class CustomerBasicDataController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
-            'customer_code'        => ['sometimes', 'required', 'string', 'max:4', 'regex:/^[A-Za-z0-9]{1,4}$/', 'unique:customer,customer_code,' . $customerId . ',customer_id'],
+            'customer_code'        => ['sometimes', 'required', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/', 'unique:customer,customer_code,' . $customerId . ',customer_id'],
             'domain'               => 'nullable|string|max:255',
             'name_1'               => 'required|string|max:255',
             'name_2'               => 'nullable|string|max:255',
@@ -103,6 +107,8 @@ class CustomerBasicDataController extends Controller
             'search_term_2'        => 'nullable|string|max:255',
             'external_number'      => 'nullable|string|max:50',
             'customer_group'       => 'nullable|string|max:100',
+            'customer_group_id'    => 'nullable|integer|exists:customer_groups,id',
+            'parent_customer_id'   => 'nullable|integer|exists:customer,customer_id',
             'customer_category'    => 'nullable|string|max:100',
             'credit_limit_type'    => 'nullable|string|max:100',
             'industry_sector'      => 'nullable|string|max:100',
@@ -112,7 +118,6 @@ class CustomerBasicDataController extends Controller
             'block'                => 'nullable|boolean',
             'deletion_flag'        => 'nullable|boolean',
         ], [
-            'customer_code.max'   => 'Customer code must be at most 4 characters.',
             'customer_code.regex' => 'Customer code may only contain letters and numbers.',
             'customer_code.unique'=> 'This customer code is already in use.',
         ]);
@@ -153,6 +158,29 @@ class CustomerBasicDataController extends Controller
                     ->update(['domain' => \App\Models\Customer::normalizeDomain($request->domain)]);
             }
 
+            // Parent Customer — dapat ditambah/dihapus saat edit (string kosong = hapus)
+            if ($request->has('parent_customer_id')) {
+                DB::table('customer')
+                    ->where('customer_id', $customerId)
+                    ->update(['parent_customer_id' => $request->parent_customer_id ?: null]);
+            }
+
+            // Customer Group struktural — resolve nama untuk di-mirror ke kolom teks lama.
+            // Jika field group_id dikirim, ia jadi sumber kebenaran; kalau tidak, biarkan
+            // nilai teks yang dikirim (backward compat).
+            $hasGroupField = $request->has('customer_group_id');
+            if ($hasGroupField) {
+                $groupId = $request->customer_group_id ?: null;
+                DB::table('customer')
+                    ->where('customer_id', $customerId)
+                    ->update(['customer_group_id' => $groupId]);
+                $groupName = $groupId
+                    ? optional(\App\Models\CustomerGroup::find($groupId))->name
+                    : null;
+            } else {
+                $groupName = $request->customer_group;
+            }
+
             // Check if basic data already exists
             $existingData = DB::table('customer_basic_data')
                 ->where('customer_id', $customerId)
@@ -166,7 +194,7 @@ class CustomerBasicDataController extends Controller
                 'search_term_1' => $request->search_term_1 ?? strtoupper($request->name_1),
                 'search_term_2' => $request->search_term_2,
                 'external_number' => $request->external_number,
-                'customer_group' => $request->customer_group,
+                'customer_group' => $groupName,
                 'customer_category' => $request->customer_category,
                 'credit_limit_type' => $request->credit_limit_type,
                 'industry_sector' => $request->industry_sector,

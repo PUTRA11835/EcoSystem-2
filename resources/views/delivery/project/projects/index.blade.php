@@ -47,11 +47,13 @@
                 <h3 class="text-lg font-medium text-gray-900">
                     All Delivery Projects
                 </h3>
+                @if($can('delivery-project.add-new'))
                 <a href="{{ route('projects.create') }}"
                    class="primary-gradient text-white font-bold py-2 px-4 rounded-lg hover:opacity-90 transition duration-300 text-sm sm:text-base">
                     <span class="hidden sm:inline">Add New</span>
                     <span class="sm:hidden">+ Add</span>
                 </a>
+                @endif
             </div>
         </div>
         {{-- Search Bar — selaras dengan style input pada Create form (rounded-lg + border eksplisit + padding seragam) --}}

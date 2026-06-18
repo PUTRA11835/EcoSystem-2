@@ -15,7 +15,7 @@
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Customer Code <span class="text-red-600">*</span></label>
                 <input type="text" id="customerCode" value="{{ $customer->customer_code ?? '' }}"
-                    maxlength="4" required
+                    maxlength="50" required
                     oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')"
                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent uppercase">
             </div>
@@ -128,18 +128,31 @@
         <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Customer Information</h3>
 
         <div class="grid grid-cols-6 gap-4">
-            <!-- Customer Group -->
-            <div class="col-span-1">
-                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Customer Group</label>
-                <div class="relative">
-                    <input type="text" id="customerGroup" value="{{ $customer->basicData->customer_group ?? '' }}" 
-                        class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent pr-8">
-                    <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
+            <!-- Customer Group (struktural — anggota mandiri, ditampilkan bersama di Grouping) -->
+            <div class="col-span-2">
+                <div class="flex items-center justify-between mb-1.5">
+                    <label class="block text-xs font-semibold text-gray-600">Customer Group</label>
+                    <button type="button" onclick="createCustomerGroupInline()" class="text-xs font-semibold text-red-700 hover:text-red-900">+ New group</button>
                 </div>
+                <select id="customerGroupId" data-searchable="true"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                    <option value="">— No group —</option>
+                    @foreach(($customerGroups ?? []) as $grp)
+                        <option value="{{ $grp->id }}" {{ (int)($customer->customer_group_id ?? 0) === (int)$grp->id ? 'selected' : '' }}>{{ $grp->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <!-- Parent Customer (hierarki parent–child) -->
+            <div class="col-span-2">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Parent Customer</label>
+                <select id="customerParentId" data-searchable="true"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                    <option value="">— None (Top-level customer) —</option>
+                    @foreach(($parentOptions ?? []) as $po)
+                        <option value="{{ $po['id'] }}" {{ (int)($customer->parent_customer_id ?? 0) === (int)$po['id'] ? 'selected' : '' }}>{{ $po['name'] }}</option>
+                    @endforeach
+                </select>
             </div>
 
             <!-- Credit Limit Type -->

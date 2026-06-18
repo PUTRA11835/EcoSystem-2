@@ -72,6 +72,7 @@ class StagingTicketService
             'description'        => $data['description'],
             'body'               => $data['body'] ?? null,
             'ticket_priority'    => $data['ticket_priority'] ?? 'Medium',
+            'ticket_type'        => $data['ticket_type'] ?? null,
             'status'             => 'unvalidated',
             'channel'            => 'web',
             'submitted_by_email' => $data['submitted_by_email'] ?? null,

@@ -41,6 +41,8 @@ use App\Http\Controllers\AdminNotificationSoundController;
 use App\Http\Controllers\TicketMigrationController;
 use App\Http\Controllers\SlaController;
 use App\Http\Middleware\CheckAuthToken;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\MenuController;
 
 // ==================== ROOT REDIRECT ====================
 Route::get('/', function () {
@@ -90,32 +92,32 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // ==================== DASHBOARD ROUTES ====================
     
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('menu:dashboard');
 
     // ==================== CALENDAR ====================
     Route::prefix('calendar')->name('calendar.')->group(function () {
         Route::get('/', [CalendarController::class, 'index'])->name('index');
-        Route::get('/events', [CalendarController::class, 'events'])->name('events');
-        Route::get('/timesheets', [CalendarController::class, 'timesheets'])->name('timesheets');
+        Route::get('/events', [CalendarController::class, 'events'])->name('events')->middleware('menu:calendar.events');
+        Route::get('/timesheets', [CalendarController::class, 'timesheets'])->name('timesheets')->middleware('menu:calendar.timesheets');
     });
 
     // ==================== REPORTING ====================
-    Route::get('/reporting',                  [\App\Http\Controllers\ReportingController::class, 'index'])->name('reporting');
+    Route::get('/reporting',                  [\App\Http\Controllers\ReportingController::class, 'index'])->name('reporting')->middleware('menu:reporting.validation');
     Route::get('/reporting/export-excel',     [\App\Http\Controllers\ReportingController::class, 'exportExcel'])->name('reporting.export');
-    Route::get('/reporting/md-recap',         [\App\Http\Controllers\ReportingController::class, 'mdRecapIndex'])->name('reporting.md-recap');
+    Route::get('/reporting/md-recap',         [\App\Http\Controllers\ReportingController::class, 'mdRecapIndex'])->name('reporting.md-recap')->middleware('menu:reporting.md-recap');
     Route::get('/reporting/md-recap/export',  [\App\Http\Controllers\ReportingController::class, 'exportMdRecap'])->name('reporting.md-recap.export');
 
     // ==================== MASTER ====================
     Route::prefix('master')->name('master.')->group(function () {
         // Employee routes
         Route::prefix('employee')->name('employee.')->group(function () {
-            Route::get('/', [EmployeeController::class, 'index'])->name('index');
+            Route::get('/', [EmployeeController::class, 'index'])->name('index')->middleware('menu:master.employee');
             Route::get('/{id}', [EmployeeController::class, 'show'])->name('detail');
         });
         
         // Customer routes
         Route::prefix('customer')->name('customer.')->group(function () {
-            Route::get('/', [CustomerController::class, 'index'])->name('index');
+            Route::get('/', [CustomerController::class, 'index'])->name('index')->middleware('menu:master.customer');
             Route::get('/grouping', [CustomerController::class, 'grouping'])->name('grouping');
             Route::get('/{id}', [CustomerController::class, 'show'])->name('detail');
         });
@@ -124,17 +126,17 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // ==================== FINANCIAL ====================
     Route::get('/financial', function () {
         return view('financial.financial', ['user' => session('user')]);
-    })->name('financial');
+    })->name('financial')->middleware('menu:financial');
 
     // ==================== HR & GENERAL ====================
     Route::get('/general', function () {
         return view('general.general', ['user' => session('user')]);
-    })->name('general');
+    })->name('general')->middleware('menu:general');
 
     // ==================== BUSINESS ====================
     Route::get('/business', function () {
         return view('business.business', ['user' => session('user')]);
-    })->name('business');
+    })->name('business')->middleware('menu:business');
 
     // ==================== DELIVERY SUPPORT ====================
     Route::prefix('delivery')->name('delivery.')->group(function () {
@@ -142,33 +144,33 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/support', function () {
             $user = session('user');
             return view('delivery.support.index', ['user' => $user]);
-        })->name('support.index');
+        })->name('support.index')->middleware('menu:delivery.support');
     });
 
     // ==================== RPMO ====================
     Route::get('/rpmo', function () {
         return view('rpmo.rpmo', ['user' => session('user')]);
-    })->name('rpmo');
+    })->name('rpmo')->middleware('menu:rpmo.overview');
 
     // Period Management (RPMO + Heads + Admin)
     Route::get('/rpmo/periods', [\App\Http\Controllers\PeriodManagementController::class, 'index'])
-         ->name('rpmo.periods.index');
+         ->name('rpmo.periods.index')->middleware('menu:rpmo.periods');
 
     // ==================== LEGAL ====================
     Route::get('/legal', function () {
         return view('legal.legal', ['user' => session('user')]);
-    })->name('legal');
+    })->name('legal')->middleware('menu:legal');
 
     // ==================== ADMIN ====================
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/', function () {
             if ((int) session('user.role.id') !== 1) abort(403);
             return view('admin.index');
-        })->name('index');
-        Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('activity-log');
-        Route::get('/sessions', [AdminSessionController::class, 'page'])->name('sessions');
-        Route::get('/failed-jobs', [AdminJobController::class, 'page'])->name('failed-jobs');
-        Route::get('/backup', [AdminBackupController::class, 'page'])->name('backup');
+        })->name('index')->middleware('menu:control-center.overview');
+        Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('activity-log')->middleware('menu:control-center.activity-log');
+        Route::get('/sessions', [AdminSessionController::class, 'page'])->name('sessions')->middleware('menu:control-center.sessions');
+        Route::get('/failed-jobs', [AdminJobController::class, 'page'])->name('failed-jobs')->middleware('menu:control-center.failed-jobs');
+        Route::get('/backup', [AdminBackupController::class, 'page'])->name('backup')->middleware('menu:control-center.backup');
         Route::get('/backup/download/{filename}', [AdminBackupController::class, 'downloadBackup'])->name('backup.download');
         Route::get('/export/employees', [AdminBackupController::class, 'exportEmployees'])->name('export.employees');
         Route::get('/export/customers', [AdminBackupController::class, 'exportCustomers'])->name('export.customers');
@@ -184,14 +186,14 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::post('/import/resolution-days', [AdminBackupController::class, 'importResolutionDays'])->name('import.resolution-days');
         Route::post('/import/timesheet',       [AdminBackupController::class, 'importTimesheet'])->name('import.timesheet');
         Route::get('/export/tickets/zip', [TicketMigrationController::class, 'exportZip'])->name('export.tickets.zip');
-        Route::get('/sounds', [AdminNotificationSoundController::class, 'index'])->name('sounds');
+        Route::get('/sounds', [AdminNotificationSoundController::class, 'index'])->name('sounds')->middleware('menu:control-center.sounds');
         Route::post('/sounds', [AdminNotificationSoundController::class, 'store'])->name('sounds.store');
         Route::delete('/sounds/{id}', [AdminNotificationSoundController::class, 'destroy'])->name('sounds.destroy');
     });
 
     // ==================== SLA ====================
-    Route::get('/sla/config', [SlaController::class, 'configPage'])->name('sla.config');
-    Route::get('/sla/report', [SlaController::class, 'reportPage'])->name('sla.report');
+    Route::get('/sla/config', [SlaController::class, 'configPage'])->name('sla.config')->middleware('menu:sla.config');
+    Route::get('/sla/report', [SlaController::class, 'reportPage'])->name('sla.report')->middleware('menu:sla.report');
     Route::get('/admin/sla/tickets/{id}/pdf',     [SlaController::class, 'downloadTicketPdf'])->name('sla.ticket.pdf');
     Route::get('/admin/sla/tickets/{id}/log-pdf', [SlaController::class, 'downloadLogPdf'])->name('sla.ticket.log-pdf');
 
@@ -211,7 +213,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // ==================== PROJECT DELIVERY ROUTES ====================
 
     // Project routes (CRUD)
-    Route::resource('projects', DeliveryProjectController::class)->except(['edit', 'update']);
+    Route::resource('projects', DeliveryProjectController::class)->except(['edit', 'update'])->middleware(['index' => 'menu:delivery.project', 'show' => 'menu:delivery.project', 'create' => 'menu:delivery.project']);
     Route::patch('/projects/{project}/general-info', [DeliveryProjectController::class, 'updateGeneralInfo'])->name('projects.updateGeneralInfo');
     Route::patch('/projects/{project}/update-field', [DeliveryProjectController::class, 'updateField'])->name('projects.updateField');
     Route::patch('/projects/{project}/delivery-info', [DeliveryProjectController::class, 'updateDeliveryInfo'])->name('projects.updateDeliveryInfo');
@@ -278,7 +280,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::delete('/projects/{project}/issues/{issue}',[DeliveryProjectIssueController::class, 'destroy'])->name('projects.issues.destroy');
 
     // Profile routes
-    Route::get('/staging-tickets', [StagingTicketController::class, 'view'])->name('staging.index');
+    Route::get('/staging-tickets', [StagingTicketController::class, 'view'])->name('staging.index')->middleware('menu:tickets.staging');
     Route::get('/staging-tickets/rejected', [StagingTicketController::class, 'viewRejected'])->name('staging.rejected');
     Route::get('/staging-email-attachments/{stagingId}', [StagingTicketController::class, 'proxyEmailAttachment'])
         ->name('staging.email-attachment.proxy');
@@ -377,17 +379,41 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // ==================== TICKET ====================
     Route::prefix('ticket')->name('ticket.')->group(function () {
-        Route::get('/', [TicketViewController::class, 'index'])->name('index');
+        Route::get('/', [TicketViewController::class, 'index'])->name('index')->middleware('menu:tickets.inbox');
         Route::get('/create', [TicketViewController::class, 'create'])->name('create');
         Route::get('/export', [TicketController::class, 'exportToExcel'])->name('export');
-        Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload');
-        Route::get('/task', [TaskController::class, 'index'])->name('task');
+        Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload')->middleware('menu:ticket.consultant-workload');
+        Route::get('/task', [TaskController::class, 'index'])->name('task')->middleware('menu:ticket.my-tasks');
         Route::get('/latest-update', [TicketController::class, 'latestUpdate'])->name('latest-update');
         Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
     });
 
     // ==================== NOTIFICATIONS ====================
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+
+    // ==================== MANAGEMENT ====================
+    Route::prefix('management')->name('management.')->group(function () {
+        Route::get('/roles', [RoleController::class, 'page'])
+            ->middleware('menu:management.roles')
+            ->name('roles.index');
+
+        Route::get('/permissions', [MenuController::class, 'page'])
+            ->middleware('menu:management.permissions')
+            ->name('permissions.index');
+
+        Route::prefix('employee')->name('employee.')->group(function () {
+            Route::get('/basic-data',     [\App\Http\Controllers\ManagementEmployeeController::class, 'basicData'])    ->middleware('menu:management.employee.basic-data')    ->name('basic-data.index');
+            Route::get('/address',        [\App\Http\Controllers\ManagementEmployeeController::class, 'address'])      ->middleware('menu:management.employee.address')        ->name('address.index');
+            Route::get('/identification', [\App\Http\Controllers\ManagementEmployeeController::class, 'identification'])->middleware('menu:management.employee.identification') ->name('identification.index');
+            Route::get('/family',         [\App\Http\Controllers\ManagementEmployeeController::class, 'family'])       ->middleware('menu:management.employee.family')         ->name('family.index');
+            Route::get('/education',      [\App\Http\Controllers\ManagementEmployeeController::class, 'education'])    ->middleware('menu:management.employee.education')      ->name('education.index');
+            Route::get('/qualification',  [\App\Http\Controllers\ModuleController::class, 'page'])                     ->middleware('menu:management.employee.qualification')  ->name('qualification.index');
+            Route::get('/contract',       [\App\Http\Controllers\ManagementEmployeeController::class, 'contract'])     ->middleware('menu:management.employee.contract')       ->name('contract.index');
+            Route::get('/bank',           [\App\Http\Controllers\ManagementEmployeeController::class, 'bank'])         ->middleware('menu:management.employee.bank')           ->name('bank.index');
+            Route::get('/payment',        [\App\Http\Controllers\ManagementEmployeeController::class, 'payment'])      ->middleware('menu:management.employee.payment')        ->name('payment.index');
+            Route::get('/attachment',     [\App\Http\Controllers\ManagementEmployeeController::class, 'attachment'])   ->middleware('menu:management.employee.attachment')     ->name('attachment.index');
+        });
+    });
 
     // ==================== ATTACHMENT PROXY ====================
     // Fetch file dari Microsoft Graph on-demand — tidak disimpan lokal

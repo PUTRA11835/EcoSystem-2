@@ -154,15 +154,19 @@
                         <th class="px-4 py-3 text-left" style="min-width:170px">
                             <div class="flex items-center gap-1.5">
                                 <span>Module</span>
-                                <div class="custom-dd relative" id="moduleFilterDd" data-onchange="moduleFilterChanged" data-fixed="true">
-                                    <button type="button" class="custom-dd-btn flex items-center normal-case font-normal tracking-normal text-xs text-gray-400 hover:text-gray-600 cursor-pointer bg-transparent border-0 p-0 focus:outline-none">
-                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <div class="relative" id="moduleFilterDd">
+                                    <button type="button" id="moduleFilterBtn" onclick="toggleModulePanel()" class="flex items-center gap-1 normal-case font-normal tracking-normal text-xs text-gray-400 hover:text-gray-600 cursor-pointer bg-transparent border-0 p-0 focus:outline-none">
+                                        <span id="moduleFilterLabel">All</span>
+                                        <svg id="moduleFilterArrow" class="w-3 h-3 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                                         </svg>
                                     </button>
-                                    <input type="hidden" id="filterModule" value="">
-                                    <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:160px;">
-                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                    <div id="moduleFilterPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] overflow-hidden" style="min-width:180px;">
+                                        <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                                            <span class="text-xs font-semibold text-gray-500">Filter Modul</span>
+                                            <button onclick="clearModuleFilter()" class="text-xs text-red-600 hover:underline">Reset</button>
+                                        </div>
+                                        <div id="moduleFilterList" class="overflow-y-auto py-1" style="max-height:220px;"></div>
                                     </div>
                                 </div>
                             </div>
@@ -304,40 +308,81 @@
         }
     }
 
+    let selectedModules = new Set();
+
+    function toggleModulePanel() {
+        const panel = document.getElementById('moduleFilterPanel');
+        const arrow = document.getElementById('moduleFilterArrow');
+        const isOpen = !panel.classList.contains('hidden');
+        panel.classList.toggle('hidden', isOpen);
+        arrow.classList.toggle('rotate-180', !isOpen);
+    }
+
     function populateModuleFilter() {
         const modules = new Set();
         allConsultants.forEach(c => {
             if (c.modules && c.modules !== '-') {
-                c.modules.split(', ').forEach(m => modules.add(m.trim()));
+                c.modules.split(', ').forEach(m => { if (m.trim()) modules.add(m.trim()); });
             }
         });
-        const hidden = document.getElementById('filterModule');
-        const current = hidden.value;
-        const dd = document.getElementById('moduleFilterDd');
-        const panel = dd.querySelector('.custom-dd-panel');
 
-        panel.innerHTML = '<button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>';
+        // Remove deselected modules that no longer exist
+        [...selectedModules].forEach(m => { if (!modules.has(m)) selectedModules.delete(m); });
+
+        const list = document.getElementById('moduleFilterList');
+        list.innerHTML = '';
         [...modules].sort().forEach(m => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50';
-            btn.dataset.value = m;
-            btn.textContent = m;
-            panel.appendChild(btn);
+            const label = document.createElement('label');
+            label.className = 'flex items-center gap-2.5 px-4 py-2 hover:bg-gray-50 cursor-pointer transition-colors';
+            label.innerHTML = `
+                <input type="checkbox" class="module-checkbox w-3.5 h-3.5 text-red-800 border-gray-300 rounded focus:ring-red-800 cursor-pointer" value="${m}" ${selectedModules.has(m) ? 'checked' : ''}>
+                <span class="text-sm text-gray-700">${m}</span>`;
+            label.querySelector('input').addEventListener('change', e => {
+                e.target.checked ? selectedModules.add(m) : selectedModules.delete(m);
+                updateModuleFilterLabel();
+                filterTable();
+            });
+            list.appendChild(label);
         });
 
-        // Restore selection if still valid
-        hidden.value = (current && modules.has(current)) ? current : '';
+        updateModuleFilterLabel();
     }
 
-    window.moduleFilterChanged = filterTable;
+    function updateModuleFilterLabel() {
+        const lbl = document.getElementById('moduleFilterLabel');
+        if (selectedModules.size === 0) {
+            lbl.textContent = 'All';
+            lbl.className = 'text-gray-400';
+        } else {
+            lbl.textContent = '';
+        }
+    }
+
+    function clearModuleFilter() {
+        selectedModules.clear();
+        document.querySelectorAll('.module-checkbox').forEach(c => c.checked = false);
+        updateModuleFilterLabel();
+        filterTable();
+    }
+
+    // Close panel on outside click
+    document.addEventListener('click', e => {
+        const dd = document.getElementById('moduleFilterDd');
+        if (dd && !dd.contains(e.target)) {
+            document.getElementById('moduleFilterPanel')?.classList.add('hidden');
+            document.getElementById('moduleFilterArrow')?.classList.remove('rotate-180');
+        }
+    });
 
     function filterTable() {
         const q = document.getElementById('searchConsultant').value.toLowerCase();
-        const mod = document.getElementById('filterModule').value;
         let filtered = allConsultants;
-        if (mod) filtered = filtered.filter(c =>
-            (c.modules ?? '').split(', ').map(m => m.trim()).includes(mod));
+        if (selectedModules.size > 0) {
+            filtered = filtered.filter(c => {
+                const empModules = (c.modules ?? '').split(', ').map(m => m.trim());
+                return [...selectedModules].every(m => empModules.includes(m));
+            });
+        }
         if (q) filtered = filtered.filter(c =>
             c.name.toLowerCase().includes(q) ||
             (c.modules ?? '').toLowerCase().includes(q) ||
@@ -459,7 +504,8 @@
     }
 
     function consultantRows(c) {
-        const visibleTickets = c.tickets.filter(t => t.status === 'inprocess');
+        const activeStatuses = ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'];
+        const visibleTickets = c.tickets.filter(t => activeStatuses.includes(t.status));
 
         // Akumulasi hanya dari mandays consultant ini (bukan total semua consultant per tiket)
         let totalAllocMdMain = 0,

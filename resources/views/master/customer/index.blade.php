@@ -61,9 +61,11 @@
                     </svg>
                     View Grouping
                 </a>
+                @if($can('master.customer.create'))
                 <button onclick="openCreateModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                     Create Customer
                 </button>
+                @endif
             </div>
         </div>
 
@@ -124,7 +126,7 @@
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Customer Code <span class="text-red-600">*</span></label>
-                            <input type="text" id="customerCode" required maxlength="4" placeholder="e.g. ACME"
+                            <input type="text" id="customerCode" required maxlength="50" placeholder="e.g. ACME"
                                 oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')"
                                 class="px-3 py-2 border border-gray-300 rounded text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-red-800 uppercase">
                             <span class="text-xs text-gray-400 mt-1">Max 4 characters, letters and numbers only.</span>
@@ -248,8 +250,21 @@
                         <h4 class="text-base font-bold text-gray-900 mb-4 pb-2 border-b-2 border-gray-200">Organizational Data</h4>
 
                         <div class="flex flex-col">
-                            <label class="text-xs font-semibold text-gray-600 mb-1">Customer Group</label>
-                            <input type="text" id="customerGroup" placeholder="Customer group code" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-xs font-semibold text-gray-600">Customer Group</label>
+                                <button type="button" onclick="createGroupInline('parentCustomerGroupId')" class="text-xs font-semibold text-red-700 hover:text-red-900">+ New group</button>
+                            </div>
+                            <div class="custom-dd relative" id="ddCustomerGroup" data-searchable="true" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-400">None (No group)</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="parentCustomerGroupId" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50" data-value="">None (No group)</button>
+                                </div>
+                            </div>
+                            <span class="text-xs text-gray-400 mt-1">Customers in the same group are shown together in Customer Grouping.</span>
                         </div>
 
                         <div class="flex flex-col">
@@ -302,6 +317,23 @@
             <div class="flex gap-3">
                 <button onclick="closeConfirmDelete()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
                 <button onclick="confirmDelete()" class="flex-1 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-all">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- New customer group modal --}}
+<div id="newGroupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-1">New Customer Group</h3>
+            <p class="text-sm text-gray-600 mb-4">Enter a name for the new customer group.</p>
+            <input type="text" id="newGroupName" placeholder="Customer group name"
+                   class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();confirmNewGroup();}">
+            <div class="flex gap-3 mt-6">
+                <button type="button" onclick="closeNewGroupModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+                <button type="button" onclick="confirmNewGroup()" class="flex-1 px-4 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">Create</button>
             </div>
         </div>
     </div>
@@ -530,11 +562,13 @@
         document.getElementById('country').value = 'Indonesia';
         document.getElementById('language').value = 'Indonesian';
 
-        // Reset parent customer dropdown
+        // Reset parent customer & group dropdowns
         if (typeof setCustomDropdownValue === 'function') {
             setCustomDropdownValue('parentCustomerId', '');
+            setCustomDropdownValue('parentCustomerGroupId', '');
         } else {
             document.getElementById('parentCustomerId').value = '';
+            document.getElementById('parentCustomerGroupId').value = '';
         }
 
         // Auto-generate search term when company name changes
@@ -543,6 +577,7 @@
         });
 
         loadTopLevelCustomers();
+        loadCustomerGroups();
 
         document.getElementById('customerModal').classList.remove('hidden');
         document.getElementById('customerModal').classList.add('flex');
@@ -588,6 +623,103 @@
         }
     }
 
+    async function loadCustomerGroups(selectedId = '') {
+        try {
+            const res = await fetch('/api/customer-groups?active_only=1', {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (!data.success) return;
+
+            const dd = document.getElementById('ddCustomerGroup');
+            if (!dd) return;
+            const panel = dd._ddPanel || dd.querySelector('.custom-dd-panel');
+            if (!panel) return;
+
+            panel.querySelectorAll('.custom-dd-item').forEach(el => el.remove());
+
+            const insertBefore = panel._ddEmpty || null;
+
+            const none = document.createElement('button');
+            none.type = 'button';
+            none.className = 'custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50';
+            none.dataset.value = '';
+            none.textContent = 'None (No group)';
+            panel.insertBefore(none, insertBefore);
+
+            data.data.forEach(g => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50';
+                btn.dataset.value = g.id;
+                btn.textContent = g.name + (g.customers_count ? ` (${g.customers_count})` : '');
+                panel.insertBefore(btn, insertBefore);
+            });
+
+            if (selectedId !== '' && typeof setCustomDropdownValue === 'function') {
+                setCustomDropdownValue('parentCustomerGroupId', String(selectedId));
+            }
+        } catch (e) {
+            console.error('Failed to load customer groups', e);
+        }
+    }
+
+    let _newGroupResolver = null;
+
+    function openNewGroupModal() {
+        const modal = document.getElementById('newGroupModal');
+        const input = document.getElementById('newGroupName');
+        input.value = '';
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        setTimeout(() => input.focus(), 50);
+        return new Promise((resolve) => { _newGroupResolver = resolve; });
+    }
+
+    function closeNewGroupModal() {
+        const modal = document.getElementById('newGroupModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        if (_newGroupResolver) { _newGroupResolver(null); _newGroupResolver = null; }
+    }
+
+    function confirmNewGroup() {
+        const name = (document.getElementById('newGroupName').value || '').trim();
+        const modal = document.getElementById('newGroupModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        if (_newGroupResolver) { _newGroupResolver(name); _newGroupResolver = null; }
+    }
+
+    async function createGroupInline(hiddenId) {
+        const name = (await openNewGroupModal() || '').trim();
+        if (!name) return;
+        try {
+            const res = await fetch('/api/customer-groups', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ name })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Customer group created.', 'success');
+                await loadCustomerGroups(data.data.id);
+            } else {
+                showNotification(data.message || 'Failed to create group', 'error');
+            }
+        } catch (e) {
+            console.error('Failed to create group', e);
+            showNotification('An error occurred while creating group', 'error');
+        }
+    }
+
     function closeModal() {
         document.getElementById('customerModal').classList.add('hidden');
         document.getElementById('customerModal').classList.remove('flex');
@@ -618,7 +750,7 @@
             district: document.getElementById('district').value,
             rural_urban_village: document.getElementById('village').value,
             language: document.getElementById('language').value,
-            customer_group: document.getElementById('customerGroup').value,
+            customer_group_id: document.getElementById('parentCustomerGroupId').value || null,
             customer_category: document.getElementById('customerCategory').value,
             credit_limit_type: document.getElementById('creditLimitType').value,
             contact_name: document.getElementById('contactName').value,

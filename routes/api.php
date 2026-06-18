@@ -22,6 +22,7 @@ use App\Http\Controllers\CustomerBankController;
 use App\Http\Controllers\CustomerAttachmentController;
 use App\Http\Controllers\CustomerHistoryController;
 use App\Http\Controllers\CustomerCredentialController;
+use App\Http\Controllers\CustomerGroupController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TicketMessageController;
@@ -38,6 +39,8 @@ use App\Http\Controllers\AdminJobController;
 use App\Http\Controllers\AdminBackupController;
 use App\Http\Controllers\AdminNotificationSoundController;
 use App\Http\Controllers\TicketMigrationController;
+use App\Http\Controllers\ModuleController;
+use App\Http\Controllers\EmployeeModuleController;
 
 // ==================== HEALTH CHECK (public, no auth) ====================
 Route::get('/health', function () {
@@ -184,6 +187,23 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/{attachmentId}', [EmployeeAttachmentController::class, 'destroy']);
     });
 
+    // Employee Module endpoints
+    Route::prefix('employees/{employeeId}/modules')->group(function () {
+        Route::get('/', [EmployeeModuleController::class, 'index']);
+        Route::post('/sync', [EmployeeModuleController::class, 'sync']);
+        Route::post('/attach', [EmployeeModuleController::class, 'attach']);
+        Route::delete('/{moduleId}', [EmployeeModuleController::class, 'detach']);
+    });
+
+    // Module master data endpoints
+    Route::prefix('modules')->group(function () {
+        Route::get('/', [ModuleController::class, 'index']);
+        Route::post('/', [ModuleController::class, 'store']);
+        Route::get('/{id}', [ModuleController::class, 'show']);
+        Route::put('/{id}', [ModuleController::class, 'update']);
+        Route::delete('/{id}', [ModuleController::class, 'destroy']);
+    });
+
 // ==================== CUSTOMER ROUTES ====================
 
     // Main Customer endpoints
@@ -196,10 +216,23 @@ Route::middleware(['web'])->group(function () {
         Route::get('/grouping-data', [CustomerController::class, 'getGroupingData']);
         Route::get('/{id}', [CustomerController::class, 'show']);
         Route::get('/{id}/header', [CustomerController::class, 'headerData']);
+        Route::get('/{id}/end-customers', [CustomerController::class, 'endCustomers']);
         Route::put('/{id}', [CustomerController::class, 'update']);
         Route::delete('/{id}', [CustomerController::class, 'destroy']);
         Route::post('/{id}/soft-delete', [CustomerController::class, 'softDelete']);
         Route::post('/{id}/restore', [CustomerController::class, 'restore']);
+    });
+
+    // Customer Group endpoints (struktural grouping)
+    Route::prefix('customer-groups')->group(function () {
+        Route::get('/', [CustomerGroupController::class, 'index']);
+        Route::post('/', [CustomerGroupController::class, 'store']);
+        Route::get('/grouping-data', [CustomerGroupController::class, 'groupingData']);
+        Route::get('/available-customers', [CustomerGroupController::class, 'availableCustomers']);
+        Route::put('/{id}', [CustomerGroupController::class, 'update']);
+        Route::delete('/{id}', [CustomerGroupController::class, 'destroy']);
+        Route::post('/{id}/members', [CustomerGroupController::class, 'addMember']);
+        Route::delete('/{id}/members/{customerId}', [CustomerGroupController::class, 'removeMember']);
     });
 
     // Customer Basic Data endpoints
@@ -519,6 +552,36 @@ Route::middleware(['web'])->group(function () {
 
     // Notification sounds list (accessible to all authenticated users)
     Route::get('/notification-sounds', [AdminNotificationSoundController::class, 'list']);
+
+    // ==================== ROLE & MENU MANAGEMENT ====================
+    Route::get('/my-menus', [\App\Http\Controllers\MenuController::class, 'getMyMenus']);
+
+    // Menu management
+    Route::get('/menus',                                            [\App\Http\Controllers\MenuController::class, 'index']);
+    Route::get('/menus/all',                                        [\App\Http\Controllers\MenuController::class, 'allWithPermissions']);
+    Route::get('/menus/with-roles',                                 [\App\Http\Controllers\MenuController::class, 'withRoles']);
+    Route::post('/menus',                                           [\App\Http\Controllers\MenuController::class, 'store']);
+    Route::put('/menus/{menuId}',                                   [\App\Http\Controllers\MenuController::class, 'update']);
+    Route::delete('/menus/{menuId}',                                [\App\Http\Controllers\MenuController::class, 'destroy']);
+    Route::put('/menus/{menuId}/roles/{roleId}',                    [\App\Http\Controllers\MenuController::class, 'updateRolePermission']);
+    Route::delete('/menus/{menuId}/roles/{roleId}',                 [\App\Http\Controllers\MenuController::class, 'removeRolePermission']);
+
+    // Role management
+    Route::get('/roles',                                            [\App\Http\Controllers\RoleController::class, 'index']);
+    Route::post('/roles',                                           [\App\Http\Controllers\RoleController::class, 'store']);
+    Route::get('/roles/{id}',                                       [\App\Http\Controllers\RoleController::class, 'show']);
+    Route::put('/roles/{id}',                                       [\App\Http\Controllers\RoleController::class, 'update']);
+    Route::delete('/roles/{id}',                                    [\App\Http\Controllers\RoleController::class, 'destroy']);
+    Route::get('/roles/{id}/permissions',                           [\App\Http\Controllers\RoleController::class, 'permissions']);
+    Route::put('/roles/{id}/permissions/{menuId}',                  [\App\Http\Controllers\RoleController::class, 'updatePermission']);
+    Route::delete('/roles/{id}/permissions/{menuId}',               [\App\Http\Controllers\RoleController::class, 'removePermission']);
+    Route::get('/roles/{id}/employees',                             [\App\Http\Controllers\RoleController::class, 'employees']);
+
+    // Employee ↔ Role assignment
+    Route::get('/employees/{employeeId}/roles',                     [\App\Http\Controllers\RoleController::class, 'employeeRoles']);
+    Route::post('/employees/{employeeId}/roles',                    [\App\Http\Controllers\RoleController::class, 'assignRoles']);
+    Route::put('/employees/{employeeId}/roles',                     [\App\Http\Controllers\RoleController::class, 'syncRoles']);
+    Route::delete('/employees/{employeeId}/roles/{roleId}',         [\App\Http\Controllers\RoleController::class, 'revokeRole']);
 
     }); // end auth.session protected group
 });

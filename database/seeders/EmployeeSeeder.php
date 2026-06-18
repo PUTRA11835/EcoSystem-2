@@ -20,7 +20,6 @@ class EmployeeSeeder extends Seeder
             // 1. ADMIN
             [
                 'eci' => 'ECI_ADMIN',
-                'role_id' => 1,
                 'basic' => [
                     'title' => 'Mr.',
                     'nick_name' => 'Admin',
@@ -125,7 +124,7 @@ class EmployeeSeeder extends Seeder
                 ],
                 'qualification' => [
                     'qualification_type' => 'Certification',
-                    'module' => 'Certified System Administrator',
+                    'module_id' => null,
                     'language' => 'English',
                     'qualification_level' => 'Expert',
                     'first_year' => '2018',
@@ -188,7 +187,6 @@ class EmployeeSeeder extends Seeder
 
                 // 1. BUAT EMPLOYEE TERLEBIH DAHULU
                 $employeeId = DB::table('employee')->insertGetId([
-                    'role_id' => $emp['role_id'] ?? 2,
                     'eci' => $emp['eci'],
                     'is_active' => true,
                     'created_at' => Carbon::now(),

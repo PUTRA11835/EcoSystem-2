@@ -83,7 +83,7 @@ class PeriodManagementController extends Controller
     /** Notify every active employee that holds one of the given role IDs. */
     private function notifyRoles(array $roleIds, string $type, string $fromName, string $preview, string $link): void
     {
-        Employee::whereIn('role_id', $roleIds)
+        Employee::withAnyRole($roleIds)
             ->pluck('employee_id')
             ->each(fn ($id) => $this->notify($id, $type, $fromName, $preview, $link));
     }
@@ -111,21 +111,21 @@ class PeriodManagementController extends Controller
         // Admin gets all delivery employees (both domains)
         $domainEmployees = collect();
         if ($roleId === RoleId::EC_ADMINISTRATOR->value) {
-            $domainEmployees = Employee::whereIn('role_id', [
+            $domainEmployees = Employee::withAnyRole([
                     RoleId::DELIVERY_SUPPORT_USER->value,
                     RoleId::DELIVERY_PROJECT_USER->value,
                 ])
                 ->with('basicData')
                 ->orderBy('employee_id')
-                ->get(['employee_id', 'role_id']);
+                ->get(['employee_id']);
         } elseif (in_array($roleId, [RoleId::DELIVERY_PROJECT_HEAD->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
             $domainRoleId    = ($domain === PeriodService::DOMAIN_PROJECT)
                 ? RoleId::DELIVERY_PROJECT_USER->value
                 : RoleId::DELIVERY_SUPPORT_USER->value;
-            $domainEmployees = Employee::where('role_id', $domainRoleId)
+            $domainEmployees = Employee::withRole($domainRoleId)
                 ->with('basicData')
                 ->orderBy('employee_id')
-                ->get(['employee_id', 'role_id']);
+                ->get(['employee_id']);
         }
 
         return view('rpmo.periods.index', compact('periods', 'active', 'pending', 'roleId', 'domain', 'domainEmployees'));

@@ -134,15 +134,83 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-gray-100 bg-gray-50/50">
-                        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Ticket</th>
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Customer</th>
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Type</th>
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Priority</th>
+                        {{-- Ticket: text search --}}
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                            <div class="col-filter-wrap relative inline-flex items-center gap-1.5">
+                                <span>Ticket</span>
+                                <button type="button" class="col-filter-btn w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 transition" data-col="ticket">
+                                    <i class="fas fa-filter text-[9px] col-filter-icon text-gray-300" data-col="ticket"></i>
+                                </button>
+                                <div id="cfPanel-ticket" class="col-filter-panel hidden absolute top-full left-0 mt-1 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:200px">
+                                    <input type="text" id="cfInput-ticket" placeholder="Search ticket…" oninput="applyReportFilters()"
+                                        class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-200">
+                                    <button type="button" onclick="clearColFilter('ticket')" class="mt-2 text-[10px] text-gray-400 hover:text-red-500 transition">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- Customer: text search --}}
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                            <div class="col-filter-wrap relative inline-flex items-center gap-1.5">
+                                <span>Customer</span>
+                                <button type="button" class="col-filter-btn w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 transition" data-col="customer">
+                                    <i class="fas fa-filter text-[9px] col-filter-icon text-gray-300" data-col="customer"></i>
+                                </button>
+                                <div id="cfPanel-customer" class="col-filter-panel hidden absolute top-full left-0 mt-1 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:210px">
+                                    <input type="text" id="cfInput-customer" placeholder="Search customer…" oninput="applyReportFilters()"
+                                        class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-200">
+                                    <button type="button" onclick="clearColFilter('customer')" class="mt-2 text-[10px] text-gray-400 hover:text-red-500 transition">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- Type: option list + search --}}
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                            <div class="col-filter-wrap relative inline-flex items-center gap-1.5">
+                                <span>Type</span>
+                                <button type="button" class="col-filter-btn w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 transition" data-col="type">
+                                    <i class="fas fa-filter text-[9px] col-filter-icon text-gray-300" data-col="type"></i>
+                                </button>
+                                <div id="cfPanel-type" class="col-filter-panel hidden absolute top-full left-0 mt-1 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:200px">
+                                    <input type="text" id="cfSearch-type" placeholder="Search type…" oninput="filterColOptions('type', this.value)"
+                                        class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-200 mb-2">
+                                    <div id="cfOptions-type" class="space-y-0.5 max-h-[180px] overflow-y-auto"></div>
+                                    <button type="button" onclick="clearColFilter('type')" class="mt-2 text-[10px] text-gray-400 hover:text-red-500 transition">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- Priority: option list + search --}}
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                            <div class="col-filter-wrap relative inline-flex items-center gap-1.5">
+                                <span>Priority</span>
+                                <button type="button" class="col-filter-btn w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 transition" data-col="priority">
+                                    <i class="fas fa-filter text-[9px] col-filter-icon text-gray-300" data-col="priority"></i>
+                                </button>
+                                <div id="cfPanel-priority" class="col-filter-panel hidden absolute top-full left-0 mt-1 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:180px">
+                                    <input type="text" id="cfSearch-priority" placeholder="Search priority…" oninput="filterColOptions('priority', this.value)"
+                                        class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-200 mb-2">
+                                    <div id="cfOptions-priority" class="space-y-0.5 max-h-[180px] overflow-y-auto"></div>
+                                    <button type="button" onclick="clearColFilter('priority')" class="mt-2 text-[10px] text-gray-400 hover:text-red-500 transition">Clear</button>
+                                </div>
+                            </div>
+                        </th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">SLA Start</th>
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Response</th>
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Resolution</th>
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Waiting</th>
-                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+                        {{-- Status: option list + search --}}
+                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                            <div class="col-filter-wrap relative inline-flex items-center gap-1.5">
+                                <span>Status</span>
+                                <button type="button" class="col-filter-btn w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 transition" data-col="status">
+                                    <i class="fas fa-filter text-[9px] col-filter-icon text-gray-300" data-col="status"></i>
+                                </button>
+                                <div id="cfPanel-status" class="col-filter-panel hidden absolute top-full right-0 mt-1 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:180px">
+                                    <input type="text" id="cfSearch-status" placeholder="Search status…" oninput="filterColOptions('status', this.value)"
+                                        class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-200 mb-2">
+                                    <div id="cfOptions-status" class="space-y-0.5 max-h-[180px] overflow-y-auto"></div>
+                                    <button type="button" onclick="clearColFilter('status')" class="mt-2 text-[10px] text-gray-400 hover:text-red-500 transition">Clear</button>
+                                </div>
+                            </div>
+                        </th>
                         <th class="text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
@@ -274,6 +342,108 @@ const EVENT_CFG = {
 // ── KPI IDs in order ──────────────────────────────────────────────────────────
 const KPI_IDS = ['kpiTotal','kpiActive','kpiMet','kpiBreached','kpiCompliance','kpiAvgResp','kpiAvgRes'];
 
+let _allTickets = [];
+
+// ── Column filter state ───────────────────────────────────────────────────────
+// For text cols: string value. For option cols: string value (single-select).
+const CF = { ticket: '', customer: '', type: '', priority: '', status: '' };
+
+// Fixed option sets for enum columns
+const CF_OPTIONS = {
+    type:     ['Incident', 'Service Request', 'Change Request', 'Consult'],
+    priority: ['Very High', 'High', 'Medium', 'Low'],
+    status:   ['pending', 'paused', 'met', 'breached', 'pending_validation'],
+};
+const CF_STATUS_LABELS = {
+    pending: 'Active', paused: 'Paused', met: 'Met', breached: 'Breached', pending_validation: 'Pending Validation',
+};
+
+// Build option list HTML for a given col (called once on init)
+function buildColOptions(col) {
+    const container = document.getElementById('cfOptions-' + col);
+    if (!container) return;
+    const options = CF_OPTIONS[col];
+    container.innerHTML = options.map(val => {
+        const label = col === 'status' ? (CF_STATUS_LABELS[val] || val) : val;
+        return `<button type="button" data-val="${val}"
+            onclick="selectColOption('${col}', '${val}')"
+            class="cf-opt w-full text-left px-2.5 py-1.5 text-xs rounded-lg text-gray-600 hover:bg-gray-50 transition flex items-center gap-2">
+            <span class="cf-opt-dot w-3 h-3 rounded-full border border-gray-300 flex-shrink-0"></span>
+            ${label}
+        </button>`;
+    }).join('');
+}
+
+function filterColOptions(col, q) {
+    const term = q.toLowerCase().trim();
+    document.querySelectorAll(`#cfOptions-${col} .cf-opt`).forEach(btn => {
+        btn.style.display = (!term || btn.dataset.val.toLowerCase().includes(term)) ? '' : 'none';
+    });
+}
+
+function selectColOption(col, val) {
+    // Toggle: click same value again → clear
+    CF[col] = CF[col] === val ? '' : val;
+    // Update dot states
+    document.querySelectorAll(`#cfOptions-${col} .cf-opt`).forEach(btn => {
+        const dot = btn.querySelector('.cf-opt-dot');
+        const active = btn.dataset.val === CF[col];
+        dot.className = active
+            ? 'cf-opt-dot w-3 h-3 rounded-full flex-shrink-0 bg-red-600'
+            : 'cf-opt-dot w-3 h-3 rounded-full border border-gray-300 flex-shrink-0';
+        btn.classList.toggle('bg-red-50', active);
+        btn.classList.toggle('text-red-700', active);
+        btn.classList.toggle('font-semibold', active);
+    });
+    updateColFilterIcon(col);
+    applyReportFilters();
+}
+
+function clearColFilter(col) {
+    CF[col] = '';
+    // Reset text inputs
+    const inp = document.getElementById('cfInput-' + col);
+    if (inp) inp.value = '';
+    const srch = document.getElementById('cfSearch-' + col);
+    if (srch) { srch.value = ''; filterColOptions(col, ''); }
+    // Reset option dots
+    document.querySelectorAll(`#cfOptions-${col} .cf-opt`).forEach(btn => {
+        btn.querySelector('.cf-opt-dot').className = 'cf-opt-dot w-3 h-3 rounded-full border border-gray-300 flex-shrink-0';
+        btn.classList.remove('bg-red-50','text-red-700','font-semibold');
+    });
+    updateColFilterIcon(col);
+    applyReportFilters();
+}
+
+function updateColFilterIcon(col) {
+    document.querySelectorAll(`.col-filter-icon[data-col="${col}"]`).forEach(el => {
+        el.className = CF[col]
+            ? 'fas fa-filter text-[9px] col-filter-icon text-red-500'
+            : 'fas fa-filter text-[9px] col-filter-icon text-gray-300';
+    });
+}
+
+// Toggle panel open/close
+document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.col-filter-btn');
+    if (btn) {
+        const col   = btn.dataset.col;
+        const panel = document.getElementById('cfPanel-' + col);
+        const wasHidden = panel.classList.contains('hidden');
+        document.querySelectorAll('.col-filter-panel').forEach(p => p.classList.add('hidden'));
+        if (wasHidden) {
+            panel.classList.remove('hidden');
+            panel.querySelector('input')?.focus();
+        }
+        e.stopPropagation();
+        return;
+    }
+    // Click outside → close all panels
+    if (!e.target.closest('.col-filter-panel')) {
+        document.querySelectorAll('.col-filter-panel').forEach(p => p.classList.add('hidden'));
+    }
+});
+
 async function loadReport() {
     const params = new URLSearchParams();
     const c = document.getElementById('filterCustomer').value;
@@ -308,7 +478,8 @@ async function loadReport() {
             if (el) el.textContent = vals[i];
         });
 
-        renderTable(json.data.tickets);
+        _allTickets = json.data.tickets || [];
+        applyReportFilters();
     } catch (e) {
         document.getElementById('reportTableBody').innerHTML = `
             <tr><td colspan="10" class="py-12 text-center">
@@ -321,6 +492,27 @@ async function loadReport() {
         icon?.classList.remove('fa-spin');
     }
 }
+
+function applyReportFilters() {
+    const ticketQ   = (document.getElementById('cfInput-ticket')?.value   || '').toLowerCase().trim();
+    const customerQ = (document.getElementById('cfInput-customer')?.value || '').toLowerCase().trim();
+    CF.ticket   = ticketQ;
+    CF.customer = customerQ;
+
+    const filtered = _allTickets.filter(t => {
+        if (CF.ticket   && !(t.ticket_number   || '').toLowerCase().includes(CF.ticket))   return false;
+        if (CF.customer && !(t.customer_name   || '').toLowerCase().includes(CF.customer)) return false;
+        if (CF.type     && t.ticket_type     !== CF.type)     return false;
+        if (CF.priority && t.ticket_priority  !== CF.priority) return false;
+        if (CF.status   && t.resolution?.status !== CF.status) return false;
+        return true;
+    });
+
+    renderTable(filtered);
+}
+
+// Init option lists on load
+['type', 'priority', 'status'].forEach(col => buildColOptions(col));
 
 function renderTable(tickets) {
     const tbody  = document.getElementById('reportTableBody');
@@ -441,18 +633,18 @@ function renderTable(tickets) {
                 </span>
             </td>
             <td class="px-5 py-3">
-                <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div class="flex items-center justify-end gap-1">
                     <button onclick="openDetail(${t.ticket_id}, '${t.ticket_number}')" title="View SLA Log"
-                        class="w-7 h-7 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 flex items-center justify-center text-gray-400 hover:text-indigo-600 transition">
-                        <i class="fas fa-table text-xs"></i>
+                        class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition text-[10px] font-medium">
+                        <i class="fas fa-history text-xs"></i><span>Log</span>
                     </button>
                     <a href="/admin/sla/tickets/${t.ticket_id}/log-pdf" target="_blank" title="Download SLA Log PDF"
-                        class="w-7 h-7 rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 flex items-center justify-center text-gray-400 hover:text-red-600 transition">
-                        <i class="fas fa-file-pdf text-xs"></i>
+                        class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 text-gray-400 hover:text-red-600 transition text-[10px] font-medium">
+                        <i class="fas fa-download text-xs"></i><span>Log PDF</span>
                     </a>
                     <a href="/admin/sla/tickets/${t.ticket_id}/pdf" target="_blank" title="Download SLA Summary PDF"
-                        class="w-7 h-7 rounded-lg border border-gray-200 hover:border-orange-300 hover:bg-orange-50 flex items-center justify-center text-gray-400 hover:text-orange-600 transition">
-                        <i class="fas fa-file-alt text-xs"></i>
+                        class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-orange-300 hover:bg-orange-50 text-gray-400 hover:text-orange-600 transition text-[10px] font-medium">
+                        <i class="fas fa-download text-xs"></i><span>Summary PDF</span>
                     </a>
                 </div>
             </td>

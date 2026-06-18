@@ -7,6 +7,7 @@ use App\Models\Ticket;
 use App\Models\Customer;
 use App\Models\CustomerMandays;
 use App\Models\TicketSlaPause;
+use App\Support\SessionUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -15,30 +16,9 @@ class TicketViewController extends Controller
     /**
      * Convert session user array to object format for Blade views
      */
-    private function getUserObject()
+    private function getUserObject(): ?SessionUser
     {
-        $sessionUser = session('user');
-
-        if (!$sessionUser) {
-            return null;
-        }
-
-        // Convert array to object for Blade compatibility
-        $user = new \stdClass();
-        $user->id = $sessionUser['id'] ?? null;
-        $user->name = $sessionUser['name'] ?? $sessionUser['email'] ?? 'Unknown';
-        $user->email = $sessionUser['email'] ?? null;
-        $user->type = $sessionUser['type'] ?? null;
-
-        // Create role object
-        $user->role = new \stdClass();
-        $user->role->role_id = (int) ($sessionUser['role']['id'] ?? 0);
-        $user->role->role_name = $sessionUser['role']['name'] ?? 'Unknown';
-
-        $user->eci           = $sessionUser['eci'] ?? null;
-        $user->employee_type = $sessionUser['employee_type'] ?? 'Internal';
-
-        return $user;
+        return SessionUser::fromSession(session('user'));
     }
 
     /**
@@ -52,17 +32,18 @@ class TicketViewController extends Controller
             return redirect()->route('login');
         }
 
-        // Get customers for Admin create ticket dropdown
+        // Get customers for create ticket dropdown (all users with btn-create permission)
         $customers = [];
-        if ($user->role->role_id === RoleId::EC_ADMINISTRATOR->value) {
+        $employee = \App\Models\Employee::find($user->id);
+        if ($employee && in_array('ui.ticket.btn-create', $employee->allPermissionSlugs())) {
             $customers = Customer::with('basicData')
                 ->where('is_active', true)
                 ->get()
                 ->map(function ($customer) {
                     return [
-                        'customer_id' => $customer->customer_id,
+                        'customer_id'   => $customer->customer_id,
                         'customer_code' => $customer->customer_code,
-                        'name' => $customer->basicData->name_1 ?? $customer->email ?? 'Unknown'
+                        'name'          => $customer->basicData->name_1 ?? $customer->email ?? 'Unknown'
                     ];
                 })
                 ->toArray();

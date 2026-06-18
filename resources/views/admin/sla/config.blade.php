@@ -51,9 +51,9 @@
                 </div>
 
                 {{-- Right: filter + action --}}
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2">
 
-                    {{-- Delivery Support filter (custom-dd) --}}
+                    {{-- Delivery Support filter (custom-dd, server-side) --}}
                     <div class="custom-dd relative" data-onchange="loadPolicies" data-fixed="true" style="min-width:180px">
                         <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 hover:border-gray-400 transition-all text-left gap-2">
                             <span class="custom-dd-label">All Delivery Supports</span>
@@ -90,12 +90,64 @@
                     <tr class="bg-gray-50 border-b border-gray-200">
                         <th class="text-left px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Policy</th>
                         <th class="text-left px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Delivery Support</th>
-                        <th class="text-left px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Priority</th>
-                        <th class="text-left px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Scale</th>
+                        {{-- Priority column filter --}}
+                        <th class="text-left px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                            <div class="cfg-cf-wrap relative inline-flex items-center gap-1.5">
+                                <span>Priority</span>
+                                <button type="button" class="cfg-cf-btn w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 transition" data-col="priority">
+                                    <i class="fas fa-filter text-[9px] cfg-cf-icon text-gray-300" data-col="priority"></i>
+                                </button>
+                                <div id="cfgPanel-priority" class="cfg-cf-panel hidden absolute top-full left-0 mt-1 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:180px">
+                                    <input type="text" id="cfgSearch-priority" placeholder="Search…" oninput="cfgFilterOpts('priority', this.value)"
+                                        class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-200 mb-2">
+                                    <div id="cfgOptions-priority" class="space-y-0.5 max-h-[180px] overflow-y-auto"></div>
+                                    <button type="button" onclick="cfgClearFilter('priority')" class="mt-2 text-[10px] text-gray-400 hover:text-red-500 transition">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- Scale column filter --}}
+                        <th class="text-left px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                            <div class="cfg-cf-wrap relative inline-flex items-center gap-1.5">
+                                <span>Scale</span>
+                                <button type="button" class="cfg-cf-btn w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 transition" data-col="scale">
+                                    <i class="fas fa-filter text-[9px] cfg-cf-icon text-gray-300" data-col="scale"></i>
+                                </button>
+                                <div id="cfgPanel-scale" class="cfg-cf-panel hidden absolute top-full left-0 mt-1 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:160px">
+                                    <input type="text" id="cfgSearch-scale" placeholder="Search…" oninput="cfgFilterOpts('scale', this.value)"
+                                        class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-200 mb-2">
+                                    <div id="cfgOptions-scale" class="space-y-0.5 max-h-[180px] overflow-y-auto"></div>
+                                    <button type="button" onclick="cfgClearFilter('scale')" class="mt-2 text-[10px] text-gray-400 hover:text-red-500 transition">Clear</button>
+                                </div>
+                            </div>
+                        </th>
                         <th class="text-center px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Response</th>
                         <th class="text-center px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Resolution</th>
-                        <th class="text-center px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Mode</th>
-                        <th class="text-center px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                        {{-- Mode column filter --}}
+                        <th class="text-center px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                            <div class="cfg-cf-wrap relative inline-flex items-center justify-center gap-1.5">
+                                <span>Mode</span>
+                                <button type="button" class="cfg-cf-btn w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 transition" data-col="mode">
+                                    <i class="fas fa-filter text-[9px] cfg-cf-icon text-gray-300" data-col="mode"></i>
+                                </button>
+                                <div id="cfgPanel-mode" class="cfg-cf-panel hidden absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:160px">
+                                    <div id="cfgOptions-mode" class="space-y-0.5"></div>
+                                    <button type="button" onclick="cfgClearFilter('mode')" class="mt-2 text-[10px] text-gray-400 hover:text-red-500 transition">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- Status column filter --}}
+                        <th class="text-center px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                            <div class="cfg-cf-wrap relative inline-flex items-center justify-center gap-1.5">
+                                <span>Status</span>
+                                <button type="button" class="cfg-cf-btn w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 transition" data-col="cfgstatus">
+                                    <i class="fas fa-filter text-[9px] cfg-cf-icon text-gray-300" data-col="cfgstatus"></i>
+                                </button>
+                                <div id="cfgPanel-cfgstatus" class="cfg-cf-panel hidden absolute top-full right-0 mt-1 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:160px">
+                                    <div id="cfgOptions-cfgstatus" class="space-y-0.5"></div>
+                                    <button type="button" onclick="cfgClearFilter('cfgstatus')" class="mt-2 text-[10px] text-gray-400 hover:text-red-500 transition">Clear</button>
+                                </div>
+                            </div>
+                        </th>
                         @if($canManage)
                         <th class="text-center px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                         @endif
@@ -400,7 +452,109 @@ function updatePreview() {
     document.getElementById('labelPreview').textContent = makeLabel(dsName, priority, scale);
 }
 
+// ── Column filter system (config page) ───────────────────────────────────────
+const CFG_CF = { priority: '', scale: '', mode: '', cfgstatus: '' };
+
+const CFG_CF_OPTIONS = {
+    priority:  [
+        { val: 'Very High', label: '1: Very High' },
+        { val: 'High',      label: '2: High'      },
+        { val: 'Medium',    label: '3: Medium'    },
+        { val: 'Low',       label: '4: Low'       },
+    ],
+    scale:     [
+        { val: 'Simple',  label: 'Simple'  },
+        { val: 'Medium',  label: 'Medium'  },
+        { val: 'Complex', label: 'Complex' },
+    ],
+    mode:      [
+        { val: '24h',      label: '∞ 24/7'          },
+        { val: 'business', label: 'Business Hours'   },
+    ],
+    cfgstatus: [
+        { val: 'active',   label: 'Active'   },
+        { val: 'inactive', label: 'Inactive' },
+    ],
+};
+
+function cfgBuildOpts(col) {
+    const container = document.getElementById('cfgOptions-' + col);
+    if (!container) return;
+    container.innerHTML = CFG_CF_OPTIONS[col].map(o => `
+        <button type="button" data-val="${o.val}" onclick="cfgSelectOpt('${col}', '${o.val}')"
+            class="cfgopt w-full text-left px-2.5 py-1.5 text-xs rounded-lg text-gray-600 hover:bg-gray-50 transition flex items-center gap-2">
+            <span class="cfgopt-dot w-3 h-3 rounded-full border border-gray-300 flex-shrink-0"></span>
+            ${o.label}
+        </button>`).join('');
+}
+
+function cfgFilterOpts(col, q) {
+    const term = q.toLowerCase().trim();
+    document.querySelectorAll(`#cfgOptions-${col} .cfgopt`).forEach(btn => {
+        btn.style.display = (!term || btn.dataset.val.toLowerCase().includes(term)) ? '' : 'none';
+    });
+}
+
+function cfgSelectOpt(col, val) {
+    CFG_CF[col] = CFG_CF[col] === val ? '' : val;
+    document.querySelectorAll(`#cfgOptions-${col} .cfgopt`).forEach(btn => {
+        const dot = btn.querySelector('.cfgopt-dot');
+        const active = btn.dataset.val === CFG_CF[col];
+        dot.className = active
+            ? 'cfgopt-dot w-3 h-3 rounded-full flex-shrink-0 bg-red-600'
+            : 'cfgopt-dot w-3 h-3 rounded-full border border-gray-300 flex-shrink-0';
+        btn.classList.toggle('bg-red-50', active);
+        btn.classList.toggle('text-red-700', active);
+        btn.classList.toggle('font-semibold', active);
+    });
+    cfgUpdateIcon(col);
+    applyFilters();
+}
+
+function cfgClearFilter(col) {
+    CFG_CF[col] = '';
+    const srch = document.getElementById('cfgSearch-' + col);
+    if (srch) { srch.value = ''; cfgFilterOpts(col, ''); }
+    document.querySelectorAll(`#cfgOptions-${col} .cfgopt`).forEach(btn => {
+        btn.querySelector('.cfgopt-dot').className = 'cfgopt-dot w-3 h-3 rounded-full border border-gray-300 flex-shrink-0';
+        btn.classList.remove('bg-red-50','text-red-700','font-semibold');
+    });
+    cfgUpdateIcon(col);
+    applyFilters();
+}
+
+function cfgUpdateIcon(col) {
+    document.querySelectorAll(`.cfg-cf-icon[data-col="${col}"]`).forEach(el => {
+        el.className = CFG_CF[col]
+            ? 'fas fa-filter text-[9px] cfg-cf-icon text-red-500'
+            : 'fas fa-filter text-[9px] cfg-cf-icon text-gray-300';
+    });
+}
+
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.cfg-cf-btn');
+    if (btn) {
+        const col   = btn.dataset.col;
+        const panel = document.getElementById('cfgPanel-' + col);
+        const wasHidden = panel.classList.contains('hidden');
+        document.querySelectorAll('.cfg-cf-panel').forEach(p => p.classList.add('hidden'));
+        if (wasHidden) {
+            panel.classList.remove('hidden');
+            panel.querySelector('input')?.focus();
+        }
+        e.stopPropagation();
+        return;
+    }
+    if (!e.target.closest('.cfg-cf-panel')) {
+        document.querySelectorAll('.cfg-cf-panel').forEach(p => p.classList.add('hidden'));
+    }
+}, true);
+
+['priority','scale','mode','cfgstatus'].forEach(col => cfgBuildOpts(col));
+
 // ── Load & Render ─────────────────────────────────────────────────────────────
+let _allPolicies = [];
+
 async function loadPolicies() {
     const dsid  = document.getElementById('filterDeliverySupport').value;
     const url   = '/api/admin/sla/policies' + (dsid ? '?delivery_support_id=' + dsid : '');
@@ -415,7 +569,8 @@ async function loadPolicies() {
     try {
         const res  = await fetch(url, { credentials: 'include' });
         const json = await res.json();
-        renderPolicies(json.data || []);
+        _allPolicies = json.data || [];
+        applyFilters();
     } catch {
         tbody.innerHTML = `<tr><td colspan="${COL_COUNT}" class="py-12 text-center">
             <div class="flex flex-col items-center gap-2 text-red-400">
@@ -425,11 +580,27 @@ async function loadPolicies() {
     }
 }
 
+function applyFilters() {
+    const filtered = _allPolicies.filter(p => {
+        if (CFG_CF.priority  && p.priority !== CFG_CF.priority) return false;
+        if (CFG_CF.scale     && p.scale    !== CFG_CF.scale)    return false;
+        if (CFG_CF.cfgstatus === 'active'   && !p.is_active)    return false;
+        if (CFG_CF.cfgstatus === 'inactive' &&  p.is_active)    return false;
+        if (CFG_CF.mode === '24h'      && !p.is_24_hours)       return false;
+        if (CFG_CF.mode === 'business' &&  p.is_24_hours)       return false;
+        return true;
+    });
+
+    renderPolicies(filtered);
+}
+
 function renderPolicies(policies) {
-    document.getElementById('kpiTotal').textContent  = policies.length;
-    document.getElementById('kpiActive').textContent = policies.filter(p => p.is_active).length;
-    document.getElementById('kpiGlobal').textContent = policies.filter(p => !p.delivery_support_id).length;
-    document.getElementById('kpi24h').textContent    = policies.filter(p => p.is_24_hours).length;
+    // KPI cards always reflect the full unfiltered dataset
+    const base = _allPolicies.length ? _allPolicies : policies;
+    document.getElementById('kpiTotal').textContent  = base.length;
+    document.getElementById('kpiActive').textContent = base.filter(p => p.is_active).length;
+    document.getElementById('kpiGlobal').textContent = base.filter(p => !p.delivery_support_id).length;
+    document.getElementById('kpi24h').textContent    = base.filter(p => p.is_24_hours).length;
 
     const tbody = document.getElementById('policyTableBody');
 
@@ -599,8 +770,9 @@ async function submitAddPolicy(e) {
         const json = await res.json();
         if (!json.success) { showErr('add', json.message || 'Failed to save.'); return; }
         closeAddModal();
+        showToast('SLA Policy berhasil ditambahkan.', 'success');
         loadPolicies();
-    } catch { showErr('add', 'A network error occurred.'); }
+    } catch { showErr('add', 'Terjadi kesalahan jaringan. Coba lagi.'); }
     finally { btn.disabled = false; btn.textContent = 'Save Policy'; }
 }
 
@@ -624,8 +796,9 @@ async function submitEditPolicy(e) {
         const json = await res.json();
         if (!json.success) { showErr('edit', json.message || 'Failed to update.'); return; }
         closeEditModal();
+        showToast('SLA Policy berhasil diperbarui.', 'success');
         loadPolicies();
-    } catch { showErr('edit', 'A network error occurred.'); }
+    } catch { showErr('edit', 'Terjadi kesalahan jaringan. Coba lagi.'); }
     finally { btn.disabled = false; btn.textContent = 'Save Changes'; }
 }
 
@@ -653,12 +826,12 @@ async function confirmDelete() {
         });
         const json = await res.json();
         closeDeleteModal();
-        if (!json.success) { showToast(json.message || 'Failed to delete.', 'error'); return; }
-        showToast('Policy deleted successfully.', 'success');
+        if (!json.success) { showToast(json.message || 'Gagal menghapus policy.', 'error'); return; }
+        showToast('SLA Policy berhasil dihapus.', 'success');
         loadPolicies();
     } catch {
         closeDeleteModal();
-        showToast('A network error occurred.', 'error');
+        showToast('Terjadi kesalahan jaringan. Coba lagi.', 'error');
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-trash mr-1.5"></i>Yes, Delete';

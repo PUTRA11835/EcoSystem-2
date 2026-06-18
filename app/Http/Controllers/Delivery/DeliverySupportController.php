@@ -327,7 +327,9 @@ class DeliverySupportController extends Controller
         // Get clients for modal form
         $clients = Customer::with('basicData')->get();
 
-        return view('delivery.support.list.show', compact('support', 'employees', 'clients'));
+        $canManage = in_array(session('user.role.id'), [1, 5], true);
+
+        return view('delivery.support.list.show', compact('support', 'employees', 'clients', 'canManage'));
     }
 
     /**
@@ -747,7 +749,8 @@ class DeliverySupportController extends Controller
     public function search(Request $request)
     {
         try {
-            $query = DeliverySupport::with(['client.basicData']);
+            $query = DeliverySupport::with(['client.basicData'])
+                ->where('calculated_progress', '<', 100);
 
             // Filter by client if provided
             if ($request->filled('client_id')) {

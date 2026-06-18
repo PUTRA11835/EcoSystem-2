@@ -5,6 +5,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use App\Http\Middleware\CheckAuthToken;
 use App\Http\Middleware\CheckJarviesApiKey;
+use App\Http\Middleware\ShareMenuPermissions;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -36,11 +37,16 @@ return Application::configure(basePath: dirname(__DIR__))
             'ecosystem-session',
         ]);
         
+        $middleware->web(append: [
+            ShareMenuPermissions::class,
+        ]);
+
         $middleware->alias([
             'auth.session'      => CheckAuthToken::class,
             'jarvies.api_key'   => CheckJarviesApiKey::class,
             'mobile.employee'   => \App\Http\Middleware\EnsureMobileEmployee::class,
             'external.api_key'  => \App\Http\Middleware\CheckExternalApiKey::class,
+            'menu'              => \App\Http\Middleware\CheckMenuAccess::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

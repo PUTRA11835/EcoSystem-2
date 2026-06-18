@@ -9,6 +9,7 @@ use App\Models\StagingTicket;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
 use App\Services\StagingTicketService;
+use App\Support\SessionUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -37,13 +38,11 @@ class StagingTicketController extends Controller
      */
     public function view(Request $request)
     {
-        $sessionUser = session('user');
-        $user = (object) [
-            'role' => (object) ['role_id' => $sessionUser['role']['id'] ?? 0],
-        ];
+        $user = SessionUser::fromSession(session('user'));
 
         // Admin, Helpdesk, dan Head of Support yang boleh akses
-        if (!in_array($user->role->role_id, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
+        $allowed = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP);
+        if (!$user || !$user->hasAnyRole($allowed)) {
             abort(403, 'Unauthorized');
         }
 
@@ -64,12 +63,10 @@ class StagingTicketController extends Controller
      */
     public function viewRejected(Request $request)
     {
-        $sessionUser = session('user');
-        $user = (object) [
-            'role' => (object) ['role_id' => $sessionUser['role']['id'] ?? 0],
-        ];
+        $user = SessionUser::fromSession(session('user'));
 
-        if (!in_array($user->role->role_id, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
+        $allowed = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP);
+        if (!$user || !$user->hasAnyRole($allowed)) {
             abort(403, 'Unauthorized');
         }
 
@@ -242,6 +239,7 @@ class StagingTicketController extends Controller
             'description'          => 'required|string|max:5000',
             'body'                 => 'nullable|string',
             'ticket_priority'      => 'nullable|in:Very High,High,Medium,Low',
+            'ticket_type'          => 'nullable|string|in:Incident,Service Request,Change Request,Consult',
             'sender_name'          => 'nullable|string|max:255',
             'submitted_by_email'   => 'nullable|email|max:255',
             'cc_emails'            => 'nullable|string',    // JSON string dari JARVIES
@@ -326,6 +324,7 @@ class StagingTicketController extends Controller
             'module'              => 'nullable|string|max:255',
             'client'              => 'nullable|string|max:255',
             'delivery_support_id' => 'nullable|exists:delivery_support,id',
+            'end_customer_id'     => 'nullable|integer|exists:customer,customer_id',
         ]);
 
         $staging = StagingTicket::findOrFail($id);
@@ -335,6 +334,21 @@ class StagingTicketController extends Controller
         foreach (['name', 'no_hp', 'module', 'client'] as $field) {
             if ($request->has($field)) {
                 $staging->$field = $request->input($field);
+            }
+        }
+
+        // "For customer" — saat tiket masuk via email & ter-route ke parent customer
+        // (lewat domain), helpdesk dapat memilih end-customer (anak) tujuan tiket.
+        // Hanya terima child yang benar-benar milik parent ini agar tidak salah assign.
+        if ($request->has('end_customer_id')) {
+            $endCustomerId = $request->input('end_customer_id') ?: null;
+            if ($endCustomerId) {
+                $isValidChild = Customer::where('customer_id', $endCustomerId)
+                    ->where('parent_customer_id', $staging->customer_id)
+                    ->exists();
+                $staging->end_customer_id = $isValidChild ? $endCustomerId : null;
+            } else {
+                $staging->end_customer_id = null;
             }
         }
         $staging->save();
@@ -1307,7 +1321,7 @@ class StagingTicketController extends Controller
             'description'         => $s->description,
             'body'                => $s->body,           // ← full message body dari Jarvies/web form
             'ticket_priority'     => $s->ticket?->ticket_priority ?? $s->ticket_priority,
-            'ticket_type'         => $s->ticket?->ticket_type,
+            'ticket_type'         => $s->ticket?->ticket_type ?? $s->ticket_type,
             'scale'               => $s->ticket?->scale ?? $s->scale,
             'status'              => $s->status,
             'rejection_reason'    => $s->rejection_reason,

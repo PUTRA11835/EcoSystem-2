@@ -44,39 +44,22 @@
         $textColor = $preferences['theme'] === 'dark' ? '#f9fafb' : '#111827';
         $cardBg = $preferences['theme'] === 'dark' ? '#1f2937' : '#ffffff';
         
-        // Get user role_id from session
+        // Get user from session
         $user = session('user', []);
         $userRoleId   = $user['role']['id']   ?? 1;
         $userRoleName = $user['role']['name'] ?? '';
 
-        // Define menu visibility based on role
-        $showAllMenus     = $userRoleId == \App\Enums\RoleId::EC_ADMINISTRATOR->value;
-        $showMasterMenu   = $userRoleId === \App\Enums\RoleId::EC_ADMINISTRATOR->value
-            || in_array($userRoleId, [
-                \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value,
-                \App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value,
-                \App\Enums\RoleId::DELIVERY_HELPDESK->value,
-                \App\Enums\RoleId::DELIVERY_PROJECT_HEAD->value,
-                \App\Enums\RoleId::DELIVERY_RPMO_HEAD->value,
-            ], true)
-            || in_array($userRoleName, [
-                'Delivery Support Administrator',
-                'Delivery Project Administrator',
-                'Delivery Project Manager',
-                'Delivery RPMO Administrator',
-                'Delivery RPMO Manager',
-            ], true);
-        $showRpmoMenu     = in_array($userRoleId, \App\Enums\RoleId::PERIOD_MANAGEMENT_GROUP, true);
-        $showLimitedMenus = in_array($userRoleId, [\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value, \App\Enums\RoleId::EC_USER->value], true);
-        $showSlaMenu      = in_array($userRoleId, [
-            \App\Enums\RoleId::EC_ADMINISTRATOR->value,
-            \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value,
-            \App\Enums\RoleId::DELIVERY_HELPDESK->value,
-        ], true);
-        $canManageSla     = in_array($userRoleId, [
-            \App\Enums\RoleId::EC_ADMINISTRATOR->value,
-            \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value,
-        ], true);
+        // $permSlugs dan $can di-share oleh ShareMenuPermissions middleware
+        $permSlugs = $permSlugs ?? [];
+        $can       = $can       ?? fn(string $slug) => in_array($slug, $permSlugs);
+
+        // Backward compat variables (dipakai di beberapa tempat lain di view ini)
+        $showAllMenus     = $can('management');
+        $showMasterMenu   = $can('master');
+        $showRpmoMenu     = $can('rpmo');
+        $showSlaMenu      = $can('sla');
+        $showLimitedMenus = false; // tidak dipakai lagi
+        $canManageSla     = $can('sla.config');
     @endphp
     
     <style>
@@ -363,8 +346,8 @@
                     </a>
                 </div>
                 
-                <!-- CALENDAR - Visible to all roles -->
-                <!-- CALENDAR Dropdown - Visible to all roles -->
+                @if($can('calendar'))
+                <!-- CALENDAR Dropdown -->
                 <div class="mb-2">
                     <button onclick="toggleCalendarDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('calendar*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -374,23 +357,28 @@
                         <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="calendarChevron"></i>
                     </button>
                     <div id="calendarDropdown" class="nav-text {{ Request::is('calendar*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                        @if($can('calendar.events'))
                         <a href="{{ route('calendar.events') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('calendar/events*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-calendar-check text-xs"></i>
                             </span>
                             <span class="nav-text text-sm">Events</span>
                         </a>
+                        @endif
+                        @if($can('calendar.timesheets'))
                         <a href="{{ route('calendar.timesheets') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('calendar/timesheets*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-clock text-xs"></i>
                             </span>
                             <span class="nav-text text-sm">Timesheets</span>
                         </a>
+                        @endif
                     </div>
                 </div>
+                @endif
                 
-                @if($userRoleId != 3)
-                <!-- REPORTING Dropdown - All internal roles except Customer (role 3) -->
+                @if($can('reporting'))
+                <!-- REPORTING Dropdown -->
                 <div class="mb-2">
                     <button onclick="toggleReportingDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('reporting*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -400,15 +388,13 @@
                         <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="reportingChevron"></i>
                     </button>
                     <div id="reportingDropdown" class="nav-text {{ Request::is('reporting*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
-                        {{-- MD Validation: all internal roles --}}
                         <a href="{{ route('reporting') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting') && !Request::is('reporting/md-recap*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-check-circle text-xs"></i>
                             </span>
                             <span class="nav-text text-sm">MD Validation</span>
                         </a>
-                        {{-- MD Recap: EC Administrator + Delivery Support Head only --}}
-                        @if(in_array($userRoleId, [\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value], true))
+                        @if($can('reporting.md-recap'))
                         <a href="{{ route('reporting.md-recap') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/md-recap*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-table text-xs"></i>
@@ -418,8 +404,9 @@
                         @endif
                     </div>
                 </div>
-                
-                @if($showMasterMenu)
+                @endif
+
+                @if($can('master'))
                 <!-- MASTER Dropdown -->
                 <div class="mb-2">
                     <button onclick="toggleMasterDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('master*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -446,8 +433,8 @@
                 </div>
                 @endif
 
-                @if($showAllMenus)
-                <!-- FINANCIAL - Only for role_id 1 -->
+                @if($can('financial'))
+                <!-- FINANCIAL -->
                 <div class="mb-2">
                     <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('financial') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -456,8 +443,10 @@
                         <span class="nav-text font-medium">Financial</span>
                     </a>
                 </div>
+                @endif
 
-                <!-- HR & GENERAL - Only for role_id 1 -->
+                @if($can('general'))
+                <!-- HR & GENERAL -->
                 <div class="mb-2">
                     <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -466,8 +455,10 @@
                         <span class="nav-text font-medium">HR & General</span>
                     </a>
                 </div>
+                @endif
 
-                <!-- BUSINESS DEV - Only for role_id 1 -->
+                @if($can('business'))
+                <!-- BUSINESS DEV -->
                 <div class="mb-2">
                     <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('business') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -477,9 +468,9 @@
                     </a>
                 </div>
                 @endif
-                @endif
 
-                <!-- TICKET - Visible to all roles -->
+                @if($can('tickets.inbox'))
+                <!-- TICKET -->
                 <div class="mb-2">
                     @php
                         $ticketActive = Request::is('ticket') || (Request::is('ticket/*') && !Request::is('ticket/task*') && !Request::is('ticket/consultant-workload*'));
@@ -491,9 +482,10 @@
                         <span class="nav-text font-medium">Ticket</span>
                     </a>
                 </div>
+                @endif
 
-                @if(in_array($userRoleId, \App\Enums\RoleId::DELIVERY_USER_GROUP, true))
-                <!-- MY TASKS - Delivery Support User & Delivery Project User (bisa jadi PIC) -->
+                @if($can('ticket.my-tasks'))
+                <!-- MY TASKS -->
                 <div class="mb-2">
                     <a href="{{ route('ticket.task') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ticket/task*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -504,8 +496,8 @@
                 </div>
                 @endif
 
-                @if(in_array($userRoleId, array_merge([\App\Enums\RoleId::EC_ADMINISTRATOR->value], \App\Enums\RoleId::HEAD_GROUP, \App\Enums\RoleId::HELPDESK_GROUP), true))
-                <!-- CONSULTANT WORKLOAD - EC Administrator, Head, Helpdesk, RPMO -->
+                @if($can('ticket.consultant-workload'))
+                <!-- CONSULTANT WORKLOAD -->
                 <div class="mb-2">
                     <a href="{{ route('ticket.consultant-workload') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ticket/consultant-workload*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -516,8 +508,8 @@
                 </div>
                 @endif
 
-                @if(in_array($userRoleId, array_merge([\App\Enums\RoleId::EC_ADMINISTRATOR->value], \App\Enums\RoleId::STAGING_GROUP), true))
-                <!-- STAGING TICKET - EC Administrator, Delivery Support Head, Helpdesk, RPMO -->
+                @if($can('tickets.staging'))
+                <!-- TICKET VALIDATION -->
                 <div class="mb-2">
                     <a href="{{ route('staging.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('staging-tickets*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -535,8 +527,9 @@
                 </div>
                 @endif
 
-                @if($userRoleId != 2)
-                <!-- DELIVERY Dropdown - Hidden for Delivery Support User -->
+
+                @if($can('delivery'))
+                <!-- DELIVERY Dropdown -->
                 <div class="mb-2">
                     <button onclick="toggleDeliveryDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('project*') || Request::is('planning*') || Request::is('issues*') || Request::is('delivery/support*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -562,8 +555,8 @@
                 </div>
                 @endif
 
-                @if($showAllMenus)
-                <!-- CONTROL CENTER - Only for admin -->
+                @if($can('control-center'))
+                <!-- CONTROL CENTER -->
                 @php $adminOpen = Request::is('admin*'); @endphp
                 <div class="mb-2">
                     <button onclick="toggleAdminDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $adminOpen ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -602,36 +595,21 @@
                 </div>
                 @endif
 
-                @if($showSlaMenu)
-                <!-- SLA - Admin, Delivery Support Head, Helpdesk -->
-                @php $slaOpen = Request::is('sla*'); @endphp
+                @if($canManageSla)
+                <!-- SLA Config - Admin only -->
                 <div class="mb-2">
-                    <button onclick="toggleSlaDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $slaOpen ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="{{ route('sla.config') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('sla/config*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-stopwatch"></i>
                         </span>
-                        <span class="nav-text flex-1 font-medium">SLA</span>
-                        <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $slaOpen ? 'rotate-180' : '' }}" id="slaChevron"></i>
-                    </button>
-                    <div id="slaDropdown" class="nav-text {{ $slaOpen ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
-                        <a href="{{ route('sla.config') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('sla/config*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-sliders-h text-xs"></i></span>
-                            <span class="nav-text text-sm">SLA Config</span>
-                        </a>
-                        <a href="{{ route('sla.report') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('sla/report*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-chart-line text-xs"></i></span>
-                            <span class="nav-text text-sm">SLA Report</span>
-                        </a>
-                    </div>
+                        <span class="nav-text font-medium">SLA Config</span>
+                    </a>
                 </div>
                 @endif
 
                 @if($showRpmoMenu)
-                <!-- RPMO - For admin, RPMO, Project Head, Support Head -->
-                @php
-                    $rpmoDropdownOpen = Request::is('rpmo*');
-                    $showRpmoMain     = in_array($userRoleId, [\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_RPMO_HEAD->value], true); // only EC Administrator & RPMO Head see the main RPMO link
-                @endphp
+                <!-- RPMO -->
+                @php $rpmoDropdownOpen = Request::is('rpmo*'); @endphp
                 <div class="mb-2">
                     <button onclick="toggleRpmoDropdown()" class="nav-link w-full flex items-center gap-3 px-4 py-3 rounded-xl {{ $rpmoDropdownOpen ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all" style="background:none;border:none;cursor:pointer;text-align:left;">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -644,7 +622,7 @@
                     </button>
 
                     <div id="rpmoSubmenu" class="{{ $rpmoDropdownOpen ? '' : 'hidden' }} pl-4 mt-1 space-y-1">
-                        @if($showRpmoMain)
+                        @if($can('rpmo.overview'))
                         <a href="{{ route('rpmo') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-xl {{ Request::is('rpmo') && !Request::is('rpmo/*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all text-sm">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-tachometer-alt"></i>
@@ -662,8 +640,8 @@
                 </div>
                 @endif
 
-                @if($showAllMenus)
-                <!-- LEGAL - Only for admin -->
+                @if($can('legal'))
+                <!-- LEGAL -->
                 <div class="mb-2">
                     <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('legal') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -673,7 +651,111 @@
                     </a>
                 </div>
                 @endif
-                
+
+                @if($can('management'))
+                <!-- MANAJEMEN -->
+                <div class="mb-2">
+                    <button onclick="toggleManajemenDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('management*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-shield-alt"></i>
+                        </span>
+                        <span class="nav-text flex-1 font-medium">Manajemen</span>
+                        <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="manajemenChevron"></i>
+                    </button>
+                    <div id="manajemenDropdown" class="nav-text {{ Request::is('management*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                        @if($can('management.roles'))
+                        <a href="{{ route('management.roles.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/roles*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-user-tag text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Role</span>
+                        </a>
+                        @endif
+                        @if($can('management.permissions'))
+                        <a href="{{ route('management.permissions.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/permissions*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-key text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Akses Menu</span>
+                        </a>
+                        @endif
+                        @if($can('management.employee'))
+                        <div class="mt-1">
+                            <button onclick="toggleMasterMgmtDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ Request::is('management/employee*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-users text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm flex-1">Employee</span>
+                                <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ Request::is('management/employee*') ? 'rotate-180' : '' }}" id="masterMgmtChevron"></i>
+                            </button>
+                            <div id="masterMgmtDropdown" class="nav-text {{ Request::is('management/employee*') ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
+                                @if($can('management.employee.basic-data'))
+                                <a href="{{ route('management.employee.basic-data.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/basic-data*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-id-card text-xs"></i></span>
+                                    <span class="nav-text text-xs">Basic Data</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.address'))
+                                <a href="{{ route('management.employee.address.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/address*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-map-marker-alt text-xs"></i></span>
+                                    <span class="nav-text text-xs">Address</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.identification'))
+                                <a href="{{ route('management.employee.identification.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/identification*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-fingerprint text-xs"></i></span>
+                                    <span class="nav-text text-xs">Identification</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.family'))
+                                <a href="{{ route('management.employee.family.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/family*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-users text-xs"></i></span>
+                                    <span class="nav-text text-xs">Family</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.education'))
+                                <a href="{{ route('management.employee.education.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/education*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-graduation-cap text-xs"></i></span>
+                                    <span class="nav-text text-xs">Education</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.qualification'))
+                                <a href="{{ route('management.employee.qualification.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/qualification*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-certificate text-xs"></i></span>
+                                    <span class="nav-text text-xs">Qualification</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.contract'))
+                                <a href="{{ route('management.employee.contract.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/contract*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-file-contract text-xs"></i></span>
+                                    <span class="nav-text text-xs">Contract</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.bank'))
+                                <a href="{{ route('management.employee.bank.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/bank*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-university text-xs"></i></span>
+                                    <span class="nav-text text-xs">Bank Account</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.payment'))
+                                <a href="{{ route('management.employee.payment.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/payment*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-money-bill text-xs"></i></span>
+                                    <span class="nav-text text-xs">Basic Payment</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.attachment'))
+                                <a href="{{ route('management.employee.attachment.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/attachment*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-paperclip text-xs"></i></span>
+                                    <span class="nav-text text-xs">Attachment</span>
+                                </a>
+                                @endif
+                            </div>
+                        </div>
+                        @endif
+                    </div>
+                </div>
+                @endif
+
                 <!-- Divider -->
                 <div class="my-6 border-t border-white border-opacity-10"></div>
                 
@@ -875,9 +957,18 @@
             if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
         }
 
-        function toggleSlaDropdown() {
-            const submenu = document.getElementById('slaDropdown');
-            const chevron = document.getElementById('slaChevron');
+        function toggleManajemenDropdown() {
+            const submenu = document.getElementById('manajemenDropdown');
+            const chevron = document.getElementById('manajemenChevron');
+            if (!submenu) return;
+            const isOpen = !submenu.classList.contains('hidden');
+            submenu.classList.toggle('hidden', isOpen);
+            if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
+        }
+
+        function toggleMasterMgmtDropdown() {
+            const submenu = document.getElementById('masterMgmtDropdown');
+            const chevron = document.getElementById('masterMgmtChevron');
             if (!submenu) return;
             const isOpen = !submenu.classList.contains('hidden');
             submenu.classList.toggle('hidden', isOpen);
@@ -963,6 +1054,23 @@
             const toast = btn.closest('.toast-close');
             if (toast) toast.click();
         }
+
+        // ── Flash messages dari redirect (misal: akses ditolak middleware) ──
+        @if(session('error'))
+        document.addEventListener('DOMContentLoaded', function() {
+            showToast(@json(session('error')), 'error', 6000);
+        });
+        @endif
+        @if(session('success'))
+        document.addEventListener('DOMContentLoaded', function() {
+            showToast(@json(session('success')), 'success', 4000);
+        });
+        @endif
+        @if(session('warning'))
+        document.addEventListener('DOMContentLoaded', function() {
+            showToast(@json(session('warning')), 'warning', 5000);
+        });
+        @endif
 
         // â”€â”€ Modal backdrop blur (auto-applied, no per-modal changes needed) â”€â”€
         (function() {

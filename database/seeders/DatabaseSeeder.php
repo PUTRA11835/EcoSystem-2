@@ -16,8 +16,9 @@ class DatabaseSeeder extends Seeder
             // ── Clean install: hanya role + admin ──────────────────────────────
             // Data employee/customer riil dimasukkan via Import CSV (Backup & Export),
             // bukan via seeder. Login admin: ECI_ADMIN / password123.
-            RoleSeeder::class,           // wajib: isi tabel employee_role (FK role_id)
-            EmployeeSeeder::class,       // hanya akun ECI_ADMIN
+            RoleSeeder::class,            // wajib: isi tabel employee_role (FK role_id)
+            MenuSeeder::class,            // isi tabel menu + role_menu (permission matrix)
+            EmployeeSeeder::class,        // hanya akun ECI_ADMIN
             UserSystemRolesSeeder::class, // beri admin baris employee_role_assignment
 
             // ── Seeder data dummy — dinonaktifkan untuk clean install ───────────

@@ -3,8 +3,8 @@
 @section('page-title', 'Support Tickets')
 @section('page-subtitle', 'Manage and track all support requests')
 @section('content')
-{{-- Quill.js (untuk editor pesan di modal Create Ticket Helpdesk) --}}
-@if(in_array($user->role->role_id ?? 0, \App\Enums\RoleId::HELPDESK_GROUP, true))
+{{-- Quill.js (untuk editor pesan di modal Create Ticket) --}}
+@if($can('ui.ticket.btn-create'))
 <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 @endif
@@ -21,7 +21,7 @@
         </div>
         @endif
 
-        @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_HELPDESK->value && !($isExternalEmployee ?? false))
+        @if($user->hasRole(\App\Enums\RoleId::DELIVERY_HELPDESK->value))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
             <button onclick="toggleView('all')" id="btnViewAllHd" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
                 <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
@@ -32,7 +32,7 @@
         </div>
         @endif
 
-        @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value)
+        @if($user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
             <button onclick="toggleView('all')" id="btnViewAllSm" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
                 <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
@@ -43,19 +43,20 @@
         </div>
         @endif
 
-        @if($user->role->role_id === \App\Enums\RoleId::EC_ADMINISTRATOR->value || in_array($user->role->role_id, \App\Enums\RoleId::HELPDESK_GROUP, true))
-        <button onclick="{{ $user->role->role_id === \App\Enums\RoleId::EC_ADMINISTRATOR->value ? 'openCreateTicketModal()' : 'openHelpdeskCreateModal()' }}"
+        @if($can('ui.ticket.btn-create'))
+        <button onclick="openCreateTicketModal()"
             class="inline-flex items-center gap-1.5 px-3.5 py-1.5 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">
             <i class="fas fa-plus text-xs"></i>Create Ticket
         </button>
         @endif
 
-        @if(in_array($user->role->role_id, [\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value, \App\Enums\RoleId::DELIVERY_HELPDESK->value]))
+        @if($user->hasAnyRole([\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value, \App\Enums\RoleId::DELIVERY_HELPDESK->value]))
         <a href="{{ route('ticket.export') }}"
            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all">
             <i class="fas fa-file-excel text-green-600 text-xs"></i>Export
         </a>
         @endif
+
     </div>
 </div>
 
@@ -325,6 +326,9 @@
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:200px;">Due Date/Time Resolution Time</th>
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:140px;">Resolution Time</th>
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:160px;">Resolution Time Status</th>
+                        @if($can('sla.report'))
+                        <th class="px-3 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:110px;">SLA Report</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody id="ticketsListBody" class="divide-y divide-gray-100 bg-white"></tbody>
@@ -358,156 +362,6 @@
     </button>
 </div>
 
-{{-- ── Create Ticket Modal (Helpdesk) ────────────────────────────────────── --}}
-@if(in_array($user->role->role_id, \App\Enums\RoleId::HELPDESK_GROUP, true))
-<div id="helpdeskCreateModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
-    <div class="min-h-full flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
-            <div class="flex items-center justify-between px-6 py-5 border-b border-gray-200">
-                <h3 class="text-xl font-bold text-gray-900">Create New Ticket</h3>
-                <button onclick="closeHelpdeskCreateModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-            <form id="helpdeskCreateForm" onsubmit="submitHelpdeskCreateTicket(event)" class="p-6 space-y-4">
-                {{-- Customer Email --}}
-                <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                        Customer Email <span class="text-red-500">*</span>
-                    </label>
-                    <input type="email" id="hd_customer_email" required
-                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                        placeholder="customer@example.com">
-                </div>
-
-                {{-- CC --}}
-                <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                        CC <span class="text-gray-400 font-normal normal-case">(optional, pisah koma)</span>
-                    </label>
-                    <input type="text" id="hd_cc_emails"
-                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                        placeholder="cc1@example.com, cc2@example.com">
-                </div>
-
-                {{-- Subject / Description --}}
-                <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                        Subject / Description <span class="text-red-500">*</span>
-                    </label>
-                    <input type="text" id="hd_description" required maxlength="1000"
-                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                        placeholder="Describe the issue...">
-                </div>
-
-                {{-- Priority + Ticket Type (2 col) --}}
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Priority <span class="text-red-500">*</span></label>
-                        <select id="hd_priority" required
-                            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                            <option value="Very High">Very High</option>
-                            <option value="High">High</option>
-                            <option value="Medium" selected>Medium</option>
-                            <option value="Low">Low</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                            Ticket Type <span class="text-red-500">*</span>
-                        </label>
-                        <select id="hd_ticket_type" required
-                            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                            <option value="">-- Select Type --</option>
-                            <option value="Incident">Incident</option>
-                            <option value="Service Request">Service Request</option>
-                            <option value="Change Request">Change Request</option>
-                            <option value="Consult">Consult</option>
-                        </select>
-                    </div>
-                </div>
-
-                {{-- Scale --}}
-                <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                        Scale <span class="text-gray-400 font-normal normal-case">(optional, untuk SLA)</span>
-                    </label>
-                    <select id="hd_scale"
-                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-                        <option value="">-- Select Scale --</option>
-                        <option value="Simple" selected>Simple</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Complex">Complex</option>
-                    </select>
-                </div>
-
-                {{-- Additional Info --}}
-                <div class="border-t border-gray-100 pt-3">
-                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Additional Info <span class="font-normal normal-case">(optional)</span></p>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Name</label>
-                            <input type="text" id="hd_name" maxlength="255"
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                                placeholder="Contact person name">
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">No HP</label>
-                            <input type="text" id="hd_no_hp" maxlength="255"
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                                placeholder="Phone number">
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Module</label>
-                            <input type="text" id="hd_module" maxlength="255"
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                                placeholder="Related module">
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Client</label>
-                            <input type="text" id="hd_client" maxlength="255"
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                                placeholder="Client name">
-                        </div>
-                    </div>
-                </div>
-
-                {{-- Body / Message (Quill rich-text, supports paste screenshot) --}}
-                <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                        Message <span class="text-gray-400 font-normal normal-case">(optional — supports paste image)</span>
-                    </label>
-                    <div id="hdBodyEditor" class="border border-gray-300 rounded-lg overflow-hidden" style="min-height:140px; background:#fff;"></div>
-                </div>
-
-                {{-- Attachments --}}
-                <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                        Attachments <span class="text-gray-400 font-normal normal-case">(optional, max 20 MB/file)</span>
-                    </label>
-                    <input type="file" id="hd_attachments" multiple
-                        class="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200">
-                </div>
-
-                <div id="hdCreateError" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3"></div>
-
-                <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                    <button type="button" onclick="closeHelpdeskCreateModal()"
-                        class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-                        Cancel
-                    </button>
-                    <button type="submit" id="btnHdCreateTicket"
-                        class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                        <i class="fas fa-paper-plane text-xs"></i>Send & Create Ticket
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-@endif
 {{-- ── Access Denied State ────────────────────────────────────────────────── --}}
 <div id="accessDeniedState" class="hidden flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-200 shadow-sm text-center">
     <div class="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
@@ -517,8 +371,8 @@
     <p id="accessDeniedMessage" class="text-gray-400 text-xs max-w-sm">Your account role isn't permitted to view the Ticket module. Please sign in with an account that has ticket access (e.g. Admin, Helpdesk, or RPMO).</p>
 </div>
 
-<!-- Create Ticket Modal (Admin) -->
-@if($user->role->role_id === \App\Enums\RoleId::EC_ADMINISTRATOR->value)
+<!-- Create Ticket Modal -->
+@if($can('ui.ticket.btn-create'))
 <div id="createTicketModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
     <div class="min-h-full flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
@@ -536,27 +390,29 @@
                     <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
                         Customer <span class="text-red-500">*</span>
                     </label>
-                    <div class="relative">
-                        <input type="text" id="customerSearch"
-                            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                            placeholder="Search customer..."
-                            autocomplete="off"
-                            onfocus="showCustomerDropdown()"
-                            oninput="filterCustomers()">
-                        <input type="hidden" id="newCustomerId" required>
-                        <div id="customerDropdown" class="hidden absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    <div class="custom-dd relative w-full" id="ddCreateCustomer" data-fixed="true" data-searchable="true" data-search-placeholder="Search customer...">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-colors bg-white">
+                            <span class="custom-dd-label text-gray-400">Select customer...</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="newCustomerId">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] overflow-y-auto" style="max-height:240px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-50" data-value="">-- Select customer --</button>
                             @foreach($customers as $customer)
-                                <div class="customer-option px-4 py-3 hover:bg-gray-100 cursor-pointer text-sm border-b border-gray-100 last:border-0"
-                                     data-id="{{ $customer['customer_id'] }}"
-                                     data-name="{{ $customer['name'] }}"
-                                     data-code="{{ $customer['customer_code'] }}"
-                                     onclick="selectCustomer(this)">
-                                    <div class="font-medium text-gray-900">{{ $customer['name'] }}</div>
-                                    <div class="text-xs text-gray-500">{{ $customer['customer_code'] }}</div>
-                                </div>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" data-value="{{ $customer['customer_id'] }}">{{ $customer['name'] }} ({{ $customer['customer_code'] }})</button>
                             @endforeach
                         </div>
                     </div>
+                </div>
+
+                {{-- CC Emails --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        CC <span class="text-gray-400 font-normal normal-case">(optional, pisah koma)</span>
+                    </label>
+                    <input type="text" id="newCcEmails"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                        placeholder="cc1@example.com, cc2@example.com">
                 </div>
 
                 {{-- Subject / Description --}}
@@ -639,6 +495,23 @@
                                 placeholder="Client name">
                         </div>
                     </div>
+                </div>
+
+                {{-- Body / Message (Quill rich-text) --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        Message <span class="text-gray-400 font-normal normal-case">(optional — supports paste image)</span>
+                    </label>
+                    <div id="adminBodyEditor" class="border border-gray-300 rounded-lg overflow-hidden" style="min-height:140px; background:#fff;"></div>
+                </div>
+
+                {{-- Attachments --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        Attachments <span class="text-gray-400 font-normal normal-case">(optional, max 20 MB/file)</span>
+                    </label>
+                    <input type="file" id="newAttachments" multiple
+                        class="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200">
                 </div>
 
                 <div id="adminCreateError" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3"></div>
@@ -745,8 +618,10 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     let currentPage = 1;
     let totalItems = 0;
     let totalPages = 0;
-    let userRole                      = {{ $user->role->role_id ?? 0 }};
+    let userRoleIds                   = {!! json_encode($user->role_ids) !!};
+    let userRole                      = userRoleIds[0] ?? 0;
     let currentEmployeeId             = {{ $currentEmployeeId ?? 'null' }};
+    const CAN_VIEW_SLA_REPORT         = {{ $can('sla.report') ? 'true' : 'false' }};
     const IS_EXTERNAL_EMPLOYEE        = {{ ($isExternalEmployee ?? false) ? 'true' : 'false' }};
     const EC_ADMINISTRATOR_ROLE       = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
     const DELIVERY_SUPPORT_USER_ROLE  = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};
@@ -1185,6 +1060,26 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                     <td class="px-3 py-3 whitespace-nowrap">${slaStatusBadge(sla.resolution_status)}</td>
                 `;
             })()}
+            ${CAN_VIEW_SLA_REPORT ? `
+            <td class="px-3 py-3 whitespace-nowrap" onclick="event.stopPropagation()">
+                ${ticket.sla
+                    ? `<div class="flex items-center gap-1">
+                           <button onclick="openSlaDetail(${ticket.ticket_id}, '${(ticket.ticket_number||'').replace(/'/g,"\\'")}'); event.stopPropagation();"
+                               class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition text-[10px] font-medium">
+                               <i class="fas fa-history text-xs"></i><span>Log</span>
+                           </button>
+                           <a href="/admin/sla/tickets/${ticket.ticket_id}/log-pdf" target="_blank" onclick="event.stopPropagation();"
+                               class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 text-gray-400 hover:text-red-600 transition text-[10px] font-medium">
+                               <i class="fas fa-download text-xs"></i><span>Log PDF</span>
+                           </a>
+                           <a href="/admin/sla/tickets/${ticket.ticket_id}/pdf" target="_blank" onclick="event.stopPropagation();"
+                               class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-orange-300 hover:bg-orange-50 text-gray-400 hover:text-orange-600 transition text-[10px] font-medium">
+                               <i class="fas fa-download text-xs"></i><span>Summary PDF</span>
+                           </a>
+                       </div>`
+                    : `<span class="text-gray-300 text-xs">—</span>`
+                }
+            </td>` : ''}
         </tr>`;
     }
 
@@ -1675,140 +1570,54 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
 
     // ==================== HELPDESK: CREATE TICKET ====================
-    let hdQuillEditor = null;
-
-    function initHdQuill() {
-        if (hdQuillEditor) return;
-        hdQuillEditor = new Quill('#hdBodyEditor', {
+    // ==================== CREATE TICKET ====================
+    let adminQuillEditor = null;
+    function initAdminQuill() {
+        if (adminQuillEditor) return;
+        adminQuillEditor = new Quill('#adminBodyEditor', {
             theme: 'snow',
-            placeholder: 'Email body content',
-            modules: {
-                toolbar: [
-                    ['bold', 'italic', 'underline'],
-                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-                    ['link', 'image'],
-                    ['clean'],
-                ],
-            },
+            placeholder: 'Write an initial message... (optional)',
+            modules: { toolbar: [
+                [{ header: [1, 2, false] }],
+                ['bold', 'italic', 'underline'],
+                [{ list: 'ordered' }, { list: 'bullet' }],
+                ['link', 'image'],
+                ['clean'],
+            ]},
         });
-
-        // Handle clipboard paste of images
-        hdQuillEditor.root.addEventListener('paste', function (e) {
-            const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
-            if (!items) return;
+        adminQuillEditor.root.addEventListener('paste', function (e) {
+            const items = e.clipboardData?.items || [];
             for (const item of items) {
-                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                if (item.type.startsWith('image/')) {
                     e.preventDefault();
-                    const file = item.getAsFile();
                     const reader = new FileReader();
-                    reader.onload = function (evt) {
-                        const range = hdQuillEditor.getSelection(true);
-                        hdQuillEditor.insertEmbed(range.index, 'image', evt.target.result);
-                        hdQuillEditor.setSelection(range.index + 1);
+                    reader.onload = evt => {
+                        const range = adminQuillEditor.getSelection(true);
+                        adminQuillEditor.insertEmbed(range.index, 'image', evt.target.result);
+                        adminQuillEditor.setSelection(range.index + 1);
                     };
-                    reader.readAsDataURL(file);
+                    reader.readAsDataURL(item.getAsFile());
                 }
             }
         });
     }
-
-    function openHelpdeskCreateModal() {
-        document.getElementById('helpdeskCreateModal').classList.remove('hidden');
-        // Defer init so the div is visible before Quill measures it
-        setTimeout(initHdQuill, 50);
+    function openCreateTicketModal() {
+        document.getElementById('createTicketModal').classList.remove('hidden');
+        if (typeof initCustomDropdowns === 'function') initCustomDropdowns(document.getElementById('createTicketModal'));
+        setTimeout(initAdminQuill, 50);
     }
-    function closeHelpdeskCreateModal() {
-        document.getElementById('helpdeskCreateModal').classList.add('hidden');
-        document.getElementById('helpdeskCreateForm').reset();
-        document.getElementById('hdCreateError').classList.add('hidden');
-        const btn = document.getElementById('btnHdCreateTicket');
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane text-xs"></i>Send & Create Ticket'; }
-        if (hdQuillEditor) { hdQuillEditor.setContents([]); }
-    }
-
-    async function submitHelpdeskCreateTicket(e) {
-        e.preventDefault();
-        const btn = document.getElementById('btnHdCreateTicket');
-        const errEl = document.getElementById('hdCreateError');
-
-        // Validate ticket_type (required)
-        const ticketType = document.getElementById('hd_ticket_type').value;
-        if (!ticketType) {
-            errEl.textContent = 'Ticket Type is required.';
-            errEl.classList.remove('hidden');
-            return;
-        }
-
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Sending…';
-        errEl.classList.add('hidden');
-
-        const bodyHtml = hdQuillEditor ? hdQuillEditor.root.innerHTML : '';
-
-        const form = new FormData();
-        form.append('customer_email', document.getElementById('hd_customer_email').value);
-        form.append('cc_emails', document.getElementById('hd_cc_emails').value);
-        form.append('description', document.getElementById('hd_description').value);
-        form.append('ticket_priority', document.getElementById('hd_priority').value);
-        form.append('ticket_type', ticketType);
-        form.append('scale', document.getElementById('hd_scale').value);
-        form.append('body', bodyHtml);
-        const hdName   = document.getElementById('hd_name').value;
-        const hdNoHp   = document.getElementById('hd_no_hp').value;
-        const hdModule = document.getElementById('hd_module').value;
-        const hdClient = document.getElementById('hd_client').value;
-        if (hdName)   form.append('name',   hdName);
-        if (hdNoHp)   form.append('no_hp',  hdNoHp);
-        if (hdModule) form.append('module', hdModule);
-        if (hdClient) form.append('client', hdClient);
-        const files = document.getElementById('hd_attachments').files;
-        for (let i = 0; i < files.length; i++) {
-            form.append('attachments[]', files[i]);
-        }
-
-        try {
-            const res = await fetch('/api/tickets/helpdesk-create', {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-                credentials: 'same-origin',
-                body: form,
-            });
-            const result = await res.json();
-            if (result.success) {
-                showNotification(
-                    `Ticket ${result.ticket_number} created${result.email_sent ? ' & email sent!' : ' (email failed, check logs)'}`,
-                    result.email_sent ? 'success' : 'warning'
-                );
-                closeHelpdeskCreateModal();
-                loadTickets();
-            } else {
-                errEl.textContent = result.message || 'Failed to create ticket.';
-                errEl.classList.remove('hidden');
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-paper-plane text-xs"></i>Send & Create Ticket';
-            }
-        } catch (err) {
-            errEl.textContent = 'Network error: ' + err.message;
-            errEl.classList.remove('hidden');
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-paper-plane text-xs"></i>Send & Create Ticket';
-        }
-    }
-
-    // ==================== ADMIN: CREATE TICKET ====================
-    function openCreateTicketModal() { document.getElementById('createTicketModal').classList.remove('hidden'); }
     function closeCreateTicketModal() {
         document.getElementById('createTicketModal').classList.add('hidden');
         document.getElementById('createTicketForm').reset();
-        document.getElementById('customerSearch').value = '';
-        document.getElementById('newCustomerId').value = '';
+        if (typeof setCustomDropdownValue === 'function') setCustomDropdownValue('newCustomerId', '');
+        const ccEl = document.getElementById('newCcEmails');
+        if (ccEl) ccEl.value = '';
         document.getElementById('adminCreateError').classList.add('hidden');
         const btn = document.getElementById('btnCreateTicket');
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plus text-xs"></i>Create Ticket'; }
-        document.querySelectorAll('.customer-option').forEach(opt => opt.classList.remove('hidden'));
+        if (adminQuillEditor) { adminQuillEditor.setContents([]); }
+        const att = document.getElementById('newAttachments');
+        if (att) att.value = '';
     }
 
     async function submitCreateTicket(e) {
@@ -1819,6 +1628,15 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Creating…';
         errEl.classList.add('hidden');
 
+        const customerIdVal = document.getElementById('newCustomerId').value;
+        if (!customerIdVal) {
+            errEl.textContent = 'Customer is required.';
+            errEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-plus text-xs"></i>Create Ticket';
+            return;
+        }
+
         const ticketTypeVal = document.getElementById('newTicketType').value;
         if (!ticketTypeVal) {
             errEl.textContent = 'Ticket Type is required.';
@@ -1828,28 +1646,37 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             return;
         }
 
-        const data = {
-            description:     document.getElementById('newDescription').value,
-            ticket_priority: document.getElementById('newPriority').value,
-            customer_id:     document.getElementById('newCustomerId').value,
-            ticket_type:     ticketTypeVal,
-            scale:           document.getElementById('newScale').value || null,
-            name:            document.getElementById('newName').value || null,
-            no_hp:           document.getElementById('newNoHp').value || null,
-            module:          document.getElementById('newModule').value || null,
-            client:          document.getElementById('newClient').value || null,
-        };
+        const bodyHtml = adminQuillEditor ? adminQuillEditor.root.innerHTML : '';
+        const form = new FormData();
+        form.append('description',     document.getElementById('newDescription').value);
+        form.append('ticket_priority', document.getElementById('newPriority').value);
+        form.append('customer_id',     document.getElementById('newCustomerId').value);
+        form.append('ticket_type',     ticketTypeVal);
+        form.append('cc_emails',       document.getElementById('newCcEmails').value || '');
+        form.append('scale',           document.getElementById('newScale').value || '');
+        form.append('name',            document.getElementById('newName').value || '');
+        form.append('no_hp',           document.getElementById('newNoHp').value || '');
+        form.append('module',          document.getElementById('newModule').value || '');
+        form.append('client',          document.getElementById('newClient').value || '');
+        form.append('body',            bodyHtml || '');
+        const files = document.getElementById('newAttachments').files;
+        for (let i = 0; i < files.length; i++) form.append('attachments[]', files[i]);
+        const isAdmin = userRole === EC_ADMINISTRATOR_ROLE;
+        const endpoint = isAdmin ? '/api/tickets' : '/api/tickets/helpdesk-create';
         try {
-            const response = await fetch('/api/tickets', {
+            const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
                 credentials: 'same-origin',
-                body: JSON.stringify(data)
+                body: form
             });
             const result = await response.json();
             if (result.success) {
-                showNotification('Ticket created successfully!', 'success');
+                const msg = isAdmin
+                    ? 'Ticket created successfully!'
+                    : `Ticket ${result.ticket_number} created${result.email_sent ? ' & email sent!' : ''}`;
+                showNotification(msg, result.email_sent === false ? 'warning' : 'success');
                 closeCreateTicketModal();
                 loadTickets();
             } else {
@@ -1896,76 +1723,264 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     // Event listeners
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
+            if (document.getElementById('slaDetailModal') && !document.getElementById('slaDetailModal').classList.contains('hidden')) {
+                closeSlaDetail();
+                return;
+            }
             if (document.getElementById('createTicketModal') && !document.getElementById('createTicketModal').classList.contains('hidden')) {
                 closeCreateTicketModal();
             }
-            if (document.getElementById('helpdeskCreateModal') && !document.getElementById('helpdeskCreateModal').classList.contains('hidden')) {
-                closeHelpdeskCreateModal();
-            }
         }
     });
 
+    // ── SLA Log Modal ─────────────────────────────────────────────────────────
+    const STATUS_CFG_SLA = {
+        'pending_validation': { bg:'bg-gray-100',  text:'text-gray-500',  dot:'bg-gray-400',  label:'Pending'  },
+        'pending':            { bg:'bg-blue-50',   text:'text-blue-700',  dot:'bg-blue-500',  label:'Active'   },
+        'paused':             { bg:'bg-amber-50',  text:'text-amber-700', dot:'bg-amber-500', label:'Paused'   },
+        'met':                { bg:'bg-green-50',  text:'text-green-700', dot:'bg-green-500', label:'Met'      },
+        'breached':           { bg:'bg-red-50',    text:'text-red-700',   dot:'bg-red-500',   label:'Breached' },
+    };
+    const EVENT_ROW_CFG_SLA = {
+        email_received:       { dot: '#6366f1', rowBg: '#fafaff', label: 'Email / Request Received'  },
+        ticket_validated:     { dot: '#16a34a', rowBg: '#f6fef7', label: 'Ticket Created'            },
+        agent_replied:        { dot: '#2563eb', rowBg: '#f5f9ff', label: 'Helpdesk Reply'            },
+        customer_replied:     { dot: '#ea580c', rowBg: '#fff8f4', label: 'Customer Reply'            },
+        resolution_sent:      { dot: '#0d9488', rowBg: '#f4fefc', label: 'Resolution Sent'           },
+        escalated_to_sap:     { dot: '#7c3aed', rowBg: '#faf7ff', label: 'Escalated to SAP'         },
+        escalated_to_support: { dot: '#6b7280', rowBg: '#f9fafb', label: 'Returned to Helpdesk'     },
+        sla_warning:          { dot: '#ca8a04', rowBg: '#fffdf0', label: 'SLA Warning'               },
+        sla_breached:         { dot: '#dc2626', rowBg: '#fff8f8', label: 'SLA Breached'              },
+        ticket_closed:        { dot: '#374151', rowBg: '#f9fafb', label: 'Ticket Closed'             },
+        meeting_started:      { dot: '#7c3aed', rowBg: '#faf7ff', label: 'Meeting Started'           },
+        meeting_ended:        { dot: '#7c3aed', rowBg: '#faf7ff', label: 'Meeting Ended'             },
+    };
+    const BALL_ICON_SLA = {
+        helpdesk: { icon: '▶', label: 'Helpdesk' },
+        customer: { icon: '⏸', label: 'Customer' },
+        sap:      { icon: '⏸', label: 'SAP'      },
+        meeting:  { icon: '⏸', label: 'Meeting'  },
+    };
 
-    // ==================== CUSTOMER SEARCHABLE DROPDOWN ====================
-    function showCustomerDropdown() {
-        const dropdown = document.getElementById('customerDropdown');
-        if (dropdown) {
-            dropdown.classList.remove('hidden');
-            filterCustomers();
-        }
+    function _slaToHMM(hours) {
+        if (hours === null || hours === undefined) return null;
+        const h = Math.floor(hours);
+        const m = Math.round((hours - h) * 60);
+        return `${h}:${String(m).padStart(2, '0')}`;
+    }
+    function _slaToHLabel(hours) {
+        if (hours === null || hours === undefined) return null;
+        const mins = Math.round(hours * 60);
+        return `${hours.toFixed(2)} h(${mins} min)`;
     }
 
-    function hideCustomerDropdown() {
-        const dropdown = document.getElementById('customerDropdown');
-        if (dropdown) {
-            setTimeout(() => dropdown.classList.add('hidden'), 200);
-        }
+    let _currentSlaTicketId = null;
+
+    async function openSlaDetail(ticketId, ticketNum) {
+        _currentSlaTicketId = ticketId;
+        document.getElementById('slaDetailTicketNum').textContent = '#' + ticketNum;
+        document.getElementById('slaDetailBadges').classList.add('hidden');
+        document.getElementById('slaDetailBadges').innerHTML = '';
+        document.getElementById('slaDetailStatsBar').classList.add('hidden');
+        document.getElementById('slaDetailPdfBtn').href = '/admin/sla/tickets/' + ticketId + '/log-pdf';
+        document.getElementById('slaDetailPdfBtn').classList.remove('hidden');
+        document.getElementById('slaDetailContent').innerHTML = `
+            <div class="flex flex-col items-center justify-center gap-3 py-20 text-gray-300">
+                <i class="fas fa-spinner fa-spin text-3xl"></i>
+                <p class="text-sm text-gray-400">Loading SLA log…</p>
+            </div>`;
+        document.getElementById('slaDetailModal').classList.remove('hidden');
+        await _fetchSlaDetail(ticketId);
     }
 
-    function filterCustomers() {
-        const searchInput = document.getElementById('customerSearch');
-        const dropdown = document.getElementById('customerDropdown');
-        if (!searchInput || !dropdown) return;
+    async function refreshSlaDetail() {
+        if (!_currentSlaTicketId) return;
+        const icon = document.getElementById('slaDetailRefreshIcon');
+        icon && icon.classList.add('fa-spin');
+        await _fetchSlaDetail(_currentSlaTicketId);
+        icon && icon.classList.remove('fa-spin');
+    }
 
-        const searchTerm = searchInput.value.toLowerCase();
-        const options = dropdown.querySelectorAll('.customer-option');
-        let hasVisible = false;
-
-        options.forEach(option => {
-            const name = option.dataset.name.toLowerCase();
-            const code = option.dataset.code.toLowerCase();
-            if (name.includes(searchTerm) || code.includes(searchTerm)) {
-                option.classList.remove('hidden');
-                hasVisible = true;
-            } else {
-                option.classList.add('hidden');
+    async function _fetchSlaDetail(ticketId) {
+        try {
+            const res  = await fetch('/api/tickets/' + ticketId + '/sla', { credentials: 'include' });
+            const json = await res.json();
+            if (!json.success || !json.data) {
+                document.getElementById('slaDetailContent').innerHTML =
+                    `<div class="flex flex-col items-center gap-2 py-16 text-gray-300"><i class="fas fa-inbox text-3xl"></i><p class="text-sm text-gray-400">No SLA data available for this ticket.</p></div>`;
+                return;
             }
-        });
-
-        if (!hasVisible) {
-            dropdown.innerHTML = '<div class="px-4 py-3 text-sm text-gray-500">No customers found</div>';
+            _renderSlaDetail(json.data);
+        } catch {
+            document.getElementById('slaDetailContent').innerHTML =
+                `<div class="flex flex-col items-center gap-2 py-16 text-red-300"><i class="fas fa-exclamation-triangle text-3xl"></i><p class="text-sm text-red-400">Failed to load SLA log.</p></div>`;
         }
     }
 
-    function selectCustomer(element) {
-        const customerId = element.dataset.id;
-        const customerName = element.dataset.name;
-        const customerCode = element.dataset.code;
+    function _renderSlaDetail(data) {
+        const respSc = STATUS_CFG_SLA[data.response && data.response.status] || STATUS_CFG_SLA['pending'];
+        const resSc  = STATUS_CFG_SLA[data.resolution && data.resolution.status] || STATUS_CFG_SLA['pending'];
 
-        document.getElementById('newCustomerId').value = customerId;
-        document.getElementById('customerSearch').value = `${customerName} (${customerCode})`;
-        document.getElementById('customerDropdown').classList.add('hidden');
+        document.getElementById('slaStatResponseVal').textContent   = data.response && data.response.actual_hours != null ? data.response.actual_hours + ' hrs' : '—';
+        document.getElementById('slaStatResponseStatus').innerHTML  = `<span class="${respSc.text} font-semibold">${respSc.label}</span><span class="text-slate-400"> / target ${data.response ? data.response.target_hours : '—'} hrs</span>`;
+        document.getElementById('slaStatResolutionVal').textContent = data.resolution && data.resolution.actual_hours != null ? data.resolution.actual_hours + ' hrs' : (data.sla_mode === 'response_only' ? 'N/A' : '—');
+        document.getElementById('slaStatResolutionStatus').innerHTML = data.resolution
+            ? `<span class="${resSc.text} font-semibold">${resSc.label}</span><span class="text-slate-400"> / target ${data.resolution.target_hours} hrs</span>`
+            : `<span class="text-slate-400">Response-only mode</span>`;
+
+        const totalWait = data.total_waiting_hours != null ? data.total_waiting_hours : 0;
+        document.getElementById('slaStatWaitingVal').textContent   = totalWait > 0 ? totalWait.toFixed(2) + ' hrs' : '0 hrs';
+        document.getElementById('slaStatBallHolder').textContent   = data.ball_holder ? (data.ball_holder.charAt(0).toUpperCase() + data.ball_holder.slice(1)) : '—';
+        document.getElementById('slaDetailStatsBar').classList.remove('hidden');
+
+        const badgesEl = document.getElementById('slaDetailBadges');
+        badgesEl.innerHTML = `
+            <span class="inline-flex items-center gap-1 text-[11px] font-semibold ${respSc.text} ${respSc.bg} px-2.5 py-1 rounded-full whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full ${respSc.dot} flex-shrink-0"></span>Response: ${respSc.label}
+            </span>
+            ${data.resolution ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold ${resSc.text} ${resSc.bg} px-2.5 py-1 rounded-full whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full ${resSc.dot} flex-shrink-0"></span>Resolution: ${resSc.label}
+            </span>` : ''}`;
+        badgesEl.classList.remove('hidden');
+        badgesEl.classList.add('flex');
+
+        if (!data.events || !data.events.length) {
+            document.getElementById('slaDetailContent').innerHTML = `
+                <div class="flex flex-col items-center gap-3 py-20 text-gray-300">
+                    <i class="fas fa-table text-3xl"></i>
+                    <p class="text-sm text-gray-400">No events recorded yet</p>
+                </div>`;
+            return;
+        }
+
+        let lastDate = null;
+        const rows = data.events.map(function(e) {
+            const dt      = e.event_at ? new Date(e.event_at) : null;
+            const dateStr = dt ? dt.toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
+            const timeStr = dt ? dt.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }) : '—';
+            const showDate = dateStr !== lastDate;
+            lastDate = dateStr;
+            const evCfg   = EVENT_ROW_CFG_SLA[e.event_type] || { dot: '#9ca3af', rowBg: '#fff', label: e.event_type };
+            const ballCfg = e.ball_after ? (BALL_ICON_SLA[e.ball_after] || null) : null;
+            const waitCell = e.waiting_hours !== null && e.waiting_hours !== undefined ? `<span class="text-[11px] font-semibold text-amber-600 whitespace-nowrap">${_slaToHLabel(e.waiting_hours)}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
+            const respCell = e.response_hours !== null && e.response_hours !== undefined ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_slaToHLabel(e.response_hours)}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
+            const resCell  = e.resolution_hours !== null && e.resolution_hours !== undefined ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_slaToHLabel(e.resolution_hours)}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
+            const statusCell = e.jarvis_status ? `<span class="text-[10px] text-gray-500 whitespace-nowrap">${e.jarvis_status.replace(/_/g,' ')}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
+            const ballCell = ballCfg ? `<span class="text-[11px] font-semibold text-gray-600 whitespace-nowrap">${ballCfg.icon} ${ballCfg.label}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
+            const senderPrefix = e.sender_name ? `<span class="font-semibold text-gray-700">${e.sender_name}:</span> ` : '';
+            const bodyText = e.message_preview || e.notes || null;
+            const msgText  = bodyText
+                ? `<span title="${(e.message_preview || '').replace(/"/g,'&quot;')}" class="text-gray-500 text-xs">${senderPrefix}${bodyText.substring(0, 80)}${bodyText.length > 80 ? '…' : ''}</span>`
+                : (e.sender_name ? `<span class="font-semibold text-gray-700 text-xs">${e.sender_name}</span>` : `<span class="text-gray-300 text-xs">—</span>`);
+            const dateSep = showDate ? `<tr><td colspan="9" style="background:#f3f4f6;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:4px 12px;"><span style="font-size:10px;font-weight:600;color:#6b7280;letter-spacing:0.04em;">${dt ? dt.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : dateStr}</span></td></tr>` : '';
+            return `${dateSep}<tr style="background:${evCfg.rowBg};border-left:3px solid ${evCfg.dot};" class="border-b border-gray-100/80 hover:brightness-[0.97] transition-all">
+                <td class="px-3 py-2.5 text-xs text-gray-400 whitespace-nowrap">${showDate ? dateStr : ''}</td>
+                <td class="px-3 py-2.5 text-xs text-gray-600 font-mono whitespace-nowrap">${timeStr}</td>
+                <td class="px-3 py-2.5 text-right whitespace-nowrap">${waitCell}</td>
+                <td class="px-3 py-2.5 text-right whitespace-nowrap">${respCell}</td>
+                <td class="px-3 py-2.5 text-right whitespace-nowrap">${resCell}</td>
+                <td class="px-3 py-2.5 whitespace-nowrap"><div class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:${evCfg.dot};"></span><span class="text-xs text-gray-700">${evCfg.label}</span></div></td>
+                <td class="px-3 py-2.5">${statusCell}</td>
+                <td class="px-3 py-2.5">${ballCell}</td>
+                <td class="px-3 py-2.5 max-w-[220px] truncate">${msgText}</td>
+            </tr>`;
+        }).join('');
+
+        const netHoursLabel = data.resolution && data.resolution.net_hours != null ? ` <span class="font-normal normal-case text-gray-400">(${_slaToHMM(data.resolution.net_hours)})</span>` : '';
+        document.getElementById('slaDetailContent').innerHTML = `
+            <table class="w-full text-sm border-collapse" style="min-width:820px">
+                <thead>
+                    <tr class="sticky top-0 z-10" style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Date</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Time</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-right">Waiting</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-right">Response</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-right">Resolution${netHoursLabel}</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left" style="padding-left:16px;">Event</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Status</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Ball</th>
+                        <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase text-left">Message</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
     }
 
-    // Close dropdown when clicking outside
-    document.addEventListener('click', function(e) {
-        const searchInput = document.getElementById('customerSearch');
-        const dropdown = document.getElementById('customerDropdown');
-        if (searchInput && dropdown && !searchInput.contains(e.target) && !dropdown.contains(e.target)) {
-            dropdown.classList.add('hidden');
-        }
-    });
+    function closeSlaDetail() {
+        document.getElementById('slaDetailModal').classList.add('hidden');
+        document.getElementById('slaDetailStatsBar').classList.add('hidden');
+        document.getElementById('slaDetailBadges').classList.add('hidden');
+        _currentSlaTicketId = null;
+    }
+
 </script>
+
+{{-- SLA Log Modal --}}
+@if($can('sla.report'))
+<div id="slaDetailModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onclick="closeSlaDetail()"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden">
+            <div class="flex-shrink-0 bg-white border-b border-gray-100">
+                <div class="flex items-center justify-between px-6 py-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                            <i class="fas fa-table text-gray-500 text-sm"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-800">SLA Log</h3>
+                            <p class="text-xs text-gray-400 mt-0.5">Ticket <span id="slaDetailTicketNum" class="font-mono font-semibold text-gray-600"></span></p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div id="slaDetailBadges" class="hidden items-center gap-2 flex-wrap"></div>
+                        <button onclick="refreshSlaDetail()" title="Refresh SLA Log"
+                            class="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 bg-white px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                            <i class="fas fa-sync-alt text-xs" id="slaDetailRefreshIcon"></i> Refresh
+                        </button>
+                        <a id="slaDetailPdfBtn" href="#" target="_blank"
+                            class="hidden inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                            <i class="fas fa-file-pdf text-xs"></i> Download PDF
+                        </a>
+                        <button onclick="closeSlaDetail()"
+                            class="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition">
+                            <i class="fas fa-times text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="slaDetailStatsBar" class="hidden px-6 pb-4">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Response</p>
+                            <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaStatResponseVal">—</p>
+                            <p class="text-[10px] mt-0.5" id="slaStatResponseStatus"></p>
+                        </div>
+                        <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Resolution</p>
+                            <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaStatResolutionVal">—</p>
+                            <p class="text-[10px] mt-0.5" id="slaStatResolutionStatus"></p>
+                        </div>
+                        <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Waiting</p>
+                            <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaStatWaitingVal">—</p>
+                            <p class="text-[10px] text-gray-400 mt-0.5">total pause time</p>
+                        </div>
+                        <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Ball Holder</p>
+                            <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaStatBallHolder">—</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="slaDetailContent" class="overflow-auto flex-1 bg-gray-50/30">
+                <div class="flex items-center justify-center h-32 text-gray-300">
+                    <i class="fas fa-spinner fa-spin text-3xl"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 {{-- Load custom-dd component (sama dengan Employee/Customer Management).
      filemtime cache buster supaya production auto-invalidate setiap deploy. --}}

@@ -17,8 +17,8 @@ class EmployeeQualification extends Model
      */
     protected $fillable = [
         'employee_id',
+        'module_id',
         'qualification_type',
-        'module',
         'language',
         'qualification_level',
         'first_year',
@@ -49,6 +49,11 @@ class EmployeeQualification extends Model
     public function employee()
     {
         return $this->belongsTo(Employee::class, 'employee_id', 'employee_id');
+    }
+
+    public function module()
+    {
+        return $this->belongsTo(Module::class, 'module_id', 'id');
     }
 
     /**
@@ -175,7 +180,8 @@ class EmployeeQualification extends Model
             'employee_id' => $this->employee_id,
             'qualification_type' => $this->qualification_type,
             'type_label' => $this->type_label,
-            'module' => $this->module,
+            'module_id' => $this->module_id,
+            'module'    => $this->module?->name,
             'language' => $this->language,
             'qualification_level' => $this->qualification_level,
             'first_year' => $this->first_year,

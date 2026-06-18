@@ -4,6 +4,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Sanctum\HasApiTokens;
 use App\Models\EmployeeRole;
+use App\Models\Menu;
 use App\Models\DeliveryProjectActivity;
 
 class Employee extends Model
@@ -15,10 +16,8 @@ class Employee extends Model
     public $timestamps = true;
 
     protected $fillable = [
-        'role_id',
         'eci',
         'is_active',
-        'modules',
         'monthly_capacity_md',
     ];
 
@@ -37,10 +36,100 @@ class Employee extends Model
                     ->withTimestamps();
     }
 
-    /** Legacy single-role accessor (kept for backward compatibility) */
-    public function role()
+    /** Cek apakah employee memiliki role tertentu (by ID) */
+    public function hasRole(int $roleId): bool
     {
-        return $this->belongsTo(EmployeeRole::class, 'role_id', 'id');
+        return $this->roles()->where('employee_role.id', $roleId)->exists();
+    }
+
+    /** Cek apakah employee memiliki salah satu dari beberapa role */
+    public function hasAnyRole(array $roleIds): bool
+    {
+        return $this->roles()->whereIn('employee_role.id', $roleIds)->exists();
+    }
+
+    /** Ambil semua role ID yang dimiliki employee */
+    public function getRoleIds(): array
+    {
+        return $this->roles()->pluck('employee_role.id')->map(fn($id) => (int) $id)->toArray();
+    }
+
+    /** Scope: filter employee yang memiliki role tertentu (via assignment) */
+    public function scopeWithRole(\Illuminate\Database\Eloquent\Builder $query, int $roleId): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->whereHas('roles', fn($q) => $q->where('employee_role.id', $roleId));
+    }
+
+    /** Scope: filter employee yang memiliki salah satu role (via assignment) */
+    public function scopeWithAnyRole(\Illuminate\Database\Eloquent\Builder $query, array $roleIds): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->whereHas('roles', fn($q) => $q->whereIn('employee_role.id', $roleIds));
+    }
+
+    /** Semua menu yang dapat diakses (union dari semua role) */
+    public function accessibleMenus()
+    {
+        $roleIds = $this->roles()->pluck('employee_role.id');
+
+        return Menu::whereHas('roles', function ($q) use ($roleIds) {
+                $q->whereIn('employee_role.id', $roleIds)
+                  ->where('role_menu.can_view', true);
+            })
+            ->where('is_active', true)
+            ->orderBy('parent_id')
+            ->orderBy('order_seq')
+            ->get();
+    }
+
+    /** Cek apakah employee boleh akses menu berdasarkan slug */
+    public function canAccessMenu(string $slug): bool
+    {
+        $roleIds = $this->roles()->pluck('employee_role.id');
+
+        return Menu::where('slug', $slug)
+            ->whereHas('roles', function ($q) use ($roleIds) {
+                $q->whereIn('employee_role.id', $roleIds)
+                  ->where('role_menu.can_view', true);
+            })
+            ->where('is_active', true)
+            ->exists();
+    }
+
+    /**
+     * Cek permission spesifik pada menu.
+     * @param string $permission 'can_view' | 'can_create' | 'can_edit' | 'can_delete'
+     */
+    public function hasMenuPermission(string $slug, string $permission = 'can_view'): bool
+    {
+        $roleIds = $this->roles()->pluck('employee_role.id');
+
+        return Menu::where('slug', $slug)
+            ->whereHas('roles', function ($q) use ($roleIds, $permission) {
+                $q->whereIn('employee_role.id', $roleIds)
+                  ->where("role_menu.{$permission}", true);
+            })
+            ->where('is_active', true)
+            ->exists();
+    }
+
+    /** Alias ringkas untuk can_view */
+    public function hasPermission(string $slug): bool
+    {
+        return $this->hasMenuPermission($slug, 'can_view');
+    }
+
+    /** Semua slug permission yang dimiliki (union semua role). Untuk dikirim ke frontend. */
+    public function allPermissionSlugs(): array
+    {
+        $roleIds = $this->roles()->pluck('employee_role.id');
+
+        return Menu::whereHas('roles', function ($q) use ($roleIds) {
+                $q->whereIn('employee_role.id', $roleIds)
+                  ->where('role_menu.can_view', true);
+            })
+            ->where('is_active', true)
+            ->pluck('slug')
+            ->toArray();
     }
 
     public function basicData()

@@ -6,6 +6,7 @@ use App\Enums\RoleId;
 use App\Exports\TicketExport;
 use App\Http\Controllers\EmailController;
 use App\Models\Customer;
+use App\Models\Employee;
 use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
@@ -155,10 +156,27 @@ class TicketController extends Controller
                 $tickets = $query->get();
 
             } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Access denied'
-                ], 403);
+                // Fallback: cek apakah role punya izin `tickets.inbox` di tabel role_menu.
+                // Ini memungkinkan custom role yang diberi akses lewat UI bisa melihat semua tiket.
+                $employee = Employee::find($sessionUser['id']);
+                if (!$employee || !$employee->hasPermission('tickets.inbox')) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Access denied'
+                    ], 403);
+                }
+
+                Log::info('Custom role viewing tickets via role_menu permission', [
+                    'role_id' => $sessionUser['role']['id'],
+                    'employee_id' => $sessionUser['id'],
+                ]);
+
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+                if ($filterUnassigned) {
+                    $query->whereNull('ticket_lead_id');
+                }
+                $tickets = $query->get();
             }
 
             Log::info('Tickets fetched', ['count' => $tickets->count()]);
@@ -342,15 +360,74 @@ class TicketController extends Controller
                 'no_hp'           => 'nullable|string|max:255',
                 'module'          => 'nullable|string|max:255',
                 'client'          => 'nullable|string|max:255',
+                'cc_emails'       => 'nullable|string|max:2000',
+                'body'            => 'nullable|string',
+                'attachments'     => 'nullable|array',
+                'attachments.*'   => 'file|max:20480',
             ]);
 
+            $body     = $validated['body'] ?? null;
+            $ccRaw    = $validated['cc_emails'] ?? null;
+            $files    = $request->file('attachments', []);
             $validated['status'] = 'inprocess';
+            // Parse CC emails menjadi array format yang disimpan di ticket
+            if ($ccRaw) {
+                $ccList = [];
+                foreach (array_filter(array_map('trim', explode(',', $ccRaw))) as $cc) {
+                    if (filter_var($cc, FILTER_VALIDATE_EMAIL)) {
+                        $ccList[] = ['address' => $cc, 'name' => null];
+                    }
+                }
+                $validated['cc_emails'] = !empty($ccList) ? $ccList : null;
+            }
+            unset($validated['body'], $validated['attachments']);
 
             try {
-                $ticket = DB::transaction(function () use ($validated) {
+                $ticket = DB::transaction(function () use ($validated, $body, $user) {
                     $validated['ticket_number'] = $this->ticketNumbers->generate();
                     return Ticket::create($validated);
                 });
+
+                $message = null;
+                if (!empty($body)) {
+                    $message = TicketMessage::create([
+                        'ticket_id'           => $ticket->ticket_id,
+                        'sender_type'         => 'employee',
+                        'sender_id'           => $user['employee_id'] ?? null,
+                        'sender_email'        => null,
+                        'sender_name'         => $user['name'] ?? null,
+                        'message'             => strip_tags($body),
+                        'message_html'        => $body,
+                        'is_internal_note'    => false,
+                        'channel'             => 'web',
+                        'is_read_by_customer' => false,
+                        'is_read_by_agent'    => true,
+                    ]);
+                }
+
+                if ($files && $message) {
+                    foreach ($files as $file) {
+                        try {
+                            $path = $file->store("ticket-attachments/{$ticket->ticket_id}", 'public');
+                            \App\Models\TicketAttachment::create([
+                                'ticket_id'        => $ticket->ticket_id,
+                                'message_id'       => $message->id,
+                                'uploaded_by_type' => 'employee',
+                                'uploaded_by_id'   => $user['employee_id'] ?? null,
+                                'attachment_type'  => 'file',
+                                'file_name'        => $file->getClientOriginalName(),
+                                'file_size'        => $file->getSize(),
+                                'mime_type'        => $file->getMimeType(),
+                                'is_inline'        => false,
+                                'file_path'        => $path,
+                            ]);
+                        } catch (\Exception $e) {
+                            Log::warning('TicketController@store (admin): gagal simpan attachment', [
+                                'file' => $file->getClientOriginalName(), 'error' => $e->getMessage(),
+                            ]);
+                        }
+                    }
+                }
 
                 return response()->json([
                     'success' => true,
@@ -381,15 +458,17 @@ class TicketController extends Controller
      */
     public function storeFromHelpdesk(Request $request)
     {
-        $user   = session('user');
-        $roleId = $user['role']['id'];
+        $user     = session('user');
+        $roleId   = $user['role']['id'];
+        $employee = \App\Models\Employee::find($user['id'] ?? null);
+        $canCreate = $employee && in_array('ui.ticket.btn-create', $employee->allPermissionSlugs());
 
-        if (!in_array($roleId, RoleId::HELPDESK_GROUP, true)) {
+        if (!$canCreate || $roleId === RoleId::EC_ADMINISTRATOR->value) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         $validated = $request->validate([
-            'customer_email'  => 'required|email|max:255',
+            'customer_id'     => 'required|exists:customer,customer_id',
             'cc_emails'       => 'nullable|string|max:2000',
             'description'     => 'required|string|max:1000',
             'ticket_priority' => 'required|in:Very High,High,Medium,Low',
@@ -404,28 +483,16 @@ class TicketController extends Controller
             'attachments.*'   => 'file|max:20480',
         ]);
 
-        $customerEmail = $validated['customer_email'];
-
-        // Cari customer berdasarkan email
-        $customer = Customer::where('email', $customerEmail)->first();
-        if (!$customer) {
-            $authCustomerId = DB::table('auth_users')
-                ->whereRaw('LOWER(email) = LOWER(?)', [$customerEmail])
-                ->whereNotNull('customer_id')
-                ->value('customer_id');
-            if ($authCustomerId) {
-                $customer = Customer::find($authCustomerId);
-            }
-        }
-
+        $customer = Customer::find($validated['customer_id']);
         if (!$customer) {
             return response()->json([
                 'success' => false,
-                'message' => "Customer dengan email '{$customerEmail}' tidak ditemukan. Pastikan customer sudah terdaftar di sistem.",
+                'message' => 'Customer tidak ditemukan.',
             ], 422);
         }
 
-        // Parse CC — pisahkan per koma, buang spasi
+        $customerEmail = $customer->email ?? '';
+
         $ccList = [];
         if (!empty($validated['cc_emails'])) {
             foreach (array_filter(array_map('trim', explode(',', $validated['cc_emails']))) as $cc) {
@@ -434,7 +501,6 @@ class TicketController extends Controller
                 }
             }
         }
-
         $files = $request->file('attachments', []);
 
         // ── Kirim email via Graph ─────────────────────────────────────────────
@@ -746,10 +812,22 @@ class TicketController extends Controller
                     ->get();
 
             } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid role'
-                ], 403);
+                // Fallback for roles configured via web (not hardcoded here):
+                // show tickets where the user is PIC or member.
+                $employeeId = $sessionUser['id'];
+                Log::info('My Tickets - Fallback for role', [
+                    'employee_id' => $employeeId,
+                    'role_id'     => $sessionUser['role']['id'] ?? null,
+                ]);
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->where(function ($query) use ($employeeId) {
+                        $query->where('ticket.ticket_lead_id', $employeeId)
+                            ->orWhereHas('members', function ($inner) use ($employeeId) {
+                                $inner->where('ticket_member.employee_id', $employeeId);
+                            });
+                    })
+                    ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
+                    ->get();
             }
 
             Log::info('My Tickets fetched', ['count' => $tickets->count()]);
@@ -1151,15 +1229,15 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
-        $pics = DB::table('employee')
-            ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
-            ->where('employee.role_id', RoleId::DELIVERY_SUPPORT_USER->value)
-            ->select(
-                'employee.employee_id',
-                DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as name")
-            )
-            ->orderBy('employee_basic_data.first_name')
-            ->get();
+        $pics = Employee::withRole(RoleId::DELIVERY_SUPPORT_USER->value)
+            ->with('basicData:employee_id,first_name,last_name')
+            ->get()
+            ->map(fn($e) => [
+                'employee_id' => $e->employee_id,
+                'name'        => trim(($e->basicData->first_name ?? '') . ' ' . ($e->basicData->last_name ?? '')),
+            ])
+            ->sortBy('name')
+            ->values();
 
         return response()->json(['success' => true, 'data' => $pics]);
     }
