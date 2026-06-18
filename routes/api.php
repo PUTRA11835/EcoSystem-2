@@ -493,6 +493,8 @@ Route::middleware(['web'])->group(function () {
         Route::post('/import/tickets',   [AdminBackupController::class, 'importTickets']);
         Route::post('/import/tickets/zip', [TicketMigrationController::class, 'importZip']);
         Route::post('/import/tickets/from-api', [TicketMigrationController::class, 'importFromApi']);
+        Route::post('/import/resolution-days', [AdminBackupController::class, 'importResolutionDays']);
+        Route::post('/import/timesheet',       [AdminBackupController::class, 'importTimesheet']);
 
         // Failed Job Monitor
         Route::get('/failed-jobs', [AdminJobController::class, 'index']);

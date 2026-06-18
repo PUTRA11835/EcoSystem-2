@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -1392,7 +1393,10 @@ class AdminBackupController extends Controller
 
         $aliasMap = [
             'ticket_number' => ['tiket', 'ticket', 'ticket_number', 'ticket number', 'no tiket', 'no. tiket'],
+            'description'   => ['description', 'deskripsi', 'subject', 'keterangan'],
+            'date'          => ['date', 'tanggal', 'start date', 'start_date'],
             'customer'      => ['customer', 'customer_code', 'customer code'],
+            'end_customer'  => ['end customer', 'end_customer', 'end_customer_code'],
             'status'        => ['status'],
             'priority'      => ['priority', 'ticket_priority', 'prioritas'],
             'scale'         => ['scale', 'skala'],
@@ -1432,6 +1436,7 @@ class AdminBackupController extends Controller
         $validScales     = ['Simple', 'Medium', 'Complex'];
         $validTypes      = ['Incident', 'Service Request', 'Change Request', 'Consult'];
 
+        $created = 0;
         $updated = 0;
         $skipped = 0;
         $errors  = [];
@@ -1449,8 +1454,138 @@ class AdminBackupController extends Controller
                 ->first();
 
             if (!$ticket) {
-                $errors[] = "Row {$rowNum}: Ticket #{$ticketNumber} not found";
-                $skipped++;
+                // ── CREATE: ticket tidak ditemukan → buat baru ──
+                $rawDescriptionCreate = isset($colIndex['description']) ? trim($row[$colIndex['description']] ?? '') : '';
+                $rawCustomerCreate    = isset($colIndex['customer'])    ? trim($row[$colIndex['customer']]    ?? '') : '';
+                $rawPriorityCreate    = isset($colIndex['priority'])    ? trim($row[$colIndex['priority']]    ?? '') : '';
+                $rawTypeCreate        = isset($colIndex['type'])        ? trim($row[$colIndex['type']]        ?? '') : '';
+
+                $missingCreate = [];
+                if ($rawDescriptionCreate === '' || $rawDescriptionCreate === '-') $missingCreate[] = 'Description';
+                if ($rawPriorityCreate    === '' || $rawPriorityCreate    === '-') $missingCreate[] = 'Priority';
+                if ($rawTypeCreate        === '' || $rawTypeCreate        === '-') $missingCreate[] = 'Type';
+                if ($rawCustomerCreate    === '' || $rawCustomerCreate    === '-') $missingCreate[] = 'Customer';
+
+                if ($missingCreate) {
+                    $errors[] = "Row {$rowNum} (#{$ticketNumber}): Ticket tidak ditemukan dan tidak dapat dibuat — field wajib kosong: " . implode(', ', $missingCreate);
+                    $skipped++;
+                    continue;
+                }
+
+                // Resolve customer → customer_id
+                $customerCreate = DB::table('customer as c')
+                    ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
+                    ->where(function ($q) use ($rawCustomerCreate) {
+                        $q->where('c.customer_code', $rawCustomerCreate)->orWhere('cbd.name_1', $rawCustomerCreate);
+                    })
+                    ->select('c.customer_id')
+                    ->first();
+
+                if (!$customerCreate) {
+                    $errors[] = "Row {$rowNum} (#{$ticketNumber}): Customer '{$rawCustomerCreate}' tidak ditemukan — ticket tidak dapat dibuat";
+                    $skipped++;
+                    continue;
+                }
+
+                // Validate priority
+                $priorityCreate = null;
+                foreach ($validPriorities as $vp) {
+                    if (strcasecmp($rawPriorityCreate, $vp) === 0) { $priorityCreate = $vp; break; }
+                }
+                if (!$priorityCreate) {
+                    $errors[] = "Row {$rowNum} (#{$ticketNumber}): Priority '{$rawPriorityCreate}' tidak valid (diterima: " . implode(', ', $validPriorities) . ") — ticket tidak dapat dibuat";
+                    $skipped++;
+                    continue;
+                }
+
+                // Validate type
+                $typeCreate = null;
+                foreach ($validTypes as $vt) {
+                    if (strcasecmp($rawTypeCreate, $vt) === 0) { $typeCreate = $vt; break; }
+                }
+                if (!$typeCreate) {
+                    $errors[] = "Row {$rowNum} (#{$ticketNumber}): Type '{$rawTypeCreate}' tidak valid (diterima: " . implode(', ', $validTypes) . ") — ticket tidak dapat dibuat";
+                    $skipped++;
+                    continue;
+                }
+
+                // Status (default: open)
+                $statusCreate = 'open';
+                if (isset($colIndex['status'])) {
+                    $rawSC = strtolower(trim($row[$colIndex['status']] ?? ''));
+                    if ($rawSC !== '' && $rawSC !== '-') $statusCreate = $statusMap[$rawSC] ?? 'open';
+                }
+
+                // Scale (optional)
+                $scaleCreate = null;
+                if (isset($colIndex['scale'])) {
+                    $rawSc = trim($row[$colIndex['scale']] ?? '');
+                    if ($rawSc !== '' && $rawSc !== '-') {
+                        foreach ($validScales as $vs) {
+                            if (strcasecmp($rawSc, $vs) === 0) { $scaleCreate = $vs; break; }
+                        }
+                    }
+                }
+
+                // PIC (optional)
+                $picCreate = null;
+                if (isset($colIndex['pic'])) {
+                    $rawPC = trim($row[$colIndex['pic']] ?? '');
+                    if ($rawPC !== '' && $rawPC !== '-') $picCreate = $rawPC;
+                }
+
+                // Start date (optional — kolom 'Date')
+                $startDateCreate = null;
+                if (isset($colIndex['date'])) {
+                    $rawDC = trim($row[$colIndex['date']] ?? '');
+                    if ($rawDC !== '' && $rawDC !== '-') $startDateCreate = $this->normalizeDate($rawDC);
+                }
+
+                // End date / due date (optional)
+                $endDateCreate = null;
+                if (isset($colIndex['end_date'])) {
+                    $rawEdC = trim($row[$colIndex['end_date']] ?? '');
+                    if ($rawEdC !== '' && $rawEdC !== '-') $endDateCreate = $this->normalizeDate($rawEdC);
+                }
+
+                // End customer (optional)
+                $endCustomerIdCreate = null;
+                if (isset($colIndex['end_customer'])) {
+                    $rawEc = trim($row[$colIndex['end_customer']] ?? '');
+                    if ($rawEc !== '' && $rawEc !== '-') {
+                        $endCustomerIdCreate = DB::table('customer as c')
+                            ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
+                            ->where(function ($q) use ($rawEc) {
+                                $q->where('c.customer_code', $rawEc)->orWhere('cbd.name_1', $rawEc);
+                            })
+                            ->value('c.customer_id');
+                        if (!$endCustomerIdCreate) {
+                            $errors[] = "[Peringatan] Row {$rowNum} (#{$ticketNumber}): End Customer '{$rawEc}' tidak ditemukan — diabaikan";
+                        }
+                    }
+                }
+
+                try {
+                    DB::table('ticket')->insert([
+                        'ticket_number'   => $ticketNumber,
+                        'customer_id'     => $customerCreate->customer_id,
+                        'end_customer_id' => $endCustomerIdCreate,
+                        'description'     => $rawDescriptionCreate,
+                        'ticket_priority' => $priorityCreate,
+                        'ticket_type'     => $typeCreate,
+                        'scale'           => $scaleCreate,
+                        'status'          => $statusCreate,
+                        'pic'             => $picCreate,
+                        'start_date'      => $startDateCreate,
+                        'end_date'        => $endDateCreate,
+                        'created_at'      => now(),
+                        'updated_at'      => now(),
+                    ]);
+                    $created++;
+                } catch (\Exception $e) {
+                    $errors[] = "Row {$rowNum} (#{$ticketNumber}): " . $e->getMessage();
+                    $skipped++;
+                }
                 continue;
             }
 
@@ -1475,6 +1610,13 @@ class AdminBackupController extends Controller
             }
 
             $updateData = [];
+
+            if (isset($colIndex['description'])) {
+                $raw = trim($row[$colIndex['description']] ?? '');
+                if ($raw !== '' && $raw !== '-') {
+                    $updateData['description'] = $raw;
+                }
+            }
 
             if (isset($colIndex['status'])) {
                 $raw = strtolower(trim($row[$colIndex['status']] ?? ''));
@@ -1567,17 +1709,511 @@ class AdminBackupController extends Controller
         fclose($handle);
 
         Log::info('AdminBackupController: ticket import', [
-            'updated' => $updated, 'skipped' => $skipped, 'errors' => count($errors),
+            'created' => $created, 'updated' => $updated, 'skipped' => $skipped, 'errors' => count($errors),
             'by'      => session('user.eci') ?? session('user.name') ?? 'admin',
         ]);
 
         return response()->json([
             'success'  => true,
-            'message'  => "Import complete: {$updated} updated" . ($skipped ? ", {$skipped} skipped" : '') . (count($errors) ? ', ' . count($errors) . ' error(s)' : ''),
+            'message'  => "Import complete: {$created} created, {$updated} updated" . ($skipped ? ", {$skipped} skipped" : '') . (count($errors) ? ', ' . count($errors) . ' error(s)' : ''),
+            'created'  => $created,
             'updated'  => $updated,
             'skipped'  => $skipped,
             'errors'   => $errors,
         ]);
+    }
+
+    // ── Template Resolution Days ──────────────────────────────────────────────────
+
+    public function templateResolutionDays()
+    {
+        if (!$this->assertAdmin()) abort(403);
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Resolution Days');
+        $sheet->fromArray([
+            ['Ticket Number', 'Employee ECI', 'Module', 'Mandays', 'Additional Mandays', 'Notes'],
+            ['100000001', 'ECI001', 'Finance Module', '3.5', '1.0', 'Additional work for UAT'],
+            ['100000001', 'ECI002', 'Integration', '2.0', '', 'Integration testing'],
+            ['100000002', 'ECI003', 'Core System', '5.0', '', ''],
+        ]);
+        $sheet->getStyle('A1:F1')->getFont()->setBold(true);
+        foreach (range('A', 'F') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        return response()->stream(
+            fn () => $writer->save('php://output'),
+            200,
+            [
+                'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="resolution_days_import_template.xlsx"',
+                'Cache-Control'       => 'max-age=0',
+            ]
+        );
+    }
+
+    // ── Import Resolution Days ────────────────────────────────────────────────────
+
+    public function importResolutionDays(\Illuminate\Http\Request $request)
+    {
+        if (!$this->assertAdmin()) return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+
+        set_time_limit(300);
+        $request->validate(['file' => 'required|file|mimes:csv,txt,xlsx|max:20480']);
+
+        $file      = $request->file('file');
+        $ext       = strtolower($file->getClientOriginalExtension());
+        $allRows   = $this->readSpreadsheetFile($file->getRealPath(), $ext);
+
+        if (!$allRows || count($allRows) < 2) {
+            return response()->json(['success' => false, 'message' => 'File kosong atau tidak valid'], 422);
+        }
+
+        $rawHeaders = array_shift($allRows);
+        $headerMap  = [];
+        foreach ($rawHeaders as $i => $h) {
+            $headerMap[strtolower(trim((string)$h))] = $i;
+        }
+
+        $aliasMap = [
+            'ticket_number'      => ['ticket number', 'ticket_number', 'tiket', 'no tiket', 'no. tiket'],
+            'employee_eci'       => ['employee eci', 'employee_eci', 'eci'],
+            'module'             => ['module', 'modul'],
+            'mandays'            => ['mandays', 'man days', 'md'],
+            'additional_mandays' => ['additional mandays', 'additional_mandays', 'additional md', 'tambahan md'],
+            'notes'              => ['notes', 'catatan', 'keterangan'],
+        ];
+
+        $colIdx = [];
+        foreach ($aliasMap as $field => $aliases) {
+            foreach ($aliases as $alias) {
+                if (isset($headerMap[$alias])) { $colIdx[$field] = $headerMap[$alias]; break; }
+            }
+        }
+
+        if (!isset($colIdx['ticket_number']) || !isset($colIdx['employee_eci']) || !isset($colIdx['mandays'])) {
+            return response()->json(['success' => false, 'message' => 'Kolom wajib tidak ditemukan: "Ticket Number", "Employee ECI", "Mandays"'], 422);
+        }
+
+        $get = function (string $field, array $row) use ($colIdx): ?string {
+            if (!isset($colIdx[$field])) return null;
+            $val = trim((string)($row[$colIdx[$field]] ?? ''));
+            return $val !== '' ? $val : null;
+        };
+
+        // Admin employee_id for proposed_by
+        $adminEmpId = session('user.id');
+
+        // Group rows by ticket_number so we process one consultant_mandays per ticket
+        $grouped = [];
+        foreach ($allRows as $row) {
+            $tn = $get('ticket_number', $row);
+            if (!$tn) continue;
+            $grouped[$tn][] = $row;
+        }
+
+        $imported = 0;
+        $updated  = 0;
+        $errors   = [];
+
+        foreach ($grouped as $ticketNumber => $rows) {
+            $ticket = \Illuminate\Support\Facades\DB::table('ticket')
+                ->where('ticket_number', $ticketNumber)
+                ->whereNull('deleted_at')
+                ->select('ticket_id')
+                ->first();
+
+            if (!$ticket) {
+                $errors[] = "Ticket #{$ticketNumber}: tidak ditemukan — semua baris tiket ini dilewati";
+                continue;
+            }
+
+            $detailRows = [];
+            $totalMd    = 0;
+
+            foreach ($rows as $row) {
+                $eci = $get('employee_eci', $row);
+                if (!$eci) { $errors[] = "Ticket #{$ticketNumber}: kolom Employee ECI kosong di satu baris — baris dilewati"; continue; }
+
+                $employee = \Illuminate\Support\Facades\DB::table('employee')->where('eci', $eci)->select('employee_id')->first();
+                if (!$employee) { $errors[] = "Ticket #{$ticketNumber}: ECI '{$eci}' tidak ditemukan — baris dilewati"; continue; }
+
+                $md     = (float) ($get('mandays', $row) ?? 0);
+                $addMd  = (float) ($get('additional_mandays', $row) ?? 0);
+                $module = $get('module', $row);
+                $notes  = $get('notes', $row);
+
+                $totalMd += $md + $addMd;
+                $detailRows[] = [
+                    'employee_id'        => $employee->employee_id,
+                    'module'             => $module,
+                    'mandays'            => $md,
+                    'additional_mandays' => $addMd,
+                    'approved_additional'=> $addMd > 0 ? $addMd : 0,
+                    'notes'              => $notes,
+                ];
+            }
+
+            if (empty($detailRows)) continue;
+
+            try {
+                \Illuminate\Support\Facades\DB::beginTransaction();
+
+                $existing = \Illuminate\Support\Facades\DB::table('consultant_mandays')
+                    ->where('ticket_id', $ticket->ticket_id)
+                    ->orderByDesc('created_at')
+                    ->first();
+
+                if ($existing) {
+                    \Illuminate\Support\Facades\DB::table('consultant_mandays')->where('id', $existing->id)->update([
+                        'status'              => 'approved',
+                        'total_mandays'       => $totalMd,
+                        'approved_by_head_id' => $adminEmpId,
+                        'approved_at'         => now(),
+                        'updated_at'          => now(),
+                    ]);
+                    \Illuminate\Support\Facades\DB::table('consultant_mandays_detail')
+                        ->where('consultant_mandays_id', $existing->id)
+                        ->delete();
+                    $mandaysId = $existing->id;
+                    $updated++;
+                } else {
+                    $mandaysId = \Illuminate\Support\Facades\DB::table('consultant_mandays')->insertGetId([
+                        'ticket_id'            => $ticket->ticket_id,
+                        'proposed_by_agent_id' => $adminEmpId,
+                        'proposed_at'          => now(),
+                        'last_edited_at'       => now(),
+                        'status'               => 'approved',
+                        'approved_by_head_id'  => $adminEmpId,
+                        'approved_at'          => now(),
+                        'total_mandays'        => $totalMd,
+                        'created_at'           => now(),
+                        'updated_at'           => now(),
+                    ]);
+                    $imported++;
+                }
+
+                foreach ($detailRows as $detail) {
+                    \Illuminate\Support\Facades\DB::table('consultant_mandays_detail')->insert(array_merge($detail, [
+                        'consultant_mandays_id' => $mandaysId,
+                        'created_at'            => now(),
+                        'updated_at'            => now(),
+                    ]));
+                }
+
+                \Illuminate\Support\Facades\DB::table('ticket')
+                    ->where('ticket_id', $ticket->ticket_id)
+                    ->update([
+                        'resolution_days_status' => 'approved',
+                        'man_days'               => $totalMd,
+                        'updated_at'             => now(),
+                    ]);
+
+                \Illuminate\Support\Facades\DB::commit();
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\DB::rollBack();
+                $errors[] = "Ticket #{$ticketNumber}: " . $e->getMessage();
+            }
+        }
+
+        Log::info('AdminBackupController: resolution days import', [
+            'imported' => $imported, 'updated' => $updated, 'errors' => count($errors),
+            'by'       => session('user.eci') ?? session('user.name') ?? 'admin',
+        ]);
+
+        return response()->json([
+            'success'  => true,
+            'message'  => "Import selesai: {$imported} ditambahkan, {$updated} diperbarui" . (count($errors) ? ', ' . count($errors) . ' error' : ''),
+            'imported' => $imported,
+            'updated'  => $updated,
+            'errors'   => $errors,
+        ]);
+    }
+
+    // ── Template Timesheet ────────────────────────────────────────────────────────
+
+    public function templateTimesheet()
+    {
+        if (!$this->assertAdmin()) abort(403);
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Timesheet');
+        $sheet->fromArray([
+            [
+                'Employee ECI', 'Date', 'Start Time', 'End Time',
+                'Description', 'Ticket Number', 'Activity Type',
+                'Status', 'Is Billable', 'Presence', 'Location',
+                'MD Consumed', 'Period Year', 'Period Month', 'Notes',
+            ],
+            [
+                'ECI001', '2026-06-14', '08:00', '17:00',
+                'Troubleshooting login issue', '100000001', 'Support',
+                'submitted', 'Yes', 'WFO', 'Jakarta',
+                '1.0', '2026', '6', 'Follow-up meeting scheduled',
+            ],
+            [
+                'ECI002', '2026-06-14', '09:00', '12:00',
+                'UAT session with customer', '100000002', 'Support',
+                'submitted', 'Yes', 'WFH', '',
+                '0.5', '2026', '6', '',
+            ],
+        ]);
+        $sheet->getStyle('A1:O1')->getFont()->setBold(true);
+
+        // Add note sheet for valid values
+        $noteSheet = $spreadsheet->createSheet();
+        $noteSheet->setTitle('Panduan');
+        $noteSheet->fromArray([
+            ['Kolom', 'Nilai Valid', 'Keterangan'],
+            ['Status', 'draft / submitted / approved', 'Default: submitted'],
+            ['Is Billable', 'Yes / No', 'Yes = jam kerja bisa ditagih ke customer; No = internal (rapat, training, admin)'],
+            ['Presence', 'WFO / WFH / Remote / Hybrid', 'Work From Office / Home / Remote / Hybrid'],
+            ['Activity Type', 'support / development / meeting / documentation / testing / training / other', 'Nilai harus huruf kecil (lowercase)'],
+            ['Ticket Number', '(opsional)', 'Nomor tiket jika timesheet terkait tiket'],
+            ['Date', 'YYYY-MM-DD', 'Contoh: 2026-06-14'],
+            ['Start Time', 'HH:mm', 'Contoh: 08:00'],
+            ['End Time', 'HH:mm', 'Contoh: 17:00'],
+            ['MD Consumed', 'Desimal', 'Mandays dikonsumsi, contoh: 1.0'],
+            ['Period Year', 'Tahun', 'Opsional, default dari kolom Date'],
+            ['Period Month', '1–12', 'Opsional, default dari kolom Date'],
+        ]);
+        $noteSheet->getStyle('A1:C1')->getFont()->setBold(true);
+        foreach (range('A', 'C') as $col) {
+            $noteSheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        foreach (range('A', 'O') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $spreadsheet->setActiveSheetIndex(0);
+
+        $writer = new Xlsx($spreadsheet);
+        return response()->stream(
+            fn () => $writer->save('php://output'),
+            200,
+            [
+                'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="timesheet_import_template.xlsx"',
+                'Cache-Control'       => 'max-age=0',
+            ]
+        );
+    }
+
+    // ── Import Timesheet ──────────────────────────────────────────────────────────
+
+    public function importTimesheet(\Illuminate\Http\Request $request)
+    {
+        if (!$this->assertAdmin()) return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+
+        set_time_limit(300);
+        $request->validate(['file' => 'required|file|mimes:csv,txt,xlsx|max:20480']);
+
+        $file    = $request->file('file');
+        $ext     = strtolower($file->getClientOriginalExtension());
+        $allRows = $this->readSpreadsheetFile($file->getRealPath(), $ext);
+
+        if (!$allRows || count($allRows) < 2) {
+            return response()->json(['success' => false, 'message' => 'File kosong atau tidak valid'], 422);
+        }
+
+        $rawHeaders = array_shift($allRows);
+        $headerMap  = [];
+        foreach ($rawHeaders as $i => $h) {
+            $headerMap[strtolower(trim((string)$h))] = $i;
+        }
+
+        $aliasMap = [
+            'employee_eci'   => ['employee eci', 'employee_eci', 'eci'],
+            'date'           => ['date', 'tanggal'],
+            'start_time'     => ['start time', 'start_time', 'jam mulai'],
+            'end_time'       => ['end time', 'end_time', 'jam selesai'],
+            'description'    => ['description', 'deskripsi', 'keterangan'],
+            'ticket_number'  => ['ticket number', 'ticket_number', 'tiket', 'no tiket'],
+            'activity_type'  => ['activity type', 'activity_type', 'tipe aktivitas'],
+            'status'         => ['status'],
+            'is_billable'    => ['is billable', 'is_billable', 'billable'],
+            'presence'       => ['presence', 'kehadiran'],
+            'location'       => ['location', 'lokasi'],
+            'md_consumed'    => ['md consumed', 'md_consumed', 'mandays consumed'],
+            'period_year'    => ['period year', 'period_year', 'tahun periode'],
+            'period_month'   => ['period month', 'period_month', 'bulan periode'],
+            'notes'          => ['notes', 'catatan'],
+        ];
+
+        $colIdx = [];
+        foreach ($aliasMap as $field => $aliases) {
+            foreach ($aliases as $alias) {
+                if (isset($headerMap[$alias])) { $colIdx[$field] = $headerMap[$alias]; break; }
+            }
+        }
+
+        if (!isset($colIdx['employee_eci']) || !isset($colIdx['date'])) {
+            return response()->json(['success' => false, 'message' => 'Kolom wajib tidak ditemukan: "Employee ECI" dan "Date"'], 422);
+        }
+
+        $get = function (string $field, array $row) use ($colIdx): ?string {
+            if (!isset($colIdx[$field])) return null;
+            $val = trim((string)($row[$colIdx[$field]] ?? ''));
+            return $val !== '' ? $val : null;
+        };
+
+        $validStatuses  = ['draft', 'submitted', 'approved', 'rejected'];
+        $validPresences = ['WFO', 'WFH', 'Remote', 'Hybrid'];
+
+        $imported = 0;
+        $skipped  = 0;
+        $errors   = [];
+        $rowNum   = 1;
+
+        foreach ($allRows as $row) {
+            $rowNum++;
+
+            $eci = $get('employee_eci', $row);
+            if (!$eci) { $errors[] = "Baris {$rowNum}: Employee ECI kosong — dilewati"; $skipped++; continue; }
+
+            $employee = \Illuminate\Support\Facades\DB::table('employee')->where('eci', $eci)->select('employee_id')->first();
+            if (!$employee) { $errors[] = "Baris {$rowNum}: ECI '{$eci}' tidak ditemukan — dilewati"; $skipped++; continue; }
+
+            $date = $this->normalizeDate($get('date', $row));
+            if (!$date) { $errors[] = "Baris {$rowNum}: Tanggal tidak valid — dilewati"; $skipped++; continue; }
+
+            $startTime = $get('start_time', $row);
+            $endTime   = $get('end_time',   $row);
+
+            // Resolve ticket
+            $ticketId = null;
+            $tn = $get('ticket_number', $row);
+            if ($tn) {
+                $t = \Illuminate\Support\Facades\DB::table('ticket')
+                    ->where('ticket_number', $tn)
+                    ->whereNull('deleted_at')
+                    ->select('ticket_id')
+                    ->first();
+                if (!$t) {
+                    $errors[] = "[Peringatan] Baris {$rowNum}: Ticket #{$tn} tidak ditemukan — timesheet tetap dibuat tanpa ticket";
+                } else {
+                    $ticketId = $t->ticket_id;
+                }
+            }
+
+            // Duplicate check: same employee + date + start_time + ticket
+            $dupQuery = \Illuminate\Support\Facades\DB::table('timesheets')
+                ->where('employee_id', $employee->employee_id)
+                ->where('date', $date)
+                ->whereNull('deleted_at');
+            if ($startTime) $dupQuery->where('start_time', $startTime);
+            if ($ticketId)  $dupQuery->where('ticket_id', $ticketId);
+
+            if ($dupQuery->exists()) {
+                $errors[] = "[Peringatan] Baris {$rowNum}: Timesheet duplikat (ECI={$eci}, date={$date}" . ($startTime ? ", start={$startTime}" : '') . ") — dilewati";
+                $skipped++;
+                continue;
+            }
+
+            // Normalize status
+            $statusRaw = strtolower($get('status', $row) ?? '');
+            $status    = in_array($statusRaw, $validStatuses, true) ? $statusRaw : 'submitted';
+
+            // Normalize is_billable
+            $billableRaw = strtolower($get('is_billable', $row) ?? 'yes');
+            $isBillable  = !in_array($billableRaw, ['no', 'false', '0'], true);
+
+            // Normalize presence
+            $presenceRaw = $get('presence', $row);
+            $presence    = null;
+            if ($presenceRaw) {
+                foreach ($validPresences as $vp) {
+                    if (strcasecmp($presenceRaw, $vp) === 0) { $presence = $vp; break; }
+                }
+                if (!$presence) $presence = $presenceRaw;
+            }
+
+            // Period defaults
+            $periodYear  = (int) ($get('period_year',  $row) ?? date('Y', strtotime($date)));
+            $periodMonth = (int) ($get('period_month', $row) ?? date('n', strtotime($date)));
+
+            try {
+                \Illuminate\Support\Facades\DB::table('timesheets')->insert([
+                    'employee_id'          => $employee->employee_id,
+                    'ticket_id'            => $ticketId,
+                    'delivery_projects_id' => null,
+                    'activity_id'          => null,
+                    'date'                 => $date,
+                    'start_time'           => $startTime,
+                    'end_time'             => $endTime,
+                    'description'          => $get('description', $row),
+                    'activity_type'        => $get('activity_type', $row),
+                    'status'               => $status,
+                    'is_billable'          => $isBillable,
+                    'presence'             => $presence,
+                    'location'             => $get('location', $row),
+                    'md_consumed'          => $get('md_consumed', $row) !== null ? (float) $get('md_consumed', $row) : null,
+                    'notes'                => $get('notes', $row),
+                    'period_year'          => $periodYear,
+                    'period_month'         => $periodMonth,
+                    'created_at'           => now(),
+                    'updated_at'           => now(),
+                ]);
+                $imported++;
+            } catch (\Exception $e) {
+                $errors[] = "Baris {$rowNum}: " . $e->getMessage();
+                $skipped++;
+            }
+        }
+
+        Log::info('AdminBackupController: timesheet import', [
+            'imported' => $imported, 'skipped' => $skipped, 'errors' => count($errors),
+            'by'       => session('user.eci') ?? session('user.name') ?? 'admin',
+        ]);
+
+        return response()->json([
+            'success'  => true,
+            'message'  => "Import selesai: {$imported} ditambahkan" . ($skipped ? ", {$skipped} dilewati" : '') . (count($errors) ? ', ' . count($errors) . ' peringatan' : ''),
+            'imported' => $imported,
+            'skipped'  => $skipped,
+            'errors'   => $errors,
+        ]);
+    }
+
+    // ── Spreadsheet Reader Helper ─────────────────────────────────────────────────
+
+    private function readSpreadsheetFile(string $realPath, string $extension): ?array
+    {
+        if (in_array($extension, ['xlsx', 'xls', 'ods'])) {
+            try {
+                $spreadsheet = IOFactory::load($realPath);
+                $sheet = $spreadsheet->getActiveSheet();
+                $data  = $sheet->toArray(null, true, true, false);
+                // Remove trailing completely-empty rows
+                return array_values(array_filter(
+                    $data,
+                    fn($row) => !empty(array_filter($row, fn($v) => $v !== null && trim((string)$v) !== ''))
+                ));
+            } catch (\Exception $e) {
+                return null;
+            }
+        }
+
+        // CSV fallback
+        $handle = fopen($realPath, 'r');
+        if (!$handle) return null;
+
+        $bom = fread($handle, 3);
+        if ($bom !== "\xEF\xBB\xBF") rewind($handle);
+
+        $rows = [];
+        while (($row = fgetcsv($handle)) !== false) {
+            if (count($row) === 1 && trim($row[0]) === '') continue;
+            $rows[] = $row;
+        }
+        fclose($handle);
+
+        return $rows ?: null;
     }
 
     private function formatBytes(int $bytes): string

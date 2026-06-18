@@ -176,9 +176,13 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/import/template/employees', [AdminBackupController::class, 'templateEmployees'])->name('import.template.employees');
         Route::get('/import/template/customers', [AdminBackupController::class, 'templateCustomers'])->name('import.template.customers');
         Route::get('/import/template/tickets',   [AdminBackupController::class, 'templateTickets'])->name('import.template.tickets');
+        Route::get('/import/template/resolution-days', [AdminBackupController::class, 'templateResolutionDays'])->name('import.template.resolution-days');
+        Route::get('/import/template/timesheet',       [AdminBackupController::class, 'templateTimesheet'])->name('import.template.timesheet');
         Route::post('/import/employees', [AdminBackupController::class, 'importEmployees'])->name('import.employees');
         Route::post('/import/customers', [AdminBackupController::class, 'importCustomers'])->name('import.customers');
         Route::post('/import/tickets',   [AdminBackupController::class, 'importTickets'])->name('import.tickets');
+        Route::post('/import/resolution-days', [AdminBackupController::class, 'importResolutionDays'])->name('import.resolution-days');
+        Route::post('/import/timesheet',       [AdminBackupController::class, 'importTimesheet'])->name('import.timesheet');
         Route::get('/export/tickets/zip', [TicketMigrationController::class, 'exportZip'])->name('export.tickets.zip');
         Route::get('/sounds', [AdminNotificationSoundController::class, 'index'])->name('sounds');
         Route::post('/sounds', [AdminNotificationSoundController::class, 'store'])->name('sounds.store');
