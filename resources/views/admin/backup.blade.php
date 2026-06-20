@@ -112,9 +112,11 @@
                         </a>
                     </div>
                     <div class="bg-amber-50 rounded-xl p-3 text-xs text-amber-700 space-y-0.5 mb-2">
-                        <p class="font-semibold mb-1">Updatable fields:</p>
-                        <p>Status · Priority · Scale · Type · PIC · Due Date</p>
-                        <p class="text-amber-500 mt-1">Match by ticket number — unrecognised rows are skipped.</p>
+                        <p class="font-semibold mb-1">Buat ticket baru (ticket number belum ada) — field wajib:</p>
+                        <p>Tiket · Description · Customer · Priority · Type</p>
+                        <p class="font-semibold mb-1 mt-2">Update ticket (ticket number sudah ada) — field yang diperbarui:</p>
+                        <p>Description · Status · Priority · Scale · Type · PIC · Due Date</p>
+                        <p class="text-amber-500 mt-1">Dicocokkan via ticket number. Baris tanpa ticket number dilewati.</p>
                     </div>
                     <div id="ticketDropzone"
                         class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-colors"
@@ -442,6 +444,142 @@
 
     </div>
 
+    {{-- ── Row 5: Resolution Days + Timesheet Import ── --}}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {{-- Resolution Days Card --}}
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+            <div class="px-5 pt-5 pb-4 border-b border-gray-100">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center">
+                        <i class="fas fa-calendar-check text-sky-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800">Resolution Days</h3>
+                        <p class="text-xs text-gray-400">Import mandays consultant per tiket dari Excel</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-5 flex-1 flex flex-col gap-4">
+                <div class="flex items-center justify-between mb-1">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import</p>
+                    <a href="{{ route('admin.import.template.resolution-days') }}" class="text-xs text-sky-600 hover:underline flex items-center gap-1">
+                        <i class="fas fa-file-excel text-xs"></i> Download Template (.xlsx)
+                    </a>
+                </div>
+                <div class="bg-sky-50 rounded-xl p-3 text-xs text-sky-700 space-y-0.5">
+                    <p class="font-semibold mb-1">Kolom yang diimport:</p>
+                    <p>Ticket Number · Employee ECI · Module · Mandays · Additional Mandays · Notes</p>
+                    <p class="text-sky-500 mt-1">Status langsung <strong>approved</strong>. Satu tiket bisa memiliki beberapa baris (per employee).</p>
+                </div>
+                <div id="rdDropzone"
+                    class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-sky-400 hover:bg-sky-50 transition-colors"
+                    onclick="document.getElementById('rdFileInput').click()"
+                    ondragover="event.preventDefault();this.classList.add('border-sky-400','bg-sky-50')"
+                    ondragleave="this.classList.remove('border-sky-400','bg-sky-50')"
+                    ondrop="handleDrop(event,'rd')">
+                    <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-1"></i>
+                    <p class="text-xs text-gray-400">Drop file Excel/CSV di sini atau <span class="text-sky-600 font-medium">browse</span></p>
+                    <p id="rdFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
+                </div>
+                <input type="file" id="rdFileInput" accept=".xlsx,.csv,.txt" class="hidden" onchange="onFileSelect(event,'rd')">
+                <button id="btnImportRd" onclick="runImport('rd')"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-sky-100 text-sky-700 text-sm font-medium hover:bg-sky-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled>
+                    <i class="fas fa-upload text-xs"></i> Import Resolution Days
+                </button>
+                <div id="rdResult" class="hidden mt-1"></div>
+            </div>
+        </div>
+
+        {{-- Timesheet Card --}}
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+            <div class="px-5 pt-5 pb-4 border-b border-gray-100">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                        <i class="fas fa-clock text-amber-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800">Timesheet</h3>
+                        <p class="text-xs text-gray-400">Import timesheet employee dari Excel</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-5 flex-1 flex flex-col gap-4">
+                <div class="flex items-center justify-between mb-1">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import</p>
+                    <a href="{{ route('admin.import.template.timesheet') }}" class="text-xs text-amber-600 hover:underline flex items-center gap-1">
+                        <i class="fas fa-file-excel text-xs"></i> Download Template (.xlsx)
+                    </a>
+                </div>
+                <div class="bg-amber-50 rounded-xl p-3 text-xs text-amber-700 space-y-0.5">
+                    <p class="font-semibold mb-1">Kolom yang diimport:</p>
+                    <p>ECI · Date · Start/End Time · Description · Ticket · Activity Type</p>
+                    <p>Status · Billable · Presence · Location · MD Consumed · Period</p>
+                    <p class="text-amber-500 mt-1">Duplikat (ECI + tanggal + jam mulai + tiket) otomatis dilewati.</p>
+                </div>
+                <div id="tsDropzone"
+                    class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-amber-400 hover:bg-amber-50 transition-colors"
+                    onclick="document.getElementById('tsFileInput').click()"
+                    ondragover="event.preventDefault();this.classList.add('border-amber-400','bg-amber-50')"
+                    ondragleave="this.classList.remove('border-amber-400','bg-amber-50')"
+                    ondrop="handleDrop(event,'ts')">
+                    <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-1"></i>
+                    <p class="text-xs text-gray-400">Drop file Excel/CSV di sini atau <span class="text-amber-600 font-medium">browse</span></p>
+                    <p id="tsFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
+                </div>
+                <input type="file" id="tsFileInput" accept=".xlsx,.csv,.txt" class="hidden" onchange="onFileSelect(event,'ts')">
+                <button id="btnImportTs" onclick="runImport('ts')"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-amber-100 text-amber-700 text-sm font-medium hover:bg-amber-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled>
+                    <i class="fas fa-upload text-xs"></i> Import Timesheet
+                </button>
+                <div id="tsResult" class="hidden mt-1"></div>
+            </div>
+        </div>
+
+    </div>
+
+    {{-- ── Row 6: Ticket Member Import ── --}}
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+        <div class="px-5 pt-5 pb-4 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
+                    <i class="fas fa-user-tag text-teal-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-800">Ticket Members Import</h3>
+                    <p class="text-xs text-gray-400">Set ticket lead & member dari CSV legacy</p>
+                </div>
+            </div>
+        </div>
+        <div class="p-5 flex flex-col gap-4 max-w-lg">
+            <div class="bg-teal-50 rounded-xl p-3 text-xs text-teal-700 space-y-0.5">
+                <p class="font-semibold mb-1">Format CSV: <span class="font-normal">Tiket · Description · MEMBER · EMP ID</span></p>
+                <p>Baris <strong>pertama</strong> per nomor tiket → dijadikan <strong>Ticket Lead</strong> (ticket_lead_id &amp; PIC)</p>
+                <p>Baris berikutnya → ditambahkan sebagai <strong>Member</strong></p>
+                <p class="text-teal-500 mt-1">Baris tanpa EMP ID / nomor tiket tidak valid otomatis dilewati.</p>
+            </div>
+            <div id="tmDropzone"
+                class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-teal-400 hover:bg-teal-50 transition-colors"
+                onclick="document.getElementById('tmFileInput').click()"
+                ondragover="event.preventDefault();this.classList.add('border-teal-400','bg-teal-50')"
+                ondragleave="this.classList.remove('border-teal-400','bg-teal-50')"
+                ondrop="handleDrop(event,'tm')">
+                <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-1"></i>
+                <p class="text-xs text-gray-400">Drop CSV here or <span class="text-teal-600 font-medium">browse</span></p>
+                <p id="tmFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
+            </div>
+            <input type="file" id="tmFileInput" accept=".csv,.txt" class="hidden" onchange="onFileSelect(event,'tm')">
+            <button id="btnImportTm" onclick="runImport('tm')"
+                class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-teal-100 text-teal-700 text-sm font-medium hover:bg-teal-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled>
+                <i class="fas fa-upload text-xs"></i> Import Ticket Members
+            </button>
+            <div id="tmResult" class="hidden mt-1"></div>
+        </div>
+    </div>
+
 </div>
 
 {{-- ── Import Error Detail Modal ── --}}
@@ -472,30 +610,47 @@ function onFileSelect(e, type) {
     if (file) setFile(type, file);
 }
 
+const _xlsxTypes = ['rd', 'ts'];
+
 function handleDrop(e, type) {
     e.preventDefault();
     const dropzone = document.getElementById(type + 'Dropzone');
-    dropzone.classList.remove('border-emerald-400', 'bg-emerald-50', 'border-violet-400', 'bg-violet-50');
+    dropzone.classList.remove(
+        'border-emerald-400', 'bg-emerald-50',
+        'border-violet-400',  'bg-violet-50',
+        'border-sky-400',     'bg-sky-50',
+        'border-amber-400',   'bg-amber-50'
+    );
     const file = e.dataTransfer.files[0];
-    if (file && (file.name.endsWith('.csv') || file.name.endsWith('.txt'))) {
+    const isXlsxOk = _xlsxTypes.includes(type);
+    const accepted  = isXlsxOk
+        ? file.name.endsWith('.xlsx') || file.name.endsWith('.csv') || file.name.endsWith('.txt')
+        : file.name.endsWith('.csv')  || file.name.endsWith('.txt');
+    if (file && accepted) {
         setFile(type, file);
     } else {
-        showToast('Only CSV files are accepted', 'error');
+        showToast(isXlsxOk ? 'Hanya file Excel (.xlsx) atau CSV yang diterima' : 'Only CSV files are accepted', 'error');
     }
 }
 
 const ticketFiles = {};
+const tmFiles     = {};
+const rdFiles = {};
+const tsFiles = {};
 
 function setFile(type, file) {
-    if (type === 'emp')    empFiles.file    = file;
-    else if (type === 'cust') custFiles.file = file;
+    if      (type === 'emp')    empFiles.file    = file;
+    else if (type === 'cust')   custFiles.file   = file;
     else if (type === 'ticket') ticketFiles.file = file;
+    else if (type === 'tm')     tmFiles.file     = file;
+    else if (type === 'rd')     rdFiles.file     = file;
+    else if (type === 'ts')     tsFiles.file     = file;
 
     const nameEl = document.getElementById(type + 'FileName');
     nameEl.textContent = file.name + ' (' + formatBytes(file.size) + ')';
     nameEl.classList.remove('hidden');
 
-    const btnMap = { emp: 'btnImportEmp', cust: 'btnImportCust', ticket: 'btnImportTicket' };
+    const btnMap = { emp: 'btnImportEmp', cust: 'btnImportCust', ticket: 'btnImportTicket', tm: 'btnImportTm', rd: 'btnImportRd', ts: 'btnImportTs' };
     document.getElementById(btnMap[type]).disabled = false;
 
     const result = document.getElementById(type + 'Result');
@@ -512,9 +667,30 @@ function formatBytes(b) {
 // ── Run Import ────────────────────────────────────────────────────────────────
 
 async function runImport(type) {
-    const fileMap     = { emp: empFiles.file, cust: custFiles.file, ticket: ticketFiles.file };
-    const btnMap      = { emp: 'btnImportEmp', cust: 'btnImportCust', ticket: 'btnImportTicket' };
-    const endpointMap = { emp: '/api/admin/import/employees', cust: '/api/admin/import/customers', ticket: '/api/admin/import/tickets' };
+    const fileMap = {
+        emp:    empFiles.file,
+        cust:   custFiles.file,
+        ticket: ticketFiles.file,
+        tm:     tmFiles.file,
+        rd:     rdFiles.file,
+        ts:     tsFiles.file,
+    };
+    const btnMap = {
+        emp:    'btnImportEmp',
+        cust:   'btnImportCust',
+        ticket: 'btnImportTicket',
+        tm:     'btnImportTm',
+        rd:     'btnImportRd',
+        ts:     'btnImportTs',
+    };
+    const endpointMap = {
+        emp:    '/api/admin/import/employees',
+        cust:   '/api/admin/import/customers',
+        ticket: '/api/admin/import/tickets',
+        tm:     '/api/admin/import/ticket-members',
+        rd:     '/api/admin/import/resolution-days',
+        ts:     '/api/admin/import/timesheet',
+    };
     const file     = fileMap[type];
     const btnId    = btnMap[type];
     const resultId = type + 'Result';
@@ -546,7 +722,7 @@ async function runImport(type) {
         showToast('Import failed: ' + e.message, 'error');
     } finally {
         btn.disabled = false;
-        const labelMap = { emp: 'Employee', cust: 'Customer', ticket: 'Tickets' };
+        const labelMap = { emp: 'Employee', cust: 'Customer', ticket: 'Tickets', tm: 'Ticket Members', rd: 'Resolution Days', ts: 'Timesheet' };
         btn.innerHTML = `<i class="fas fa-upload text-xs"></i> Import ${labelMap[type] ?? type}`;
     }
 }
@@ -557,18 +733,29 @@ function showImportResult(type, json) {
     el.classList.remove('hidden');
 
     if (json.success) {
-        const statsHtml = type === 'ticket'
-            ? `<span class="flex items-center gap-1"><i class="fas fa-sync text-blue-500"></i> ${json.updated} updated</span>
-               <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped} skipped</span>`
-            : `<span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.imported} ditambahkan</span>
-               <span class="flex items-center gap-1"><i class="fas fa-sync text-blue-500"></i> ${json.updated} diperbarui</span>`;
+        let statsHtml = '';
+        if (type === 'ticket') {
+            statsHtml = `<span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.created} created</span>
+                         <span class="flex items-center gap-1"><i class="fas fa-sync text-blue-500"></i> ${json.updated} updated</span>
+                         <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped} skipped</span>`;
+        } else if (type === 'tm') {
+            statsHtml = `<span class="flex items-center gap-1"><i class="fas fa-user-tie text-teal-500"></i> ${json.leads_set} lead diset</span>
+                         <span class="flex items-center gap-1"><i class="fas fa-users text-blue-500"></i> ${json.members_added} member ditambahkan</span>
+                         <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped} dilewati</span>`;
+        } else if (type === 'ts') {
+            statsHtml = `<span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.imported} ditambahkan</span>
+                         <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped ?? 0} dilewati</span>`;
+        } else {
+            statsHtml = `<span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.imported} ditambahkan</span>
+                         <span class="flex items-center gap-1"><i class="fas fa-sync text-blue-500"></i> ${json.updated} diperbarui</span>`;
+        }
 
         el.innerHTML = `
             <div class="bg-green-50 border border-green-200 rounded-xl p-3">
                 <p class="text-xs font-semibold text-green-700 mb-1"><i class="fas fa-check-circle mr-1"></i>${htmlEsc(json.message)}</p>
                 <div class="flex gap-3 text-xs text-gray-600 flex-wrap">
                     ${statsHtml}
-                    ${errors.length ? `<button onclick="openErrorModal(${JSON.stringify(errors).replace(/"/g,'&quot;')})" class="flex items-center gap-1 text-orange-500 hover:underline"><i class="fas fa-exclamation-triangle"></i> ${errors.length} error</button>` : ''}
+                    ${errors.length ? `<button onclick="openErrorModal(${JSON.stringify(errors).replace(/"/g,'&quot;')})" class="flex items-center gap-1 text-orange-500 hover:underline"><i class="fas fa-exclamation-triangle"></i> ${errors.length} peringatan/error</button>` : ''}
                 </div>
             </div>`;
     } else {
