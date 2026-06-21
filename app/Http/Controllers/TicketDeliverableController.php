@@ -109,25 +109,28 @@ class TicketDeliverableController extends Controller
             try {
                 $oneDrive = new OneDriveService();
 
-                // Rantai folder (idempotent, case-insensitive): TICKETING -> {ticket_number}
+                // Rantai folder (idempotent, case-insensitive): TICKETING -> {ticket_number} -> DELIVERABLE
                 $ticketingId    = $oneDrive->findOrCreateSubFolderById($support->onedrive_deliverable_folder_id, 'TICKETING');
                 $ticketFolderId = $oneDrive->findOrCreateSubFolderById(
                     $ticketingId,
                     $ticket->ticket_number ?: ('Ticket-' . $ticket->ticket_id)
                 );
+                // File deliverable ditempatkan di subfolder "DELIVERABLE" agar tidak tercampur
+                // dengan file lain yang mungkin diupload manual ke folder ticket.
+                $deliverableFolderId = $oneDrive->findOrCreateSubFolderById($ticketFolderId, 'DELIVERABLE');
 
-                // Cache folder ticket + share link (untuk tombol "Open folder")
-                $update = ['onedrive_deliverable_folder_id' => $ticketFolderId];
-                if (empty($ticket->onedrive_folder_url) || $ticket->onedrive_deliverable_folder_id !== $ticketFolderId) {
+                // Cache folder DELIVERABLE + share link (untuk tombol "Open folder")
+                $update = ['onedrive_deliverable_folder_id' => $deliverableFolderId];
+                if (empty($ticket->onedrive_folder_url) || $ticket->onedrive_deliverable_folder_id !== $deliverableFolderId) {
                     try {
-                        $update['onedrive_folder_url'] = $oneDrive->createAnonymousLink($ticketFolderId);
+                        $update['onedrive_folder_url'] = $oneDrive->createAnonymousLink($deliverableFolderId);
                     } catch (\Throwable $e) {
                         Log::warning('Deliverable folder share link failed', ['ticket_id' => $ticketId, 'error' => $e->getMessage()]);
                     }
                 }
                 $ticket->update($update);
 
-                $result  = $oneDrive->uploadFile($ticketFolderId, $fileName, $fileContent, $mimeType);
+                $result  = $oneDrive->uploadFile($deliverableFolderId, $fileName, $fileContent, $mimeType);
                 $fileId  = $result['id'];
                 $fileUrl = $result['webUrl'] ?? $result['downloadUrl'] ?? null;
             } catch (\Throwable $e) {
