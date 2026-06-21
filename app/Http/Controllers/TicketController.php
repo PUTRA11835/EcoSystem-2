@@ -1881,7 +1881,10 @@ class TicketController extends Controller
 
                 if ($customerEmail) {
                     $ticketNum    = $ticket->ticket_number ?? $ticket->ticket_id;
-                    $subject      = 'Ticket #' . $ticketNum . ' - ' . $label;
+                    // Subject HARUS sama dengan subject thread ("Ticket #XXXX: desc") agar
+                    // notifikasi status tetap satu thread di Outlook/Exchange (status sudah
+                    // dijelaskan di body). Subject berbeda → Exchange reset Thread-Index → pecah.
+                    $subject      = 'Ticket #' . $ticketNum . ': ' . mb_substr($ticket->description ?? '', 0, 80);
                     $htmlBody     = '<p>Your ticket <strong>#' . htmlspecialchars((string) $ticketNum) . '</strong> has been <strong>' . $label . '</strong>.</p>'
                                   . '<p>' . htmlspecialchars($logMessage) . '</p>';
                     $inReplyTo    = TicketMessage::where('ticket_id', $ticket->ticket_id)
