@@ -147,13 +147,26 @@ class EmailController extends Controller
 
         $xpath = new \DOMXPath($dom);
 
+        // ── Potong di BATAS quote (penting untuk Outlook/Exchange) ────────────
+        // Outlook (OWA & "new Outlook") menaruh balasan baru DI ATAS marker
+        // <div id="appendonsend"></div> lalu <hr> + header "From:/Sent:/To:"
+        // (<div id="divRplyFwdMsg">) dan body quoted di bawahnya — sering TANPA
+        // <blockquote>. Pendekatan hapus-selector saja tidak cukup → quote bocor
+        // ke gelembung chat ("kotak biru"). Maka kita potong marker batas + SEMUA
+        // node setelahnya. Gmail tetap aman karena marker ini tidak ada di sana
+        // (ditangani oleh selector di bawah).
+        $bodyNode = $dom->getElementsByTagName('body')->item(0);
+        if ($bodyNode) {
+            $this->cutAtQuoteBoundary($xpath, $bodyNode);
+        }
+
         // Elemen yang mengandung quoted/previous messages — hapus semua
         $removeSelectors = [
             '//blockquote',                                   // RFC standard, semua klien
             '//*[contains(@class,"gmail_quote")]',            // Gmail
             '//*[contains(@class,"yahoo_quoted")]',           // Yahoo Mail
             '//*[contains(@class,"moz-cite-prefix")]',        // Thunderbird
-            '//*[@id="divRplyFwdMsg"]',                       // Outlook Web
+            '//*[@id="divRplyFwdMsg" or @id="appendonsend"]', // Outlook Web (header/marker batas)
             '//*[contains(@class,"OutlookMessageHeader")]',   // Outlook Desktop
             '//*[contains(@class,"x_gmail_quote")]',          // Gmail via Outlook
         ];
@@ -166,7 +179,6 @@ class EmailController extends Controller
 
         // Serialisasi ulang isi <body> sebagai HTML (bukan textContent)
         // agar img, formatting, dll tetap terjaga
-        $bodyNode = $dom->getElementsByTagName('body')->item(0);
 
         if (!$bodyNode) {
             return strip_tags($html);
@@ -181,6 +193,61 @@ class EmailController extends Controller
         $innerHTML = html_entity_decode($innerHTML, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
         return trim($innerHTML);
+    }
+
+    /**
+     * Cari marker batas quote (gaya Outlook/Exchange) lalu hapus marker + SEMUA node
+     * setelahnya (dalam urutan dokumen), naik dari posisi marker sampai level <body>.
+     * Konten balasan BARU (yang selalu berada di atas marker) tetap utuh.
+     *
+     * Marker yang dideteksi:
+     *  - <div id="appendonsend"> — titik sisip quote di Outlook/OWA
+     *  - <div id="divRplyFwdMsg"> — blok header "From:/Sent:/To:/Subject:"
+     * Sekaligus membuang <hr> pemisah yang biasanya tepat sebelum marker.
+     */
+    private function cutAtQuoteBoundary(\DOMXPath $xpath, \DOMNode $bodyNode): void
+    {
+        $boundary = null;
+        foreach (['//*[@id="appendonsend"]', '//*[@id="divRplyFwdMsg"]'] as $q) {
+            $nodes = $xpath->query($q);
+            if ($nodes && $nodes->length > 0) {
+                $boundary = $nodes->item(0);
+                break;
+            }
+        }
+        if (!$boundary) return;
+
+        // Buang <hr> pemisah (dan whitespace) tepat sebelum marker di level yang sama.
+        $prev = $boundary->previousSibling;
+        while ($prev) {
+            $before = $prev->previousSibling;
+            $isHr        = ($prev->nodeType === XML_ELEMENT_NODE && strtolower($prev->nodeName) === 'hr');
+            $isWhitespace= ($prev->nodeType === XML_TEXT_NODE && trim($prev->textContent) === '');
+            if ($isHr || $isWhitespace) {
+                $prev->parentNode->removeChild($prev);
+                if ($isHr) break;       // cukup satu hr pemisah
+            } else {
+                break;
+            }
+            $prev = $before;
+        }
+
+        // Hapus marker + semua node setelahnya. Di tiap level ancestor (sampai body),
+        // hapus sibling yang mengikuti — TANPA menghapus ancestor itu sendiri (ancestor
+        // masih memuat balasan baru yang ada sebelum marker).
+        $current = $boundary;
+        $removeSelf = true;
+        while ($current && $current !== $bodyNode) {
+            while ($current->nextSibling) {
+                $current->parentNode->removeChild($current->nextSibling);
+            }
+            $parent = $current->parentNode;
+            if ($removeSelf) {
+                $parent->removeChild($current);
+                $removeSelf = false;
+            }
+            $current = $parent;
+        }
     }
 
     // =========================================================================
@@ -1227,6 +1294,34 @@ class EmailController extends Controller
     }
 
     /**
+     * Bandingkan "topic" dua subject email — abaikan prefix balas/teruskan (Re:, Fw:, Fwd:,
+     * Bls:, dll), spasi berlebih, dan perbedaan huruf besar/kecil.
+     *
+     * Dipakai untuk memutuskan apakah subject draft reply perlu di-PATCH. Meng-PATCH subject
+     * draft createReply memicu Exchange me-reset Thread-Index/conversationId sehingga thread
+     * pecah di klien Outlook/Exchange. Jika topic-nya sudah sama (mis. Exchange sudah set
+     * "Re: Ticket #XXXX: ..." dan kita ingin "Ticket #XXXX: ..."), subject TIDAK perlu diubah.
+     */
+    private function subjectTopicMatches(?string $a, ?string $b): bool
+    {
+        if ($a === null || $b === null) return false;
+        $na = $this->normalizeSubjectTopic($a);
+        $nb = $this->normalizeSubjectTopic($b);
+        return $na !== '' && $na === $nb;
+    }
+
+    /**
+     * Normalisasi subject ke "topic": buang prefix balas/teruskan berulang di awal,
+     * rapikan whitespace, dan lower-case.
+     */
+    private function normalizeSubjectTopic(string $subject): string
+    {
+        $s = preg_replace('/^(?:\s*(?:re|fw|fwd|bls|aw|sv|antw)\s*:\s*)+/i', '', trim($subject));
+        $s = preg_replace('/\s+/u', ' ', trim((string) $s));
+        return mb_strtolower((string) $s, 'UTF-8');
+    }
+
+    /**
      * Kirim email balasan untuk sebuah tiket (digunakan oleh TicketMessageController).
      *
      * Alur:
@@ -1382,17 +1477,29 @@ class EmailController extends Controller
                     // Exchange conversationId akan berubah (Outlook mungkin tampilkan sebagai
                     // thread terpisah) tapi ini trade-off yang diterima untuk subject yang benar.
 
-                    // PATCH: subject, body, toRecipients, ccRecipients.
+                    // PATCH: body, toRecipients, ccRecipients SELALU. Subject KONDISIONAL.
                     // internetMessageHeaders TIDAK di-patch — field ini read-only pada createReply draft.
                     // Exchange sudah otomatis set In-Reply-To + References yang benar dari originalId.
+                    //
+                    // FIX THREADING OUTLOOK/EXCHANGE:
+                    // Meng-PATCH subject draft createReply memicu Exchange me-RESET Thread-Index +
+                    // conversationId. Akibatnya klien Outlook/Exchange (mis. customer dengan domain
+                    // sendiri seperti @apta.id, termasuk grouping & parent-child) menampilkan SETIAP
+                    // balasan sebagai percakapan TERPISAH. Gmail tetap menyatukan thread lewat header
+                    // References (yang ikut tertanam saat createReply & bertahan setelah patch),
+                    // sehingga bug ini "tersembunyi" ketika diuji pakai Gmail.
+                    //
+                    // Solusi: subject HANYA di-patch jika thread belum membawa identitas tiket yang
+                    // diinginkan ("Ticket #XXXX: ..."). Saat Exchange sudah meng-set subject reply
+                    // menjadi "Re: Ticket #XXXX: ..." (topic-nya sama dengan yang diminta), JANGAN
+                    // patch subject → Thread-Index terjaga → semua klien (Outlook, Gmail, dll) tetap
+                    // satu thread. Injeksi identitas tiket cukup terjadi sekali (email pertama thread).
                     $patchData = [
-                        'subject'      => $replySubject,
                         'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
                         'toRecipients' => $toRecipients,
                         'ccRecipients' => $ccRecipients,
                     ];
-                    if ($noRePrefix) {
-                        // Override subject ke nilai yang diminta caller (misal "Ticket #XXXX: desc")
+                    if (!$this->subjectTopicMatches($draft->json('subject'), $replySubject)) {
                         $patchData['subject'] = $replySubject;
                     }
                     $this->graphPatch("/users/{$sender}/messages/{$draftId}", $patchData);
@@ -1429,13 +1536,15 @@ class EmailController extends Controller
                     if (!$conversationId) {
                         $conversationId = $draft->json('conversationId') ?? $threadId;
                     }
+                    // Subject KONDISIONAL — lihat penjelasan di blok createReply di atas.
+                    // Hindari patch subject agar Thread-Index Exchange tidak ter-reset (Outlook
+                    // tetap satu thread).
                     $patchData = [
-                        'subject'      => $replySubject,
                         'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
                         'toRecipients' => $toRecipients,
                         'ccRecipients' => $ccRecipients,
                     ];
-                    if ($noRePrefix) {
+                    if (!$this->subjectTopicMatches($draft->json('subject'), $replySubject)) {
                         $patchData['subject'] = $replySubject;
                     }
                     $this->graphPatch("/users/{$sender}/messages/{$draftId}", $patchData);

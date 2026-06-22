@@ -5556,9 +5556,8 @@
             {{-- File --}}
             <div>
                 <label class="text-xs font-semibold text-gray-600 mb-1 block">File
-                    @if(!($deliverySupport ?? null))
-                    <span class="ml-1 text-orange-500 font-normal">(ticket belum dihubungkan ke delivery support)</span>
-                    @elseif(empty($deliverySupport->onedrive_deliverable_folder_id))
+                    <span id="ndNoSupportHint" class="ml-1 text-orange-500 font-normal {{ ($deliverySupport ?? null) ? 'hidden' : '' }}">(ticket belum dihubungkan ke delivery support)</span>
+                    @if(($deliverySupport ?? null) && empty($deliverySupport->onedrive_deliverable_folder_id))
                     <span class="ml-1 text-orange-500 font-normal">(generate Customer Deliverable folder di halaman support dulu)</span>
                     @endif
                 </label>
@@ -5806,6 +5805,10 @@ function openNewDocModal() {
     document.getElementById('ndFileName').textContent = 'Choose file...';
     document.getElementById('ndError').classList.add('hidden');
     document.getElementById('ndSubmitBtn').disabled = false;
+    // Sinkronkan hint "belum dihubungkan ke delivery support" dengan status assign terkini
+    // (assignedDsId di-update saat assign tanpa reload halaman).
+    const noSupportHint = document.getElementById('ndNoSupportHint');
+    if (noSupportHint) noSupportHint.classList.toggle('hidden', !!assignedDsId);
     document.getElementById('newDocModal').classList.remove('hidden');
 }
 

@@ -16,6 +16,7 @@ class MenuSeeder extends Seeder
     const HOS      = 5; // Delivery Support Head
     const HELPDESK = 6; // Delivery Support Service Helpdesk
     const RPMO     = 7; // Delivery RPMO Head
+    const MANAGER  = 14; // Delivery Support Manager
 
     public function run(): void
     {
@@ -223,9 +224,9 @@ class MenuSeeder extends Seeder
             // Consultant Workload
             'ticket.consultant-workload'  => [self::ADMIN=>$v,    self::HOP=>$v,        self::HOS=>$v,      self::HELPDESK=>$v, self::RPMO=>$v],
             // Ticket Validation
-            'tickets.staging'             => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::HELPDESK=>$vced, self::RPMO=>$vce],
-            'staging.approve'             => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::HELPDESK=>$v, self::RPMO=>$v],
-            'staging.reject'              => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::HELPDESK=>$v, self::RPMO=>$v],
+            'tickets.staging'             => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::HELPDESK=>$vced, self::RPMO=>$vce,  self::MANAGER=>$vce],
+            'staging.approve'             => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::HELPDESK=>$v,    self::RPMO=>$v,    self::MANAGER=>$v],
+            'staging.reject'              => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::HELPDESK=>$v,    self::RPMO=>$v,    self::MANAGER=>$v],
             // Delivery
             'delivery'                    => [self::ADMIN=>$vced, self::HOP=>$vce,      self::HOS=>$vce,    self::HELPDESK=>$v,   self::RPMO=>$vced],
             'delivery.project'            => [self::ADMIN=>$vced, self::HOP=>$vce,      self::RPMO=>$vced],
