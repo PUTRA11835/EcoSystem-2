@@ -670,7 +670,7 @@ class EmployeeController extends Controller
                     'eb.first_name', 'eb.last_name', 'eb.position',
                     'eb.department', 'eb.division', 'eb.since_date',
                     'eb.block', 'eb.deletion_flag', 'eb.employee_type',
-                    'ea.email_personal', 'ea.cell_phone', 'ea.telephone'
+                    'ea.email_personal', 'ea.email_work', 'ea.cell_phone', 'ea.telephone'
                 )
                 ->first();
 
@@ -708,6 +708,7 @@ class EmployeeController extends Controller
                     'position'       => $row->position        ?? '',
                     'eci'            => $row->eci             ?? '',
                     'email_personal' => $row->email_personal  ?? '',
+                    'email_work'     => $row->email_work      ?? '',
                     'phone'          => $row->cell_phone ?? $row->telephone ?? '',
                     'department'     => $row->department      ?? '',
                     'division'       => $row->division        ?? '',

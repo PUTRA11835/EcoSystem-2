@@ -23,6 +23,18 @@ class OneDriveService
         }
     }
 
+    /**
+     * Sanitize a single path segment (folder name) for OneDrive/SharePoint.
+     * Replaces illegal characters ( \ / : * ? " < > | ) with a space,
+     * collapses whitespace, and trims. Falls back to a safe default if empty.
+     */
+    public static function sanitizeSegment(string $name, string $fallback = 'Folder'): string
+    {
+        $clean = preg_replace('~[\\\\/:*?"<>|]~', ' ', $name);
+        $clean = trim(preg_replace('~\s+~', ' ', $clean));
+        return $clean !== '' ? $clean : $fallback;
+    }
+
     private function getAccessToken(): string
     {
         $tenantId = config('services.microsoft_graph.tenant_id');
@@ -217,6 +229,60 @@ class OneDriveService
         }
 
         return $response->json('id');
+    }
+
+    /**
+     * Move an item (folder/file) to a new parent folder, optionally renaming it.
+     * Item IDs are stable across moves, so cached child IDs remain valid afterwards.
+     */
+    public function moveItem(string $itemId, string $newParentId, ?string $newName = null): void
+    {
+        $token = $this->getAccessToken();
+
+        $payload = ['parentReference' => ['id' => $newParentId]];
+        if ($newName !== null) {
+            $payload['name'] = $newName;
+        }
+
+        $response = Http::withToken($token)->patch(
+            "{$this->driveBase}/drive/items/{$itemId}",
+            $payload
+        );
+
+        if (!$response->successful()) {
+            Log::error('OneDrive moveItem failed', [
+                'item_id'       => $itemId,
+                'new_parent_id' => $newParentId,
+                'new_name'      => $newName,
+                'status'        => $response->status(),
+                'body'          => $response->body(),
+            ]);
+            throw new \RuntimeException('Failed to move OneDrive item: ' . $response->body());
+        }
+    }
+
+    /**
+     * Rename an item (folder/file) in place. The item ID is unchanged, so any
+     * cached IDs/share links remain valid.
+     */
+    public function renameItem(string $itemId, string $newName): void
+    {
+        $token = $this->getAccessToken();
+
+        $response = Http::withToken($token)->patch(
+            "{$this->driveBase}/drive/items/{$itemId}",
+            ['name' => $newName]
+        );
+
+        if (!$response->successful()) {
+            Log::error('OneDrive renameItem failed', [
+                'item_id'  => $itemId,
+                'new_name' => $newName,
+                'status'   => $response->status(),
+                'body'     => $response->body(),
+            ]);
+            throw new \RuntimeException('Failed to rename OneDrive item: ' . $response->body());
+        }
     }
 
     /**

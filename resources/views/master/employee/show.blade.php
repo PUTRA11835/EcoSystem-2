@@ -71,8 +71,8 @@
                         <p id="headerEci" class="font-semibold text-gray-900">{{ $employee->eci ?? 'N/A' }}</p>
                     </div>
                     <div>
-                        <p class="text-gray-500">Email (Personal)</p>
-                        <p id="headerEmail" class="font-semibold text-gray-900">{{ $employee->email_personal ?? 'N/A' }}</p>
+                        <p class="text-gray-500">Email (Work)</p>
+                        <p id="headerEmail" class="font-semibold text-gray-900">{{ $employee->email_work ?? 'N/A' }}</p>
                     </div>
                     <div>
                         <p class="text-gray-500">Phone</p>
@@ -261,7 +261,7 @@
                     (t === 'External' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700');
             }
             document.getElementById('headerEci').textContent         = d.eci          || 'N/A';
-            document.getElementById('headerEmail').textContent       = d.email_personal || 'N/A';
+            document.getElementById('headerEmail').textContent       = d.email_work || 'N/A';
             document.getElementById('headerPhone').textContent       = d.phone        || 'N/A';
             document.getElementById('headerDepartment').textContent  = d.department   || 'N/A';
             document.getElementById('headerDivision').textContent    = d.division     || 'N/A';
