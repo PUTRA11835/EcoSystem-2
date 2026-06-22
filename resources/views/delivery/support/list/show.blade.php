@@ -990,14 +990,6 @@ document.addEventListener('DOMContentLoaded', function() {
     editSwStart.addEventListener('change', validateEditServiceWindow);
     editSwEnd.addEventListener('change', validateEditServiceWindow);
 
-    // Show flash messages as toasts
-    @if(session('success'))
-        showNotification('{{ session('success') }}', 'success');
-    @endif
-
-    @if(session('error'))
-        showNotification('{{ session('error') }}', 'error');
-    @endif
 
     // Close modals on escape key
     document.addEventListener('keydown', function(e) {

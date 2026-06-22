@@ -37,6 +37,8 @@ class StagingTicket extends Model
         'no_hp',
         'module',
         'client',
+        'created_at',
+        'updated_at',
     ];
 
     protected $casts = [

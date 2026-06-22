@@ -16,8 +16,12 @@
         {{-- View toggles --}}
         @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value && !($isExternalEmployee ?? false))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
-            <button onclick="toggleView('my')" id="btnViewMy" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">My Tickets</button>
-            <button onclick="toggleView('all')" id="btnViewAll" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">All Tickets</button>
+            <button onclick="toggleView('my')" id="btnViewMy" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-user text-[10px] mr-1"></i>My Tickets
+            </button>
+            <button onclick="toggleView('all')" id="btnViewAll" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
+            </button>
         </div>
         @endif
 
@@ -34,12 +38,8 @@
 
         @if($user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
-            <button onclick="toggleView('all')" id="btnViewAllSm" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
-                <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
-            </button>
-            <button onclick="toggleView('my')" id="btnViewMySm" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
-                <i class="fas fa-user text-[10px] mr-1"></i>My Tickets
-            </button>
+            <button onclick="toggleView('my')" id="btnViewMy" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 active">My Tickets</button>
+            <button onclick="toggleView('all')" id="btnViewAll" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">All Tickets</button>
         </div>
         @endif
 
@@ -542,12 +542,11 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 .custom-dd.col-dd-active .custom-dd-btn > span { color: #dc2626; font-weight: 700; }
 
 /* View Toggle */
-#btnViewAll, #btnViewMy { background: transparent; color: #9ca3af; font-size: 12px; }
-#btnViewAll.active, #btnViewMy.active { background: white; color: #111827; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+#btnViewAll, #btnViewMy,
 #btnViewAllHd, #btnViewUnassigned { background: transparent; color: #9ca3af; font-size: 12px; }
-#btnViewAllHd.active, #btnViewUnassigned.active { background: #991b1b; color: white; box-shadow: 0 2px 6px rgba(153,27,27,0.25); }
-#btnViewAllSm, #btnViewMySm { background: transparent; color: #9ca3af; font-size: 12px; }
-#btnViewAllSm.active, #btnViewMySm.active { background: #991b1b; color: white; box-shadow: 0 2px 6px rgba(153,27,27,0.25); }
+
+#btnViewAll.active, #btnViewMy.active,
+#btnViewAllHd.active, #btnViewUnassigned.active { background: white; color: #111827; font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
 
 /* Stat cards active state */
 .stat-card.active-filter {
@@ -697,12 +696,12 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     }
 
     function updateViewToggle() {
-        if (userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE) {
+        if (userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE || userRole === SUPPORT_MANAGER_ROLE) {
             const btnAll = document.getElementById('btnViewAll');
             const btnMy  = document.getElementById('btnViewMy');
             if (btnAll && btnMy) {
                 btnAll.classList.toggle('active', currentView === 'all');
-                btnMy.classList.toggle('active',  currentView !== 'all');
+                btnMy.classList.toggle('active',  currentView === 'my');
             }
         }
         if (STAFF_TOGGLE_ROLES.includes(userRole)) {
@@ -711,14 +710,6 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             if (btnA && btnU) {
                 btnA.classList.toggle('active', currentView === 'all');
                 btnU.classList.toggle('active', currentView === 'unassigned');
-            }
-        }
-        if (userRole === SUPPORT_MANAGER_ROLE) {
-            const btnA = document.getElementById('btnViewAllSm');
-            const btnM = document.getElementById('btnViewMySm');
-            if (btnA && btnM) {
-                btnA.classList.toggle('active', currentView === 'all');
-                btnM.classList.toggle('active', currentView === 'my');
             }
         }
     }
@@ -1864,7 +1855,9 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             const ballCfg = e.ball_after ? (BALL_ICON_SLA[e.ball_after] || null) : null;
             const waitCell = e.waiting_hours !== null && e.waiting_hours !== undefined ? `<span class="text-[11px] font-semibold text-amber-600 whitespace-nowrap">${_slaToHLabel(e.waiting_hours)}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
             const respCell = e.response_hours !== null && e.response_hours !== undefined ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_slaToHLabel(e.response_hours)}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
-            const resCell  = e.resolution_hours !== null && e.resolution_hours !== undefined ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_slaToHLabel(e.resolution_hours)}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
+            const resCell  = e.meeting_paused
+                ? `<span class="text-[10px] font-semibold text-purple-600 whitespace-nowrap">Paused (Meeting)</span>`
+                : (e.resolution_hours !== null && e.resolution_hours !== undefined ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_slaToHLabel(e.resolution_hours)}</span>` : `<span class="text-gray-300 text-xs">—</span>`);
             const statusCell = e.jarvis_status ? `<span class="text-[10px] text-gray-500 whitespace-nowrap">${e.jarvis_status.replace(/_/g,' ')}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
             const ballCell = ballCfg ? `<span class="text-[11px] font-semibold text-gray-600 whitespace-nowrap">${ballCfg.icon} ${ballCfg.label}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
             const senderPrefix = e.sender_name ? `<span class="font-semibold text-gray-700">${e.sender_name}:</span> ` : '';

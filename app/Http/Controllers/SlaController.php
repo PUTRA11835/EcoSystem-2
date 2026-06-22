@@ -197,6 +197,19 @@ class SlaController extends Controller
             return response()->json(['success' => true, 'data' => null]);
         }
 
+        // Auto-end meeting jika waktu meeting_end_time sudah lewat
+        try {
+            if ($this->sla->autoEndExpiredMeeting($ticket)) {
+                $ticket->load(['sla.policy', 'sla.events' => fn ($q) => $q->orderBy('event_at'), 'sla.events.message', 'sla.pauses']);
+                $sla = $ticket->sla;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('SlaController@getTicketSla: auto-end meeting failed', [
+                'ticket_id' => $id,
+                'error'     => $e->getMessage(),
+            ]);
+        }
+
         // Jika tiket sudah closed/cancelled tapi SLA belum di-finalize, auto-finalize sekarang
         if (
             $ticket->status &&
@@ -345,7 +358,7 @@ class SlaController extends Controller
         $lastAgentAt  = null; // Carbon|null — waktu agent message terakhir (fallback waiting)
 
         $messageEvents = $messages->map(function ($msg) use (
-            $storedByMsgId, $pauseStartedByMsg, $pauseEndedByMsg,
+            $storedByMsgId, $pauseStartedByMsg, $pauseEndedByMsg, $allPauses,
             $stopStatuses, $runStatuses, $is24h,
             $lastAgentMsgId, $currentTicketStatus, $sla, $ticketIsClosed,
             &$ballHolder, &$sessionStart, &$pauseStart, &$lastAgentAt
@@ -353,10 +366,11 @@ class SlaController extends Controller
             $stored     = $storedByMsgId->get($msg->id);
             $isCustomer = $msg->sender_type === 'customer';
 
-            $waitingH     = null;
-            $resolutionH  = null;
-            $ballAfter    = null;
-            $jarvisStatus = null;
+            $waitingH      = null;
+            $resolutionH   = null;
+            $ballAfter     = null;
+            $jarvisStatus  = null;
+            $pausedByMeeting = false;
 
             if ($isCustomer) {
                 // ── Customer reply ─────────────────────────────────────────────
@@ -416,6 +430,17 @@ class SlaController extends Controller
                     $resolutionH = round($this->sla->calcHours($sessionStart, $msg->created_at, $is24h), 2);
                 }
 
+                // Jika ada meeting pause aktif saat pesan ini dikirim, waktu resolusi tidak dihitung
+                $meetingActiveAtMsg = $allPauses
+                    ->where('pause_reason', 'meeting')
+                    ->first(fn ($p) => $p->started_at <= $msg->created_at
+                        && ($p->ended_at === null || $p->ended_at > $msg->created_at));
+                $pausedByMeeting = false;
+                if ($meetingActiveAtMsg !== null) {
+                    $resolutionH     = 0;
+                    $pausedByMeeting = true;
+                }
+
                 if ($jarvisStatus && in_array($jarvisStatus, $stopStatuses)) {
                     if ($ballHolder === 'helpdesk') {
                         $pauseStart = $effectivePauseStart;
@@ -448,6 +473,7 @@ class SlaController extends Controller
                 'waiting_hours'    => $waitingH,
                 'response_hours'   => null,
                 'resolution_hours' => $isCustomer ? null : $resolutionH,
+                'meeting_paused'   => !$isCustomer && $pausedByMeeting,
                 'notes'            => $stored?->notes,
                 'ball_after'       => $ballAfter,
                 'sender_name'      => $msg->sender_name,
@@ -596,29 +622,48 @@ class SlaController extends Controller
         }
 
         $v = Validator::make($request->all(), [
-            'started_at'   => 'nullable|date',
-            'notes'        => 'nullable|string|max:1000',
-            'meeting_link' => 'nullable|url|max:2048',
+            'started_at'          => 'nullable|date',
+            'notes'               => 'nullable|string|max:1000',
+            'meeting_link'        => 'nullable|url|max:2048',
+            'meeting_start_time'  => 'nullable|date',
+            'meeting_end_time'    => 'nullable|date',
         ]);
 
         if ($v->fails()) {
             return response()->json(['success' => false, 'errors' => $v->errors()], 422);
         }
 
-        $ticket      = Ticket::with(['sla.policy', 'customer'])->findOrFail($id);
-        $startAt     = $request->filled('started_at') ? Carbon::parse($request->started_at) : now();
-        $senderName  = session('user.name') ?? 'Helpdesk';
-        $senderId    = (int) session('user.id');
-        $notes       = $request->input('notes');
-        $meetingLink = $request->input('meeting_link');
+        $ticket           = Ticket::with(['sla.policy', 'customer'])->findOrFail($id);
+        $startAt          = $request->filled('started_at') ? Carbon::parse($request->started_at) : now();
+        $senderName       = session('user.name') ?? 'Helpdesk';
+        $senderId         = (int) session('user.id');
+        $notes            = $request->input('notes');
+        $meetingLink      = $request->input('meeting_link');
+        $meetingStartTime = $request->filled('meeting_start_time') ? Carbon::parse($request->meeting_start_time) : null;
+        $meetingEndTime   = $request->filled('meeting_end_time')   ? Carbon::parse($request->meeting_end_time)   : null;
+
+        if ($meetingStartTime && $meetingEndTime && !$meetingEndTime->gt($meetingStartTime)) {
+            return response()->json(['success' => false, 'message' => 'Waktu selesai meeting harus setelah waktu mulai'], 422);
+        }
+
+        // SLA hold dimulai sejak jadwal meeting dibuat.
+        // Meeting akan auto-end pada meeting_end_time — tidak perlu klik "Selesai Meeting".
+        $slaStart = $startAt;
 
         try {
-            $this->sla->startMeeting($ticket, $startAt);
+            // Pause SLA sejak jadwal dibuat ($slaStart), event log tampilkan waktu meeting ($meetingStartTime)
+            // scheduled_end_at = meeting_end_time → auto-resume SLA saat waktu ini tercapai
+            $this->sla->startMeeting($ticket, $slaStart, $meetingStartTime, $meetingEndTime);
 
-            // Bangun HTML undangan meeting (tanpa footer — TicketMessageController menambahkannya)
-            $html      = $this->buildMeetingEmailHtml($ticket, $senderName, $notes, $meetingLink, $startAt);
-            $msgParts  = array_filter([$notes, $meetingLink ? "Link: {$meetingLink}" : null]);
-            $plainBody = implode("\n", $msgParts) ?: 'Meeting dimulai';
+            // Bangun HTML undangan meeting
+            $html      = $this->buildMeetingEmailHtml($ticket, $senderName, $notes, $meetingLink, $startAt, $meetingStartTime, $meetingEndTime);
+            $msgParts  = array_filter([
+                $meetingStartTime ? 'MeetingStart: ' . $meetingStartTime->toIso8601String() : null,
+                $meetingEndTime   ? 'MeetingEnd: '   . $meetingEndTime->toIso8601String()   : null,
+                $notes,
+                $meetingLink ? "Link: {$meetingLink}" : null,
+            ]);
+            $plainBody = implode("\n", $msgParts) ?: 'Jadwal meeting dibuat';
 
             // Kirim via infrastruktur email yang SAMA dengan chat reply biasa
             $emailMsg = app(TicketMessageController::class)->sendSystemReplyEmail(
@@ -630,8 +675,7 @@ class SlaController extends Controller
                 'meeting_started'
             );
 
-            // Fallback: jika tidak ada customer email atau email gagal, simpan sebagai
-            // pesan internal agar meeting card tetap muncul di room chat
+            // Fallback: jika tidak ada customer email atau email gagal, simpan sebagai pesan internal
             if (!$emailMsg) {
                 TicketMessage::create([
                     'ticket_id'        => $ticket->ticket_id,
@@ -649,7 +693,7 @@ class SlaController extends Controller
 
             return response()->json([
                 'success'    => true,
-                'message'    => 'Meeting dimulai — SLA clock dijeda.',
+                'message'    => 'Jadwal meeting berhasil dibuat.',
                 'email_sent' => (bool) $emailMsg,
             ]);
         } catch (\Throwable $e) {
@@ -663,20 +707,39 @@ class SlaController extends Controller
         string  $senderName,
         ?string $notes,
         ?string $meetingLink,
-        Carbon  $startAt
+        Carbon  $startAt,
+        ?Carbon $meetingStartTime = null,
+        ?Carbon $meetingEndTime   = null
     ): string {
-        $ticketNum  = e($ticket->ticket_number ?? '');
-        $agent      = e($senderName);
-        $timeStr    = $startAt->timezone('Asia/Jakarta')->format('d M Y, H:i') . ' WIB';
-        $notesHtml  = $notes
+        $ticketNum = e($ticket->ticket_number ?? '');
+        $agent     = e($senderName);
+        $tz        = 'Asia/Jakarta';
+
+        $notesHtml = $notes
             ? '<p style="margin:0 0 12px 0;">' . nl2br(e($notes)) . '</p>'
             : '';
-        $linkBlock  = $meetingLink
+        $linkBlock = $meetingLink
             ? '<div style="margin:20px 0;padding:16px 20px;background:#f5f3ff;border-radius:10px;border-left:4px solid #7c3aed;">
                  <p style="margin:0 0 8px 0;font-size:13px;font-weight:600;color:#5b21b6;">Link Meeting</p>
                  <a href="' . e($meetingLink) . '" style="color:#7c3aed;font-size:14px;font-weight:600;word-break:break-all;">' . e($meetingLink) . '</a>
                </div>'
             : '';
+
+        // Baris waktu di tabel
+        if ($meetingStartTime && $meetingEndTime) {
+            $startStr  = $meetingStartTime->timezone($tz)->format('d M Y, H:i') . ' WIB';
+            $endStr    = $meetingEndTime->timezone($tz)->format('d M Y, H:i') . ' WIB';
+            $timeRows  = <<<HTML
+            <tr><td style="padding:4px 0;font-size:13px;color:#6b7280;width:120px;">Mulai</td><td style="padding:4px 0;font-size:13px;font-weight:600;color:#374151;">{$startStr}</td></tr>
+            <tr><td style="padding:4px 0;font-size:13px;color:#6b7280;">Selesai</td><td style="padding:4px 0;font-size:13px;font-weight:600;color:#374151;">{$endStr}</td></tr>
+            HTML;
+        } elseif ($meetingStartTime) {
+            $startStr = $meetingStartTime->timezone($tz)->format('d M Y, H:i') . ' WIB';
+            $timeRows = "<tr><td style=\"padding:4px 0;font-size:13px;color:#6b7280;width:120px;\">Waktu Mulai</td><td style=\"padding:4px 0;font-size:13px;font-weight:600;color:#374151;\">{$startStr}</td></tr>";
+        } else {
+            $timeStr  = $startAt->timezone($tz)->format('d M Y, H:i') . ' WIB';
+            $timeRows = "<tr><td style=\"padding:4px 0;font-size:13px;color:#6b7280;width:120px;\">Waktu</td><td style=\"padding:4px 0;font-size:13px;font-weight:600;color:#374151;\">{$timeStr}</td></tr>";
+        }
 
         return <<<HTML
         <p style="margin:0 0 12px 0;">Halo,</p>
@@ -685,7 +748,7 @@ class SlaController extends Controller
             <strong style="color:#374151;">#{$ticketNum}</strong>.
         </p>
         <table style="width:100%;background:#f9fafb;border-radius:8px;padding:12px 16px;margin-bottom:16px;border-collapse:collapse;">
-            <tr><td style="padding:4px 0;font-size:13px;color:#6b7280;width:120px;">Waktu</td><td style="padding:4px 0;font-size:13px;font-weight:600;color:#374151;">{$timeStr}</td></tr>
+            {$timeRows}
             <tr><td style="padding:4px 0;font-size:13px;color:#6b7280;">Host</td><td style="padding:4px 0;font-size:13px;font-weight:600;color:#374151;">{$agent} &mdash; PT Eclectic Consulting</td></tr>
         </table>
         {$notesHtml}

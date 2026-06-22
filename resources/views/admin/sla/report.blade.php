@@ -798,9 +798,11 @@ function renderDetail(data) {
             ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_toHLabel(e.response_hours)}</span>`
             : `<span class="text-gray-300 text-xs">—</span>`;
 
-        const resCell = e.resolution_hours !== null
-            ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_toHLabel(e.resolution_hours)}</span>`
-            : `<span class="text-gray-300 text-xs">—</span>`;
+        const resCell = e.meeting_paused
+            ? `<span class="text-[10px] font-semibold text-purple-600 whitespace-nowrap">Paused (Meeting)</span>`
+            : (e.resolution_hours !== null
+                ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_toHLabel(e.resolution_hours)}</span>`
+                : `<span class="text-gray-300 text-xs">—</span>`);
 
         const statusCell = e.jarvis_status
             ? `<span class="text-[10px] text-gray-500 whitespace-nowrap">${e.jarvis_status.replace(/_/g,' ')}</span>`
