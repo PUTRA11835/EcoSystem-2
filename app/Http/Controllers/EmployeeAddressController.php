@@ -237,12 +237,15 @@ class EmployeeAddressController extends Controller
 
             // Create new address
             $address = EmployeeAddress::create($addressInput);
-            
+
             Log::info('Address created successfully', [
                 'employee_id' => $employeeId,
                 'address_id' => $address->address_id,
                 'address_type' => $address->address_type
             ]);
+
+            // Jaga konsistensi: email_work alamat primary = email login (reset password).
+            $emailSyncWarning = $this->syncEmailWorkToAuth($employeeId, $address);
 
             DB::commit();
 
@@ -254,7 +257,8 @@ class EmployeeAddressController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Address created successfully',
-                'data' => $address
+                'data' => $address,
+                'warning' => $emailSyncWarning,
             ], 201);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
@@ -396,11 +400,14 @@ class EmployeeAddressController extends Controller
 
             // Update address
             $address->update($updateData);
-            
+
             Log::info('Address updated successfully', [
                 'employee_id' => $employeeId,
                 'address_id' => $addressId
             ]);
+
+            // Jaga konsistensi: email_work alamat primary = email login (reset password).
+            $emailSyncWarning = $this->syncEmailWorkToAuth($employeeId, $address);
 
             DB::commit();
 
@@ -412,7 +419,8 @@ class EmployeeAddressController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Address updated successfully',
-                'data' => $address->fresh()
+                'data' => $address->fresh(),
+                'warning' => $emailSyncWarning,
             ]);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
@@ -557,6 +565,9 @@ class EmployeeAddressController extends Controller
             // Set this address as primary
             $address->update(['is_primary' => true]);
 
+            // Primary berpindah → email_work alamat baru ini jadi email login (reset password).
+            $emailSyncWarning = $this->syncEmailWorkToAuth($employeeId, $address);
+
             DB::commit();
 
             Log::info('=== PRIMARY ADDRESS SET SUCCESSFULLY ===', [
@@ -567,7 +578,8 @@ class EmployeeAddressController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Address set as primary successfully',
-                'data' => $address->fresh()
+                'data' => $address->fresh(),
+                'warning' => $emailSyncWarning,
             ]);
 
         } catch (\Exception $e) {
@@ -585,5 +597,48 @@ class EmployeeAddressController extends Controller
                 'message' => 'Error setting primary address'
             ], 500);
         }
+    }
+
+    /**
+     * Sinkronkan email_work alamat PRIMARY → auth_users.email.
+     *
+     * auth_users.email adalah sumber otoritatif untuk kirim set/reset password,
+     * sementara UI mengeditnya lewat field "Email (Work)" (employee_address.email_work).
+     * Agar keduanya konsisten, perubahan email_work pada alamat PRIMARY diteruskan
+     * ke auth_users.email. Hanya untuk alamat primary & email non-kosong; dilewati
+     * (dengan peringatan) bila email sudah dipakai akun lain (auth_users.email unik).
+     *
+     * @return string|null Pesan peringatan bila sinkronisasi dilewati, selain itu null.
+     */
+    private function syncEmailWorkToAuth($employeeId, EmployeeAddress $address): ?string
+    {
+        if (!$address->is_primary) return null;
+
+        $emailWork = trim((string) $address->email_work);
+        if ($emailWork === '') return null;
+
+        $authUser = DB::table('auth_users')->where('employee_id', $employeeId)->first();
+        if (!$authUser) return null;
+        if (strcasecmp((string) $authUser->email, $emailWork) === 0) return null; // sudah sama
+
+        $taken = DB::table('auth_users')->where('email', $emailWork)
+            ->where('id', '!=', $authUser->id)->exists();
+        if ($taken) {
+            Log::warning('Email work sync skipped — email already used by another account', [
+                'employee_id' => $employeeId,
+                'email' => $emailWork,
+            ]);
+            return "Email \"{$emailWork}\" is already used by another account — the login email (used for password reset) was not changed.";
+        }
+
+        DB::table('auth_users')->where('id', $authUser->id)
+            ->update(['email' => $emailWork, 'updated_at' => now()]);
+
+        Log::info('Synced email_work to auth_users.email', [
+            'employee_id' => $employeeId,
+            'email' => $emailWork,
+        ]);
+
+        return null;
     }
 }

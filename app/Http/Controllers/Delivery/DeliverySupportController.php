@@ -906,15 +906,15 @@ class DeliverySupportController extends Controller
     }
 
     /**
-     * Generate a Customer Deliverable sub-folder inside:
-     *   Delivery Support/Customer Deliverable/{padded_id} {CUSTOMER_NAME}/{subfolder_name}
+     * Generate a Customer Deliverable sub-folder inside the per-support folder:
+     *   Delivery Support/Customer Deliverable/{padded_id} {CUSTOMER}/{padded_id} {SUPPORT}/{subfolder_name}
      *
      * Logic:
      *  1. Build customer folder name from client_id + basicData.name_1
      *  2. Find or create the customer folder inside the root "Customer Deliverable" path
-     *  3. Create the sub-folder (user-supplied name) inside the customer folder
-     *  4. Generate anonymous share link for the sub-folder
-     *  5. Save IDs/URL to delivery_support
+     *  3. Find or create the per-support folder inside the customer folder (cached to delivery_support)
+     *  4. Create the sub-folder (user-supplied name) inside the support folder
+     *  5. Generate anonymous share link for the sub-folder
      */
     public function generateCustomerDeliverableFolder(Request $request, DeliverySupport $support)
     {
@@ -925,46 +925,43 @@ class DeliverySupportController extends Controller
             'subfolder_name.not_regex' => 'Sub-folder name cannot contain: \\ / : * ? " < > |',
         ]);
 
-        $support->load('client.basicData');
-
-        $client = $support->client;
-        if (!$client || !$client->basicData) {
+        $customerFolderName = $support->customerDeliverableFolderName();
+        if ($customerFolderName === null) {
             return response()->json([
                 'success' => false,
                 'message' => 'Client data not found. Please assign a client to this support first.',
             ], 422);
         }
 
-        // "001 PERTAMINA" — padded client_id + uppercase name
-        $customerFolderName = str_pad($support->client_id, 3, '0', STR_PAD_LEFT)
-            . ' ' . strtoupper($client->basicData->name_1);
-
-        $rootPath    = config('services.microsoft_graph.customer_deliverable_path', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE');
-        $subfolderName = trim($request->input('subfolder_name'));
+        $supportFolderName = $support->supportDeliverableFolderName();
+        $rootPath          = config('services.microsoft_graph.customer_deliverable_path', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE');
+        $subfolderName     = trim($request->input('subfolder_name'));
 
         try {
             $oneDrive = new OneDriveService();
 
-            // Step 1: find or create the customer folder
+            // Step 1+2: find or create the customer folder
             $customerFolderId = $oneDrive->findOrCreateFolderInPath($rootPath, $customerFolderName);
 
-            // Step 2: create the sub-folder inside the customer folder
-            $subFolderId = $oneDrive->createSubFolder($customerFolderId, $subfolderName);
-
-            // Step 3: generate anonymous share link for the sub-folder
-            $shareUrl = $oneDrive->createAnonymousLink($subFolderId);
-
-            // Step 4: persist
+            // Step 3: find or create the per-support folder; cache it on the support
+            $supportFolderId = $oneDrive->findOrCreateSubFolderById($customerFolderId, $supportFolderName);
             $support->update([
-                'onedrive_deliverable_folder_id'  => $subFolderId,
-                'onedrive_deliverable_folder_url' => $shareUrl,
+                'onedrive_deliverable_folder_id'  => $supportFolderId,
+                'onedrive_deliverable_folder_url' => $oneDrive->createAnonymousLink($supportFolderId),
             ]);
+
+            // Step 4: create the user sub-folder inside the support folder
+            $subFolderId = $oneDrive->createSubFolder($supportFolderId, $subfolderName);
+
+            // Step 5: anonymous share link for the new sub-folder
+            $shareUrl = $oneDrive->createAnonymousLink($subFolderId);
 
             return response()->json([
                 'success'         => true,
                 'message'         => 'Customer deliverable folder created successfully.',
                 'folder_url'      => $shareUrl,
                 'customer_folder' => $customerFolderName,
+                'support_folder'  => $supportFolderName,
                 'subfolder'       => $subfolderName,
             ]);
 
@@ -972,6 +969,7 @@ class DeliverySupportController extends Controller
             Log::error('OneDrive generateCustomerDeliverableFolder failed', [
                 'support_id'      => $support->id,
                 'customer_folder' => $customerFolderName ?? null,
+                'support_folder'  => $supportFolderName ?? null,
                 'subfolder'       => $subfolderName,
                 'error'           => $e->getMessage(),
             ]);
@@ -983,26 +981,27 @@ class DeliverySupportController extends Controller
     }
 
     /**
-     * Return list of sub-folders inside the customer's deliverable folder from OneDrive.
+     * Return list of sub-folders inside this support's deliverable folder from OneDrive.
+     * Path: {root}/{customer}/{support}
      */
     public function getDeliverableSubfolders(DeliverySupport $support)
     {
-        $support->load('client.basicData');
-        $client = $support->client;
-
-        if (!$client || !$client->basicData) {
+        $customerFolderName = $support->customerDeliverableFolderName();
+        if ($customerFolderName === null) {
             return response()->json(['subfolders' => []]);
         }
 
-        $customerFolderName = str_pad($support->client_id, 3, '0', STR_PAD_LEFT)
-            . ' ' . strtoupper($client->basicData->name_1);
+        $supportFolderName  = $support->supportDeliverableFolderName();
         $rootPath           = config('services.microsoft_graph.customer_deliverable_path', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE');
-        $customerFolderPath = $rootPath . '/' . $customerFolderName;
+        $supportFolderPath  = $rootPath . '/' . $customerFolderName . '/' . $supportFolderName;
 
         try {
             $oneDrive   = new OneDriveService();
-            $subfolders = $oneDrive->listFolderChildrenByPath($customerFolderPath);
-            return response()->json(['subfolders' => $subfolders, 'customer_folder' => $customerFolderName]);
+            $subfolders = $oneDrive->listFolderChildrenByPath($supportFolderPath);
+            return response()->json([
+                'subfolders'      => $subfolders,
+                'customer_folder' => $customerFolderName . ' / ' . $supportFolderName,
+            ]);
         } catch (\Throwable $e) {
             $message = $e->getMessage();
             // Berikan pesan error yang lebih jelas jika akun OneDrive service tidak ditemukan
@@ -1011,7 +1010,7 @@ class DeliverySupportController extends Controller
             }
             Log::warning('getDeliverableSubfolders: OneDrive error', [
                 'support_id' => $support->id,
-                'path'       => $customerFolderPath,
+                'path'       => $supportFolderPath,
                 'error'      => $e->getMessage(),
             ]);
             return response()->json(['subfolders' => [], 'error' => $message]);
