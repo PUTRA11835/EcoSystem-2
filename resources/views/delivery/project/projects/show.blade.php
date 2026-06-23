@@ -1713,9 +1713,10 @@
                     </div>
                 </div>
 
-                {{-- Budget / Release / Actual grid (disembunyikan untuk parent-with-children) --}}
+                {{-- Budget / Release grid (disembunyikan untuk parent-with-children) --}}
+                {{-- Actual TIDAK diinput di sini — nilainya otomatis dari total expense detail --}}
                 <div id="costAmountsSection">
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Budget (Rp)</label>
                             <input type="text" id="costBudgetInput" inputmode="numeric"
@@ -1731,15 +1732,16 @@
                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus text-right"
                                    placeholder="0">
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                                Actual (Rp)
-                                <span class="inline-block w-3 h-3 rounded-full bg-orange-500"></span>
-                            </label>
-                            <input type="text" id="costActualInput" inputmode="numeric"
-                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus text-right"
-                                   placeholder="0">
-                        </div>
+                    </div>
+
+                    {{-- Info: Actual otomatis dari expense detail --}}
+                    <div class="mt-3 flex items-start gap-2 text-xs text-gray-500">
+                        <span class="inline-block w-3 h-3 rounded-full bg-orange-500 mt-0.5 flex-shrink-0"></span>
+                        <span>
+                            <span class="font-medium text-orange-700">Actual</span> is calculated automatically
+                            from the total of the expense details. Click the
+                            <span class="font-medium">Actual</span> column on the table to add or view expenses.
+                        </span>
                     </div>
 
                     {{-- Live preview computed values --}}
@@ -1859,22 +1861,12 @@
             {{-- Scrollable body --}}
             <div class="overflow-y-auto flex-1 p-6 space-y-5">
 
-                {{-- Summary bar: nominal vs total rincian --}}
-                <div id="actualDetailSummary" class="grid grid-cols-3 gap-3">
-                    <div class="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
+                {{-- Summary bar: Actual = total of all expense details --}}
+                <div id="actualDetailSummary" class="flex justify-center">
+                    <div class="bg-orange-50 border border-orange-200 rounded-lg px-6 py-4 text-center w-full max-w-xs">
                         <p class="text-xs text-orange-600 font-medium uppercase tracking-wide mb-1">Actual Amount</p>
-                        <p class="text-sm font-bold text-orange-700 font-mono" id="adNominalActual">—</p>
-                        <p class="text-xs text-orange-400 mt-0.5">Recorded on cost item</p>
-                    </div>
-                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
-                        <p class="text-xs text-blue-600 font-medium uppercase tracking-wide mb-1">Expense Total</p>
-                        <p class="text-sm font-bold text-blue-700 font-mono" id="adTotalItems">Rp 0</p>
-                        <p class="text-xs text-blue-400 mt-0.5">Sum of all expenses</p>
-                    </div>
-                    <div class="rounded-lg p-3 text-center border" id="adStatusCard">
-                        <p class="text-xs font-medium uppercase tracking-wide mb-1" id="adStatusLabel">Status</p>
-                        <p class="text-sm font-bold font-mono" id="adStatusValue">—</p>
-                        <p class="text-xs mt-0.5" id="adStatusNote"></p>
+                        <p class="text-lg font-bold text-orange-700 font-mono" id="adTotalItems">Rp 0</p>
+                        <p class="text-xs text-orange-400 mt-0.5">Auto-calculated from the expense total below</p>
                     </div>
                 </div>
 
@@ -2519,8 +2511,11 @@
 
     // Actual detail modal state
     let _adCostId      = null;  // current cost item id
-    let _adActualAmt   = null;  // actual_amount on the cost item
-    let _adTotal       = 0;     // sum of expense line-items
+    let _adTotal       = 0;     // sum of expense line-items (= the actual amount)
+    let _adDirty       = false; // expenses changed → main cost table needs reload
+
+    // Cost form modal: current actual_amount (derived from expenses, read-only here)
+    let _currentActual = 0;
 
     // ── Init ───────────────────────────────────────────────────────
     async function init() {
@@ -2575,7 +2570,8 @@
         // For parent: aggregate display; for child/leaf: own values
         const budget  = item.display_budget;
         const release = item.display_release;
-        const actual  = item.display_actual;
+        // Actual is derived from expense details → always numeric (0 = no expenses).
+        const actual  = item.display_actual ?? 0;
         const avBudg  = item.avail_budget;
         const avRel   = item.avail_release;
 
@@ -2694,7 +2690,7 @@
         document.getElementById('costNameInput').value     = '';
         document.getElementById('costBudgetInput').value   = '';
         document.getElementById('costReleaseInput').value  = '';
-        document.getElementById('costActualInput').value   = '';
+        _currentActual = 0;
         document.getElementById('costModalId').value       = '';
         document.getElementById('costModalParentId').value = '';
         document.getElementById('costModalMode').value     = 'create';
@@ -2710,9 +2706,10 @@
     function refreshPreview() {
         const b  = parseNum(document.getElementById('costBudgetInput').value.replace(/\./g,''));
         const r  = parseNum(document.getElementById('costReleaseInput').value.replace(/\./g,''));
-        const a  = parseNum(document.getElementById('costActualInput').value.replace(/\./g,''));
+        // Actual is derived from expense detail (not an input on this form).
+        const a  = _currentActual ?? 0;
         const ab = (b !== null || r !== null) ? (b ?? 0) - (r ?? 0) : null;
-        const ar = (r !== null || a !== null) ? (r ?? 0) - (a ?? 0) : null;
+        const ar = (r !== null || a > 0) ? (r ?? 0) - a : null;
 
         const abEl = document.getElementById('previewAvailBudget');
         const arEl = document.getElementById('previewAvailRelease');
@@ -2810,7 +2807,8 @@
                 }
                 setFmtVal('costBudgetInput',  item.budget);
                 setFmtVal('costReleaseInput', item.release_amount);
-                setFmtVal('costActualInput',  item.actual_amount);
+                // Actual is derived from expenses → used for preview only, not editable here.
+                _currentActual = item.actual_amount ?? 0;
                 refreshPreview();
             }
 
@@ -2864,7 +2862,7 @@
                 cost_type:      costType,
                 budget:         amountsHidden ? null : getRawVal('costBudgetInput'),
                 release_amount: amountsHidden ? null : getRawVal('costReleaseInput'),
-                actual_amount:  amountsHidden ? null : getRawVal('costActualInput'),
+                // actual_amount is derived server-side from expense details — not sent here.
                 _token:         getCsrf(),
             };
 
@@ -2908,16 +2906,10 @@
 
         async openActualDetailModal(costId, costName) {
             _adCostId = costId;
-
-            // Find actual_amount from cached cost tree
-            const item = findItem(costId, _costs);
-            _adActualAmt = item ? item.actual_amount : null;
+            _adDirty  = false;
 
             // Set subtitle
             document.getElementById('actualDetailSubtitle').textContent = costName;
-            // Set nominal actual card
-            document.getElementById('adNominalActual').textContent =
-                _adActualAmt !== null ? `Rp ${fmt(_adActualAmt)}` : '—';
 
             // Reset form
             _adResetForm();
@@ -2929,11 +2921,16 @@
             await _adLoadItems();
         },
 
-        closeActualDetailModal() {
+        async closeActualDetailModal() {
             document.getElementById('actualDetailModal').classList.add('hidden');
-            _adCostId    = null;
-            _adActualAmt = null;
-            _adTotal     = 0;
+            _adCostId = null;
+            _adTotal  = 0;
+
+            // Expenses changed → actual_amount was updated server-side; refresh the table.
+            if (_adDirty) {
+                _adDirty = false;
+                await load();
+            }
         },
 
         async addExpenseItem() {
@@ -2968,6 +2965,7 @@
                 });
 
                 _adTotal = res.data.total ?? 0;
+                _adDirty = true;
                 _adAppendRow(res.data.item, _adGetCurrentCount() + 1);
                 _adUpdateSummary();
                 _adResetForm();
@@ -2989,6 +2987,7 @@
             try {
                 const res = await axios.delete(`${BASE_URL}/${_adCostId}/items/${itemId}`);
                 _adTotal = res.data.total ?? 0;
+                _adDirty = true;
                 rowEl.remove();
                 _adRenumberRows();
                 _adUpdateSummary();
@@ -3117,56 +3116,9 @@
     }
 
     function _adUpdateSummary() {
-        // Update total card & footer
-        document.getElementById('adTotalItems').textContent = fmtRp(_adTotal);
+        // Actual amount = sum of all expense items. Update header card & footer.
+        document.getElementById('adTotalItems').textContent  = fmtRp(_adTotal);
         document.getElementById('adFooterTotal').textContent = fmtRp(_adTotal);
-
-        // Status card: compare total vs actual_amount
-        const statusCard  = document.getElementById('adStatusCard');
-        const statusLabel = document.getElementById('adStatusLabel');
-        const statusValue = document.getElementById('adStatusValue');
-        const statusNote  = document.getElementById('adStatusNote');
-
-        if (_adActualAmt === null) {
-            statusCard.className  = 'rounded-lg p-3 text-center border border-gray-200 bg-gray-50';
-            statusLabel.className = 'text-xs text-gray-500 font-medium uppercase tracking-wide mb-1';
-            statusLabel.textContent = 'Status';
-            statusValue.className   = 'text-sm font-bold font-mono text-gray-400';
-            statusValue.textContent = '—';
-            statusNote.className    = 'text-xs text-gray-400 mt-0.5';
-            statusNote.textContent  = 'Actual amount not yet set';
-            return;
-        }
-
-        const diff = _adTotal - _adActualAmt;
-        if (Math.abs(diff) < 0.01) {
-            // Match
-            statusCard.className  = 'rounded-lg p-3 text-center border border-green-300 bg-green-50';
-            statusLabel.className = 'text-xs text-green-600 font-medium uppercase tracking-wide mb-1';
-            statusLabel.textContent = 'Status';
-            statusValue.className   = 'text-sm font-bold font-mono text-green-700';
-            statusValue.textContent = 'Matched';
-            statusNote.className    = 'text-xs text-green-500 mt-0.5';
-            statusNote.textContent  = 'Expense total matches actual amount';
-        } else if (diff > 0) {
-            // Over
-            statusCard.className  = 'rounded-lg p-3 text-center border border-red-300 bg-red-50';
-            statusLabel.className = 'text-xs text-red-600 font-medium uppercase tracking-wide mb-1';
-            statusLabel.textContent = 'Status';
-            statusValue.className   = 'text-sm font-bold font-mono text-red-700';
-            statusValue.textContent = 'Exceeded';
-            statusNote.className    = 'text-xs text-red-400 mt-0.5';
-            statusNote.textContent  = `+${fmtRp(diff)} over the actual amount`;
-        } else {
-            // Under
-            statusCard.className  = 'rounded-lg p-3 text-center border border-yellow-300 bg-yellow-50';
-            statusLabel.className = 'text-xs text-yellow-600 font-medium uppercase tracking-wide mb-1';
-            statusLabel.textContent = 'Status';
-            statusValue.className   = 'text-sm font-bold font-mono text-yellow-700';
-            statusValue.textContent = 'Short';
-            statusNote.className    = 'text-xs text-yellow-500 mt-0.5';
-            statusNote.textContent  = `${fmtRp(diff)} below the actual amount`;
-        }
     }
 
     function _adResetForm() {
@@ -3187,7 +3139,7 @@
         // Setup axios CSRF header — dilakukan di sini agar axios sudah tersedia
         axios.defaults.headers.common['X-CSRF-TOKEN'] = getCsrf();
 
-        ['costBudgetInput', 'costReleaseInput', 'costActualInput', 'adAmountInput'].forEach(id => {
+        ['costBudgetInput', 'costReleaseInput', 'adAmountInput'].forEach(id => {
             const el = document.getElementById(id);
             if (el) formatCurrencyInput(el);
         });

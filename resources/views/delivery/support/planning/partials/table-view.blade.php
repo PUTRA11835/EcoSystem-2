@@ -40,9 +40,9 @@
     <div class="overflow-x-auto touch-pan-x">
         <div class="min-w-[800px] lg:min-w-0">
             <table class="w-full divide-y divide-gray-200" id="activitiesTable">
-                <thead class="bg-gray-50 sticky top-0 z-10">
+                <thead class="bg-gray-50 sticky top-0 z-20">
                     <tr>
-                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-20 min-w-[250px] sm:min-w-[400px]">
+                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-30 min-w-[250px] sm:min-w-[400px]">
                             Phase / Group / Stage / Activity
                         </th>
                         <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-20 sm:w-28">
