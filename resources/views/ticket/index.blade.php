@@ -156,12 +156,32 @@
                                 <span id="sort-icon-last_update" class="sort-icon text-gray-300 font-normal normal-case tracking-normal">⇅</span>
                             </div>
                         </th>
-                        {{-- TIKET: sortable --}}
-                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200 sticky bg-gray-50 z-20 th-sortable cursor-pointer transition-colors"
-                            style="min-width:120px;left:110px;" onclick="sortTickets('ticket_number')" title="Sort by Ticket Number">
-                            <div class="flex items-center gap-1">
-                                <span>Tiket</span>
-                                <span id="sort-icon-ticket_number" class="sort-icon text-gray-300 font-normal normal-case tracking-normal">⇅</span>
+                        {{-- TIKET: sortable + keyword filter --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 sticky bg-gray-50 z-20" style="min-width:120px;left:110px;">
+                            <button type="button" id="ticketFilterBtn" onclick="toggleTicketFilter(event)"
+                                    class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Tiket</span>
+                                <svg id="ticketFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="ticketFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                                <span id="sort-icon-ticket_number" class="sort-icon text-gray-300 font-normal normal-case tracking-normal text-xs ml-auto">⇅</span>
+                            </button>
+                            <div id="ticketFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search ticket number</label>
+                                <input type="text" id="ticketFilterInput" placeholder="e.g. TKT-2024-001…"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                       oninput="onTicketFilterInput()">
+                                <p class="text-[10px] text-gray-400 mt-1.5">Matches tickets whose number contains this text.</p>
+                                <div class="border-t border-gray-100 mt-3 pt-2">
+                                    <span class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sort</span>
+                                    <div class="flex gap-2">
+                                        <button type="button" onclick="setTicketNumberSort('asc')"  id="ticketSortAsc"  class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↑ Oldest</button>
+                                        <button type="button" onclick="setTicketNumberSort('desc')" id="ticketSortDesc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↓ Newest</button>
+                                    </div>
+                                </div>
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearTicketFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    <button type="button" onclick="closeTicketFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
+                                </div>
                             </div>
                         </th>
                         {{-- DESCRIPTION: keyword search filter --}}
@@ -1252,7 +1272,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             return matchesCard
                 && matchColCustomer && matchColPic && matchColPriority && matchColScale
                 && matchColStatus && matchColType
-                && matchDate && matchDesc;
+                && matchDate && matchDesc && matchTicket;
         });
         updateColFilterIndicators();
         updateDateFilterIndicator();
@@ -1291,6 +1311,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         document.getElementById('dateFilterFrom').value = '';
         document.getElementById('dateFilterTo').value   = '';
         document.getElementById('dateFilterError').classList.add('hidden');
+        resetSort();
         applyAdvancedFilters();
     }
 
@@ -1298,6 +1319,15 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         currentTicketSort = { key: 'date', dir };
         updateTicketSortIcons();
         updateDateSortButtons();
+        updateTicketNumberSortButtons();
+        renderTickets();
+    }
+
+    function resetSort() {
+        currentTicketSort = { key: 'last_update', dir: 'desc' };
+        updateTicketSortIcons();
+        updateDateSortButtons();
+        updateTicketNumberSortButtons();
         renderTickets();
     }
 
@@ -1361,6 +1391,26 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         if (icon) icon.classList.toggle('text-gray-300', kw === '');
     }
 
+    function setTicketNumberSort(dir) {
+        currentTicketSort = { key: 'ticket_number', dir };
+        updateTicketSortIcons();
+        updateTicketNumberSortButtons();
+        updateDateSortButtons();
+        renderTickets();
+    }
+
+    function updateTicketNumberSortButtons() {
+        const asc  = document.getElementById('ticketSortAsc');
+        const desc = document.getElementById('ticketSortDesc');
+        if (!asc || !desc) return;
+        const isKey       = currentTicketSort.key === 'ticket_number';
+        const activeCls   = ['bg-red-700','text-white','border-red-700','hover:bg-red-800'];
+        const inactiveCls = ['border-gray-200','hover:bg-gray-50'];
+        [asc, desc].forEach(b => { activeCls.forEach(c => b.classList.remove(c)); inactiveCls.forEach(c => b.classList.add(c)); });
+        if (isKey && currentTicketSort.dir === 'asc')  { inactiveCls.forEach(c => asc.classList.remove(c));  activeCls.forEach(c => asc.classList.add(c));  }
+        if (isKey && currentTicketSort.dir === 'desc') { inactiveCls.forEach(c => desc.classList.remove(c)); activeCls.forEach(c => desc.classList.add(c)); }
+    }
+
     // ── Ticket Number Keyword Filter (debounced) ──────────────────────────
     let _ticketFilterTimer = null;
     function toggleTicketFilter(ev) {
@@ -1371,8 +1421,11 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         document.getElementById('dateFilterPanel')?.classList.add('hidden');
         document.getElementById('descFilterPanel')?.classList.add('hidden');
         if (open) { panel.classList.add('hidden'); return; }
+        // Move to body to escape the sticky-th stacking context so clicks work
+        if (panel.parentElement !== document.body) document.body.appendChild(panel);
         positionPanelUnder(btn, panel);
         panel.classList.remove('hidden');
+        updateTicketNumberSortButtons();
         document.getElementById('ticketFilterInput')?.focus();
     }
 
@@ -1388,6 +1441,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     function clearTicketFilter() {
         const input = document.getElementById('ticketFilterInput');
         if (input) input.value = '';
+        resetSort();
         applyAdvancedFilters();
     }
 
