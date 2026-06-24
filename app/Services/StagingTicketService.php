@@ -168,7 +168,7 @@ class StagingTicketService
             }
         }
 
-        // Gunakan receivedDateTime email sebagai created_at agar waktu sesuai email asli.
+        // Gunakan receivedDateTime email sebagai created_at agar waktu SLA sesuai email asli.
         // $emailData['received_at'] adalah Carbon UTC dari Graph API → konversi ke app timezone.
         $appTz      = config('app.timezone', 'Asia/Jakarta');
         $receivedAt = isset($emailData['received_at'])
@@ -189,18 +189,9 @@ class StagingTicketService
             'email_body_html'    => $emailData['body_html'] ?? null,
             'has_attachments'    => $emailData['has_attachments'] ?? false,
             'cc_emails'          => $emailData['cc_emails'] ?? null,
+            'created_at'         => $receivedAt,
+            'updated_at'         => $receivedAt,
         ]);
-
-        // Override created_at dengan waktu asli email (Eloquent timestamps() auto-set now())
-        if (isset($emailData['received_at'])) {
-            \Illuminate\Support\Facades\DB::table('staging_tickets')
-                ->where('id', $staging->id)
-                ->update([
-                    'created_at' => $receivedAt->toDateTimeString(),
-                    'updated_at' => $receivedAt->toDateTimeString(),
-                ]);
-            $staging->created_at = $receivedAt;
-        }
 
         // SLA clock mulai sejak email masuk
         try {

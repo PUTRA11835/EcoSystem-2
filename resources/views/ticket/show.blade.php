@@ -9,6 +9,15 @@
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" /></svg>
     DS: {{ $deliverySupport->name }}@if($deliverySupport->type) <span class="opacity-70">({{ $deliverySupport->type }})</span>@endif
 </span>
+@php
+    $managerLabel = $deliverySupport->support_manager_name ?: '<span class="italic opacity-50">Unassigned</span>';
+    $adminLabel   = $deliverySupport->support_admin_name   ?: '<span class="italic opacity-50">Unassigned</span>';
+    $hasAny = $deliverySupport->support_manager_name || $deliverySupport->support_admin_name;
+@endphp
+<span class="inline-flex items-center gap-1 ml-1 px-2 py-0.5 rounded-md text-xs font-semibold align-middle {{ $hasAny ? 'bg-gray-100 text-gray-600' : 'bg-yellow-50 text-yellow-600 border border-yellow-200' }}">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" /></svg>
+    {!! $managerLabel !!} / {!! $adminLabel !!}
+</span>
 @endif
 @endsection
 
@@ -196,7 +205,18 @@
                         <i class="fas fa-envelope text-[10px]"></i>
                         <span>Replies will be sent to customer via <strong>Email</strong></span>
                     </div>
+                    @elseif($ticket->channel === 'imported')
+                    {{-- Imported ticket: offer option to start email thread --}}
+                    <div class="px-4 pt-2 pb-0.5 flex items-center gap-2">
+                        <i class="fas fa-comment text-[10px] text-gray-400"></i>
+                        <span class="text-xs text-gray-400 flex-1">Replies saved internally — no email will be sent to customer</span>
+                        <button onclick="showEmailInitMode()" id="btnStartEmailThread"
+                            class="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline transition-colors">
+                            <i class="fas fa-envelope text-[10px]"></i> Start Email to Customer
+                        </button>
+                    </div>
                     @else
+                    {{-- Ticket web biasa (bukan import): tidak ada opsi email --}}
                     <div class="px-4 pt-2 pb-0.5 flex items-center gap-1.5 text-xs text-gray-400">
                         <i class="fas fa-comment text-[10px]"></i>
                         <span>Replies saved internally — no email will be sent to customer</span>
@@ -220,9 +240,8 @@
                  menyembunyikan konten yang ter-collapse. --}}
             <div id="replyComposeInner" style="max-height:600px;overflow:visible;opacity:1;transition:max-height .2s ease,opacity .2s ease;">
 
-            {{-- To Row: tag input — initial value dari resolved customer email, bisa ditambah/dihapus --}}
-            @if($ticket->channel === 'email' || $ticket->email_thread_id)
-            <div class="px-4 pt-1.5" id="toRow">
+            {{-- To Row: selalu dirender; untuk non-email ticket dikontrol JS (showEmailInitMode/hideEmailInitMode) --}}
+            <div class="px-4 pt-1.5" id="toRow" @if(!($ticket->channel === 'email' || $ticket->email_thread_id)) style="display:none" @endif>
                 <div class="flex flex-wrap items-center gap-1 min-h-[30px] border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text" onclick="document.getElementById('toInput').focus()">
                     <span class="text-[11px] text-gray-500 font-semibold mr-0.5 flex-shrink-0">To</span>
                     <div id="toTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
@@ -234,11 +253,9 @@
                            onpaste="handleToPaste(event)">
                 </div>
             </div>
-            @endif
 
-            {{-- CC Row: hanya tampil untuk email tickets --}}
-            @if($ticket->channel === 'email' || $ticket->email_thread_id)
-            <div class="px-4 pt-1.5" id="ccRow">
+            {{-- CC Row: selalu dirender; untuk non-email ticket dikontrol JS --}}
+            <div class="px-4 pt-1.5" id="ccRow" @if(!($ticket->channel === 'email' || $ticket->email_thread_id)) style="display:none" @endif>
                 <div class="flex flex-wrap items-center gap-1 min-h-[30px] border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text" onclick="document.getElementById('ccInput').focus()">
                     <span class="text-[11px] text-gray-500 font-semibold mr-0.5 flex-shrink-0">CC</span>
                     <div id="ccTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
@@ -250,7 +267,6 @@
                            onpaste="handleCcPaste(event)">
                 </div>
             </div>
-            @endif
 
             {{-- Reply-to context bar (WhatsApp-style) --}}
             <div id="replyContextBar" class="hidden px-4 pt-2">
@@ -298,11 +314,12 @@
                     </button>
                     @if($user->hasAnyRole([1, 5, 6, 7]))
                     <button id="meetingBtn" onclick="openMeetingPanel()"
-                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 {{ $inMeeting ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100' }}">
+                        {{ $inMeeting ? 'disabled title=\'Meeting sedang berjalan\'' : '' }}
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 {{ $inMeeting ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100' }}">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
                         </svg>
-                        {{ $inMeeting ? 'End Meeting' : 'Meeting' }}
+                        {{ $inMeeting ? 'Meeting Active' : 'Meeting' }}
                     </button>
                     @endif
                     <span id="attachCount" class="hidden text-xs text-blue-600 font-medium ml-2"></span>
@@ -311,7 +328,22 @@
                     <button onclick="sendReply('reply')" class="ml-auto inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
                         Send via Email
                     </button>
+                    @elseif($ticket->email_thread_id)
+                    <button onclick="sendReply('reply')" class="ml-auto inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
+                        Send Reply
+                    </button>
+                    @elseif($ticket->channel === 'imported')
+                    {{-- Imported ticket: Send First Email button (hidden, shown when email init mode is active) --}}
+                    <button id="btnSendInitEmail" onclick="doInitiateEmail()"
+                        class="ml-auto hidden inline-flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
+                        <i class="fas fa-paper-plane text-[10px]"></i> Send First Email
+                    </button>
+                    <button id="btnCancelInitEmail" onclick="hideEmailInitMode()"
+                        class="hidden inline-flex items-center px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-200 transition-all duration-200">
+                        Cancel
+                    </button>
                     @else
+                    {{-- Ticket web biasa: Send Reply normal --}}
                     <button onclick="sendReply('reply')" class="ml-auto inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
                         Send Reply
                     </button>
@@ -991,7 +1023,7 @@
 
 /* Status delivery indicator (WhatsApp-style) — hanya untuk reply helpdesk */
 .msg-status-row {
-    display: flex; justify-content: flex-end;
+    display: flex; justify-content: flex-end; align-items: center; gap: 8px;
     margin-top: 6px; padding-top: 4px;
     border-top: 1px solid rgba(0,0,0,0.04);
 }
@@ -1006,6 +1038,25 @@
 }
 .msg-status .check-pair svg { width: 12px; height: 12px; }
 .msg-status .check-pair svg + svg { margin-left: -7px; }
+
+/* SLA button next to Read/status indicator */
+.sla-open-btn {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 10px; font-weight: 600;
+    color: #9ca3af;
+    background: #f9fafb;
+    border: 1px solid #d1d5db;
+    border-radius: 5px;
+    padding: 2px 6px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.sla-open-btn:hover { color: #6b7280; border-color: #9ca3af; background: #f3f4f6; }
+.sla-open-btn.has-sla { color: #16a34a; border-color: #86efac; background: #f0fdf4; }
+.sla-open-btn.has-sla:hover { color: #15803d; border-color: #4ade80; background: #dcfce7; }
+.sla-open-btn svg { width: 10px; height: 10px; flex-shrink: 0; }
 
 /* Message content */
 .message-content p { margin-bottom: 0.25rem; }
@@ -1082,6 +1133,18 @@
     box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15) !important;
 }
 .primary-text { color: var(--primary-color) !important; }
+
+/* Hide native calendar/clock icons so our custom SVGs show cleanly */
+#meetingStartDate::-webkit-calendar-picker-indicator,
+#meetingEndDate::-webkit-calendar-picker-indicator,
+#meetingStartHour::-webkit-calendar-picker-indicator,
+#meetingEndHour::-webkit-calendar-picker-indicator {
+    opacity: 0;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
 </style>
 
 {{-- Assign to Delivery Support Modal --}}
@@ -1699,28 +1762,71 @@
 
         {{-- Body --}}
         <div class="px-6 pb-2 space-y-3">
-            <div id="meetingActiveInfo" class="hidden flex items-center gap-2 text-sm px-3 py-2 rounded-lg">
-                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                <span id="meetingActiveInfoText"></span>
-            </div>
-
             {{-- Link meeting — hanya tampil saat mulai meeting --}}
             <div id="meetingLinkWrap">
-                <label class="block text-sm font-medium text-gray-700 mb-1.5">
-                    Link Meeting
-                    <span class="text-gray-400 font-normal">(opsional)</span>
+                {{-- Waktu --}}
+                <label id="meetingTimesLabel" class="block text-sm font-medium text-gray-700 mb-2">
+                    Waktu Meeting
                 </label>
-                <div class="flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 transition-all">
-                    <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
-                    </svg>
-                    <input id="meetingLink" type="url"
-                        class="flex-1 text-sm bg-transparent focus:outline-none"
-                        placeholder="https://meet.google.com/… atau https://zoom.us/…">
+
+                {{-- Mulai: tanggal + jam --}}
+                <div id="meetingStartRow" class="mb-2">
+                    <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">Mulai</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
+                            <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <input id="meetingStartDate" type="date"
+                                class="flex-1 text-sm bg-transparent focus:outline-none text-gray-700 min-w-0">
+                        </div>
+                        <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
+                            <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <input id="meetingStartHour" type="time"
+                                class="flex-1 text-sm bg-transparent focus:outline-none text-gray-700 min-w-0">
+                        </div>
+                    </div>
                 </div>
-                <p class="mt-1 text-xs text-gray-400">Link akan dikirim via email ke customer</p>
+
+                {{-- Selesai: tanggal + jam --}}
+                <div class="mb-3">
+                    <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">Selesai</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
+                            <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <input id="meetingEndDate" type="date"
+                                class="flex-1 text-sm bg-transparent focus:outline-none text-gray-700 min-w-0">
+                        </div>
+                        <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
+                            <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <input id="meetingEndHour" type="time"
+                                class="flex-1 text-sm bg-transparent focus:outline-none text-gray-700 min-w-0">
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Link --}}
+                <div id="meetingLinkSection">
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                        Link Meeting
+                        <span class="text-gray-400 font-normal">(opsional)</span>
+                    </label>
+                    <div class="flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 transition-all">
+                        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                        </svg>
+                        <input id="meetingLink" type="url"
+                            class="flex-1 text-sm bg-transparent focus:outline-none"
+                            placeholder="https://meet.google.com/… atau https://zoom.us/…">
+                    </div>
+                    <p class="mt-1 text-xs text-gray-400">Waktu dan link akan dikirim via email ke customer</p>
+                </div>
             </div>
 
             <div>
@@ -1780,6 +1886,88 @@
     function cancelReply() {
         replyToId = null;
         document.getElementById('replyContextBar').classList.add('hidden');
+    }
+
+    // ── Initiate Email Mode (untuk non-email tickets) ─────────────────────────
+
+    let _emailInitMode = false;
+
+    function showEmailInitMode() {
+        _emailInitMode = true;
+        const toRow     = document.getElementById('toRow');
+        const ccRow     = document.getElementById('ccRow');
+        const btnStart  = document.getElementById('btnStartEmailThread');
+        const btnSend   = document.getElementById('btnSendInitEmail');
+        const btnCancel = document.getElementById('btnCancelInitEmail');
+
+        if (toRow)     toRow.style.display = '';
+        if (ccRow)     ccRow.style.display = '';
+        if (btnStart)  btnStart.style.display = 'none';
+        if (btnSend)   btnSend.classList.remove('hidden');
+        if (btnCancel) btnCancel.classList.remove('hidden');
+
+        toEmails = [];
+        renderToTags();
+        quillEditor && quillEditor.focus();
+    }
+
+    function hideEmailInitMode() {
+        _emailInitMode = false;
+        const toRow     = document.getElementById('toRow');
+        const ccRow     = document.getElementById('ccRow');
+        const btnStart  = document.getElementById('btnStartEmailThread');
+        const btnSend   = document.getElementById('btnSendInitEmail');
+        const btnCancel = document.getElementById('btnCancelInitEmail');
+
+        if (toRow)     toRow.style.display = 'none';
+        if (ccRow)     ccRow.style.display = 'none';
+        if (btnStart)  btnStart.style.display = '';
+        if (btnSend)   btnSend.classList.add('hidden');
+        if (btnCancel) btnCancel.classList.add('hidden');
+
+        toEmails = [];
+        renderToTags();
+    }
+
+    async function doInitiateEmail() {
+        const to = toEmails[0] ?? '';
+        if (!to) { showNotification('Please enter a recipient email address in the To field.', 'error'); return; }
+
+        commitToInput();
+        commitCcInput();
+
+        const rawHtml  = quillEditor ? quillEditor.root.innerHTML : '';
+        const bodyHtml = trimQuillHtml(rawHtml);
+
+        const btn = document.getElementById('btnSendInitEmail');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<svg class="animate-spin h-3 w-3 inline mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> Sending...'; }
+
+        try {
+            const ccStr = ccEmails.map(e => (typeof e === 'string' ? e : e.address)).join(', ');
+            const res   = await fetch(`/api/tickets/${ticketId}/initiate-email`, {
+                method:  'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type':     'application/json',
+                    'Accept':           'application/json',
+                    'X-CSRF-TOKEN':     document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ to, cc: ccStr, body: bodyHtml }),
+            });
+
+            const json = await res.json();
+            if (json.success) {
+                showNotification('Email sent successfully. The chat thread is now active.', 'success');
+                setTimeout(() => location.reload(), 1200);
+            } else {
+                showNotification(json.message ?? 'Failed to send email.', 'error');
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane text-[10px]"></i> Send First Email'; }
+            }
+        } catch (err) {
+            showNotification('Error: ' + err.message, 'error');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane text-[10px]"></i> Send First Email'; }
+        }
     }
 
     function scrollToMessage(msgId) {
@@ -2610,6 +2798,66 @@
         return `<div class="msg-status" title="Saved to ticket">${ICON_CHECK_SINGLE}<span>Sent</span></div>`;
     }
 
+    const SLA_ICON = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>`;
+
+    function slaMsgBtn(msg) {
+        const hasSla = !!(msg.sla_message && msg.sla_message.trim());
+        const tip    = hasSla ? escHtml(msg.sla_message) : 'Tambah pesan SLA';
+        return `<button class="sla-open-btn${hasSla ? ' has-sla' : ''}"
+                        title="${tip}"
+                        onclick="openSlaModal(${msg.id}, this)"
+                        data-sla-val="${escHtml(msg.sla_message || '')}">
+                    ${SLA_ICON}SLA
+                </button>`;
+    }
+
+    let _slaCurrentMsgId   = null;
+    let _slaCurrentTrigger = null;
+
+    function openSlaModal(messageId, triggerBtn) {
+        _slaCurrentMsgId   = messageId;
+        _slaCurrentTrigger = triggerBtn;
+        const existing = triggerBtn.dataset.slaVal || '';
+        document.getElementById('slaMsgTextarea').value = existing;
+        document.getElementById('slaMsgModal').classList.remove('hidden');
+        document.getElementById('slaMsgTextarea').focus();
+    }
+
+    function closeSlaModal() {
+        document.getElementById('slaMsgModal').classList.add('hidden');
+        _slaCurrentMsgId   = null;
+        _slaCurrentTrigger = null;
+    }
+
+    async function submitSlaMessage() {
+        if (!_slaCurrentMsgId) return;
+        const val = document.getElementById('slaMsgTextarea').value.trim();
+        const btn = document.getElementById('slaSaveBtn');
+        btn.disabled = true;
+        btn.textContent = 'Menyimpan...';
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/messages/${_slaCurrentMsgId}/sla-message`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content || ''
+                },
+                body: JSON.stringify({ sla_message: val })
+            });
+            if (res.ok && _slaCurrentTrigger) {
+                _slaCurrentTrigger.dataset.slaVal = val;
+                _slaCurrentTrigger.classList.toggle('has-sla', val.length > 0);
+                _slaCurrentTrigger.title = val.length > 0 ? val : 'Tambah pesan SLA';
+            }
+            closeSlaModal();
+        } catch (err) {
+            console.error('Failed to save SLA message', err);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Simpan';
+        }
+    }
+
     function createMessageBubble(msg) {
         // Meeting events — kartu khusus di tengah chat
         if (msg.message_type === 'meeting_started' || msg.message_type === 'meeting_ended') {
@@ -2629,9 +2877,42 @@
             const byLine = msg.sender_name
                 ? `<p class="text-[11px] ${byClr} mt-0.5">oleh ${escHtml(msg.sender_name)}</p>` : '';
 
-            // Pisahkan link dari notes (link disimpan sebagai "Link: https://…" di baris terakhir)
+            // Parse metadata dari message body
             let notesText = msg.message_body || '';
             let linkHtml  = '';
+            let scheduleHtml = '';
+
+            // Extract MeetingStart / MeetingEnd
+            const fmtMeetingTime = (iso) => {
+                try {
+                    return new Date(iso).toLocaleString('id-ID', {
+                        timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit', hour12: false
+                    }) + ' WIB';
+                } catch { return iso; }
+            };
+            const startMatch = notesText.match(/(?:^|\n)MeetingStart:\s*(\S+)/i);
+            const endMatch   = notesText.match(/(?:^|\n)MeetingEnd:\s*(\S+)/i);
+            if (startMatch || endMatch) {
+                const startStr = startMatch ? fmtMeetingTime(startMatch[1]) : '—';
+                const endStr   = endMatch   ? fmtMeetingTime(endMatch[1])   : '—';
+                scheduleHtml = `<div class="mt-2 text-xs text-gray-600 space-y-0.5">
+                    <div class="flex items-center gap-1.5">
+                        <svg class="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span><span class="text-gray-400">Mulai:</span> ${startStr}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <svg class="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span><span class="text-gray-400">Selesai:</span> ${endStr}</span>
+                    </div>
+                </div>`;
+                notesText = notesText
+                    .replace(/(?:^|\n)MeetingStart:\s*\S+/i, '')
+                    .replace(/(?:^|\n)MeetingEnd:\s*\S+/i, '')
+                    .trim();
+            }
+
+            // Extract link
             const linkMatch = notesText.match(/(?:^|\n)Link:\s*(https?:\/\/\S+)/i);
             if (linkMatch) {
                 const url = linkMatch[1];
@@ -2642,7 +2923,7 @@
                 </a>`;
                 notesText = notesText.replace(/(?:^|\n)Link:\s*https?:\/\/\S+/i, '').trim();
             }
-            const notesLine = notesText && notesText !== 'Meeting dimulai' && notesText !== 'Meeting selesai'
+            const notesLine = notesText && notesText !== 'Meeting dimulai' && notesText !== 'Meeting selesai' && notesText !== 'Jadwal meeting dibuat'
                 ? `<p class="text-xs text-gray-600 mt-1.5 whitespace-pre-wrap">${escHtml(notesText)}</p>` : '';
             return `<div class="flex justify-center my-3 px-4">
                 <div class="flex items-start gap-2.5 px-4 py-3 rounded-xl border ${cardBg} w-full max-w-md">
@@ -2658,6 +2939,7 @@
                             <span class="text-[10px] text-gray-400 flex-shrink-0">${date}</span>
                         </div>
                         ${byLine}
+                        ${scheduleHtml}
                         ${notesLine}
                         ${linkHtml}
                     </div>
@@ -2746,6 +3028,7 @@
                             ${replyQuote}
                             ${messageContent(msg)}
                             ${attachmentsHtml}
+                            <div class="msg-status-row">${slaMsgBtn(msg)}</div>
                         </div>
                     </div>
                 </div>`;
@@ -2764,6 +3047,7 @@
                             ${replyQuote}
                             ${messageContent(msg)}
                             ${attachmentsHtml}
+                            <div class="msg-status-row">${slaMsgBtn(msg)}</div>
                         </div>
                     </div>
                 </div>`;
@@ -2775,7 +3059,7 @@
 
         // Status delivery indicator (hanya untuk reply helpdesk &rarr; customer)
         const statusHtml    = statusIndicator(msg);
-        const statusSection = statusHtml ? `<div class="msg-status-row">${statusHtml}</div>` : '';
+        const statusSection = `<div class="msg-status-row">${statusHtml}${slaMsgBtn(msg)}</div>`;
 
         return `
             <div class="flex gap-3 ${isEmployee ? 'flex-row-reverse' : ''}">
@@ -3413,49 +3697,51 @@
 
     function openMeetingPanel() {
         const modal      = document.getElementById('meetingModal');
-        const header     = document.getElementById('meetingModalHeader');
-        const iconWrap   = document.getElementById('meetingModalIconWrap');
-        const title      = document.getElementById('meetingPanelTitle');
-        const notesLbl   = document.getElementById('meetingNotesLabel');
-        const confirmBtn = document.getElementById('meetingConfirmBtn');
-        const activeInfo = document.getElementById('meetingActiveInfo');
-        const activeText = document.getElementById('meetingActiveInfoText');
         const notesArea  = document.getElementById('meetingNotes');
-        const linkWrap   = document.getElementById('meetingLinkWrap');
         const linkInput  = document.getElementById('meetingLink');
         if (!modal) return;
 
         notesArea.value = '';
         if (linkInput) linkInput.value = '';
 
-        if (inMeeting) {
-            header.className    = 'flex items-center justify-between px-6 py-4 rounded-t-2xl bg-red-50';
-            iconWrap.className  = 'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100 text-red-600';
-            title.className     = 'text-base font-semibold text-red-800';
-            title.textContent   = 'Akhiri Meeting';
-            activeInfo.className = 'flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200';
-            activeText.textContent = 'Meeting sedang berlangsung — SLA clock sedang dijeda.';
-            activeInfo.classList.remove('hidden');
-            if (linkWrap) linkWrap.classList.add('hidden');   // sembunyikan link saat end
-            notesLbl.textContent = 'Ringkasan meeting (opsional)';
-            notesArea.placeholder = 'Apa yang dibahas dalam meeting ini…';
-            confirmBtn.textContent = 'Akhiri Meeting';
-            confirmBtn.className = 'px-5 py-2 text-sm font-semibold text-white rounded-xl transition-all bg-red-600 hover:bg-red-700';
-        } else {
-            header.className    = 'flex items-center justify-between px-6 py-4 rounded-t-2xl bg-purple-50';
-            iconWrap.className  = 'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-purple-100 text-purple-600';
-            title.className     = 'text-base font-semibold text-purple-800';
-            title.textContent   = 'Mulai Meeting';
-            activeInfo.classList.add('hidden');
-            if (linkWrap) linkWrap.classList.remove('hidden'); // tampilkan link saat start
-            notesLbl.textContent = 'Topik / catatan meeting (opsional)';
-            notesArea.placeholder = 'Apa yang akan dibahas…';
-            confirmBtn.textContent = 'Mulai Meeting';
-            confirmBtn.className = 'px-5 py-2 text-sm font-semibold text-white rounded-xl transition-all bg-purple-700 hover:bg-purple-800';
-        }
+        // Always "Schedule Meeting" mode — no manual End Meeting needed
+        const header     = document.getElementById('meetingModalHeader');
+        const iconWrap   = document.getElementById('meetingModalIconWrap');
+        const titleEl    = document.getElementById('meetingPanelTitle');
+        const notesLbl   = document.getElementById('meetingNotesLabel');
+        const confirmBtn = document.getElementById('meetingConfirmBtn');
+        const linkWrap   = document.getElementById('meetingLinkWrap');
+        const startRow   = document.getElementById('meetingStartRow');
+        const linkSec    = document.getElementById('meetingLinkSection');
+        const timesLbl   = document.getElementById('meetingTimesLabel');
+
+        if (header)     { header.classList.add('bg-purple-50'); header.classList.remove('bg-red-50'); }
+        if (iconWrap)   { iconWrap.classList.add('bg-purple-100', 'text-purple-600'); iconWrap.classList.remove('bg-red-100', 'text-red-600'); }
+        if (titleEl)    titleEl.textContent = 'Jadwalkan Meeting';
+        if (notesLbl)   notesLbl.textContent = 'Catatan (opsional)';
+        if (confirmBtn) { confirmBtn.textContent = 'Jadwalkan Meeting'; confirmBtn.className = confirmBtn.className.replace(/bg-\S+/g, ''); confirmBtn.classList.add('px-5', 'py-2', 'text-sm', 'font-semibold', 'text-white', 'rounded-xl', 'transition-all', 'bg-purple-500', 'hover:bg-purple-600'); }
+        if (linkWrap)   linkWrap.classList.remove('hidden');
+        if (startRow)   startRow.classList.remove('hidden');
+        if (linkSec)    linkSec.classList.remove('hidden');
+        if (timesLbl)   timesLbl.textContent = 'Waktu Meeting';
+
+        // Pre-fill: start = sekarang, end = +1 jam
+        const pad = (n) => String(n).padStart(2, '0');
+        const toDateStr = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+        const toTimeStr = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        const now = new Date();
+        const end = new Date(now.getTime() + 60 * 60 * 1000);
+        const sdEl = document.getElementById('meetingStartDate');
+        const shEl = document.getElementById('meetingStartHour');
+        const edEl = document.getElementById('meetingEndDate');
+        const ehEl = document.getElementById('meetingEndHour');
+        if (sdEl) sdEl.value = toDateStr(now);
+        if (shEl) shEl.value = toTimeStr(now);
+        if (edEl) edEl.value = toDateStr(end);
+        if (ehEl) ehEl.value = toTimeStr(end);
 
         modal.classList.remove('hidden');
-        setTimeout(() => (linkInput || notesArea)?.focus(), 50);
+        setTimeout(() => linkInput?.focus(), 50);
     }
 
     function closeMeetingPanel() {
@@ -3465,19 +3751,31 @@
 
     async function confirmMeeting() {
         const btn    = document.getElementById('meetingConfirmBtn');
-        const notes  = document.getElementById('meetingNotes')?.value?.trim() || null;
-        const link   = document.getElementById('meetingLink')?.value?.trim() || null;
+        const notes     = document.getElementById('meetingNotes')?.value?.trim() || null;
+        const link      = document.getElementById('meetingLink')?.value?.trim() || null;
+        const startDate = document.getElementById('meetingStartDate')?.value || null;
+        const startH    = document.getElementById('meetingStartHour')?.value || null;
+        const endDate   = document.getElementById('meetingEndDate')?.value || null;
+        const endH      = document.getElementById('meetingEndHour')?.value || null;
+        const startTime = startDate && startH ? `${startDate}T${startH}` : null;
+        const endTime   = endDate   && endH   ? `${endDate}T${endH}`     : null;
         if (!btn) return;
+
+        if (!startTime || !endTime) {
+            showNotification('Waktu mulai dan selesai meeting wajib diisi', 'error');
+            return;
+        }
+        if (new Date(endTime) <= new Date(startTime)) {
+            showNotification('Waktu selesai meeting harus lebih besar dari waktu mulai', 'error');
+            return;
+        }
 
         btn.disabled = true;
         const origText = btn.textContent;
         btn.textContent = 'Memproses…';
 
-        const endpoint = inMeeting
-            ? `/api/tickets/${ticketId}/sla/meeting/end`
-            : `/api/tickets/${ticketId}/sla/meeting/start`;
-
-        const payload = inMeeting ? { notes } : { notes, meeting_link: link };
+        const endpoint = `/api/tickets/${ticketId}/sla/meeting/start`;
+        const payload  = { notes, meeting_link: link, meeting_start_time: startTime, meeting_end_time: endTime };
 
         try {
             const res  = await fetch(endpoint, {
@@ -3489,22 +3787,9 @@
             const data = await res.json();
 
             if (data.success) {
-                const wasInMeeting = inMeeting;
-                inMeeting = !inMeeting;
                 closeMeetingPanel();
-
-                // Perbarui tombol Meeting
-                const meetBtn = document.getElementById('meetingBtn');
-                if (meetBtn) {
-                    meetBtn.innerHTML = `${MEETING_ICON_SVG} ${inMeeting ? 'End Meeting' : 'Meeting'}`;
-                    meetBtn.className = inMeeting
-                        ? 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-                        : 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100';
-                }
-
                 showNotification(data.message, 'success');
                 btn.disabled = false;
-                // Reload pesan agar kartu meeting muncul di chat
                 try { await loadMessages(); } catch (_) {}
             } else {
                 showNotification(data.message || 'Gagal', 'error');
@@ -5468,6 +5753,48 @@
             <button id="confirmOkBtn"
                 class="px-4 py-2 text-sm font-semibold text-white rounded-lg transition">
                 OK
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- ==================== SLA MESSAGE MODAL ==================== --}}
+<div id="slaMsgModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" onclick="if(event.target===this)closeSlaModal()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900">Pesan SLA</h3>
+                    <p class="text-xs text-gray-400 leading-none mt-0.5">Pesan ini akan tampil di laporan SLA menggantikan pesan asli</p>
+                </div>
+            </div>
+            <button onclick="closeSlaModal()" class="text-gray-400 hover:text-gray-600 transition p-1 rounded-lg hover:bg-gray-100">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="px-6 py-4">
+            <textarea id="slaMsgTextarea"
+                      rows="4"
+                      placeholder="Tulis pesan SLA di sini..."
+                      class="w-full text-sm text-gray-700 border border-gray-200 rounded-xl px-3 py-2.5 resize-none outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition font-inherit placeholder-gray-300"
+                      onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))submitSlaMessage()"></textarea>
+            <p class="text-xs text-gray-400 mt-1.5">Ctrl+Enter untuk simpan</p>
+        </div>
+        <div class="flex gap-2 justify-end px-6 pb-5">
+            <button onclick="closeSlaModal()"
+                    class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition font-medium">
+                Batal
+            </button>
+            <button id="slaSaveBtn" onclick="submitSlaMessage()"
+                    class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                Simpan
             </button>
         </div>
     </div>

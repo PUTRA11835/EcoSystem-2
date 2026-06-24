@@ -59,15 +59,16 @@ class TicketController extends Controller
 
     /**
      * Lightweight endpoint untuk polling — kembalikan timestamp update terakhir dari DB lokal.
-     * Tidak menyentuh Graph API, aman dipanggil dari browser setiap 30 detik.
+     * Tidak menyentuh Graph API, aman dipanggil dari browser setiap 10 detik.
      */
     public function latestUpdate()
     {
-        $latest = DB::table('ticket')
+        $row = DB::table('ticket')
             ->whereNull('deleted_at')
-            ->max('last_message_at');
+            ->selectRaw('MAX(GREATEST(COALESCE(last_message_at, created_at), updated_at)) AS latest')
+            ->first();
 
-        return response()->json(['latest_update' => $latest]);
+        return response()->json(['latest_update' => $row->latest ?? null]);
     }
 
     /**
@@ -185,6 +186,23 @@ class TicketController extends Controller
             $ticketIds   = $tickets->pluck('ticket_id')->toArray();
             $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
 
+            // Batch load support manager & admin per ticket via delivery_support_activities
+            $deliverySupportMap = \App\Models\DeliverySupportActivity::with([
+                'deliverySupport.supportManager.basicData',
+                'deliverySupport.supportAdmin.basicData',
+            ])
+            ->whereIn('ticket_id', $ticketIds)
+            ->whereNotNull('ticket_id')
+            ->get()
+            ->keyBy('ticket_id')
+            ->map(function ($activity) {
+                $ds = $activity->deliverySupport;
+                return [
+                    'support_manager_name' => $ds?->supportManager?->basicData?->first_name,
+                    'support_admin_name'   => $ds?->supportAdmin?->basicData?->first_name,
+                ];
+            });
+
             // Batch load approved customer mandays (latest approved version per ticket)
             $customerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $ticketIds)
                 ->where('status', 'approved')
@@ -194,7 +212,7 @@ class TicketController extends Controller
                 ->map(fn($group) => $group->first()->total_mandays);
 
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -269,6 +287,8 @@ class TicketController extends Controller
                         'resolution_time_hours'   => $ticket->sla->net_resolution_hours,
                         'resolution_status'       => $ticket->sla->resolution_status,
                     ] : null,
+                    'support_manager' => $deliverySupportMap[$ticket->ticket_id]['support_manager_name'] ?? null,
+                    'support_admin'   => $deliverySupportMap[$ticket->ticket_id]['support_admin_name'] ?? null,
                     'created_at' => $ticket->created_at,
                     'updated_at' => $ticket->updated_at,
                 ];

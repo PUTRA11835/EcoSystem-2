@@ -13,21 +13,30 @@
         <!-- View Toggle -->
         @php $viewRoleId = session('user')['role']['id'] ?? 0; @endphp
         @if($viewRoleId == \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value)
-        <div class="inline-flex bg-gray-100 rounded-xl p-1.5 shadow-sm">
-            <button onclick="toggleView('my')" id="btnViewMy" class="px-6 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200">
-                My Tickets
+        <div class="inline-flex bg-gray-100 rounded-xl p-1">
+            <button onclick="toggleView('my')" id="btnViewMy" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-user text-[10px] mr-1"></i>My Tickets
             </button>
-            <button onclick="toggleView('unassign')" id="btnViewUnassign" class="px-6 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200">
-                Unassign
+            <button onclick="toggleView('unassign')" id="btnViewUnassign" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-user-clock text-[10px] mr-1"></i>Unassign
+            </button>
+        </div>
+        @elseif($viewRoleId == \App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value)
+        <div class="inline-flex bg-gray-100 rounded-xl p-1">
+            <button onclick="toggleView('all')" id="btnViewAll" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
+            </button>
+            <button onclick="toggleView('my')" id="btnViewMy" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-user text-[10px] mr-1"></i>My Tickets
             </button>
         </div>
         @elseif($viewRoleId == 1 || $viewRoleId == 5)
-        <div class="inline-flex bg-gray-100 rounded-xl p-1.5 shadow-sm">
-            <button onclick="toggleView('all')" id="btnViewAll" class="px-6 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200">
-                All Tickets
+        <div class="inline-flex bg-gray-100 rounded-xl p-1">
+            <button onclick="toggleView('all')" id="btnViewAll" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
             </button>
-            <button onclick="toggleView('unassign')" id="btnViewUnassign" class="px-6 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200">
-                Unassign
+            <button onclick="toggleView('unassign')" id="btnViewUnassign" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-user-clock text-[10px] mr-1"></i>Unassign
             </button>
         </div>
         @endif
@@ -209,11 +218,19 @@
                         <p class="text-sm text-gray-500">Reported via email</p>
                     </div>
                 </div>
-                <button onclick="closeTicketDetail()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-gray-600">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                    </svg>
-                </button>
+                <div class="flex items-center gap-4">
+                    <div id="modalSupportTeam" class="hidden items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-500 flex-shrink-0">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                        </svg>
+                        <span class="text-sm font-medium text-gray-700" id="modalSupportTeamNames"></span>
+                    </div>
+                    <button onclick="closeTicketDetail()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-gray-600">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             <!-- Modal Body - Split Layout -->
@@ -459,13 +476,15 @@
 /* View Toggle Buttons */
 #btnViewAll, #btnViewMy, #btnViewUnassign {
     background: transparent;
-    color: #6b7280;
+    color: #9ca3af;
+    font-size: 12px;
 }
 
 #btnViewAll.active, #btnViewMy.active, #btnViewUnassign.active {
     background: white;
     color: #111827;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    font-weight: 700;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
 }
 
 /* Responsive Design */
@@ -504,18 +523,19 @@
     let totalPages = 0;
     let userRole = {{ session('user')['role']['id'] ?? 0 }};
     let userId = {{ session('user')['id'] ?? 0 }};
-    const EC_ADMINISTRATOR_ROLE      = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
-    const DELIVERY_SUPPORT_USER_ROLE = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};
-    const EC_USER_ROLE               = {{ \App\Enums\RoleId::EC_USER->value }};
-    const DELIVERY_SUPPORT_HEAD_ROLE = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value }};
-    // Delivery Support User defaults to 'my'; EC Administrator/Delivery Support Head defaults to 'all'
-    let currentView = (userRole === DELIVERY_SUPPORT_USER_ROLE) ? 'my' : 'all';
+    const EC_ADMINISTRATOR_ROLE         = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
+    const DELIVERY_SUPPORT_USER_ROLE    = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};
+    const EC_USER_ROLE                  = {{ \App\Enums\RoleId::EC_USER->value }};
+    const DELIVERY_SUPPORT_HEAD_ROLE    = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value }};
+    const DELIVERY_SUPPORT_MANAGER_ROLE = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value }};
+    // Delivery Support User defaults to 'my'; Manager defaults to 'my'; Admin/Head defaults to 'all'
+    let currentView = (userRole === DELIVERY_SUPPORT_USER_ROLE || userRole === DELIVERY_SUPPORT_MANAGER_ROLE) ? 'my' : 'all';
 
     document.addEventListener('DOMContentLoaded', function() {
         initCustomDropdowns();
         loadTickets();
 
-        if (userRole === DELIVERY_SUPPORT_USER_ROLE || userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_HEAD_ROLE) {
+        if (userRole === DELIVERY_SUPPORT_USER_ROLE || userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_HEAD_ROLE || userRole === DELIVERY_SUPPORT_MANAGER_ROLE) {
             updateViewToggle();
         }
     });
@@ -534,6 +554,9 @@
         if (userRole === DELIVERY_SUPPORT_USER_ROLE) {
             if (btnMy)       btnMy.classList.toggle('active',       currentView === 'my');
             if (btnUnassign) btnUnassign.classList.toggle('active', currentView === 'unassign');
+        } else if (userRole === DELIVERY_SUPPORT_MANAGER_ROLE) {
+            if (btnMy)  btnMy.classList.toggle('active',  currentView === 'my');
+            if (btnAll) btnAll.classList.toggle('active', currentView === 'all');
         } else if (userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_HEAD_ROLE) {
             if (btnAll)      btnAll.classList.toggle('active',      currentView === 'all');
             if (btnUnassign) btnUnassign.classList.toggle('active', currentView === 'unassign');
@@ -553,7 +576,10 @@
                 // EC User — only their own tickets
                 endpoint = '/api/tickets/my';
             } else if (userRole === DELIVERY_SUPPORT_USER_ROLE) {
-                // Delivery Support User: "My Tickets" or "Unassign" (unassigned = /api/tickets, backend already filters)
+                // Delivery Support User: "My Tickets" or "Unassign"
+                endpoint = (currentView === 'my') ? '/api/tickets/my' : '/api/tickets';
+            } else if (userRole === DELIVERY_SUPPORT_MANAGER_ROLE) {
+                // Delivery Support Manager: "My Tickets" or "All Tickets"
                 endpoint = (currentView === 'my') ? '/api/tickets/my' : '/api/tickets';
             } else if ((userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_HEAD_ROLE) && currentView === 'unassign') {
                 // EC Administrator / Delivery Support Head viewing only unassigned tickets
@@ -1012,6 +1038,21 @@
             year: 'numeric'
         }) : 'No due date';
         
+        // Support team names in header
+        const supportTeamEl    = document.getElementById('modalSupportTeam');
+        const supportTeamNames = document.getElementById('modalSupportTeamNames');
+        const managerName = ticket.support_manager;
+        const adminName   = ticket.support_admin;
+        if (managerName || adminName) {
+            const parts = [managerName, adminName].filter(Boolean);
+            supportTeamNames.textContent = parts.join(' / ');
+            supportTeamEl.classList.remove('hidden');
+            supportTeamEl.classList.add('flex');
+        } else {
+            supportTeamEl.classList.add('hidden');
+            supportTeamEl.classList.remove('flex');
+        }
+
         document.getElementById('ticketDetailModal').classList.remove('hidden');
     }
 

@@ -15,6 +15,7 @@ class TicketSlaPause extends Model
         'pause_reason',
         'triggered_by_status',
         'started_at',
+        'scheduled_end_at',
         'ended_at',
         'duration_hours',
         'started_by_message_id',
@@ -24,6 +25,7 @@ class TicketSlaPause extends Model
 
     protected $casts = [
         'started_at'              => 'datetime',
+        'scheduled_end_at'        => 'datetime',
         'ended_at'                => 'datetime',
         'duration_hours'          => 'decimal:2',
         'started_by_message_id'   => 'integer',

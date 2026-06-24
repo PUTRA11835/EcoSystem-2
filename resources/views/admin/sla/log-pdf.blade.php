@@ -515,7 +515,9 @@
 
                     // Resolution — format sama dengan Waiting: "1.20 h(72 min)"
                     $resStr = null;
-                    if (($e['resolution_hours'] ?? null) !== null) {
+                    if ($e['meeting_paused'] ?? false) {
+                        $resStr = 'Paused (Meeting)';
+                    } elseif (($e['resolution_hours'] ?? null) !== null) {
                         $rm2    = round((float)$e['resolution_hours'] * 60);
                         $resStr = number_format((float)$e['resolution_hours'], 2) . ' h(' . $rm2 . ' min)';
                     }

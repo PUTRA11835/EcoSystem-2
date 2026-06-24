@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\EmployeeRole;
 use App\Models\Menu;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class MenuController extends Controller
 {
@@ -134,6 +135,8 @@ class MenuController extends Controller
             $roleId => $data,
         ]);
 
+        $this->flushPermCacheForRole((int) $roleId);
+
         return response()->json(['success' => true, 'message' => 'Permission berhasil diperbarui.']);
     }
 
@@ -142,10 +145,22 @@ class MenuController extends Controller
         $menu = Menu::findOrFail($menuId);
         $menu->roles()->detach($roleId);
 
+        $this->flushPermCacheForRole((int) $roleId);
+
         return response()->json(['success' => true, 'message' => 'Akses role dari menu berhasil dicabut.']);
     }
 
     // ── Helper ───────────────────────────────────────────────────────────────────
+
+    private function flushPermCacheForRole(int $roleId): void
+    {
+        $role = EmployeeRole::find($roleId);
+        if ($role) {
+            $role->employees()->pluck('employee_id')->each(function ($empId) {
+                Cache::forget("perm_slugs_{$empId}");
+            });
+        }
+    }
 
     private function buildTree($menus, $parentId = null): array
     {

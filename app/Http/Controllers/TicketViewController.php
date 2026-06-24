@@ -94,13 +94,19 @@ class TicketViewController extends Controller
         // First try via activities (newer method), then fallback to direct ticket_id on delivery_support (older method)
         $deliverySupport = DB::table('delivery_support_activities')
             ->join('delivery_support', 'delivery_support_activities.delivery_support_id', '=', 'delivery_support.id')
+            ->leftJoin('employee as mgr', 'delivery_support.support_manager_id', '=', 'mgr.employee_id')
+            ->leftJoin('employee_basic_data as mgr_bd', 'mgr.employee_id', '=', 'mgr_bd.employee_id')
+            ->leftJoin('employee as adm', 'delivery_support.support_admin_id', '=', 'adm.employee_id')
+            ->leftJoin('employee_basic_data as adm_bd', 'adm.employee_id', '=', 'adm_bd.employee_id')
             ->where('delivery_support_activities.ticket_id', $ticket->ticket_id)
             ->orderByDesc('delivery_support.id')
             ->select(
                 'delivery_support.id',
                 'delivery_support.name',
                 'delivery_support.type',
-                'delivery_support.onedrive_deliverable_folder_id'
+                'delivery_support.onedrive_deliverable_folder_id',
+                DB::raw("TRIM(CONCAT(mgr_bd.first_name, ' ', COALESCE(mgr_bd.last_name, ''))) as support_manager_name"),
+                DB::raw("TRIM(CONCAT(adm_bd.first_name, ' ', COALESCE(adm_bd.last_name, ''))) as support_admin_name")
             )
             ->first();
 
@@ -149,10 +155,16 @@ class TicketViewController extends Controller
             ->value('total_mandays');
 
         // Resolve email tujuan reply (digunakan untuk tampilan "To:" di compose area)
-        $customerEmail = DB::table('staging_tickets')
-            ->where('ticket_id', $ticket->ticket_id)
-            ->whereNotNull('submitted_by_email')
-            ->value('submitted_by_email');
+        // Prioritas 1: submitted_by_email dari ticket itu sendiri (diisi saat import CSV)
+        $customerEmail = $ticket->submitted_by_email ?? null;
+
+        // Prioritas 2: submitted_by_email dari staging ticket yang diapprove
+        if (!$customerEmail) {
+            $customerEmail = DB::table('staging_tickets')
+                ->where('ticket_id', $ticket->ticket_id)
+                ->whereNotNull('submitted_by_email')
+                ->value('submitted_by_email');
+        }
 
         if (!$customerEmail) {
             $customerEmail = DB::table('ticket_message')
