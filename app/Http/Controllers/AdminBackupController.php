@@ -1489,6 +1489,7 @@ class AdminBackupController extends Controller
             'scale'         => ['scale', 'skala'],
             'type'          => ['type', 'ticket type', 'ticket_type', 'tipe'],
             'pic'           => ['pic'],
+            'ticket_lead'   => ['ticket lead', 'ticket_lead', 'lead'],
             'end_date'      => ['due date/time resolution time', 'end_date', 'due date', 'due_date'],
         ];
 
@@ -1532,6 +1533,49 @@ class AdminBackupController extends Controller
         $skipped = 0;
         $errors  = [];
         $rowNum  = 1;
+
+        // Lookup employee by display name (first_name or full name concat)
+        $lookupEmployeeByName = function (string $name): ?object {
+            $lower = strtolower(trim($name));
+            return DB::table('employee as e')
+                ->join('employee_basic_data as ebd', 'e.employee_id', '=', 'ebd.employee_id')
+                ->where(function ($q) use ($lower) {
+                    $q->whereRaw("LOWER(TRIM(ebd.first_name)) = ?", [$lower])
+                      ->orWhereRaw("LOWER(TRIM(CONCAT(ebd.first_name, ' ', COALESCE(ebd.last_name, '')))) = ?", [$lower]);
+                })
+                ->select('e.employee_id', 'ebd.first_name')
+                ->first();
+        };
+
+        // Split a ticket lead cell into individual names (separator: comma or period), skip '-' / empty
+        $parseLeadNames = function (string $raw): array {
+            return array_values(array_filter(
+                array_map('trim', preg_split('/[,.]/', $raw)),
+                fn($n) => $n !== '' && $n !== '-'
+            ));
+        };
+
+        // Upsert a ticket member (insert if absent, reactivate if soft-deleted)
+        $upsertMember = function (int $ticketId, int $empId): void {
+            $existing = DB::table('ticket_member')
+                ->where('ticket_id', $ticketId)
+                ->where('employee_id', $empId)
+                ->first();
+            if (!$existing) {
+                DB::table('ticket_member')->insert([
+                    'ticket_id'   => $ticketId,
+                    'employee_id' => $empId,
+                    'is_active'   => true,
+                    'created_at'  => now(),
+                    'updated_at'  => now(),
+                ]);
+            } elseif (!$existing->is_active) {
+                DB::table('ticket_member')
+                    ->where('ticket_id', $ticketId)
+                    ->where('employee_id', $empId)
+                    ->update(['is_active' => true, 'updated_at' => now()]);
+            }
+        };
 
         while (($row = fgetcsv($handle)) !== false) {
             $rowNum++;
@@ -1628,6 +1672,31 @@ class AdminBackupController extends Controller
                     if ($rawPC !== '' && $rawPC !== '-') $picCreate = $rawPC;
                 }
 
+                // Ticket Lead (optional) — first name → lead, rest → members
+                $ticketLeadIdCreate  = null;
+                $extraMemberIdsCreate = [];
+                if (isset($colIndex['ticket_lead'])) {
+                    $rawLead = trim($row[$colIndex['ticket_lead']] ?? '');
+                    if ($rawLead !== '' && $rawLead !== '-') {
+                        $leadNames = $parseLeadNames($rawLead);
+                        $firstLead = true;
+                        foreach ($leadNames as $leadName) {
+                            $emp = $lookupEmployeeByName($leadName);
+                            if (!$emp) {
+                                $errors[] = "[Peringatan] Row {$rowNum} (#{$ticketNumber}): Ticket Lead '{$leadName}' tidak ditemukan — dilewati";
+                                continue;
+                            }
+                            if ($firstLead) {
+                                $ticketLeadIdCreate = $emp->employee_id;
+                                $picCreate          = $leadName; // override pic with lead name
+                                $firstLead          = false;
+                            } else {
+                                $extraMemberIdsCreate[] = $emp->employee_id;
+                            }
+                        }
+                    }
+                }
+
                 // Start date (optional — kolom 'Date')
                 $startDateCreate = null;
                 if (isset($colIndex['date'])) {
@@ -1661,21 +1730,33 @@ class AdminBackupController extends Controller
 
                 try {
                     DB::table('ticket')->insert([
-                        'ticket_number'   => $ticketNumber,
-                        'customer_id'     => $customerCreate->customer_id,
-                        'end_customer_id' => $endCustomerIdCreate,
-                        'description'     => $rawDescriptionCreate,
-                        'ticket_priority' => $priorityCreate,
-                        'ticket_type'     => $typeCreate,
-                        'scale'           => $scaleCreate,
-                        'status'          => $statusCreate,
-                        'pic'             => $picCreate ?? 'Helpdesk',
-                        'start_date'      => $startDateCreate,
-                        'end_date'        => $endDateCreate,
-                        'created_at'      => now(),
-                        'updated_at'      => now(),
+                        'ticket_number'      => $ticketNumber,
+                        'customer_id'        => $customerCreate->customer_id,
+                        'end_customer_id'    => $endCustomerIdCreate,
+                        'description'        => $rawDescriptionCreate,
+                        'ticket_priority'    => $priorityCreate,
+                        'ticket_type'        => $typeCreate,
+                        'scale'              => $scaleCreate,
+                        'status'             => $statusCreate,
+                        'pic'                => $picCreate ?? 'Helpdesk',
+                        'ticket_lead_id'     => $ticketLeadIdCreate,
+                        'start_date'         => $startDateCreate,
+                        'end_date'           => $endDateCreate,
+                        'channel'            => 'imported',
+                        'created_at'         => now(),
+                        'updated_at'         => now(),
                     ]);
                     $created++;
+
+                    // Add extra members from ticket_lead column (2nd, 3rd, ... names)
+                    if (!empty($extraMemberIdsCreate)) {
+                        $newTicketId = DB::table('ticket')->where('ticket_number', $ticketNumber)->value('ticket_id');
+                        if ($newTicketId) {
+                            foreach ($extraMemberIdsCreate as $memberId) {
+                                $upsertMember($newTicketId, $memberId);
+                            }
+                        }
+                    }
                 } catch (\Exception $e) {
                     $errors[] = "Row {$rowNum} (#{$ticketNumber}): " . $e->getMessage();
                     $skipped++;
@@ -1776,6 +1857,30 @@ class AdminBackupController extends Controller
                 }
             }
 
+            // Ticket Lead (UPDATE) — first name → update lead + pic, rest → add as members
+            $extraMemberIdsUpdate = [];
+            if (isset($colIndex['ticket_lead'])) {
+                $rawLead = trim($row[$colIndex['ticket_lead']] ?? '');
+                if ($rawLead !== '' && $rawLead !== '-') {
+                    $leadNames = $parseLeadNames($rawLead);
+                    $firstLead = true;
+                    foreach ($leadNames as $leadName) {
+                        $emp = $lookupEmployeeByName($leadName);
+                        if (!$emp) {
+                            $errors[] = "[Peringatan] Row {$rowNum} (#{$ticketNumber}): Ticket Lead '{$leadName}' tidak ditemukan — dilewati";
+                            continue;
+                        }
+                        if ($firstLead) {
+                            $updateData['ticket_lead_id'] = $emp->employee_id;
+                            $updateData['pic']            = $leadName;
+                            $firstLead                    = false;
+                        } else {
+                            $extraMemberIdsUpdate[] = $emp->employee_id;
+                        }
+                    }
+                }
+            }
+
             if (isset($colIndex['end_date'])) {
                 $raw = trim($row[$colIndex['end_date']] ?? '');
                 if ($raw !== '' && $raw !== '-') {
@@ -1795,6 +1900,11 @@ class AdminBackupController extends Controller
                 $updateData['updated_at'] = now();
                 DB::table('ticket')->where('ticket_id', $ticket->ticket_id)->update($updateData);
                 $updated++;
+
+                // Add extra members from ticket_lead column (2nd, 3rd, ... names)
+                foreach ($extraMemberIdsUpdate as $memberId) {
+                    $upsertMember($ticket->ticket_id, $memberId);
+                }
             } catch (\Exception $e) {
                 $errors[] = "Row {$rowNum} (#{$ticketNumber}): " . $e->getMessage();
             }
@@ -2141,6 +2251,26 @@ class AdminBackupController extends Controller
                         'created_at'            => now(),
                         'updated_at'            => now(),
                     ]));
+
+                    // Auto-add employee as ticket member if not already
+                    $existingMember = \Illuminate\Support\Facades\DB::table('ticket_member')
+                        ->where('ticket_id', $ticket->ticket_id)
+                        ->where('employee_id', $detail['employee_id'])
+                        ->first();
+                    if (!$existingMember) {
+                        \Illuminate\Support\Facades\DB::table('ticket_member')->insert([
+                            'ticket_id'   => $ticket->ticket_id,
+                            'employee_id' => $detail['employee_id'],
+                            'is_active'   => true,
+                            'created_at'  => now(),
+                            'updated_at'  => now(),
+                        ]);
+                    } elseif (!$existingMember->is_active) {
+                        \Illuminate\Support\Facades\DB::table('ticket_member')
+                            ->where('ticket_id', $ticket->ticket_id)
+                            ->where('employee_id', $detail['employee_id'])
+                            ->update(['is_active' => true, 'updated_at' => now()]);
+                    }
                 }
 
                 \Illuminate\Support\Facades\DB::table('ticket')
@@ -2401,6 +2531,28 @@ class AdminBackupController extends Controller
                     'updated_at'           => now(),
                 ]);
                 $imported++;
+
+                // Auto-add employee as ticket member if not already
+                if ($ticketId) {
+                    $existingMember = \Illuminate\Support\Facades\DB::table('ticket_member')
+                        ->where('ticket_id', $ticketId)
+                        ->where('employee_id', $employee->employee_id)
+                        ->first();
+                    if (!$existingMember) {
+                        \Illuminate\Support\Facades\DB::table('ticket_member')->insert([
+                            'ticket_id'   => $ticketId,
+                            'employee_id' => $employee->employee_id,
+                            'is_active'   => true,
+                            'created_at'  => now(),
+                            'updated_at'  => now(),
+                        ]);
+                    } elseif (!$existingMember->is_active) {
+                        \Illuminate\Support\Facades\DB::table('ticket_member')
+                            ->where('ticket_id', $ticketId)
+                            ->where('employee_id', $employee->employee_id)
+                            ->update(['is_active' => true, 'updated_at' => now()]);
+                    }
+                }
             } catch (\Exception $e) {
                 $errors[] = "Baris {$rowNum}: " . $e->getMessage();
                 $skipped++;

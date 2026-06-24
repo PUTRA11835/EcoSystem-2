@@ -978,7 +978,12 @@ class TicketMessageController extends Controller
      */
     private function resolveCustomerEmail(Ticket $ticket): ?string
     {
-        // 1. submitted_by_email dari staging ticket yang sudah diapprove
+        // 1. submitted_by_email langsung di ticket (diisi saat initiateEmail / import CSV)
+        if (!empty($ticket->submitted_by_email)) {
+            return $ticket->submitted_by_email;
+        }
+
+        // 2. submitted_by_email dari staging ticket yang sudah diapprove
         $submittedEmail = DB::table('staging_tickets')
             ->where('ticket_id', $ticket->ticket_id)
             ->whereNotNull('submitted_by_email')
@@ -987,7 +992,7 @@ class TicketMessageController extends Controller
             return $submittedEmail;
         }
 
-        // 2. sender_email dari pesan pertama customer
+        // 3. sender_email dari pesan pertama customer
         $firstMsg = TicketMessage::where('ticket_id', $ticket->ticket_id)
             ->where('sender_type', 'customer')
             ->whereNotNull('sender_email')
@@ -997,7 +1002,7 @@ class TicketMessageController extends Controller
             return $firstMsg->sender_email;
         }
 
-        // 3. Fallback ke customer.email (email perusahaan)
+        // 4. Fallback ke customer.email (email perusahaan)
         if ($ticket->customer_id) {
             return Customer::find($ticket->customer_id)?->email;
         }
@@ -1126,6 +1131,156 @@ class TicketMessageController extends Controller
                 'success' => false,
                 'message' => 'Failed to mark messages as read',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Initiate the first email thread for a ticket that has no email_thread_id yet.
+     * Used for tickets imported via CSV that start with no email channel.
+     *
+     * POST /api/tickets/{ticketId}/initiate-email
+     */
+    public function initiateEmail(Request $request, $ticketId)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $request->validate([
+            'to'   => 'required|email',
+            'cc'   => 'nullable|string',
+            'body' => 'nullable|string',
+        ]);
+
+        try {
+            $ticket = Ticket::findOrFail($ticketId);
+
+            if ($ticket->email_thread_id || $ticket->channel === 'email') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This ticket already has an active email thread.',
+                ], 422);
+            }
+
+            $toEmail = strtolower(trim($request->input('to')));
+
+            // Normalize CC list → [{address, name}]
+            $ccList = [];
+            $rawCc  = trim($request->input('cc', ''));
+            if ($rawCc !== '') {
+                foreach (array_filter(array_map('trim', explode(',', $rawCc))) as $addr) {
+                    if (filter_var($addr, FILTER_VALIDATE_EMAIL)) {
+                        $ccList[] = ['address' => $addr, 'name' => null];
+                    }
+                }
+            }
+
+            $agentName = 'Helpdesk Support';
+            $subject   = '[JARVIES] ' . ($ticket->description ?? 'Ticket #' . $ticket->ticket_number);
+
+            $safeNum   = htmlspecialchars($ticket->ticket_number ?? '', ENT_QUOTES, 'UTF-8');
+            $safeDesc  = htmlspecialchars(mb_substr($ticket->description ?? '', 0, 90), ENT_QUOTES, 'UTF-8');
+            $emailBody = <<<HTML
+            <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                   style="font-family:Arial,Helvetica,sans-serif;max-width:600px;border-collapse:collapse;">
+                <tr>
+                    <td style="background-color:#8b1a1a;padding:16px 24px;border-radius:6px 6px 0 0;">
+                        <p style="color:#ffffff;font-size:16px;font-weight:bold;margin:0;line-height:1.3;">PT Eclectic Consulting</p>
+                        <p style="color:rgba(255,255,255,0.7);font-size:11px;margin:3px 0 0 0;">Helpdesk Support &nbsp;&middot;&nbsp; Ticket #{$safeNum}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="background-color:#ffffff;padding:24px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;font-size:14px;color:#374151;line-height:1.7;">
+                        <p>Dear Customer,</p>
+                        <p>Sehubungan dengan pembaruan sistem layanan kami, proses penanganan tiket <strong>#{$safeNum}</strong> kini dilanjutkan melalui email ini.</p>
+                        <p>Untuk memperlancar komunikasi, Anda dapat merespons melalui salah satu cara berikut:</p>
+                        <ol style="margin:8px 0 8px 20px;padding:0;">
+                            <li style="margin-bottom:6px;">Balas email ini secara langsung.</li>
+                            <li style="margin-bottom:6px;">Akses portal layanan kami di <a href="https://help.eclectic.co.id" style="color:#8b1a1a;">https://help.eclectic.co.id</a>.</li>
+                        </ol>
+                        <p>Apabila terdapat pihak lain yang perlu dilibatkan dalam komunikasi ini, silakan tambahkan alamat email mereka pada kolom CC saat membalas email ini.</p>
+                        <p style="margin-top:16px;">Hormat kami,<br><strong>Helpdesk Support</strong></p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="background-color:#f9fafb;padding:14px 24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 6px 6px;">
+                        <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
+                            Sent by <strong style="color:#6b7280;">Helpdesk Support</strong> &mdash; PT Eclectic Consulting<br>
+                            Ticket: <strong style="color:#6b7280;">#{$safeNum}</strong> &mdash; {$safeDesc}
+                        </p>
+                    </td>
+                </tr>
+            </table>
+            HTML;
+
+            $plainBody = "Dear Customer, sehubungan dengan pembaruan sistem layanan kami, proses penanganan tiket #{$safeNum} kini dilanjutkan melalui email ini. Anda dapat membalas email ini secara langsung atau mengakses portal kami di https://help.eclectic.co.id. Hormat kami, Helpdesk Support.";
+
+            $emailCtrl = new EmailController();
+            $result    = $emailCtrl->sendTicketReply(
+                toEmail:    $toEmail,
+                subject:    $subject,
+                body:       $emailBody,
+                inReplyTo:  null,
+                files:      [],
+                ccList:     array_column($ccList, 'address'),
+                noRePrefix: true,
+            );
+
+            $conversationId = $result['conversation_id']    ?? null;
+            $internetMsgId  = $result['internet_message_id'] ?? null;
+
+            DB::transaction(function () use ($ticket, $toEmail, $ccList, $conversationId, $plainBody, $emailBody, $internetMsgId, $sessionUser) {
+                $ticket->update([
+                    'channel'             => 'email',
+                    'email_thread_id'     => $conversationId,
+                    'submitted_by_email'  => $toEmail,
+                    'cc_emails'           => !empty($ccList) ? $ccList : null,
+                    'last_message_at'     => now(),
+                    'last_agent_reply_at' => now(),
+                ]);
+
+                TicketMessage::create([
+                    'ticket_id'           => $ticket->ticket_id,
+                    'sender_type'         => 'employee',
+                    'sender_id'           => $sessionUser['employee_id'] ?? null,
+                    'sender_name'         => 'Helpdesk Support',
+                    'message'             => $plainBody,
+                    'message_html'        => $emailBody,
+                    'is_internal_note'    => false,
+                    'channel'             => 'email',
+                    'email_message_id'    => $internetMsgId,
+                    'cc_emails'           => !empty($ccList) ? $ccList : null,
+                    'is_read_by_customer' => false,
+                    'is_read_by_agent'    => true,
+                ]);
+            });
+
+            Log::info('TicketMessageController@initiateEmail: email thread dimulai', [
+                'ticket_id'      => $ticket->ticket_id,
+                'ticket_number'  => $ticket->ticket_number,
+                'to'             => $toEmail,
+                'conversation_id'=> $conversationId,
+                'by'             => $sessionUser['eci'] ?? $agentName,
+            ]);
+
+            return response()->json([
+                'success'         => true,
+                'message'         => 'Email sent successfully. The chat thread is now active.',
+                'conversation_id' => $conversationId,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('TicketMessageController@initiateEmail: gagal', [
+                'ticket_id' => $ticketId,
+                'error'     => $e->getMessage(),
+                'error_at'  => $e->getFile() . ':' . $e->getLine(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send email: ' . $e->getMessage(),
             ], 500);
         }
     }

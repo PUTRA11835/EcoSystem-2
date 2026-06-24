@@ -196,7 +196,18 @@
                         <i class="fas fa-envelope text-[10px]"></i>
                         <span>Replies will be sent to customer via <strong>Email</strong></span>
                     </div>
+                    @elseif($ticket->channel === 'imported')
+                    {{-- Imported ticket: offer option to start email thread --}}
+                    <div class="px-4 pt-2 pb-0.5 flex items-center gap-2">
+                        <i class="fas fa-comment text-[10px] text-gray-400"></i>
+                        <span class="text-xs text-gray-400 flex-1">Replies saved internally — no email will be sent to customer</span>
+                        <button onclick="showEmailInitMode()" id="btnStartEmailThread"
+                            class="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline transition-colors">
+                            <i class="fas fa-envelope text-[10px]"></i> Start Email to Customer
+                        </button>
+                    </div>
                     @else
+                    {{-- Ticket web biasa (bukan import): tidak ada opsi email --}}
                     <div class="px-4 pt-2 pb-0.5 flex items-center gap-1.5 text-xs text-gray-400">
                         <i class="fas fa-comment text-[10px]"></i>
                         <span>Replies saved internally — no email will be sent to customer</span>
@@ -220,9 +231,8 @@
                  menyembunyikan konten yang ter-collapse. --}}
             <div id="replyComposeInner" style="max-height:600px;overflow:visible;opacity:1;transition:max-height .2s ease,opacity .2s ease;">
 
-            {{-- To Row: tag input — initial value dari resolved customer email, bisa ditambah/dihapus --}}
-            @if($ticket->channel === 'email' || $ticket->email_thread_id)
-            <div class="px-4 pt-1.5" id="toRow">
+            {{-- To Row: selalu dirender; untuk non-email ticket dikontrol JS (showEmailInitMode/hideEmailInitMode) --}}
+            <div class="px-4 pt-1.5" id="toRow" @if(!($ticket->channel === 'email' || $ticket->email_thread_id)) style="display:none" @endif>
                 <div class="flex flex-wrap items-center gap-1 min-h-[30px] border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text" onclick="document.getElementById('toInput').focus()">
                     <span class="text-[11px] text-gray-500 font-semibold mr-0.5 flex-shrink-0">To</span>
                     <div id="toTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
@@ -234,11 +244,9 @@
                            onpaste="handleToPaste(event)">
                 </div>
             </div>
-            @endif
 
-            {{-- CC Row: hanya tampil untuk email tickets --}}
-            @if($ticket->channel === 'email' || $ticket->email_thread_id)
-            <div class="px-4 pt-1.5" id="ccRow">
+            {{-- CC Row: selalu dirender; untuk non-email ticket dikontrol JS --}}
+            <div class="px-4 pt-1.5" id="ccRow" @if(!($ticket->channel === 'email' || $ticket->email_thread_id)) style="display:none" @endif>
                 <div class="flex flex-wrap items-center gap-1 min-h-[30px] border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text" onclick="document.getElementById('ccInput').focus()">
                     <span class="text-[11px] text-gray-500 font-semibold mr-0.5 flex-shrink-0">CC</span>
                     <div id="ccTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
@@ -250,7 +258,6 @@
                            onpaste="handleCcPaste(event)">
                 </div>
             </div>
-            @endif
 
             {{-- Reply-to context bar (WhatsApp-style) --}}
             <div id="replyContextBar" class="hidden px-4 pt-2">
@@ -311,7 +318,22 @@
                     <button onclick="sendReply('reply')" class="ml-auto inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
                         Send via Email
                     </button>
+                    @elseif($ticket->email_thread_id)
+                    <button onclick="sendReply('reply')" class="ml-auto inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
+                        Send Reply
+                    </button>
+                    @elseif($ticket->channel === 'imported')
+                    {{-- Imported ticket: Send First Email button (hidden, shown when email init mode is active) --}}
+                    <button id="btnSendInitEmail" onclick="doInitiateEmail()"
+                        class="ml-auto hidden inline-flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
+                        <i class="fas fa-paper-plane text-[10px]"></i> Send First Email
+                    </button>
+                    <button id="btnCancelInitEmail" onclick="hideEmailInitMode()"
+                        class="hidden inline-flex items-center px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-200 transition-all duration-200">
+                        Cancel
+                    </button>
                     @else
+                    {{-- Ticket web biasa: Send Reply normal --}}
                     <button onclick="sendReply('reply')" class="ml-auto inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
                         Send Reply
                     </button>
@@ -1780,6 +1802,88 @@
     function cancelReply() {
         replyToId = null;
         document.getElementById('replyContextBar').classList.add('hidden');
+    }
+
+    // ── Initiate Email Mode (untuk non-email tickets) ─────────────────────────
+
+    let _emailInitMode = false;
+
+    function showEmailInitMode() {
+        _emailInitMode = true;
+        const toRow     = document.getElementById('toRow');
+        const ccRow     = document.getElementById('ccRow');
+        const btnStart  = document.getElementById('btnStartEmailThread');
+        const btnSend   = document.getElementById('btnSendInitEmail');
+        const btnCancel = document.getElementById('btnCancelInitEmail');
+
+        if (toRow)     toRow.style.display = '';
+        if (ccRow)     ccRow.style.display = '';
+        if (btnStart)  btnStart.style.display = 'none';
+        if (btnSend)   btnSend.classList.remove('hidden');
+        if (btnCancel) btnCancel.classList.remove('hidden');
+
+        toEmails = [];
+        renderToTags();
+        quillEditor && quillEditor.focus();
+    }
+
+    function hideEmailInitMode() {
+        _emailInitMode = false;
+        const toRow     = document.getElementById('toRow');
+        const ccRow     = document.getElementById('ccRow');
+        const btnStart  = document.getElementById('btnStartEmailThread');
+        const btnSend   = document.getElementById('btnSendInitEmail');
+        const btnCancel = document.getElementById('btnCancelInitEmail');
+
+        if (toRow)     toRow.style.display = 'none';
+        if (ccRow)     ccRow.style.display = 'none';
+        if (btnStart)  btnStart.style.display = '';
+        if (btnSend)   btnSend.classList.add('hidden');
+        if (btnCancel) btnCancel.classList.add('hidden');
+
+        toEmails = [];
+        renderToTags();
+    }
+
+    async function doInitiateEmail() {
+        const to = toEmails[0] ?? '';
+        if (!to) { showNotification('Please enter a recipient email address in the To field.', 'error'); return; }
+
+        commitToInput();
+        commitCcInput();
+
+        const rawHtml  = quillEditor ? quillEditor.root.innerHTML : '';
+        const bodyHtml = trimQuillHtml(rawHtml);
+
+        const btn = document.getElementById('btnSendInitEmail');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<svg class="animate-spin h-3 w-3 inline mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> Sending...'; }
+
+        try {
+            const ccStr = ccEmails.map(e => (typeof e === 'string' ? e : e.address)).join(', ');
+            const res   = await fetch(`/api/tickets/${ticketId}/initiate-email`, {
+                method:  'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type':     'application/json',
+                    'Accept':           'application/json',
+                    'X-CSRF-TOKEN':     document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ to, cc: ccStr, body: bodyHtml }),
+            });
+
+            const json = await res.json();
+            if (json.success) {
+                showNotification('Email sent successfully. The chat thread is now active.', 'success');
+                setTimeout(() => location.reload(), 1200);
+            } else {
+                showNotification(json.message ?? 'Failed to send email.', 'error');
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane text-[10px]"></i> Send First Email'; }
+            }
+        } catch (err) {
+            showNotification('Error: ' + err.message, 'error');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane text-[10px]"></i> Send First Email'; }
+        }
     }
 
     function scrollToMessage(msgId) {
