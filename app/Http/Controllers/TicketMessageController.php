@@ -61,6 +61,7 @@ class TicketMessageController extends Controller
                     'sender_email'        => $message->sender_email,
                     'message_body'        => $message->message,
                     'message_html'        => $message->message_html,
+                    'sla_message'         => $message->sla_message,
                     'message_type'        => $message->message_type
                                                 ?: ($message->is_internal_note ? 'internal_note' : 'reply'),
                     'reply_to_id'         => $message->reply_to_id,
@@ -1276,11 +1277,32 @@ class TicketMessageController extends Controller
                 'ticket_id' => $ticketId,
                 'error'     => $e->getMessage(),
                 'error_at'  => $e->getFile() . ':' . $e->getLine(),
+     * Update sla_message for a specific ticket message
+     */
+    public function updateSlaMessage($ticketId, $messageId, Request $request)
+    {
+        try {
+            $sessionUser = session('user');
+
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+            }
+
+            $message = TicketMessage::where('ticket_id', $ticketId)->findOrFail($messageId);
+            $message->update(['sla_message' => $request->input('sla_message')]);
+
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            Log::error('Error updating sla_message:', [
+                'error' => $e->getMessage(),
+                'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to send email: ' . $e->getMessage(),
+//                 'message' => 'Failed to update SLA message',
+                'error' => $e->getMessage()
             ], 500);
         }
     }

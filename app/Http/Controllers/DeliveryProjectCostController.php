@@ -43,7 +43,8 @@ class DeliveryProjectCostController extends Controller
             'cost_type'      => 'required|in:indirect,direct',
             'budget'         => 'nullable|numeric|min:0',
             'release_amount' => 'nullable|numeric|min:0',
-            'actual_amount'  => 'nullable|numeric|min:0',
+            // actual_amount is NOT accepted here — it is derived from the
+            // sum of expense detail items (see syncActualFromItems()).
         ]);
 
         // Auto order_sequence: place at the end of siblings
@@ -54,6 +55,8 @@ class DeliveryProjectCostController extends Controller
         $cost = DeliveryProjectCost::create(array_merge($validated, [
             'delivery_projects_id' => $project->id,
             'order_sequence'       => $maxOrder + 1,
+            // New leaf starts with no expenses → actual is 0 (shows "Rp 0").
+            'actual_amount'        => 0,
         ]));
 
         $cost->load('children');
@@ -81,7 +84,8 @@ class DeliveryProjectCostController extends Controller
             'cost_type'      => 'required|in:indirect,direct',
             'budget'         => 'nullable|numeric|min:0',
             'release_amount' => 'nullable|numeric|min:0',
-            'actual_amount'  => 'nullable|numeric|min:0',
+            // actual_amount is NOT editable here — it is derived from the
+            // sum of expense detail items (see syncActualFromItems()).
         ]);
 
         $cost->update($validated);
@@ -230,7 +234,8 @@ class DeliveryProjectCostController extends Controller
             'document_url'             => $docUrl,
         ]);
 
-        $total = (float) $cost->items()->sum('amount');
+        // Actual amount = sum of all expense items (single source of truth).
+        $total = $this->syncActualFromItems($cost);
 
         return response()->json([
             'message' => 'Expense item added.',
@@ -256,12 +261,27 @@ class DeliveryProjectCostController extends Controller
         // File lives on OneDrive — we only remove the DB record.
         // (OneDrive cleanup can be done manually from the folder if needed.)
         $item->delete();
-        $total = (float) $cost->items()->sum('amount');
+
+        // Recompute actual amount from remaining expense items.
+        $total = $this->syncActualFromItems($cost);
 
         return response()->json([
             'message' => 'Expense item deleted.',
             'total'   => $total,
         ]);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Helper: recompute & persist a cost item's actual_amount as the
+    // sum of its expense detail items. Returns the new total.
+    // (Actual is fully derived from expenses — never entered manually.)
+    // ──────────────────────────────────────────────────────────────
+    private function syncActualFromItems(DeliveryProjectCost $cost): float
+    {
+        $total = (float) $cost->items()->sum('amount');
+        $cost->update(['actual_amount' => $total]);
+
+        return $total;
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -279,7 +299,8 @@ class DeliveryProjectCostController extends Controller
         } else {
             $budget        = $cost->budget;
             $releaseAmount = $cost->release_amount;
-            $actualAmount  = $cost->actual_amount;
+            // Actual is derived from expense items → always numeric (0 = no expenses).
+            $actualAmount  = (float) ($cost->actual_amount ?? 0);
         }
 
         // Available Budget  = Budget − Release
@@ -288,7 +309,9 @@ class DeliveryProjectCostController extends Controller
             : null;
 
         // Available Release = Release − Actual
-        $availRelease = ($releaseAmount !== null || $actualAmount !== null)
+        // Shown when a release is set OR there has been actual spending; an
+        // otherwise-empty row stays "—" (not "Rp 0") to match Avail. Budget.
+        $availRelease = ($releaseAmount !== null || (float)($actualAmount ?? 0) > 0)
             ? (float)($releaseAmount ?? 0) - (float)($actualAmount ?? 0)
             : null;
 

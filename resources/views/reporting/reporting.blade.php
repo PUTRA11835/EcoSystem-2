@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'Reporting')
 @section('page-title', 'Reporting')
-@section('page-subtitle', 'Timesheet performance reports')
+@section('page-subtitle', 'MD Validation')
 
 @push('styles')
 <style>

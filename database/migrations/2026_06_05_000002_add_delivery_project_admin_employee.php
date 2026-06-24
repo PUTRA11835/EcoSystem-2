@@ -13,7 +13,7 @@ use Carbon\Carbon;
  * out of HELPDESK_GROUP / TICKET_MANAGER_GROUP). The project module is not
  * role-gated, so this role already has functional access to administer projects.
  *
- * Login: password "password123", is_already_cp = true (can log in immediately,
+ * Login: password "initial", is_already_cp = true (can log in immediately,
  * following the convention used by the existing employee seeder).
  */
 return new class extends Migration
@@ -121,7 +121,7 @@ return new class extends Migration
                 'username'      => self::ECI,
                 'email'         => self::EMAIL,
                 'phone'         => null,
-                'password'      => Hash::make('password123'),
+                'password'      => Hash::make('initial'),
                 'is_active'     => true,
                 'is_already_cp' => true, // password set here → can log in immediately
                 'created_at'    => Carbon::now(),

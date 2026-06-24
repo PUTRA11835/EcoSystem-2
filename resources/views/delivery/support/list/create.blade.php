@@ -379,7 +379,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                 {{-- Actions --}}
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                     <div class="p-6 space-y-3">
-                        <button type="submit"
+                        <button type="submit" id="btnSubmit"
                                 class="w-full inline-flex items-center justify-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                             Create Delivery Support
                         </button>
@@ -396,6 +396,27 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Prevent double-submit
+    const supportForm = document.getElementById('supportForm');
+    const btnSubmit   = document.getElementById('btnSubmit');
+    let isSubmitting  = false;
+
+    btnSubmit.addEventListener('click', function(e) {
+        if (isSubmitting) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return false;
+        }
+        isSubmitting = true;
+    });
+
+    supportForm.addEventListener('submit', function(e) {
+        if (!supportForm.checkValidity()) return;
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = 'Creating…';
+        btnSubmit.classList.add('opacity-60', 'cursor-not-allowed');
+    });
+
     // Date validation
     const startDate = document.getElementById('start_date');
     const endDate = document.getElementById('end_date');

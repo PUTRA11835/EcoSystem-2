@@ -382,6 +382,11 @@ class SlaService
             return;
         }
 
+        // Auto-close the meeting if its scheduled end time has passed before processing this message
+        if ($this->autoEndExpiredMeeting($ticket)) {
+            $sla->refresh();
+        }
+
         if ($senderType === 'customer') {
             $this->handleCustomerBurst($sla, $ticket, $message);
         } else {
@@ -591,22 +596,25 @@ class SlaService
         $waitingH = null;
 
         if (in_array($sla->ball_holder, ['customer', 'sap']) && $sla->sla_paused_at) {
-            $waitingH = $this->calcHours($sla->sla_paused_at, $message->created_at, $is24h);
+            // Meeting hold tidak boleh diputus oleh chat — hold berlaku sampai meeting selesai
+            if (!$this->hasMeetingHold($ticket->ticket_id)) {
+                $waitingH = $this->calcHours($sla->sla_paused_at, $message->created_at, $is24h);
 
-            $sla->total_waiting_hours = (float) $sla->total_waiting_hours + $waitingH;
-            $sla->ball_holder         = 'helpdesk';
-            $sla->sla_paused_at       = null;
-            $sla->session_start_at    = $message->created_at;
-            $sla->resolution_status   = 'pending';
-            $sla->save();
+                $sla->total_waiting_hours = (float) $sla->total_waiting_hours + $waitingH;
+                $sla->ball_holder         = 'helpdesk';
+                $sla->sla_paused_at       = null;
+                $sla->session_start_at    = $message->created_at;
+                $sla->resolution_status   = 'pending';
+                $sla->save();
 
-            TicketSlaPause::where('ticket_id', $ticket->ticket_id)
-                ->whereNull('ended_at')
-                ->update([
-                    'ended_at'            => $message->created_at,
-                    'duration_hours'      => $waitingH,
-                    'ended_by_message_id' => $message->id,
-                ]);
+                TicketSlaPause::where('ticket_id', $ticket->ticket_id)
+                    ->whereNull('ended_at')
+                    ->update([
+                        'ended_at'            => $message->created_at,
+                        'duration_hours'      => $waitingH,
+                        'ended_by_message_id' => $message->id,
+                    ]);
+            }
         }
 
         TicketSlaEvent::create([
@@ -684,27 +692,32 @@ class SlaService
                 'started_by_message_id' => $message->id,
             ]);
         } else {
-            // Already paused — apply burst coalescing
-            $lastStatus = $this->lastAgentStatus($ticket->ticket_id);
-            if ($lastStatus !== $ticketStatus) {
-                // Status changed — reset the pause baseline
-                $sla->ball_holder   = $newBallHolder;
-                $sla->sla_paused_at = $message->created_at;
-                $sla->save();
+            // Already paused — apply burst coalescing.
+            // Meeting hold mengambil prioritas: jangan sentuh pause baseline saat meeting aktif,
+            // karena overwrite sla_paused_at akan memotong window waiting yang sudah berjalan.
+            if (!$this->hasMeetingHold($ticket->ticket_id)) {
+                $lastStatus = $this->lastAgentStatus($ticket->ticket_id);
+                if ($lastStatus !== $ticketStatus) {
+                    // Status changed — reset the pause baseline
+                    $sla->ball_holder   = $newBallHolder;
+                    $sla->sla_paused_at = $message->created_at;
+                    $sla->save();
 
-                TicketSlaPause::where('ticket_id', $ticket->ticket_id)
-                    ->whereNull('ended_at')
-                    ->update(['ended_at' => $message->created_at, 'duration_hours' => 0]);
+                    TicketSlaPause::where('ticket_id', $ticket->ticket_id)
+                        ->whereNull('ended_at')
+                        ->update(['ended_at' => $message->created_at, 'duration_hours' => 0]);
 
-                TicketSlaPause::create([
-                    'ticket_id'             => $ticket->ticket_id,
-                    'pause_reason'          => $this->pauseReasonFor($ticketStatus),
-                    'triggered_by_status'   => $ticketStatus,
-                    'started_at'            => $message->created_at,
-                    'started_by_message_id' => $message->id,
-                ]);
+                    TicketSlaPause::create([
+                        'ticket_id'             => $ticket->ticket_id,
+                        'pause_reason'          => $this->pauseReasonFor($ticketStatus),
+                        'triggered_by_status'   => $ticketStatus,
+                        'started_at'            => $message->created_at,
+                        'started_by_message_id' => $message->id,
+                    ]);
+                }
+                // Same status as before — no baseline reset (burst coalescing)
             }
-            // Same status as before — no baseline reset (burst coalescing)
+            // Meeting hold aktif — tidak ada perubahan state
         }
 
         TicketSlaEvent::create([
@@ -733,22 +746,25 @@ class SlaService
         $waitingH = null;
 
         if ($sla->ball_holder !== 'helpdesk' && $sla->sla_paused_at) {
-            $waitingH = $this->calcHours($sla->sla_paused_at, $message->created_at, $is24h);
-            $sla->total_waiting_hours = (float) $sla->total_waiting_hours + $waitingH;
-            $sla->ball_holder         = 'helpdesk';
-            $sla->sla_paused_at       = null;
-            $sla->session_start_at    = $message->created_at;
-            $sla->resolution_status   = 'pending';
-            $resolutionH              = 0;
-            $sla->save();
+            // Meeting hold tidak boleh diputus oleh agent reply — hold berlaku sampai meeting selesai
+            if (!$this->hasMeetingHold($ticket->ticket_id)) {
+                $waitingH = $this->calcHours($sla->sla_paused_at, $message->created_at, $is24h);
+                $sla->total_waiting_hours = (float) $sla->total_waiting_hours + $waitingH;
+                $sla->ball_holder         = 'helpdesk';
+                $sla->sla_paused_at       = null;
+                $sla->session_start_at    = $message->created_at;
+                $sla->resolution_status   = 'pending';
+                $resolutionH              = 0;
+                $sla->save();
 
-            TicketSlaPause::where('ticket_id', $ticket->ticket_id)
-                ->whereNull('ended_at')
-                ->update([
-                    'ended_at'            => $message->created_at,
-                    'duration_hours'      => $waitingH,
-                    'ended_by_message_id' => $message->id,
-                ]);
+                TicketSlaPause::where('ticket_id', $ticket->ticket_id)
+                    ->whereNull('ended_at')
+                    ->update([
+                        'ended_at'            => $message->created_at,
+                        'duration_hours'      => $waitingH,
+                        'ended_by_message_id' => $message->id,
+                    ]);
+            }
         }
 
         TicketSlaEvent::create([
@@ -805,6 +821,35 @@ class SlaService
 
     // ── Private: helpers ─────────────────────────────────────────────────────
 
+    /**
+     * Auto-close the active meeting pause if its scheduled_end_at has passed.
+     * Returns true when a meeting was auto-ended so callers can refresh SLA state.
+     */
+    public function autoEndExpiredMeeting(Ticket $ticket): bool
+    {
+        $pause = TicketSlaPause::where('ticket_id', $ticket->ticket_id)
+            ->where('pause_reason', 'meeting')
+            ->whereNull('ended_at')
+            ->whereNotNull('scheduled_end_at')
+            ->where('scheduled_end_at', '<=', now())
+            ->first();
+
+        if (!$pause) {
+            return false;
+        }
+
+        $this->endMeeting($ticket, $pause->scheduled_end_at);
+        return true;
+    }
+
+    private function hasMeetingHold(int $ticketId): bool
+    {
+        return TicketSlaPause::where('ticket_id', $ticketId)
+            ->where('pause_reason', 'meeting')
+            ->whereNull('ended_at')
+            ->exists();
+    }
+
     private function lastAgentStatus(int $ticketId): ?string
     {
         return TicketSlaEvent::where('ticket_id', $ticketId)
@@ -841,19 +886,37 @@ class SlaService
     // ── 10. startMeeting ─────────────────────────────────────────────────────
 
     /**
-     * Pause SLA clock saat meeting dimulai — ball berpindah ke customer.
-     * Jika ball sudah tidak di helpdesk, hanya catat event tanpa mengubah state.
+     * Pause SLA clock saat jadwal meeting dibuat — ball berpindah ke customer.
+     *
+     * $pauseAt       = waktu SLA mulai di-hold (saat jadwal dibuat, untuk kalkulasi)
+     * $scheduledAt   = waktu meeting dijadwalkan (untuk tampilan di event log)
+     * $scheduledEndAt = waktu meeting selesai (auto-resume SLA saat waktu ini tercapai)
      */
-    public function startMeeting(Ticket $ticket, ?Carbon $startAt = null): void
-    {
+    public function startMeeting(
+        Ticket  $ticket,
+        ?Carbon $pauseAt        = null,
+        ?Carbon $scheduledAt    = null,
+        ?Carbon $scheduledEndAt = null
+    ): void {
         $sla = $ticket->sla;
         if (!$sla || $sla->isClosed()) {
             return;
         }
 
-        $at = $startAt ?? now();
+        $at      = $pauseAt ?? now();
+        $eventAt = $scheduledAt ?? $at;
 
-        if ($sla->ball_holder === 'helpdesk') {
+        $existingMeetingPause = TicketSlaPause::where('ticket_id', $ticket->ticket_id)
+            ->where('pause_reason', 'meeting')
+            ->whereNull('ended_at')
+            ->first();
+
+        if ($existingMeetingPause) {
+            // Meeting lain sudah aktif — update scheduled_end_at-nya dengan waktu meeting baru.
+            // Ini terjadi ketika user membuat jadwal meeting kedua sebelum meeting pertama auto-end.
+            $existingMeetingPause->update(['scheduled_end_at' => $scheduledEndAt]);
+        } elseif ($sla->ball_holder === 'helpdesk') {
+            // Ball was with helpdesk — meeting moves it to customer
             $sla->ball_holder       = 'customer';
             $sla->sla_paused_at     = $at;
             $sla->resolution_status = 'paused';
@@ -864,13 +927,25 @@ class SlaService
                 'pause_reason'        => 'meeting',
                 'triggered_by_status' => 'meeting',
                 'started_at'          => $at,
+                'scheduled_end_at'    => $scheduledEndAt,
+            ]);
+        } else {
+            // Ball is already with customer/SAP (e.g. waiting_on_customer) — create meeting guard
+            // without changing SLA state. This prevents customer replies from restarting the
+            // SLA clock during the meeting window, and zeroes out resolution hours in the event log.
+            TicketSlaPause::create([
+                'ticket_id'           => $ticket->ticket_id,
+                'pause_reason'        => 'meeting',
+                'triggered_by_status' => 'meeting',
+                'started_at'          => $at,
+                'scheduled_end_at'    => $scheduledEndAt,
             ]);
         }
 
         TicketSlaEvent::create([
             'ticket_id'         => $ticket->ticket_id,
             'event_type'        => 'meeting_started',
-            'event_at'          => $at,
+            'event_at'          => $eventAt,
             'triggered_by_type' => 'employee',
             'notes'             => 'Meeting started — SLA clock paused',
         ]);
@@ -889,27 +964,67 @@ class SlaService
             return;
         }
 
-        $at       = $endAt ?? now();
-        $is24h    = $sla->policy?->is_24_hours ?? true;
-        $waitingH = null;
+        $at    = $endAt ?? now();
+        $is24h = $sla->policy?->is_24_hours ?? true;
+
+        $meetingPause = TicketSlaPause::where('ticket_id', $ticket->ticket_id)
+            ->where('pause_reason', 'meeting')
+            ->whereNull('ended_at')
+            ->first();
+
+        // If the scheduled end time is before the meeting's start (user input error),
+        // clamp so Meeting Ended never appears before Meeting Started in the log.
+        if ($meetingPause && $at->lt($meetingPause->started_at)) {
+            $at = $meetingPause->started_at->clone();
+        }
+
+        $waitingH   = null;
+        $priorPause = false;
 
         if ($sla->ball_holder !== 'helpdesk' && $sla->sla_paused_at) {
-            $waitingH = $this->calcHours($sla->sla_paused_at, $at, $is24h);
+            // Did the SLA get paused before the meeting was scheduled?
+            // If sla_paused_at < meetingPause.started_at, a prior customer/SAP wait was
+            // already in progress — the meeting was just a guard on top of it.
+            $priorPause = (bool) ($meetingPause && $sla->sla_paused_at->lt($meetingPause->started_at));
 
-            $sla->total_waiting_hours = (float) $sla->total_waiting_hours + $waitingH;
-            $sla->ball_holder         = 'helpdesk';
-            $sla->sla_paused_at       = null;
-            $sla->session_start_at    = $at;
-            $sla->resolution_status   = 'pending';
-            $sla->save();
-
-            TicketSlaPause::where('ticket_id', $ticket->ticket_id)
-                ->whereNull('ended_at')
-                ->update([
+            if ($priorPause) {
+                // Meeting was overlaid on a pre-existing customer wait.
+                // Close the meeting guard record; leave the customer wait pause open.
+                // The ball stays with the customer — they still need to reply to restart the SLA.
+                // $waitingH is set so the meeting_ended event shows the meeting duration in the
+                // WAITING column, but it is NOT added to total_waiting_hours (the full customer
+                // wait window already includes this period, so adding it would double-count).
+                $waitingH = $this->calcHours($meetingPause->started_at, $at, $is24h);
+                $meetingPause->update([
                     'ended_at'       => $at,
                     'duration_hours' => $waitingH,
                 ]);
+            } else {
+                // The meeting itself paused the SLA (ball moved from helpdesk to customer BY meeting).
+                // Resume the SLA clock now that the meeting is over.
+                $waitingH = $this->calcHours($sla->sla_paused_at, $at, $is24h);
+
+                $sla->total_waiting_hours = (float) $sla->total_waiting_hours + $waitingH;
+                $sla->ball_holder         = 'helpdesk';
+                $sla->sla_paused_at       = null;
+                $sla->session_start_at    = $at;
+                $sla->resolution_status   = 'pending';
+                $sla->save();
+
+                TicketSlaPause::where('ticket_id', $ticket->ticket_id)
+                    ->whereNull('ended_at')
+                    ->update([
+                        'ended_at'       => $at,
+                        'duration_hours' => $waitingH,
+                    ]);
+            }
+        } elseif ($meetingPause) {
+            $meetingPause->update(['ended_at' => $at, 'duration_hours' => 0]);
         }
+
+        $notes = $waitingH !== null
+            ? 'Meeting ended — ' . round($waitingH, 2) . ' hrs' . ($priorPause ? ' (meeting duration)' : ' counted as waiting')
+            : 'Meeting ended';
 
         TicketSlaEvent::create([
             'ticket_id'         => $ticket->ticket_id,
@@ -917,9 +1032,7 @@ class SlaService
             'event_at'          => $at,
             'waiting_hours'     => $waitingH,
             'triggered_by_type' => 'employee',
-            'notes'             => $waitingH !== null
-                                   ? 'Meeting ended — ' . round($waitingH, 2) . ' hrs counted as waiting'
-                                   : 'Meeting ended',
+            'notes'             => $notes,
         ]);
     }
 }

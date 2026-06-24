@@ -87,9 +87,9 @@ class UserSystemRolesSeeder extends Seeder
                     'employee_id'   => $empId,
                     'username'      => $emp->eci,
                     'email'         => $email,
-                    'password'      => Hash::make('password123'),
+                    'password'      => Hash::make('initial'),
                     'is_active'     => true,
-                    'is_already_cp' => true,  // langsung bisa login, password default: password123
+                    'is_already_cp' => true,  // langsung bisa login, password default: initial
                     'created_at'    => $now,
                     'updated_at'    => $now,
                 ];

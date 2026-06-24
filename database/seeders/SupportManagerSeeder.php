@@ -104,7 +104,7 @@ class SupportManagerSeeder extends Seeder
                         'employee_id'   => $employeeId,
                         'username'      => $sm['eci'],
                         'email'         => $sm['email'],
-                        'password'      => Hash::make('password123'),
+                        'password'      => Hash::make('initial'),
                         'is_active'     => true,
                         'is_already_cp' => true,
                         'created_at'    => Carbon::now(),

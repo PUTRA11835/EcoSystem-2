@@ -792,11 +792,16 @@ class StagingTicketController extends Controller
                   . '</div>'
                 : '';
 
-            $bodyPlain = "Baik akan disampaikan dengan Nomor Ticket {$ticketNumber}\n\nBest Regards,\n{$signatureName}";
+            $bodyPlain = "Terima kasih sudah menghubungi kami.\n"
+                       . "Kami sudah daftarkan tiket terkait issue yang sudah disampaikan dengan nomor {$ticketNumber}\n"
+                       . "Issue tersebut akan segera kami teruskan kepada konsultan yang terkait untuk diproses.\n\n\n"
+                       . "Regards,\nEclectic Support Team";
 
-            $bodyHtml  = "<p>Baik akan disampaikan dengan Nomor Ticket <strong>{$ticketNumber}</strong></p>"
+            $bodyHtml  = "<p>Terima kasih sudah menghubungi kami.<br>"
+                       . "Kami sudah daftarkan tiket terkait issue yang sudah disampaikan dengan nomor <strong>{$ticketNumber}</strong><br>"
+                       . "Issue tersebut akan segera kami teruskan kepada konsultan yang terkait untuk diproses.</p>"
                        . $detailBlock
-                       . "<br><p>Best Regards,<br><strong>{$signatureName}</strong></p>";
+                       . "<br><p>Regards,<br><strong>Eclectic Support Team</strong></p>";
 
             $safeNum  = htmlspecialchars($ticketNumber, ENT_QUOTES, 'UTF-8');
             $safeAgent = htmlspecialchars($signatureName, ENT_QUOTES, 'UTF-8');
@@ -812,8 +817,10 @@ class StagingTicketController extends Controller
                 </tr>
                 <tr>
                     <td style="background-color:#ffffff;padding:24px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;font-size:14px;color:#374151;line-height:1.7;">
-                        <p>Baik akan disampaikan dengan Nomor Ticket <strong>#{$safeNum}</strong></p>
-                        <p>Best Regards,<br><strong>{$safeAgent}</strong></p>
+                        <p style="margin:0 0 16px 0;">Terima kasih sudah menghubungi kami.<br>
+                        Kami sudah daftarkan tiket terkait issue yang sudah disampaikan dengan nomor <strong>{$safeNum}</strong><br>
+                        Issue tersebut akan segera kami teruskan kepada konsultan yang terkait untuk diproses.</p>
+                        <p style="margin:0;">Regards,<br><strong>Eclectic Support Team</strong></p>
                     </td>
                 </tr>
                 <tr>
@@ -868,62 +875,9 @@ class StagingTicketController extends Controller
                 }
             }
 
-            // ── Sertakan konten asli tiket sebagai quoted section ─────────────
-            // Prioritas: $firstMessage->message_html (sudah di-rewrite oleh
-            // processAttachmentsForMessage dengan URL /storage/... yang dapat diakses
-            // oleh browser EcoSystem dan email client).
-            // Fallback #1: $staging->email_body_html + resolve inline images sebagai data URI.
-            // Fallback #2: $staging->body (hindari jika mungkin — bisa berisi URL Jarvies
-            // proxy yang tidak bisa diakses di konteks EcoSystem).
-            $originalBody = null;
-            if ($firstMessage && trim(strip_tags($firstMessage->message_html ?? '')) !== '') {
-                $originalBody = $firstMessage->message_html;
-            } elseif (!empty($staging->email_body_html) && $staging->graph_message_id) {
-                try {
-                    $originalBody = app(EmailController::class)
-                        ->resolveInlineImagesAsDataUris($staging->graph_message_id, $staging->email_body_html);
-                } catch (\Exception $e) {
-                    $originalBody = $staging->email_body_html;
-                }
-            } else {
-                $originalBody = $staging->body ?? null;
-            }
-            if ($originalBody && trim(strip_tags($originalBody)) !== '') {
-                // Jadikan relative src/href URLs menjadi absolute agar gambar tampil di email client.
-                // Email client tidak bisa resolve relative URL — harus menggunakan full domain.
-                $appUrl = rtrim(config('app.url'), '/');
-                $originalBody = preg_replace_callback(
-                    '~((?:src|href)=")(/(?!/))([^"]*)~i',
-                    fn($m) => $m[1] . $appUrl . '/' . $m[3],
-                    $originalBody
-                );
-
-                // Bangun daftar nama file attachment untuk ditampilkan di body email
-                $attNamesHtml = '';
-                if (!empty($rawAttachments)) {
-                    $items = '';
-                    foreach ($rawAttachments as $att) {
-                        $items .= '<li style="margin:2px 0;">'
-                            . htmlspecialchars($att['name'] ?? 'attachment', ENT_QUOTES, 'UTF-8')
-                            . '</li>';
-                    }
-                    $attNamesHtml = '<div style="margin-top:12px;font-size:13px;color:#374151;">'
-                        . '<p style="margin:0 0 4px;font-weight:600;color:#6b7280;font-size:12px;">Attachments:</p>'
-                        . '<ul style="margin:0;padding-left:20px;">' . $items . '</ul>'
-                        . '</div>';
-                }
-
-                $bodyHtml .= <<<HTML
-
-                <div style="margin-top:24px;padding-top:16px;border-top:2px solid #e5e7eb;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6b7280;max-width:600px;">
-                    <p style="margin:0 0 8px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;">Original Ticket Content</p>
-                    <div style="border-left:3px solid #e5e7eb;padding:0 0 0 16px;color:#374151;font-size:14px;line-height:1.7;">
-                        {$originalBody}
-                        {$attNamesHtml}
-                    </div>
-                </div>
-                HTML;
-            }
+            // Section "Original Ticket Content" sengaja DIHILANGKAN dari body email
+            // (sesuai permintaan): customer cukup menerima pesan sambutan + nomor tiket.
+            // $rawAttachments tetap dilampirkan sebagai attachment email yang sebenarnya.
 
             Log::info('StagingTicketController@sendApprovalNotification: step create-message', [
                 'staging_id'      => $staging->id,

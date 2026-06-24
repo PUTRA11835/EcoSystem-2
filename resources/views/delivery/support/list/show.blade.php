@@ -477,7 +477,10 @@
                     <span class="text-emerald-700 font-semibold" id="dlvCustomerFolderPreview">
                         {{ str_pad($support->client_id, 3, '0', STR_PAD_LEFT) }} {{ strtoupper($support->client->basicData->name_1 ?? 'CUSTOMER') }}
                     </span><span class="text-gray-400"> /</span><br>
-                    <span class="text-blue-700 font-semibold" id="dlvSubfolderPreview">{{ $support->onedrive_deliverable_folder_id ? '(folder already exists)' : 'subfolder name...' }}</span>
+                    <span class="text-amber-700 font-semibold" id="dlvSupportFolderPreview">
+                        {{ $support->name }}
+                    </span><span class="text-gray-400"> /</span><br>
+                    <span class="text-blue-700 font-semibold" id="dlvSubfolderPreview">subfolder name...</span>
                 </div>
 
                 {{-- Subfolder name input --}}
@@ -494,8 +497,8 @@
 
                 @if($support->onedrive_deliverable_folder_url)
                 <div class="bg-emerald-50 rounded-lg p-3 text-xs text-emerald-700">
-                    <span class="font-semibold">A subfolder already exists.</span>
-                    Creating a new one will replace the stored reference.
+                    <span class="font-semibold">This support folder already exists.</span>
+                    Each new sub-folder is added inside it (existing ones are kept).
                 </div>
                 @endif
             </div>
@@ -990,14 +993,6 @@ document.addEventListener('DOMContentLoaded', function() {
     editSwStart.addEventListener('change', validateEditServiceWindow);
     editSwEnd.addEventListener('change', validateEditServiceWindow);
 
-    // Show flash messages as toasts
-    @if(session('success'))
-        showNotification('{{ session('success') }}', 'success');
-    @endif
-
-    @if(session('error'))
-        showNotification('{{ session('error') }}', 'error');
-    @endif
 
     // Close modals on escape key
     document.addEventListener('keydown', function(e) {

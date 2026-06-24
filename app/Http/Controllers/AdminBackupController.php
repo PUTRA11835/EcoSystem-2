@@ -18,7 +18,7 @@ class AdminBackupController extends Controller
      * Employee login dengan ECI/email + password ini, lalu (karena
      * is_already_cp = false) sistem memaksa set-password via link email.
      */
-    private const DEFAULT_IMPORT_PASSWORD = 'password123';
+    private const DEFAULT_IMPORT_PASSWORD = 'initial';
 
     private function assertAdmin(): bool
     {
@@ -858,6 +858,14 @@ class AdminBackupController extends Controller
                         $this->upsertCellPhone($existing->employee_id, $cellPhone);
                     }
 
+                    // Email CSV juga disimpan ke email_work alamat primary agar
+                    // tampil di field "Email (Work)" view (auth_users.email tetap
+                    // sumber reset password). Pakai $email mentah: meski bentrok
+                    // untuk auth (unik), email_work tak punya constraint unik.
+                    if ($email) {
+                        $this->upsertEmailWork($existing->employee_id, $email);
+                    }
+
                     // Pastikan akun login ada & konsisten dgn default import.
                     $authUser = DB::table('auth_users')->where('employee_id', $existing->employee_id)->first();
                     if (!$authUser) {
@@ -943,7 +951,7 @@ class AdminBackupController extends Controller
                         ], $assignRoleIds)
                     );
 
-                    // Auth account — password default = password123. is_already_cp=false:
+                    // Auth account — password default = initial. is_already_cp=false:
                     // saat login pertama sistem kirim email link set-password.
                     DB::table('auth_users')->insert([
                         'employee_id'   => $employeeId,
@@ -974,6 +982,12 @@ class AdminBackupController extends Controller
 
                     if ($cellPhone) {
                         $this->upsertCellPhone($employeeId, $cellPhone);
+                    }
+
+                    // Tampilkan email di field "Email (Work)" view (lihat catatan
+                    // di jalur UPDATE). auth_users.email tetap sumber reset password.
+                    if ($email) {
+                        $this->upsertEmailWork($employeeId, $email);
                     }
 
                     DB::commit();
@@ -1111,6 +1125,40 @@ class AdminBackupController extends Controller
                 'employee_id'  => $employeeId,
                 'address_type' => 'Home',
                 'cell_phone'   => $cellPhone,
+                'is_primary'   => true,
+                'is_verified'  => false,
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ]);
+        }
+    }
+
+    /**
+     * Simpan email dari CSV ke employee_address.email_work (alamat primary).
+     *
+     * Email login disimpan ke auth_users.email (sumber reset/set-password),
+     * tetapi field "Email (Work)" di view membaca dari employee_address.email_work.
+     * Tanpa ini, email tidak terlihat di UI meski reset password berfungsi.
+     * Dua-arah: edit "Email (Work)" alamat primary nanti disinkronkan balik ke
+     * auth_users.email oleh EmployeeAddressController.
+     */
+    private function upsertEmailWork(int $employeeId, string $emailWork): void
+    {
+        $primary = DB::table('employee_address')
+            ->where('employee_id', $employeeId)
+            ->orderBy('is_primary', 'desc')
+            ->orderBy('address_id', 'asc')
+            ->first();
+
+        if ($primary) {
+            DB::table('employee_address')
+                ->where('address_id', $primary->address_id)
+                ->update(['email_work' => $emailWork, 'updated_at' => now()]);
+        } else {
+            DB::table('employee_address')->insert([
+                'employee_id'  => $employeeId,
+                'address_type' => 'Home',
+                'email_work'   => $emailWork,
                 'is_primary'   => true,
                 'is_verified'  => false,
                 'created_at'   => now(),

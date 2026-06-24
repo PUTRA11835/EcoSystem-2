@@ -153,6 +153,36 @@ class DeliverySupport extends Model
     // HELPER METHODS
     // ========================================
 
+    /**
+     * Customer deliverable folder name (per client), e.g. "125 DEMOGRP2".
+     * Returns null when client / basic data is missing.
+     * NOTE: kept identical to the historical format so existing folders still match.
+     */
+    public function customerDeliverableFolderName(): ?string
+    {
+        $this->loadMissing('client.basicData');
+
+        if (!$this->client || !$this->client->basicData) {
+            return null;
+        }
+
+        return str_pad((string) $this->client_id, 3, '0', STR_PAD_LEFT)
+            . ' ' . strtoupper($this->client->basicData->name_1);
+    }
+
+    /**
+     * Per-support folder name inside the customer folder, e.g. "ATS DEMOGRP2".
+     * Uses the support name as-is (sanitized). Support names are kept unique per
+     * client by convention, so no ID prefix is added.
+     */
+    public function supportDeliverableFolderName(): string
+    {
+        return \App\Services\OneDriveService::sanitizeSegment(
+            $this->name ?? '',
+            'Support-' . $this->id
+        );
+    }
+
     public function calculateProgress()
     {
         $phases = $this->visiblePhases;

@@ -595,6 +595,9 @@
 
             if (data.success) {
                 showNotification(isUpdate ? 'Address updated successfully!' : 'Address created successfully!', 'success');
+                // Peringatan saat email_work primary gagal disinkronkan ke email login
+                // (mis. email sudah dipakai akun lain) — tampilkan agar admin sadar.
+                if (data.warning) showNotification(data.warning, 'error');
                 loadAddresses();
                 if (typeof window.refreshHeader === 'function') window.refreshHeader({{ $employeeId }});
                 if (isUpdate) {
