@@ -407,7 +407,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
             Route::get('/identification', [\App\Http\Controllers\ManagementEmployeeController::class, 'identification'])->middleware('menu:management.employee.identification') ->name('identification.index');
             Route::get('/family',         [\App\Http\Controllers\ManagementEmployeeController::class, 'family'])       ->middleware('menu:management.employee.family')         ->name('family.index');
             Route::get('/education',      [\App\Http\Controllers\ManagementEmployeeController::class, 'education'])    ->middleware('menu:management.employee.education')      ->name('education.index');
-            Route::get('/qualification',  [\App\Http\Controllers\ModuleController::class, 'page'])                     ->middleware('menu:management.employee.qualification')  ->name('qualification.index');
+            Route::get('/qualification',  [\App\Http\Controllers\ManagementEmployeeController::class, 'qualification']) ->middleware('menu:management.employee.qualification')  ->name('qualification.index');
             Route::get('/contract',       [\App\Http\Controllers\ManagementEmployeeController::class, 'contract'])     ->middleware('menu:management.employee.contract')       ->name('contract.index');
             Route::get('/bank',           [\App\Http\Controllers\ManagementEmployeeController::class, 'bank'])         ->middleware('menu:management.employee.bank')           ->name('bank.index');
             Route::get('/payment',        [\App\Http\Controllers\ManagementEmployeeController::class, 'payment'])      ->middleware('menu:management.employee.payment')        ->name('payment.index');
