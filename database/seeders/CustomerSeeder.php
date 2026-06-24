@@ -1585,7 +1585,7 @@ class CustomerSeeder extends Seeder
                         'username'      => $customerCode,
                         'email'         => $cust['email'],
                         'phone'         => $cust['address']['cell_phone'] ?? null,
-                        'password'      => Hash::make('password123'),
+                        'password'      => Hash::make('initial'),
                         'is_active'     => true,
                         'is_already_cp' => true,
                         'created_at'    => Carbon::now(),

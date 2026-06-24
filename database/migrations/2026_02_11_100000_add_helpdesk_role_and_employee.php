@@ -40,7 +40,7 @@ return new class extends Migration
             $employeeId = DB::table('employee')->insertGetId([
                 'eci' => 'ECI_HELPDESK',
                 'role_id' => $roleId,
-                'password' => Hash::make('password123'),
+                'password' => Hash::make('initial'),
                 'is_active' => true,
                 'created_at' => Carbon::now(),
                 'updated_at' => Carbon::now(),

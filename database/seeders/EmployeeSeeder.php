@@ -296,7 +296,7 @@ class EmployeeSeeder extends Seeder
                         'username'      => $emp['eci'],
                         'email'         => $authEmail,
                         'phone'         => $authPhone,
-                        'password'      => Hash::make('password123'),
+                        'password'      => Hash::make($emp['eci'] === 'ECI_ADMIN' ? 'password123' : 'initial'),
                         'is_active'     => true,
                         'is_already_cp' => true, // password sudah di-set oleh seeder, bisa langsung login
                         'created_at'    => Carbon::now(),

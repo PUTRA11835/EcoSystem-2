@@ -18,7 +18,7 @@ class AdminBackupController extends Controller
      * Employee login dengan ECI/email + password ini, lalu (karena
      * is_already_cp = false) sistem memaksa set-password via link email.
      */
-    private const DEFAULT_IMPORT_PASSWORD = 'password123';
+    private const DEFAULT_IMPORT_PASSWORD = 'initial';
 
     private function assertAdmin(): bool
     {
@@ -951,7 +951,7 @@ class AdminBackupController extends Controller
                         ], $assignRoleIds)
                     );
 
-                    // Auth account — password default = password123. is_already_cp=false:
+                    // Auth account — password default = initial. is_already_cp=false:
                     // saat login pertama sistem kirim email link set-password.
                     DB::table('auth_users')->insert([
                         'employee_id'   => $employeeId,
