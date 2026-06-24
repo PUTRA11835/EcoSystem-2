@@ -345,6 +345,7 @@ class TicketController extends Controller
                 'ticket_number'          => $ticket->ticket_number,
                 'description'            => $ticket->description,
                 'created_at'             => $ticket->created_at,
+                'start_date'             => $ticket->start_date,
                 'customer'               => ['customer_name' => $ticket->customer?->basicData?->name_1 ?? $ticket->customer?->email],
                 'end_customer_name'      => $ticket->endCustomer?->basicData?->name_1,
                 'employee'               => $ticket->ticketLead ? ['employee_name' => $ticket->ticketLead->basicData?->first_name ?? 'Unknown'] : null,

@@ -882,7 +882,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     function createTicketRow(ticket) {
         const customerName = ticket.customer?.customer_name || 'Unknown';
         const lastActivity = new Date(ticket.last_message_at || ticket.created_at);
-        const createdAt    = new Date(ticket.created_at);
+        const createdAt    = new Date(ticket.start_date || ticket.created_at);
         const endDate      = ticket.end_date ? new Date(ticket.end_date) : null;
 
         const fmt    = d => d.toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' });
@@ -1250,7 +1250,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const colStatus   = document.getElementById('colFilterStatus')?.value   || '';
         const colType     = document.getElementById('colFilterType')?.value     || '';
 
-        // Date range filter (from-to inclusive, based on ticket.created_at in Asia/Jakarta)
+        // Date range filter (from-to inclusive, based on ticket.start_date ?? ticket.created_at in Asia/Jakarta)
         const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
         const dateTo   = document.getElementById('dateFilterTo')?.value   || '';
         const fromMs = dateFrom ? new Date(dateFrom + 'T00:00:00+07:00').getTime() : null;
@@ -1271,7 +1271,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
             let matchDate = true;
             if (fromMs !== null || toMs !== null) {
-                const created = ticket.created_at ? new Date(ticket.created_at).getTime() : NaN;
+                const created = (ticket.start_date || ticket.created_at) ? new Date(ticket.start_date || ticket.created_at).getTime() : NaN;
                 if (Number.isNaN(created)) {
                     matchDate = false;
                 } else {
@@ -1566,8 +1566,8 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                 va = extractNum(a);
                 vb = extractNum(b);
             } else if (key === 'date') {
-                va = new Date(a.created_at).getTime();
-                vb = new Date(b.created_at).getTime();
+                va = new Date(a.start_date || a.created_at).getTime();
+                vb = new Date(b.start_date || b.created_at).getTime();
             } else if (key === 'customer') {
                 va = (a.customer?.customer_name || '').toLowerCase();
                 vb = (b.customer?.customer_name || '').toLowerCase();
