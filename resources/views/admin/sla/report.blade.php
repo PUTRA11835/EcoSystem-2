@@ -4,6 +4,14 @@
 @section('page-title', 'SLA Report')
 @section('page-subtitle', 'Monitor Service Level Agreement performance across all tickets')
 
+@push('scripts')
+<script src="/js/custom-dropdown.js?v={{ filemtime(public_path('js/custom-dropdown.js')) }}"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script>
+    initCustomDropdowns();
+</script>
+@endpush
+
 @push('styles')
 <style>
     .sla-table th, .sla-table td { white-space: nowrap; }
@@ -159,10 +167,22 @@
                         <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
                     </div>
 
+                    {{-- Clear Filter --}}
+                    <button onclick="clearFilters()" id="clearBtn"
+                        class="hidden inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-300 bg-white hover:bg-red-50 px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                        <i class="fas fa-times text-xs"></i> Clear Filter
+                    </button>
+
                     {{-- Refresh --}}
                     <button onclick="loadReport()" id="refreshBtn"
                         class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition bg-white whitespace-nowrap">
                         <i class="fas fa-sync-alt text-xs" id="refreshIcon"></i> Refresh
+                    </button>
+
+                    {{-- Export Excel --}}
+                    <button onclick="exportToExcel()" id="exportBtn"
+                        class="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 hover:text-green-800 border border-green-300 hover:border-green-400 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                        <i class="fas fa-file-excel text-xs"></i> Export Excel
                     </button>
                 </div>
             </div>
@@ -174,7 +194,8 @@
                 <thead>
                     {{-- Group header row --}}
                     <tr class="border-b border-gray-200">
-                        <th colspan="13" class="sc px-3 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider border-r border-gray-200 grp-info" style="left:0;">Informasi Tiket</th>
+                        <th colspan="4"  class="sc sc-last px-3 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider grp-info" style="left:0;">Informasi Tiket</th>
+                        <th colspan="9"  class="px-3 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider border-r border-gray-200 grp-info"></th>
                         <th colspan="8"  class="px-3 py-2 text-center text-[10px] font-bold text-blue-700 uppercase tracking-wider border-r border-gray-200 grp-resp">SLA Response</th>
                         <th colspan="10" class="px-3 py-2 text-center text-[10px] font-bold text-green-700 uppercase tracking-wider border-r border-gray-200 grp-res">SLA Resolution</th>
                         <th colspan="1"  class="px-3 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider grp-info">Aksi</th>
@@ -189,16 +210,16 @@
                         <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider border-r border-gray-100 grp-info" style="left:0;width:32px;min-width:32px;">No</th>
                         <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:32px;width:44px;min-width:44px;">Year</th>
                         <th class="sc text-left   px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:76px;width:110px;min-width:110px;">Customer</th>
-                        <th class="sc text-left   px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:186px;width:110px;min-width:110px;">Tiket</th>
-                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:296px;width:90px;min-width:90px;">Module<br><span class="text-[8px] font-normal normal-case">(FICO/FM/HCM/MM/BIBO/ABAP/BASIS)</span></th>
-                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:386px;width:85px;min-width:85px;">Priority</th>
-                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:471px;width:70px;min-width:70px;">Scale</th>
-                        <th class="sc text-left   px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:541px;width:150px;min-width:150px;">Issue</th>
-                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:691px;width:90px;min-width:90px;">CUST PIC</th>
-                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:781px;width:100px;min-width:100px;">FUNCTIONAL PIC</th>
-                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:881px;width:75px;min-width:75px;">Type of<br>Service<br><span class="text-[8px] font-normal normal-case">(MO / CR)</span></th>
-                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:956px;width:120px;min-width:120px;">Type<br><span class="text-[8px] font-normal normal-case">(Incident/Error, Request/CR, Konsultasi)</span></th>
-                        <th class="sc sc-last text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:1076px;width:85px;min-width:85px;">Status</th>
+                        <th class="sc sc-last text-left px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:186px;width:110px;min-width:110px;">Tiket</th>
+                        <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:90px;">Module<br><span class="text-[8px] font-normal normal-case">(FICO/FM/HCM/MM/BIBO/ABAP/BASIS)</span></th>
+                        <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:85px;">Priority</th>
+                        <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:70px;">Scale</th>
+                        <th class="text-left   px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:150px;">Issue</th>
+                        <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:90px;">CUST PIC</th>
+                        <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:100px;">FUNCTIONAL PIC</th>
+                        <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:75px;">Type of<br>Service<br><span class="text-[8px] font-normal normal-case">(MO / CR)</span></th>
+                        <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:120px;">Type<br><span class="text-[8px] font-normal normal-case">(Incident/Error, Request/CR, Konsultasi)</span></th>
+                        <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:85px;">Status</th>
                         {{-- SLA Response --}}
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Date &amp; Time<br>Received</th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Date &amp; Time Start<br>SLA Response<br><span class="text-[8px] font-normal normal-case">(Working Hours 08:00–17:00)</span></th>
@@ -331,6 +352,7 @@ const STATUS_CFG = {
 const KPI_IDS = ['kpiTotal','kpiActive','kpiMet','kpiBreached','kpiCompliance','kpiAvgResp','kpiAvgRes'];
 
 let _allTickets = [];
+let _filteredTickets = [];
 
 function fmtDT(dt) {
     if (!dt) return '—';
@@ -351,6 +373,146 @@ function fmtDays(d) {
     return parseFloat(d).toFixed(2);
 }
 
+function clearFilters() {
+    setCustomDropdownValue('filterCustomer', '');
+    setCustomDropdownValue('filterMonth', '{{ $curMonth }}');
+    setCustomDropdownValue('filterYear', '{{ $curYear }}');
+    setCustomDropdownValue('filterStatus', '');
+    const searchInput = document.getElementById('cfInput-ticket');
+    if (searchInput) searchInput.value = '';
+    updateClearBtn();
+    loadReport();
+}
+
+function updateClearBtn() {
+    const c = document.getElementById('filterCustomer').value;
+    const m = document.getElementById('filterMonth').value;
+    const y = document.getElementById('filterYear').value;
+    const s = document.getElementById('filterStatus').value;
+    const q = (document.getElementById('cfInput-ticket')?.value || '').trim();
+    const defaultMonth = '{{ $curMonth }}';
+    const defaultYear  = '{{ $curYear }}';
+    const hasFilter = c || s || q || m !== defaultMonth || y !== defaultYear;
+    document.getElementById('clearBtn')?.classList.toggle('hidden', !hasFilter);
+}
+
+function exportToExcel() {
+    const tickets = _filteredTickets;
+    if (!tickets.length) {
+        alert('Tidak ada data untuk diekspor.');
+        return;
+    }
+
+    const btn = document.getElementById('exportBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Mengekspor...';
+
+    try {
+        const rows = tickets.map((t, idx) => {
+            const isPending = t.is_pending_validation;
+            if (isPending) {
+                return {
+                    'No': idx + 1,
+                    'Year': t.year || '',
+                    'Customer': t.customer_name || '',
+                    'Tiket': 'Staging #' + (t.staging_id || '?'),
+                    'Module': '',
+                    'Priority': '',
+                    'Scale': '',
+                    'Issue': '',
+                    'CUST PIC': '',
+                    'Functional PIC': '',
+                    'Type of Service': '',
+                    'Type': '',
+                    'Status': 'Menunggu Validasi',
+                    // SLA Response
+                    'Date & Time Received': '',
+                    'Date & Time Start SLA Response': '',
+                    'SLA Response Time (Jam)': '',
+                    'SLA Response Due On': '',
+                    'Date & Time Responded': '',
+                    'Response Duration': '',
+                    'SLA Response Status': '',
+                    // SLA Resolution
+                    'SLA Resolution (Hour)': '',
+                    'SLA Resolution (Day)': '',
+                    'Date & Time Start SLA Resolution': '',
+                    'SLA Resolution Due On': '',
+                    'First Resolved Date': '',
+                    'Date Sending Resolution Doc': '',
+                    'Resolution Duration (STOP-GO)': '',
+                    'SLA Resolution Status': '',
+                    'Closed Date': '',
+                    'Notes': '',
+                };
+            }
+
+            const typeOfService = t.sla_mode === 'full' ? 'CR' : 'MO';
+            const respStatusLabel = STATUS_CFG[t.response?.status]?.label || '';
+            const resStatusLabel  = STATUS_CFG[t.resolution?.status]?.label || '';
+
+            return {
+                'No': idx + 1,
+                'Year': t.year || '',
+                'Customer': t.customer_name || '',
+                'Tiket': t.ticket_number || '',
+                'Module': t.module || '',
+                'Priority': t.ticket_priority || '',
+                'Scale': t.scale || '',
+                'Issue': t.description || '',
+                'CUST PIC': t.cust_pic || '',
+                'Functional PIC': t.pic || '',
+                'Type of Service': typeOfService,
+                'Type': t.ticket_type || '',
+                'Status': (t.ticket_status || '').replace(/_/g, ' '),
+                // SLA Response
+                'Date & Time Received': t.received_at ? t.received_at.substring(0, 16).replace('T', ' ') : '',
+                'Date & Time Start SLA Response': t.sla_start_at ? t.sla_start_at.substring(0, 16).replace('T', ' ') : '',
+                'SLA Response Time (Jam)': t.response?.target_hours ?? '',
+                'SLA Response Due On': t.response?.due_at ? t.response.due_at.substring(0, 16).replace('T', ' ') : '',
+                'Date & Time Responded': t.response?.responded_at ? t.response.responded_at.substring(0, 16).replace('T', ' ') : '',
+                'Response Duration': t.response?.actual_hours != null ? fmtHHMM(t.response.actual_hours) : '',
+                'SLA Response Status': respStatusLabel,
+                // SLA Resolution
+                'SLA Resolution (Hour)': t.resolution?.target_hours ?? '',
+                'SLA Resolution (Day)': t.resolution?.target_days != null ? parseFloat(t.resolution.target_days).toFixed(2) : '',
+                'Date & Time Start SLA Resolution': t.sla_start_at ? t.sla_start_at.substring(0, 16).replace('T', ' ') : '',
+                'SLA Resolution Due On': t.resolution?.due_at ? t.resolution.due_at.substring(0, 16).replace('T', ' ') : '',
+                'First Resolved Date': t.resolution?.resolved_at ? t.resolution.resolved_at.substring(0, 16).replace('T', ' ') : '',
+                'Date Sending Resolution Doc': '',
+                'Resolution Duration (STOP-GO)': t.resolution?.actual_hours != null ? fmtHHMM(t.resolution.actual_hours) : '',
+                'SLA Resolution Status': resStatusLabel,
+                'Closed Date': t.closed_at ? t.closed_at.substring(0, 16).replace('T', ' ') : '',
+                'Notes': '',
+            };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+
+        // Auto column widths
+        const colWidths = Object.keys(rows[0] || {}).map(key => ({
+            wch: Math.max(key.length, ...rows.map(r => String(r[key] ?? '').length)) + 2
+        }));
+        ws['!cols'] = colWidths;
+
+        // Freeze first row
+        ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'SLA Report');
+
+        const month = document.getElementById('filterMonth').value;
+        const year  = document.getElementById('filterYear').value;
+        const dateSuffix = [year, month ? month.padStart(2, '0') : 'all'].filter(Boolean).join('-');
+        const filename = `SLA_Report_${dateSuffix}.xlsx`;
+
+        XLSX.writeFile(wb, filename);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-file-excel text-xs"></i> Export Excel';
+    }
+}
+
 async function loadReport() {
     const params = new URLSearchParams();
     const c = document.getElementById('filterCustomer').value;
@@ -362,6 +524,7 @@ async function loadReport() {
     if (y) params.set('year', y);
     if (s) params.set('resolution_status', s);
 
+    updateClearBtn();
     const icon = document.getElementById('refreshIcon');
     icon?.classList.add('fa-spin');
 
@@ -410,6 +573,8 @@ function applyReportFilters() {
         return true;
     });
 
+    _filteredTickets = filtered;
+    updateClearBtn();
     renderTable(filtered);
 }
 
@@ -445,10 +610,10 @@ function renderTable(tickets) {
                 <td class="sc px-2 py-2 text-center text-gray-400"                style="left:0;width:32px;min-width:32px;">${idx + 1}</td>
                 <td class="sc px-2 py-2 text-center text-gray-500"                style="left:32px;width:44px;min-width:44px;">${t.year || '—'}</td>
                 <td class="sc px-2 py-2 text-gray-700 font-medium"                style="left:76px;width:110px;min-width:110px;">${t.customer_name || '—'}</td>
-                <td class="sc px-2 py-2"                                           style="left:186px;width:110px;min-width:110px;">
+                <td class="sc sc-last px-2 py-2"                                   style="left:186px;width:110px;min-width:110px;">
                     <span class="font-mono text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Staging #${t.staging_id || '?'}</span>
                 </td>
-                <td class="sc px-2 py-2 text-center text-amber-600" colspan="9"   style="left:296px;">
+                <td class="px-2 py-2 text-center text-amber-600" colspan="9">
                     <span class="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Menunggu Validasi</span>
                 </td>
                 <td class="px-2 py-2 text-gray-400" colspan="18">—</td>
@@ -485,32 +650,32 @@ function renderTable(tickets) {
             <td class="sc px-2 py-2 overflow-hidden"                         style="left:76px;width:110px;min-width:110px;">
                 <p class="text-gray-700 font-medium truncate">${t.customer_name || '—'}</p>
             </td>
-            <td class="sc px-2 py-2"                                          style="left:186px;width:110px;min-width:110px;">
+            <td class="sc sc-last px-2 py-2"                                   style="left:186px;width:110px;min-width:110px;">
                 <a href="${ticketUrl}" class="font-mono text-[10px] font-bold text-red-700 bg-red-50 px-1.5 py-0.5 rounded hover:bg-red-100 transition whitespace-nowrap">
                     #${t.ticket_number}
                 </a>
             </td>
-            <td class="sc px-2 py-2 text-center"                              style="left:296px;width:90px;min-width:90px;">
+            <td class="px-2 py-2 text-center" style="min-width:90px;">
                 <span class="text-[10px] font-semibold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">${t.module || '—'}</span>
             </td>
-            <td class="sc px-2 py-2 text-center"                              style="left:386px;width:85px;min-width:85px;">
+            <td class="px-2 py-2 text-center" style="min-width:85px;">
                 <span class="inline-flex items-center gap-1 text-[10px] font-semibold ${prio.text} ${prio.bg} px-1.5 py-0.5 rounded-full">
                     <span class="w-1.5 h-1.5 rounded-full ${prio.dot} flex-shrink-0"></span>${t.ticket_priority || '—'}
                 </span>
             </td>
-            <td class="sc px-2 py-2 text-center text-gray-500 text-[10px]"   style="left:471px;width:70px;min-width:70px;">${t.scale || '—'}</td>
-            <td class="sc px-2 py-2 overflow-hidden"                          style="left:541px;width:150px;min-width:150px;">
+            <td class="px-2 py-2 text-center text-gray-500 text-[10px]" style="min-width:70px;">${t.scale || '—'}</td>
+            <td class="px-2 py-2 overflow-hidden" style="min-width:150px;">
                 <p class="text-gray-600 truncate text-[10px]" title="${(t.description || '').replace(/"/g, '&quot;')}">${desc || '—'}</p>
             </td>
-            <td class="sc px-2 py-2 text-center text-gray-500 text-[10px]"   style="left:691px;width:90px;min-width:90px;">${t.cust_pic || '—'}</td>
-            <td class="sc px-2 py-2 text-center text-gray-500 text-[10px]"   style="left:781px;width:100px;min-width:100px;">${t.pic || '—'}</td>
-            <td class="sc px-2 py-2 text-center"                              style="left:881px;width:75px;min-width:75px;">
+            <td class="px-2 py-2 text-center text-gray-500 text-[10px]" style="min-width:90px;">${t.cust_pic || '—'}</td>
+            <td class="px-2 py-2 text-center text-gray-500 text-[10px]" style="min-width:100px;">${t.pic || '—'}</td>
+            <td class="px-2 py-2 text-center" style="min-width:75px;">
                 <span class="text-[10px] font-semibold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">${typeOfService}</span>
             </td>
-            <td class="sc px-2 py-2 text-center"                              style="left:956px;width:120px;min-width:120px;">
+            <td class="px-2 py-2 text-center" style="min-width:120px;">
                 <span class="text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded">${t.ticket_type || '—'}</span>
             </td>
-            <td class="sc sc-last px-2 py-2 text-center"                      style="left:1076px;width:85px;min-width:85px;">
+            <td class="px-2 py-2 text-center" style="min-width:85px;">
                 <span class="text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded capitalize">${(t.ticket_status || '—').replace(/_/g,' ')}</span>
             </td>
             {{-- SLA Response --}}
