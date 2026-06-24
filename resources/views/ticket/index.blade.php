@@ -1713,7 +1713,8 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         form.append('customer_id',     document.getElementById('newCustomerId').value);
         form.append('ticket_type',     ticketTypeVal);
         form.append('cc_emails',       document.getElementById('newCcEmails').value || '');
-        form.append('scale',           document.getElementById('newScale').value || '');
+        const scaleVal = document.getElementById('newScale').value;
+        if (scaleVal) form.append('scale', scaleVal);
         form.append('name',            document.getElementById('newName').value || '');
         form.append('no_hp',           document.getElementById('newNoHp').value || '');
         form.append('module',          document.getElementById('newModule').value || '');

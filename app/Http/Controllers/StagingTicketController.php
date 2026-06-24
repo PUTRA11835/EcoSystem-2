@@ -253,6 +253,7 @@ class StagingTicketController extends Controller
             // Jika Jarvies sudah kirim email sendiri, kirim internet_message_id-nya
             // agar EcoSystem bisa link staging ke email tersebut (ambil graph_message_id + body)
             'internet_message_id'  => 'nullable|string|max:1000',
+            'scale'                => 'nullable|string|max:50',
         ]);
 
         try {
@@ -267,8 +268,11 @@ class StagingTicketController extends Controller
             $staging = $this->service->createFromWeb($validated, (int) $validated['customer_id']);
 
             Log::info('StagingTicketController@jarviesStore: staging created from JARVIES', [
-                'staging_id'  => $staging->id,
-                'customer_id' => $validated['customer_id'],
+                'staging_id'   => $staging->id,
+                'customer_id'  => $validated['customer_id'],
+                'ticket_type'  => $validated['ticket_type'] ?? null,
+                'scale'        => $validated['scale'] ?? null,
+                'scale_saved'  => $staging->scale,
             ]);
 
             // ── Link ke email Jarvies (jika internet_message_id dikirim) ─────────
@@ -389,6 +393,9 @@ class StagingTicketController extends Controller
             // Kirim notifikasi balasan otomatis ke customer
             $this->sendApprovalNotification($staging, $ticket, $sessionUser, $firstMessage);
 
+            // Sync ke JARVIES DB (staging update + ticket upsert)
+            $this->syncApprovalToJarvies($staging, $ticket);
+
             // Notifikasi bell Jarvies — ticket berhasil dibuat
             if ($staging->customer_id) {
                 \App\Services\CustomerNotificationService::notify(
@@ -451,6 +458,9 @@ class StagingTicketController extends Controller
 
         try {
             $this->service->reject($staging, $sessionUser['id'], $request->reason);
+
+            // Sync penolakan ke JARVIES DB
+            $this->syncRejectionToJarvies($staging);
 
             // Notifikasi bell Jarvies — ticket request ditolak
             if ($staging->customer_id) {
@@ -724,6 +734,66 @@ class StagingTicketController extends Controller
                 'total'       => StagingTicket::count(),
             ],
         ]);
+    }
+
+    // ─── Private: Sync ke JARVIES DB setelah validasi ────────────────────────
+
+    private function syncApprovalToJarvies(StagingTicket $staging, Ticket $ticket): void
+    {
+        $url = rtrim(config('services.jarvies.url', ''), '/');
+        $key = config('services.jarvies.api_key');
+        if (!$url || !$key) return;
+
+        try {
+            Http::withHeaders(['X-Api-Key' => $key])
+                ->timeout(15)
+                ->post("{$url}/api/ecosystem/staging-approved", [
+                    'customer_id'        => $staging->customer_id,
+                    'staging_description'=> $staging->description,
+                    'ticket_id'          => $ticket->ticket_id,
+                    'ticket_number'      => $ticket->ticket_number,
+                    'description'        => $ticket->description,
+                    'status'             => $ticket->status,
+                    'ticket_priority'    => $ticket->ticket_priority,
+                    'ticket_type'        => $ticket->ticket_type,
+                    'channel'            => $ticket->channel,
+                    'submitted_by_email' => $ticket->submitted_by_email,
+                    'submitted_by_name'  => $ticket->submitted_by_name,
+                    'start_date'         => $ticket->start_date?->toDateString(),
+                ]);
+
+            Log::info('StagingTicketController@syncApprovalToJarvies: berhasil', [
+                'staging_id' => $staging->id,
+                'ticket_id'  => $ticket->ticket_id,
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('StagingTicketController@syncApprovalToJarvies: gagal (non-fatal)', [
+                'staging_id' => $staging->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function syncRejectionToJarvies(StagingTicket $staging): void
+    {
+        $url = rtrim(config('services.jarvies.url', ''), '/');
+        $key = config('services.jarvies.api_key');
+        if (!$url || !$key) return;
+
+        try {
+            Http::withHeaders(['X-Api-Key' => $key])
+                ->timeout(15)
+                ->post("{$url}/api/ecosystem/staging-rejected", [
+                    'customer_id'        => $staging->customer_id,
+                    'staging_description'=> $staging->description,
+                    'rejection_reason'   => $staging->rejection_reason,
+                ]);
+        } catch (\Exception $e) {
+            Log::warning('StagingTicketController@syncRejectionToJarvies: gagal (non-fatal)', [
+                'staging_id' => $staging->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
     }
 
     // ─── Private: Notifikasi balasan otomatis setelah approval ───────────────
