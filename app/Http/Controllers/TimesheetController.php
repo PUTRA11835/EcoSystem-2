@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Exports\TimesheetApprovalExport;
 use App\Models\Timesheet;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
@@ -17,6 +18,7 @@ use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
 
 class TimesheetController extends Controller
 {
@@ -141,6 +143,45 @@ class TimesheetController extends Controller
                 'message' => 'Failed to retrieve submitted timesheets'
             ], 500);
         }
+    }
+
+    /**
+     * Export timesheets to Excel (Head & above).
+     * GET /api/timesheets/export?start_date=&end_date=&status=&type_filter=
+     */
+    public function exportToExcel(Request $request)
+    {
+        $user   = session('user');
+        $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
+        $allowed = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
+        if (!in_array($roleId, $allowed, true)) {
+            abort(403);
+        }
+
+        $query = Timesheet::with(['employee.basicData', 'ticket.customer.basicData', 'activity.delivery_project', 'delivery_project', 'approver.basicData'])
+            ->whereNull('deleted_at');
+
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            $query->dateRange($request->start_date, $request->end_date);
+        }
+        if ($request->filled('status')) {
+            $query->byStatus($request->status);
+        }
+        if ($request->filled('type_filter')) {
+            $type = $request->type_filter;
+            if ($type === 'support') {
+                $query->whereNotNull('ticket_id');
+            } elseif ($type === 'project') {
+                $query->whereNotNull('delivery_projects_id');
+            } elseif ($type === 'office') {
+                $query->whereNull('ticket_id')->whereNull('delivery_projects_id');
+            }
+        }
+
+        $rows     = $query->orderBy('date', 'desc')->orderBy('created_at', 'desc')->get();
+        $filename = 'TIMESHEET_' . now()->timezone('Asia/Jakarta')->format('dmY') . '.xlsx';
+
+        return Excel::download(new TimesheetApprovalExport($rows), $filename);
     }
 
     /**
