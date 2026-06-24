@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\EmployeeRole;
 use App\Models\Menu;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class RoleController extends Controller
 {
@@ -95,6 +96,8 @@ class RoleController extends Controller
             $menuId => $data,
         ]);
 
+        $this->flushPermCacheForRole($role);
+
         return response()->json(['success' => true, 'message' => 'Permission berhasil diperbarui.']);
     }
 
@@ -102,6 +105,8 @@ class RoleController extends Controller
     {
         $role = EmployeeRole::findOrFail($id);
         $role->menus()->detach($menuId);
+
+        $this->flushPermCacheForRole($role);
 
         return response()->json(['success' => true, 'message' => 'Akses role ke menu berhasil dicabut.']);
     }
@@ -142,6 +147,8 @@ class RoleController extends Controller
 
         $employee->roles()->syncWithoutDetaching($request->role_ids);
 
+        Cache::forget("perm_slugs_{$employee->employee_id}");
+
         return response()->json(['success' => true, 'message' => 'Role berhasil ditambahkan.']);
     }
 
@@ -156,6 +163,8 @@ class RoleController extends Controller
 
         $employee->roles()->sync($request->role_ids);
 
+        Cache::forget("perm_slugs_{$employee->employee_id}");
+
         return response()->json(['success' => true, 'message' => 'Role employee berhasil diperbarui.']);
     }
 
@@ -164,6 +173,15 @@ class RoleController extends Controller
         $employee = Employee::findOrFail($employeeId);
         $employee->roles()->detach($roleId);
 
+        Cache::forget("perm_slugs_{$employee->employee_id}");
+
         return response()->json(['success' => true, 'message' => 'Role berhasil dicabut dari employee.']);
+    }
+
+    private function flushPermCacheForRole(EmployeeRole $role): void
+    {
+        $role->employees()->pluck('employee_id')->each(function ($empId) {
+            Cache::forget("perm_slugs_{$empId}");
+        });
     }
 }

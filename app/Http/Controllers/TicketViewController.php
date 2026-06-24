@@ -155,10 +155,16 @@ class TicketViewController extends Controller
             ->value('total_mandays');
 
         // Resolve email tujuan reply (digunakan untuk tampilan "To:" di compose area)
-        $customerEmail = DB::table('staging_tickets')
-            ->where('ticket_id', $ticket->ticket_id)
-            ->whereNotNull('submitted_by_email')
-            ->value('submitted_by_email');
+        // Prioritas 1: submitted_by_email dari ticket itu sendiri (diisi saat import CSV)
+        $customerEmail = $ticket->submitted_by_email ?? null;
+
+        // Prioritas 2: submitted_by_email dari staging ticket yang diapprove
+        if (!$customerEmail) {
+            $customerEmail = DB::table('staging_tickets')
+                ->where('ticket_id', $ticket->ticket_id)
+                ->whereNotNull('submitted_by_email')
+                ->value('submitted_by_email');
+        }
 
         if (!$customerEmail) {
             $customerEmail = DB::table('ticket_message')

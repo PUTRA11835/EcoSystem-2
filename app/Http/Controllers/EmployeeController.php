@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -1087,6 +1088,7 @@ public function getRoles()
 
             DB::table('employee_role_assignment')->insert($pivotRows);
 
+            Cache::forget("perm_slugs_{$id}");
 
             $roles = DB::table('employee_role')->whereIn('id', $roleIds)->select('id', 'name')->get();
 

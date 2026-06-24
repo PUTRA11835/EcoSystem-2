@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\Employee;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -15,8 +16,14 @@ class ShareMenuPermissions
         $user = session('user');
 
         if ($user && ($user['type'] ?? null) === 'employee') {
-            $employee  = Employee::find($user['id'] ?? null);
-            $permSlugs = $employee ? $employee->allPermissionSlugs() : [];
+            $userId    = $user['id'] ?? null;
+            $cacheKey  = "perm_slugs_{$userId}";
+
+            // Cache 60 min — invalidated explicitly when roles/permissions change
+            $permSlugs = Cache::remember($cacheKey, now()->addMinutes(60), function () use ($userId) {
+                $employee = Employee::find($userId);
+                return $employee ? $employee->allPermissionSlugs() : [];
+            });
         } else {
             $permSlugs = [];
         }
