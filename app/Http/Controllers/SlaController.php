@@ -312,7 +312,9 @@ class SlaController extends Controller
                 'ball_after'       => $e->event_type === 'ticket_validated' ? 'helpdesk' : null,
                 'sender_name'      => null,
                 'message_preview'  => $e->message
-                    ? mb_substr(strip_tags($e->message->message ?? $e->message->message_html ?? ''), 0, 120)
+                    ? ($e->message->sla_message
+                        ? mb_substr($e->message->sla_message, 0, 120)
+                        : mb_substr(strip_tags($e->message->message ?? $e->message->message_html ?? ''), 0, 120))
                     : null,
                 '_sort'            => $e->event_at->toDateTimeString(),
             ]);
@@ -477,7 +479,9 @@ class SlaController extends Controller
                 'notes'            => $stored?->notes,
                 'ball_after'       => $ballAfter,
                 'sender_name'      => $msg->sender_name,
-                'message_preview'  => mb_substr(strip_tags($msg->message ?? $msg->message_html ?? ''), 0, 120) ?: null,
+                'message_preview'  => $msg->sla_message
+                    ? mb_substr($msg->sla_message, 0, 120)
+                    : (mb_substr(strip_tags($msg->message ?? $msg->message_html ?? ''), 0, 120) ?: null),
                 '_sort'            => $msg->created_at->toDateTimeString(),
             ];
         });
@@ -505,12 +509,8 @@ class SlaController extends Controller
             ]);
         }
 
-        $query = TicketSla::with(['ticket.customer.basicData', 'policy', 'stagingTicket.customer.basicData'])
-            ->where(function ($q) {
-                // Tampilkan tiket yang sudah divalidasi ATAU staging yang masih pending_validation
-                $q->whereNotNull('ticket_id')
-                  ->orWhere('resolution_status', 'pending_validation');
-            });
+        $query = TicketSla::with(['ticket.customer.basicData', 'ticket.ticketLead.basicData', 'policy'])
+            ->whereNotNull('ticket_id');
 
         if ($request->filled('customer_id')) {
             $query->whereHas('ticket', fn ($q) => $q->where('customer_id', $request->customer_id));
@@ -691,6 +691,9 @@ class SlaController extends Controller
                 ]);
             }
 
+            // Update last_message_at agar list tiket terurutkan ke posisi teratas
+            $ticket->update(['last_message_at' => now(), 'last_agent_reply_at' => now()]);
+
             return response()->json([
                 'success'    => true,
                 'message'    => 'Jadwal meeting berhasil dibuat.',
@@ -816,6 +819,9 @@ class SlaController extends Controller
                 'updated_at'       => $endAt,
             ]);
 
+            // Update last_message_at agar list tiket terurutkan ke posisi teratas
+            $ticket->update(['last_message_at' => now()]);
+
             return response()->json([
                 'success'       => true,
                 'message'       => 'Meeting selesai — SLA clock dilanjutkan.',
@@ -871,35 +877,62 @@ class SlaController extends Controller
 
         $isPendingValidation = $s->resolution_status === 'pending_validation';
 
+        $responseTargetHours    = $policy ? (float) $policy->response_hours   : null;
+        $resolutionTargetHours  = $policy ? (float) $policy->resolution_hours : null;
+        $responseActualHours    = $s->validation_duration_hours !== null ? (float) $s->validation_duration_hours : null;
+        $resolutionActualHours  = $s->net_resolution_hours !== null ? (float) $s->net_resolution_hours : null;
+
+        // Convert hours to days (8 working hours per day)
+        $toWorkingDays = fn (?float $h) => $h !== null ? round($h / 8, 2) : null;
+
+        $responseStatus    = $s->response_status;
+        $resolutionStatus  = $s->resolution_status;
+
+        $endStatuses = SlaService::END_STATUSES;
+        $closedAt    = ($t && in_array($t->status, $endStatuses))
+                       ? $t->updated_at?->toDateTimeString()
+                       : null;
+
         return [
-            'ticket_id'            => $t?->ticket_id,
-            'ticket_number'        => $t?->ticket_number,
-            'staging_id'           => $staging?->id,
-            'is_pending_validation' => $isPendingValidation,
-            'description'          => $t?->description ?? $staging?->description,
-            'customer_name'        => $customerName,
-            'ticket_type'          => $t?->ticket_type ?? ($isPendingValidation ? 'Pending Validation' : null),
-            'ticket_priority'      => $t?->ticket_priority ?? $staging?->ticket_priority,
-            'scale'                => $t?->scale,
-            'sla_mode'             => $s->sla_mode,
-            'sla_start_at'         => $s->sla_start_at?->toDateTimeString(),
-            'ball_holder'          => $s->ball_holder,
-            'response'             => [
-                'status'       => $s->response_status,
-                'actual_hours' => $s->validation_duration_hours !== null
-                                   ? (float) $s->validation_duration_hours : null,
-                'target_hours' => $policy ? (float) $policy->response_hours : null,
-                'due_at'       => $s->response_due_at?->toDateTimeString(),
+            'ticket_id'              => $t?->ticket_id,
+            'ticket_number'          => $t?->ticket_number,
+            'staging_id'             => $staging?->id,
+            'is_pending_validation'  => $isPendingValidation,
+            'year'                   => $s->sla_start_at?->year ?? ($t?->created_at?->year),
+            'customer_name'          => $customerName,
+            'description'            => $t?->description ?? $staging?->description,
+            'module'                 => $t?->module,
+            'ticket_type'            => $t?->ticket_type ?? ($isPendingValidation ? 'Pending Validation' : null),
+            'ticket_priority'        => $t?->ticket_priority ?? $staging?->ticket_priority,
+            'scale'                  => $t?->scale,
+            'cust_pic'               => $t?->submitted_by_name ?? $t?->client,
+            'pic'                    => $t?->ticketLead?->basicData?->full_name,
+            'ticket_status'          => $t?->status,
+            'sla_mode'               => $s->sla_mode,
+            'received_at'            => $t?->created_at?->toDateTimeString(),
+            'sla_start_at'           => $s->sla_start_at?->toDateTimeString(),
+            'closed_at'              => $closedAt,
+            'ball_holder'            => $s->ball_holder,
+            'response'               => [
+                'status'        => $responseStatus,
+                'actual_hours'  => $responseActualHours,
+                'target_hours'  => $responseTargetHours,
+                'target_days'   => $toWorkingDays($responseTargetHours),
+                'due_at'        => $s->response_due_at?->toDateTimeString(),
+                'responded_at'  => $s->first_responded_at?->toDateTimeString(),
+                'met'           => $responseStatus === 'met',
             ],
-            'resolution'           => [
-                'status'       => $s->resolution_status,
-                'actual_hours' => $s->net_resolution_hours !== null
-                                   ? (float) $s->net_resolution_hours : null,
-                'target_hours' => $policy ? (float) $policy->resolution_hours : null,
-                'due_at'       => $s->resolution_due_at?->toDateTimeString(),
-                'resolved_at'  => $s->resolved_at?->toDateTimeString(),
+            'resolution'             => [
+                'status'        => $resolutionStatus,
+                'actual_hours'  => $resolutionActualHours,
+                'actual_days'   => $toWorkingDays($resolutionActualHours),
+                'target_hours'  => $resolutionTargetHours,
+                'target_days'   => $toWorkingDays($resolutionTargetHours),
+                'due_at'        => $s->resolution_due_at?->toDateTimeString(),
+                'resolved_at'   => $s->resolved_at?->toDateTimeString(),
+                'met'           => in_array($resolutionStatus, ['met', 'pending_validation']),
             ],
-            'waiting_hours'        => (float) $s->total_waiting_hours,
+            'waiting_hours'          => (float) $s->total_waiting_hours,
         ];
     }
 }

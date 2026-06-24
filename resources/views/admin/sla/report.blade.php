@@ -4,12 +4,47 @@
 @section('page-title', 'SLA Report')
 @section('page-subtitle', 'Monitor Service Level Agreement performance across all tickets')
 
+@push('styles')
+<style>
+    .sla-table th, .sla-table td { white-space: nowrap; }
+
+    /* Vertical sticky for header rows */
+    .sla-table thead tr:first-child th { position: sticky; top: 0;    z-index: 12; }
+    .sla-table thead tr:last-child  th { position: sticky; top: 29px; z-index: 11; }
+
+    /* Horizontal sticky columns (No → Status) */
+    .sc { position: sticky !important; z-index: 3; }
+    .sla-table thead tr:first-child .sc { z-index: 22; }
+    .sla-table thead tr:last-child  .sc { z-index: 21; }
+    .sla-table tbody .sc { background: #ffffff; z-index: 4; }
+    /* Hover tint on sticky body cells */
+    .sla-table tbody tr:hover .sc { background: #eff6ff; }
+    /* Pending row tint */
+    .sla-table tbody tr.row-pending .sc { background: #fffbeb; }
+    .sla-table tbody tr.row-pending:hover .sc { background: #fef3c7; }
+    /* Shadow divider after last sticky column */
+    .sc-last { box-shadow: 4px 0 8px -3px rgba(0,0,0,0.12) !important; }
+
+    .grp-info { background: #f9fafb; }
+    .grp-resp { background: #eff6ff; }
+    .grp-res  { background: #f0fdf4; }
+    .sla-badge-met      { background:#dcfce7; color:#15803d; }
+    .sla-badge-breached { background:#fee2e2; color:#b91c1c; }
+    .sla-badge-pending  { background:#dbeafe; color:#1d4ed8; }
+    .sla-badge-paused   { background:#fef3c7; color:#92400e; }
+    .sla-badge-pv       { background:#f3f4f6; color:#6b7280; }
+    .sla-check-met      { color: #16a34a; }
+    .sla-check-breached { color: #dc2626; }
+    .sla-check-none     { color: #d1d5db; }
+</style>
+@endpush
+
 @section('content')
 <meta name="csrf-token" content="{{ csrf_token() }}">
 
 <div class="space-y-5">
 
-    {{-- ── KPI Cards ────────────────────────────────────────────────────────── --}}
+    {{-- ── KPI Cards ──────────────────────────────────────────────────────── --}}
     <div id="kpiGrid" class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4">
         @foreach([
             ['icon'=>'fa-ticket-alt',    'bg'=>'bg-gray-50',    'color'=>'text-gray-500',   'id'=>'kpiTotal',      'label'=>'Total Tickets'],
@@ -32,25 +67,23 @@
         @endforeach
     </div>
 
-    {{-- ── Main Card ────────────────────────────────────────────────────────── --}}
+    {{-- ── Main Card ──────────────────────────────────────────────────────── --}}
     <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
 
-        {{-- Toolbar ──────────────────────────────────────────────────────────── --}}
+        {{-- Toolbar ──────────────────────────────────────────────────────── --}}
         <div class="px-5 py-4 border-b border-gray-100">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
 
-                {{-- Left: title --}}
                 <div class="flex items-center gap-3">
                     <div class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
-                        <i class="fas fa-chart-line text-red-600 text-sm"></i>
+                        <i class="fas fa-table text-red-600 text-sm"></i>
                     </div>
                     <div>
-                        <p class="text-sm font-semibold text-gray-800">Ticket SLA Overview</p>
+                        <p class="text-sm font-semibold text-gray-800">SLA Tracker</p>
                         <p class="text-xs text-gray-400">Auto-refreshes every 60 seconds</p>
                     </div>
                 </div>
 
-                {{-- Right: filters + refresh --}}
                 <div class="flex items-center gap-2 flex-wrap">
 
                     {{-- Customer --}}
@@ -112,11 +145,18 @@
                         <input type="hidden" id="filterStatus" value="">
                         <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px; min-width:140px;">
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-gray-50 transition-colors" data-value="">All Statuses</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="pending">Pending</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="pending">Active</button>
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="paused">Paused</button>
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="met">Met</button>
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="breached">Breached</button>
                         </div>
+                    </div>
+
+                    {{-- Search ticket --}}
+                    <div class="relative">
+                        <input type="text" id="cfInput-ticket" placeholder="Cari tiket…" oninput="applyReportFilters()"
+                            class="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-200 w-36">
+                        <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
                     </div>
 
                     {{-- Refresh --}}
@@ -124,99 +164,68 @@
                         class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition bg-white whitespace-nowrap">
                         <i class="fas fa-sync-alt text-xs" id="refreshIcon"></i> Refresh
                     </button>
-
                 </div>
             </div>
         </div>
 
-        {{-- Table ─────────────────────────────────────────────────────────────── --}}
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+        {{-- Table ────────────────────────────────────────────────────────── --}}
+        <div class="overflow-x-auto" style="max-height: calc(100vh - 280px); overflow-y: auto;">
+            <table class="w-full text-xs sla-table" style="min-width: 3800px;">
                 <thead>
-                    <tr class="border-b border-gray-100 bg-gray-50/50">
-                        {{-- Ticket: text search --}}
-                        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                            <div class="col-filter-wrap relative inline-flex items-center gap-1.5">
-                                <span>Ticket</span>
-                                <button type="button" class="col-filter-btn w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 transition" data-col="ticket">
-                                    <i class="fas fa-filter text-[9px] col-filter-icon text-gray-300" data-col="ticket"></i>
-                                </button>
-                                <div id="cfPanel-ticket" class="col-filter-panel hidden absolute top-full left-0 mt-1 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:200px">
-                                    <input type="text" id="cfInput-ticket" placeholder="Search ticket…" oninput="applyReportFilters()"
-                                        class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-200">
-                                    <button type="button" onclick="clearColFilter('ticket')" class="mt-2 text-[10px] text-gray-400 hover:text-red-500 transition">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        {{-- Customer: text search --}}
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                            <div class="col-filter-wrap relative inline-flex items-center gap-1.5">
-                                <span>Customer</span>
-                                <button type="button" class="col-filter-btn w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 transition" data-col="customer">
-                                    <i class="fas fa-filter text-[9px] col-filter-icon text-gray-300" data-col="customer"></i>
-                                </button>
-                                <div id="cfPanel-customer" class="col-filter-panel hidden absolute top-full left-0 mt-1 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:210px">
-                                    <input type="text" id="cfInput-customer" placeholder="Search customer…" oninput="applyReportFilters()"
-                                        class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-200">
-                                    <button type="button" onclick="clearColFilter('customer')" class="mt-2 text-[10px] text-gray-400 hover:text-red-500 transition">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        {{-- Type: option list + search --}}
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                            <div class="col-filter-wrap relative inline-flex items-center gap-1.5">
-                                <span>Type</span>
-                                <button type="button" class="col-filter-btn w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 transition" data-col="type">
-                                    <i class="fas fa-filter text-[9px] col-filter-icon text-gray-300" data-col="type"></i>
-                                </button>
-                                <div id="cfPanel-type" class="col-filter-panel hidden absolute top-full left-0 mt-1 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:200px">
-                                    <input type="text" id="cfSearch-type" placeholder="Search type…" oninput="filterColOptions('type', this.value)"
-                                        class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-200 mb-2">
-                                    <div id="cfOptions-type" class="space-y-0.5 max-h-[180px] overflow-y-auto"></div>
-                                    <button type="button" onclick="clearColFilter('type')" class="mt-2 text-[10px] text-gray-400 hover:text-red-500 transition">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        {{-- Priority: option list + search --}}
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                            <div class="col-filter-wrap relative inline-flex items-center gap-1.5">
-                                <span>Priority</span>
-                                <button type="button" class="col-filter-btn w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 transition" data-col="priority">
-                                    <i class="fas fa-filter text-[9px] col-filter-icon text-gray-300" data-col="priority"></i>
-                                </button>
-                                <div id="cfPanel-priority" class="col-filter-panel hidden absolute top-full left-0 mt-1 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:180px">
-                                    <input type="text" id="cfSearch-priority" placeholder="Search priority…" oninput="filterColOptions('priority', this.value)"
-                                        class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-200 mb-2">
-                                    <div id="cfOptions-priority" class="space-y-0.5 max-h-[180px] overflow-y-auto"></div>
-                                    <button type="button" onclick="clearColFilter('priority')" class="mt-2 text-[10px] text-gray-400 hover:text-red-500 transition">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">SLA Start</th>
-                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Response</th>
-                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Resolution</th>
-                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Waiting</th>
-                        {{-- Status: option list + search --}}
-                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                            <div class="col-filter-wrap relative inline-flex items-center gap-1.5">
-                                <span>Status</span>
-                                <button type="button" class="col-filter-btn w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 transition" data-col="status">
-                                    <i class="fas fa-filter text-[9px] col-filter-icon text-gray-300" data-col="status"></i>
-                                </button>
-                                <div id="cfPanel-status" class="col-filter-panel hidden absolute top-full right-0 mt-1 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:180px">
-                                    <input type="text" id="cfSearch-status" placeholder="Search status…" oninput="filterColOptions('status', this.value)"
-                                        class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-200 mb-2">
-                                    <div id="cfOptions-status" class="space-y-0.5 max-h-[180px] overflow-y-auto"></div>
-                                    <button type="button" onclick="clearColFilter('status')" class="mt-2 text-[10px] text-gray-400 hover:text-red-500 transition">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        <th class="text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
+                    {{-- Group header row --}}
+                    <tr class="border-b border-gray-200">
+                        <th colspan="13" class="sc px-3 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider border-r border-gray-200 grp-info" style="left:0;">Informasi Tiket</th>
+                        <th colspan="8"  class="px-3 py-2 text-center text-[10px] font-bold text-blue-700 uppercase tracking-wider border-r border-gray-200 grp-resp">SLA Response</th>
+                        <th colspan="10" class="px-3 py-2 text-center text-[10px] font-bold text-green-700 uppercase tracking-wider border-r border-gray-200 grp-res">SLA Resolution</th>
+                        <th colspan="1"  class="px-3 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider grp-info">Aksi</th>
+                    </tr>
+                    {{-- Column header row (sc = sticky column, left = cumulative px offset) --}}
+                    {{--
+                        Widths : 32 44 110 110 90 85 70 150 90 100 75 120 85
+                        Lefts  :  0 32  76 186 296 386 471 541 691 781 881 956 1076
+                    --}}
+                    <tr class="border-b border-gray-100 text-[9px]">
+                        {{-- Informasi Tiket --}}
+                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider border-r border-gray-100 grp-info" style="left:0;width:32px;min-width:32px;">No</th>
+                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:32px;width:44px;min-width:44px;">Year</th>
+                        <th class="sc text-left   px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:76px;width:110px;min-width:110px;">Customer</th>
+                        <th class="sc text-left   px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:186px;width:110px;min-width:110px;">Tiket</th>
+                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:296px;width:90px;min-width:90px;">Module<br><span class="text-[8px] font-normal normal-case">(FICO/FM/HCM/MM/BIBO/ABAP/BASIS)</span></th>
+                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:386px;width:85px;min-width:85px;">Priority</th>
+                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:471px;width:70px;min-width:70px;">Scale</th>
+                        <th class="sc text-left   px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:541px;width:150px;min-width:150px;">Issue</th>
+                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:691px;width:90px;min-width:90px;">CUST PIC</th>
+                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:781px;width:100px;min-width:100px;">FUNCTIONAL PIC</th>
+                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:881px;width:75px;min-width:75px;">Type of<br>Service<br><span class="text-[8px] font-normal normal-case">(MO / CR)</span></th>
+                        <th class="sc text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:956px;width:120px;min-width:120px;">Type<br><span class="text-[8px] font-normal normal-case">(Incident/Error, Request/CR, Konsultasi)</span></th>
+                        <th class="sc sc-last text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="left:1076px;width:85px;min-width:85px;">Status</th>
+                        {{-- SLA Response --}}
+                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Date &amp; Time<br>Received</th>
+                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Date &amp; Time Start<br>SLA Response<br><span class="text-[8px] font-normal normal-case">(Working Hours 08:00–17:00)</span></th>
+                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:70px">SLA<br>Response<br>Time</th>
+                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">SLA Due On</th>
+                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Date &amp; Time<br>Responded</th>
+                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:50px">X</th>
+                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:80px">Response<br>Duration</th>
+                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp border-r border-gray-200" style="min-width:80px">SLA<br>Response<br>Time</th>
+                        {{-- SLA Resolution --}}
+                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:70px">SLA<br>Resolution<br>(HOUR)</th>
+                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:65px">SLA<br>Resolution<br>(DAY)</th>
+                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:130px">Date &amp; Time Start<br>SLA Resolution<br><span class="text-[8px] font-normal normal-case">(Working Day, 08:00–17:00 EXCEPT VERY HIGH)</span></th>
+                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:130px">SLA Resolution<br>Due On<br><span class="text-[8px] font-normal normal-case">(Working Day, 08:00–17:00 EXCEPT VERY HIGH)</span></th>
+                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:130px">First<br>Resolved Date</th>
+                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:130px">Date of sending<br>Resolution doc./mail</th>
+                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:80px">Resolution<br>Duration<br>(STOP-GO)</th>
+                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:80px">SLA<br>Resolution<br>Time</th>
+                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:130px">Closed Date</th>
+                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res border-r border-gray-200" style="min-width:160px">Notes</th>
+                        {{-- Actions --}}
+                        <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:80px">Log / PDF</th>
                     </tr>
                 </thead>
                 <tbody id="reportTableBody">
                     <tr>
-                        <td colspan="10" class="py-16 text-center">
+                        <td colspan="32" class="py-16 text-center">
                             <div class="flex flex-col items-center gap-2 text-gray-300">
                                 <i class="fas fa-spinner fa-spin text-3xl"></i>
                                 <p class="text-sm">Loading report...</p>
@@ -236,13 +245,12 @@
 
 </div>
 
-{{-- ── SLA Log Modal ────────────────────────────────────────────────────────── --}}
+{{-- ── SLA Log Modal ─────────────────────────────────────────────────────── --}}
 <div id="detailModal" class="fixed inset-0 z-50 hidden">
     <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onclick="closeDetailModal()"></div>
     <div class="absolute inset-0 flex items-center justify-center p-4">
         <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden">
 
-            {{-- Header --}}
             <div class="flex-shrink-0 bg-white border-b border-gray-100">
                 <div class="flex items-center justify-between px-6 py-4">
                     <div class="flex items-center gap-3">
@@ -271,7 +279,6 @@
                     </div>
                 </div>
 
-                {{-- Summary stats bar --}}
                 <div id="detailStatsBar" class="hidden px-6 pb-4">
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
@@ -298,7 +305,6 @@
                 </div>
             </div>
 
-            {{-- Table --}}
             <div id="detailContent" class="overflow-auto flex-1 bg-gray-50/30">
                 <div class="flex items-center justify-center h-32 text-gray-300">
                     <i class="fas fa-spinner fa-spin text-3xl"></i>
@@ -316,133 +322,34 @@ const PRIORITY_CFG = {
     'Low':       { bg:'bg-blue-50',   text:'text-blue-700',   dot:'bg-blue-400'   },
 };
 const STATUS_CFG = {
-    'pending_validation': { bg:'bg-gray-100',  text:'text-gray-500',  dot:'bg-gray-400',  label:'Pending'  },
-    'pending':            { bg:'bg-blue-50',   text:'text-blue-700',  dot:'bg-blue-500',  label:'Active'   },
-    'paused':             { bg:'bg-amber-50',  text:'text-amber-700', dot:'bg-amber-500', label:'Paused'   },
-    'met':                { bg:'bg-green-50',  text:'text-green-700', dot:'bg-green-500', label:'Met'      },
-    'breached':           { bg:'bg-red-50',    text:'text-red-700',   dot:'bg-red-500',   label:'Breached' },
+    'pending_validation': { bg:'sla-badge-pv',      label:'Pending Val.',  icon:'fa-hourglass-half' },
+    'pending':            { bg:'sla-badge-pending',  label:'Active',        icon:'fa-clock'           },
+    'paused':             { bg:'sla-badge-paused',   label:'Paused',        icon:'fa-pause-circle'    },
+    'met':                { bg:'sla-badge-met',      label:'Terpenuhi',     icon:'fa-check-circle'    },
+    'breached':           { bg:'sla-badge-breached', label:'Dilanggar',     icon:'fa-times-circle'    },
 };
-const BALL_CFG = {
-    'helpdesk': { bg:'bg-blue-50',   text:'text-blue-700',   icon:'fa-headset' },
-    'customer': { bg:'bg-orange-50', text:'text-orange-700', icon:'fa-user'    },
-    'sap':      { bg:'bg-purple-50', text:'text-purple-700', icon:'fa-server'  },
-};
-const EVENT_CFG = {
-    'email_received':       { icon:'fa-envelope',             color:'text-indigo-500', bg:'bg-indigo-50'  },
-    'ticket_validated':     { icon:'fa-check-circle',         color:'text-green-500',  bg:'bg-green-50'   },
-    'agent_replied':        { icon:'fa-comment-dots',         color:'text-blue-500',   bg:'bg-blue-50'    },
-    'customer_replied':     { icon:'fa-reply',                color:'text-orange-500', bg:'bg-orange-50'  },
-    'sla_warning':          { icon:'fa-exclamation-triangle', color:'text-yellow-500', bg:'bg-yellow-50'  },
-    'sla_breached':         { icon:'fa-times-circle',         color:'text-red-500',    bg:'bg-red-50'     },
-    'ticket_closed':        { icon:'fa-check-double',         color:'text-gray-500',   bg:'bg-gray-100'   },
-    'escalated_to_sap':     { icon:'fa-arrow-circle-up',      color:'text-purple-500', bg:'bg-purple-50'  },
-    'escalated_to_support': { icon:'fa-undo',                 color:'text-teal-500',   bg:'bg-teal-50'    },
-};
-
-// ── KPI IDs in order ──────────────────────────────────────────────────────────
 const KPI_IDS = ['kpiTotal','kpiActive','kpiMet','kpiBreached','kpiCompliance','kpiAvgResp','kpiAvgRes'];
 
 let _allTickets = [];
 
-// ── Column filter state ───────────────────────────────────────────────────────
-// For text cols: string value. For option cols: string value (single-select).
-const CF = { ticket: '', customer: '', type: '', priority: '', status: '' };
-
-// Fixed option sets for enum columns
-const CF_OPTIONS = {
-    type:     ['Incident', 'Service Request', 'Change Request', 'Consult'],
-    priority: ['Very High', 'High', 'Medium', 'Low'],
-    status:   ['pending', 'paused', 'met', 'breached', 'pending_validation'],
-};
-const CF_STATUS_LABELS = {
-    pending: 'Active', paused: 'Paused', met: 'Met', breached: 'Breached', pending_validation: 'Pending Validation',
-};
-
-// Build option list HTML for a given col (called once on init)
-function buildColOptions(col) {
-    const container = document.getElementById('cfOptions-' + col);
-    if (!container) return;
-    const options = CF_OPTIONS[col];
-    container.innerHTML = options.map(val => {
-        const label = col === 'status' ? (CF_STATUS_LABELS[val] || val) : val;
-        return `<button type="button" data-val="${val}"
-            onclick="selectColOption('${col}', '${val}')"
-            class="cf-opt w-full text-left px-2.5 py-1.5 text-xs rounded-lg text-gray-600 hover:bg-gray-50 transition flex items-center gap-2">
-            <span class="cf-opt-dot w-3 h-3 rounded-full border border-gray-300 flex-shrink-0"></span>
-            ${label}
-        </button>`;
-    }).join('');
+function fmtDT(dt) {
+    if (!dt) return '—';
+    return dt.substring(0, 16).replace('T', ' ');
 }
 
-function filterColOptions(col, q) {
-    const term = q.toLowerCase().trim();
-    document.querySelectorAll(`#cfOptions-${col} .cf-opt`).forEach(btn => {
-        btn.style.display = (!term || btn.dataset.val.toLowerCase().includes(term)) ? '' : 'none';
-    });
+// Format decimal hours → HH:MM
+function fmtHHMM(h) {
+    if (h === null || h === undefined) return '—';
+    const totalMins = Math.round(parseFloat(h) * 60);
+    const hh = Math.floor(totalMins / 60);
+    const mm = totalMins % 60;
+    return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
 }
 
-function selectColOption(col, val) {
-    // Toggle: click same value again → clear
-    CF[col] = CF[col] === val ? '' : val;
-    // Update dot states
-    document.querySelectorAll(`#cfOptions-${col} .cf-opt`).forEach(btn => {
-        const dot = btn.querySelector('.cf-opt-dot');
-        const active = btn.dataset.val === CF[col];
-        dot.className = active
-            ? 'cf-opt-dot w-3 h-3 rounded-full flex-shrink-0 bg-red-600'
-            : 'cf-opt-dot w-3 h-3 rounded-full border border-gray-300 flex-shrink-0';
-        btn.classList.toggle('bg-red-50', active);
-        btn.classList.toggle('text-red-700', active);
-        btn.classList.toggle('font-semibold', active);
-    });
-    updateColFilterIcon(col);
-    applyReportFilters();
+function fmtDays(d) {
+    if (d === null || d === undefined) return '—';
+    return parseFloat(d).toFixed(2);
 }
-
-function clearColFilter(col) {
-    CF[col] = '';
-    // Reset text inputs
-    const inp = document.getElementById('cfInput-' + col);
-    if (inp) inp.value = '';
-    const srch = document.getElementById('cfSearch-' + col);
-    if (srch) { srch.value = ''; filterColOptions(col, ''); }
-    // Reset option dots
-    document.querySelectorAll(`#cfOptions-${col} .cf-opt`).forEach(btn => {
-        btn.querySelector('.cf-opt-dot').className = 'cf-opt-dot w-3 h-3 rounded-full border border-gray-300 flex-shrink-0';
-        btn.classList.remove('bg-red-50','text-red-700','font-semibold');
-    });
-    updateColFilterIcon(col);
-    applyReportFilters();
-}
-
-function updateColFilterIcon(col) {
-    document.querySelectorAll(`.col-filter-icon[data-col="${col}"]`).forEach(el => {
-        el.className = CF[col]
-            ? 'fas fa-filter text-[9px] col-filter-icon text-red-500'
-            : 'fas fa-filter text-[9px] col-filter-icon text-gray-300';
-    });
-}
-
-// Toggle panel open/close
-document.addEventListener('click', function (e) {
-    const btn = e.target.closest('.col-filter-btn');
-    if (btn) {
-        const col   = btn.dataset.col;
-        const panel = document.getElementById('cfPanel-' + col);
-        const wasHidden = panel.classList.contains('hidden');
-        document.querySelectorAll('.col-filter-panel').forEach(p => p.classList.add('hidden'));
-        if (wasHidden) {
-            panel.classList.remove('hidden');
-            panel.querySelector('input')?.focus();
-        }
-        e.stopPropagation();
-        return;
-    }
-    // Click outside → close all panels
-    if (!e.target.closest('.col-filter-panel')) {
-        document.querySelectorAll('.col-filter-panel').forEach(p => p.classList.add('hidden'));
-    }
-});
 
 async function loadReport() {
     const params = new URLSearchParams();
@@ -470,8 +377,8 @@ async function loadReport() {
             sm.met,
             sm.breached,
             sm.compliance_rate !== null ? sm.compliance_rate + '%' : '—',
-            sm.avg_response_hours   !== null ? sm.avg_response_hours + ' hrs'   : '—',
-            sm.avg_resolution_hours !== null ? sm.avg_resolution_hours + ' hrs' : '—',
+            sm.avg_response_hours   !== null ? fmtHHMM(sm.avg_response_hours)   : '—',
+            sm.avg_resolution_hours !== null ? fmtHHMM(sm.avg_resolution_hours) : '—',
         ];
         KPI_IDS.forEach((id, i) => {
             const el = document.getElementById(id);
@@ -482,7 +389,7 @@ async function loadReport() {
         applyReportFilters();
     } catch (e) {
         document.getElementById('reportTableBody').innerHTML = `
-            <tr><td colspan="10" class="py-12 text-center">
+            <tr><td colspan="32" class="py-12 text-center">
                 <div class="flex flex-col items-center gap-2 text-red-400">
                     <i class="fas fa-exclamation-triangle text-3xl"></i>
                     <p class="text-sm">Failed to load report.</p>
@@ -494,25 +401,17 @@ async function loadReport() {
 }
 
 function applyReportFilters() {
-    const ticketQ   = (document.getElementById('cfInput-ticket')?.value   || '').toLowerCase().trim();
-    const customerQ = (document.getElementById('cfInput-customer')?.value || '').toLowerCase().trim();
-    CF.ticket   = ticketQ;
-    CF.customer = customerQ;
+    const ticketQ = (document.getElementById('cfInput-ticket')?.value || '').toLowerCase().trim();
 
     const filtered = _allTickets.filter(t => {
-        if (CF.ticket   && !(t.ticket_number   || '').toLowerCase().includes(CF.ticket))   return false;
-        if (CF.customer && !(t.customer_name   || '').toLowerCase().includes(CF.customer)) return false;
-        if (CF.type     && t.ticket_type     !== CF.type)     return false;
-        if (CF.priority && t.ticket_priority  !== CF.priority) return false;
-        if (CF.status   && t.resolution?.status !== CF.status) return false;
+        if (ticketQ && !(t.ticket_number || '').toLowerCase().includes(ticketQ)
+                    && !(t.customer_name || '').toLowerCase().includes(ticketQ)
+                    && !(t.description  || '').toLowerCase().includes(ticketQ)) return false;
         return true;
     });
 
     renderTable(filtered);
 }
-
-// Init option lists on load
-['type', 'priority', 'status'].forEach(col => buildColOptions(col));
 
 function renderTable(tickets) {
     const tbody  = document.getElementById('reportTableBody');
@@ -521,130 +420,143 @@ function renderTable(tickets) {
     if (!tickets.length) {
         footer.classList.add('hidden');
         tbody.innerHTML = `
-            <tr><td colspan="10" class="py-16 text-center">
+            <tr><td colspan="32" class="py-16 text-center">
                 <div class="flex flex-col items-center gap-2 text-gray-300">
                     <i class="fas fa-search text-4xl"></i>
-                    <p class="text-sm font-medium text-gray-400 mt-1">No tickets found</p>
-                    <p class="text-xs text-gray-300">Try adjusting the filters above</p>
+                    <p class="text-sm font-medium text-gray-400 mt-1">Tidak ada tiket ditemukan</p>
+                    <p class="text-xs text-gray-300">Coba ubah filter di atas</p>
                 </div>
             </td></tr>`;
         return;
     }
 
     footer.classList.remove('hidden');
-    document.getElementById('tableCount').textContent =
-        `${tickets.length} ticket${tickets.length !== 1 ? 's' : ''} found`;
+    document.getElementById('tableCount').textContent = `${tickets.length} tiket ditemukan`;
 
-    tbody.innerHTML = tickets.map(t => {
+    tbody.innerHTML = tickets.map((t, idx) => {
         const isPending = t.is_pending_validation;
         const prio = PRIORITY_CFG[t.ticket_priority] || { bg:'bg-gray-50', text:'text-gray-600', dot:'bg-gray-400' };
-        const rsc  = STATUS_CFG[t.resolution?.status] || STATUS_CFG['pending'];
+        const rscKey = t.resolution?.status || 'pending';
+        const rsc = STATUS_CFG[rscKey] || STATUS_CFG['pending'];
 
-        // Pending validation row — belum ada ticket resmi
         if (isPending) {
-            const waitingHours = t.sla_start_at
-                ? ((Date.now() - new Date(t.sla_start_at).getTime()) / 3600000).toFixed(1)
-                : '—';
             return `
-            <tr class="border-b border-amber-100 bg-amber-50/40 hover:bg-amber-50/70 transition-colors group">
-                <td class="px-5 py-3">
-                    <span class="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded whitespace-nowrap">
-                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                        Staging #${t.staging_id || '?'}
-                    </span>
+            <tr class="row-pending border-b border-amber-100 bg-amber-50/40 hover:bg-amber-50/70 transition-colors">
+                <td class="sc px-2 py-2 text-center text-gray-400"                style="left:0;width:32px;min-width:32px;">${idx + 1}</td>
+                <td class="sc px-2 py-2 text-center text-gray-500"                style="left:32px;width:44px;min-width:44px;">${t.year || '—'}</td>
+                <td class="sc px-2 py-2 text-gray-700 font-medium"                style="left:76px;width:110px;min-width:110px;">${t.customer_name || '—'}</td>
+                <td class="sc px-2 py-2"                                           style="left:186px;width:110px;min-width:110px;">
+                    <span class="font-mono text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Staging #${t.staging_id || '?'}</span>
                 </td>
-                <td class="px-4 py-3 max-w-[130px]">
-                    <p class="text-xs text-gray-700 truncate font-medium">${t.customer_name || '—'}</p>
+                <td class="sc px-2 py-2 text-center text-amber-600" colspan="9"   style="left:296px;">
+                    <span class="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Menunggu Validasi</span>
                 </td>
-                <td class="px-4 py-3" colspan="2">
-                    <span class="text-[11px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Awaiting Validation</span>
-                    <p class="text-[10px] text-gray-400 truncate mt-0.5">${(t.description || '').substring(0,50)}</p>
-                </td>
-                <td class="px-4 py-3">
-                    <p class="text-xs text-gray-500 whitespace-nowrap">${t.sla_start_at ? t.sla_start_at.substring(0,16) : '—'}</p>
-                </td>
-                <td class="px-4 py-3" colspan="2">
-                    <div class="text-center">
-                        <p class="text-xs font-bold text-amber-600">${waitingHours} hrs</p>
-                        <p class="text-[10px] text-gray-400">waiting</p>
-                    </div>
-                </td>
-                <td class="px-4 py-3 text-center">—</td>
-                <td class="px-4 py-3 text-center">
-                    <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full whitespace-nowrap">
-                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0"></span>Pending Validation
-                    </span>
-                </td>
-                <td class="px-5 py-3 text-center">
-                    <span class="text-[10px] text-gray-400 italic">Validate first</span>
-                </td>
+                <td class="px-2 py-2 text-gray-400" colspan="18">—</td>
+                <td class="px-2 py-2 text-center text-gray-400 italic text-[10px]">Validasi dulu</td>
             </tr>`;
         }
 
-        const rspColor = t.response?.status === 'met'     ? 'text-green-600'
-                       : t.response?.status === 'breached' ? 'text-red-600'
-                       : 'text-gray-500';
+        const respMet  = t.response?.met;
+        const respIcon = respMet === true  ? '<i class="fas fa-check-circle sla-check-met text-base"></i>'
+                       : respMet === false ? '<i class="fas fa-times-circle sla-check-breached text-base"></i>'
+                       : '<i class="fas fa-minus sla-check-none text-base"></i>';
 
-        const respCell = `
-            <div class="text-center leading-tight">
-                <p class="text-xs font-bold ${rspColor}">${t.response?.actual_hours ?? '—'} hrs</p>
-                <p class="text-[10px] text-gray-400">/ ${t.response?.target_hours ?? '—'} target</p>
-            </div>`;
+        const resMet  = t.resolution?.met;
+        const resIcon = resMet === true  ? '<i class="fas fa-check-circle sla-check-met text-base"></i>'
+                      : resMet === false ? '<i class="fas fa-times-circle sla-check-breached text-base"></i>'
+                      : '<i class="fas fa-minus sla-check-none text-base"></i>';
 
-        const resCell = t.sla_mode === 'full'
-            ? `<div class="text-center leading-tight">
-                <p class="text-xs font-bold ${rsc.text}">${t.resolution?.actual_hours ?? '—'} hrs</p>
-                <p class="text-[10px] text-gray-400">/ ${t.resolution?.target_hours ?? '—'} target</p>
-               </div>`
-            : `<p class="text-[10px] text-center text-gray-400 italic">resp. only</p>`;
+        const respStatusLabel = STATUS_CFG[t.response?.status]?.label || '—';
+        const resStatusLabel  = STATUS_CFG[t.resolution?.status]?.label || '—';
+        const respStatusColor = t.response?.status === 'met' ? 'text-green-600' : t.response?.status === 'breached' ? 'text-red-600' : 'text-gray-400';
+        const resStatusColor  = t.resolution?.status === 'met' ? 'text-green-600' : t.resolution?.status === 'breached' ? 'text-red-600' : 'text-gray-400';
 
-        const wait = parseFloat(t.waiting_hours || 0);
-        const waitCell = wait > 0
-            ? `<span class="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">${t.waiting_hours}h</span>`
-            : `<span class="text-xs text-gray-300">—</span>`;
+        const desc = (t.description || '').substring(0, 70) + ((t.description || '').length > 70 ? '…' : '');
+        const ticketUrl = t.ticket_id ? `/ticket/${t.ticket_id}` : '#';
+
+        // Type of Service label based on SLA mode
+        const typeOfService = t.sla_mode === 'full' ? 'CR' : 'MO';
 
         return `
-        <tr class="border-b border-gray-50 hover:bg-gray-50/60 transition-colors group">
-            <td class="px-5 py-3">
-                <span class="font-mono text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+        <tr class="border-b border-gray-50 hover:bg-blue-50/20 transition-colors">
+            {{-- Informasi Tiket (sticky No→Status) --}}
+            <td class="sc px-2 py-2 text-center text-gray-400 text-[10px]" style="left:0;width:32px;min-width:32px;">${idx + 1}</td>
+            <td class="sc px-2 py-2 text-center text-gray-600 font-medium"  style="left:32px;width:44px;min-width:44px;">${t.year || '—'}</td>
+            <td class="sc px-2 py-2 overflow-hidden"                         style="left:76px;width:110px;min-width:110px;">
+                <p class="text-gray-700 font-medium truncate">${t.customer_name || '—'}</p>
+            </td>
+            <td class="sc px-2 py-2"                                          style="left:186px;width:110px;min-width:110px;">
+                <a href="${ticketUrl}" class="font-mono text-[10px] font-bold text-red-700 bg-red-50 px-1.5 py-0.5 rounded hover:bg-red-100 transition whitespace-nowrap">
                     #${t.ticket_number}
-                </span>
+                </a>
             </td>
-            <td class="px-4 py-3 max-w-[130px]">
-                <p class="text-xs text-gray-700 truncate font-medium">${t.customer_name || '—'}</p>
+            <td class="sc px-2 py-2 text-center"                              style="left:296px;width:90px;min-width:90px;">
+                <span class="text-[10px] font-semibold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">${t.module || '—'}</span>
             </td>
-            <td class="px-4 py-3">
-                <span class="text-xs text-gray-500">${t.ticket_type || '—'}</span>
-            </td>
-            <td class="px-4 py-3">
-                <span class="inline-flex items-center gap-1 text-[11px] font-semibold ${prio.text} ${prio.bg} px-2 py-0.5 rounded-full whitespace-nowrap">
+            <td class="sc px-2 py-2 text-center"                              style="left:386px;width:85px;min-width:85px;">
+                <span class="inline-flex items-center gap-1 text-[10px] font-semibold ${prio.text} ${prio.bg} px-1.5 py-0.5 rounded-full">
                     <span class="w-1.5 h-1.5 rounded-full ${prio.dot} flex-shrink-0"></span>${t.ticket_priority || '—'}
                 </span>
             </td>
-            <td class="px-4 py-3">
-                <p class="text-xs text-gray-500 whitespace-nowrap">${t.sla_start_at ? t.sla_start_at.substring(0,16) : '—'}</p>
+            <td class="sc px-2 py-2 text-center text-gray-500 text-[10px]"   style="left:471px;width:70px;min-width:70px;">${t.scale || '—'}</td>
+            <td class="sc px-2 py-2 overflow-hidden"                          style="left:541px;width:150px;min-width:150px;">
+                <p class="text-gray-600 truncate text-[10px]" title="${(t.description || '').replace(/"/g, '&quot;')}">${desc || '—'}</p>
             </td>
-            <td class="px-4 py-3">${respCell}</td>
-            <td class="px-4 py-3">${resCell}</td>
-            <td class="px-4 py-3 text-center">${waitCell}</td>
-            <td class="px-4 py-3 text-center">
-                <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold ${rsc.text} ${rsc.bg} px-2.5 py-1 rounded-full whitespace-nowrap">
-                    <span class="w-1.5 h-1.5 rounded-full ${rsc.dot} flex-shrink-0"></span>${rsc.label}
-                </span>
+            <td class="sc px-2 py-2 text-center text-gray-500 text-[10px]"   style="left:691px;width:90px;min-width:90px;">${t.cust_pic || '—'}</td>
+            <td class="sc px-2 py-2 text-center text-gray-500 text-[10px]"   style="left:781px;width:100px;min-width:100px;">${t.pic || '—'}</td>
+            <td class="sc px-2 py-2 text-center"                              style="left:881px;width:75px;min-width:75px;">
+                <span class="text-[10px] font-semibold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">${typeOfService}</span>
             </td>
-            <td class="px-5 py-3">
-                <div class="flex items-center justify-end gap-1">
-                    <button onclick="openDetail(${t.ticket_id}, '${t.ticket_number}')" title="View SLA Log"
-                        class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition text-[10px] font-medium">
-                        <i class="fas fa-history text-xs"></i><span>Log</span>
+            <td class="sc px-2 py-2 text-center"                              style="left:956px;width:120px;min-width:120px;">
+                <span class="text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded">${t.ticket_type || '—'}</span>
+            </td>
+            <td class="sc sc-last px-2 py-2 text-center"                      style="left:1076px;width:85px;min-width:85px;">
+                <span class="text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded capitalize">${(t.ticket_status || '—').replace(/_/g,' ')}</span>
+            </td>
+            {{-- SLA Response --}}
+            <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.received_at)}</td>
+            <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.sla_start_at)}</td>
+            <td class="px-2 py-2 text-center bg-blue-50/20">
+                <span class="text-[10px] text-blue-700 font-semibold">${t.response?.target_hours ?? '—'}</span>
+            </td>
+            <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.response?.due_at)}</td>
+            <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.response?.responded_at)}</td>
+            <td class="px-2 py-2 text-center bg-blue-50/20">${respIcon}</td>
+            <td class="px-2 py-2 text-center bg-blue-50/20">
+                <span class="text-[10px] font-semibold ${respStatusColor}">${fmtHHMM(t.response?.actual_hours)}</span>
+            </td>
+            <td class="px-2 py-2 text-center bg-blue-50/20 border-r border-gray-200">
+                <span class="text-[10px] font-semibold ${respStatusColor}">${respStatusLabel}</span>
+            </td>
+            {{-- SLA Resolution --}}
+            <td class="px-2 py-2 text-center bg-green-50/20">
+                <span class="text-[10px] text-green-700 font-semibold">${t.resolution?.target_hours ?? '—'}</span>
+            </td>
+            <td class="px-2 py-2 text-center bg-green-50/20">
+                <span class="text-[10px] text-green-700 font-semibold">${fmtDays(t.resolution?.target_days)}</span>
+            </td>
+            <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.sla_start_at)}</td>
+            <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.resolution?.due_at)}</td>
+            <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.resolution?.resolved_at)}</td>
+            <td class="px-2 py-2 text-center bg-green-50/20 text-gray-300 text-[10px]">—</td>
+            <td class="px-2 py-2 text-center bg-green-50/20">
+                <span class="text-[10px] font-semibold ${resStatusColor}">${fmtHHMM(t.resolution?.actual_hours)}</span>
+            </td>
+            <td class="px-2 py-2 text-center bg-green-50/20">
+                <span class="inline-flex items-center gap-1 text-[10px] font-semibold ${resStatusColor}">${resIcon} ${resStatusLabel}</span>
+            </td>
+            <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.closed_at)}</td>
+            <td class="px-2 py-2 text-center bg-green-50/20 border-r border-gray-200 text-gray-300 text-[10px]">—</td>
+            {{-- Actions --}}
+            <td class="px-2 py-2">
+                <div class="flex items-center gap-1">
+                    <button onclick="openDetail(${t.ticket_id}, '${t.ticket_number}')" title="SLA Log"
+                        class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition text-[10px]">
+                        <i class="fas fa-history text-xs"></i>
                     </button>
-                    <a href="/admin/sla/tickets/${t.ticket_id}/log-pdf" target="_blank" title="Download SLA Log PDF"
-                        class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 text-gray-400 hover:text-red-600 transition text-[10px] font-medium">
-                        <i class="fas fa-download text-xs"></i><span>Log PDF</span>
-                    </a>
-                    <a href="/admin/sla/tickets/${t.ticket_id}/pdf" target="_blank" title="Download SLA Summary PDF"
-                        class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-orange-300 hover:bg-orange-50 text-gray-400 hover:text-orange-600 transition text-[10px] font-medium">
-                        <i class="fas fa-download text-xs"></i><span>Summary PDF</span>
+                    <a href="/admin/sla/tickets/${t.ticket_id}/log-pdf" target="_blank" title="Log PDF"
+                        class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 text-gray-400 hover:text-red-600 transition text-[10px]">
+                        <i class="fas fa-file-pdf text-xs"></i>
                     </a>
                 </div>
             </td>
@@ -652,20 +564,7 @@ function renderTable(tickets) {
     }).join('');
 }
 
-// ── SLA Log Modal ─────────────────────────────────────────────────────────────
-
-function _toHMM(hours) {
-    if (hours === null || hours === undefined) return null;
-    const h = Math.floor(hours);
-    const m = Math.round((hours - h) * 60);
-    return `${h}:${String(m).padStart(2, '0')}`;
-}
-
-function _toHLabel(hours) {
-    if (hours === null || hours === undefined) return null;
-    const mins = Math.round(hours * 60);
-    return `${hours.toFixed(2)} h(${mins} min)`;
-}
+// ── SLA Log Modal ──────────────────────────────────────────────────────────────
 
 let _currentDetailTicketId = null;
 
@@ -677,214 +576,168 @@ async function openDetail(ticketId, ticketNum) {
     document.getElementById('detailStatsBar').classList.add('hidden');
 
     const pdfBtn = document.getElementById('detailPdfBtn');
-    pdfBtn.href = '/admin/sla/tickets/' + ticketId + '/log-pdf';
-    pdfBtn.classList.remove('hidden');
+    if (pdfBtn) {
+        pdfBtn.href = `/admin/sla/tickets/${ticketId}/log-pdf`;
+        pdfBtn.classList.remove('hidden');
+    }
 
-    document.getElementById('detailContent').innerHTML = `
-        <div class="flex flex-col items-center justify-center gap-3 py-20 text-gray-300">
-            <i class="fas fa-spinner fa-spin text-3xl"></i>
-            <p class="text-sm text-gray-400">Loading SLA log…</p>
-        </div>`;
+    document.getElementById('detailContent').innerHTML =
+        '<div class="flex items-center justify-center h-32 text-gray-300"><i class="fas fa-spinner fa-spin text-3xl"></i></div>';
     document.getElementById('detailModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
 
-    await _fetchAndRenderDetail(ticketId);
+    await _loadDetailData(ticketId);
+}
+
+async function _loadDetailData(ticketId) {
+    try {
+        const res  = await fetch(`/api/tickets/${ticketId}/sla`, { credentials: 'include' });
+        const json = await res.json();
+        if (!json.success || !json.data) {
+            document.getElementById('detailContent').innerHTML =
+                '<p class="text-center text-gray-400 text-sm p-8">Tidak ada data SLA untuk tiket ini.</p>';
+            return;
+        }
+
+        const d    = json.data;
+        const resp = d.response;
+        const resol = d.resolution;
+
+        if (resp) {
+            const rStat  = resp.status;
+            const rColor = rStat === 'met' ? 'text-green-600' : rStat === 'breached' ? 'text-red-600' : 'text-blue-600';
+            document.getElementById('statResponseVal').innerHTML =
+                `<span class="${rColor}">${resp.actual_hours !== null ? fmtHHMM(resp.actual_hours) : '—'}</span>`;
+            document.getElementById('statResponseStatus').textContent =
+                `${STATUS_CFG[rStat]?.label || rStat} / ${resp.target_hours ?? '—'} jam target`;
+            document.getElementById('statResponseStatus').className = `text-[10px] mt-0.5 ${rColor}`;
+        }
+        if (resol) {
+            const sStat  = resol.status;
+            const sColor = sStat === 'met' ? 'text-green-600' : sStat === 'breached' ? 'text-red-600' : 'text-blue-600';
+            document.getElementById('statResolutionVal').innerHTML =
+                `<span class="${sColor}">${resol.actual_hours !== null ? fmtHHMM(resol.actual_hours) : '—'}</span>`;
+            document.getElementById('statResolutionStatus').textContent =
+                `${STATUS_CFG[sStat]?.label || sStat} / ${resol.target_hours ?? '—'} jam target`;
+            document.getElementById('statResolutionStatus').className = `text-[10px] mt-0.5 ${sColor}`;
+        }
+        document.getElementById('statWaitingVal').textContent =
+            resol?.waiting_hours != null ? fmtHHMM(resol.waiting_hours) : '—';
+        const ballCfg = {
+            helpdesk: { label:'Helpdesk',       sub:'Waiting for agent'  },
+            customer: { label:'Customer',        sub:'Waiting for customer'},
+            sap:      { label:'SAP / 3rd Party', sub:'Escalated'          },
+            meeting:  { label:'Meeting',         sub:'On hold - meeting'  },
+        };
+        const bc = ballCfg[d.ball_holder] || { label: d.ball_holder, sub: '' };
+        document.getElementById('statBallHolder').textContent    = bc.label;
+        document.getElementById('statBallHolderSub').textContent = bc.sub;
+        document.getElementById('detailStatsBar').classList.remove('hidden');
+
+        const events = d.events || [];
+        if (!events.length) {
+            document.getElementById('detailContent').innerHTML =
+                '<p class="text-center text-gray-400 text-sm p-8">Belum ada event SLA tercatat.</p>';
+            return;
+        }
+
+        const EVENT_CFG = {
+            'email_received':       { icon:'fa-envelope',             color:'text-indigo-500', bg:'bg-indigo-50'  },
+            'ticket_validated':     { icon:'fa-check-circle',         color:'text-green-500',  bg:'bg-green-50'   },
+            'agent_replied':        { icon:'fa-comment-dots',         color:'text-blue-500',   bg:'bg-blue-50'    },
+            'customer_replied':     { icon:'fa-reply',                color:'text-orange-500', bg:'bg-orange-50'  },
+            'sla_warning':          { icon:'fa-exclamation-triangle', color:'text-yellow-500', bg:'bg-yellow-50'  },
+            'sla_breached':         { icon:'fa-times-circle',         color:'text-red-500',    bg:'bg-red-50'     },
+            'ticket_closed':        { icon:'fa-check-double',         color:'text-gray-500',   bg:'bg-gray-100'   },
+            'meeting_started':      { icon:'fa-video',                color:'text-violet-500', bg:'bg-violet-50'  },
+            'meeting_ended':        { icon:'fa-video-slash',          color:'text-gray-400',   bg:'bg-gray-50'    },
+            'escalated_to_sap':     { icon:'fa-arrow-circle-up',      color:'text-purple-500', bg:'bg-purple-50'  },
+            'escalated_to_support': { icon:'fa-undo',                 color:'text-teal-500',   bg:'bg-teal-50'    },
+        };
+
+        const rows = events.map(ev => {
+            const cfg = EVENT_CFG[ev.event_type] || { icon:'fa-circle', color:'text-gray-400', bg:'bg-gray-100' };
+            const waitBadge = ev.waiting_hours != null
+                ? `<span class="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full ml-1">${fmtHHMM(ev.waiting_hours)} wait</span>`
+                : '';
+            const respBadge = ev.response_hours != null
+                ? `<span class="text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full ml-1">${fmtHHMM(ev.response_hours)} resp</span>`
+                : '';
+            const resBadge = ev.resolution_hours != null
+                ? `<span class="text-[10px] font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full ml-1">${fmtHHMM(ev.resolution_hours)} res</span>`
+                : '';
+            const preview = ev.message_preview
+                ? `<p class="text-[10px] text-gray-400 mt-1 italic truncate max-w-xs">"${ev.message_preview}"</p>`
+                : '';
+            const ball = ev.ball_after
+                ? `<span class="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded ml-1">→ ${ev.ball_after}</span>`
+                : '';
+
+            return `<tr class="border-b border-gray-50 hover:bg-gray-50/50">
+                <td class="px-4 py-3 text-[10px] text-gray-400 whitespace-nowrap">${ev.event_at ? ev.event_at.substring(0,16) : '—'}</td>
+                <td class="px-4 py-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-full ${cfg.bg} flex items-center justify-center flex-shrink-0">
+                            <i class="fas ${cfg.icon} text-[9px] ${cfg.color}"></i>
+                        </span>
+                        <div>
+                            <p class="text-xs font-medium text-gray-700">${ev.label || ev.event_type}${ball}</p>
+                            ${ev.sender_name ? `<p class="text-[10px] text-gray-400">${ev.sender_name}</p>` : ''}
+                            ${preview}
+                        </div>
+                    </div>
+                </td>
+                <td class="px-4 py-3 text-[10px] text-gray-500">${ev.jarvis_status ? `<span class="bg-gray-100 px-2 py-0.5 rounded font-mono">${ev.jarvis_status}</span>` : '—'}</td>
+                <td class="px-4 py-3">${waitBadge || '—'}</td>
+                <td class="px-4 py-3">${respBadge || '—'}</td>
+                <td class="px-4 py-3">${resBadge || '—'}</td>
+                <td class="px-4 py-3 text-[10px] text-gray-400 max-w-[180px] truncate">${ev.notes || '—'}</td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('detailContent').innerHTML = `
+            <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+                <thead>
+                    <tr class="border-b border-gray-100 bg-gray-50/80 sticky top-0">
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Waktu</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Event</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Status Jarvis</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Waiting</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Response</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Resolution</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Notes</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+            </div>`;
+
+    } catch(e) {
+        document.getElementById('detailContent').innerHTML =
+            '<p class="text-center text-red-400 text-sm p-8">Gagal memuat data SLA.</p>';
+    }
 }
 
 async function refreshDetail() {
     if (!_currentDetailTicketId) return;
     const icon = document.getElementById('detailRefreshIcon');
     icon?.classList.add('fa-spin');
-    await _fetchAndRenderDetail(_currentDetailTicketId);
+    await _loadDetailData(_currentDetailTicketId);
     icon?.classList.remove('fa-spin');
-}
-
-async function _fetchAndRenderDetail(ticketId) {
-    try {
-        const res  = await fetch('/api/tickets/' + ticketId + '/sla', { credentials: 'include' });
-        const json = await res.json();
-        if (!json.success || !json.data) {
-            document.getElementById('detailContent').innerHTML =
-                `<div class="flex flex-col items-center gap-2 py-16 text-gray-300"><i class="fas fa-inbox text-3xl"></i><p class="text-sm text-gray-400">No SLA data available for this ticket.</p></div>`;
-            return;
-        }
-        renderDetail(json.data);
-    } catch {
-        document.getElementById('detailContent').innerHTML =
-            `<div class="flex flex-col items-center gap-2 py-16 text-red-300"><i class="fas fa-exclamation-triangle text-3xl"></i><p class="text-sm text-red-400">Failed to load SLA log.</p></div>`;
-    }
-}
-
-function renderDetail(data) {
-    // ── Stats bar ──────────────────────────────────────────────────────────────
-    const respSc = STATUS_CFG[data.response?.status] || STATUS_CFG['pending'];
-    const resSc  = STATUS_CFG[data.resolution?.status] || STATUS_CFG['pending'];
-
-    document.getElementById('statResponseVal').textContent   = data.response?.actual_hours != null ? data.response.actual_hours + ' hrs' : '—';
-    document.getElementById('statResponseStatus').innerHTML  = `<span class="${respSc.text} font-semibold">${respSc.label}</span><span class="text-slate-400"> / target ${data.response?.target_hours ?? '—'} hrs</span>`;
-    document.getElementById('statResolutionVal').textContent = data.resolution?.actual_hours != null ? data.resolution.actual_hours + ' hrs' : (data.sla_mode === 'response_only' ? 'N/A' : '—');
-    document.getElementById('statResolutionStatus').innerHTML = data.resolution
-        ? `<span class="${resSc.text} font-semibold">${resSc.label}</span><span class="text-slate-400"> / target ${data.resolution.target_hours ?? '—'} hrs</span>`
-        : `<span class="text-slate-400">Response-only mode</span>`;
-
-    const totalWait = data.total_waiting_hours ?? (data.events?.reduce((s, e) => s + (e.waiting_hours || 0), 0) ?? 0);
-    document.getElementById('statWaitingVal').textContent    = totalWait > 0 ? totalWait.toFixed(2) + ' hrs' : '0 hrs';
-    document.getElementById('statBallHolder').textContent    = data.ball_holder ? (data.ball_holder.charAt(0).toUpperCase() + data.ball_holder.slice(1)) : '—';
-    document.getElementById('statBallHolderSub').textContent = 'current ball holder';
-    document.getElementById('detailStatsBar').classList.remove('hidden');
-
-    // ── Summary badges ─────────────────────────────────────────────────────────
-    const badgesEl = document.getElementById('detailSummaryBadges');
-    badgesEl.innerHTML = `
-        <span class="inline-flex items-center gap-1 text-[11px] font-semibold ${respSc.text} ${respSc.bg} px-2.5 py-1 rounded-full whitespace-nowrap">
-            <span class="w-1.5 h-1.5 rounded-full ${respSc.dot} flex-shrink-0"></span>Response: ${respSc.label}
-        </span>
-        ${data.resolution ? `
-        <span class="inline-flex items-center gap-1 text-[11px] font-semibold ${resSc.text} ${resSc.bg} px-2.5 py-1 rounded-full whitespace-nowrap">
-            <span class="w-1.5 h-1.5 rounded-full ${resSc.dot} flex-shrink-0"></span>Resolution: ${resSc.label}
-        </span>` : ''}
-    `;
-    badgesEl.classList.remove('hidden');
-    badgesEl.classList.add('flex');
-
-    // ── Table ──────────────────────────────────────────────────────────────────
-    if (!data.events?.length) {
-        document.getElementById('detailContent').innerHTML = `
-            <div class="flex flex-col items-center gap-3 py-20 text-gray-300">
-                <i class="fas fa-table text-3xl"></i>
-                <p class="text-sm text-gray-400">No events recorded yet</p>
-            </div>`;
-        return;
-    }
-
-    const BALL_ICON = {
-        helpdesk: { icon: '▶', label: 'Helpdesk' },
-        customer: { icon: '⏸', label: 'Customer' },
-        sap:      { icon: '⏸', label: 'SAP'      },
-        meeting:  { icon: '⏸', label: 'Meeting'  },
-    };
-
-    const EVENT_ROW_CFG = {
-        email_received:       { dot: '#6366f1', rowBg: '#fafaff', label: 'Email / Request Received'  },
-        ticket_validated:     { dot: '#16a34a', rowBg: '#f6fef7', label: 'Ticket Created'            },
-        agent_replied:        { dot: '#2563eb', rowBg: '#f5f9ff', label: 'Helpdesk Reply'            },
-        customer_replied:     { dot: '#ea580c', rowBg: '#fff8f4', label: 'Customer Reply'            },
-        resolution_sent:      { dot: '#0d9488', rowBg: '#f4fefc', label: 'Resolution Sent'           },
-        escalated_to_sap:     { dot: '#7c3aed', rowBg: '#faf7ff', label: 'Escalated to SAP'         },
-        escalated_to_support: { dot: '#6b7280', rowBg: '#f9fafb', label: 'Returned to Helpdesk'     },
-        sla_warning:          { dot: '#ca8a04', rowBg: '#fffdf0', label: 'SLA Warning'               },
-        sla_breached:         { dot: '#dc2626', rowBg: '#fff8f8', label: 'SLA Breached'              },
-        ticket_closed:        { dot: '#374151', rowBg: '#f9fafb', label: 'Ticket Closed'             },
-        meeting_started:      { dot: '#7c3aed', rowBg: '#faf7ff', label: 'Meeting Started'           },
-        meeting_ended:        { dot: '#7c3aed', rowBg: '#faf7ff', label: 'Meeting Ended'             },
-    };
-
-    let lastDate = null;
-
-    const rows = data.events.map((e, idx) => {
-        const dt      = e.event_at ? new Date(e.event_at) : null;
-        const dateStr = dt ? dt.toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
-        const timeStr = dt ? dt.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }) : '—';
-        const showDate = dateStr !== lastDate;
-        lastDate = dateStr;
-
-        const evCfg   = EVENT_ROW_CFG[e.event_type] || { dot: '#9ca3af', rowBg: '#fff', label: e.event_type };
-        const ballCfg = e.ball_after ? (BALL_ICON[e.ball_after] || null) : null;
-
-        const waitCell = e.waiting_hours !== null
-            ? `<span class="text-[11px] font-semibold text-amber-600 whitespace-nowrap">${_toHLabel(e.waiting_hours)}</span>`
-            : `<span class="text-gray-300 text-xs">—</span>`;
-
-        const respCell = e.response_hours !== null
-            ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_toHLabel(e.response_hours)}</span>`
-            : `<span class="text-gray-300 text-xs">—</span>`;
-
-        const resCell = e.meeting_paused
-            ? `<span class="text-[10px] font-semibold text-purple-600 whitespace-nowrap">Paused (Meeting)</span>`
-            : (e.resolution_hours !== null
-                ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_toHLabel(e.resolution_hours)}</span>`
-                : `<span class="text-gray-300 text-xs">—</span>`);
-
-        const statusCell = e.jarvis_status
-            ? `<span class="text-[10px] text-gray-500 whitespace-nowrap">${e.jarvis_status.replace(/_/g,' ')}</span>`
-            : `<span class="text-gray-300 text-xs">—</span>`;
-
-        const ballCell = ballCfg
-            ? `<span class="text-[11px] font-semibold text-gray-600 whitespace-nowrap">${ballCfg.icon} ${ballCfg.label}</span>`
-            : `<span class="text-gray-300 text-xs">—</span>`;
-
-        const senderPrefix = e.sender_name ? `<span class="font-semibold text-gray-700">${e.sender_name}:</span> ` : '';
-        const bodyText = e.message_preview || e.notes || null;
-        const msgText  = bodyText
-            ? `<span title="${(e.message_preview || '').replace(/"/g,'&quot;')}" class="text-gray-500 text-xs">${senderPrefix}${bodyText.substring(0, 80)}${bodyText.length > 80 ? '…' : ''}</span>`
-            : (e.sender_name ? `<span class="font-semibold text-gray-700 text-xs">${e.sender_name}</span>` : `<span class="text-gray-300 text-xs">—</span>`);
-
-        const dateSep = showDate ? `
-        <tr>
-            <td colspan="9" style="background:#f3f4f6; border-top:1px solid #e5e7eb; border-bottom:1px solid #e5e7eb; padding:4px 12px;">
-                <span style="font-size:10px; font-weight:600; color:#6b7280; letter-spacing:0.04em;">
-                    ${dt ? dt.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : dateStr}
-                </span>
-            </td>
-        </tr>` : '';
-
-        return `${dateSep}
-        <tr style="background:${evCfg.rowBg}; border-left:3px solid ${evCfg.dot};" class="border-b border-gray-100/80 hover:brightness-[0.97] transition-all">
-            <td class="px-3 py-2.5 text-xs text-gray-400 whitespace-nowrap">${showDate ? dateStr : ''}</td>
-            <td class="px-3 py-2.5 text-xs text-gray-600 font-mono whitespace-nowrap">${timeStr}</td>
-            <td class="px-3 py-2.5 text-right whitespace-nowrap">${waitCell}</td>
-            <td class="px-3 py-2.5 text-right whitespace-nowrap">${respCell}</td>
-            <td class="px-3 py-2.5 text-right whitespace-nowrap">${resCell}</td>
-            <td class="px-3 py-2.5 whitespace-nowrap">
-                <div class="flex items-center gap-2">
-                    <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:${evCfg.dot};"></span>
-                    <span class="text-xs text-gray-700">${evCfg.label}</span>
-                </div>
-            </td>
-            <td class="px-3 py-2.5">${statusCell}</td>
-            <td class="px-3 py-2.5">${ballCell}</td>
-            <td class="px-3 py-2.5 max-w-[220px] truncate">${msgText}</td>
-        </tr>`;
-    }).join('');
-
-    document.getElementById('detailContent').innerHTML = `
-        <table class="w-full text-sm border-collapse" style="min-width:820px">
-            <thead>
-                <tr class="sticky top-0 z-10" style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
-                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Date</th>
-                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Time</th>
-                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-right">Waiting</th>
-                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-right">Response</th>
-                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-right">
-                        Resolution${data.resolution?.net_hours != null ? ` <span class="font-normal normal-case text-gray-400">(${_toHMM(data.resolution.net_hours)})</span>` : ''}
-                    </th>
-                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left" style="padding-left:16px;">Event</th>
-                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Status</th>
-                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase whitespace-nowrap text-left">Ball</th>
-                    <th class="px-3 py-2.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase text-left">Message</th>
-                </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-        </table>`;
 }
 
 function closeDetailModal() {
     document.getElementById('detailModal').classList.add('hidden');
-    document.getElementById('detailStatsBar').classList.add('hidden');
-    document.getElementById('detailSummaryBadges').classList.add('hidden');
+    document.body.style.overflow = '';
     _currentDetailTicketId = null;
 }
 
-document.addEventListener('keydown', e => {
+document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') closeDetailModal();
 });
 
 loadReport();
 setInterval(loadReport, 60000);
-</script>
-
-@php $customDdVer = file_exists(public_path('js/custom-dropdown.js')) ? filemtime(public_path('js/custom-dropdown.js')) : time(); @endphp
-<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
-<script>
-document.addEventListener('DOMContentLoaded', () => initCustomDropdowns());
 </script>
 @endsection

@@ -1001,7 +1001,7 @@
 
 /* Status delivery indicator (WhatsApp-style) — hanya untuk reply helpdesk */
 .msg-status-row {
-    display: flex; justify-content: flex-end;
+    display: flex; justify-content: flex-end; align-items: center; gap: 8px;
     margin-top: 6px; padding-top: 4px;
     border-top: 1px solid rgba(0,0,0,0.04);
 }
@@ -1016,6 +1016,25 @@
 }
 .msg-status .check-pair svg { width: 12px; height: 12px; }
 .msg-status .check-pair svg + svg { margin-left: -7px; }
+
+/* SLA button next to Read/status indicator */
+.sla-open-btn {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 10px; font-weight: 600;
+    color: #9ca3af;
+    background: #f9fafb;
+    border: 1px solid #d1d5db;
+    border-radius: 5px;
+    padding: 2px 6px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.sla-open-btn:hover { color: #6b7280; border-color: #9ca3af; background: #f3f4f6; }
+.sla-open-btn.has-sla { color: #16a34a; border-color: #86efac; background: #f0fdf4; }
+.sla-open-btn.has-sla:hover { color: #15803d; border-color: #4ade80; background: #dcfce7; }
+.sla-open-btn svg { width: 10px; height: 10px; flex-shrink: 0; }
 
 /* Message content */
 .message-content p { margin-bottom: 0.25rem; }
@@ -2675,6 +2694,66 @@
         return `<div class="msg-status" title="Saved to ticket">${ICON_CHECK_SINGLE}<span>Sent</span></div>`;
     }
 
+    const SLA_ICON = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>`;
+
+    function slaMsgBtn(msg) {
+        const hasSla = !!(msg.sla_message && msg.sla_message.trim());
+        const tip    = hasSla ? escHtml(msg.sla_message) : 'Tambah pesan SLA';
+        return `<button class="sla-open-btn${hasSla ? ' has-sla' : ''}"
+                        title="${tip}"
+                        onclick="openSlaModal(${msg.id}, this)"
+                        data-sla-val="${escHtml(msg.sla_message || '')}">
+                    ${SLA_ICON}SLA
+                </button>`;
+    }
+
+    let _slaCurrentMsgId   = null;
+    let _slaCurrentTrigger = null;
+
+    function openSlaModal(messageId, triggerBtn) {
+        _slaCurrentMsgId   = messageId;
+        _slaCurrentTrigger = triggerBtn;
+        const existing = triggerBtn.dataset.slaVal || '';
+        document.getElementById('slaMsgTextarea').value = existing;
+        document.getElementById('slaMsgModal').classList.remove('hidden');
+        document.getElementById('slaMsgTextarea').focus();
+    }
+
+    function closeSlaModal() {
+        document.getElementById('slaMsgModal').classList.add('hidden');
+        _slaCurrentMsgId   = null;
+        _slaCurrentTrigger = null;
+    }
+
+    async function submitSlaMessage() {
+        if (!_slaCurrentMsgId) return;
+        const val = document.getElementById('slaMsgTextarea').value.trim();
+        const btn = document.getElementById('slaSaveBtn');
+        btn.disabled = true;
+        btn.textContent = 'Menyimpan...';
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/messages/${_slaCurrentMsgId}/sla-message`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content || ''
+                },
+                body: JSON.stringify({ sla_message: val })
+            });
+            if (res.ok && _slaCurrentTrigger) {
+                _slaCurrentTrigger.dataset.slaVal = val;
+                _slaCurrentTrigger.classList.toggle('has-sla', val.length > 0);
+                _slaCurrentTrigger.title = val.length > 0 ? val : 'Tambah pesan SLA';
+            }
+            closeSlaModal();
+        } catch (err) {
+            console.error('Failed to save SLA message', err);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Simpan';
+        }
+    }
+
     function createMessageBubble(msg) {
         // Meeting events — kartu khusus di tengah chat
         if (msg.message_type === 'meeting_started' || msg.message_type === 'meeting_ended') {
@@ -2845,6 +2924,7 @@
                             ${replyQuote}
                             ${messageContent(msg)}
                             ${attachmentsHtml}
+                            <div class="msg-status-row">${slaMsgBtn(msg)}</div>
                         </div>
                     </div>
                 </div>`;
@@ -2863,6 +2943,7 @@
                             ${replyQuote}
                             ${messageContent(msg)}
                             ${attachmentsHtml}
+                            <div class="msg-status-row">${slaMsgBtn(msg)}</div>
                         </div>
                     </div>
                 </div>`;
@@ -2874,7 +2955,7 @@
 
         // Status delivery indicator (hanya untuk reply helpdesk &rarr; customer)
         const statusHtml    = statusIndicator(msg);
-        const statusSection = statusHtml ? `<div class="msg-status-row">${statusHtml}</div>` : '';
+        const statusSection = `<div class="msg-status-row">${statusHtml}${slaMsgBtn(msg)}</div>`;
 
         return `
             <div class="flex gap-3 ${isEmployee ? 'flex-row-reverse' : ''}">
@@ -5568,6 +5649,48 @@
             <button id="confirmOkBtn"
                 class="px-4 py-2 text-sm font-semibold text-white rounded-lg transition">
                 OK
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- ==================== SLA MESSAGE MODAL ==================== --}}
+<div id="slaMsgModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" onclick="if(event.target===this)closeSlaModal()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900">Pesan SLA</h3>
+                    <p class="text-xs text-gray-400 leading-none mt-0.5">Pesan ini akan tampil di laporan SLA menggantikan pesan asli</p>
+                </div>
+            </div>
+            <button onclick="closeSlaModal()" class="text-gray-400 hover:text-gray-600 transition p-1 rounded-lg hover:bg-gray-100">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="px-6 py-4">
+            <textarea id="slaMsgTextarea"
+                      rows="4"
+                      placeholder="Tulis pesan SLA di sini..."
+                      class="w-full text-sm text-gray-700 border border-gray-200 rounded-xl px-3 py-2.5 resize-none outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition font-inherit placeholder-gray-300"
+                      onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))submitSlaMessage()"></textarea>
+            <p class="text-xs text-gray-400 mt-1.5">Ctrl+Enter untuk simpan</p>
+        </div>
+        <div class="flex gap-2 justify-end px-6 pb-5">
+            <button onclick="closeSlaModal()"
+                    class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition font-medium">
+                Batal
+            </button>
+            <button id="slaSaveBtn" onclick="submitSlaMessage()"
+                    class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                Simpan
             </button>
         </div>
     </div>

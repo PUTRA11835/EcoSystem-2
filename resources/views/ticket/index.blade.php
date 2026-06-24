@@ -174,8 +174,8 @@
                                 <div class="border-t border-gray-100 mt-3 pt-2">
                                     <span class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sort</span>
                                     <div class="flex gap-2">
-                                        <button type="button" onclick="setTicketNumberSort('asc')"  id="ticketSortAsc"  class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↑ Oldest</button>
-                                        <button type="button" onclick="setTicketNumberSort('desc')" id="ticketSortDesc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↓ Newest</button>
+                                        <button type="button" onclick="setTicketNumberSort('asc')"  id="ticketSortAsc"  class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↑ Ascending</button>
+                                        <button type="button" onclick="setTicketNumberSort('desc')" id="ticketSortDesc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↓ Descending</button>
                                     </div>
                                 </div>
                                 <div class="flex justify-end gap-2 mt-3">
@@ -229,8 +229,8 @@
                                 <div class="border-t border-gray-100 mt-3 pt-2">
                                     <span class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sort</span>
                                     <div class="flex gap-2">
-                                        <button type="button" onclick="setDateSort('asc')"  id="dateSortAsc"  class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↑ Oldest</button>
-                                        <button type="button" onclick="setDateSort('desc')" id="dateSortDesc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↓ Newest</button>
+                                        <button type="button" onclick="setDateSort('asc')"  id="dateSortAsc"  class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↑ Ascending</button>
+                                        <button type="button" onclick="setDateSort('desc')" id="dateSortDesc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↓ Descending</button>
                                     </div>
                                 </div>
                                 <div class="flex justify-end gap-2 mt-3">
@@ -670,11 +670,17 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         startEmailPolling();
     });
 
+    // Refresh list saat halaman dipulihkan dari bfcache (tombol Back browser)
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted) loadTickets();
+    });
+
     // -------------------------------------------------------------------------
-    // Ticket polling: cek update tiket setiap 30 detik dari DB lokal (bukan Graph API)
+    // Ticket polling: cek update tiket setiap 10 detik dari DB lokal (bukan Graph API)
     // Email inbox diproses server-side oleh scheduler (email:process-inbox tiap menit)
     // -------------------------------------------------------------------------
     let _lastTicketUpdate = null;
+    let _isFirstPoll      = true;
 
     async function checkTicketUpdates() {
         try {
@@ -685,9 +691,17 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             if (!res.ok) return;
             const data = await res.json();
             const latest = data.latest_update ?? null;
-            if (latest && latest !== _lastTicketUpdate) {
-                if (_lastTicketUpdate !== null) loadTickets();
+
+            if (_isFirstPoll) {
+                // Simpan baseline — jangan reload (loadTickets sudah dipanggil saat DOMContentLoaded)
                 _lastTicketUpdate = latest;
+                _isFirstPoll = false;
+                return;
+            }
+
+            if (latest !== _lastTicketUpdate) {
+                _lastTicketUpdate = latest;
+                loadTickets();
             }
         } catch (err) {
             console.warn('[Ticket Polling] error:', err.message);
@@ -696,7 +710,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
     function startEmailPolling() {
         checkTicketUpdates();
-        setInterval(checkTicketUpdates, 15000);
+        setInterval(checkTicketUpdates, 10000);
     }
 
     function toggleView(view) {
@@ -1548,8 +1562,9 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                 va = new Date(a.last_message_at || a.created_at).getTime();
                 vb = new Date(b.last_message_at || b.created_at).getTime();
             } else if (key === 'ticket_number') {
-                va = a.ticket_id ?? 0;
-                vb = b.ticket_id ?? 0;
+                const extractNum = t => parseInt((t.ticket_number || '').replace(/\D+/g, '') || t.ticket_id || 0, 10);
+                va = extractNum(a);
+                vb = extractNum(b);
             } else if (key === 'date') {
                 va = new Date(a.created_at).getTime();
                 vb = new Date(b.created_at).getTime();
@@ -1583,7 +1598,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             const el = document.getElementById(`sort-icon-${k}`);
             if (!el) return;
             if (k === currentTicketSort.key) {
-                el.textContent = currentTicketSort.dir === 'asc' ? '↓' : '↑';
+                el.textContent = currentTicketSort.dir === 'asc' ? '↑' : '↓';
                 el.className = 'text-red-500 font-bold';
             } else {
                 el.textContent = '⇅';

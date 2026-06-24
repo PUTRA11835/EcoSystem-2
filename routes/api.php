@@ -366,6 +366,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{ticketId}/messages', [TicketMessageController::class, 'store']);
         Route::post('/{ticketId}/customer-reply', [TicketMessageController::class, 'customerReply']);
         Route::put('/{ticketId}/messages/mark-all-read', [TicketMessageController::class, 'markAllRead']);
+        Route::patch('/{ticketId}/messages/{messageId}/sla-message', [TicketMessageController::class, 'updateSlaMessage']);
 
         // ==================== DELIVERABLE ROUTES ====================
         Route::get('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'index']);

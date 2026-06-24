@@ -19,6 +19,7 @@ class TicketMessage extends Model
         'sender_name',
         'message',
         'message_html',
+        'sla_message',
         'is_internal_note',
         'message_type',
         'reply_to_id',

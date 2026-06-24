@@ -59,15 +59,16 @@ class TicketController extends Controller
 
     /**
      * Lightweight endpoint untuk polling — kembalikan timestamp update terakhir dari DB lokal.
-     * Tidak menyentuh Graph API, aman dipanggil dari browser setiap 30 detik.
+     * Tidak menyentuh Graph API, aman dipanggil dari browser setiap 10 detik.
      */
     public function latestUpdate()
     {
-        $latest = DB::table('ticket')
+        $row = DB::table('ticket')
             ->whereNull('deleted_at')
-            ->max('last_message_at');
+            ->selectRaw('MAX(GREATEST(COALESCE(last_message_at, created_at), updated_at)) AS latest')
+            ->first();
 
-        return response()->json(['latest_update' => $latest]);
+        return response()->json(['latest_update' => $row->latest ?? null]);
     }
 
     /**
