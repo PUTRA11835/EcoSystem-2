@@ -1,7 +1,7 @@
 @extends('dashboard')
-@section('title', 'Reporting')
-@section('page-title', 'Reporting')
-@section('page-subtitle', 'MD Validation')
+@section('title', 'MD Validation')
+@section('page-title', 'MD Validation')
+@section('page-subtitle', 'Timesheet Report')
 
 @push('styles')
 <style>
@@ -55,7 +55,7 @@
     {{-- ── Page Header ────────────────────────────────────────────────────── --}}
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 pb-4 border-b-2 border-gray-100">
         <div>
-            <h2 class="text-2xl font-bold text-gray-900">Timesheet Report</h2>
+            <h2 class="text-2xl font-bold text-gray-900">MD Validation</h2>
             <p class="text-sm text-gray-500 mt-0.5">Approved support timesheets — MD quota vs consumed per employee</p>
         </div>
         @if($canManage)

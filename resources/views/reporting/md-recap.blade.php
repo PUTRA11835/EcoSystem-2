@@ -1,6 +1,6 @@
 @extends('dashboard')
 @section('title', 'MD Recap')
-@section('page-title', 'Reporting')
+@section('page-title', 'MD Recap')
 @section('page-subtitle', 'MD Recap — mandays by employee and mode')
 
 @section('content')
