@@ -23,7 +23,7 @@ class TimesheetReportExport implements
     protected int $periodYear;
     protected int $periodMonth;
 
-    public function __construct(Collection $rows, int $periodYear, int $periodMonth)
+    public function __construct(Collection $rows, int $periodYear = 0, int $periodMonth = 0)
     {
         $this->rows         = $rows;
         $this->periodYear   = $periodYear;
