@@ -39,7 +39,6 @@ const _ACT_TEXT_PANEL = `<div id="tsTextPanel_ActivityType" class="hidden absolu
            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
     <div class="flex justify-end gap-2 mt-2">
         <button type="button" onclick="clearTsTextPanel('ActivityType')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
-        <button type="button" onclick="closeTsTextPanel('ActivityType')" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
     </div>
 </div>`;
 
@@ -58,29 +57,13 @@ const _MONTH_DD_ITEMS = `
     <button type="button" class="${DD_ITEM}" data-value="11">November</button>
     <button type="button" class="${DD_ITEM}" data-value="12">December</button>`;
 
-const _DATE_SORT_PANEL = `<div id="tsDateSortPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:180px;">
-    <span class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sort</span>
-    <div class="flex gap-2 mb-2">
-        <button type="button" onclick="setTsSort('date','asc')" id="tsSortDateAsc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↑ Ascending</button>
-        <button type="button" onclick="setTsSort('date','desc')" id="tsSortDateDesc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↓ Descending</button>
-    </div>
-    <div class="flex justify-end"><button type="button" onclick="closeTsDateSortPanel()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button></div>
-</div>`;
-
 const _EMP_TEXT_PANEL = `<div id="tsTextPanel_Employee" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
     <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search name</label>
     <input type="text" id="colFilterTsEmployee" placeholder="Type name…" oninput="applyColFilter()" onclick="event.stopPropagation()"
            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
-    <div class="border-t border-gray-100 mt-2 pt-2">
-        <span class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sort</span>
-        <div class="flex gap-2">
-            <button type="button" onclick="setTsSort('employee','asc')" id="tsSortEmpAsc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↑ A–Z</button>
-            <button type="button" onclick="setTsSort('employee','desc')" id="tsSortEmpDesc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↓ Z–A</button>
-        </div>
-    </div>
+    <p class="text-[10px] text-gray-400 mt-1.5">Use the ⇅ icon in the header to sort by name.</p>
     <div class="flex justify-end gap-2 mt-2">
         <button type="button" onclick="clearTsTextPanel('Employee')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
-        <button type="button" onclick="closeTsTextPanel('Employee')" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
     </div>
 </div>`;
 
@@ -90,7 +73,6 @@ const _TKT_TEXT_PANEL = `<div id="tsTextPanel_Ticket" class="hidden absolute top
            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
     <div class="flex justify-end gap-2 mt-2">
         <button type="button" onclick="clearTsTextPanel('Ticket')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
-        <button type="button" onclick="closeTsTextPanel('Ticket')" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
     </div>
 </div>`;
 
@@ -100,7 +82,6 @@ const _CUST_TEXT_PANEL = `<div id="tsTextPanel_Customer" class="hidden absolute 
            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
     <div class="flex justify-end gap-2 mt-2">
         <button type="button" onclick="clearTsTextPanel('Customer')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
-        <button type="button" onclick="closeTsTextPanel('Customer')" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
     </div>
 </div>`;
 
@@ -108,12 +89,31 @@ function _mkStatusDd() { return `<div class="custom-dd relative w-full" id="ddCo
 function _mkMonthDd()  { return `<div class="custom-dd relative w-full" id="ddColFilterTsMonth" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Month</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsMonth" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5" style="max-height:240px;min-width:120px;">${_MONTH_DD_ITEMS}</div></div>`; }
 function _mkActivityTextTh() { return `<th class="${TH_FILT}" style="min-width:130px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'ActivityType')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Activity</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_ActivityType')}</button>${_ACT_TEXT_PANEL}</th>`; }
 
+// Date range filter panel — pola sama dengan view ticket (From/To + Clear/Apply).
+const _DATE_FILTER_PANEL = `<div id="tsDateFilterPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:240px;">
+    <div class="space-y-2">
+        <div>
+            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">From</label>
+            <input type="date" id="tsDateFrom" onclick="event.stopPropagation()" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+        </div>
+        <div>
+            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</label>
+            <input type="date" id="tsDateTo" onclick="event.stopPropagation()" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+        </div>
+        <p id="tsDateFilterError" class="hidden text-xs text-red-500">"To" must be on/after "From".</p>
+    </div>
+    <div class="flex justify-end gap-2 mt-3">
+        <button type="button" onclick="clearTsDateFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+        <button type="button" onclick="applyTsDateFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Apply</button>
+    </div>
+</div>`;
+
 const SUPPORT_THEAD_HTML = `<tr>
     <th class="${TH_PLAIN}" style="min-width:36px;"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300"></th>
-    <th class="${TH_FILT}" style="min-width:110px; position:relative;"><button type="button" onclick="toggleTsDateSortPanel(event)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Date</span>${CHEVRON_SVG}<span id="tsSortDateIcon" class="text-[10px] text-red-500 font-bold shrink-0">↓</span></button>${_DATE_SORT_PANEL}</th>
+    <th class="${TH_FILT}" style="min-width:110px; position:relative;"><button type="button" onclick="toggleTsDatePanel(event)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Date</span>${CHEVRON_SVG}${FUNNEL_SVG('tsDateFilterIcon')}<span id="tsSortDateIcon" onclick="event.stopPropagation(); toggleTsDateSort()" title="Click to toggle sort (descending ↔ ascending)" class="cursor-pointer text-[10px] text-red-500 font-bold shrink-0 ml-auto hover:text-red-700 transition-colors">↓</span></button>${_DATE_FILTER_PANEL}</th>
     <th class="${TH_FILT}" style="min-width:85px;">${_mkMonthDd()}</th>
     <th class="${TH_PLAIN}" style="min-width:55px;">Year</th>
-    <th class="${TH_FILT}" style="min-width:150px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'Employee')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Name</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_Employee')}</button>${_EMP_TEXT_PANEL}</th>
+    <th class="${TH_FILT}" style="min-width:150px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'Employee')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Name</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_Employee')}<span id="tsSortEmpIcon" onclick="event.stopPropagation(); toggleTsEmpSort()" title="Click to toggle sort (A–Z ↔ Z–A)" class="cursor-pointer text-[10px] text-gray-300 font-bold shrink-0 ml-auto hover:text-red-500 transition-colors">⇅</span></button>${_EMP_TEXT_PANEL}</th>
     <th class="${TH_FILT}" style="min-width:120px;">${_mkStatusDd()}</th>
     <th class="${TH_FILT}" style="min-width:150px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'Ticket')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Ticket</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_Ticket')}</button>${_TKT_TEXT_PANEL}</th>
     <th class="${TH_PLAIN}" style="min-width:180px;">Description</th>
@@ -174,14 +174,22 @@ async function loadTsPeriodBadge() {
     } catch (e) {}
 }
 
-// Close text panels and date sort panel on outside click
+// Close text/date panels on outside click
 document.addEventListener('click', function(e) {
-    if (!e.target.closest('[id^="tsTextPanel_"]') && !e.target.closest('[id^="tsDateSortPanel"]') &&
-        !e.target.closest('[onclick*="toggleTsTextPanel"]') && !e.target.closest('[onclick*="toggleTsDateSortPanel"]')) {
-        closeTsDateSortPanel();
+    if (!e.target.closest('[id^="tsTextPanel_"]') && !e.target.closest('#tsDateFilterPanel') &&
+        !e.target.closest('[onclick*="toggleTsTextPanel"]') && !e.target.closest('[onclick*="toggleTsDatePanel"]')) {
         closeTsTextPanelAll();
     }
 });
+
+// Tutup panel saat scroll di luar panel atau resize — panel pakai posisi
+// absolute terhadap header sehingga scroll bikin tidak sinkron dengan view.
+window.addEventListener('scroll', function(e) {
+    const t = e.target;
+    if (t && t.nodeType === 1 && t.closest && (t.closest('[id^="tsTextPanel_"]') || t.closest('#tsDateFilterPanel'))) return;
+    closeTsTextPanelAll();
+}, true);
+window.addEventListener('resize', closeTsTextPanelAll);
 
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
@@ -1138,6 +1146,12 @@ function applyStatusFilter() {
     if (colCustomer) result = result.filter(t => (t.customer_name || '').toLowerCase().includes(colCustomer));
     if (colMonth)    result = result.filter(t => String(t.period_month) === colMonth);
 
+    // Date range filter (Date column From/To — sama seperti view ticket)
+    const dateFrom = document.getElementById('tsDateFrom')?.value || '';
+    const dateTo   = document.getElementById('tsDateTo')?.value   || '';
+    if (dateFrom) result = result.filter(t => (t.date || '').slice(0, 10) >= dateFrom);
+    if (dateTo)   result = result.filter(t => (t.date || '').slice(0, 10) <= dateTo);
+
     // 4. Sort
     if (tsSortKey === 'date') {
         result = [...result].sort((a, b) => {
@@ -1184,30 +1198,37 @@ function applyColFilter() {
 
 // ── Sort & panel helpers ────────────────────────────────────────────────────
 
-function setTsSort(key, dir) {
-    tsSortKey = key;
-    tsSortDir = dir;
+// Klik header → toggle langsung antara descending (default) ↔ ascending.
+function toggleTsSort(key) {
+    // Ganti kolom sort → mulai dari ascending; kolom sama → toggle arah.
+    if (tsSortKey === key) {
+        tsSortDir = tsSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        tsSortKey = key;
+        tsSortDir = 'asc';
+    }
     _updateTsSortVisuals();
-    closeTsDateSortPanel();
     closeTsTextPanelAll();
     currentPage = 1;
     applyStatusFilter();
 }
 
+function toggleTsDateSort() { toggleTsSort('date'); }
+function toggleTsEmpSort()  { toggleTsSort('employee'); }
+
 function _updateTsSortVisuals() {
     const dateIcon = document.getElementById('tsSortDateIcon');
     if (dateIcon) {
-        dateIcon.textContent = tsSortKey === 'date' ? (tsSortDir === 'asc' ? '↑' : '↓') : '';
+        dateIcon.textContent = tsSortKey === 'date' ? (tsSortDir === 'asc' ? '↑' : '↓') : '↓';
+        dateIcon.classList.toggle('text-red-500', tsSortKey === 'date');
+        dateIcon.classList.toggle('text-gray-300', tsSortKey !== 'date');
     }
-    const _btn = (id, active) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.className = `flex-1 px-2 py-1 text-xs border rounded-md hover:bg-gray-50 transition-colors ${active ? 'border-red-400 bg-red-50 text-red-700 font-semibold' : 'border-gray-200'}`;
-    };
-    _btn('tsSortDateAsc',  tsSortKey === 'date'     && tsSortDir === 'asc');
-    _btn('tsSortDateDesc', tsSortKey === 'date'     && tsSortDir === 'desc');
-    _btn('tsSortEmpAsc',   tsSortKey === 'employee' && tsSortDir === 'asc');
-    _btn('tsSortEmpDesc',  tsSortKey === 'employee' && tsSortDir === 'desc');
+    const empIcon = document.getElementById('tsSortEmpIcon');
+    if (empIcon) {
+        empIcon.textContent = tsSortKey === 'employee' ? (tsSortDir === 'asc' ? '↑' : '↓') : '⇅';
+        empIcon.classList.toggle('text-red-500', tsSortKey === 'employee');
+        empIcon.classList.toggle('text-gray-300', tsSortKey !== 'employee');
+    }
 }
 
 function _updateTsFilterIcons() {
@@ -1219,22 +1240,45 @@ function _updateTsFilterIcons() {
         icon.classList.toggle('text-red-500', active);
         icon.classList.toggle('text-gray-300', !active);
     });
+    // Date range indicator
+    const dateIcon = document.getElementById('tsDateFilterIcon');
+    if (dateIcon) {
+        const active = !!(document.getElementById('tsDateFrom')?.value || document.getElementById('tsDateTo')?.value);
+        dateIcon.classList.toggle('text-red-500', active);
+        dateIcon.classList.toggle('text-gray-300', !active);
+    }
 }
 
-function toggleTsDateSortPanel(event) {
+// ── Date Range Filter (Date column) ──────────────────────────────────────────
+function toggleTsDatePanel(event) {
     event.stopPropagation();
-    const panel = document.getElementById('tsDateSortPanel');
+    const panel = document.getElementById('tsDateFilterPanel');
     if (!panel) return;
     const wasHidden = panel.classList.contains('hidden');
-    closeTsDateSortPanel();
     closeTsTextPanelAll();
     if (typeof _closeAllDropdowns === 'function') _closeAllDropdowns();
     if (wasHidden) panel.classList.remove('hidden');
 }
 
-function closeTsDateSortPanel() {
-    const p = document.getElementById('tsDateSortPanel');
-    if (p) p.classList.add('hidden');
+function applyTsDateFilter() {
+    const from = document.getElementById('tsDateFrom')?.value || '';
+    const to   = document.getElementById('tsDateTo')?.value   || '';
+    const err  = document.getElementById('tsDateFilterError');
+    if (from && to && to < from) { if (err) err.classList.remove('hidden'); return; }
+    if (err) err.classList.add('hidden');
+    document.getElementById('tsDateFilterPanel')?.classList.add('hidden');
+    _updateTsFilterIcons();
+    currentPage = 1;
+    applyStatusFilter();
+}
+
+function clearTsDateFilter() {
+    const from = document.getElementById('tsDateFrom'); if (from) from.value = '';
+    const to   = document.getElementById('tsDateTo');   if (to)   to.value   = '';
+    const err  = document.getElementById('tsDateFilterError'); if (err) err.classList.add('hidden');
+    _updateTsFilterIcons();
+    currentPage = 1;
+    applyStatusFilter();
 }
 
 function toggleTsTextPanel(event, key) {
@@ -1242,7 +1286,6 @@ function toggleTsTextPanel(event, key) {
     const panel = document.getElementById('tsTextPanel_' + key);
     if (!panel) return;
     const wasHidden = panel.classList.contains('hidden');
-    closeTsDateSortPanel();
     closeTsTextPanelAll();
     if (typeof _closeAllDropdowns === 'function') _closeAllDropdowns();
     if (wasHidden) {
@@ -1252,13 +1295,9 @@ function toggleTsTextPanel(event, key) {
     }
 }
 
-function closeTsTextPanel(key) {
-    const p = document.getElementById('tsTextPanel_' + key);
-    if (p) p.classList.add('hidden');
-}
-
 function closeTsTextPanelAll() {
     document.querySelectorAll('[id^="tsTextPanel_"]').forEach(p => p.classList.add('hidden'));
+    document.getElementById('tsDateFilterPanel')?.classList.add('hidden');
 }
 
 function clearTsTextPanel(key) {
@@ -1368,6 +1407,10 @@ function resetFilters() {
         const inp = document.getElementById(k === 'ActivityType' ? 'colFilterTsActivityType' : 'colFilterTs' + k);
         if (inp) inp.value = '';
     });
+    // 3b. Clear date range filter
+    const tsdFrom = document.getElementById('tsDateFrom'); if (tsdFrom) tsdFrom.value = '';
+    const tsdTo   = document.getElementById('tsDateTo');   if (tsdTo)   tsdTo.value   = '';
+    const tsdErr  = document.getElementById('tsDateFilterError'); if (tsdErr) tsdErr.classList.add('hidden');
 
     // 4. Reset sort to date desc
     tsSortKey = 'date';
@@ -1376,7 +1419,6 @@ function resetFilters() {
     _updateTsFilterIcons();
 
     // 5. Close any open panels
-    closeTsDateSortPanel();
     closeTsTextPanelAll();
 
     // 2. Reset thead / supportLayoutActive flag without triggering a render

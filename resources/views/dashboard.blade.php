@@ -703,7 +703,7 @@
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-shield-alt"></i>
                         </span>
-                        <span class="nav-text flex-1 font-medium">Manajemen</span>
+                        <span class="nav-text flex-1 font-medium">Management</span>
                         <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="manajemenChevron"></i>
                     </button>
                     <div id="manajemenDropdown" class="nav-text {{ Request::is('management*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
@@ -720,7 +720,15 @@
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-key text-xs"></i>
                             </span>
-                            <span class="nav-text text-sm">Akses Menu</span>
+                            <span class="nav-text text-sm">Menu Access</span>
+                        </a>
+                        @endif
+                        @if($can('management.holidays'))
+                        <a href="{{ route('management.holidays.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/holidays*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-calendar-day text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Holidays</span>
                         </a>
                         @endif
                         @if($can('management.employee'))

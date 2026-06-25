@@ -98,11 +98,11 @@
             <div class="flex gap-3">
                 <button id="confirmCancelBtn"
                     class="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
-                    Batal
+                    Cancel
                 </button>
                 <button id="confirmOkBtn"
                     class="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition">
-                    Ya, Lanjutkan
+                    Confirm
                 </button>
             </div>
         </div>
@@ -121,7 +121,7 @@
 
         <!-- Search -->
         <div class="px-6 py-3 border-b border-gray-100 flex-shrink-0">
-            <input type="text" id="menuSearch" placeholder="Cari nama menu..." oninput="filterMenuRows()"
+            <input type="text" id="menuSearch" placeholder="Search menu name..." oninput="filterMenuRows()"
                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
         </div>
 
@@ -239,18 +239,18 @@ async function submitRole(e) {
 
     if (json.success) {
         closeModal('roleModal');
-        showToast(id ? 'Role berhasil diperbarui.' : 'Role berhasil ditambahkan.', 'success');
+        showToast(id ? 'Role updated successfully.' : 'Role added successfully.', 'success');
         loadRoles();
     } else {
-        showToast(json.message || 'Gagal menyimpan role.', 'error');
+        showToast(json.message || 'Failed to save role.', 'error');
     }
 }
 
 async function deleteRole(id, name) {
     const ok = await customConfirm({
-        title:    `Hapus Role?`,
-        message:  `Anda akan menghapus role "${name}". Aksi ini tidak dapat diurungkan.`,
-        okLabel:  'Ya, Hapus',
+        title:    `Delete Role?`,
+        message:  `You are about to delete the role "${name}". This action cannot be undone.`,
+        okLabel:  'Yes, Delete',
         okClass:  'bg-red-600 hover:bg-red-700',
         icon:     'fas fa-trash',
         iconBg:   'bg-red-50',
@@ -260,10 +260,10 @@ async function deleteRole(id, name) {
     const res  = await fetch(`/api/roles/${id}`, { method: 'DELETE', headers: jsonHeaders() });
     const json = await res.json();
     if (json.success) {
-        showToast(`Role "${name}" berhasil dihapus.`, 'success');
+        showToast(`Role "${name}" deleted successfully.`, 'success');
         loadRoles();
     } else {
-        showToast(json.message || 'Gagal menghapus role.', 'error');
+        showToast(json.message || 'Failed to delete role.', 'error');
     }
 }
 
@@ -281,7 +281,7 @@ async function openEmployeesModal(id) {
         const json = await res.json();
         members = json.data || [];
     } catch (e) {
-        document.getElementById('membersModalBody').innerHTML = '<p class="text-red-500 text-sm text-center">Gagal memuat data.</p>';
+        document.getElementById('membersModalBody').innerHTML = '<p class="text-red-500 text-sm text-center">Failed to load data.</p>';
         return;
     }
 
@@ -381,7 +381,7 @@ function renderMenuNode(node, depth, container, search, parentAccessible = true)
     const div = document.createElement('div');
     div.className = `flex items-center gap-2 px-4 py-2.5 transition-colors border-b border-gray-100 ${typeStyle.bg} ${rowOpacity} ${isDisabled ? '' : 'hover:bg-blue-50/30'}`;
     div.style.paddingLeft = `${16 + depth * 22}px`;
-    if (isDisabled) div.title = 'Parent menu tidak aktif — aktifkan parent terlebih dahulu';
+    if (isDisabled) div.title = 'Parent menu is inactive — enable the parent first';
 
     div.innerHTML = `
         ${hasChildren
@@ -437,9 +437,9 @@ async function toggleMenuAccess(menuId, checkbox) {
 
     if (grant) {
         const confirmed = await customConfirm({
-            title:    'Berikan Akses?',
-            message:  `Berikan akses "${menuName}" ke role "${roleName}"?`,
-            okLabel:  'Ya, Berikan',
+            title:    'Grant Access?',
+            message:  `Grant access to "${menuName}" for role "${roleName}"?`,
+            okLabel:  'Yes, Grant',
             okClass:  'bg-green-600 hover:bg-green-700',
             icon:     'fas fa-key',
             iconBg:   'bg-green-50',
@@ -448,9 +448,9 @@ async function toggleMenuAccess(menuId, checkbox) {
         if (!confirmed) { checkbox.checked = false; return; }
     } else {
         const confirmed = await customConfirm({
-            title:    'Cabut Akses?',
-            message:  `Cabut akses "${menuName}" dari role "${roleName}"?`,
-            okLabel:  'Ya, Cabut',
+            title:    'Revoke Access?',
+            message:  `Revoke access to "${menuName}" from role "${roleName}"?`,
+            okLabel:  'Yes, Revoke',
             okClass:  'bg-red-600 hover:bg-red-700',
             icon:     'fas fa-ban',
             iconBg:   'bg-red-50',
@@ -479,15 +479,15 @@ async function toggleMenuAccess(menuId, checkbox) {
 
     if (!ok) {
         checkbox.checked = !grant;
-        showToast('Gagal mengubah akses. Coba lagi.', 'error');
+        showToast('Failed to update access. Please try again.', 'error');
     } else {
         if (grant) {
             roleMenuPermissions[menuId] = { can_view: true, can_create: false, can_edit: false, can_delete: false };
-            showToast(`Akses "${menuName}" berhasil diberikan.`, 'success');
+            showToast(`Access to "${menuName}" granted successfully.`, 'success');
         } else {
             delete roleMenuPermissions[menuId];
             await cascadeRevokeChildren(menuId);
-            showToast(`Akses "${menuName}" berhasil dicabut.`, 'success');
+            showToast(`Access to "${menuName}" revoked successfully.`, 'success');
         }
         renderMenuAccessTree();
     }
@@ -527,7 +527,7 @@ function findMenuNode(nodes, id) {
 
 // ── Custom Confirm Dialog ─────────────────────────────────────────────────────
 
-function customConfirm({ title, message, okLabel = 'Ya, Lanjutkan', okClass = 'bg-red-600 hover:bg-red-700', icon = 'fas fa-exclamation-triangle', iconBg = 'bg-red-50', iconColor = 'text-red-500' } = {}) {
+function customConfirm({ title, message, okLabel = 'Confirm', okClass = 'bg-red-600 hover:bg-red-700', icon = 'fas fa-exclamation-triangle', iconBg = 'bg-red-50', iconColor = 'text-red-500' } = {}) {
     return new Promise(resolve => {
         const modal      = document.getElementById('confirmModal');
         const titleEl    = document.getElementById('confirmTitle');

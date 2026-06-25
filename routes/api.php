@@ -583,6 +583,12 @@ Route::middleware(['web'])->group(function () {
     Route::delete('/roles/{id}/permissions/{menuId}',               [\App\Http\Controllers\RoleController::class, 'removePermission']);
     Route::get('/roles/{id}/employees',                             [\App\Http\Controllers\RoleController::class, 'employees']);
 
+    // Holiday management (Manajemen → Hari Libur)
+    Route::get('/management/holidays',         [\App\Http\Controllers\HolidayManagementController::class, 'index']);
+    Route::post('/management/holidays',        [\App\Http\Controllers\HolidayManagementController::class, 'store']);
+    Route::put('/management/holidays/{id}',    [\App\Http\Controllers\HolidayManagementController::class, 'update']);
+    Route::delete('/management/holidays/{id}', [\App\Http\Controllers\HolidayManagementController::class, 'destroy']);
+
     // Employee ↔ Role assignment
     Route::get('/employees/{employeeId}/roles',                     [\App\Http\Controllers\RoleController::class, 'employeeRoles']);
     Route::post('/employees/{employeeId}/roles',                    [\App\Http\Controllers\RoleController::class, 'assignRoles']);
