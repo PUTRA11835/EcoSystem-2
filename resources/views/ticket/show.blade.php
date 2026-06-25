@@ -198,6 +198,10 @@
         <div class="border-t border-gray-200 flex-shrink-0">
 
             {{-- Toggle strip: channel indicator + collapse button --}}
+            {{-- DEBUG TEMP: hapus setelah selesai debug --}}
+            <div style="background:#fef3c7;border:1px solid #f59e0b;padding:4px 12px;font-size:11px;font-family:monospace;color:#92400e;">
+                [DEBUG] channel={{ json_encode($ticket->channel) }} | email_thread_id={{ json_encode($ticket->email_thread_id) }}
+            </div>
             <div class="flex items-center pr-3">
                 <div class="flex-1">
                     @if($ticket->channel === 'email' || $ticket->email_thread_id)

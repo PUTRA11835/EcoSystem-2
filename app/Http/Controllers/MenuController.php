@@ -156,7 +156,7 @@ class MenuController extends Controller
     {
         $role = EmployeeRole::find($roleId);
         if ($role) {
-            $role->employees()->pluck('employee_id')->each(function ($empId) {
+            $role->employees()->pluck('employee.employee_id')->each(function ($empId) {
                 Cache::forget("perm_slugs_{$empId}");
             });
         }
