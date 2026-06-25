@@ -11,17 +11,22 @@
         </div>
         
         <!-- View Toggle -->
-        @php $viewRoleId = session('user')['role']['id'] ?? 0; @endphp
-        @if($viewRoleId == \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value)
+        @php
+            $viewRoleIds = array_map('intval', session('user')['role_ids'] ?? [session('user')['role']['id'] ?? 0]);
+            $isAdminOrHead   = array_intersect($viewRoleIds, [\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value]);
+            $isManager       = in_array(\App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value, $viewRoleIds, true);
+            $isSupportUser   = in_array(\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value, $viewRoleIds, true);
+        @endphp
+        @if($isAdminOrHead)
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
-            <button onclick="toggleView('my')" id="btnViewMy" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
-                <i class="fas fa-user text-[10px] mr-1"></i>My Tickets
+            <button onclick="toggleView('all')" id="btnViewAll" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
             </button>
             <button onclick="toggleView('unassign')" id="btnViewUnassign" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
                 <i class="fas fa-user-clock text-[10px] mr-1"></i>Unassign
             </button>
         </div>
-        @elseif($viewRoleId == \App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value)
+        @elseif($isManager)
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
             <button onclick="toggleView('all')" id="btnViewAll" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
                 <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
@@ -30,10 +35,10 @@
                 <i class="fas fa-user text-[10px] mr-1"></i>My Tickets
             </button>
         </div>
-        @elseif($viewRoleId == 1 || $viewRoleId == 5)
+        @elseif($isSupportUser)
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
-            <button onclick="toggleView('all')" id="btnViewAll" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
-                <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
+            <button onclick="toggleView('my')" id="btnViewMy" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-user text-[10px] mr-1"></i>My Tickets
             </button>
             <button onclick="toggleView('unassign')" id="btnViewUnassign" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
                 <i class="fas fa-user-clock text-[10px] mr-1"></i>Unassign
@@ -521,21 +526,23 @@
     let currentPage = 1;
     let totalItems = 0;
     let totalPages = 0;
-    let userRole = {{ session('user')['role']['id'] ?? 0 }};
+    let userRoleIds = {!! json_encode(array_map('intval', session('user')['role_ids'] ?? [session('user')['role']['id'] ?? 0])) !!};
     let userId = {{ session('user')['id'] ?? 0 }};
     const EC_ADMINISTRATOR_ROLE         = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
     const DELIVERY_SUPPORT_USER_ROLE    = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};
     const EC_USER_ROLE                  = {{ \App\Enums\RoleId::EC_USER->value }};
     const DELIVERY_SUPPORT_HEAD_ROLE    = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value }};
     const DELIVERY_SUPPORT_MANAGER_ROLE = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value }};
-    // Delivery Support User defaults to 'my'; Manager defaults to 'my'; Admin/Head defaults to 'all'
-    let currentView = (userRole === DELIVERY_SUPPORT_USER_ROLE || userRole === DELIVERY_SUPPORT_MANAGER_ROLE) ? 'my' : 'all';
+    const hasRole = (id) => userRoleIds.includes(id);
+    // Admin/Head defaults to 'all'; Support User or Manager (without head/admin) defaults to 'my'
+    let currentView = (hasRole(EC_ADMINISTRATOR_ROLE) || hasRole(DELIVERY_SUPPORT_HEAD_ROLE)) ? 'all'
+        : (hasRole(DELIVERY_SUPPORT_USER_ROLE) || hasRole(DELIVERY_SUPPORT_MANAGER_ROLE)) ? 'my' : 'all';
 
     document.addEventListener('DOMContentLoaded', function() {
         initCustomDropdowns();
         loadTickets();
 
-        if (userRole === DELIVERY_SUPPORT_USER_ROLE || userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_HEAD_ROLE || userRole === DELIVERY_SUPPORT_MANAGER_ROLE) {
+        if (hasRole(DELIVERY_SUPPORT_USER_ROLE) || hasRole(EC_ADMINISTRATOR_ROLE) || hasRole(DELIVERY_SUPPORT_HEAD_ROLE) || hasRole(DELIVERY_SUPPORT_MANAGER_ROLE)) {
             updateViewToggle();
         }
     });
@@ -551,14 +558,14 @@
         const btnMy       = document.getElementById('btnViewMy');
         const btnUnassign = document.getElementById('btnViewUnassign');
 
-        if (userRole === DELIVERY_SUPPORT_USER_ROLE) {
-            if (btnMy)       btnMy.classList.toggle('active',       currentView === 'my');
+        if (hasRole(EC_ADMINISTRATOR_ROLE) || hasRole(DELIVERY_SUPPORT_HEAD_ROLE)) {
+            if (btnAll)      btnAll.classList.toggle('active',      currentView === 'all');
             if (btnUnassign) btnUnassign.classList.toggle('active', currentView === 'unassign');
-        } else if (userRole === DELIVERY_SUPPORT_MANAGER_ROLE) {
+        } else if (hasRole(DELIVERY_SUPPORT_MANAGER_ROLE)) {
             if (btnMy)  btnMy.classList.toggle('active',  currentView === 'my');
             if (btnAll) btnAll.classList.toggle('active', currentView === 'all');
-        } else if (userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_HEAD_ROLE) {
-            if (btnAll)      btnAll.classList.toggle('active',      currentView === 'all');
+        } else if (hasRole(DELIVERY_SUPPORT_USER_ROLE)) {
+            if (btnMy)       btnMy.classList.toggle('active',       currentView === 'my');
             if (btnUnassign) btnUnassign.classList.toggle('active', currentView === 'unassign');
         }
     }
@@ -572,18 +579,18 @@
             // Determine endpoint based on role and current view
             let endpoint = '/api/tickets';
 
-            if (userRole === EC_USER_ROLE) {
+            if (hasRole(EC_ADMINISTRATOR_ROLE) || hasRole(DELIVERY_SUPPORT_HEAD_ROLE)) {
+                // Admin / Support Head: all tickets or unassigned view
+                endpoint = (currentView === 'unassign') ? '/api/tickets?unassigned=1' : '/api/tickets';
+            } else if (hasRole(DELIVERY_SUPPORT_MANAGER_ROLE)) {
+                // Support Manager: "My Tickets" or "All Tickets"
+                endpoint = (currentView === 'my') ? '/api/tickets/my' : '/api/tickets';
+            } else if (hasRole(DELIVERY_SUPPORT_USER_ROLE)) {
+                // Support User: "My Tickets" or "Unassign"
+                endpoint = (currentView === 'my') ? '/api/tickets/my' : '/api/tickets';
+            } else if (hasRole(EC_USER_ROLE)) {
                 // EC User — only their own tickets
                 endpoint = '/api/tickets/my';
-            } else if (userRole === DELIVERY_SUPPORT_USER_ROLE) {
-                // Delivery Support User: "My Tickets" or "Unassign"
-                endpoint = (currentView === 'my') ? '/api/tickets/my' : '/api/tickets';
-            } else if (userRole === DELIVERY_SUPPORT_MANAGER_ROLE) {
-                // Delivery Support Manager: "My Tickets" or "All Tickets"
-                endpoint = (currentView === 'my') ? '/api/tickets/my' : '/api/tickets';
-            } else if ((userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_HEAD_ROLE) && currentView === 'unassign') {
-                // EC Administrator / Delivery Support Head viewing only unassigned tickets
-                endpoint = '/api/tickets?unassigned=1';
             }
             // Other views / roles use /api/tickets (all tickets)
             
