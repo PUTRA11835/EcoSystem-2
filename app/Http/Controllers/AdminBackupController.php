@@ -2860,10 +2860,593 @@ class AdminBackupController extends Controller
         return $rows ?: null;
     }
 
+    // ── Template: Delivery Support ────────────────────────────────────────────────
+
+    public function templateDeliverySupport()
+    {
+        if (!$this->assertAdmin()) abort(403);
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Delivery Support');
+        $sheet->fromArray([
+            [
+                'Name', 'Customer Code', 'Type',
+                'Start Date', 'End Date', 'Resolution Estimated',
+                'Delivery Owner ECI', 'Support Manager ECI', 'Co PM ECI',
+                'Support Admin ECI', 'Sales ECI',
+                'Support Method', 'Total Mandays',
+                'Approval Date', 'Approval Name',
+                'Service Window Start', 'Service Window End',
+            ],
+            [
+                'AMS MANTAP 2026', 'MANTAP', 'AMS',
+                '2026-01-01', '2026-12-31', '',
+                'K21001', 'K21002', '',
+                '', '',
+                'On-site', '180',
+                '', '',
+                '08:00', '17:00',
+            ],
+        ]);
+        $sheet->getStyle('A1:Q1')->getFont()->setBold(true);
+
+        $noteSheet = $spreadsheet->createSheet();
+        $noteSheet->setTitle('Panduan');
+        $noteSheet->fromArray([
+            ['Kolom', 'Keterangan'],
+            ['Name', 'Nama delivery support (wajib, unik per customer)'],
+            ['Customer Code', 'Kode customer (wajib, harus sudah ada di sistem)'],
+            ['Type', 'AMS / MO / ATS / Project / Internal (wajib)'],
+            ['Start Date', 'Tanggal mulai, format YYYY-MM-DD (opsional)'],
+            ['End Date', 'Tanggal selesai, format YYYY-MM-DD (opsional)'],
+            ['Resolution Estimated', 'Estimasi resolusi, format YYYY-MM-DD (opsional)'],
+            ['Delivery Owner ECI', 'ECI karyawan sebagai Delivery Owner (opsional)'],
+            ['Support Manager ECI', 'ECI karyawan sebagai Support Manager (opsional)'],
+            ['Co PM ECI', 'ECI karyawan sebagai Co PM (opsional)'],
+            ['Support Admin ECI', 'ECI karyawan sebagai Support Admin (opsional)'],
+            ['Sales ECI', 'ECI karyawan sebagai Sales (opsional)'],
+            ['Support Method', 'Misal: On-site / Remote / Hybrid (opsional)'],
+            ['Total Mandays', 'Angka total mandays (opsional)'],
+            ['Approval Date', 'Tanggal approval, format YYYY-MM-DD (opsional)'],
+            ['Approval Name', 'Nama approver (opsional)'],
+            ['Service Window Start', 'Jam mulai service window, format HH:mm (opsional)'],
+            ['Service Window End', 'Jam selesai service window, format HH:mm (opsional)'],
+        ]);
+        $noteSheet->getStyle('A1:B1')->getFont()->setBold(true);
+        foreach (['A', 'B'] as $col) {
+            $noteSheet->getColumnDimension($col)->setAutoSize(true);
+        }
+        foreach (range('A', 'Q') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $spreadsheet->setActiveSheetIndex(0);
+        $writer = new Xlsx($spreadsheet);
+        return response()->stream(
+            fn () => $writer->save('php://output'),
+            200,
+            [
+                'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="delivery_support_import_template.xlsx"',
+                'Cache-Control'       => 'max-age=0',
+            ]
+        );
+    }
+
+    // ── Import Delivery Support ───────────────────────────────────────────────────
+
+    public function importDeliverySupport(\Illuminate\Http\Request $request)
+    {
+        if (!$this->assertAdmin()) return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+
+        set_time_limit(180);
+        $request->validate(['file' => 'required|file|mimes:csv,txt,xlsx|max:10240']);
+
+        $file    = $request->file('file');
+        $ext     = strtolower($file->getClientOriginalExtension());
+        $allRows = $this->readSpreadsheetFile($file->getRealPath(), $ext);
+
+        if (!$allRows || count($allRows) < 2) {
+            return response()->json(['success' => false, 'message' => 'File kosong atau tidak valid'], 422);
+        }
+
+        // Handle variasi 1 atau 2 baris header
+        // Jika row 1 punya BOTH name anchor + customer anchor → pakai langsung
+        // Jika tidak (group header terpisah) → merge row 1 + row 2 (row 2 menang jika non-empty)
+        $firstRow  = array_shift($allRows);
+        $firstNorm = array_map(fn($h) => strtolower(trim((string)$h)), $firstRow);
+        $hasName   = collect($firstNorm)->contains(fn($h) => in_array($h, ['name', 'nama', 'support name'], true));
+        $hasCust   = collect($firstNorm)->contains(fn($h) => in_array($h, ['customer code', 'customer_code', 'client / customer', 'client/customer'], true));
+
+        if ($hasName && $hasCust) {
+            $rawHeaders = $firstRow;
+        } else {
+            // Merge: untuk tiap index, row 2 menang jika non-empty, sisanya pakai row 1
+            $secondRow  = array_shift($allRows);
+            $maxCols    = max(count($firstRow), count($secondRow));
+            $rawHeaders = [];
+            for ($i = 0; $i < $maxCols; $i++) {
+                $v1 = trim((string)($firstRow[$i]  ?? ''));
+                $v2 = trim((string)($secondRow[$i] ?? ''));
+                $rawHeaders[$i] = $v2 !== '' ? $v2 : $v1;
+            }
+        }
+
+        $headerMap  = [];
+        foreach ($rawHeaders as $i => $h) {
+            $headerMap[strtolower(trim((string)$h))] = $i;
+        }
+
+        $aliasMap = [
+            'name'                   => ['support name', 'name', 'nama'],
+            'customer_code'          => ['client/customer', 'client / customer', 'customer code', 'customer_code', 'kode customer'],
+            'type'                   => ['type', 'tipe'],
+            'start_date'             => ['start date', 'start_date', 'tanggal mulai'],
+            'end_date'               => ['end date', 'end_date', 'tanggal selesai'],
+            'resolution_estimated'   => ['resolution estimated', 'resolution_estimated', 'estimasi resolusi'],
+            'delivery_owner_eci'     => ['delivery owner eci', 'delivery_owner_eci', 'delivery owner'],
+            'support_manager_eci'    => ['support manager eci', 'support_manager_eci', 'support manager'],
+            'co_pm_eci'              => ['co pm eci', 'co_pm_eci', 'co pm'],
+            'support_admin_eci'      => ['support admin eci', 'support_admin_eci', 'support admin'],
+            'sales_eci'              => ['sales eci', 'sales_eci', 'sales'],
+            'support_method'         => ['support method', 'support_method', 'metode'],
+            'total_mandays'          => ['total mandays', 'total_mandays', 'mandays'],
+            'approval_date'          => ['approval date', 'approval_date', 'tanggal approval'],
+            'approval_name'          => ['approval name', 'approval_name', 'nama approver'],
+            'service_window_start'   => ['start time', 'service window start', 'service_window_start', 'jam mulai'],
+            'service_window_end'     => ['end time', 'service window end', 'service_window_end', 'jam selesai'],
+        ];
+
+        $colIdx = [];
+        foreach ($aliasMap as $field => $aliases) {
+            foreach ($aliases as $alias) {
+                if (isset($headerMap[$alias])) { $colIdx[$field] = $headerMap[$alias]; break; }
+            }
+        }
+
+        if (!isset($colIdx['name'])) {
+            return response()->json(['success' => false, 'message' => 'Kolom wajib tidak ditemukan: "Name"'], 422);
+        }
+        if (!isset($colIdx['customer_code'])) {
+            return response()->json(['success' => false, 'message' => 'Kolom wajib tidak ditemukan: "Customer Code"'], 422);
+        }
+        if (!isset($colIdx['type'])) {
+            return response()->json(['success' => false, 'message' => 'Kolom wajib tidak ditemukan: "Type"'], 422);
+        }
+
+        $get = function (string $field, array $row) use ($colIdx): ?string {
+            if (!isset($colIdx[$field])) return null;
+            $val = trim((string)($row[$colIdx[$field]] ?? ''));
+            if ($val !== '' && !mb_check_encoding($val, 'UTF-8')) {
+                $val = mb_convert_encoding($val, 'UTF-8', 'Windows-1252');
+            }
+            if (preg_match('/^#[A-Z\/]+[!?]?$/', $val)) return null;
+            return $val !== '' ? $val : null;
+        };
+
+        $resolveEci = function (?string $eci): ?int {
+            if (!$eci) return null;
+            $emp = \Illuminate\Support\Facades\DB::table('employee')
+                ->where('eci', $eci)
+                ->select('employee_id')
+                ->first();
+            return $emp?->employee_id;
+        };
+
+        $validTypes = ['AMS', 'MO', 'ATS', 'Project', 'Internal'];
+
+        $imported = 0;
+        $skipped  = 0;
+        $errors   = [];
+        $rowNum   = 1;
+
+        foreach ($allRows as $row) {
+            $rowNum++;
+            if (count($row) === 1 && trim($row[0] ?? '') === '') continue;
+
+            $name = $get('name', $row);
+            if (!$name) {
+                $errors[] = "Baris {$rowNum}: Name kosong — dilewati";
+                $skipped++;
+                continue;
+            }
+
+            $customerCode = $get('customer_code', $row);
+            if (!$customerCode) {
+                $errors[] = "Baris {$rowNum}: Customer Code kosong — dilewati";
+                $skipped++;
+                continue;
+            }
+
+            $customer = \Illuminate\Support\Facades\DB::table('customer')
+                ->where('customer_code', $customerCode)
+                ->select('customer_id')
+                ->first();
+            if (!$customer) {
+                $errors[] = "Baris {$rowNum}: Customer Code '{$customerCode}' tidak ditemukan — dilewati";
+                $skipped++;
+                continue;
+            }
+
+            $typeRaw = $get('type', $row);
+            $type    = collect($validTypes)->first(fn($t) => strcasecmp($t, $typeRaw ?? '') === 0);
+            if (!$type) {
+                $errors[] = "Baris {$rowNum}: Type '{$typeRaw}' tidak valid (harus: " . implode('/', $validTypes) . ") — dilewati";
+                $skipped++;
+                continue;
+            }
+
+            // Cek duplikat: name + client_id
+            $exists = \Illuminate\Support\Facades\DB::table('delivery_support')
+                ->where('name', $name)
+                ->where('client_id', $customer->customer_id)
+                ->exists();
+            if ($exists) {
+                $errors[] = "[Peringatan] Baris {$rowNum}: Delivery Support '{$name}' untuk customer '{$customerCode}' sudah ada — dilewati";
+                $skipped++;
+                continue;
+            }
+
+            $serviceStart = $get('service_window_start', $row);
+            $serviceEnd   = $get('service_window_end', $row);
+            // Pastikan format H:i
+            if ($serviceStart && !preg_match('/^\d{2}:\d{2}$/', $serviceStart)) $serviceStart = null;
+            if ($serviceEnd   && !preg_match('/^\d{2}:\d{2}$/', $serviceEnd))   $serviceEnd   = null;
+
+            try {
+                \Illuminate\Support\Facades\DB::beginTransaction();
+
+                // 1. Buat delivery_list
+                $listId = \Illuminate\Support\Facades\DB::table('delivery_list')->insertGetId([
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                // 2. Buat delivery_support
+                $supportId = \Illuminate\Support\Facades\DB::table('delivery_support')->insertGetId([
+                    'id_delivery_list'       => $listId,
+                    'client_id'              => $customer->customer_id,
+                    'name'                   => $name,
+                    'type'                   => $type,
+                    'start_date'             => $this->normalizeDate($get('start_date', $row)),
+                    'end_date'               => $this->normalizeDate($get('end_date', $row)),
+                    'resolution_estimated'   => $this->normalizeDate($get('resolution_estimated', $row)),
+                    'delivery_owner_id'      => $resolveEci($get('delivery_owner_eci', $row)),
+                    'support_manager_id'     => $resolveEci($get('support_manager_eci', $row)),
+                    'co_pm_id'               => $resolveEci($get('co_pm_eci', $row)),
+                    'support_admin_id'       => $resolveEci($get('support_admin_eci', $row)),
+                    'sales_id'               => $resolveEci($get('sales_eci', $row)),
+                    'support_method'         => $get('support_method', $row),
+                    'total_mandays'          => ($get('total_mandays', $row) !== null) ? (int) $get('total_mandays', $row) : null,
+                    'approval_date'          => $this->normalizeDate($get('approval_date', $row)),
+                    'approval_name'          => $get('approval_name', $row),
+                    'service_window_start'   => $serviceStart,
+                    'service_window_end'     => $serviceEnd,
+                    'calculated_progress'    => 0,
+                    'created_by_id'          => null,
+                    'created_at'             => now(),
+                    'updated_at'             => now(),
+                ]);
+
+                // 3. Buat view configuration default
+                \Illuminate\Support\Facades\DB::table('delivery_support_view_configurations')->insert([
+                    'delivery_support_id' => $supportId,
+                    'default_view'        => 'table',
+                    'created_at'          => now(),
+                    'updated_at'          => now(),
+                ]);
+
+                // 4. Buat default phase "Support"
+                $phaseId = \Illuminate\Support\Facades\DB::table('delivery_support_phases')->insertGetId([
+                    'delivery_support_id'  => $supportId,
+                    'name'                 => 'Support',
+                    'color'                => '#3B82F6',
+                    'weight'               => 100,
+                    'order_sequence'       => 1,
+                    'is_resolution_phase'  => true,
+                    'is_system_default'    => true,
+                    'is_visible'           => true,
+                    'is_active'            => true,
+                    'orientation'          => 'vertical',
+                    'created_at'           => now(),
+                    'updated_at'           => now(),
+                ]);
+
+                // 5. Buat planning group "Incident"
+                \Illuminate\Support\Facades\DB::table('delivery_support_planning')->insert([
+                    'delivery_support_id' => $supportId,
+                    'phase_id'            => $phaseId,
+                    'parent_id'           => null,
+                    'name'                => 'Incident',
+                    'group_name'          => 'Incident',
+                    'is_group'            => true,
+                    'level'               => 0,
+                    'order_sequence'      => 1,
+                    'weight'              => 100,
+                    'status'              => 'not_started',
+                    'progress_percentage' => 0,
+                    'created_at'          => now(),
+                    'updated_at'          => now(),
+                ]);
+
+                \Illuminate\Support\Facades\DB::commit();
+                $imported++;
+
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\DB::rollBack();
+                $errors[] = "Baris {$rowNum}: " . $e->getMessage();
+                $skipped++;
+            }
+        }
+
+        Log::info('AdminBackupController: delivery support import', [
+            'imported' => $imported, 'skipped' => $skipped,
+            'by'       => session('user.eci') ?? session('user.name') ?? 'admin',
+        ]);
+
+        return response()->json([
+            'success'  => true,
+            'message'  => "Import selesai: {$imported} delivery support ditambahkan" . ($skipped ? ", {$skipped} dilewati" : ''),
+            'imported' => $imported,
+            'skipped'  => $skipped,
+            'errors'   => $errors,
+        ]);
+    }
+
     private function formatBytes(int $bytes): string
     {
         if ($bytes >= 1048576) return round($bytes / 1048576, 2) . ' MB';
         if ($bytes >= 1024)    return round($bytes / 1024, 2) . ' KB';
         return $bytes . ' B';
+    }
+
+    // ── Template: Customer Contact Person ─────────────────────────────────────────
+
+    public function templateCustomerContacts()
+    {
+        if (!$this->assertAdmin()) abort(403);
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Customer Contacts');
+        $sheet->fromArray([
+            [
+                'Customer Code', 'Full Name', 'Title', 'Nick Name',
+                'Position', 'Department', 'Email Work', 'Email Personal',
+                'Cell Phone', 'Telephone', 'Telephone Extension',
+                'Preferred Communication', 'Language',
+                'Valid From', 'Valid To',
+            ],
+            [
+                'MANTAP', 'Budi Santoso', 'Mr.', 'Budi',
+                'IT Manager', 'Information Technology', 'budi@mantap.co.id', '',
+                '+6281234567890', '+622123456789', '101',
+                'Email', 'Indonesian',
+                '2024-01-01', '',
+            ],
+        ]);
+        $sheet->getStyle('A1:O1')->getFont()->setBold(true);
+
+        $noteSheet = $spreadsheet->createSheet();
+        $noteSheet->setTitle('Panduan');
+        $noteSheet->fromArray([
+            ['Kolom', 'Keterangan'],
+            ['Customer Code', 'Kode customer (wajib, harus sudah ada di sistem)'],
+            ['Full Name', 'Nama lengkap contact person (wajib)'],
+            ['Title', 'Sapaan: Mr. / Mrs. / Ms. / Dr. dll (opsional)'],
+            ['Nick Name', 'Nama panggilan (opsional)'],
+            ['Position', 'Jabatan contact person (opsional)'],
+            ['Department', 'Departemen (opsional)'],
+            ['Email Work', 'Email kerja — dipakai untuk cek duplikat (opsional)'],
+            ['Email Personal', 'Email pribadi (opsional)'],
+            ['Cell Phone', 'Nomor HP (opsional)'],
+            ['Telephone', 'Nomor telepon kantor (opsional)'],
+            ['Telephone Extension', 'Ekstensi telepon (opsional)'],
+            ['Preferred Communication', 'Email / Phone / WhatsApp dll (opsional)'],
+            ['Language', 'Bahasa: Indonesian / English dll (opsional)'],
+            ['Valid From', 'Tanggal mulai berlaku, format YYYY-MM-DD (opsional)'],
+            ['Valid To', 'Tanggal berakhir, format YYYY-MM-DD (opsional)'],
+        ]);
+        $noteSheet->getStyle('A1:B1')->getFont()->setBold(true);
+        foreach (['A', 'B'] as $col) {
+            $noteSheet->getColumnDimension($col)->setAutoSize(true);
+        }
+        foreach (range('A', 'O') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $spreadsheet->setActiveSheetIndex(0);
+        $writer = new Xlsx($spreadsheet);
+        return response()->stream(
+            fn () => $writer->save('php://output'),
+            200,
+            [
+                'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="customer_contacts_import_template.xlsx"',
+                'Cache-Control'       => 'max-age=0',
+            ]
+        );
+    }
+
+    // ── Import Customer Contact Person ────────────────────────────────────────────
+
+    public function importCustomerContacts(\Illuminate\Http\Request $request)
+    {
+        if (!$this->assertAdmin()) return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+
+        set_time_limit(120);
+        $request->validate(['file' => 'required|file|mimes:csv,txt,xlsx|max:10240']);
+
+        $file    = $request->file('file');
+        $ext     = strtolower($file->getClientOriginalExtension());
+        $allRows = $this->readSpreadsheetFile($file->getRealPath(), $ext);
+
+        if (!$allRows || count($allRows) < 2) {
+            return response()->json(['success' => false, 'message' => 'File kosong atau tidak valid'], 422);
+        }
+
+        $rawHeaders = array_shift($allRows);
+        $headerMap  = [];
+        foreach ($rawHeaders as $i => $h) {
+            $headerMap[strtolower(trim((string)$h))] = $i;
+        }
+
+        $aliasMap = [
+            'customer_code'          => ['customer code', 'customer_code', 'kode customer'],
+            'seq_no'                 => ['no.', 'no', 'number', 'nomor', 'seq'],
+            'full_name'              => ['full name *', 'full name', 'full_name', 'nama lengkap', 'nama'],
+            'title'                  => ['title', 'sapaan'],
+            'nick_name'              => ['nick name', 'nick_name', 'nickname', 'nama panggilan'],
+            'position'               => ['position', 'jabatan', 'posisi'],
+            'department'             => ['department', 'departemen'],
+            'email_work'             => ['email work', 'email_work', 'email kerja'],
+            'email_personal'         => ['email personal', 'email_personal', 'email pribadi'],
+            'cell_phone'             => ['cell phone', 'cell_phone', 'hp', 'handphone', 'mobile'],
+            'telephone'              => ['telephone', 'telepon', 'phone'],
+            'telephone_extension'    => ['telephone extension', 'telephone_extension', 'ext', 'ekstensi'],
+            'preferred_communication'=> ['preferred communication', 'preferred_communication', 'komunikasi'],
+            'language'               => ['language', 'bahasa'],
+            'valid_from'             => ['valid from', 'valid_from', 'berlaku dari'],
+            'valid_to'               => ['valid to', 'valid_to', 'berlaku sampai'],
+        ];
+
+        $colIdx = [];
+        foreach ($aliasMap as $field => $aliases) {
+            foreach ($aliases as $alias) {
+                if (isset($headerMap[$alias])) { $colIdx[$field] = $headerMap[$alias]; break; }
+            }
+        }
+
+        if (!isset($colIdx['customer_code'])) {
+            return response()->json(['success' => false, 'message' => 'Kolom wajib tidak ditemukan: "Customer Code"'], 422);
+        }
+        if (!isset($colIdx['full_name'])) {
+            return response()->json(['success' => false, 'message' => 'Kolom wajib tidak ditemukan: "Full Name"'], 422);
+        }
+
+        $get = function (string $field, array $row) use ($colIdx): ?string {
+            if (!isset($colIdx[$field])) return null;
+            $val = trim((string)($row[$colIdx[$field]] ?? ''));
+            if ($val !== '' && !mb_check_encoding($val, 'UTF-8')) {
+                $val = mb_convert_encoding($val, 'UTF-8', 'Windows-1252');
+            }
+            if (preg_match('/^#[A-Z\/]+[!?]?$/', $val)) return null;
+            return $val !== '' ? $val : null;
+        };
+
+        $imported         = 0;
+        $updated          = 0;
+        $skipped          = 0;
+        $errors           = [];
+        $rowNum           = 1;
+        $lastCustomerCode = null;
+        $lastCustomer     = null;
+
+        foreach ($allRows as $row) {
+            $rowNum++;
+            if (count($row) === 1 && trim($row[0] ?? '') === '') continue;
+
+            // Carry-over: pakai customer code baris sebelumnya jika baris ini kosong
+            $customerCode = $get('customer_code', $row);
+            $seqNo        = $get('seq_no', $row);
+
+            if ($customerCode) {
+                // Baris dengan kode eksplisit — update carry-over
+                $lastCustomerCode = $customerCode;
+                $lastCustomer     = \Illuminate\Support\Facades\DB::table('customer')
+                    ->where('customer_code', $customerCode)
+                    ->select('customer_id')
+                    ->first();
+            } elseif ($seqNo === '1' || $seqNo === '1.0') {
+                // No.=1 tanpa Customer Code = awal grup perusahaan baru tanpa kode → reset
+                $lastCustomerCode = null;
+                $lastCustomer     = null;
+            }
+            // else: baris lanjutan (No.=2,3,...) tanpa kode → carry-over dari sebelumnya
+
+            if (!$lastCustomerCode) {
+                $errors[] = "Baris {$rowNum}: Customer Code kosong — dilewati";
+                $skipped++;
+                continue;
+            }
+
+            if (!$lastCustomer) {
+                $errors[] = "Baris {$rowNum}: Customer Code '{$lastCustomerCode}' tidak ditemukan di database — dilewati";
+                $skipped++;
+                continue;
+            }
+
+            $customer = $lastCustomer;
+
+            $fullName = $get('full_name', $row);
+            if (!$fullName) {
+                // Baris header grup (Company Name only, no contact data) — skip tanpa error
+                $skipped++;
+                continue;
+            }
+
+            $emailWork = $get('email_work', $row);
+
+            $validFrom = $this->normalizeDate($get('valid_from', $row));
+            $validTo   = $this->normalizeDate($get('valid_to',   $row));
+
+            $payload = array_filter([
+                'customer_id'             => $customer->customer_id,
+                'full_name'               => $fullName,
+                'title'                   => $get('title', $row),
+                'nick_name'               => $get('nick_name', $row),
+                'position'                => $get('position', $row),
+                'department'              => $get('department', $row),
+                'email_work'              => $emailWork,
+                'email_personal'          => $get('email_personal', $row),
+                'cell_phone'              => $get('cell_phone', $row),
+                'telephone'               => $get('telephone', $row),
+                'telephone_extension'     => $get('telephone_extension', $row),
+                'preferred_communication' => $get('preferred_communication', $row),
+                'language'                => $get('language', $row),
+                'valid_from'              => $validFrom,
+                'valid_to'                => $validTo,
+            ], fn($v) => $v !== null);
+
+            try {
+                // Cek duplikat: email_work dalam customer yang sama
+                $existing = null;
+                if ($emailWork) {
+                    $existing = \Illuminate\Support\Facades\DB::table('customer_contact')
+                        ->where('customer_id', $customer->customer_id)
+                        ->where('email_work', $emailWork)
+                        ->first();
+                }
+
+                if ($existing) {
+                    \Illuminate\Support\Facades\DB::table('customer_contact')
+                        ->where('contact_id', $existing->contact_id)
+                        ->update(array_merge($payload, ['updated_at' => now()]));
+                    $updated++;
+                } else {
+                    \Illuminate\Support\Facades\DB::table('customer_contact')
+                        ->insert(array_merge($payload, ['created_at' => now(), 'updated_at' => now()]));
+                    $imported++;
+                }
+            } catch (\Exception $e) {
+                $errors[] = "Baris {$rowNum}: " . $e->getMessage();
+                $skipped++;
+            }
+        }
+
+        Log::info('AdminBackupController: customer contact import', [
+            'imported' => $imported, 'updated' => $updated, 'skipped' => $skipped,
+            'by'       => session('user.eci') ?? session('user.name') ?? 'admin',
+        ]);
+
+        return response()->json([
+            'success'  => true,
+            'message'  => "Import selesai: {$imported} ditambahkan, {$updated} diperbarui" . ($skipped ? ", {$skipped} dilewati" : ''),
+            'imported' => $imported,
+            'updated'  => $updated,
+            'skipped'  => $skipped,
+            'errors'   => $errors,
+        ]);
     }
 }

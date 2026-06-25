@@ -13,17 +13,40 @@
             <p id="recapPeriodLabel" class="text-sm text-gray-500 mt-0.5">Approved mandays by employee and mode</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-            <div id="recapPeriodBadge" class="hidden items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600">
-                <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {{-- Current period badge (static info) --}}
+            <div id="recapPeriodBadge" class="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600">
+                <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                 </svg>
-                <span id="recapBadgeLabel">—</span>
-                <span id="recapBadgeStatus" class="font-semibold"></span>
+                <span id="recapBadgeLabel">{{ now()->format('F Y') }}</span>
+                <span id="recapBadgeStatus" class="font-semibold text-gray-400">...</span>
+            </div>
+            {{-- Period filter for table view --}}
+            <div class="inline-flex items-center gap-1">
+                <select id="recapFilterMonth" onchange="onPeriodChange()"
+                    class="h-9 px-2 text-xs text-gray-700 bg-white border border-gray-300 rounded-lg outline-none focus:outline-none focus:ring-0 focus:border-gray-400 cursor-pointer shrink-0" style="width:9rem">
+                    <option value="0">All Months</option>
+                    @foreach(['January','February','March','April','May','June','July','August','September','October','November','December'] as $i => $mn)
+                        <option value="{{ $i + 1 }}" {{ now()->month == $i + 1 ? 'selected' : '' }}>{{ $mn }}</option>
+                    @endforeach
+                </select>
+                <select id="recapFilterYear" onchange="onPeriodChange()"
+                    class="h-9 px-2 text-xs text-gray-700 bg-white border border-gray-300 rounded-lg outline-none focus:outline-none focus:ring-0 focus:border-gray-400 cursor-pointer">
+                    <option value="0">All Years</option>
+                    @for($y = now()->year - 3; $y <= now()->year + 1; $y++)
+                        <option value="{{ $y }}" {{ now()->year == $y ? 'selected' : '' }}>{{ $y }}</option>
+                    @endfor
+                </select>
             </div>
             <button onclick="exportRecap()"
                 class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
                 <i class="fas fa-file-excel text-green-600 text-sm"></i>
                 Export MD Recap
+            </button>
+            <button onclick="exportResolutionDays()"
+                class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
+                <i class="fas fa-file-excel text-green-600 text-sm"></i>
+                Export Resolution Days
             </button>
         </div>
     </div>
@@ -76,12 +99,10 @@
                                 </div>
                             </div>
                         </th>
-                        {{-- Entries: plain --}}
-                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Entries</th>
                         {{-- Mode: custom-dd --}}
-                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
+                        <th class="p-0 text-center whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
                             <div class="custom-dd relative w-full" id="ddColFilterRecapMode" data-fixed="true" data-onchange="applyRecapFilter">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Mode</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                                 </button>
@@ -94,8 +115,8 @@
                             </div>
                         </th>
                         {{-- Mandays: sort panel --}}
-                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:110px; position:relative;">
-                            <button type="button" onclick="toggleRecapMdSortPanel(event)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                        <th class="p-0 text-center whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:110px; position:relative;">
+                            <button type="button" onclick="toggleRecapMdSortPanel(event)" class="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                 <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Mandays</span>
                                 <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                                 <span id="recapSortMdIcon" class="text-[10px] text-gray-300 font-bold shrink-0"></span>
@@ -162,8 +183,7 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 
 document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
-    loadCurrentPeriodBadge();
-    loadRecap();
+    loadCurrentPeriod();
     updateRecapSortVisuals();
 });
 
@@ -175,38 +195,50 @@ document.addEventListener('click', function(e) {
     }
 });
 
-async function loadCurrentPeriodBadge() {
+async function loadCurrentPeriod() {
     try {
         const res  = await fetch('/api/reporting/current-period', {
             headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },
             credentials: 'same-origin'
         });
         const json = await res.json();
-        if (!json.success) return;
-        const p      = json.data;
-        const badge  = document.getElementById('recapPeriodBadge');
-        const label  = document.getElementById('recapBadgeLabel');
-        const status = document.getElementById('recapBadgeStatus');
-        label.textContent  = `${MONTHS[p.month - 1]} ${p.year}`;
-        status.textContent = p.is_closed ? '(Closed)' : '(Open)';
-        status.className   = p.is_closed ? 'font-semibold text-red-500' : 'font-semibold text-green-500';
-        badge.classList.remove('hidden');
-        badge.classList.add('flex');
+        if (json.success) {
+            const p      = json.data;
+            document.getElementById('recapBadgeLabel').textContent  = `${MONTHS[p.month - 1]} ${p.year}`;
+            const status = document.getElementById('recapBadgeStatus');
+            status.textContent = p.is_closed ? '(Closed)' : '(Open)';
+            status.className   = p.is_closed ? 'font-semibold text-red-500' : 'font-semibold text-green-500';
+        }
     } catch (e) {}
+    loadRecap();
+}
+
+function onPeriodChange() {
+    loadRecap();
+}
+
+function _getPeriodParams() {
+    const month = parseInt(document.getElementById('recapFilterMonth')?.value || '0');
+    const year  = parseInt(document.getElementById('recapFilterYear')?.value  || '0');
+    const p     = new URLSearchParams();
+    if (month) p.append('month', month);
+    if (year)  p.append('year',  year);
+    return p;
 }
 
 async function loadRecap() {
     const tbody = document.getElementById('recapTableBody');
 
-    tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-14 text-center text-gray-400 text-sm">
+    tbody.innerHTML = `<tr><td colspan="3" class="px-4 py-14 text-center text-gray-400 text-sm">
         <i class="fas fa-spinner fa-spin text-2xl mb-3 block primary-text opacity-50"></i>
         <span>Loading data...</span>
     </td></tr>`;
     document.getElementById('recapEmpty').classList.add('hidden');
     document.getElementById('recapStats').classList.add('hidden');
 
+    const params = _getPeriodParams();
     try {
-        const res  = await fetch(`/api/reporting/md-recap`, {
+        const res  = await fetch(`/api/reporting/md-recap?${params.toString()}`, {
             headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },
             credentials: 'same-origin'
         });
@@ -218,7 +250,7 @@ async function loadRecap() {
 
     } catch (e) {
         console.error(e);
-        tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-10 text-center text-sm">
+        tbody.innerHTML = `<tr><td colspan="3" class="px-4 py-10 text-center text-sm">
             <div class="inline-flex flex-col items-center gap-2 text-red-500">
                 <i class="fas fa-exclamation-circle text-xl"></i>
                 <span>${escHtml(e.message)}</span>
@@ -410,8 +442,7 @@ function renderRecap() {
                         ${entryLabel}
                     </span>
                 </td>
-                <td class="px-4 py-2"></td>
-                <td class="px-4 py-2">${modeBadge(mode)}</td>
+                <td class="px-4 py-2 text-center">${modeBadge(mode)}</td>
                 <td class="px-4 py-2 text-sm text-center ${valueColor}">${agg.mandays.toFixed(2)}</td>
             </tr>`;
         });
@@ -426,12 +457,17 @@ function renderRecap() {
 }
 
 function exportRecap() {
-    const params = new URLSearchParams();
+    const params = _getPeriodParams();
     const name = document.getElementById('colFilterRecapName')?.value.trim();
     const mode = document.getElementById('colFilterRecapMode')?.value;
     if (name) params.append('name', name);
     if (mode) params.append('mode', mode);
     window.location.href = `/reporting/md-recap/export?${params.toString()}`;
+}
+
+function exportResolutionDays() {
+    const params = _getPeriodParams();
+    window.location.href = `/reporting/resolution-days/export?${params.toString()}`;
 }
 
 function escHtml(str) {
