@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
 use App\Exports\MdRecapExport;
+use App\Exports\ResolutionDaysExport;
 use App\Exports\TimesheetReportExport;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
@@ -397,14 +398,18 @@ class ReportingController extends Controller
                 ->where('timesheets.status', 'approved')
                 ->whereNull('timesheets.deleted_at');
 
-            if ($request->filled('month') && $request->filled('year')) {
-                $month = (int) $request->month;
-                $year  = (int) $request->year;
-                $range = ReportingPeriod::dateRange($year, $month);
+            $fMonth = (int) $request->input('month', 0);
+            $fYear  = (int) $request->input('year',  0);
+            if ($fMonth && $fYear) {
+                $range = ReportingPeriod::dateRange($fYear, $fMonth);
                 $query->whereBetween('timesheets.date', [
                     $range['start']->format('Y-m-d'),
                     $range['end']->format('Y-m-d'),
                 ]);
+            } elseif ($fMonth) {
+                $query->whereMonth('timesheets.date', $fMonth);
+            } elseif ($fYear) {
+                $query->whereYear('timesheets.date', $fYear);
             }
 
             $rows = $query
@@ -448,8 +453,10 @@ class ReportingController extends Controller
                 abort(403, 'Access denied. Only Admins and Head of Support can export the MD recap.');
             }
 
-            $filterName = trim($request->input('name', ''));
-            $filterMode = trim($request->input('mode', ''));
+            $filterName  = trim($request->input('name', ''));
+            $filterMode  = trim($request->input('mode', ''));
+            $filterMonth = (int) $request->input('month', 0);
+            $filterYear  = (int) $request->input('year',  0);
 
             $query = DB::table('timesheets')
                 ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
@@ -457,6 +464,17 @@ class ReportingController extends Controller
                 ->where('timesheets.status', 'approved')
                 ->whereNull('timesheets.deleted_at');
 
+            if ($filterMonth && $filterYear) {
+                $range = ReportingPeriod::dateRange($filterYear, $filterMonth);
+                $query->whereBetween('timesheets.date', [
+                    $range['start']->format('Y-m-d'),
+                    $range['end']->format('Y-m-d'),
+                ]);
+            } elseif ($filterMonth) {
+                $query->whereMonth('timesheets.date', $filterMonth);
+            } elseif ($filterYear) {
+                $query->whereYear('timesheets.date', $filterYear);
+            }
             if ($filterName !== '') {
                 $query->whereRaw(
                     "LOWER(TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,'')))) LIKE ?",
@@ -490,12 +508,99 @@ class ReportingController extends Controller
                 ->sortBy([['name', 'asc'], ['mode', 'asc']])
                 ->values();
 
-            $filename = 'MD_Recap_Export_' . now()->format('Y-m-d') . '.xlsx';
+            $periodSuffix = ($filterMonth && $filterYear)
+                ? '_' . $filterYear . '-' . str_pad($filterMonth, 2, '0', STR_PAD_LEFT)
+                : '_' . now()->format('Y-m-d');
+            $filename = 'MD_Recap_Export' . $periodSuffix . '.xlsx';
 
             return Excel::download(new MdRecapExport(collect($exportRows)), $filename);
 
         } catch (\Exception $e) {
             Log::error('exportMdRecap error');
+            abort(500, $e->getMessage());
+        }
+    }
+
+    // ── Export Resolution Days ────────────────────────────────────────────
+
+    public function exportResolutionDays(Request $request)
+    {
+        try {
+            $sessionUser   = session('user');
+            $currentRoleId = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
+
+            if (!in_array($currentRoleId, [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
+                abort(403, 'Access denied.');
+            }
+
+            $filterMonth = (int) $request->input('month', 0);
+            $filterYear  = (int) $request->input('year',  0);
+
+            $query = DB::table('consultant_mandays_detail as cmd')
+                ->join('consultant_mandays as cm',       'cmd.consultant_mandays_id', '=', 'cm.id')
+                ->join('ticket',                         'cm.ticket_id',              '=', 'ticket.ticket_id')
+                ->join('employee',                       'cmd.employee_id',           '=', 'employee.employee_id')
+                ->leftJoin('employee_basic_data as ebd', 'employee.employee_id',      '=', 'ebd.employee_id')
+                ->whereNull('ticket.deleted_at');
+
+            if ($filterMonth || $filterYear) {
+                $tsQuery = DB::table('timesheets')
+                    ->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->whereNotNull('ticket_id');
+                if ($filterMonth && $filterYear) {
+                    $range = ReportingPeriod::dateRange($filterYear, $filterMonth);
+                    $tsQuery->whereBetween('date', [
+                        $range['start']->format('Y-m-d'),
+                        $range['end']->format('Y-m-d'),
+                    ]);
+                } elseif ($filterMonth) {
+                    $tsQuery->whereMonth('date', $filterMonth);
+                } elseif ($filterYear) {
+                    $tsQuery->whereYear('date', $filterYear);
+                }
+                $query->whereIn('cm.ticket_id', $tsQuery->pluck('ticket_id'));
+            }
+
+            $rows = $query->select(
+                    'ticket.ticket_number',
+                    'employee.eci as employee_eci',
+                    DB::raw("TRIM(CONCAT(COALESCE(ebd.first_name,''), ' ', COALESCE(ebd.last_name,''))) as full_name"),
+                    'cmd.mandays',
+                    'cmd.additional_mandays',
+                    'cmd.notes',
+                    'cmd.approved_additional'
+                )
+                ->orderBy('ticket.ticket_number')
+                ->orderBy('employee.eci')
+                ->get();
+
+            $exportRows = $rows->map(fn($r) => [
+                'ticket_number'   => $r->ticket_number,
+                'employee_eci'    => $r->employee_eci,
+                'name'            => trim($r->full_name),
+                'resolution_days' => (float) $r->mandays,
+                'additional_days' => (float) $r->additional_mandays,
+                'note'            => $r->notes ?? '',
+                'approve_add'     => (float) $r->approved_additional,
+                'total'           => round((float) $r->mandays + (float) $r->approved_additional, 2),
+            ]);
+
+            if ($filterMonth && $filterYear) {
+                $periodSuffix = '_' . $filterYear . '-' . str_pad($filterMonth, 2, '0', STR_PAD_LEFT);
+            } elseif ($filterMonth) {
+                $periodSuffix = '_month-' . str_pad($filterMonth, 2, '0', STR_PAD_LEFT);
+            } elseif ($filterYear) {
+                $periodSuffix = '_' . $filterYear;
+            } else {
+                $periodSuffix = '_' . now()->format('Y-m-d');
+            }
+            $filename = 'Resolution_Days_Export' . $periodSuffix . '.xlsx';
+
+            return Excel::download(new ResolutionDaysExport($exportRows), $filename);
+
+        } catch (\Exception $e) {
+            Log::error('exportResolutionDays error', ['msg' => $e->getMessage()]);
             abort(500, $e->getMessage());
         }
     }

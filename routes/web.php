@@ -105,7 +105,8 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/reporting',                  [\App\Http\Controllers\ReportingController::class, 'index'])->name('reporting')->middleware('menu:reporting.validation');
     Route::get('/reporting/export-excel',     [\App\Http\Controllers\ReportingController::class, 'exportExcel'])->name('reporting.export');
     Route::get('/reporting/md-recap',         [\App\Http\Controllers\ReportingController::class, 'mdRecapIndex'])->name('reporting.md-recap')->middleware('menu:reporting.md-recap');
-    Route::get('/reporting/md-recap/export',  [\App\Http\Controllers\ReportingController::class, 'exportMdRecap'])->name('reporting.md-recap.export');
+    Route::get('/reporting/md-recap/export',           [\App\Http\Controllers\ReportingController::class, 'exportMdRecap'])->name('reporting.md-recap.export');
+    Route::get('/reporting/resolution-days/export',    [\App\Http\Controllers\ReportingController::class, 'exportResolutionDays'])->name('reporting.resolution-days.export');
 
     // ==================== MASTER ====================
     Route::prefix('master')->name('master.')->group(function () {
@@ -178,8 +179,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/import/template/employees', [AdminBackupController::class, 'templateEmployees'])->name('import.template.employees');
         Route::get('/import/template/customers', [AdminBackupController::class, 'templateCustomers'])->name('import.template.customers');
         Route::get('/import/template/tickets',   [AdminBackupController::class, 'templateTickets'])->name('import.template.tickets');
-        Route::get('/import/template/resolution-days', [AdminBackupController::class, 'templateResolutionDays'])->name('import.template.resolution-days');
-        Route::get('/import/template/timesheet',       [AdminBackupController::class, 'templateTimesheet'])->name('import.template.timesheet');
+        Route::get('/import/template/resolution-days',    [AdminBackupController::class, 'templateResolutionDays'])->name('import.template.resolution-days');
+        Route::get('/import/template/timesheet',           [AdminBackupController::class, 'templateTimesheet'])->name('import.template.timesheet');
+        Route::get('/import/template/customer-contacts',   [AdminBackupController::class, 'templateCustomerContacts'])->name('import.template.customer-contacts');
+        Route::get('/import/template/delivery-support',    [AdminBackupController::class, 'templateDeliverySupport'])->name('import.template.delivery-support');
         Route::post('/import/employees', [AdminBackupController::class, 'importEmployees'])->name('import.employees');
         Route::post('/import/customers', [AdminBackupController::class, 'importCustomers'])->name('import.customers');
         Route::post('/import/tickets',   [AdminBackupController::class, 'importTickets'])->name('import.tickets');

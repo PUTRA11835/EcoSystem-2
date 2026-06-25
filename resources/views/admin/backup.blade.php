@@ -580,6 +580,107 @@
         </div>
     </div>
 
+    {{-- ── Row 7: Delivery Support + Customer Contact Person (2-col) ── --}}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {{-- Delivery Support Card --}}
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+            <div class="px-5 pt-5 pb-4 border-b border-gray-100">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                        <i class="fas fa-headset text-indigo-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800">Delivery Support</h3>
+                        <p class="text-xs text-gray-400">Import data delivery support dari CSV/Excel</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-5 flex flex-col gap-4">
+                <div class="bg-indigo-50 rounded-xl p-3 text-xs text-indigo-700 space-y-0.5">
+                    <p class="font-semibold mb-1">Kolom yang diimport:</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-indigo-400"></i> Name (wajib) · Customer Code (wajib) · Type (wajib)</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-indigo-400"></i> Start Date, End Date, Resolution Estimated</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-indigo-400"></i> Delivery Owner / Support Manager / Co PM / Support Admin / Sales (ECI)</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-indigo-400"></i> Support Method, Total Mandays, Approval, Service Window</p>
+                    <p class="text-indigo-500 mt-1">Type valid: <strong>AMS / MO / ATS / Project / Internal</strong>. Setiap import membuat default phase & planning.</p>
+                </div>
+                <div class="flex items-center justify-between">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import</p>
+                    <a href="{{ route('admin.import.template.delivery-support') }}" class="text-xs text-indigo-600 hover:underline flex items-center gap-1">
+                        <i class="fas fa-file-excel text-xs"></i> Download Template (.xlsx)
+                    </a>
+                </div>
+                <div id="dsDropzone"
+                    class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-colors"
+                    onclick="document.getElementById('dsFileInput').click()"
+                    ondragover="event.preventDefault();this.classList.add('border-indigo-400','bg-indigo-50')"
+                    ondragleave="this.classList.remove('border-indigo-400','bg-indigo-50')"
+                    ondrop="handleDrop(event,'ds')">
+                    <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-1"></i>
+                    <p class="text-xs text-gray-400">Drop CSV/Excel here or <span class="text-indigo-600 font-medium">browse</span></p>
+                    <p id="dsFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
+                </div>
+                <input type="file" id="dsFileInput" accept=".csv,.txt,.xlsx" class="hidden" onchange="onFileSelect(event,'ds')">
+                <button id="btnImportDs" onclick="runImport('ds')"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-indigo-100 text-indigo-700 text-sm font-medium hover:bg-indigo-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled>
+                    <i class="fas fa-upload text-xs"></i> Import Delivery Support
+                </button>
+                <div id="dsResult" class="hidden mt-1"></div>
+            </div>
+        </div>
+
+        {{-- Customer Contact Person Card --}}
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+            <div class="px-5 pt-5 pb-4 border-b border-gray-100">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
+                        <i class="fas fa-address-card text-rose-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800">Customer Contact Person</h3>
+                        <p class="text-xs text-gray-400">Import contact person customer dari CSV/Excel</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-5 flex flex-col gap-4">
+                <div class="bg-rose-50 rounded-xl p-3 text-xs text-rose-700 space-y-0.5">
+                    <p class="font-semibold mb-1">Kolom yang diimport:</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-rose-400"></i> Customer Code (wajib) · Full Name (wajib)</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-rose-400"></i> Title, Nick Name, Position, Department</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-rose-400"></i> Email Work, Email Personal, Cell Phone, Telephone</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-rose-400"></i> Preferred Communication, Language, Valid From/To</p>
+                    <p class="text-rose-500 mt-1">Duplikat dicek berdasarkan <strong>Email Work</strong> dalam customer yang sama → diperbarui.</p>
+                </div>
+                <div class="flex items-center justify-between">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import</p>
+                    <a href="{{ route('admin.import.template.customer-contacts') }}" class="text-xs text-rose-600 hover:underline flex items-center gap-1">
+                        <i class="fas fa-file-excel text-xs"></i> Download Template (.xlsx)
+                    </a>
+                </div>
+                <div id="cpDropzone"
+                    class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-rose-400 hover:bg-rose-50 transition-colors"
+                    onclick="document.getElementById('cpFileInput').click()"
+                    ondragover="event.preventDefault();this.classList.add('border-rose-400','bg-rose-50')"
+                    ondragleave="this.classList.remove('border-rose-400','bg-rose-50')"
+                    ondrop="handleDrop(event,'cp')">
+                    <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-1"></i>
+                    <p class="text-xs text-gray-400">Drop CSV/Excel here or <span class="text-rose-600 font-medium">browse</span></p>
+                    <p id="cpFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
+                </div>
+                <input type="file" id="cpFileInput" accept=".csv,.txt,.xlsx" class="hidden" onchange="onFileSelect(event,'cp')">
+                <button id="btnImportCp" onclick="runImport('cp')"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-rose-100 text-rose-700 text-sm font-medium hover:bg-rose-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled>
+                    <i class="fas fa-upload text-xs"></i> Import Contact Person
+                </button>
+                <div id="cpResult" class="hidden mt-1"></div>
+            </div>
+        </div>
+
+    </div>
+
 </div>
 
 {{-- ── Import Error Detail Modal ── --}}
@@ -610,7 +711,7 @@ function onFileSelect(e, type) {
     if (file) setFile(type, file);
 }
 
-const _xlsxTypes = ['rd', 'ts'];
+const _xlsxTypes = ['rd', 'ts', 'cp', 'ds'];
 
 function handleDrop(e, type) {
     e.preventDefault();
@@ -619,7 +720,9 @@ function handleDrop(e, type) {
         'border-emerald-400', 'bg-emerald-50',
         'border-violet-400',  'bg-violet-50',
         'border-sky-400',     'bg-sky-50',
-        'border-amber-400',   'bg-amber-50'
+        'border-amber-400',   'bg-amber-50',
+        'border-rose-400',    'bg-rose-50',
+        'border-indigo-400',  'bg-indigo-50'
     );
     const file = e.dataTransfer.files[0];
     const isXlsxOk = _xlsxTypes.includes(type);
@@ -637,6 +740,8 @@ const ticketFiles = {};
 const tmFiles     = {};
 const rdFiles = {};
 const tsFiles = {};
+const cpFiles = {};
+const dsFiles = {};
 
 function setFile(type, file) {
     if      (type === 'emp')    empFiles.file    = file;
@@ -645,12 +750,14 @@ function setFile(type, file) {
     else if (type === 'tm')     tmFiles.file     = file;
     else if (type === 'rd')     rdFiles.file     = file;
     else if (type === 'ts')     tsFiles.file     = file;
+    else if (type === 'cp')     cpFiles.file     = file;
+    else if (type === 'ds')     dsFiles.file     = file;
 
     const nameEl = document.getElementById(type + 'FileName');
     nameEl.textContent = file.name + ' (' + formatBytes(file.size) + ')';
     nameEl.classList.remove('hidden');
 
-    const btnMap = { emp: 'btnImportEmp', cust: 'btnImportCust', ticket: 'btnImportTicket', tm: 'btnImportTm', rd: 'btnImportRd', ts: 'btnImportTs' };
+    const btnMap = { emp: 'btnImportEmp', cust: 'btnImportCust', ticket: 'btnImportTicket', tm: 'btnImportTm', rd: 'btnImportRd', ts: 'btnImportTs', cp: 'btnImportCp', ds: 'btnImportDs' };
     document.getElementById(btnMap[type]).disabled = false;
 
     const result = document.getElementById(type + 'Result');
@@ -674,6 +781,8 @@ async function runImport(type) {
         tm:     tmFiles.file,
         rd:     rdFiles.file,
         ts:     tsFiles.file,
+        cp:     cpFiles.file,
+        ds:     dsFiles.file,
     };
     const btnMap = {
         emp:    'btnImportEmp',
@@ -682,6 +791,8 @@ async function runImport(type) {
         tm:     'btnImportTm',
         rd:     'btnImportRd',
         ts:     'btnImportTs',
+        cp:     'btnImportCp',
+        ds:     'btnImportDs',
     };
     const endpointMap = {
         emp:    '/api/admin/import/employees',
@@ -690,6 +801,8 @@ async function runImport(type) {
         tm:     '/api/admin/import/ticket-members',
         rd:     '/api/admin/import/resolution-days',
         ts:     '/api/admin/import/timesheet',
+        cp:     '/api/admin/import/customer-contacts',
+        ds:     '/api/admin/import/delivery-support',
     };
     const file     = fileMap[type];
     const btnId    = btnMap[type];
@@ -722,7 +835,7 @@ async function runImport(type) {
         showToast('Import failed: ' + e.message, 'error');
     } finally {
         btn.disabled = false;
-        const labelMap = { emp: 'Employee', cust: 'Customer', ticket: 'Tickets', tm: 'Ticket Members', rd: 'Resolution Days', ts: 'Timesheet' };
+        const labelMap = { emp: 'Employee', cust: 'Customer', ticket: 'Tickets', tm: 'Ticket Members', rd: 'Resolution Days', ts: 'Timesheet', cp: 'Contact Person', ds: 'Delivery Support' };
         btn.innerHTML = `<i class="fas fa-upload text-xs"></i> Import ${labelMap[type] ?? type}`;
     }
 }
@@ -743,6 +856,13 @@ function showImportResult(type, json) {
                          <span class="flex items-center gap-1"><i class="fas fa-users text-blue-500"></i> ${json.members_added} member ditambahkan</span>
                          <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped} dilewati</span>`;
         } else if (type === 'ts') {
+            statsHtml = `<span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.imported} ditambahkan</span>
+                         <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped ?? 0} dilewati</span>`;
+        } else if (type === 'cp') {
+            statsHtml = `<span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.imported} ditambahkan</span>
+                         <span class="flex items-center gap-1"><i class="fas fa-sync text-blue-500"></i> ${json.updated} diperbarui</span>
+                         <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped ?? 0} dilewati</span>`;
+        } else if (type === 'ds') {
             statsHtml = `<span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.imported} ditambahkan</span>
                          <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped ?? 0} dilewati</span>`;
         } else {
