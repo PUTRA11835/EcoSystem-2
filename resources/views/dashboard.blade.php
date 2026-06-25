@@ -388,12 +388,14 @@
                         <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="reportingChevron"></i>
                     </button>
                     <div id="reportingDropdown" class="nav-text {{ Request::is('reporting*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                        @if($can('reporting.validation'))
                         <a href="{{ route('reporting') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting') && !Request::is('reporting/md-recap*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-check-circle text-xs"></i>
                             </span>
                             <span class="nav-text text-sm">MD Validation</span>
                         </a>
+                        @endif
                         @if($can('reporting.md-recap'))
                         <a href="{{ route('reporting.md-recap') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/md-recap*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
@@ -417,18 +419,22 @@
                         <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="masterChevron"></i>
                     </button>
                     <div id="masterDropdown" class="nav-text {{ Request::is('master*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                        @if($can('master.employee'))
                         <a href="{{ route('master.employee.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('master/employee*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-users text-xs"></i>
                             </span>
                             <span class="nav-text text-sm">Employee</span>
                         </a>
+                        @endif
+                        @if($can('master.customer'))
                         <a href="{{ route('master.customer.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('master/customer*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-user-tie text-xs"></i>
                             </span>
                             <span class="nav-text text-sm">Customer</span>
                         </a>
+                        @endif
                     </div>
                 </div>
                 @endif
@@ -539,18 +545,22 @@
                         <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="deliveryChevron"></i>
                     </button>
                     <div id="deliveryDropdown" class="nav-text {{ Request::is('project*') || Request::is('planning*') || Request::is('issues*') || Request::is('delivery/support*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                        @if($can('delivery.project'))
                         <a href="{{ route('projects.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('project*') || Request::is('planning*') || Request::is('issues*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-project-diagram text-xs"></i>
                             </span>
                             <span class="nav-text text-sm">Project</span>
                         </a>
+                        @endif
+                        @if($can('delivery.support'))
                         <a href="{{ route('delivery.support.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('delivery/support*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-headset text-xs"></i>
                             </span>
                             <span class="nav-text text-sm">Support</span>
                         </a>
+                        @endif
                     </div>
                 </div>
                 @endif
@@ -567,30 +577,42 @@
                         <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $adminOpen ? 'rotate-180' : '' }}" id="adminChevron"></i>
                     </button>
                     <div id="adminDropdown" class="nav-text {{ $adminOpen ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
+                        @if($can('control-center.overview'))
                         <a href="{{ route('admin.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-th-large text-xs"></i></span>
                             <span class="nav-text text-sm">Overview</span>
                         </a>
+                        @endif
+                        @if($can('control-center.activity-log'))
                         <a href="{{ route('admin.activity-log') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/activity-log*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-history text-xs"></i></span>
                             <span class="nav-text text-sm">Activity Log</span>
                         </a>
+                        @endif
+                        @if($can('control-center.sessions'))
                         <a href="{{ route('admin.sessions') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/sessions*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-users text-xs"></i></span>
                             <span class="nav-text text-sm">Active Sessions</span>
                         </a>
+                        @endif
+                        @if($can('control-center.failed-jobs'))
                         <a href="{{ route('admin.failed-jobs') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/failed-jobs*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-exclamation-triangle text-xs"></i></span>
                             <span class="nav-text text-sm">Failed Jobs</span>
                         </a>
+                        @endif
+                        @if($can('control-center.backup'))
                         <a href="{{ route('admin.backup') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/backup*') || Request::is('admin/export*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-database text-xs"></i></span>
                             <span class="nav-text text-sm">Backup & Export</span>
                         </a>
+                        @endif
+                        @if($can('control-center.sounds'))
                         <a href="{{ route('admin.sounds') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/sounds*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-music text-xs"></i></span>
                             <span class="nav-text text-sm">Notif Sounds</span>
                         </a>
+                        @endif
                     </div>
                 </div>
                 @endif
@@ -650,12 +672,14 @@
                             <span class="nav-text">Overview</span>
                         </a>
                         @endif
+                        @if($can('rpmo.periods'))
                         <a href="{{ route('rpmo.periods.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-xl {{ Request::is('rpmo/periods*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all text-sm">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-calendar-alt"></i>
                             </span>
                             <span class="nav-text">Period Management</span>
                         </a>
+                        @endif
                     </div>
                 </div>
                 @endif
