@@ -401,6 +401,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
             ->middleware('menu:management.permissions')
             ->name('permissions.index');
 
+        Route::get('/holidays', [\App\Http\Controllers\HolidayManagementController::class, 'page'])
+            ->middleware('menu:management.holidays')
+            ->name('holidays.index');
+
         Route::prefix('employee')->name('employee.')->group(function () {
             Route::get('/basic-data',     [\App\Http\Controllers\ManagementEmployeeController::class, 'basicData'])    ->middleware('menu:management.employee.basic-data')    ->name('basic-data.index');
             Route::get('/address',        [\App\Http\Controllers\ManagementEmployeeController::class, 'address'])      ->middleware('menu:management.employee.address')        ->name('address.index');

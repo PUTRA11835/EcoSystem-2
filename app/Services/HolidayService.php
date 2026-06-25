@@ -2,28 +2,32 @@
 
 namespace App\Services;
 
+use App\Models\Holiday;
 use Carbon\Carbon;
 
 class HolidayService
 {
     /**
-     * Get all Indonesian holidays (national + cuti bersama) for a year range.
-     * Returns array of ['date' => 'YYYY-MM-DD', 'name' => '...', 'type' => 'national|cuti_bersama'].
+     * Get all Indonesian holidays (national + cuti bersama + custom) for a year range.
+     * Sumber data: tabel `holidays` (dikelola admin via menu Manajemen → Hari Libur).
+     * Returns array of ['date' => 'YYYY-MM-DD', 'name' => '...', 'type' => 'national|cuti_bersama|custom'].
      */
     public function getHolidays(int $yearFrom, int $yearTo): array
     {
-        $holidays = [];
+        $from = sprintf('%04d-01-01', $yearFrom);
+        $to   = sprintf('%04d-12-31', $yearTo);
 
-        for ($year = $yearFrom; $year <= $yearTo; $year++) {
-            $list = config('indonesian-holidays.' . $year, []);
-            foreach ($list as $h) {
-                $holidays[] = $h;
-            }
-        }
-
-        usort($holidays, fn($a, $b) => strcmp($a['date'], $b['date']));
-
-        return $holidays;
+        return Holiday::query()
+            ->where('is_active', true)
+            ->whereBetween('date', [$from, $to])
+            ->orderBy('date')
+            ->get()
+            ->map(fn($h) => [
+                'date' => $h->date->format('Y-m-d'),
+                'name' => $h->name,
+                'type' => $h->type,
+            ])
+            ->all();
     }
 
     /**

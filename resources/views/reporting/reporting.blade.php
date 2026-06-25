@@ -171,24 +171,33 @@
                                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
                                 <div class="flex justify-end gap-2 mt-2">
                                     <button type="button" onclick="clearRptTextPanel('Employee')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
-                                    <button type="button" onclick="closeRptTextPanel('Employee')" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
                                 </div>
                             </div>
                         </th>
                         {{-- Date: sort panel --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:110px; position:relative;">
-                            <button type="button" onclick="toggleRptDateSortPanel(event)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                            <button type="button" onclick="toggleRptDatePanel(event)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                 <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Date</span>
                                 <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
-                                <span id="rptSortDateIcon" class="text-[10px] text-red-500 font-bold shrink-0">↓</span>
+                                <svg id="rptDateFilterIcon" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                                <span id="rptSortDateIcon" onclick="event.stopPropagation(); toggleRptDateSort()" title="Click to toggle sort (descending ↔ ascending)" class="cursor-pointer text-[10px] text-red-500 font-bold shrink-0 ml-auto hover:text-red-700 transition-colors">↓</span>
                             </button>
-                            <div id="rptDateSortPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:180px;">
-                                <span class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sort</span>
-                                <div class="flex gap-2 mb-2">
-                                    <button type="button" onclick="setRptSort('date','asc')" id="rptSortDateAsc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↑ Ascending</button>
-                                    <button type="button" onclick="setRptSort('date','desc')" id="rptSortDateDesc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↓ Descending</button>
+                            <div id="rptDateFilterPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:240px;">
+                                <div class="space-y-2">
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">From</label>
+                                        <input type="date" id="rptDateFrom" onclick="event.stopPropagation()" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</label>
+                                        <input type="date" id="rptDateTo" onclick="event.stopPropagation()" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                    </div>
+                                    <p id="rptDateFilterError" class="hidden text-xs text-red-500">"To" must be on/after "From".</p>
                                 </div>
-                                <div class="flex justify-end"><button type="button" onclick="closeRptDateSortPanel()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button></div>
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearRptDateFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    <button type="button" onclick="applyRptDateFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Apply</button>
+                                </div>
                             </div>
                         </th>
                         {{-- Ticket: text search panel --}}
@@ -204,7 +213,6 @@
                                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
                                 <div class="flex justify-end gap-2 mt-2">
                                     <button type="button" onclick="clearRptTextPanel('Ticket')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
-                                    <button type="button" onclick="closeRptTextPanel('Ticket')" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
                                 </div>
                             </div>
                         </th>
@@ -221,7 +229,6 @@
                                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
                                 <div class="flex justify-end gap-2 mt-2">
                                     <button type="button" onclick="clearRptTextPanel('Customer')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
-                                    <button type="button" onclick="closeRptTextPanel('Customer')" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
                                 </div>
                             </div>
                         </th>
@@ -316,12 +323,20 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 document.addEventListener('click', function(e) {
-    if (!e.target.closest('[id^="rptTextPanel_"]') && !e.target.closest('#rptDateSortPanel') &&
-        !e.target.closest('[onclick*="toggleRptTextPanel"]') && !e.target.closest('[onclick*="toggleRptDateSortPanel"]')) {
-        closeRptDateSortPanel();
+    if (!e.target.closest('[id^="rptTextPanel_"]') && !e.target.closest('#rptDateFilterPanel') &&
+        !e.target.closest('[onclick*="toggleRptTextPanel"]') && !e.target.closest('[onclick*="toggleRptDatePanel"]')) {
         closeRptTextPanelAll();
     }
 });
+
+// Tutup panel saat ada scroll di luar panel atau window di-resize —
+// panel pakai posisi absolute terhadap header, scroll bikin tidak sinkron.
+window.addEventListener('scroll', function(e) {
+    const t = e.target;
+    if (t && t.nodeType === 1 && t.closest && (t.closest('[id^="rptTextPanel_"]') || t.closest('#rptDateFilterPanel'))) return;
+    closeRptTextPanelAll();
+}, true);
+window.addEventListener('resize', closeRptTextPanelAll);
 
 
 
@@ -437,6 +452,8 @@ function applyRptFilter() {
     const customerFilter = (document.getElementById('colFilterRptCustomer')?.value  || '').trim().toLowerCase();
     const mdStatusFilter =  document.getElementById('colFilterRptMdStatus')?.value  || '';
     const approvalFilter =  document.getElementById('colFilterRptApproval')?.value  || '';
+    const dateFrom       =  document.getElementById('rptDateFrom')?.value || '';
+    const dateTo         =  document.getElementById('rptDateTo')?.value   || '';
 
     rptFiltered = rptAllData.filter(r => {
         if (empFilter      && !String(r.employee_name   ?? '').toLowerCase().includes(empFilter))     return false;
@@ -444,6 +461,8 @@ function applyRptFilter() {
         if (customerFilter && !String(r.customer_name   ?? '').toLowerCase().includes(customerFilter)) return false;
         if (mdStatusFilter && r.status           !== mdStatusFilter) return false;
         if (approvalFilter && r.timesheet_status !== approvalFilter) return false;
+        if (dateFrom && String(r.date ?? '').slice(0, 10) < dateFrom) return false;
+        if (dateTo   && String(r.date ?? '').slice(0, 10) > dateTo)   return false;
         return true;
     });
 
@@ -454,11 +473,11 @@ function applyRptFilter() {
 
 // ── Sort & panel helpers ──────────────────────────────────────────────────────
 
-function setRptSort(key, dir) {
-    rptSortKey = key;
-    rptSortDir = dir;
+// Klik header Date → toggle langsung antara descending (default) ↔ ascending.
+function toggleRptDateSort() {
+    rptSortKey = 'date';
+    rptSortDir = rptSortDir === 'asc' ? 'desc' : 'asc';
     _updateRptSortVisuals();
-    closeRptDateSortPanel();
     closeRptTextPanelAll();
     renderRptTable();
 }
@@ -466,13 +485,6 @@ function setRptSort(key, dir) {
 function _updateRptSortVisuals() {
     const dateIcon = document.getElementById('rptSortDateIcon');
     if (dateIcon) dateIcon.textContent = rptSortKey === 'date' ? (rptSortDir === 'asc' ? '↑' : '↓') : '';
-    const _btn = (id, active) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.className = `flex-1 px-2 py-1 text-xs border rounded-md hover:bg-gray-50 transition-colors ${active ? 'border-red-400 bg-red-50 text-red-700 font-semibold' : 'border-gray-200'}`;
-    };
-    _btn('rptSortDateAsc',  rptSortKey === 'date' && rptSortDir === 'asc');
-    _btn('rptSortDateDesc', rptSortKey === 'date' && rptSortDir === 'desc');
 }
 
 function _updateRptFilterIcons() {
@@ -484,21 +496,41 @@ function _updateRptFilterIcons() {
         icon.classList.toggle('text-red-500', active);
         icon.classList.toggle('text-gray-300', !active);
     });
+    // Date range indicator
+    const dateIcon = document.getElementById('rptDateFilterIcon');
+    if (dateIcon) {
+        const active = !!(document.getElementById('rptDateFrom')?.value || document.getElementById('rptDateTo')?.value);
+        dateIcon.classList.toggle('text-red-500', active);
+        dateIcon.classList.toggle('text-gray-300', !active);
+    }
 }
 
-function toggleRptDateSortPanel(event) {
+// ── Date Range Filter (Date column) ──────────────────────────────────────────
+function toggleRptDatePanel(event) {
     event.stopPropagation();
-    const panel = document.getElementById('rptDateSortPanel');
+    const panel = document.getElementById('rptDateFilterPanel');
     if (!panel) return;
     const wasHidden = panel.classList.contains('hidden');
-    closeRptDateSortPanel(); closeRptTextPanelAll();
+    closeRptTextPanelAll();
     if (typeof _closeAllDropdowns === 'function') _closeAllDropdowns();
     if (wasHidden) panel.classList.remove('hidden');
 }
 
-function closeRptDateSortPanel() {
-    const p = document.getElementById('rptDateSortPanel');
-    if (p) p.classList.add('hidden');
+function applyRptDateFilter() {
+    const from = document.getElementById('rptDateFrom')?.value || '';
+    const to   = document.getElementById('rptDateTo')?.value   || '';
+    const err  = document.getElementById('rptDateFilterError');
+    if (from && to && to < from) { if (err) err.classList.remove('hidden'); return; }
+    if (err) err.classList.add('hidden');
+    document.getElementById('rptDateFilterPanel')?.classList.add('hidden');
+    applyRptFilter();
+}
+
+function clearRptDateFilter() {
+    const from = document.getElementById('rptDateFrom'); if (from) from.value = '';
+    const to   = document.getElementById('rptDateTo');   if (to)   to.value   = '';
+    const err  = document.getElementById('rptDateFilterError'); if (err) err.classList.add('hidden');
+    applyRptFilter();
 }
 
 function toggleRptTextPanel(event, key) {
@@ -506,7 +538,7 @@ function toggleRptTextPanel(event, key) {
     const panel = document.getElementById('rptTextPanel_' + key);
     if (!panel) return;
     const wasHidden = panel.classList.contains('hidden');
-    closeRptDateSortPanel(); closeRptTextPanelAll();
+    closeRptTextPanelAll();
     if (typeof _closeAllDropdowns === 'function') _closeAllDropdowns();
     if (wasHidden) {
         panel.classList.remove('hidden');
@@ -515,13 +547,9 @@ function toggleRptTextPanel(event, key) {
     }
 }
 
-function closeRptTextPanel(key) {
-    const p = document.getElementById('rptTextPanel_' + key);
-    if (p) p.classList.add('hidden');
-}
-
 function closeRptTextPanelAll() {
     document.querySelectorAll('[id^="rptTextPanel_"]').forEach(p => p.classList.add('hidden'));
+    document.getElementById('rptDateFilterPanel')?.classList.add('hidden');
 }
 
 function clearRptTextPanel(key) {
@@ -543,11 +571,13 @@ function resetReport() {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
+    const rptdFrom = document.getElementById('rptDateFrom'); if (rptdFrom) rptdFrom.value = '';
+    const rptdTo   = document.getElementById('rptDateTo');   if (rptdTo)   rptdTo.value   = '';
+    const rptdErr  = document.getElementById('rptDateFilterError'); if (rptdErr) rptdErr.classList.add('hidden');
     rptSortKey = 'date';
     rptSortDir = 'desc';
     _updateRptSortVisuals();
     _updateRptFilterIcons();
-    closeRptDateSortPanel();
     closeRptTextPanelAll();
     applyRptFilter();
 }

@@ -62,12 +62,12 @@ class RoleController extends Controller
         if ($role->employees_count > 0) {
             return response()->json([
                 'success' => false,
-                'message' => 'Role tidak dapat dihapus karena masih digunakan oleh ' . $role->employees_count . ' employee.',
+                'message' => 'This role cannot be deleted because it is still used by ' . $role->employees_count . ' employee(s).',
             ], 422);
         }
 
         $role->delete();
-        return response()->json(['success' => true, 'message' => 'Role berhasil dihapus.']);
+        return response()->json(['success' => true, 'message' => 'Role deleted successfully.']);
     }
 
     // ── Role Permissions (role ↔ menu) ───────────────────────────────────────────
@@ -98,7 +98,7 @@ class RoleController extends Controller
 
         $this->flushPermCacheForRole($role);
 
-        return response()->json(['success' => true, 'message' => 'Permission berhasil diperbarui.']);
+        return response()->json(['success' => true, 'message' => 'Permission updated successfully.']);
     }
 
     public function removePermission($id, $menuId)
@@ -108,7 +108,7 @@ class RoleController extends Controller
 
         $this->flushPermCacheForRole($role);
 
-        return response()->json(['success' => true, 'message' => 'Akses role ke menu berhasil dicabut.']);
+        return response()->json(['success' => true, 'message' => 'Role access to the menu revoked successfully.']);
     }
 
     // ── Employee list for role ───────────────────────────────────────────────────
@@ -149,7 +149,7 @@ class RoleController extends Controller
 
         Cache::forget("perm_slugs_{$employee->employee_id}");
 
-        return response()->json(['success' => true, 'message' => 'Role berhasil ditambahkan.']);
+        return response()->json(['success' => true, 'message' => 'Role added successfully.']);
     }
 
     public function syncRoles(Request $request, $employeeId)
@@ -165,7 +165,7 @@ class RoleController extends Controller
 
         Cache::forget("perm_slugs_{$employee->employee_id}");
 
-        return response()->json(['success' => true, 'message' => 'Role employee berhasil diperbarui.']);
+        return response()->json(['success' => true, 'message' => 'Employee roles updated successfully.']);
     }
 
     public function revokeRole($employeeId, $roleId)
@@ -175,7 +175,7 @@ class RoleController extends Controller
 
         Cache::forget("perm_slugs_{$employee->employee_id}");
 
-        return response()->json(['success' => true, 'message' => 'Role berhasil dicabut dari employee.']);
+        return response()->json(['success' => true, 'message' => 'Role revoked from the employee successfully.']);
     }
 
     private function flushPermCacheForRole(EmployeeRole $role): void

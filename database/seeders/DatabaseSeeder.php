@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             // bukan via seeder. Login admin: ECI_ADMIN / password123.
             RoleSeeder::class,            // wajib: isi tabel employee_role (FK role_id)
             MenuSeeder::class,            // isi tabel menu + role_menu (permission matrix)
+            HolidaySeeder::class,         // impor hari libur dari config ke tabel `holidays`
             EmployeeSeeder::class,        // hanya akun ECI_ADMIN
             UserSystemRolesSeeder::class, // beri admin baris employee_role_assignment
 
