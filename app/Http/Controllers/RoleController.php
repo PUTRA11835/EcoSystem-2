@@ -180,7 +180,7 @@ class RoleController extends Controller
 
     private function flushPermCacheForRole(EmployeeRole $role): void
     {
-        $role->employees()->pluck('employee_id')->each(function ($empId) {
+        $role->employees()->pluck('employee.employee_id')->each(function ($empId) {
             Cache::forget("perm_slugs_{$empId}");
         });
     }

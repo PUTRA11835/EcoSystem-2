@@ -434,6 +434,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/remaining-md', [TimesheetController::class, 'remainingMd']); // Remaining MD quota for a ticket
         Route::get('/my-late-exceptions', [TimesheetController::class, 'myLateExceptions']); // Approved late exception requests (not expired)
         Route::get('/valid-periods',      [TimesheetController::class, 'validPeriods']);      // Active window + late exceptions for the current user
+        Route::get('/export', [TimesheetController::class, 'exportToExcel']);
         Route::get('/{id}', [TimesheetController::class, 'show']);
         Route::post('/', [TimesheetController::class, 'store']);
         Route::put('/{id}', [TimesheetController::class, 'update']);

@@ -1,6 +1,6 @@
 @extends('dashboard')
 @section('title', 'MD Recap')
-@section('page-title', 'Reporting')
+@section('page-title', 'MD Recap')
 @section('page-subtitle', 'MD Recap — mandays by employee and mode')
 
 @section('content')
@@ -21,11 +21,9 @@
                 <span id="recapBadgeStatus" class="font-semibold"></span>
             </div>
             <button onclick="exportRecap()"
-                class="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-all duration-200 shadow-sm">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                </svg>
-                Export Excel
+                class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
+                <i class="fas fa-file-excel text-green-600 text-sm"></i>
+                Export MD Recap
             </button>
         </div>
     </div>
@@ -54,103 +52,63 @@
         </div>
     </div>
 
-    {{-- ── Filters ─────────────────────────────────────────────────────────── --}}
-    <div class="bg-gray-50 rounded-lg border border-gray-200 p-4 mb-5">
-        <div class="flex items-center gap-2 mb-3">
-            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
-            </svg>
-            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filters</span>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {{-- Period --}}
-            <div class="flex flex-col">
-                <label class="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Period</label>
-                <div class="flex items-center gap-2">
-                    <div class="custom-dd relative flex-1" data-onchange="updatePeriodLabel">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label text-gray-700">—</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" id="recapMonth" value="">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;min-width:140px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="1">January</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="2">February</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="3">March</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="4">April</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="5">May</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="6">June</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="7">July</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="8">August</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="9">September</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="10">October</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="11">November</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="12">December</button>
-                        </div>
-                    </div>
-                    <input type="number" id="recapYear" min="2000" step="1" onchange="updatePeriodLabel()"
-                        class="px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus bg-white" style="width:90px;">
-                </div>
-                <p id="recapPeriodRange" class="text-xs text-gray-400 mt-1.5"></p>
-            </div>
-            {{-- Employee Search --}}
-            <div class="flex flex-col">
-                <label class="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Employee</label>
-                <div class="relative">
-                    <input type="text" id="recapFilterName" placeholder="Search employee…"
-                        class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus bg-white transition-shadow">
-                    <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                    </svg>
-                </div>
-            </div>
-            {{-- Mode --}}
-            <div class="flex flex-col">
-                <label class="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Mode</label>
-                <div class="custom-dd relative" data-onchange="applyRecapFilter">
-                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-500">All Modes</span>
-                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <input type="hidden" id="recapFilterMode" value="">
-                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Modes</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="OnSite">OnSite</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Remote">Remote</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="flex gap-2 justify-end mt-3 pt-3 border-t border-gray-100">
-            <button onclick="resetRecap()"
-                class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-600 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-                Reset
-            </button>
-            <button onclick="loadRecap()" id="recapApplyBtn"
-                class="inline-flex items-center gap-1.5 px-5 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200 shadow-sm">
-                <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
-                Apply
-            </button>
-        </div>
-    </div>
 
     {{-- ── Table ───────────────────────────────────────────────────────────── --}}
     <div class="rounded-xl border border-gray-200 overflow-hidden">
         <div class="overflow-auto" style="max-height: calc(100vh - 300px); min-height: 200px;">
-            <table class="w-full text-sm border-collapse table-fixed" style="min-width: 480px;">
-                <colgroup>
-                    <col style="width: 40%">
-                    <col style="width: 25%">
-                    <col style="width: 20%">
-                    <col style="width: 15%">
-                </colgroup>
-                <thead class="sticky top-0 z-10">
-                    <tr class="bg-gray-50 border-b border-gray-200">
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Entries</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Mode</th>
-                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Mandays</th>
+            <table class="w-full text-sm border-collapse" style="min-width: 480px;">
+                <thead class="sticky top-0 z-10 bg-gray-50">
+                    <tr>
+                        {{-- Name: text search panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:180px; position:relative;">
+                            <button type="button" onclick="toggleRecapTextPanel(event,'Name')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Name</span>
+                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="recapTextIcon_Name" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                            </button>
+                            <div id="recapTextPanel_Name" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search name</label>
+                                <input type="text" id="colFilterRecapName" placeholder="Type name…" oninput="applyRecapFilter()" onclick="event.stopPropagation()"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                <div class="flex justify-end gap-2 mt-2">
+                                    <button type="button" onclick="clearRecapTextPanel('Name')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    <button type="button" onclick="closeRecapTextPanel('Name')" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- Entries: plain --}}
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Entries</th>
+                        {{-- Mode: custom-dd --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
+                            <div class="custom-dd relative w-full" id="ddColFilterRecapMode" data-fixed="true" data-onchange="applyRecapFilter">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Mode</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="colFilterRecapMode" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5" style="max-height:200px;min-width:130px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="OnSite">OnSite</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Remote">Remote</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- Mandays: sort panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:110px; position:relative;">
+                            <button type="button" onclick="toggleRecapMdSortPanel(event)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Mandays</span>
+                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <span id="recapSortMdIcon" class="text-[10px] text-gray-300 font-bold shrink-0"></span>
+                            </button>
+                            <div id="recapMdSortPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:180px;">
+                                <span class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sort</span>
+                                <div class="flex gap-2 mb-2">
+                                    <button type="button" onclick="setRecapSort('mandays','asc')" id="recapSortMdAsc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↑ Ascending</button>
+                                    <button type="button" onclick="setRecapSort('mandays','desc')" id="recapSortMdDesc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↓ Descending</button>
+                                </div>
+                                <div class="flex justify-end"><button type="button" onclick="closeRecapMdSortPanel()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button></div>
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody id="recapTableBody" class="bg-white">
@@ -197,52 +155,24 @@
 @push('scripts')
 <script src="/js/custom-dropdown.js?v={{ filemtime(public_path('js/custom-dropdown.js')) }}"></script>
 <script>
-let recapData = [];
+let recapData    = [];
+let recapSortKey = null;
+let recapSortDir = null;
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-
-const MONTH_NAMES_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-function updatePeriodLabel() {
-    const month = parseInt(document.getElementById('recapMonth').value);
-    const year  = parseInt(document.getElementById('recapYear').value);
-    if (!month || !year) return;
-
-    // Period M/Y: 21st of (M-1) → 20th of M
-    const startMonth = month === 1 ? 12 : month - 1;
-    const startYear  = month === 1 ? year - 1 : year;
-    const label = `${21} ${MONTH_NAMES_SHORT[startMonth - 1]} ${startYear} – ${20} ${MONTH_NAMES_SHORT[month - 1]} ${year}`;
-    const el = document.getElementById('recapPeriodRange');
-    if (el) el.textContent = label;
-}
 
 document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
-
-    const now  = new Date();
-    const day  = now.getDate();
-    const m0   = now.getMonth();
-    const year = now.getFullYear();
-    let periodMonth, periodYear;
-    if (day >= 21) {
-        const nextM = m0 + 2;
-        if (nextM > 12) { periodMonth = 1;      periodYear = year + 1; }
-        else            { periodMonth = nextM;  periodYear = year; }
-    } else {
-        periodMonth = m0 + 1;
-        periodYear  = year;
-    }
-    document.getElementById('recapYear').value = periodYear;
-    if (typeof setCustomDropdownValue === 'function') {
-        setCustomDropdownValue('recapMonth', String(periodMonth));
-    } else {
-        document.getElementById('recapMonth').value = periodMonth;
-    }
-    updatePeriodLabel();
     loadCurrentPeriodBadge();
     loadRecap();
+    updateRecapSortVisuals();
+});
 
-    document.getElementById('recapFilterName').addEventListener('input', applyRecapFilter);
-    // recapFilterMode is now a custom dropdown — change fires via data-onchange="applyRecapFilter"
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('[id^="recapTextPanel_"]') && !e.target.closest('#recapMdSortPanel') &&
+        !e.target.closest('[onclick*="toggleRecapTextPanel"]') && !e.target.closest('[onclick*="toggleRecapMdSortPanel"]')) {
+        closeRecapMdSortPanel();
+        closeRecapTextPanelAll();
+    }
 });
 
 async function loadCurrentPeriodBadge() {
@@ -266,10 +196,7 @@ async function loadCurrentPeriodBadge() {
 }
 
 async function loadRecap() {
-    const month    = document.getElementById('recapMonth').value;
-    const year     = document.getElementById('recapYear').value;
-    const tbody    = document.getElementById('recapTableBody');
-    const applyBtn = document.getElementById('recapApplyBtn');
+    const tbody = document.getElementById('recapTableBody');
 
     tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-14 text-center text-gray-400 text-sm">
         <i class="fas fa-spinner fa-spin text-2xl mb-3 block primary-text opacity-50"></i>
@@ -277,11 +204,9 @@ async function loadRecap() {
     </td></tr>`;
     document.getElementById('recapEmpty').classList.add('hidden');
     document.getElementById('recapStats').classList.add('hidden');
-    applyBtn.disabled = true;
-    applyBtn.innerHTML = `<i class="fas fa-spinner fa-spin text-xs"></i> Loading...`;
 
     try {
-        const res  = await fetch(`/api/reporting/md-recap?month=${month}&year=${year}`, {
+        const res  = await fetch(`/api/reporting/md-recap`, {
             headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },
             credentials: 'same-origin'
         });
@@ -289,7 +214,6 @@ async function loadRecap() {
         if (!json.success) throw new Error(json.message || 'API error');
 
         recapData = json.data || [];
-        document.getElementById('recapPeriodLabel').textContent = `Period: ${MONTHS[month - 1]} ${year}`;
         renderRecap();
 
     } catch (e) {
@@ -300,52 +224,109 @@ async function loadRecap() {
                 <span>${escHtml(e.message)}</span>
             </div>
         </td></tr>`;
-    } finally {
-        applyBtn.disabled = false;
-        applyBtn.innerHTML = `<svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg> Apply`;
     }
 }
 
 function resetRecap() {
-    const now  = new Date();
-    const day  = now.getDate();
-    const m0   = now.getMonth();
-    const year = now.getFullYear();
-    let resetMonth, resetYear;
-    if (day >= 21) {
-        const nextM = m0 + 2;
-        if (nextM > 12) { resetMonth = 1;      resetYear = year + 1; }
-        else            { resetMonth = nextM;  resetYear = year; }
-    } else {
-        resetMonth = m0 + 1;
-        resetYear  = year;
-    }
-    document.getElementById('recapYear').value = resetYear;
-    document.getElementById('recapFilterName').value = '';
+    const nameEl = document.getElementById('colFilterRecapName');
+    if (nameEl) nameEl.value = '';
     if (typeof setCustomDropdownValue === 'function') {
-        setCustomDropdownValue('recapMonth', String(resetMonth));
-        setCustomDropdownValue('recapFilterMode', '');
-    } else {
-        document.getElementById('recapMonth').value = resetMonth;
-        document.getElementById('recapFilterMode').value = '';
+        setCustomDropdownValue('colFilterRecapMode', '');
     }
-    updatePeriodLabel();
-    recapData = [];
-    document.getElementById('recapTableBody').innerHTML = '';
-    document.getElementById('recapEmpty').classList.remove('hidden');
-    document.getElementById('recapStats').classList.add('hidden');
+    recapSortKey = null;
+    recapSortDir = null;
+    updateRecapSortVisuals();
+    _updateRecapFilterIcons();
+    closeRecapMdSortPanel();
+    closeRecapTextPanelAll();
+    applyRecapFilter();
 }
 
 function applyRecapFilter() {
+    _updateRecapFilterIcons();
     renderRecap();
+}
+
+// ── Sort & panel helpers ──────────────────────────────────────────────────────
+
+function setRecapSort(key, dir) {
+    recapSortKey = key;
+    recapSortDir = dir;
+    updateRecapSortVisuals();
+    closeRecapMdSortPanel();
+    renderRecap();
+}
+
+function updateRecapSortVisuals() {
+    const icon = document.getElementById('recapSortMdIcon');
+    if (icon) icon.textContent = recapSortKey === 'mandays' ? (recapSortDir === 'asc' ? '↑' : '↓') : '';
+    const _btn = (id, active) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.className = `flex-1 px-2 py-1 text-xs border rounded-md hover:bg-gray-50 transition-colors ${active ? 'border-red-400 bg-red-50 text-red-700 font-semibold' : 'border-gray-200'}`;
+    };
+    _btn('recapSortMdAsc',  recapSortKey === 'mandays' && recapSortDir === 'asc');
+    _btn('recapSortMdDesc', recapSortKey === 'mandays' && recapSortDir === 'desc');
+}
+
+function _updateRecapFilterIcons() {
+    const icon  = document.getElementById('recapTextIcon_Name');
+    const input = document.getElementById('colFilterRecapName');
+    if (!icon) return;
+    const active = !!(input?.value);
+    icon.classList.toggle('text-red-500', active);
+    icon.classList.toggle('text-gray-300', !active);
+}
+
+function toggleRecapMdSortPanel(event) {
+    event.stopPropagation();
+    const panel = document.getElementById('recapMdSortPanel');
+    if (!panel) return;
+    const wasHidden = panel.classList.contains('hidden');
+    closeRecapMdSortPanel(); closeRecapTextPanelAll();
+    if (typeof _closeAllDropdowns === 'function') _closeAllDropdowns();
+    if (wasHidden) panel.classList.remove('hidden');
+}
+
+function closeRecapMdSortPanel() {
+    const p = document.getElementById('recapMdSortPanel');
+    if (p) p.classList.add('hidden');
+}
+
+function toggleRecapTextPanel(event, key) {
+    event.stopPropagation();
+    const panel = document.getElementById('recapTextPanel_' + key);
+    if (!panel) return;
+    const wasHidden = panel.classList.contains('hidden');
+    closeRecapMdSortPanel(); closeRecapTextPanelAll();
+    if (typeof _closeAllDropdowns === 'function') _closeAllDropdowns();
+    if (wasHidden) {
+        panel.classList.remove('hidden');
+        const inp = panel.querySelector('input[type="text"]');
+        if (inp) setTimeout(() => inp.focus(), 30);
+    }
+}
+
+function closeRecapTextPanel(key) {
+    const p = document.getElementById('recapTextPanel_' + key);
+    if (p) p.classList.add('hidden');
+}
+
+function closeRecapTextPanelAll() {
+    document.querySelectorAll('[id^="recapTextPanel_"]').forEach(p => p.classList.add('hidden'));
+}
+
+function clearRecapTextPanel(key) {
+    const inp = document.getElementById('colFilterRecap' + key);
+    if (inp) { inp.value = ''; applyRecapFilter(); }
 }
 
 function renderRecap() {
     const tbody      = document.getElementById('recapTableBody');
     const empty      = document.getElementById('recapEmpty');
     const stats      = document.getElementById('recapStats');
-    const nameFilter = (document.getElementById('recapFilterName')?.value || '').toLowerCase().trim();
-    const modeFilter = (document.getElementById('recapFilterMode')?.value || '');
+    const nameFilter = (document.getElementById('colFilterRecapName')?.value || '').toLowerCase().trim();
+    const modeFilter = (document.getElementById('colFilterRecapMode')?.value || '');
 
     const filtered = recapData.filter(r => {
         if (nameFilter && !(r.name || '').toLowerCase().includes(nameFilter)) return false;
@@ -381,8 +362,25 @@ function renderRecap() {
     let totalRemote = 0;
     const empCount  = grouped.size;
 
-    let html = '';
+    // Compute per-employee total mandays for sort
+    const empTotals = new Map();
     grouped.forEach((modeMap, name) => {
+        let t = 0;
+        modeMap.forEach(agg => { t += agg.mandays; });
+        empTotals.set(name, t);
+    });
+
+    let sortedEntries = [...grouped.entries()];
+    if (recapSortKey === 'mandays') {
+        sortedEntries.sort((a, b) => {
+            const va = empTotals.get(a[0]) ?? 0;
+            const vb = empTotals.get(b[0]) ?? 0;
+            return recapSortDir === 'asc' ? va - vb : vb - va;
+        });
+    }
+
+    let html = '';
+    sortedEntries.forEach(([name, modeMap]) => {
         modeMap.forEach((agg, mode) => {
             totalMd += agg.mandays;
             if ((mode || '').toLowerCase() === 'onsite') totalOnsite += agg.mandays;
@@ -428,9 +426,12 @@ function renderRecap() {
 }
 
 function exportRecap() {
-    const month = document.getElementById('recapMonth').value;
-    const year  = document.getElementById('recapYear').value;
-    window.location.href = `/reporting/md-recap/export?month=${month}&year=${year}`;
+    const params = new URLSearchParams();
+    const name = document.getElementById('colFilterRecapName')?.value.trim();
+    const mode = document.getElementById('colFilterRecapMode')?.value;
+    if (name) params.append('name', name);
+    if (mode) params.append('mode', mode);
+    window.location.href = `/reporting/md-recap/export?${params.toString()}`;
 }
 
 function escHtml(str) {

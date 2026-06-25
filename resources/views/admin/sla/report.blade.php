@@ -181,8 +181,9 @@
 
                     {{-- Export Excel --}}
                     <button onclick="exportToExcel()" id="exportBtn"
-                        class="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 hover:text-green-800 border border-green-300 hover:border-green-400 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition whitespace-nowrap">
-                        <i class="fas fa-file-excel text-xs"></i> Export Excel
+                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
+                        <i class="fas fa-file-excel text-green-600 text-sm"></i>
+                        Export SLA
                     </button>
                 </div>
             </div>

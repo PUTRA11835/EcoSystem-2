@@ -45,8 +45,8 @@ class TicketExport implements
             return [
                 'ticket_number'            => $t['ticket_number'] ?? '-',
                 'description'              => $t['description'] ?? '-',
-                'date'                     => $t['created_at']
-                    ? \Carbon\Carbon::parse($t['created_at'])->timezone('Asia/Jakarta')->format('d M Y')
+                'date'                     => ($t['start_date'] ?? $t['created_at'])
+                    ? \Carbon\Carbon::parse($t['start_date'] ?? $t['created_at'])->timezone('Asia/Jakarta')->format('d M Y')
                     : '-',
                 'customer'                 => $t['customer']['customer_name'] ?? '-',
                 'end_customer'             => $t['end_customer_name'] ?? '-',

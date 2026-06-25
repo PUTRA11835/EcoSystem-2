@@ -25,6 +25,14 @@ class AdminBackupController extends Controller
         return (int) session('user.role.id') === RoleId::EC_ADMINISTRATOR->value;
     }
 
+    private function assertHeadOrAdmin(): bool
+    {
+        $roleId = (int) session('user.role.id');
+        return $roleId === RoleId::EC_ADMINISTRATOR->value
+            || in_array($roleId, RoleId::HEAD_GROUP, true)
+            || $roleId === RoleId::DELIVERY_RPMO_HEAD->value;
+    }
+
     private function backupDisk()
     {
         return Storage::disk('local');
@@ -2610,6 +2618,201 @@ class AdminBackupController extends Controller
         Log::info('AdminBackupController: timesheet import', [
             'imported' => $imported, 'skipped' => $skipped, 'errors' => count($errors),
             'by'       => session('user.eci') ?? session('user.name') ?? 'admin',
+        ]);
+
+        return response()->json([
+            'success'  => true,
+            'message'  => "Import selesai: {$imported} ditambahkan" . ($skipped ? ", {$skipped} dilewati" : '') . (count($errors) ? ', ' . count($errors) . ' peringatan' : ''),
+            'imported' => $imported,
+            'skipped'  => $skipped,
+            'errors'   => $errors,
+        ]);
+    }
+
+    // ── Import Timesheet (Head & above) ───────────────────────────────────────────
+    // Endpoint terpisah dari admin backup agar bisa diakses role head/RPMO/admin.
+
+    public function importTimesheetHead(\Illuminate\Http\Request $request)
+    {
+        if (!$this->assertHeadOrAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        set_time_limit(300);
+        $request->validate(['file' => 'required|file|mimes:csv,txt,xlsx|max:20480']);
+
+        $file    = $request->file('file');
+        $ext     = strtolower($file->getClientOriginalExtension());
+        $allRows = $this->readSpreadsheetFile($file->getRealPath(), $ext);
+
+        if (!$allRows || count($allRows) < 2) {
+            return response()->json(['success' => false, 'message' => 'File kosong atau tidak valid'], 422);
+        }
+
+        $rawHeaders = array_shift($allRows);
+        $headerMap  = [];
+        foreach ($rawHeaders as $i => $h) {
+            $headerMap[strtolower(trim((string)$h))] = $i;
+        }
+
+        $aliasMap = [
+            'employee_eci'   => ['employee eci', 'employee_eci', 'eci'],
+            'date'           => ['date', 'tanggal'],
+            'start_time'     => ['start time', 'start_time', 'jam mulai'],
+            'end_time'       => ['end time', 'end_time', 'jam selesai'],
+            'description'    => ['description', 'description ticket', 'deskripsi', 'keterangan'],
+            'ticket_number'  => ['ticket number', 'ticket_number', 'tiket', 'no tiket'],
+            'activity_type'  => ['activity type', 'activity_type', 'tipe aktivitas'],
+            'status'         => ['status'],
+            'is_billable'    => ['is billable', 'is_billable', 'billable'],
+            'presence'       => ['presence', 'kehadiran'],
+            'location'       => ['location', 'lokasi'],
+            'md_consumed'    => ['md consumed', 'md_consumed', 'mandays consumed'],
+            'period_year'    => ['period year', 'period_year', 'tahun periode'],
+            'period_month'   => ['period month', 'period_month', 'bulan periode'],
+            'notes'          => ['notes', 'catatan'],
+        ];
+
+        $colIdx = [];
+        foreach ($aliasMap as $field => $aliases) {
+            foreach ($aliases as $alias) {
+                if (isset($headerMap[$alias])) { $colIdx[$field] = $headerMap[$alias]; break; }
+            }
+        }
+
+        if (!isset($colIdx['employee_eci']) || !isset($colIdx['date'])) {
+            return response()->json(['success' => false, 'message' => 'Kolom wajib tidak ditemukan: "Employee ECI" dan "Date"'], 422);
+        }
+
+        $get = function (string $field, array $row) use ($colIdx): ?string {
+            if (!isset($colIdx[$field])) return null;
+            $val = trim((string)($row[$colIdx[$field]] ?? ''));
+            return $val !== '' ? $val : null;
+        };
+
+        $validStatuses  = ['draft', 'submitted', 'approved', 'rejected'];
+        $validPresences = ['WFO', 'WFH', 'Remote', 'Hybrid'];
+
+        $imported = 0;
+        $skipped  = 0;
+        $errors   = [];
+        $rowNum   = 1;
+
+        foreach ($allRows as $row) {
+            $rowNum++;
+
+            $eci = $get('employee_eci', $row);
+            if ($eci && preg_match('/^#[A-Z\/]+[!?]?$/', $eci)) $eci = null;
+            if (!$eci) { $errors[] = "Baris {$rowNum}: Employee ECI kosong — dilewati"; $skipped++; continue; }
+
+            $employee = \Illuminate\Support\Facades\DB::table('employee')->where('eci', $eci)->select('employee_id')->first();
+            if (!$employee) { $errors[] = "Baris {$rowNum}: ECI '{$eci}' tidak ditemukan — dilewati"; $skipped++; continue; }
+
+            $date = $this->normalizeDate($get('date', $row));
+            if (!$date) { $errors[] = "Baris {$rowNum}: Tanggal tidak valid — dilewati"; $skipped++; continue; }
+
+            $startTime = $get('start_time', $row);
+            $endTime   = $get('end_time',   $row);
+
+            $ticketId = null;
+            $tn = $get('ticket_number', $row);
+            if ($tn) {
+                $t = \Illuminate\Support\Facades\DB::table('ticket')
+                    ->where('ticket_number', $tn)
+                    ->whereNull('deleted_at')
+                    ->select('ticket_id')
+                    ->first();
+                if (!$t) {
+                    $errors[] = "[Peringatan] Baris {$rowNum}: Ticket #{$tn} tidak ditemukan — timesheet tetap dibuat tanpa ticket";
+                } else {
+                    $ticketId = $t->ticket_id;
+                }
+            }
+
+            $dupQuery = \Illuminate\Support\Facades\DB::table('timesheets')
+                ->where('employee_id', $employee->employee_id)
+                ->where('date', $date)
+                ->whereNull('deleted_at');
+            if ($startTime) $dupQuery->where('start_time', $startTime);
+            if ($ticketId)  $dupQuery->where('ticket_id', $ticketId);
+
+            if ($dupQuery->exists()) {
+                $errors[] = "[Peringatan] Baris {$rowNum}: Timesheet duplikat (ECI={$eci}, date={$date}" . ($startTime ? ", start={$startTime}" : '') . ") — dilewati";
+                $skipped++;
+                continue;
+            }
+
+            $statusRaw = strtolower($get('status', $row) ?? '');
+            $status    = in_array($statusRaw, $validStatuses, true) ? $statusRaw : 'submitted';
+
+            $billableRaw = strtolower($get('is_billable', $row) ?? 'yes');
+            $isBillable  = !in_array($billableRaw, ['no', 'false', '0'], true);
+
+            $presenceRaw = $get('presence', $row);
+            $presence    = null;
+            if ($presenceRaw) {
+                foreach ($validPresences as $vp) {
+                    if (strcasecmp($presenceRaw, $vp) === 0) { $presence = $vp; break; }
+                }
+                if (!$presence) $presence = $presenceRaw;
+            }
+
+            $periodYear  = (int) ($get('period_year',  $row) ?? date('Y', strtotime($date)));
+            $periodMonth = (int) ($get('period_month', $row) ?? date('n', strtotime($date)));
+
+            try {
+                \Illuminate\Support\Facades\DB::table('timesheets')->insert([
+                    'employee_id'          => $employee->employee_id,
+                    'ticket_id'            => $ticketId,
+                    'delivery_projects_id' => null,
+                    'activity_id'          => null,
+                    'date'                 => $date,
+                    'start_time'           => $startTime,
+                    'end_time'             => $endTime,
+                    'description'          => $get('description', $row),
+                    'activity_type'        => $get('activity_type', $row),
+                    'status'               => $status,
+                    'is_billable'          => $isBillable,
+                    'presence'             => $presence,
+                    'location'             => $get('location', $row),
+                    'md_consumed'          => $get('md_consumed', $row) !== null ? (float) $get('md_consumed', $row) : null,
+                    'notes'                => $get('notes', $row),
+                    'period_year'          => $periodYear,
+                    'period_month'         => $periodMonth,
+                    'created_at'           => now(),
+                    'updated_at'           => now(),
+                ]);
+                $imported++;
+
+                if ($ticketId) {
+                    $existingMember = \Illuminate\Support\Facades\DB::table('ticket_member')
+                        ->where('ticket_id', $ticketId)
+                        ->where('employee_id', $employee->employee_id)
+                        ->first();
+                    if (!$existingMember) {
+                        \Illuminate\Support\Facades\DB::table('ticket_member')->insert([
+                            'ticket_id'   => $ticketId,
+                            'employee_id' => $employee->employee_id,
+                            'is_active'   => true,
+                            'created_at'  => now(),
+                            'updated_at'  => now(),
+                        ]);
+                    } elseif (!$existingMember->is_active) {
+                        \Illuminate\Support\Facades\DB::table('ticket_member')
+                            ->where('ticket_id', $ticketId)
+                            ->where('employee_id', $employee->employee_id)
+                            ->update(['is_active' => true, 'updated_at' => now()]);
+                    }
+                }
+            } catch (\Exception $e) {
+                $errors[] = "Baris {$rowNum}: " . $e->getMessage();
+                $skipped++;
+            }
+        }
+
+        Log::info('AdminBackupController: timesheet import by head', [
+            'imported' => $imported, 'skipped' => $skipped, 'errors' => count($errors),
+            'by'       => session('user.eci') ?? session('user.name') ?? 'head',
         ]);
 
         return response()->json([

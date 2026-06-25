@@ -1277,6 +1277,16 @@ class TicketMessageController extends Controller
                 'ticket_id' => $ticketId,
                 'error'     => $e->getMessage(),
                 'error_at'  => $e->getFile() . ':' . $e->getLine(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send email: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Update sla_message for a specific ticket message
      */
     public function updateSlaMessage($ticketId, $messageId, Request $request)

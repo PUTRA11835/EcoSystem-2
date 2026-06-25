@@ -23,9 +23,7 @@
                 <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
             </button>
         </div>
-        @endif
-
-        @if($user->hasRole(\App\Enums\RoleId::DELIVERY_HELPDESK->value))
+        @elseif($user->hasRole(\App\Enums\RoleId::DELIVERY_HELPDESK->value))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
             <button onclick="toggleView('all')" id="btnViewAllHd" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
                 <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
@@ -34,9 +32,7 @@
                 <i class="fas fa-user-clock text-[10px] mr-1"></i>Unassigned
             </button>
         </div>
-        @endif
-
-        @if($user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value))
+        @elseif($user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
             <button onclick="toggleView('my')" id="btnViewMy" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 active">My Tickets</button>
             <button onclick="toggleView('all')" id="btnViewAll" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">All Tickets</button>
@@ -882,7 +878,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     function createTicketRow(ticket) {
         const customerName = ticket.customer?.customer_name || 'Unknown';
         const lastActivity = new Date(ticket.last_message_at || ticket.created_at);
-        const createdAt    = new Date(ticket.created_at);
+        const createdAt    = new Date(ticket.start_date || ticket.created_at);
         const endDate      = ticket.end_date ? new Date(ticket.end_date) : null;
 
         const fmt    = d => d.toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' });
@@ -1250,7 +1246,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const colStatus   = document.getElementById('colFilterStatus')?.value   || '';
         const colType     = document.getElementById('colFilterType')?.value     || '';
 
-        // Date range filter (from-to inclusive, based on ticket.created_at in Asia/Jakarta)
+        // Date range filter (from-to inclusive, based on ticket.start_date ?? ticket.created_at in Asia/Jakarta)
         const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
         const dateTo   = document.getElementById('dateFilterTo')?.value   || '';
         const fromMs = dateFrom ? new Date(dateFrom + 'T00:00:00+07:00').getTime() : null;
@@ -1271,7 +1267,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
             let matchDate = true;
             if (fromMs !== null || toMs !== null) {
-                const created = ticket.created_at ? new Date(ticket.created_at).getTime() : NaN;
+                const created = (ticket.start_date || ticket.created_at) ? new Date(ticket.start_date || ticket.created_at).getTime() : NaN;
                 if (Number.isNaN(created)) {
                     matchDate = false;
                 } else {
@@ -1566,8 +1562,8 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                 va = extractNum(a);
                 vb = extractNum(b);
             } else if (key === 'date') {
-                va = new Date(a.created_at).getTime();
-                vb = new Date(b.created_at).getTime();
+                va = new Date(a.start_date || a.created_at).getTime();
+                vb = new Date(b.start_date || b.created_at).getTime();
             } else if (key === 'customer') {
                 va = (a.customer?.customer_name || '').toLowerCase();
                 vb = (b.customer?.customer_name || '').toLowerCase();
@@ -1713,7 +1709,8 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         form.append('customer_id',     document.getElementById('newCustomerId').value);
         form.append('ticket_type',     ticketTypeVal);
         form.append('cc_emails',       document.getElementById('newCcEmails').value || '');
-        form.append('scale',           document.getElementById('newScale').value || '');
+        const scaleVal = document.getElementById('newScale').value;
+        if (scaleVal) form.append('scale', scaleVal);
         form.append('name',            document.getElementById('newName').value || '');
         form.append('no_hp',           document.getElementById('newNoHp').value || '');
         form.append('module',          document.getElementById('newModule').value || '');

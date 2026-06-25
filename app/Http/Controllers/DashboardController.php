@@ -67,11 +67,11 @@ class DashboardController extends Controller
                 ];
 
                 // Ticket trend last 30 days
-                $start30 = now()->subDays(29)->startOfDay();
+                $start30 = now()->subDays(29)->format('Y-m-d');
                 $byDay   = DB::table('ticket')
                     ->whereNull('deleted_at')
-                    ->where('created_at', '>=', $start30)
-                    ->select(DB::raw('DATE(created_at) as day'), DB::raw('COUNT(*) as cnt'))
+                    ->where('start_date', '>=', $start30)
+                    ->select(DB::raw('DATE(start_date) as day'), DB::raw('COUNT(*) as cnt'))
                     ->groupBy('day')
                     ->pluck('cnt', 'day')
                     ->toArray();
@@ -157,12 +157,12 @@ class DashboardController extends Controller
                     'closed'                  => (clone $base)->where('status', 'closed')->count(),
                 ];
 
-                // Chart: all tickets created in last 30 days
-                $start30 = now()->subDays(29)->startOfDay();
+                // Chart: all tickets by start_date in last 30 days
+                $start30 = now()->subDays(29)->format('Y-m-d');
                 $byDay = DB::table('ticket')
                     ->whereNull('deleted_at')
-                    ->where('created_at', '>=', $start30)
-                    ->select(DB::raw('DATE(created_at) as day'), DB::raw('COUNT(*) as cnt'))
+                    ->where('start_date', '>=', $start30)
+                    ->select(DB::raw('DATE(start_date) as day'), DB::raw('COUNT(*) as cnt'))
                     ->groupBy('day')
                     ->pluck('cnt', 'day')
                     ->toArray();
@@ -298,11 +298,11 @@ class DashboardController extends Controller
                     ->toArray();
 
                 // 30-day ticket trend
-                $start30 = now()->subDays(29)->startOfDay();
+                $start30 = now()->subDays(29)->format('Y-m-d');
                 $byDay   = DB::table('ticket')
                     ->whereNull('deleted_at')
-                    ->where('created_at', '>=', $start30)
-                    ->select(DB::raw('DATE(created_at) as day'), DB::raw('COUNT(*) as cnt'))
+                    ->where('start_date', '>=', $start30)
+                    ->select(DB::raw('DATE(start_date) as day'), DB::raw('COUNT(*) as cnt'))
                     ->groupBy('day')
                     ->pluck('cnt', 'day')
                     ->toArray();
@@ -420,10 +420,10 @@ class DashboardController extends Controller
                 $dashboardData['today_closed'] = (clone $base)->where('status', 'closed')->whereDate('updated_at', today())->count();
 
                 // 30-day ticket trend (dalam scope tiket yang dia kelola + unassigned)
-                $start30 = now()->subDays(29)->startOfDay();
+                $start30 = now()->subDays(29)->format('Y-m-d');
                 $byDay   = (clone $base)
-                    ->where('created_at', '>=', $start30)
-                    ->select(DB::raw('DATE(created_at) as day'), DB::raw('COUNT(*) as cnt'))
+                    ->where('start_date', '>=', $start30)
+                    ->select(DB::raw('DATE(start_date) as day'), DB::raw('COUNT(*) as cnt'))
                     ->groupBy('day')
                     ->pluck('cnt', 'day')
                     ->toArray();
@@ -566,11 +566,11 @@ class DashboardController extends Controller
                     ->toArray();
 
                 // 30-day trend
-                $start30 = now()->subDays(29)->startOfDay();
+                $start30 = now()->subDays(29)->format('Y-m-d');
                 $byDay   = DB::table('ticket')->whereNull('deleted_at')
                     ->whereIn('ticket_id', $ticketIds)
-                    ->where('created_at', '>=', $start30)
-                    ->select(DB::raw('DATE(created_at) as day'), DB::raw('COUNT(*) as cnt'))
+                    ->where('start_date', '>=', $start30)
+                    ->select(DB::raw('DATE(start_date) as day'), DB::raw('COUNT(*) as cnt'))
                     ->groupBy('day')->pluck('cnt', 'day')->toArray();
 
                 $chartLabels = []; $chartData = [];

@@ -61,12 +61,11 @@ class ReportingController extends Controller
     public function closePeriod(Request $request)
     {
         try {
-            $sessionUser   = session('user');
-            $currentRoleId = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
-            $employeeId    = (int) ($sessionUser['id'] ?? 0);
+            $sessionUser = SessionUser::fromSession(session('user'));
+            $employeeId  = $sessionUser->id;
 
             // Only RPMO can close globally via the new system
-            if ($currentRoleId !== RoleId::DELIVERY_RPMO_HEAD->value) {
+            if (!$sessionUser->hasRole(RoleId::DELIVERY_RPMO_HEAD->value)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Period closing is now managed from the Period Management page (RPMO only).',
@@ -80,7 +79,7 @@ class ReportingController extends Controller
 
             /** @var PeriodService $svc */
             $svc = app(PeriodService::class);
-            $svc->closeGlobal($period, $employeeId, $currentRoleId);
+            $svc->closeGlobal($period, $employeeId, RoleId::DELIVERY_RPMO_HEAD->value);
 
             return response()->json([
                 'success' => true,
@@ -99,9 +98,8 @@ class ReportingController extends Controller
     public function timesheetSupport(Request $request)
     {
         try {
-            $sessionUser       = session('user');
-            $currentEmployeeId = $sessionUser['id'] ?? null;
-            $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
+            $sessionUser       = SessionUser::fromSession(session('user'));
+            $currentEmployeeId = $sessionUser->id;
 
             // One row per individual timesheet entry (no GROUP BY)
             $query = DB::table('timesheets')
@@ -125,7 +123,8 @@ class ReportingController extends Controller
                     DB::raw('COALESCE(timesheets.md_consumed, 0) as md_consumed')
                 );
 
-            if ($currentRoleId !== RoleId::EC_ADMINISTRATOR->value && $currentRoleId !== RoleId::DELIVERY_SUPPORT_HEAD->value) {
+            $allowed = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
+            if (!$sessionUser->hasAnyRole($allowed)) {
                 $query->where('timesheets.employee_id', $currentEmployeeId);
             }
 
@@ -228,43 +227,51 @@ class ReportingController extends Controller
     public function exportExcel(Request $request)
     {
         try {
-            $sessionUser       = session('user');
-            $currentEmployeeId = $sessionUser['id'] ?? null;
-            $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
+            $sessionUser = SessionUser::fromSession(session('user'));
+            $allowed     = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
 
-            if (!in_array($currentRoleId, [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
+            if (!$sessionUser->hasAnyRole($allowed)) {
                 abort(403, 'Access denied. Only Admins and Head of Support can export reports.');
             }
 
-            // Determine period for export
-            if ($request->filled('year') && $request->filled('month')) {
-                $periodYear  = (int) $request->year;
-                $periodMonth = (int) $request->month;
-            } else {
-                $current     = ReportingPeriod::current();
-                $periodYear  = $current['year'];
-                $periodMonth = $current['month'];
-            }
+            // Column filters passed from the browser view
+            $filterEmployee = trim($request->input('employee', ''));
+            $filterTicket   = trim($request->input('ticket',   ''));
+            $filterCustomer = trim($request->input('customer', ''));
+            $filterApproval = trim($request->input('approval', ''));
+            $filterMdStatus = trim($request->input('md_status', ''));
 
-            $range = ReportingPeriod::dateRange($periodYear, $periodMonth);
-
-            // Fetch individual approved support timesheets (one row per timesheet)
-            $rows = DB::table('timesheets')
+            $query = DB::table('timesheets')
                 ->join('ticket',              'timesheets.ticket_id',   '=', 'ticket.ticket_id')
                 ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
                 ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
                 ->leftJoin('customer',            'ticket.customer_id',   '=', 'customer.customer_id')
                 ->leftJoin('customer_basic_data', 'customer.customer_id', '=', 'customer_basic_data.customer_id')
-                ->where('timesheets.status', 'approved')
+                ->whereIn('timesheets.status', ['draft', 'submitted', 'approved'])
                 ->whereNotNull('timesheets.ticket_id')
-                ->whereNull('timesheets.deleted_at')
-                ->whereBetween('timesheets.date', [
-                    $range['start']->format('Y-m-d'),
-                    $range['end']->format('Y-m-d'),
-                ])
+                ->whereNull('timesheets.deleted_at');
+
+            if ($filterEmployee !== '') {
+                $query->whereRaw(
+                    "LOWER(TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,'')))) LIKE ?",
+                    ['%' . strtolower($filterEmployee) . '%']
+                );
+            }
+            if ($filterTicket !== '') {
+                $query->where('ticket.ticket_number', 'LIKE', '%' . $filterTicket . '%');
+            }
+            if ($filterCustomer !== '') {
+                $query->where('customer_basic_data.name_1', 'LIKE', '%' . $filterCustomer . '%');
+            }
+            if ($filterApproval !== '') {
+                $query->where('timesheets.status', $filterApproval);
+            }
+
+            $rows = $query
                 ->select(
                     'timesheets.id',
                     'timesheets.employee_id',
+                    'timesheets.status as timesheet_status',
                     DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
                     'timesheets.ticket_id',
                     'ticket.ticket_number',
@@ -304,7 +311,7 @@ class ReportingController extends Controller
 
             // Calculate running totals ASC (chronological), then reverse to newest-first
             $runningTotals = [];
-            $exportRows = $rows->map(function ($r) use ($jatahMap, $periodYear, $periodMonth, &$runningTotals) {
+            $exportRows = $rows->map(function ($r) use ($jatahMap, &$runningTotals) {
                 $jatahMd    = $jatahMap[$r->ticket_id . '_' . $r->employee_id] ?? null;
                 $mdConsumed = (float) ($r->md_consumed ?? 0);
 
@@ -312,10 +319,10 @@ class ReportingController extends Controller
                 $runningTotals[$key] = ($runningTotals[$key] ?? 0) + $mdConsumed;
                 $cumulative = $runningTotals[$key];
 
-                if ($jatahMd === null)           $status = null;
-                elseif ($cumulative == $jatahMd) $status = 'Match';
-                elseif ($cumulative > $jatahMd)  $status = 'Over';
-                else                             $status = 'Less';
+                if ($jatahMd === null)           $mdStatus = null;
+                elseif ($cumulative == $jatahMd) $mdStatus = 'Match';
+                elseif ($cumulative > $jatahMd)  $mdStatus = 'Over';
+                else                             $mdStatus = 'Less';
 
                 // Period: use stored override if set, else compute from date
                 if ($r->period_year && $r->period_month) {
@@ -334,17 +341,20 @@ class ReportingController extends Controller
                     'period_year'   => $pYear,
                     'jatah_md'      => $jatahMd,
                     'md_consumed'   => $mdConsumed,
-                    'status'        => $status,
+                    'status'        => $mdStatus,
                 ];
-            })->reverse()->values(); // newest first, matching view order
+            });
 
-            $monthName = $this->monthName($periodMonth);
-            $filename  = "Timesheet_Report_{$monthName}_{$periodYear}.xlsx";
+            // Apply md_status filter (computed field — must filter after running totals)
+            if ($filterMdStatus !== '') {
+                $exportRows = $exportRows->filter(fn($r) => $r['status'] === $filterMdStatus);
+            }
 
-            return Excel::download(
-                new TimesheetReportExport(collect($exportRows), $periodYear, $periodMonth),
-                $filename
-            );
+            $exportRows = $exportRows->reverse()->values(); // newest first, matching view order
+
+            $filename = 'MD_Validation_Export_' . now()->format('Y-m-d') . '.xlsx';
+
+            return Excel::download(new TimesheetReportExport(collect($exportRows)), $filename);
 
         } catch (\Exception $e) {
             Log::error('exportExcel error: ' . $e->getMessage());
@@ -359,8 +369,9 @@ class ReportingController extends Controller
         $sessionUser = session('user');
         if (!$sessionUser) return redirect()->route('login');
 
-        $roleId = (int) ($sessionUser['role']['id'] ?? 0);
-        if (!in_array($roleId, [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
+        $roleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+        $allowed = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
+        if (empty(array_intersect($roleIds, $allowed))) {
             abort(403, 'Access denied. Only Admins and Head of Support can view the MD recap.');
         }
 
@@ -373,26 +384,30 @@ class ReportingController extends Controller
     {
         try {
             $sessionUser   = session('user');
-            $currentRoleId = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
+            $currentRoleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+            $allowed        = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
 
-            if (!in_array($currentRoleId, [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
+            if (empty(array_intersect($currentRoleIds, $allowed))) {
                 return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
             }
 
-            $month = $request->filled('month') ? (int) $request->month : now()->month;
-            $year  = $request->filled('year')  ? (int) $request->year  : now()->year;
-
-            $range = ReportingPeriod::dateRange($year, $month);
-
-            $rows = DB::table('timesheets')
+            $query = DB::table('timesheets')
                 ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
                 ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
                 ->where('timesheets.status', 'approved')
-                ->whereNull('timesheets.deleted_at')
-                ->whereBetween('timesheets.date', [
+                ->whereNull('timesheets.deleted_at');
+
+            if ($request->filled('month') && $request->filled('year')) {
+                $month = (int) $request->month;
+                $year  = (int) $request->year;
+                $range = ReportingPeriod::dateRange($year, $month);
+                $query->whereBetween('timesheets.date', [
                     $range['start']->format('Y-m-d'),
                     $range['end']->format('Y-m-d'),
-                ])
+                ]);
+            }
+
+            $rows = $query
                 ->select(
                     'timesheets.id',
                     'timesheets.date',
@@ -426,26 +441,33 @@ class ReportingController extends Controller
     {
         try {
             $sessionUser   = session('user');
-            $currentRoleId = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
+            $currentRoleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+            $allowed        = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
 
-            if (!in_array($currentRoleId, [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
+            if (empty(array_intersect($currentRoleIds, $allowed))) {
                 abort(403, 'Access denied. Only Admins and Head of Support can export the MD recap.');
             }
 
-            $month = $request->filled('month') ? (int) $request->month : now()->month;
-            $year  = $request->filled('year')  ? (int) $request->year  : now()->year;
+            $filterName = trim($request->input('name', ''));
+            $filterMode = trim($request->input('mode', ''));
 
-            $range = ReportingPeriod::dateRange($year, $month);
-
-            $rows = DB::table('timesheets')
+            $query = DB::table('timesheets')
                 ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
                 ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
                 ->where('timesheets.status', 'approved')
-                ->whereNull('timesheets.deleted_at')
-                ->whereBetween('timesheets.date', [
-                    $range['start']->format('Y-m-d'),
-                    $range['end']->format('Y-m-d'),
-                ])
+                ->whereNull('timesheets.deleted_at');
+
+            if ($filterName !== '') {
+                $query->whereRaw(
+                    "LOWER(TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,'')))) LIKE ?",
+                    ['%' . strtolower($filterName) . '%']
+                );
+            }
+            if ($filterMode !== '') {
+                $query->whereRaw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END = ?", [$filterMode]);
+            }
+
+            $rows = $query
                 ->select(
                     'timesheets.date',
                     DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
@@ -468,9 +490,9 @@ class ReportingController extends Controller
                 ->sortBy([['name', 'asc'], ['mode', 'asc']])
                 ->values();
 
-            $filename = "MD_Recap_{$this->monthName($month)}_{$year}.xlsx";
+            $filename = 'MD_Recap_Export_' . now()->format('Y-m-d') . '.xlsx';
 
-            return Excel::download(new MdRecapExport(collect($exportRows), $month, $year), $filename);
+            return Excel::download(new MdRecapExport(collect($exportRows)), $filename);
 
         } catch (\Exception $e) {
             Log::error('exportMdRecap error');
