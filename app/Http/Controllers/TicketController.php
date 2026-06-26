@@ -2922,7 +2922,7 @@ class TicketController extends Controller
 
         $validator = Validator::make($request->all(), [
             'name'           => 'required|string|max:255',
-            'type'           => 'required|in:AMS,MO,ATS,Project,Internal',
+            'type'           => 'required|in:AMS,MO,ATS,CR,RISE,CLOUD,POSTPAID,Project,Internal',
             'support_method' => 'nullable|string|max:100',
         ]);
 
