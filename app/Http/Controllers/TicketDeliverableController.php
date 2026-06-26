@@ -334,6 +334,14 @@ class TicketDeliverableController extends Controller
             ->where('ticket_id', $ticketId)
             ->firstOrFail();
 
+        // Dokumen yang sudah dikirim ke customer tidak boleh dihapus.
+        if ($deliverable->status === 'Sended') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot delete a document that has already been sent to customer.',
+            ], 422);
+        }
+
         // Delete from OneDrive if uploaded
         if ($deliverable->onedrive_file_id) {
             try {

@@ -697,13 +697,15 @@
     });
 
 
-    // Close modals on Escape key
+    // Close modals on Escape key.
+    // Catatan: form Address sudah inline (bukan modal lagi), jadi #addressModal
+    // tidak ada. Dulu baris ini mereferensikan #addressModal tanpa guard sehingga
+    // setiap tekan Escape melempar TypeError (null.classList) dan mematahkan
+    // penutupan modal hapus.
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            if (!document.getElementById('addressModal').classList.contains('hidden')) {
-                closeAddressModal();
-            }
-            if (!document.getElementById('confirmDeleteAddressModal').classList.contains('hidden')) {
+            const delModal = document.getElementById('confirmDeleteAddressModal');
+            if (delModal && !delModal.classList.contains('hidden')) {
                 closeConfirmDeleteAddress();
             }
         }

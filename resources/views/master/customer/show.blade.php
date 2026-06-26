@@ -305,6 +305,7 @@
                 // Fields on `customer` table (not `customer_basic_data`) — merged into
                 // basicData by the show() endpoint. setValue is no-op if id absent.
                 setValue('customerDomain', basicData.domain);
+                setValue('companyEmail', basicData.email);
 
                 // General Information
                 setValue('title', basicData.title);
@@ -314,19 +315,12 @@
                 setValue('name4', basicData.name_4);
                 setValue('searchTerm1', basicData.search_term_1);
                 setValue('searchTerm2', basicData.search_term_2);
-                setValue('street', basicData.street);
-                setValue('postalCode', basicData.postal_code);
-                setValue('city', basicData.city);
-                setValue('country', basicData.country);
-                setValue('region', basicData.region);
-                setValue('district', basicData.district);
-                setValue('village', basicData.rural_urban_village);
-                setValue('language', basicData.language);
-                setValue('telephone', basicData.telephone);
-                setValue('cellPhone', basicData.cell_phone);
-                setValue('fax', basicData.fax);
-                setValue('email', basicData.email);
-                
+                // NOTE: jangan set 'street','city','country','email', dst di sini.
+                // Field-field itu TIDAK ada di section Basic Data — id yang sama hanya
+                // dimiliki section Address. setValue() akan bocor mengisi form Address
+                // (mis. Email Address ke-isi customer.email padahal belum pilih alamat).
+                // Data Address dimuat sendiri oleh loadAddresses()/loadAddressToForm().
+
                 // Customer Information
                 setValue('externalNumber', basicData.external_number);
                 // Customer Group & Parent — native <select> (select-enhance); set value + fire change
@@ -362,6 +356,7 @@
         const basicData = {
             customer_code: getValue('customerCode').toUpperCase(),
             domain: getValue('customerDomain'),
+            email: getValue('companyEmail'),
             title: getValue('title'),
             name_1: getValue('name1'),
             name_2: getValue('name2'),
