@@ -198,39 +198,6 @@
         <div class="border-t border-gray-200 flex-shrink-0">
 
             {{-- Toggle strip: channel indicator + collapse button --}}
-            {{-- ════════════════════ DEBUG BLOCK (HAPUS SETELAH SELESAI) ════════════════════ --}}
-            @php
-                $dbChannelRaw = \Illuminate\Support\Facades\DB::table('ticket')
-                    ->where('ticket_id', $ticket->ticket_id)
-                    ->value('channel');
-            @endphp
-            <div style="background:#1e1b4b;color:#a5b4fc;padding:8px 12px;font-size:11px;font-family:monospace;line-height:1.8;border-bottom:2px solid #6366f1;">
-                <strong style="color:#e0e7ff;">🔍 DEBUG — Ticket #{{ $ticket->ticket_number }}</strong><br>
-                <span style="color:#fbbf24;">[PHP Model]</span>
-                channel = <strong style="color:#86efac;">{{ json_encode($ticket->channel) }}</strong>
-                &nbsp;|&nbsp;
-                email_thread_id = <strong style="color:#86efac;">{{ json_encode($ticket->email_thread_id) }}</strong><br>
-
-                <span style="color:#fbbf24;">[DB Raw]</span>
-                channel (dari DB langsung) = <strong style="color:#f9a8d4;">{{ json_encode($dbChannelRaw) }}</strong><br>
-
-                <span style="color:#fbbf24;">[Blade Condition]</span>
-                is_email_channel = <strong>{{ $ticket->channel === 'email' ? 'TRUE' : 'false' }}</strong>
-                &nbsp;|&nbsp;
-                has_email_thread = <strong>{{ $ticket->email_thread_id ? 'TRUE' : 'false' }}</strong>
-                &nbsp;|&nbsp;
-                is_imported = <strong>{{ $ticket->channel === 'imported' ? '✅ TRUE' : '❌ false' }}</strong><br>
-
-                <span style="color:#fbbf24;">[Button akan muncul?]</span>
-                @if($ticket->channel === 'email' || $ticket->email_thread_id)
-                    <strong style="color:#f87171;">❌ NO — masuk kondisi email/thread (tombol tidak muncul)</strong>
-                @elseif($ticket->channel === 'imported')
-                    <strong style="color:#4ade80;">✅ YES — masuk kondisi imported (tombol seharusnya muncul)</strong>
-                @else
-                    <strong style="color:#f87171;">❌ NO — masuk kondisi @@else (web biasa)</strong>
-                @endif
-            </div>
-            {{-- ════════════════════════════════════════════════════════════════════════════ --}}
             <div class="flex items-center pr-3">
                 <div class="flex-1">
                     @if($ticket->channel === 'email' || $ticket->email_thread_id)
@@ -1898,13 +1865,6 @@
     const ticketCustomerId            = {{ $ticket->customer_id ?? 'null' }};
     const currentUserId               = {{ $user->id ?? 'null' }};
     const ticketChannel = @json($ticket->channel ?? 'web');
-    // DEBUG TEMP
-    console.group('%c[DEBUG] Ticket Channel Info', 'color:#6366f1;font-weight:bold');
-    console.log('ticketChannel (JS var):', ticketChannel);
-    console.log('btnStartEmailThread el:', document.getElementById('btnStartEmailThread'));
-    console.log('btnSendInitEmail el   :', document.getElementById('btnSendInitEmail'));
-    console.log('btnCancelInitEmail el :', document.getElementById('btnCancelInitEmail'));
-    console.groupEnd();
     let assignedDsId   = {{ isset($deliverySupport) && $deliverySupport ? $deliverySupport->id : 'null' }};
     const currentTicketLeadId   = {{ $ticket->ticket_lead_id ?? 'null' }};
     const currentTicketLeadName = @json($ticket->ticketLead?->basicData ? trim(($ticket->ticketLead->basicData->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData->last_name ?? '')) : null);
