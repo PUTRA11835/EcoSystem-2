@@ -139,7 +139,15 @@ class TicketDeliverableController extends Controller
 
                 $result  = $oneDrive->uploadFile($deliverableFolderId, $fileName, $fileContent, $mimeType);
                 $fileId  = $result['id'];
-                $fileUrl = $result['webUrl'] ?? $result['downloadUrl'] ?? null;
+
+                // webUrl dari upload adalah path SharePoint langsung — butuh izin akun (Request access).
+                // Buat anonymous share link agar file bisa dibuka customer tanpa login.
+                try {
+                    $fileUrl = $oneDrive->createAnonymousLink($fileId, 'view');
+                } catch (\Throwable $e) {
+                    Log::warning('Deliverable file share link failed', ['ticket_id' => $ticketId, 'error' => $e->getMessage()]);
+                    $fileUrl = $result['webUrl'] ?? $result['downloadUrl'] ?? null;
+                }
             } catch (\Throwable $e) {
                 Log::error('Deliverable upload to OneDrive failed', [
                     'ticket_id' => $ticketId,
