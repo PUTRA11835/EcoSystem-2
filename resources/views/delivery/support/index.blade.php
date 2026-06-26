@@ -1071,7 +1071,7 @@
 
         const optionsMap = {
             'status':   ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold', 'cancelled', 'closed'],
-            'type':     ['AMS', 'MO', 'ATS', 'Project', 'Internal'],
+            'type':     ['AMS', 'MO', 'ATS', 'CR', 'RISE', 'CLOUD', 'POSTPAID', 'Project', 'Internal'],
             'priority': ['Low', 'Medium', 'High'],
         };
 

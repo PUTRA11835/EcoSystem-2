@@ -2897,7 +2897,7 @@ class AdminBackupController extends Controller
             ['Kolom', 'Keterangan'],
             ['Name', 'Nama delivery support (wajib, unik per customer)'],
             ['Customer Code', 'Kode customer (wajib, harus sudah ada di sistem)'],
-            ['Type', 'AMS / MO / ATS / Project / Internal (wajib)'],
+            ['Type', 'AMS / MO / ATS / CR / RISE / CLOUD / POSTPAID / Project / Internal (wajib)'],
             ['Start Date', 'Tanggal mulai, format YYYY-MM-DD (opsional)'],
             ['End Date', 'Tanggal selesai, format YYYY-MM-DD (opsional)'],
             ['Resolution Estimated', 'Estimasi resolusi, format YYYY-MM-DD (opsional)'],
@@ -3034,7 +3034,7 @@ class AdminBackupController extends Controller
             return $emp?->employee_id;
         };
 
-        $validTypes = ['AMS', 'MO', 'ATS', 'Project', 'Internal'];
+        $validTypes = ['AMS', 'MO', 'ATS', 'CR', 'RISE', 'CLOUD', 'POSTPAID', 'Project', 'Internal'];
 
         $imported = 0;
         $skipped  = 0;
@@ -3189,6 +3189,235 @@ class AdminBackupController extends Controller
             'success'  => true,
             'message'  => "Import selesai: {$imported} delivery support ditambahkan" . ($skipped ? ", {$skipped} dilewati" : ''),
             'imported' => $imported,
+            'skipped'  => $skipped,
+            'errors'   => $errors,
+        ]);
+    }
+
+    // ── Template: Employee Qualification ─────────────────────────────────────────
+
+    public function templateEmployeeQualification()
+    {
+        if (!$this->assertAdmin()) abort(403);
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Employee Qualification');
+        $sheet->fromArray([
+            [
+                'Employee ECI', 'Qualification Type', 'Module', 'Language',
+                'Qualification Level', 'First Year',
+                'Certified', 'DPM', 'DSM',
+                'Valid From', 'Valid To',
+                'Drive Link', 'Verify Link',
+            ],
+            [
+                'S10001', 'Certification', 'SAP ABAP', '',
+                'Senior', '2020',
+                'Y', 'N', 'N',
+                '2023-01-01', '2026-01-01',
+                '', '',
+            ],
+        ]);
+        $sheet->getStyle('A1:M1')->getFont()->setBold(true);
+
+        $noteSheet = $spreadsheet->createSheet();
+        $noteSheet->setTitle('Panduan');
+        $noteSheet->fromArray([
+            ['Kolom', 'Keterangan'],
+            ['Employee ECI', 'ECI karyawan (wajib, harus ada di sistem)'],
+            ['Qualification Type', 'Tipe: Education / Certification / Language (opsional)'],
+            ['Module', 'Nama modul, misal: SAP ABAP, SAP MM — dipakai untuk cek duplikat (opsional jika ada Language)'],
+            ['Language', 'Bahasa (diisi jika Qualification Type = Language)'],
+            ['Qualification Level', 'Junior / Senior / Expert dll (opsional)'],
+            ['First Year', 'Tahun mulai (opsional)'],
+            ['Certified', 'Y atau N (opsional)'],
+            ['DPM', 'Y atau N (opsional)'],
+            ['DSM', 'Y atau N (opsional)'],
+            ['Valid From', 'Format YYYY-MM-DD (opsional)'],
+            ['Valid To', 'Format YYYY-MM-DD (opsional)'],
+            ['Drive Link', 'Link Google Drive lampiran (opsional)'],
+            ['Verify Link', 'Link verifikasi eksternal (opsional)'],
+            ['', ''],
+            ['Catatan duplikat', 'Baris dilewati jika ECI + Module sudah ada. Jika Module kosong, cek ECI + Language.'],
+            ['Catatan module', 'Jika Module belum ada di sistem, akan dibuat otomatis.'],
+        ]);
+        $noteSheet->getStyle('A1:B1')->getFont()->setBold(true);
+        foreach (['A', 'B'] as $col) $noteSheet->getColumnDimension($col)->setAutoSize(true);
+        foreach (range('A', 'M') as $col) $sheet->getColumnDimension($col)->setAutoSize(true);
+
+        $spreadsheet->setActiveSheetIndex(0);
+        $writer = new Xlsx($spreadsheet);
+        return response()->stream(
+            fn () => $writer->save('php://output'),
+            200,
+            [
+                'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="Template_Employee_Qualification.xlsx"',
+            ]
+        );
+    }
+
+    // ── Import: Employee Qualification ────────────────────────────────────────────
+
+    public function importEmployeeQualification(\Illuminate\Http\Request $request)
+    {
+        if (!$this->assertAdmin()) return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+
+        set_time_limit(120);
+        $request->validate(['file' => 'required|file|mimes:csv,txt,xlsx|max:10240']);
+
+        $file    = $request->file('file');
+        $ext     = strtolower($file->getClientOriginalExtension());
+        $allRows = $this->readSpreadsheetFile($file->getRealPath(), $ext);
+
+        if (!$allRows || count($allRows) < 2) {
+            return response()->json(['success' => false, 'message' => 'File kosong atau tidak valid'], 422);
+        }
+
+        $rawHeaders = array_shift($allRows);
+        $headerMap  = [];
+        foreach ($rawHeaders as $i => $h) {
+            $headerMap[strtolower(trim((string)$h))] = $i;
+        }
+
+        $aliasMap = [
+            'employee_eci'         => ['employee eci', 'eci', 'employee_eci'],
+            'qualification_type'   => ['qualification type', 'qualification_type', 'tipe', 'type'],
+            'module'               => ['module', 'modul'],
+            'language'             => ['language', 'bahasa'],
+            'qualification_level'  => ['qualification level', 'qualification_level', 'level'],
+            'first_year'           => ['first year', 'first_year', 'tahun'],
+            'certified'            => ['certified', 'sertifikasi'],
+            'dpm'                  => ['dpm'],
+            'dsm'                  => ['dsm'],
+            'valid_from'           => ['valid from', 'valid_from', 'berlaku dari'],
+            'valid_to'             => ['valid to', 'valid_to', 'berlaku sampai'],
+            'drive_link'           => ['drive link', 'drive_link', 'drive'],
+            'verify_link'          => ['verify link', 'verify_link', 'verify'],
+        ];
+
+        $colIdx = [];
+        foreach ($aliasMap as $field => $aliases) {
+            foreach ($aliases as $alias) {
+                if (isset($headerMap[$alias])) { $colIdx[$field] = $headerMap[$alias]; break; }
+            }
+        }
+
+        if (!isset($colIdx['employee_eci'])) {
+            return response()->json(['success' => false, 'message' => 'Kolom wajib tidak ditemukan: "Employee ECI"'], 422);
+        }
+
+        $get = function (string $field, array $row) use ($colIdx): ?string {
+            if (!isset($colIdx[$field])) return null;
+            $val = trim((string)($row[$colIdx[$field]] ?? ''));
+            if ($val !== '' && !mb_check_encoding($val, 'UTF-8')) {
+                $val = mb_convert_encoding($val, 'UTF-8', 'Windows-1252');
+            }
+            return $val !== '' ? $val : null;
+        };
+
+        $toBool = fn(?string $v): ?bool => $v === null ? null : in_array(strtolower($v), ['y', 'yes', '1', 'true']);
+
+        $imported = 0;
+        $updated  = 0;
+        $skipped  = 0;
+        $errors   = [];
+        $rowNum   = 1;
+
+        foreach ($allRows as $row) {
+            $rowNum++;
+            if (count($row) === 1 && trim($row[0] ?? '') === '') continue;
+
+            $eci = $get('employee_eci', $row);
+            if (!$eci) {
+                $errors[] = "Baris {$rowNum}: Employee ECI kosong — dilewati";
+                $skipped++;
+                continue;
+            }
+
+            $employee = DB::table('employee')->where('eci', $eci)->select('employee_id')->first();
+            if (!$employee) {
+                $errors[] = "Baris {$rowNum}: ECI '{$eci}' tidak ditemukan — dilewati";
+                $skipped++;
+                continue;
+            }
+
+            $moduleName = $get('module', $row);
+            $language   = $get('language', $row);
+
+            if (!$moduleName && !$language) {
+                $errors[] = "Baris {$rowNum}: Module dan Language keduanya kosong — dilewati";
+                $skipped++;
+                continue;
+            }
+
+            // Resolve module → auto-create jika belum ada
+            $moduleId = null;
+            if ($moduleName) {
+                $moduleId = DB::table('modules')->where('name', $moduleName)->value('id');
+                if (!$moduleId) {
+                    $moduleId = DB::table('modules')->insertGetId([
+                        'name'       => $moduleName,
+                        'is_active'  => true,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+
+            // Duplikat: ECI + module_id (jika ada module), atau ECI + language (jika tidak ada module)
+            $dupQuery = DB::table('employee_qualification')->where('employee_id', $employee->employee_id);
+            if ($moduleId) {
+                $dupQuery->where('module_id', $moduleId);
+            } else {
+                $dupQuery->whereNull('module_id')->where('language', $language);
+            }
+            $existing = $dupQuery->first();
+
+            $payload = [
+                'employee_id'          => $employee->employee_id,
+                'module_id'            => $moduleId,
+                'qualification_type'   => $get('qualification_type', $row),
+                'language'             => $language,
+                'qualification_level'  => $get('qualification_level', $row),
+                'first_year'           => $get('first_year', $row),
+                'certified'            => $toBool($get('certified', $row)),
+                'dpm'                  => $toBool($get('dpm', $row)),
+                'dsm'                  => $toBool($get('dsm', $row)),
+                'valid_from'           => $this->normalizeDate($get('valid_from', $row)),
+                'valid_to'             => $this->normalizeDate($get('valid_to', $row)),
+                'drive_link'           => $get('drive_link', $row),
+                'verify_link'          => $get('verify_link', $row),
+            ];
+
+            try {
+                if ($existing) {
+                    DB::table('employee_qualification')
+                        ->where('qualification_id', $existing->qualification_id)
+                        ->update(array_merge($payload, ['updated_at' => now()]));
+                    $updated++;
+                } else {
+                    DB::table('employee_qualification')
+                        ->insert(array_merge($payload, ['created_at' => now(), 'updated_at' => now()]));
+                    $imported++;
+                }
+            } catch (\Exception $e) {
+                $errors[] = "Baris {$rowNum}: " . $e->getMessage();
+                $skipped++;
+            }
+        }
+
+        Log::info('AdminBackupController: employee qualification import', [
+            'imported' => $imported, 'updated' => $updated, 'skipped' => $skipped,
+            'by'       => session('user.eci') ?? session('user.name') ?? 'admin',
+        ]);
+
+        return response()->json([
+            'success'  => true,
+            'message'  => "Import selesai: {$imported} ditambahkan, {$updated} diperbarui" . ($skipped ? ", {$skipped} dilewati" : ''),
+            'imported' => $imported,
+            'updated'  => $updated,
             'skipped'  => $skipped,
             'errors'   => $errors,
         ]);

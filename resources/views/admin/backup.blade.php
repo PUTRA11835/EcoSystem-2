@@ -315,7 +315,18 @@
         </div>
     </div>
 
-    {{-- ── Row 4: Employee + Customer (Export & Import) ── --}}
+    {{-- ════════════════════════════════════════════════════════ --}}
+    {{-- IMPORT — Urutan sesuai dependency                       --}}
+    {{-- ════════════════════════════════════════════════════════ --}}
+
+    {{-- ── Step 1: Master Data ── --}}
+    <div class="flex items-center gap-3 pt-1">
+        <span class="flex-shrink-0 w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center justify-center">1</span>
+        <span class="text-sm font-semibold text-gray-600">Master Data</span>
+        <span class="text-xs text-gray-400">— import pertama, tidak ada dependency</span>
+        <div class="flex-1 h-px bg-gray-100"></div>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
         {{-- Employee Card --}}
@@ -332,8 +343,6 @@
                 </div>
             </div>
             <div class="p-5 flex-1 flex flex-col gap-4">
-
-                {{-- Export section --}}
                 <div>
                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Export</p>
                     <div class="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 space-y-1 mb-3">
@@ -346,10 +355,7 @@
                         <i class="fas fa-download text-xs"></i> Download CSV
                     </a>
                 </div>
-
                 <div class="border-t border-gray-100"></div>
-
-                {{-- Import section --}}
                 <div>
                     <div class="flex items-center justify-between mb-2">
                         <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import</p>
@@ -375,7 +381,6 @@
                     </button>
                     <div id="empResult" class="hidden mt-3"></div>
                 </div>
-
             </div>
         </div>
 
@@ -393,8 +398,6 @@
                 </div>
             </div>
             <div class="p-5 flex-1 flex flex-col gap-4">
-
-                {{-- Export section --}}
                 <div>
                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Export</p>
                     <div class="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 space-y-1 mb-3">
@@ -409,10 +412,7 @@
                         <i class="fas fa-download text-xs"></i> Download CSV
                     </a>
                 </div>
-
                 <div class="border-t border-gray-100"></div>
-
-                {{-- Import section --}}
                 <div>
                     <div class="flex items-center justify-between mb-2">
                         <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import</p>
@@ -438,13 +438,230 @@
                     </button>
                     <div id="custResult" class="hidden mt-3"></div>
                 </div>
-
             </div>
         </div>
 
     </div>
 
-    {{-- ── Row 5: Resolution Days + Timesheet Import ── --}}
+    {{-- ── Step 2: Employee Detail ── --}}
+    <div class="flex items-center gap-3">
+        <span class="flex-shrink-0 w-7 h-7 rounded-full bg-purple-100 text-purple-700 text-xs font-bold flex items-center justify-center">2</span>
+        <span class="text-sm font-semibold text-gray-600">Employee Detail</span>
+        <span class="text-xs text-gray-400">— butuh Employee sudah terimport</span>
+        <div class="flex-1 h-px bg-gray-100"></div>
+    </div>
+
+    {{-- Employee Qualification Card --}}
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+        <div class="px-5 pt-5 pb-4 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
+                    <i class="fas fa-award text-purple-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-800">Employee Qualification</h3>
+                    <p class="text-xs text-gray-400">Import data kualifikasi & sertifikasi karyawan dari CSV/Excel</p>
+                </div>
+            </div>
+        </div>
+        <div class="p-5 flex flex-col gap-3">
+            <div class="flex items-center justify-between mb-1">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import</p>
+                <a href="{{ route('admin.import.template.employee-qualification') }}"
+                   class="inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-medium">
+                    <i class="fas fa-file-excel text-xs"></i> Download Template (.xlsx)
+                </a>
+            </div>
+            <div class="bg-purple-50 rounded-xl p-3 text-xs text-purple-700 space-y-0.5">
+                <p class="font-semibold mb-1">Kolom yang diimport:</p>
+                <p class="flex items-center gap-2"><i class="fas fa-check text-purple-400"></i> Employee ECI (wajib) · Module atau Language (salah satu wajib)</p>
+                <p class="flex items-center gap-2"><i class="fas fa-check text-purple-400"></i> Qualification Type · Level · First Year · Certified · DPM · DSM</p>
+                <p class="flex items-center gap-2"><i class="fas fa-check text-purple-400"></i> Valid From / Valid To · Drive Link · Verify Link</p>
+                <p class="text-purple-500 mt-1">Duplikat: ECI + Module. Module baru akan dibuat otomatis jika belum ada.</p>
+            </div>
+            <div id="eqDropzone" class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center text-xs text-gray-400 cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition"
+                onclick="document.getElementById('eqFileInput').click()"
+                ondragover="event.preventDefault();this.classList.add('border-purple-400','bg-purple-50')"
+                ondragleave="this.classList.remove('border-purple-400','bg-purple-50')"
+                ondrop="handleDrop(event,'eq')">
+                <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-1"></i>
+                <p id="eqDropLabel">Drop CSV/Excel di sini atau <span class="text-purple-600 font-medium">browse</span></p>
+                <p id="eqFileName" class="text-gray-500 mt-1 hidden"></p>
+            </div>
+            <input type="file" id="eqFileInput" accept=".csv,.txt,.xlsx" class="hidden" onchange="onFileSelect(event,'eq')">
+            <button id="btnImportEq" onclick="runImport('eq')"
+                class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-purple-100 text-purple-700 text-sm font-medium hover:bg-purple-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled>
+                <i class="fas fa-upload text-xs"></i> Import Employee Qualification
+            </button>
+            <div id="eqResult" class="hidden mt-1"></div>
+        </div>
+    </div>
+
+    {{-- ── Step 3: Customer Detail ── --}}
+    <div class="flex items-center gap-3">
+        <span class="flex-shrink-0 w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">3</span>
+        <span class="text-sm font-semibold text-gray-600">Customer Detail</span>
+        <span class="text-xs text-gray-400">— butuh Customer sudah terimport</span>
+        <div class="flex-1 h-px bg-gray-100"></div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {{-- Delivery Support Card --}}
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+            <div class="px-5 pt-5 pb-4 border-b border-gray-100">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                        <i class="fas fa-headset text-indigo-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800">Delivery Support</h3>
+                        <p class="text-xs text-gray-400">Import data delivery support dari CSV/Excel</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-5 flex flex-col gap-4">
+                <div class="bg-indigo-50 rounded-xl p-3 text-xs text-indigo-700 space-y-0.5">
+                    <p class="font-semibold mb-1">Kolom yang diimport:</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-indigo-400"></i> Name (wajib) · Customer Code (wajib) · Type (wajib)</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-indigo-400"></i> Start Date, End Date, Resolution Estimated</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-indigo-400"></i> Delivery Owner / Support Manager / Co PM / Support Admin / Sales (ECI)</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-indigo-400"></i> Support Method, Total Mandays, Approval, Service Window</p>
+                    <p class="text-indigo-500 mt-1">Type valid: <strong>AMS / MO / ATS / CR / RISE / CLOUD / POSTPAID / Project / Internal</strong>. Setiap import membuat default phase & planning.</p>
+                </div>
+                <div class="flex items-center justify-between">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import</p>
+                    <a href="{{ route('admin.import.template.delivery-support') }}" class="text-xs text-indigo-600 hover:underline flex items-center gap-1">
+                        <i class="fas fa-file-excel text-xs"></i> Download Template (.xlsx)
+                    </a>
+                </div>
+                <div id="dsDropzone"
+                    class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-colors"
+                    onclick="document.getElementById('dsFileInput').click()"
+                    ondragover="event.preventDefault();this.classList.add('border-indigo-400','bg-indigo-50')"
+                    ondragleave="this.classList.remove('border-indigo-400','bg-indigo-50')"
+                    ondrop="handleDrop(event,'ds')">
+                    <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-1"></i>
+                    <p class="text-xs text-gray-400">Drop CSV/Excel here or <span class="text-indigo-600 font-medium">browse</span></p>
+                    <p id="dsFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
+                </div>
+                <input type="file" id="dsFileInput" accept=".csv,.txt,.xlsx" class="hidden" onchange="onFileSelect(event,'ds')">
+                <button id="btnImportDs" onclick="runImport('ds')"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-indigo-100 text-indigo-700 text-sm font-medium hover:bg-indigo-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled>
+                    <i class="fas fa-upload text-xs"></i> Import Delivery Support
+                </button>
+                <div id="dsResult" class="hidden mt-1"></div>
+            </div>
+        </div>
+
+        {{-- Customer Contact Person Card --}}
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+            <div class="px-5 pt-5 pb-4 border-b border-gray-100">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
+                        <i class="fas fa-address-card text-rose-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800">Customer Contact Person</h3>
+                        <p class="text-xs text-gray-400">Import contact person customer dari CSV/Excel</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-5 flex flex-col gap-4">
+                <div class="bg-rose-50 rounded-xl p-3 text-xs text-rose-700 space-y-0.5">
+                    <p class="font-semibold mb-1">Kolom yang diimport:</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-rose-400"></i> Customer Code (wajib) · Full Name (wajib)</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-rose-400"></i> Title, Nick Name, Position, Department</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-rose-400"></i> Email Work, Email Personal, Cell Phone, Telephone</p>
+                    <p class="flex items-center gap-2"><i class="fas fa-check text-rose-400"></i> Preferred Communication, Language, Valid From/To</p>
+                    <p class="text-rose-500 mt-1">Duplikat dicek berdasarkan <strong>Email Work</strong> dalam customer yang sama → diperbarui.</p>
+                </div>
+                <div class="flex items-center justify-between">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import</p>
+                    <a href="{{ route('admin.import.template.customer-contacts') }}" class="text-xs text-rose-600 hover:underline flex items-center gap-1">
+                        <i class="fas fa-file-excel text-xs"></i> Download Template (.xlsx)
+                    </a>
+                </div>
+                <div id="cpDropzone"
+                    class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-rose-400 hover:bg-rose-50 transition-colors"
+                    onclick="document.getElementById('cpFileInput').click()"
+                    ondragover="event.preventDefault();this.classList.add('border-rose-400','bg-rose-50')"
+                    ondragleave="this.classList.remove('border-rose-400','bg-rose-50')"
+                    ondrop="handleDrop(event,'cp')">
+                    <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-1"></i>
+                    <p class="text-xs text-gray-400">Drop CSV/Excel here or <span class="text-rose-600 font-medium">browse</span></p>
+                    <p id="cpFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
+                </div>
+                <input type="file" id="cpFileInput" accept=".csv,.txt,.xlsx" class="hidden" onchange="onFileSelect(event,'cp')">
+                <button id="btnImportCp" onclick="runImport('cp')"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-rose-100 text-rose-700 text-sm font-medium hover:bg-rose-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled>
+                    <i class="fas fa-upload text-xs"></i> Import Contact Person
+                </button>
+                <div id="cpResult" class="hidden mt-1"></div>
+            </div>
+        </div>
+
+    </div>
+
+    {{-- ── Step 4: Ticket Related ── --}}
+    <div class="flex items-center gap-3">
+        <span class="flex-shrink-0 w-7 h-7 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center">4</span>
+        <span class="text-sm font-semibold text-gray-600">Ticket Related</span>
+        <span class="text-xs text-gray-400">— butuh Ticket sudah ada (import via Ticket Data di atas) + Employee</span>
+        <div class="flex-1 h-px bg-gray-100"></div>
+    </div>
+
+    {{-- Ticket Members Card --}}
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+        <div class="px-5 pt-5 pb-4 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
+                    <i class="fas fa-user-tag text-teal-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-800">Ticket Members Import</h3>
+                    <p class="text-xs text-gray-400">Set ticket lead & member dari CSV legacy</p>
+                </div>
+            </div>
+        </div>
+        <div class="p-5 flex flex-col gap-4 max-w-lg">
+            <div class="bg-teal-50 rounded-xl p-3 text-xs text-teal-700 space-y-0.5">
+                <p class="font-semibold mb-1">Format CSV: <span class="font-normal">Tiket · Description · MEMBER · EMP ID</span></p>
+                <p>Baris <strong>pertama</strong> per nomor tiket → dijadikan <strong>Ticket Lead</strong> (ticket_lead_id &amp; PIC)</p>
+                <p>Baris berikutnya → ditambahkan sebagai <strong>Member</strong></p>
+                <p class="text-teal-500 mt-1">Baris tanpa EMP ID / nomor tiket tidak valid otomatis dilewati.</p>
+            </div>
+            <div id="tmDropzone"
+                class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-teal-400 hover:bg-teal-50 transition-colors"
+                onclick="document.getElementById('tmFileInput').click()"
+                ondragover="event.preventDefault();this.classList.add('border-teal-400','bg-teal-50')"
+                ondragleave="this.classList.remove('border-teal-400','bg-teal-50')"
+                ondrop="handleDrop(event,'tm')">
+                <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-1"></i>
+                <p class="text-xs text-gray-400">Drop CSV here or <span class="text-teal-600 font-medium">browse</span></p>
+                <p id="tmFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
+            </div>
+            <input type="file" id="tmFileInput" accept=".csv,.txt" class="hidden" onchange="onFileSelect(event,'tm')">
+            <button id="btnImportTm" onclick="runImport('tm')"
+                class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-teal-100 text-teal-700 text-sm font-medium hover:bg-teal-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled>
+                <i class="fas fa-upload text-xs"></i> Import Ticket Members
+            </button>
+            <div id="tmResult" class="hidden mt-1"></div>
+        </div>
+    </div>
+
+    {{-- ── Step 5: Mandays & Timesheet ── --}}
+    <div class="flex items-center gap-3">
+        <span class="flex-shrink-0 w-7 h-7 rounded-full bg-sky-100 text-sky-700 text-xs font-bold flex items-center justify-center">5</span>
+        <span class="text-sm font-semibold text-gray-600">Mandays & Timesheet</span>
+        <span class="text-xs text-gray-400">— butuh Ticket + Employee sudah terimport</span>
+        <div class="flex-1 h-px bg-gray-100"></div>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
         {{-- Resolution Days Card --}}
@@ -540,147 +757,6 @@
 
     </div>
 
-    {{-- ── Row 6: Ticket Member Import ── --}}
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
-        <div class="px-5 pt-5 pb-4 border-b border-gray-100">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
-                    <i class="fas fa-user-tag text-teal-600"></i>
-                </div>
-                <div>
-                    <h3 class="text-sm font-semibold text-gray-800">Ticket Members Import</h3>
-                    <p class="text-xs text-gray-400">Set ticket lead & member dari CSV legacy</p>
-                </div>
-            </div>
-        </div>
-        <div class="p-5 flex flex-col gap-4 max-w-lg">
-            <div class="bg-teal-50 rounded-xl p-3 text-xs text-teal-700 space-y-0.5">
-                <p class="font-semibold mb-1">Format CSV: <span class="font-normal">Tiket · Description · MEMBER · EMP ID</span></p>
-                <p>Baris <strong>pertama</strong> per nomor tiket → dijadikan <strong>Ticket Lead</strong> (ticket_lead_id &amp; PIC)</p>
-                <p>Baris berikutnya → ditambahkan sebagai <strong>Member</strong></p>
-                <p class="text-teal-500 mt-1">Baris tanpa EMP ID / nomor tiket tidak valid otomatis dilewati.</p>
-            </div>
-            <div id="tmDropzone"
-                class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-teal-400 hover:bg-teal-50 transition-colors"
-                onclick="document.getElementById('tmFileInput').click()"
-                ondragover="event.preventDefault();this.classList.add('border-teal-400','bg-teal-50')"
-                ondragleave="this.classList.remove('border-teal-400','bg-teal-50')"
-                ondrop="handleDrop(event,'tm')">
-                <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-1"></i>
-                <p class="text-xs text-gray-400">Drop CSV here or <span class="text-teal-600 font-medium">browse</span></p>
-                <p id="tmFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
-            </div>
-            <input type="file" id="tmFileInput" accept=".csv,.txt" class="hidden" onchange="onFileSelect(event,'tm')">
-            <button id="btnImportTm" onclick="runImport('tm')"
-                class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-teal-100 text-teal-700 text-sm font-medium hover:bg-teal-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled>
-                <i class="fas fa-upload text-xs"></i> Import Ticket Members
-            </button>
-            <div id="tmResult" class="hidden mt-1"></div>
-        </div>
-    </div>
-
-    {{-- ── Row 7: Delivery Support + Customer Contact Person (2-col) ── --}}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-
-        {{-- Delivery Support Card --}}
-        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
-            <div class="px-5 pt-5 pb-4 border-b border-gray-100">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
-                        <i class="fas fa-headset text-indigo-600"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-semibold text-gray-800">Delivery Support</h3>
-                        <p class="text-xs text-gray-400">Import data delivery support dari CSV/Excel</p>
-                    </div>
-                </div>
-            </div>
-            <div class="p-5 flex flex-col gap-4">
-                <div class="bg-indigo-50 rounded-xl p-3 text-xs text-indigo-700 space-y-0.5">
-                    <p class="font-semibold mb-1">Kolom yang diimport:</p>
-                    <p class="flex items-center gap-2"><i class="fas fa-check text-indigo-400"></i> Name (wajib) · Customer Code (wajib) · Type (wajib)</p>
-                    <p class="flex items-center gap-2"><i class="fas fa-check text-indigo-400"></i> Start Date, End Date, Resolution Estimated</p>
-                    <p class="flex items-center gap-2"><i class="fas fa-check text-indigo-400"></i> Delivery Owner / Support Manager / Co PM / Support Admin / Sales (ECI)</p>
-                    <p class="flex items-center gap-2"><i class="fas fa-check text-indigo-400"></i> Support Method, Total Mandays, Approval, Service Window</p>
-                    <p class="text-indigo-500 mt-1">Type valid: <strong>AMS / MO / ATS / Project / Internal</strong>. Setiap import membuat default phase & planning.</p>
-                </div>
-                <div class="flex items-center justify-between">
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import</p>
-                    <a href="{{ route('admin.import.template.delivery-support') }}" class="text-xs text-indigo-600 hover:underline flex items-center gap-1">
-                        <i class="fas fa-file-excel text-xs"></i> Download Template (.xlsx)
-                    </a>
-                </div>
-                <div id="dsDropzone"
-                    class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-colors"
-                    onclick="document.getElementById('dsFileInput').click()"
-                    ondragover="event.preventDefault();this.classList.add('border-indigo-400','bg-indigo-50')"
-                    ondragleave="this.classList.remove('border-indigo-400','bg-indigo-50')"
-                    ondrop="handleDrop(event,'ds')">
-                    <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-1"></i>
-                    <p class="text-xs text-gray-400">Drop CSV/Excel here or <span class="text-indigo-600 font-medium">browse</span></p>
-                    <p id="dsFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
-                </div>
-                <input type="file" id="dsFileInput" accept=".csv,.txt,.xlsx" class="hidden" onchange="onFileSelect(event,'ds')">
-                <button id="btnImportDs" onclick="runImport('ds')"
-                    class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-indigo-100 text-indigo-700 text-sm font-medium hover:bg-indigo-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled>
-                    <i class="fas fa-upload text-xs"></i> Import Delivery Support
-                </button>
-                <div id="dsResult" class="hidden mt-1"></div>
-            </div>
-        </div>
-
-        {{-- Customer Contact Person Card --}}
-        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col">
-            <div class="px-5 pt-5 pb-4 border-b border-gray-100">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
-                        <i class="fas fa-address-card text-rose-600"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-semibold text-gray-800">Customer Contact Person</h3>
-                        <p class="text-xs text-gray-400">Import contact person customer dari CSV/Excel</p>
-                    </div>
-                </div>
-            </div>
-            <div class="p-5 flex flex-col gap-4">
-                <div class="bg-rose-50 rounded-xl p-3 text-xs text-rose-700 space-y-0.5">
-                    <p class="font-semibold mb-1">Kolom yang diimport:</p>
-                    <p class="flex items-center gap-2"><i class="fas fa-check text-rose-400"></i> Customer Code (wajib) · Full Name (wajib)</p>
-                    <p class="flex items-center gap-2"><i class="fas fa-check text-rose-400"></i> Title, Nick Name, Position, Department</p>
-                    <p class="flex items-center gap-2"><i class="fas fa-check text-rose-400"></i> Email Work, Email Personal, Cell Phone, Telephone</p>
-                    <p class="flex items-center gap-2"><i class="fas fa-check text-rose-400"></i> Preferred Communication, Language, Valid From/To</p>
-                    <p class="text-rose-500 mt-1">Duplikat dicek berdasarkan <strong>Email Work</strong> dalam customer yang sama → diperbarui.</p>
-                </div>
-                <div class="flex items-center justify-between">
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Import</p>
-                    <a href="{{ route('admin.import.template.customer-contacts') }}" class="text-xs text-rose-600 hover:underline flex items-center gap-1">
-                        <i class="fas fa-file-excel text-xs"></i> Download Template (.xlsx)
-                    </a>
-                </div>
-                <div id="cpDropzone"
-                    class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-rose-400 hover:bg-rose-50 transition-colors"
-                    onclick="document.getElementById('cpFileInput').click()"
-                    ondragover="event.preventDefault();this.classList.add('border-rose-400','bg-rose-50')"
-                    ondragleave="this.classList.remove('border-rose-400','bg-rose-50')"
-                    ondrop="handleDrop(event,'cp')">
-                    <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-1"></i>
-                    <p class="text-xs text-gray-400">Drop CSV/Excel here or <span class="text-rose-600 font-medium">browse</span></p>
-                    <p id="cpFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
-                </div>
-                <input type="file" id="cpFileInput" accept=".csv,.txt,.xlsx" class="hidden" onchange="onFileSelect(event,'cp')">
-                <button id="btnImportCp" onclick="runImport('cp')"
-                    class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-rose-100 text-rose-700 text-sm font-medium hover:bg-rose-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled>
-                    <i class="fas fa-upload text-xs"></i> Import Contact Person
-                </button>
-                <div id="cpResult" class="hidden mt-1"></div>
-            </div>
-        </div>
-
-    </div>
-
 </div>
 
 {{-- ── Import Error Detail Modal ── --}}
@@ -711,7 +787,7 @@ function onFileSelect(e, type) {
     if (file) setFile(type, file);
 }
 
-const _xlsxTypes = ['rd', 'ts', 'cp', 'ds'];
+const _xlsxTypes = ['rd', 'ts', 'cp', 'ds', 'eq'];
 
 function handleDrop(e, type) {
     e.preventDefault();
@@ -722,7 +798,9 @@ function handleDrop(e, type) {
         'border-sky-400',     'bg-sky-50',
         'border-amber-400',   'bg-amber-50',
         'border-rose-400',    'bg-rose-50',
-        'border-indigo-400',  'bg-indigo-50'
+        'border-indigo-400',  'bg-indigo-50',
+        'border-teal-400',    'bg-teal-50',
+        'border-purple-400',  'bg-purple-50'
     );
     const file = e.dataTransfer.files[0];
     const isXlsxOk = _xlsxTypes.includes(type);
@@ -742,6 +820,7 @@ const rdFiles = {};
 const tsFiles = {};
 const cpFiles = {};
 const dsFiles = {};
+const eqFiles = {};
 
 function setFile(type, file) {
     if      (type === 'emp')    empFiles.file    = file;
@@ -752,12 +831,13 @@ function setFile(type, file) {
     else if (type === 'ts')     tsFiles.file     = file;
     else if (type === 'cp')     cpFiles.file     = file;
     else if (type === 'ds')     dsFiles.file     = file;
+    else if (type === 'eq')     eqFiles.file     = file;
 
     const nameEl = document.getElementById(type + 'FileName');
     nameEl.textContent = file.name + ' (' + formatBytes(file.size) + ')';
     nameEl.classList.remove('hidden');
 
-    const btnMap = { emp: 'btnImportEmp', cust: 'btnImportCust', ticket: 'btnImportTicket', tm: 'btnImportTm', rd: 'btnImportRd', ts: 'btnImportTs', cp: 'btnImportCp', ds: 'btnImportDs' };
+    const btnMap = { emp: 'btnImportEmp', cust: 'btnImportCust', ticket: 'btnImportTicket', tm: 'btnImportTm', rd: 'btnImportRd', ts: 'btnImportTs', cp: 'btnImportCp', ds: 'btnImportDs', eq: 'btnImportEq' };
     document.getElementById(btnMap[type]).disabled = false;
 
     const result = document.getElementById(type + 'Result');
@@ -783,6 +863,7 @@ async function runImport(type) {
         ts:     tsFiles.file,
         cp:     cpFiles.file,
         ds:     dsFiles.file,
+        eq:     eqFiles.file,
     };
     const btnMap = {
         emp:    'btnImportEmp',
@@ -793,6 +874,7 @@ async function runImport(type) {
         ts:     'btnImportTs',
         cp:     'btnImportCp',
         ds:     'btnImportDs',
+        eq:     'btnImportEq',
     };
     const endpointMap = {
         emp:    '/api/admin/import/employees',
@@ -803,6 +885,7 @@ async function runImport(type) {
         ts:     '/api/admin/import/timesheet',
         cp:     '/api/admin/import/customer-contacts',
         ds:     '/api/admin/import/delivery-support',
+        eq:     '/api/admin/import/employee-qualification',
     };
     const file     = fileMap[type];
     const btnId    = btnMap[type];
@@ -835,7 +918,7 @@ async function runImport(type) {
         showToast('Import failed: ' + e.message, 'error');
     } finally {
         btn.disabled = false;
-        const labelMap = { emp: 'Employee', cust: 'Customer', ticket: 'Tickets', tm: 'Ticket Members', rd: 'Resolution Days', ts: 'Timesheet', cp: 'Contact Person', ds: 'Delivery Support' };
+        const labelMap = { emp: 'Employee', cust: 'Customer', ticket: 'Tickets', tm: 'Ticket Members', rd: 'Resolution Days', ts: 'Timesheet', cp: 'Contact Person', ds: 'Delivery Support', eq: 'Employee Qualification' };
         btn.innerHTML = `<i class="fas fa-upload text-xs"></i> Import ${labelMap[type] ?? type}`;
     }
 }
@@ -864,6 +947,10 @@ function showImportResult(type, json) {
                          <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped ?? 0} dilewati</span>`;
         } else if (type === 'ds') {
             statsHtml = `<span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.imported} ditambahkan</span>
+                         <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped ?? 0} dilewati</span>`;
+        } else if (type === 'eq') {
+            statsHtml = `<span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.imported} ditambahkan</span>
+                         <span class="flex items-center gap-1"><i class="fas fa-sync text-blue-500"></i> ${json.updated} diperbarui</span>
                          <span class="flex items-center gap-1"><i class="fas fa-forward text-gray-400"></i> ${json.skipped ?? 0} dilewati</span>`;
         } else {
             statsHtml = `<span class="flex items-center gap-1"><i class="fas fa-plus-circle text-green-500"></i> ${json.imported} ditambahkan</span>

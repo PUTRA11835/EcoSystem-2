@@ -182,7 +182,8 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/import/template/resolution-days',    [AdminBackupController::class, 'templateResolutionDays'])->name('import.template.resolution-days');
         Route::get('/import/template/timesheet',           [AdminBackupController::class, 'templateTimesheet'])->name('import.template.timesheet');
         Route::get('/import/template/customer-contacts',   [AdminBackupController::class, 'templateCustomerContacts'])->name('import.template.customer-contacts');
-        Route::get('/import/template/delivery-support',    [AdminBackupController::class, 'templateDeliverySupport'])->name('import.template.delivery-support');
+        Route::get('/import/template/delivery-support',       [AdminBackupController::class, 'templateDeliverySupport'])->name('import.template.delivery-support');
+        Route::get('/import/template/employee-qualification', [AdminBackupController::class, 'templateEmployeeQualification'])->name('import.template.employee-qualification');
         Route::post('/import/employees', [AdminBackupController::class, 'importEmployees'])->name('import.employees');
         Route::post('/import/customers', [AdminBackupController::class, 'importCustomers'])->name('import.customers');
         Route::post('/import/tickets',   [AdminBackupController::class, 'importTickets'])->name('import.tickets');
