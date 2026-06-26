@@ -602,6 +602,10 @@
                             <option value="AMS" {{ $support->type == 'AMS' ? 'selected' : '' }}>AMS</option>
                             <option value="MO" {{ $support->type == 'MO' ? 'selected' : '' }}>MO</option>
                             <option value="ATS" {{ $support->type == 'ATS' ? 'selected' : '' }}>ATS</option>
+                            <option value="CR" {{ $support->type == 'CR' ? 'selected' : '' }}>CR</option>
+                            <option value="RISE" {{ $support->type == 'RISE' ? 'selected' : '' }}>RISE</option>
+                            <option value="CLOUD" {{ $support->type == 'CLOUD' ? 'selected' : '' }}>CLOUD</option>
+                            <option value="POSTPAID" {{ $support->type == 'POSTPAID' ? 'selected' : '' }}>POSTPAID</option>
                             <option value="Project" {{ $support->type == 'Project' ? 'selected' : '' }}>Project</option>
                             <option value="Internal" {{ $support->type == 'Internal' ? 'selected' : '' }}>Internal</option>
                         </select>

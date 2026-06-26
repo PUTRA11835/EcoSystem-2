@@ -174,7 +174,7 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 
 document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
-    loadCurrentPeriod();
+    loadCurrentPeriodBadge();
     updateRecapSortVisuals();
 });
 

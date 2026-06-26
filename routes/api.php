@@ -532,8 +532,9 @@ Route::middleware(['web'])->group(function () {
         Route::post('/import/tickets/from-api', [TicketMigrationController::class, 'importFromApi']);
         Route::post('/import/resolution-days',    [AdminBackupController::class, 'importResolutionDays']);
         Route::post('/import/timesheet',           [AdminBackupController::class, 'importTimesheet']);
-        Route::post('/import/customer-contacts',   [AdminBackupController::class, 'importCustomerContacts']);
-        Route::post('/import/delivery-support',    [AdminBackupController::class, 'importDeliverySupport']);
+        Route::post('/import/customer-contacts',      [AdminBackupController::class, 'importCustomerContacts']);
+        Route::post('/import/delivery-support',       [AdminBackupController::class, 'importDeliverySupport']);
+        Route::post('/import/employee-qualification', [AdminBackupController::class, 'importEmployeeQualification']);
 
         // Failed Job Monitor
         Route::get('/failed-jobs', [AdminJobController::class, 'index']);

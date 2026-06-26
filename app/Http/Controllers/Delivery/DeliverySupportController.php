@@ -128,7 +128,7 @@ class DeliverySupportController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'client_id' => 'required|exists:customer,customer_id',
-            'type' => 'required|in:AMS,MO,ATS,Project,Internal',
+            'type' => 'required|in:AMS,MO,ATS,CR,RISE,CLOUD,POSTPAID,Project,Internal',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'resolution_estimated' => 'nullable|date',
@@ -250,7 +250,7 @@ class DeliverySupportController extends Controller
             'service_window_end'   => 'nullable|date_format:H:i|after_or_equal:service_window_start',
         ];
         if ($canEditType) {
-            $rules['type'] = 'required|in:AMS,MO,ATS,Project,Internal';
+            $rules['type'] = 'required|in:AMS,MO,ATS,CR,RISE,CLOUD,POSTPAID,Project,Internal';
         }
 
         $validated = $request->validate($rules);
@@ -359,7 +359,7 @@ class DeliverySupportController extends Controller
                         'service_window_end' => 'nullable|date_format:H:i|after_or_equal:service_window_start',
                     ];
                     if ($canEditType) {
-                        $rules['type'] = 'nullable|in:AMS,MO,ATS,Project,Internal';
+                        $rules['type'] = 'nullable|in:AMS,MO,ATS,CR,RISE,CLOUD,POSTPAID,Project,Internal';
                     }
 
                     $validated = validator($data, $rules)->validate();

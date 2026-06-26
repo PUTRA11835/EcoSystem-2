@@ -4423,7 +4423,7 @@
             // Load modules dari kualifikasi employee
             const modRes  = await fetch(MANDAYS_API('modules'), { headers: getHeaders(), credentials: 'same-origin' });
             const modData = await modRes.json();
-            picMandaysModules = modData.data || [];
+            picMandaysModules = (modData.data || []).map(m => m.name ?? m);
             picRenderMatrix({});
         } catch (e) {
             console.error(e);
@@ -4635,7 +4635,7 @@
 
             // Kolom hanya dari qualification member ticket
             // Jika belum diisi di master data, PIC tambah manual via "+ Column"
-            picMandaysModules = modData.data || [];
+            picMandaysModules = (modData.data || []).map(m => m.name ?? m);
 
             picRenderMatrix(valueMap);
         } catch (e) {

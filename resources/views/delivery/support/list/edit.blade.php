@@ -154,7 +154,7 @@
                                 </button>
                                 <input type="hidden" name="type" id="type" value="{{ $typeVal }}" required>
                                 <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
-                                    @foreach(['AMS','MO','ATS','Project','Internal'] as $t)
+                                    @foreach(['AMS','MO','ATS','CR','RISE','CLOUD','POSTPAID','Project','Internal'] as $t)
                                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $t }}">{{ $t }}</button>
                                     @endforeach
                                 </div>
