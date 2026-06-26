@@ -99,6 +99,7 @@ class CustomerBasicDataController extends Controller
 
         $validator = Validator::make($request->all(), [
             'customer_code'        => ['sometimes', 'required', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/', 'unique:customer,customer_code,' . $customerId . ',customer_id'],
+            'email'                => 'nullable|email|max:255|unique:customer,email,' . $customerId . ',customer_id',
             'domain'               => 'nullable|string|max:255',
             'name_1'               => 'required|string|max:255',
             'name_2'               => 'nullable|string|max:255',
@@ -156,6 +157,15 @@ class CustomerBasicDataController extends Controller
                 DB::table('customer')
                     ->where('customer_id', $customerId)
                     ->update(['domain' => \App\Models\Customer::normalizeDomain($request->domain)]);
+            }
+
+            // Company Email (customer.email) — pakai has() agar bisa dikosongkan juga.
+            // Inilah satu-satunya tempat edit email perusahaan yang dibuat saat
+            // create/import customer.
+            if ($request->has('email')) {
+                DB::table('customer')
+                    ->where('customer_id', $customerId)
+                    ->update(['email' => $request->email ?: null]);
             }
 
             // Parent Customer — dapat ditambah/dihapus saat edit (string kosong = hapus)

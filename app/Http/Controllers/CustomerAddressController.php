@@ -10,8 +10,14 @@ use Illuminate\Support\Facades\Validator;
 class CustomerAddressController extends Controller
 {
     /**
-     * Sync customer.email from the first address that has an email.
-     * Called after any address create/update/delete.
+     * Sync customer.email dari alamat pertama yang punya email.
+     * Dipanggil setelah create/update/delete alamat.
+     *
+     * PENTING: bersifat non-destruktif. customer.email adalah "Company Email"
+     * yang bisa di-set mandiri lewat form Create Customer atau import (kolom
+     * "Email"). Kalau tidak ada satu pun alamat yang punya email, JANGAN
+     * mengosongkan customer.email — kalau tidak, sekadar edit/hapus alamat akan
+     * menghapus Company Email yang diimport (hilang dari list & header).
      */
     private function syncCustomerEmail(int $customerId): void
     {
@@ -22,9 +28,13 @@ class CustomerAddressController extends Controller
             ->orderBy('address_id', 'asc')
             ->value('email');
 
-        DB::table('customer')
-            ->where('customer_id', $customerId)
-            ->update(['email' => $email ?: null]);
+        // Hanya update bila ada email alamat yang ditemukan; jika tidak,
+        // pertahankan Company Email yang sudah ada.
+        if ($email) {
+            DB::table('customer')
+                ->where('customer_id', $customerId)
+                ->update(['email' => $email]);
+        }
     }
 
     /**
@@ -279,6 +289,8 @@ class CustomerAddressController extends Controller
                     'rural_urban_village' => $request->rural_urban_village,
                     'street' => $request->street,
                     'house_number' => $request->house_number,
+                    'building_name' => $request->building_name,
+                    'full_address' => $request->full_address,
                     'postal_code' => $request->postal_code,
                     'language' => $request->language,
                     'cell_phone_country' => $request->cell_phone_country,

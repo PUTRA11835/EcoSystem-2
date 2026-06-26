@@ -20,6 +20,16 @@
                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent uppercase">
             </div>
 
+            <!-- Company Email (customer.email — kontak perusahaan; tampil di list & header).
+                 id sengaja 'companyEmail' (BUKAN 'email') agar tidak bentrok dengan
+                 field Email di section Address yang berbagi halaman. -->
+            <div class="col-span-2">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Company Email</label>
+                <input type="email" id="companyEmail" value="{{ $customer->email ?? '' }}"
+                    placeholder="info@company.com (optional)"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+
             <!-- Email Domain (filter inbox emails for ticket validation by sender domain) -->
             <div class="col-span-2">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Email Domain</label>
@@ -64,15 +74,15 @@
                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
 
-            <!-- Name 2 (di bawah Name 1) -->
-            <div class="col-span-2 row-start-2 col-start-3">
+            <!-- Name 2 -->
+            <div class="col-span-2">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Name 2</label>
                 <input type="text" id="name2" value="{{ $customer->basicData->name_2 ?? '' }}" 
                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
 
-            <!-- Search Term 2 (di bawah Search Term 1) -->
-            <div class="col-span-1 row-start-2 col-start-5">
+            <!-- Search Term 2 -->
+            <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Search Term 2</label>
                 <input type="text" id="searchTerm2" value="{{ $customer->basicData->search_term_2 ?? '' }}" 
                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
