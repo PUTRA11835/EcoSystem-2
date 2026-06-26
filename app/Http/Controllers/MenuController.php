@@ -29,7 +29,7 @@ class MenuController extends Controller
 
         $employee = Employee::find($user['id']);
         if (!$employee) {
-            return response()->json(['success' => false, 'message' => 'Employee tidak ditemukan.'], 404);
+            return response()->json(['success' => false, 'message' => 'Employee not found.'], 404);
         }
 
         $menus = $employee->accessibleMenus();
@@ -114,7 +114,7 @@ class MenuController extends Controller
     {
         $menu = Menu::findOrFail($menuId);
         $menu->delete();
-        return response()->json(['success' => true, 'message' => 'Menu berhasil dihapus.']);
+        return response()->json(['success' => true, 'message' => 'Menu deleted successfully.']);
     }
 
     // ── Menu ↔ Role permissions ──────────────────────────────────────────────────
@@ -137,7 +137,7 @@ class MenuController extends Controller
 
         $this->flushPermCacheForRole((int) $roleId);
 
-        return response()->json(['success' => true, 'message' => 'Permission berhasil diperbarui.']);
+        return response()->json(['success' => true, 'message' => 'Permission updated successfully.']);
     }
 
     public function removeRolePermission($menuId, $roleId)
@@ -147,7 +147,7 @@ class MenuController extends Controller
 
         $this->flushPermCacheForRole((int) $roleId);
 
-        return response()->json(['success' => true, 'message' => 'Akses role dari menu berhasil dicabut.']);
+        return response()->json(['success' => true, 'message' => 'Role access to the menu revoked successfully.']);
     }
 
     // ── Helper ───────────────────────────────────────────────────────────────────
@@ -156,7 +156,7 @@ class MenuController extends Controller
     {
         $role = EmployeeRole::find($roleId);
         if ($role) {
-            $role->employees()->pluck('employee_id')->each(function ($empId) {
+            $role->employees()->pluck('employee.employee_id')->each(function ($empId) {
                 Cache::forget("perm_slugs_{$empId}");
             });
         }

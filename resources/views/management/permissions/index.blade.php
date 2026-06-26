@@ -1,12 +1,12 @@
 @extends('dashboard')
 
-@section('title', 'Akses Menu')
-@section('page-title', 'Akses Menu')
+@section('title', 'Menu Access')
+@section('page-title', 'Menu Access')
 
 @section('content')
 <div class="bg-white rounded-xl p-6 shadow-sm">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b-2 border-gray-100">
-        <h2 class="text-2xl font-bold text-gray-900">Daftar Menu</h2>
+        <h2 class="text-2xl font-bold text-gray-900">Menu List</h2>
         <div class="flex gap-2">
             <button onclick="expandAll()" class="px-3 py-2 text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-200 transition-all">
                 <i class="fas fa-plus-square mr-1"></i> Expand All
@@ -19,7 +19,7 @@
 
     <!-- Filter -->
     <div class="flex gap-3 mb-5">
-        <input type="text" id="filterSearch" placeholder="Cari nama menu..."
+        <input type="text" id="filterSearch" placeholder="Search menu name..."
             oninput="applyFilter()"
             class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
         <button onclick="resetFilter()"
@@ -31,15 +31,15 @@
     <!-- List -->
     <div class="border border-gray-200 rounded-lg overflow-hidden">
         <div id="menuList" class="divide-y divide-gray-100">
-            <div class="px-4 py-10 text-center text-gray-400 text-sm">Memuat data...</div>
+            <div class="px-4 py-10 text-center text-gray-400 text-sm">Loading...</div>
         </div>
     </div>
 
     <!-- Legend -->
     <div class="mt-4 flex items-center gap-6 text-xs text-gray-400">
         <span class="flex items-center gap-1.5"><i class="fas fa-layer-group text-purple-400"></i> Group</span>
-        <span class="flex items-center gap-1.5"><i class="fas fa-file-alt text-blue-400"></i> Halaman</span>
-        <span class="flex items-center gap-1.5"><i class="fas fa-bolt text-orange-400"></i> Fungsi / Tombol</span>
+        <span class="flex items-center gap-1.5"><i class="fas fa-file-alt text-blue-400"></i> Page</span>
+        <span class="flex items-center gap-1.5"><i class="fas fa-bolt text-orange-400"></i> Function / Button</span>
     </div>
 </div>
 
@@ -74,7 +74,7 @@ function renderList() {
     });
 
     if (!hasAny) {
-        container.innerHTML = '<div class="px-4 py-10 text-center text-gray-400 text-sm">Tidak ada menu ditemukan.</div>';
+        container.innerHTML = '<div class="px-4 py-10 text-center text-gray-400 text-sm">No menus found.</div>';
     }
 }
 

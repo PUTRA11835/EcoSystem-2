@@ -1278,6 +1278,7 @@ class TicketMessageController extends Controller
                 'error'     => $e->getMessage(),
                 'error_at'  => $e->getFile() . ':' . $e->getLine(),
             ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to send email: ' . $e->getMessage(),

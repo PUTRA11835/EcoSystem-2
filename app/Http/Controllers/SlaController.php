@@ -40,10 +40,6 @@ class SlaController extends Controller
 
     public function configPage()
     {
-        if (!$this->assertSlaAccess()) {
-            abort(403);
-        }
-
         $canManage        = $this->canManagePolicies();
         $deliverySupports = DeliverySupport::orderBy('name')->get(['id', 'name', 'type']);
         return view('admin.sla.config', compact('deliverySupports', 'canManage'));
@@ -51,10 +47,6 @@ class SlaController extends Controller
 
     public function reportPage()
     {
-        if (!$this->assertSlaAccess()) {
-            abort(403);
-        }
-
         $customers = \App\Models\Customer::with('basicData')->where('is_active', true)->get();
         return view('admin.sla.report', compact('customers'));
     }

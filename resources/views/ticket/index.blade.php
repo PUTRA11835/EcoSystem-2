@@ -23,9 +23,7 @@
                 <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
             </button>
         </div>
-        @endif
-
-        @if($user->hasRole(\App\Enums\RoleId::DELIVERY_HELPDESK->value))
+        @elseif($user->hasRole(\App\Enums\RoleId::DELIVERY_HELPDESK->value))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
             <button onclick="toggleView('all')" id="btnViewAllHd" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
                 <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
@@ -34,9 +32,7 @@
                 <i class="fas fa-user-clock text-[10px] mr-1"></i>Unassigned
             </button>
         </div>
-        @endif
-
-        @if($user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value))
+        @elseif($user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
             <button onclick="toggleView('my')" id="btnViewMy" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 active">My Tickets</button>
             <button onclick="toggleView('all')" id="btnViewAll" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">All Tickets</button>
@@ -163,24 +159,16 @@
                                 <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Tiket</span>
                                 <svg id="ticketFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                                 <svg id="ticketFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
-                                <span id="sort-icon-ticket_number" class="sort-icon text-gray-300 font-normal normal-case tracking-normal text-xs ml-auto">⇅</span>
+                                <span id="sort-icon-ticket_number" onclick="event.stopPropagation(); sortTickets('ticket_number')" title="Click to toggle sort (descending ↔ ascending)" class="sort-icon cursor-pointer text-gray-300 font-normal normal-case tracking-normal text-xs ml-auto hover:text-red-500 transition-colors">⇅</span>
                             </button>
                             <div id="ticketFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
                                 <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search ticket number</label>
                                 <input type="text" id="ticketFilterInput" placeholder="e.g. TKT-2024-001…"
                                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
                                        oninput="onTicketFilterInput()">
-                                <p class="text-[10px] text-gray-400 mt-1.5">Matches tickets whose number contains this text.</p>
-                                <div class="border-t border-gray-100 mt-3 pt-2">
-                                    <span class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sort</span>
-                                    <div class="flex gap-2">
-                                        <button type="button" onclick="setTicketNumberSort('asc')"  id="ticketSortAsc"  class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↑ Ascending</button>
-                                        <button type="button" onclick="setTicketNumberSort('desc')" id="ticketSortDesc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↓ Descending</button>
-                                    </div>
-                                </div>
+                                <p class="text-[10px] text-gray-400 mt-1.5">Matches tickets whose number contains this text. Use the ⇅ icon in the header to sort.</p>
                                 <div class="flex justify-end gap-2 mt-3">
                                     <button type="button" onclick="clearTicketFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
-                                    <button type="button" onclick="closeTicketFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
                                 </div>
                             </div>
                         </th>
@@ -200,7 +188,6 @@
                                 <p class="text-[10px] text-gray-400 mt-1.5">Matches any ticket whose description contains this text.</p>
                                 <div class="flex justify-end gap-2 mt-3">
                                     <button type="button" onclick="clearDescFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
-                                    <button type="button" onclick="closeDescFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
                                 </div>
                             </div>
                         </th>
@@ -211,27 +198,21 @@
                                 <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Date</span>
                                 <svg id="dateFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                                 <svg id="dateFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                                <span id="sort-icon-date" onclick="event.stopPropagation(); sortTickets('date')" title="Click to toggle sort (descending ↔ ascending)" class="sort-icon cursor-pointer text-gray-300 font-normal normal-case tracking-normal text-xs ml-auto hover:text-red-500 transition-colors">⇅</span>
                             </button>
                             <div id="dateFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:240px;">
                                 <div class="space-y-2">
                                     <div>
                                         <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">From</label>
                                         <input type="date" id="dateFilterFrom"
-                                               class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                               class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
                                     </div>
                                     <div>
                                         <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</label>
                                         <input type="date" id="dateFilterTo"
-                                               class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                               class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
                                     </div>
                                     <p id="dateFilterError" class="hidden text-xs text-red-500">"To" must be on/after "From".</p>
-                                </div>
-                                <div class="border-t border-gray-100 mt-3 pt-2">
-                                    <span class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sort</span>
-                                    <div class="flex gap-2">
-                                        <button type="button" onclick="setDateSort('asc')"  id="dateSortAsc"  class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↑ Ascending</button>
-                                        <button type="button" onclick="setDateSort('desc')" id="dateSortDesc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↓ Descending</button>
-                                    </div>
                                 </div>
                                 <div class="flex justify-end gap-2 mt-3">
                                     <button type="button" onclick="clearDateFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
@@ -1308,7 +1289,6 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         if (open) { panel.classList.add('hidden'); return; }
         positionPanelUnder(btn, panel);
         panel.classList.remove('hidden');
-        updateDateSortButtons();
     }
 
     function applyDateFilter() {
@@ -1325,36 +1305,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         document.getElementById('dateFilterFrom').value = '';
         document.getElementById('dateFilterTo').value   = '';
         document.getElementById('dateFilterError').classList.add('hidden');
-        resetSort();
         applyAdvancedFilters();
-    }
-
-    function setDateSort(dir) {
-        currentTicketSort = { key: 'date', dir };
-        updateTicketSortIcons();
-        updateDateSortButtons();
-        updateTicketNumberSortButtons();
-        renderTickets();
-    }
-
-    function resetSort() {
-        currentTicketSort = { key: 'last_update', dir: 'desc' };
-        updateTicketSortIcons();
-        updateDateSortButtons();
-        updateTicketNumberSortButtons();
-        renderTickets();
-    }
-
-    function updateDateSortButtons() {
-        const asc  = document.getElementById('dateSortAsc');
-        const desc = document.getElementById('dateSortDesc');
-        if (!asc || !desc) return;
-        const isDateSort = currentTicketSort.key === 'date';
-        const activeCls   = ['bg-red-700','text-white','border-red-700','hover:bg-red-800'];
-        const inactiveCls = ['border-gray-200','hover:bg-gray-50'];
-        [asc, desc].forEach(b => { activeCls.forEach(c => b.classList.remove(c)); inactiveCls.forEach(c => b.classList.add(c)); });
-        if (isDateSort && currentTicketSort.dir === 'asc')  { inactiveCls.forEach(c => asc.classList.remove(c));  activeCls.forEach(c => asc.classList.add(c));  }
-        if (isDateSort && currentTicketSort.dir === 'desc') { inactiveCls.forEach(c => desc.classList.remove(c)); activeCls.forEach(c => desc.classList.add(c)); }
     }
 
     function updateDateFilterIndicator() {
@@ -1405,26 +1356,6 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         if (icon) icon.classList.toggle('text-gray-300', kw === '');
     }
 
-    function setTicketNumberSort(dir) {
-        currentTicketSort = { key: 'ticket_number', dir };
-        updateTicketSortIcons();
-        updateTicketNumberSortButtons();
-        updateDateSortButtons();
-        renderTickets();
-    }
-
-    function updateTicketNumberSortButtons() {
-        const asc  = document.getElementById('ticketSortAsc');
-        const desc = document.getElementById('ticketSortDesc');
-        if (!asc || !desc) return;
-        const isKey       = currentTicketSort.key === 'ticket_number';
-        const activeCls   = ['bg-red-700','text-white','border-red-700','hover:bg-red-800'];
-        const inactiveCls = ['border-gray-200','hover:bg-gray-50'];
-        [asc, desc].forEach(b => { activeCls.forEach(c => b.classList.remove(c)); inactiveCls.forEach(c => b.classList.add(c)); });
-        if (isKey && currentTicketSort.dir === 'asc')  { inactiveCls.forEach(c => asc.classList.remove(c));  activeCls.forEach(c => asc.classList.add(c));  }
-        if (isKey && currentTicketSort.dir === 'desc') { inactiveCls.forEach(c => desc.classList.remove(c)); activeCls.forEach(c => desc.classList.add(c)); }
-    }
-
     // ── Ticket Number Keyword Filter (debounced) ──────────────────────────
     let _ticketFilterTimer = null;
     function toggleTicketFilter(ev) {
@@ -1439,7 +1370,6 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         if (panel.parentElement !== document.body) document.body.appendChild(panel);
         positionPanelUnder(btn, panel);
         panel.classList.remove('hidden');
-        updateTicketNumberSortButtons();
         document.getElementById('ticketFilterInput')?.focus();
     }
 
@@ -1455,7 +1385,6 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     function clearTicketFilter() {
         const input = document.getElementById('ticketFilterInput');
         if (input) input.value = '';
-        resetSort();
         applyAdvancedFilters();
     }
 
@@ -1494,6 +1423,24 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         }
     });
 
+    // Close popovers on any scroll outside the panel (table scroll, page scroll,
+    // window resize). These panels are position:fixed, so scrolling would leave
+    // them floating detached from their header — close them instead of letting
+    // them collide with the view.
+    function _closeTicketHeaderPanels() {
+        document.getElementById('dateFilterPanel')?.classList.add('hidden');
+        document.getElementById('descFilterPanel')?.classList.add('hidden');
+        document.getElementById('ticketFilterPanel')?.classList.add('hidden');
+    }
+    window.addEventListener('scroll', (e) => {
+        // Ignore scrolling that happens inside one of the open panels themselves.
+        const t = e.target;
+        if (t && t.nodeType === 1 && t.closest && (
+            t.closest('#dateFilterPanel') || t.closest('#descFilterPanel') || t.closest('#ticketFilterPanel'))) return;
+        _closeTicketHeaderPanels();
+    }, true);
+    window.addEventListener('resize', _closeTicketHeaderPanels);
+
     function resetFilters() {
         const colFilterIds = ['colFilterCustomer','colFilterPic','colFilterPriority','colFilterScale','colFilterStatus','colFilterType'];
         const colDdIds     = ['ddColFilterCustomer','ddColFilterPic','ddColFilterPriority','ddColFilterScale','ddColFilterStatus','ddColFilterType'];
@@ -1513,7 +1460,6 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
         currentTicketSort = { key: 'last_update', dir: 'desc' };
         updateTicketSortIcons();
-        updateDateSortButtons();
 
         currentFilter = 'all';
         filterTickets('all');
@@ -1713,7 +1659,8 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         form.append('customer_id',     document.getElementById('newCustomerId').value);
         form.append('ticket_type',     ticketTypeVal);
         form.append('cc_emails',       document.getElementById('newCcEmails').value || '');
-        form.append('scale',           document.getElementById('newScale').value || '');
+        const scaleVal = document.getElementById('newScale').value;
+        if (scaleVal) form.append('scale', scaleVal);
         form.append('name',            document.getElementById('newName').value || '');
         form.append('no_hp',           document.getElementById('newNoHp').value || '');
         form.append('module',          document.getElementById('newModule').value || '');

@@ -236,7 +236,8 @@ class TicketMigrationController extends Controller
                             'updated_at'              => now(),
                         ];
 
-                        $existing = DB::table('ticket')->where('ticket_number', $ticketNum)->first();
+                        $existing    = DB::table('ticket')->where('ticket_number', $ticketNum)->first();
+                        $isNewTicket = !$existing;
 
                         if ($existing) {
                             $ticketId = $existing->ticket_id;
@@ -246,6 +247,12 @@ class TicketMigrationController extends Controller
                             $ticketId = DB::table('ticket')->insertGetId($ticketData);
                             $imported++;
                         }
+
+                        // Restore members & messages only for new tickets.
+                        // Skipping for existing tickets prevents imported messages
+                        // from contaminating a ticket's room chat with messages that
+                        // belong to a different context (the source system).
+                        if (!$isNewTicket) return;
 
                         // Restore members
                         foreach ($t['members'] ?? [] as $member) {
@@ -270,14 +277,18 @@ class TicketMigrationController extends Controller
 
                         // Restore messages
                         foreach ($t['messages'] ?? [] as $msgData) {
-                            // Dedup: match by ticket + created_at + sender_email
-                            $alreadyExists = DB::table('ticket_message')
+                            // Dedup: match by ticket_id + created_at + sender_email
+                            $dedupQuery = DB::table('ticket_message')
                                 ->where('ticket_id', $ticketId)
-                                ->where('created_at', $msgData['created_at'] ?? null)
-                                ->where('sender_email', $msgData['sender_email'] ?? '')
-                                ->exists();
+                                ->where('created_at', $msgData['created_at'] ?? null);
+                            $senderEmail = $msgData['sender_email'] ?? null;
+                            if ($senderEmail === null || $senderEmail === '') {
+                                $dedupQuery->whereNull('sender_email');
+                            } else {
+                                $dedupQuery->where('sender_email', $senderEmail);
+                            }
 
-                            if ($alreadyExists) continue;
+                            if ($dedupQuery->exists()) continue;
 
                             $newMsgId = DB::table('ticket_message')->insertGetId([
                                 'ticket_id'              => $ticketId,

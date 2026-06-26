@@ -1,6 +1,6 @@
 @extends('dashboard')
 @section('title', 'MD Recap')
-@section('page-title', 'Reporting')
+@section('page-title', 'MD Recap')
 @section('page-subtitle', 'MD Recap — mandays by employee and mode')
 
 @section('content')
@@ -95,7 +95,6 @@
                                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
                                 <div class="flex justify-end gap-2 mt-2">
                                     <button type="button" onclick="clearRecapTextPanel('Name')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
-                                    <button type="button" onclick="closeRecapTextPanel('Name')" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
                                 </div>
                             </div>
                         </th>
@@ -115,20 +114,12 @@
                             </div>
                         </th>
                         {{-- Mandays: sort panel --}}
-                        <th class="p-0 text-center whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:110px; position:relative;">
-                            <button type="button" onclick="toggleRecapMdSortPanel(event)" class="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:110px; position:relative;">
+                            <button type="button" onclick="toggleRecapMdSort()" title="Click to toggle sort (descending ↔ ascending)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                 <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Mandays</span>
                                 <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
-                                <span id="recapSortMdIcon" class="text-[10px] text-gray-300 font-bold shrink-0"></span>
+                                <span id="recapSortMdIcon" class="text-[10px] text-red-500 font-bold shrink-0"></span>
                             </button>
-                            <div id="recapMdSortPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:180px;">
-                                <span class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sort</span>
-                                <div class="flex gap-2 mb-2">
-                                    <button type="button" onclick="setRecapSort('mandays','asc')" id="recapSortMdAsc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↑ Ascending</button>
-                                    <button type="button" onclick="setRecapSort('mandays','desc')" id="recapSortMdDesc" class="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50">↓ Descending</button>
-                                </div>
-                                <div class="flex justify-end"><button type="button" onclick="closeRecapMdSortPanel()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button></div>
-                            </div>
                         </th>
                     </tr>
                 </thead>
@@ -183,19 +174,27 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 
 document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
-    loadCurrentPeriod();
+    loadCurrentPeriodBadge();
     updateRecapSortVisuals();
 });
 
 document.addEventListener('click', function(e) {
-    if (!e.target.closest('[id^="recapTextPanel_"]') && !e.target.closest('#recapMdSortPanel') &&
-        !e.target.closest('[onclick*="toggleRecapTextPanel"]') && !e.target.closest('[onclick*="toggleRecapMdSortPanel"]')) {
-        closeRecapMdSortPanel();
+    if (!e.target.closest('[id^="recapTextPanel_"]') &&
+        !e.target.closest('[onclick*="toggleRecapTextPanel"]')) {
         closeRecapTextPanelAll();
     }
 });
 
-async function loadCurrentPeriod() {
+// Tutup panel search saat scroll di luar panel atau resize — panel pakai posisi
+// absolute terhadap header sehingga scroll bikin tidak sinkron dengan view.
+window.addEventListener('scroll', function(e) {
+    const t = e.target;
+    if (t && t.nodeType === 1 && t.closest && t.closest('[id^="recapTextPanel_"]')) return;
+    closeRecapTextPanelAll();
+}, true);
+window.addEventListener('resize', closeRecapTextPanelAll);
+
+async function loadCurrentPeriodBadge() {
     try {
         const res  = await fetch('/api/reporting/current-period', {
             headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },
@@ -269,7 +268,6 @@ function resetRecap() {
     recapSortDir = null;
     updateRecapSortVisuals();
     _updateRecapFilterIcons();
-    closeRecapMdSortPanel();
     closeRecapTextPanelAll();
     applyRecapFilter();
 }
@@ -281,24 +279,18 @@ function applyRecapFilter() {
 
 // ── Sort & panel helpers ──────────────────────────────────────────────────────
 
-function setRecapSort(key, dir) {
-    recapSortKey = key;
-    recapSortDir = dir;
+// Klik header Mandays → toggle langsung antara descending (default) ↔ ascending.
+function toggleRecapMdSort() {
+    recapSortKey = 'mandays';
+    recapSortDir = recapSortDir === 'asc' ? 'desc' : 'asc';
     updateRecapSortVisuals();
-    closeRecapMdSortPanel();
+    closeRecapTextPanelAll();
     renderRecap();
 }
 
 function updateRecapSortVisuals() {
     const icon = document.getElementById('recapSortMdIcon');
     if (icon) icon.textContent = recapSortKey === 'mandays' ? (recapSortDir === 'asc' ? '↑' : '↓') : '';
-    const _btn = (id, active) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.className = `flex-1 px-2 py-1 text-xs border rounded-md hover:bg-gray-50 transition-colors ${active ? 'border-red-400 bg-red-50 text-red-700 font-semibold' : 'border-gray-200'}`;
-    };
-    _btn('recapSortMdAsc',  recapSortKey === 'mandays' && recapSortDir === 'asc');
-    _btn('recapSortMdDesc', recapSortKey === 'mandays' && recapSortDir === 'desc');
 }
 
 function _updateRecapFilterIcons() {
@@ -310,38 +302,18 @@ function _updateRecapFilterIcons() {
     icon.classList.toggle('text-gray-300', !active);
 }
 
-function toggleRecapMdSortPanel(event) {
-    event.stopPropagation();
-    const panel = document.getElementById('recapMdSortPanel');
-    if (!panel) return;
-    const wasHidden = panel.classList.contains('hidden');
-    closeRecapMdSortPanel(); closeRecapTextPanelAll();
-    if (typeof _closeAllDropdowns === 'function') _closeAllDropdowns();
-    if (wasHidden) panel.classList.remove('hidden');
-}
-
-function closeRecapMdSortPanel() {
-    const p = document.getElementById('recapMdSortPanel');
-    if (p) p.classList.add('hidden');
-}
-
 function toggleRecapTextPanel(event, key) {
     event.stopPropagation();
     const panel = document.getElementById('recapTextPanel_' + key);
     if (!panel) return;
     const wasHidden = panel.classList.contains('hidden');
-    closeRecapMdSortPanel(); closeRecapTextPanelAll();
+    closeRecapTextPanelAll();
     if (typeof _closeAllDropdowns === 'function') _closeAllDropdowns();
     if (wasHidden) {
         panel.classList.remove('hidden');
         const inp = panel.querySelector('input[type="text"]');
         if (inp) setTimeout(() => inp.focus(), 30);
     }
-}
-
-function closeRecapTextPanel(key) {
-    const p = document.getElementById('recapTextPanel_' + key);
-    if (p) p.classList.add('hidden');
 }
 
 function closeRecapTextPanelAll() {
