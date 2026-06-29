@@ -1197,10 +1197,12 @@
         // Use <audio> element — simpler and respects Chrome's per-origin user activation,
         // meaning it works even when triggered by push/postMessage without a direct click.
         var _defaultSoundFile = 'mixkit-software-interface-back-2575.wav';
-        var _audioTicket = new Audio('/sounds/' + _defaultSoundFile);
-        var _audioChat   = new Audio('/sounds/' + _defaultSoundFile);
-        _audioTicket.preload = 'auto';
-        _audioChat.preload   = 'auto';
+        var _audioTicket  = new Audio('/sounds/' + _defaultSoundFile);
+        var _audioChat    = new Audio('/sounds/' + _defaultSoundFile);
+        var _audioStaging = new Audio('/sounds/' + _defaultSoundFile);
+        _audioTicket.preload  = 'auto';
+        _audioChat.preload    = 'auto';
+        _audioStaging.preload = 'auto';
 
         // ── Browser autoplay unlock ──────────────────────────────────────────
         // Browsers block audio.play() until the user has interacted with the page
@@ -1210,7 +1212,7 @@
         function _unlockAudio() {
             if (_audioUnlocked) return;
             _audioUnlocked = true;
-            [_audioTicket, _audioChat].forEach(function (el) {
+            [_audioTicket, _audioChat, _audioStaging].forEach(function (el) {
                 var prev = el.volume;
                 el.volume = 0;
                 el.play().then(function () {
@@ -1243,22 +1245,15 @@
             if (audioEl.src !== expected) {
                 audioEl.src = '/sounds/' + file;
                 audioEl.load();
-                // After src change, re-warm the element if user has already interacted
-                if (_audioUnlocked) {
-                    audioEl.play().then(function () {
-                        audioEl.pause();
-                        audioEl.currentTime = 0;
-                    }).catch(function () {});
-                    return;
-                }
             }
             audioEl.currentTime = 0;
             audioEl.play().catch(function () {});
         }
 
-        function playTicketSound() { _playAudioEl(_audioTicket, 'notif_sound_ticket'); }
-        function playChatSound()   { _playAudioEl(_audioChat,   'notif_sound_chat'); }
-        function playNotifSound()  { playTicketSound(); }
+        function playTicketSound()  { _playAudioEl(_audioTicket,  'notif_sound_ticket'); }
+        function playChatSound()    { _playAudioEl(_audioChat,    'notif_sound_chat'); }
+        function playStagingSound() { _playAudioEl(_audioStaging, 'notif_sound_staging'); }
+        function playNotifSound()   { playTicketSound(); }
 
         function _applySoundUi() {
             var btn  = document.getElementById('soundToggleBtn');
@@ -1317,7 +1312,7 @@
                 playTicketSound();
             }
             // OS notification — hanya saat tab background/minimize agar tidak mengganggu saat user sedang aktif
-            if (document.hidden && _soundEnabled && 'Notification' in window && Notification.permission === 'granted') {
+            if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
                 fetch('/api/notifications?limit=1', { credentials: 'same-origin' })
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
@@ -1340,6 +1335,46 @@
         });
 
         window.toggleNotifSound = toggleNotifSound;
+
+        /* ---- staging new-email cross-tab notification ---- */
+        // Fires when user is on a page OTHER than staging and a new email arrives.
+        // BroadcastChannel does not fire in the originating tab, so no double-play
+        // from that side. localStorage storage event also only fires in OTHER tabs.
+        function _handleStagingNewEmail(count) {
+            playStagingSound();
+            // OS notification hanya saat tab ini tidak terlihat user
+            if (document.hidden) {
+                showOsNotification(
+                    'Email Baru · Ticket Validation',
+                    count + ' email baru menunggu validasi',
+                    '/staging'
+                );
+            }
+        }
+        // BroadcastChannel: primary mechanism (all modern browsers)
+        var _stagingBcOk = false;
+        try {
+            var _stagingBc = new BroadcastChannel('ecosystem-staging');
+            _stagingBc.onmessage = function (e) {
+                if (e.data && e.data.type === 'new-staging-email') {
+                    _handleStagingNewEmail(e.data.count);
+                }
+            };
+            _stagingBcOk = true;
+        } catch (_e) {}
+        // localStorage fallback: ONLY when BroadcastChannel is not available
+        // (prevents double-play since both would otherwise fire on the same tab)
+        if (!_stagingBcOk) {
+            window.addEventListener('storage', function (e) {
+                if (e.key !== '_eco_staging_evt' || !e.newValue) return;
+                try {
+                    var d = JSON.parse(e.newValue);
+                    if (d.type === 'new-staging-email' && Date.now() - d.ts < 5000) {
+                        _handleStagingNewEmail(d.count);
+                    }
+                } catch (_ex) {}
+            });
+        }
 
         /* ---- badge count ---- */
         function fetchUnreadCount() {
@@ -1579,6 +1614,7 @@
         window.playNotifSound           = playNotifSound;
         window.playTicketSound          = playTicketSound;
         window.playChatSound            = playChatSound;
+        window.playStagingSound         = playStagingSound;
 
         /* ---- start ---- */
         fetchUnreadCount();
