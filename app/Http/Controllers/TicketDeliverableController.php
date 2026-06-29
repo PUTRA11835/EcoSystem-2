@@ -127,11 +127,20 @@ class TicketDeliverableController extends Controller
                 // dengan file lain yang mungkin diupload manual ke folder ticket.
                 $deliverableFolderId = $oneDrive->findOrCreateSubFolderById($ticketFolderId, 'Deliverable');
 
-                // Cache folder DELIVERABLE + share link (untuk tombol "Open folder")
-                $update = ['onedrive_deliverable_folder_id' => $deliverableFolderId];
-                if (empty($ticket->onedrive_folder_url) || $ticket->onedrive_deliverable_folder_id !== $deliverableFolderId) {
+                // Cache folder id + share link (untuk tombol "Open folder").
+                // PENTING: link "edit" anonymous dibuat pada folder TICKET (induk),
+                // BUKAN subfolder Deliverable. Permission edit anonymous menurun ke
+                // seluruh isi folder, sehingga pengguna yang mengakses link bisa
+                // upload/create/download langsung di folder ticket MAUPUN di subfolder
+                // Deliverable. Jika link dibuat di subfolder Deliverable saja, folder
+                // ticket induk hanya view-only (editable hilang saat naik ke folder ticket).
+                $update = [
+                    'onedrive_folder_id'             => $ticketFolderId,
+                    'onedrive_deliverable_folder_id' => $deliverableFolderId,
+                ];
+                if (empty($ticket->onedrive_folder_url) || $ticket->onedrive_folder_id !== $ticketFolderId) {
                     try {
-                        $update['onedrive_folder_url'] = $oneDrive->createAnonymousLink($deliverableFolderId);
+                        $update['onedrive_folder_url'] = $oneDrive->createAnonymousLink($ticketFolderId, 'edit');
                     } catch (\Throwable $e) {
                         Log::warning('Deliverable folder share link failed', ['ticket_id' => $ticketId, 'error' => $e->getMessage()]);
                     }
@@ -230,8 +239,21 @@ class TicketDeliverableController extends Controller
         $deliverable->update(['status' => 'Sended']);
 
         // Build message body
-        $senderName  = $user['name'] ?? $user['email'] ?? 'Helpdesk';
+        // Chat bubble (EcoSystem/Jarvies) tetap tampil "Helpdesk Support" — konsisten
+        // dengan reply biasa, karena email dikirim dari shared inbox M365.
+        $senderName  = 'Helpdesk Support';
         $senderEmail = $user['email'] ?? null;
+
+        // Footer email "Sent by ..." mengikuti user yang login & menekan Send
+        // (mirror alur validate/approval di StagingTicketController): pakai nick_name,
+        // fallback ke nama depan, fallback terakhir "Helpdesk".
+        $nickName = $user['nick_name'] ?? null;
+        if (!$nickName && !empty($user['id'])) {
+            $nickName = DB::table('employee_basic_data')
+                ->where('employee_id', $user['id'])
+                ->value('nick_name');
+        }
+        $signatureName = $nickName ?? explode(' ', $user['name'] ?? 'Helpdesk')[0];
 
         $plainMsg = 'Deliverable document sent: ' . $deliverable->doc_type;
         if ($deliverable->body_text) $plainMsg .= ' — ' . $deliverable->body_text;
@@ -284,8 +306,14 @@ class TicketDeliverableController extends Controller
             $customerEmail = $this->resolveCustomerEmail($ticket);
 
             if ($customerEmail) {
-                $subject = 'Ticket #' . ($ticket->ticket_number ?? $ticket->ticket_id)
-                    . ': ' . mb_substr($ticket->description ?? '', 0, 80);
+                // Subject HARUS identik dengan thread email ticket ("[JARVIES] #XXXX : desc")
+                // agar dokumen deliverable masuk ke thread yang sama, BUKAN membuat email baru.
+                // Format ini sama persis dengan email approval (StagingTicketController) dan
+                // reply biasa, sehingga subjectTopicMatches() di sendTicketReply mengenali
+                // topik yang sama → draft createReply TIDAK di-PATCH subject → Thread-Index
+                // Exchange terjaga → Outlook & Gmail tetap menyatukan satu thread.
+                $subject = '[JARVIES] #' . ($ticket->ticket_number ?? $ticket->ticket_id)
+                    . ' : ' . mb_substr($ticket->description ?? '', 0, 80);
 
                 $inReplyTo = TicketMessage::where('ticket_id', $ticket->ticket_id)
                     ->where('channel', 'email')
@@ -301,11 +329,21 @@ class TicketDeliverableController extends Controller
                         : (json_decode($ticket->cc_emails, true) ?? []);
                 }
 
+                // Bungkus tabel deliverable dengan footer. "Sent by" mengikuti user yang
+                // login & menekan Send (sama seperti email validate), bukan hardcode.
+                // Chat bubble tetap memakai $htmlMsg tanpa footer.
+                $emailHtml = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#374151;line-height:1.7;max-width:600px;">'
+                    . $htmlMsg
+                    . '<p style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;">'
+                    . 'Sent by <strong style="color:#6b7280;">' . htmlspecialchars($signatureName) . '</strong> &mdash; PT Eclectic Consulting<br>'
+                    . 'Ticket: <strong style="color:#6b7280;">#' . htmlspecialchars($ticket->ticket_number ?? $ticket->ticket_id) . '</strong>'
+                    . '</p></div>';
+
                 $emailController = new EmailController();
                 $result = $emailController->sendTicketReply(
                     $customerEmail,
                     $subject,
-                    $htmlMsg,
+                    $emailHtml,
                     $inReplyTo,
                     [],
                     $ccList,

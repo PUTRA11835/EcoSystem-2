@@ -723,7 +723,7 @@ class TicketMessageController extends Controller
 
             $inReplyTo = $lastEmailMsg?->email_message_id;
 
-            $subject = 'Ticket #' . $ticket->ticket_number . ': ' . mb_substr($ticket->description ?? '', 0, 80);
+            $subject = '[JARVIES] #' . $ticket->ticket_number . ' : ' . mb_substr($ticket->description ?? '', 0, 80);
 
             // Bungkus pesan customer dalam template email yang proper
             $relayBody = $this->buildCustomerRelayHtml($messageBody, $ticket, $senderName);
@@ -840,7 +840,7 @@ class TicketMessageController extends Controller
             $customerEmail = $toOverride ?: $this->resolveCustomerEmail($ticket);
             if (!$customerEmail) return null;
 
-            $subject = 'Ticket #' . $ticket->ticket_number . ': ' . mb_substr($ticket->description ?? '', 0, 80);
+            $subject = '[JARVIES] #' . $ticket->ticket_number . ' : ' . mb_substr($ticket->description ?? '', 0, 80);
 
             // inReplyTo = internetMessageId pesan email terakhir (untuk thread yang benar)
             $lastEmailMsg = TicketMessage::where('ticket_id', $ticketId)
@@ -1179,7 +1179,9 @@ class TicketMessageController extends Controller
             }
 
             $agentName = 'Helpdesk Support';
-            $subject   = '[JARVIES] ' . ($ticket->description ?? 'Ticket #' . $ticket->ticket_number);
+            // Anchor subject thread — format seragam "[JARVIES] #XXXX : desc" agar konsisten
+            // dengan email approval & reply, sehingga semua email tetap satu thread.
+            $subject   = '[JARVIES] #' . $ticket->ticket_number . ' : ' . mb_substr($ticket->description ?? '', 0, 80);
 
             $safeNum   = htmlspecialchars($ticket->ticket_number ?? '', ENT_QUOTES, 'UTF-8');
             $safeDesc  = htmlspecialchars(mb_substr($ticket->description ?? '', 0, 90), ENT_QUOTES, 'UTF-8');

@@ -994,8 +994,12 @@ class StagingTicketController extends Controller
             ]);
 
             if ($customerEmail) {
-                // Subject format: "Ticket #26040014: FIX BISA"
-                $subject   = 'Ticket #' . $ticketNumber . ': ' . ($staging->description ?? 'Ticket Update');
+                // Subject format: "[JARVIES] #26040014 : FIX BISA"
+                // Format ini menjadi "anchor" subject thread email ticket. Semua email
+                // berikutnya (reply helpdesk, status, mandays, deliverable) WAJIB memakai
+                // format yang sama agar subjectTopicMatches() mengenali topik yang sama →
+                // Thread-Index Exchange tidak ter-reset → semua tetap satu thread.
+                $subject   = '[JARVIES] #' . $ticketNumber . ' : ' . ($staging->description ?? 'Ticket Update');
                 $inReplyTo = $staging->email_message_id; // null untuk web-only → buat thread baru
                 $threadId  = $staging->email_thread_id;   // conversationId fallback
 
