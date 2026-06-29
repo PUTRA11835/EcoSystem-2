@@ -157,16 +157,28 @@
                             <button type="button" id="ticketFilterBtn" onclick="toggleTicketFilter(event)"
                                     class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                 <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Tiket</span>
-                                <svg id="ticketFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <span id="sort-icon-ticket_number" class="sort-icon text-gray-300 font-normal normal-case tracking-normal text-xs">⇅</span>
+                                <svg id="ticketFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                                 <svg id="ticketFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
-                                <span id="sort-icon-ticket_number" onclick="event.stopPropagation(); sortTickets('ticket_number')" title="Click to toggle sort (descending ↔ ascending)" class="sort-icon cursor-pointer text-gray-300 font-normal normal-case tracking-normal text-xs ml-auto hover:text-red-500 transition-colors">⇅</span>
                             </button>
                             <div id="ticketFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
                                 <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search ticket number</label>
                                 <input type="text" id="ticketFilterInput" placeholder="e.g. TKT-2024-001…"
                                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
                                        oninput="onTicketFilterInput()">
-                                <p class="text-[10px] text-gray-400 mt-1.5">Matches tickets whose number contains this text. Use the ⇅ icon in the header to sort.</p>
+                                <div class="border-t border-gray-100 mt-3 pt-3">
+                                    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Sort</label>
+                                    <div class="flex gap-2">
+                                        <button type="button" id="sort-btn-ticket_number-asc" onclick="sortTickets('ticket_number','asc'); closeTicketFilter();"
+                                                class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
+                                            ↑ Ascending
+                                        </button>
+                                        <button type="button" id="sort-btn-ticket_number-desc" onclick="sortTickets('ticket_number','desc'); closeTicketFilter();"
+                                                class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
+                                            ↓ Descending
+                                        </button>
+                                    </div>
+                                </div>
                                 <div class="flex justify-end gap-2 mt-3">
                                     <button type="button" onclick="clearTicketFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
                                 </div>
@@ -177,7 +189,8 @@
                             <button type="button" id="descFilterBtn" onclick="toggleDescFilter(event)"
                                     class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                 <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Description</span>
-                                <svg id="descFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <span id="sort-icon-description" class="sort-icon text-gray-300 font-normal normal-case tracking-normal text-xs">⇅</span>
+                                <svg id="descFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                                 <svg id="descFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
                             </button>
                             <div id="descFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:260px;">
@@ -185,7 +198,6 @@
                                 <input type="text" id="descFilterInput" placeholder="Type keyword (case-insensitive)…"
                                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
                                        oninput="onDescFilterInput()">
-                                <p class="text-[10px] text-gray-400 mt-1.5">Matches any ticket whose description contains this text.</p>
                                 <div class="flex justify-end gap-2 mt-3">
                                     <button type="button" onclick="clearDescFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
                                 </div>
@@ -196,9 +208,9 @@
                             <button type="button" id="dateFilterBtn" onclick="toggleDateFilter(event)"
                                     class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                 <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Date</span>
-                                <svg id="dateFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <span id="sort-icon-date" class="sort-icon text-gray-300 font-normal normal-case tracking-normal text-xs">⇅</span>
+                                <svg id="dateFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                                 <svg id="dateFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
-                                <span id="sort-icon-date" onclick="event.stopPropagation(); sortTickets('date')" title="Click to toggle sort (descending ↔ ascending)" class="sort-icon cursor-pointer text-gray-300 font-normal normal-case tracking-normal text-xs ml-auto hover:text-red-500 transition-colors">⇅</span>
                             </button>
                             <div id="dateFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:240px;">
                                 <div class="space-y-2">
@@ -213,6 +225,19 @@
                                                class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
                                     </div>
                                     <p id="dateFilterError" class="hidden text-xs text-red-500">"To" must be on/after "From".</p>
+                                </div>
+                                <div class="border-t border-gray-100 mt-3 pt-3">
+                                    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Sort</label>
+                                    <div class="flex gap-2">
+                                        <button type="button" id="sort-btn-date-asc" onclick="sortTickets('date','asc'); document.getElementById('dateFilterPanel').classList.add('hidden');"
+                                                class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
+                                            ↑ Ascending
+                                        </button>
+                                        <button type="button" id="sort-btn-date-desc" onclick="sortTickets('date','desc'); document.getElementById('dateFilterPanel').classList.add('hidden');"
+                                                class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
+                                            ↓ Descending
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="flex justify-end gap-2 mt-3">
                                     <button type="button" onclick="clearDateFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
@@ -1305,6 +1330,10 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         document.getElementById('dateFilterFrom').value = '';
         document.getElementById('dateFilterTo').value   = '';
         document.getElementById('dateFilterError').classList.add('hidden');
+        if (currentTicketSort.key === 'date') {
+            currentTicketSort = { key: 'last_update', dir: 'desc' };
+            updateTicketSortIcons();
+        }
         applyAdvancedFilters();
     }
 
@@ -1385,6 +1414,10 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     function clearTicketFilter() {
         const input = document.getElementById('ticketFilterInput');
         if (input) input.value = '';
+        if (currentTicketSort.key === 'ticket_number') {
+            currentTicketSort = { key: 'last_update', dir: 'desc' };
+            updateTicketSortIcons();
+        }
         applyAdvancedFilters();
     }
 
@@ -1486,12 +1519,14 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     }
 
     // ── Column Sort ────────────────────────────────────────────────────
-    const TICKET_SORT_KEYS = ['last_update', 'ticket_number', 'date', 'customer', 'priority', 'scale', 'status', 'type'];
+    const TICKET_SORT_KEYS = ['last_update', 'ticket_number', 'description', 'date', 'customer', 'priority', 'scale', 'status', 'type'];
     const PRIORITY_RANK    = { 'Very High': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
     const SCALE_RANK       = { 'Complex': 3, 'Medium': 2, 'Simple': 1 };
 
-    function sortTickets(key) {
-        if (currentTicketSort.key === key) {
+    function sortTickets(key, forcedDir) {
+        if (forcedDir) {
+            currentTicketSort = { key, dir: forcedDir };
+        } else if (currentTicketSort.key === key) {
             currentTicketSort.dir = currentTicketSort.dir === 'asc' ? 'desc' : 'asc';
         } else {
             currentTicketSort = { key, dir: key === 'last_update' ? 'desc' : 'asc' };
@@ -1514,6 +1549,10 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             } else if (key === 'date') {
                 va = new Date(a.start_date || a.created_at).getTime();
                 vb = new Date(b.start_date || b.created_at).getTime();
+            } else if (key === 'description') {
+                va = (a.description || '').toLowerCase();
+                vb = (b.description || '').toLowerCase();
+                return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
             } else if (key === 'customer') {
                 va = (a.customer?.customer_name || '').toLowerCase();
                 vb = (b.customer?.customer_name || '').toLowerCase();
@@ -1540,16 +1579,32 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     }
 
     function updateTicketSortIcons() {
+        // Update ⇅ indicator next to column label
         TICKET_SORT_KEYS.forEach(k => {
             const el = document.getElementById(`sort-icon-${k}`);
             if (!el) return;
             if (k === currentTicketSort.key) {
                 el.textContent = currentTicketSort.dir === 'asc' ? '↑' : '↓';
-                el.className = 'text-red-500 font-bold';
+                el.className = 'sort-icon text-red-500 font-bold';
             } else {
                 el.textContent = '⇅';
-                el.className = 'text-gray-300';
+                el.className = 'sort-icon text-gray-300';
             }
+        });
+
+        // Update Ascending/Descending button colors inside panels
+        const SORT_BTN_KEYS = ['ticket_number', 'description', 'date'];
+        const activeBase    = 'sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-semibold border rounded-md transition-colors';
+        const activeCls     = 'bg-red-50 border-red-300 text-red-700';
+        const inactiveCls   = 'text-gray-600 border-gray-200 hover:bg-gray-50';
+
+        SORT_BTN_KEYS.forEach(k => {
+            ['asc', 'desc'].forEach(dir => {
+                const btn = document.getElementById(`sort-btn-${k}-${dir}`);
+                if (!btn) return;
+                const isActive = currentTicketSort.key === k && currentTicketSort.dir === dir;
+                btn.className = `${activeBase} ${isActive ? activeCls : inactiveCls}`;
+            });
         });
     }
 
@@ -1863,8 +1918,8 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         let lastDate = null;
         const rows = data.events.map(function(e) {
             const dt      = e.event_at ? new Date(e.event_at) : null;
-            const dateStr = dt ? dt.toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
-            const timeStr = dt ? dt.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }) : '—';
+            const dateStr = dt ? dt.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
+            const timeStr = dt ? dt.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour:'2-digit', minute:'2-digit' }) : '—';
             const showDate = dateStr !== lastDate;
             lastDate = dateStr;
             const evCfg   = EVENT_ROW_CFG_SLA[e.event_type] || { dot: '#9ca3af', rowBg: '#fff', label: e.event_type };
@@ -1881,7 +1936,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             const msgText  = bodyText
                 ? `<span title="${(e.message_preview || '').replace(/"/g,'&quot;')}" class="text-gray-500 text-xs">${senderPrefix}${bodyText.substring(0, 80)}${bodyText.length > 80 ? '…' : ''}</span>`
                 : (e.sender_name ? `<span class="font-semibold text-gray-700 text-xs">${e.sender_name}</span>` : `<span class="text-gray-300 text-xs">—</span>`);
-            const dateSep = showDate ? `<tr><td colspan="9" style="background:#f3f4f6;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:4px 12px;"><span style="font-size:10px;font-weight:600;color:#6b7280;letter-spacing:0.04em;">${dt ? dt.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : dateStr}</span></td></tr>` : '';
+            const dateSep = showDate ? `<tr><td colspan="9" style="background:#f3f4f6;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:4px 12px;"><span style="font-size:10px;font-weight:600;color:#6b7280;letter-spacing:0.04em;">${dt ? dt.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', weekday:'long', day:'numeric', month:'long', year:'numeric' }) : dateStr}</span></td></tr>` : '';
             return `${dateSep}<tr style="background:${evCfg.rowBg};border-left:3px solid ${evCfg.dot};" class="border-b border-gray-100/80 hover:brightness-[0.97] transition-all">
                 <td class="px-3 py-2.5 text-xs text-gray-400 whitespace-nowrap">${showDate ? dateStr : ''}</td>
                 <td class="px-3 py-2.5 text-xs text-gray-600 font-mono whitespace-nowrap">${timeStr}</td>

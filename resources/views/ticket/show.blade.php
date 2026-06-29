@@ -198,39 +198,6 @@
         <div class="border-t border-gray-200 flex-shrink-0">
 
             {{-- Toggle strip: channel indicator + collapse button --}}
-            {{-- ════════════════════ DEBUG BLOCK (HAPUS SETELAH SELESAI) ════════════════════ --}}
-            @php
-                $dbChannelRaw = \Illuminate\Support\Facades\DB::table('ticket')
-                    ->where('ticket_id', $ticket->ticket_id)
-                    ->value('channel');
-            @endphp
-            <div style="background:#1e1b4b;color:#a5b4fc;padding:8px 12px;font-size:11px;font-family:monospace;line-height:1.8;border-bottom:2px solid #6366f1;">
-                <strong style="color:#e0e7ff;">🔍 DEBUG — Ticket #{{ $ticket->ticket_number }}</strong><br>
-                <span style="color:#fbbf24;">[PHP Model]</span>
-                channel = <strong style="color:#86efac;">{{ json_encode($ticket->channel) }}</strong>
-                &nbsp;|&nbsp;
-                email_thread_id = <strong style="color:#86efac;">{{ json_encode($ticket->email_thread_id) }}</strong><br>
-
-                <span style="color:#fbbf24;">[DB Raw]</span>
-                channel (dari DB langsung) = <strong style="color:#f9a8d4;">{{ json_encode($dbChannelRaw) }}</strong><br>
-
-                <span style="color:#fbbf24;">[Blade Condition]</span>
-                is_email_channel = <strong>{{ $ticket->channel === 'email' ? 'TRUE' : 'false' }}</strong>
-                &nbsp;|&nbsp;
-                has_email_thread = <strong>{{ $ticket->email_thread_id ? 'TRUE' : 'false' }}</strong>
-                &nbsp;|&nbsp;
-                is_imported = <strong>{{ $ticket->channel === 'imported' ? '✅ TRUE' : '❌ false' }}</strong><br>
-
-                <span style="color:#fbbf24;">[Button akan muncul?]</span>
-                @if($ticket->channel === 'email' || $ticket->email_thread_id)
-                    <strong style="color:#f87171;">❌ NO — masuk kondisi email/thread (tombol tidak muncul)</strong>
-                @elseif($ticket->channel === 'imported')
-                    <strong style="color:#4ade80;">✅ YES — masuk kondisi imported (tombol seharusnya muncul)</strong>
-                @else
-                    <strong style="color:#f87171;">❌ NO — masuk kondisi @@else (web biasa)</strong>
-                @endif
-            </div>
-            {{-- ════════════════════════════════════════════════════════════════════════════ --}}
             <div class="flex items-center pr-3">
                 <div class="flex-1">
                     @if($ticket->channel === 'email' || $ticket->email_thread_id)
@@ -1898,13 +1865,6 @@
     const ticketCustomerId            = {{ $ticket->customer_id ?? 'null' }};
     const currentUserId               = {{ $user->id ?? 'null' }};
     const ticketChannel = @json($ticket->channel ?? 'web');
-    // DEBUG TEMP
-    console.group('%c[DEBUG] Ticket Channel Info', 'color:#6366f1;font-weight:bold');
-    console.log('ticketChannel (JS var):', ticketChannel);
-    console.log('btnStartEmailThread el:', document.getElementById('btnStartEmailThread'));
-    console.log('btnSendInitEmail el   :', document.getElementById('btnSendInitEmail'));
-    console.log('btnCancelInitEmail el :', document.getElementById('btnCancelInitEmail'));
-    console.groupEnd();
     let assignedDsId   = {{ isset($deliverySupport) && $deliverySupport ? $deliverySupport->id : 'null' }};
     const currentTicketLeadId   = {{ $ticket->ticket_lead_id ?? 'null' }};
     const currentTicketLeadName = @json($ticket->ticketLead?->basicData ? trim(($ticket->ticketLead->basicData->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData->last_name ?? '')) : null);
@@ -6065,6 +6025,31 @@ let deliverableData = [];
 
 const DOC_TYPE_ROWS = ['IR', 'RCA', 'CR Form', 'FSD', 'TD', 'UAT', 'MOM', 'BAST', 'Other'];
 
+// Batas ukuran file deliverable (sinkron dengan validasi server: 20 MB).
+const DELIV_MAX_FILE_BYTES = 20 * 1024 * 1024;
+
+// Parse response API secara aman. Jika server membalas HTML (mis. halaman error
+// 413/419/500 dari nginx/PHP saat file melebihi batas upload), `res.json()` akan
+// melempar "Unexpected token '<'". Helper ini mengubahnya jadi pesan yang jelas.
+async function delivParseJson(res) {
+    const text = await res.text();
+    try {
+        return JSON.parse(text);
+    } catch (_) {
+        let msg;
+        if (res.status === 413) {
+            msg = 'File terlalu besar untuk server. Kecilkan ukuran file atau hubungi admin untuk menaikkan batas upload.';
+        } else if (res.status === 419) {
+            msg = 'Sesi kedaluwarsa. Muat ulang halaman lalu coba lagi.';
+        } else if (res.status >= 500) {
+            msg = `Server error (${res.status}). Coba lagi atau hubungi admin.`;
+        } else {
+            msg = `Respons server tidak valid (${res.status}).`;
+        }
+        throw new Error(msg);
+    }
+}
+
 async function openDeliverableModal() {
     document.getElementById('deliverableModal').classList.remove('hidden');
     await loadDeliverables();
@@ -6146,9 +6131,12 @@ function renderDeliverableTable(data) {
                 Send to Customer</button>`
             : '';
 
-        const delBtn = `<button onclick="deleteDeliverable(${d.id})"
-            class="text-[10px] text-red-500 hover:text-red-700 font-semibold border border-red-200 px-1.5 py-0.5 rounded hover:bg-red-50 transition ml-1">
-            Delete</button>`;
+        // Dokumen yang sudah dikirim ke customer tidak boleh dihapus.
+        const delBtn = d.status !== 'Sended'
+            ? `<button onclick="deleteDeliverable(${d.id})"
+                class="text-[10px] text-red-500 hover:text-red-700 font-semibold border border-red-200 px-1.5 py-0.5 rounded hover:bg-red-50 transition ml-1">
+                Delete</button>`
+            : '';
 
         return `<tr class="border-b border-gray-100 hover:bg-gray-50/60">
             <td class="px-3 py-2 text-gray-600 whitespace-nowrap">${escHtmlD(d.upload_date ?? '—')}</td>
@@ -6209,6 +6197,15 @@ async function submitNewDoc() {
 
     if (!docType) { errEl.textContent = 'Please select a Doc Type.'; errEl.classList.remove('hidden'); return; }
 
+    // Cegah upload melebihi batas sebelum request dikirim, agar tidak berakhir
+    // dengan halaman error HTML dari server (penyebab "Unexpected token '<'").
+    if (file && file.size > DELIV_MAX_FILE_BYTES) {
+        const mb = (file.size / 1024 / 1024).toFixed(1);
+        errEl.textContent = `File terlalu besar (${mb} MB). Maksimal 20 MB.`;
+        errEl.classList.remove('hidden');
+        return;
+    }
+
     const submitBtn = document.getElementById('ndSubmitBtn');
     submitBtn.disabled = true;
     submitBtn.textContent = 'Saving…';
@@ -6225,7 +6222,7 @@ async function submitNewDoc() {
             credentials: 'same-origin',
             body: form,
         });
-        const json = await res.json();
+        const json = await delivParseJson(res);
         if (!json.success) throw new Error(json.message);
 
         closeNewDocModal();
@@ -6249,7 +6246,7 @@ async function sendDeliverable(id) {
             headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
             credentials: 'same-origin',
         });
-        const json = await res.json();
+        const json = await delivParseJson(res);
         if (!json.success) throw new Error(json.message);
         await loadDeliverables();
         showToast('Document sent to customer.', 'success');
@@ -6267,7 +6264,7 @@ async function deleteDeliverable(id) {
             headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
             credentials: 'same-origin',
         });
-        const json = await res.json();
+        const json = await delivParseJson(res);
         if (!json.success) throw new Error(json.message);
         await loadDeliverables();
         showToast('Document deleted.', 'success');
@@ -6315,7 +6312,7 @@ async function submitEditDeliv() {
             credentials: 'same-origin',
             body: JSON.stringify({ body_text: bodyText }),
         });
-        const json = await res.json();
+        const json = await delivParseJson(res);
         if (!json.success) throw new Error(json.message);
 
         const idx = deliverableData.findIndex(x => x.id === id);

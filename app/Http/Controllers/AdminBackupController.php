@@ -1209,6 +1209,10 @@ class AdminBackupController extends Controller
         // parent referenced by a row above it (not yet inserted) still maps.
         $pendingParents = [];
 
+        // Identitas pelaku import untuk audit (created_by / last_changed_by di
+        // customer_basic_data). Format sama dengan CustomerBasicDataController.
+        $auditUser = session('user.eci') ?? session('user.email') ?? session('user.name') ?? 'System';
+
         // CSV mungkin disimpan dalam Windows-1252/Latin-1 (mis. nama perusahaan
         // beraksen). Byte non-UTF-8 yang lolos ke array $errors akan membuat
         // response()->json() melempar "Malformed UTF-8 characters" (HTTP 500).
@@ -1286,9 +1290,13 @@ class AdminBackupController extends Controller
                     $basicData['updated_at'] = now();
                     $bdExists = DB::table('customer_basic_data')->where('customer_id', $existing->customer_id)->exists();
                     if ($bdExists) {
+                        $basicData['last_changed_by'] = $auditUser;
+                        $basicData['last_changed_on'] = now();
                         DB::table('customer_basic_data')->where('customer_id', $existing->customer_id)->update($basicData);
                     } else {
                         $basicData['customer_id'] = $existing->customer_id;
+                        $basicData['created_by']  = $auditUser;
+                        $basicData['created_on']  = now();
                         $basicData['created_at']  = now();
                         DB::table('customer_basic_data')->insert($basicData);
                     }
@@ -1325,6 +1333,8 @@ class AdminBackupController extends Controller
                     ]);
 
                     $basicData['customer_id'] = $customerId;
+                    $basicData['created_by']  = $auditUser;
+                    $basicData['created_on']  = now();
                     $basicData['created_at']  = now();
                     $basicData['updated_at']  = now();
                     DB::table('customer_basic_data')->insert($basicData);

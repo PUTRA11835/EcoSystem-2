@@ -8,6 +8,7 @@ use App\Models\TicketDeliverable;
 use App\Models\TicketMessage;
 use App\Services\OneDriveService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class TicketDeliverableController extends Controller
@@ -139,7 +140,15 @@ class TicketDeliverableController extends Controller
 
                 $result  = $oneDrive->uploadFile($deliverableFolderId, $fileName, $fileContent, $mimeType);
                 $fileId  = $result['id'];
-                $fileUrl = $result['webUrl'] ?? $result['downloadUrl'] ?? null;
+
+                // webUrl dari upload adalah path SharePoint langsung — butuh izin akun (Request access).
+                // Buat anonymous share link agar file bisa dibuka customer tanpa login.
+                try {
+                    $fileUrl = $oneDrive->createAnonymousLink($fileId, 'view');
+                } catch (\Throwable $e) {
+                    Log::warning('Deliverable file share link failed', ['ticket_id' => $ticketId, 'error' => $e->getMessage()]);
+                    $fileUrl = $result['webUrl'] ?? $result['downloadUrl'] ?? null;
+                }
             } catch (\Throwable $e) {
                 Log::error('Deliverable upload to OneDrive failed', [
                     'ticket_id' => $ticketId,
@@ -267,10 +276,12 @@ class TicketDeliverableController extends Controller
             'last_agent_reply_at' => now(),
         ]);
 
-        // Send email to customer whenever they have an email address
+        // Send email to customer whenever they have an email address.
+        // Resolusi email mengikuti urutan prioritas yang sama dengan reply biasa
+        // (TicketMessageController::resolveCustomerEmail) agar selalu konsisten —
+        // customer.email (company email) sering kosong sehingga tidak bisa jadi sumber utama.
         try {
-            $customerEmail = $ticket->customer?->email
-                ?? Customer::find($ticket->customer_id)?->email;
+            $customerEmail = $this->resolveCustomerEmail($ticket);
 
             if ($customerEmail) {
                 $subject = 'Ticket #' . ($ticket->ticket_number ?? $ticket->ticket_id)
@@ -334,6 +345,14 @@ class TicketDeliverableController extends Controller
             ->where('ticket_id', $ticketId)
             ->firstOrFail();
 
+        // Dokumen yang sudah dikirim ke customer tidak boleh dihapus.
+        if ($deliverable->status === 'Sended') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot delete a document that has already been sent to customer.',
+            ], 422);
+        }
+
         // Delete from OneDrive if uploaded
         if ($deliverable->onedrive_file_id) {
             try {
@@ -349,6 +368,44 @@ class TicketDeliverableController extends Controller
         $deliverable->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Resolve email customer dari berbagai sumber (urutan prioritas, mirror
+     * TicketMessageController::resolveCustomerEmail):
+     * 1. ticket.submitted_by_email          — email login customer (initiateEmail / import CSV)
+     * 2. staging_tickets.submitted_by_email  — dari staging yang sudah diapprove
+     * 3. ticket_message.sender_email pertama — email pesan pertama dari customer
+     * 4. customer.email                       — email perusahaan (fallback terakhir)
+     */
+    private function resolveCustomerEmail(Ticket $ticket): ?string
+    {
+        if (!empty($ticket->submitted_by_email)) {
+            return $ticket->submitted_by_email;
+        }
+
+        $submittedEmail = DB::table('staging_tickets')
+            ->where('ticket_id', $ticket->ticket_id)
+            ->whereNotNull('submitted_by_email')
+            ->value('submitted_by_email');
+        if ($submittedEmail) {
+            return $submittedEmail;
+        }
+
+        $firstMsg = TicketMessage::where('ticket_id', $ticket->ticket_id)
+            ->where('sender_type', 'customer')
+            ->whereNotNull('sender_email')
+            ->orderBy('created_at', 'asc')
+            ->first();
+        if ($firstMsg?->sender_email) {
+            return $firstMsg->sender_email;
+        }
+
+        if ($ticket->customer_id) {
+            return Customer::find($ticket->customer_id)?->email;
+        }
+
+        return null;
     }
 
     private function format(TicketDeliverable $d): array
