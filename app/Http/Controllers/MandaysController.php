@@ -88,23 +88,11 @@ class MandaysController extends Controller
 
     /**
      * GET /api/tickets/{ticketId}/mandays/modules
-     * Daftar modul unik dari kualifikasi PIC + semua member tiket.
+     * Semua modul aktif yang tersedia untuk diisi mandays.
      */
     public function getModules($ticketId)
     {
-        $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
-
-        // Kumpulkan employee_id: PIC + members
-        $employeeIds = collect([$ticket->ticket_lead_id])
-            ->merge($ticket->members->pluck('employee_id'))
-            ->filter()
-            ->unique()
-            ->values();
-
-        $modules = \App\Models\Module::whereHas('employees', function ($q) use ($employeeIds) {
-                $q->whereIn('employee_qualification.employee_id', $employeeIds);
-            })
-            ->where('is_active', true)
+        $modules = \App\Models\Module::where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name']);
 
