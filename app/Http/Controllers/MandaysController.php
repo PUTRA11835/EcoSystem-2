@@ -88,11 +88,27 @@ class MandaysController extends Controller
 
     /**
      * GET /api/tickets/{ticketId}/mandays/modules
-     * Semua modul aktif yang tersedia untuk diisi mandays.
+     * Modul aktif dari kualifikasi lead + member ticket.
      */
     public function getModules($ticketId)
     {
-        $modules = \App\Models\Module::where('is_active', true)
+        $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
+
+        // Kumpulkan employee IDs: lead + active members
+        $employeeIds = collect();
+
+        if ($ticket->ticket_lead_id) {
+            $employeeIds->push($ticket->ticket_lead_id);
+        }
+
+        $memberIds = $ticket->members()->pluck('ticket_member.employee_id');
+        $employeeIds = $employeeIds->merge($memberIds)->unique()->filter()->values();
+
+        // Ambil module aktif yang ada di kualifikasi lead/member
+        $modules = \App\Models\Module::whereHas('qualifications', function ($q) use ($employeeIds) {
+                $q->whereIn('employee_id', $employeeIds);
+            })
+            ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name']);
 

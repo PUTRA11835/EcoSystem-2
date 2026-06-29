@@ -573,7 +573,7 @@
             @endif
 
             {{-- Form --}}
-            <form id="forgotForm" method="POST" action="{{ route('password-setup.forgot.submit') }}"
+            <form id="forgotForm" method="POST" action="/forgot-password"
                   style="display:flex;flex-direction:column;gap:1.125rem;
                          opacity:0;animation:fadeInUp .5s ease forwards;animation-delay:.59s;">
                 @csrf

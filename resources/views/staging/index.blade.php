@@ -1057,6 +1057,28 @@ async function fetchEmailInbox(silent = false) {
 
         const hasChanges = newFromInbox > 0 || linkedSent > 0;
 
+        if (newFromInbox > 0) {
+            // ── 1. Sound on current tab (staging page) ──────────────────────
+            if (typeof playStagingSound === 'function') playStagingSound();
+
+            // ── 2. OS notification hanya saat tab ini di background ─────────
+            if (document.hidden && typeof showOsNotification === 'function') {
+                showOsNotification(
+                    'Email Baru · Ticket Validation',
+                    `${newFromInbox} email baru menunggu validasi`,
+                    '/staging'
+                );
+            }
+
+            // ── 3. Broadcast ke tab lain di browser yang sama ───────────────
+            // localStorage hanya sebagai fallback jika BroadcastChannel tidak tersedia
+            // (mencegah double-play: BC dan storage event keduanya terpicu di tab penerima)
+            const _evt = { type: 'new-staging-email', count: newFromInbox, ts: Date.now() };
+            let _bcSent = false;
+            try { const _bc = new BroadcastChannel('ecosystem-staging'); _bc.postMessage(_evt); _bc.close(); _bcSent = true; } catch (_e) {}
+            if (!_bcSent) { try { localStorage.setItem('_eco_staging_evt', JSON.stringify(_evt)); } catch (_e) {} }
+        }
+
         if (!silent || hasChanges) {
             const parts = [];
             if (newFromInbox > 0) parts.push(`${newFromInbox} new ticket(s) from inbox`);

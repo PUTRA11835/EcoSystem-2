@@ -169,8 +169,10 @@ class StagingTicketService
             }
         }
 
-        // Gunakan receivedDateTime email sebagai created_at agar waktu SLA sesuai email asli.
-        // $emailData['received_at'] adalah Carbon UTC dari Graph API → konversi ke app timezone.
+        // Gunakan sentDateTime email (header Date: dari pengirim) sebagai created_at agar
+        // SLA clock dimulai dari waktu customer kirim, bukan waktu scheduler jalan.
+        // $emailData['received_at'] adalah Carbon UTC (sentDateTime, fallback receivedDateTime)
+        // dari Graph API → konversi ke WIB agar konsisten dengan timezone ecosystem user.
         $appTz      = config('app.timezone', 'Asia/Jakarta');
         $receivedAt = isset($emailData['received_at'])
             ? $emailData['received_at']->copy()->setTimezone($appTz)

@@ -267,8 +267,9 @@
                 </div>
 
                 @foreach([
-                    ['soundWrapTicket','soundPanelTicket','soundLabelTicket','notif_sound_ticket','New ticket / alert',  'Badge notifications and new ticket alerts'],
-                    ['soundWrapChat',  'soundPanelChat',  'soundLabelChat',  'notif_sound_chat',  'Message / reply',     'Incoming replies and chat messages'],
+                    ['soundWrapStaging','soundPanelStaging','soundLabelStaging','notif_sound_staging','Ticket Validation',  'Email baru masuk ke antrian Ticket Validation'],
+                    ['soundWrapTicket', 'soundPanelTicket', 'soundLabelTicket', 'notif_sound_ticket', 'Notification',       'Badge notifikasi umum (approval, timesheet, dll)'],
+                    ['soundWrapChat',   'soundPanelChat',   'soundLabelChat',   'notif_sound_chat',   'Ticket Reply',       'Balasan dan pesan masuk di tiket'],
                 ] as [$wrapId,$panelId,$labelId,$key,$title,$desc])
                 <div class="px-8 py-5 flex items-center justify-between gap-4">
                     <div class="min-w-0">
@@ -691,8 +692,9 @@ function togglePassword(id, btn) {
 // ── Sound picker ──────────────────────────────────────────────────────────────
 var _pa = new Audio(), _def = 'mixkit-software-interface-back-2575.wav', _aw = null;
 var SC = [
-    {key:'notif_sound_ticket',wrapId:'soundWrapTicket',panelId:'soundPanelTicket',labelId:'soundLabelTicket'},
-    {key:'notif_sound_chat',  wrapId:'soundWrapChat',  panelId:'soundPanelChat',  labelId:'soundLabelChat'},
+    {key:'notif_sound_staging',wrapId:'soundWrapStaging',panelId:'soundPanelStaging',labelId:'soundLabelStaging'},
+    {key:'notif_sound_ticket', wrapId:'soundWrapTicket', panelId:'soundPanelTicket', labelId:'soundLabelTicket'},
+    {key:'notif_sound_chat',   wrapId:'soundWrapChat',   panelId:'soundPanelChat',   labelId:'soundLabelChat'},
 ];
 function _gs(key){ var v=localStorage.getItem(key)||localStorage.getItem('notif_sound')||_def; return v.includes('.')?v:_def; }
 function selectSound(k,f){ if(!f) return; localStorage.setItem(k,f); previewSound(f); }

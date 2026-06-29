@@ -156,7 +156,9 @@
       "Bash(Remove-Item \"c:\\\\EcoSystem-2\\\\app\\\\Http\\\\Controllers\\\\ActivityStageController.php\" -Force)",
       "Bash(Remove-Item \"c:\\\\EcoSystem-2\\\\app\\\\Http\\\\Controllers\\\\DeliveryProjectPlanController.php\" -Force)",
       "Bash(Write-Output \"Controllers deleted\")",
-      "Bash(not exist *)"
+      "Bash(not exist *)",
+      "Bash(php /Users/tiopramudya/Documents/EC/EcoSystem-2/artisan tinker '--execute= *)",
+      "Bash(grep -A 20 'protected $middleware' /Users/tiopramudya/Documents/EC/EcoSystem-2/app/Http/Kernel.php)"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",
