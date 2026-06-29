@@ -326,9 +326,72 @@ class TicketController extends Controller
             abort(403);
         }
 
-        $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData'])
-            ->orderBy('ticket_id', 'asc')
-            ->get();
+        $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData'])
+            ->orderBy('ticket_id', 'asc');
+
+        // Status — dari card filter
+        if ($request->filled('card_status')) {
+            $query->where('status', $request->card_status);
+        }
+        // Status — dari column filter (bisa bersamaan dengan card_status)
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        // Priority
+        if ($request->filled('priority')) {
+            $query->where('ticket_priority', $request->priority);
+        }
+        // Scale
+        if ($request->filled('scale')) {
+            $query->where('scale', $request->scale);
+        }
+        // Ticket type
+        if ($request->filled('type')) {
+            $query->where('ticket_type', $request->type);
+        }
+        // Ticket number keyword
+        if ($request->filled('ticket_number')) {
+            $query->where('ticket_number', 'like', '%' . $request->ticket_number . '%');
+        }
+        // Description keyword
+        if ($request->filled('description')) {
+            $query->where('description', 'like', '%' . $request->description . '%');
+        }
+        // Date range — cocokkan start_date, fallback ke created_at
+        if ($request->filled('date_from')) {
+            $dateFrom = $request->date_from;
+            $query->where(function ($q) use ($dateFrom) {
+                $q->whereDate('start_date', '>=', $dateFrom)
+                  ->orWhere(function ($q2) use ($dateFrom) {
+                      $q2->whereNull('start_date')->whereDate('created_at', '>=', $dateFrom);
+                  });
+            });
+        }
+        if ($request->filled('date_to')) {
+            $dateTo = $request->date_to;
+            $query->where(function ($q) use ($dateTo) {
+                $q->whereDate('start_date', '<=', $dateTo)
+                  ->orWhere(function ($q2) use ($dateTo) {
+                      $q2->whereNull('start_date')->whereDate('created_at', '<=', $dateTo);
+                  });
+            });
+        }
+        // Customer name (exact match, case-insensitive — sesuai frontend)
+        if ($request->filled('customer')) {
+            $customerName = $request->customer;
+            $query->whereHas('customer.basicData', function ($q) use ($customerName) {
+                $q->whereRaw('LOWER(name_1) = LOWER(?)', [$customerName]);
+            });
+        }
+        // Ticket Lead / PIC name (by first_name, exact match — sesuai frontend)
+        if ($request->filled('pic')) {
+            $picName = $request->pic;
+            $query->whereHas('ticketLead.basicData', function ($q) use ($picName) {
+                $q->whereRaw('LOWER(first_name) = LOWER(?)', [$picName]);
+            });
+        }
+
+        $tickets = $query->get();
 
         $ticketIds   = $tickets->pluck('ticket_id')->toArray();
         $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
