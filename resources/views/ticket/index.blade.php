@@ -47,10 +47,10 @@
         @endif
 
         @if($user->hasAnyRole([\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value, \App\Enums\RoleId::DELIVERY_HELPDESK->value]))
-        <a href="{{ route('ticket.export') }}"
+        <button onclick="exportWithFilters()"
            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all">
             <i class="fas fa-file-excel text-green-600 text-xs"></i>Export
-        </a>
+        </button>
         @endif
 
     </div>
@@ -717,6 +717,43 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     function startEmailPolling() {
         checkTicketUpdates();
         setInterval(checkTicketUpdates, 10000);
+    }
+
+    function exportWithFilters() {
+        const params = new URLSearchParams();
+
+        // Status dari card filter (klik status card)
+        if (currentFilter && currentFilter !== 'all') {
+            params.set('card_status', currentFilter);
+        }
+        // Filter kolom
+        const colStatus   = document.getElementById('colFilterStatus')?.value   || '';
+        const colCustomer = document.getElementById('colFilterCustomer')?.value || '';
+        const colPic      = document.getElementById('colFilterPic')?.value      || '';
+        const colPriority = document.getElementById('colFilterPriority')?.value || '';
+        const colScale    = document.getElementById('colFilterScale')?.value    || '';
+        const colType     = document.getElementById('colFilterType')?.value     || '';
+        if (colStatus)   params.set('status',   colStatus);
+        if (colCustomer) params.set('customer', colCustomer);
+        if (colPic)      params.set('pic',      colPic);
+        if (colPriority) params.set('priority', colPriority);
+        if (colScale)    params.set('scale',    colScale);
+        if (colType)     params.set('type',     colType);
+
+        // Date range
+        const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
+        const dateTo   = document.getElementById('dateFilterTo')?.value   || '';
+        if (dateFrom) params.set('date_from', dateFrom);
+        if (dateTo)   params.set('date_to',   dateTo);
+
+        // Keyword filters
+        const descKw   = (document.getElementById('descFilterInput')?.value   || '').trim();
+        const ticketKw = (document.getElementById('ticketFilterInput')?.value || '').trim();
+        if (descKw)   params.set('description',   descKw);
+        if (ticketKw) params.set('ticket_number', ticketKw);
+
+        const qs  = params.toString();
+        window.location.href = '{{ route("ticket.export") }}' + (qs ? '?' + qs : '');
     }
 
     function toggleView(view) {
