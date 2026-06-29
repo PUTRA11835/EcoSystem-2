@@ -545,6 +545,28 @@ class EmailController extends Controller
                             $customer = Customer::find($authCustomerId);
                         }
                     }
+                    // 3b. customer_contact.email_work / email_personal — contact person terdaftar.
+                    //     Menangani contact person yang TIDAK punya akun login (auth_users) DAN
+                    //     memakai email di luar domain customer (mis. konsultan ber-Gmail).
+                    //     Dicek sebelum domain karena exact email lebih spesifik daripada domain.
+                    if (!$customer && $fromEmail) {
+                        $contactCustomerId = \DB::table('customer_contact')
+                            ->where(function ($q) use ($fromEmail) {
+                                $q->whereRaw('LOWER(email_work) = LOWER(?)', [$fromEmail])
+                                  ->orWhereRaw('LOWER(email_personal) = LOWER(?)', [$fromEmail]);
+                            })
+                            ->whereNotNull('customer_id')
+                            ->value('customer_id');
+                        if ($contactCustomerId) {
+                            $customer = Customer::find($contactCustomerId);
+                            if ($customer) {
+                                Log::info('EmailController@processInbox: customer matched by contact person', [
+                                    'from'        => $fromEmail,
+                                    'customer_id' => $customer->customer_id,
+                                ]);
+                            }
+                        }
+                    }
                     if (!$customer && $fromEmail) {
                         $emailDomain = Customer::extractEmailDomain($fromEmail); // mis. "@apta.co.id"
                         if ($emailDomain) {
