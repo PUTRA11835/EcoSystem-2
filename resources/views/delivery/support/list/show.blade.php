@@ -428,7 +428,7 @@
                         <span class="text-xs text-gray-500">{{ $support->updates->count() ?? 0 }}</span>
                     </button>
                     <div class="border-t border-gray-100 mt-1 pt-1">
-                        <form id="deleteSupportForm" action="{{ route('delivery.support.destroy', $support->id) }}" method="POST">
+                        <form id="deleteSupportForm" action="{{ route('delivery.support.destroy', $support->id, false) }}" method="POST">
                             @csrf
                             @method('DELETE')
                             <button type="button" onclick="confirmDeleteSupport()"
@@ -1048,7 +1048,7 @@ async function fetchDeliverableSubfolders() {
     document.getElementById('dlvDdError').classList.add('hidden');
 
     try {
-        const res  = await fetch('{{ route('delivery.support.deliverable-subfolders', $support->id) }}', {
+        const res  = await fetch('{{ route('delivery.support.deliverable-subfolders', $support->id, false) }}', {
             headers: { 'Accept': 'application/json' },
         });
         const data = await res.json();
@@ -1117,7 +1117,7 @@ async function openDeliverableLink(folderId, row) {
     spinIcon.classList.remove('hidden');
 
     try {
-        const res  = await fetch('{{ route('delivery.support.deliverable-share-link', $support->id) }}', {
+        const res  = await fetch('{{ route('delivery.support.deliverable-share-link', $support->id, false) }}', {
             method:  'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1184,7 +1184,7 @@ async function generateDeliverableFolder() {
     label.textContent = 'Generating…';
 
     try {
-        const res  = await fetch('{{ route('delivery.support.generate-deliverable-folder', $support->id) }}', {
+        const res  = await fetch('{{ route('delivery.support.generate-deliverable-folder', $support->id, false) }}', {
             method:  'POST',
             headers: {
                 'Content-Type': 'application/json',
