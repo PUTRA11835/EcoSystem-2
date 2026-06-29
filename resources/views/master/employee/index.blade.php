@@ -1,4 +1,4 @@
-@extends('dashboard')
+﻿@extends('dashboard')
 
 @section('title', 'Master Employee')
 @section('page-title', 'Employee Management')
@@ -509,7 +509,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     let deleteEmployeeId = null;
     let currentPage = 1;
     let paginationMeta = null;
-    const PER_PAGE = 15;
+    const PER_PAGE = 200;
 
     /**
      * Tampilkan semua error validasi dari response API sebagai toast.

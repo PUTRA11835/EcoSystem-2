@@ -155,7 +155,7 @@ class MandaysController extends Controller
             'details.*.activity'=> 'nullable|string|max:150',
             'details.*.module'  => 'required|string|max:100',
             'details.*.mandays' => 'required|numeric|min:0',
-            'description'       => 'nullable|string|max:255',
+            'description'       => 'required|string|max:255',
             'proposal_notes'    => 'nullable|string|max:2000',
         ]);
 
@@ -169,10 +169,16 @@ class MandaysController extends Controller
             ], 422);
         }
 
+        $total = collect($request->details)->sum('mandays');
+        if ($total <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Total mandays harus lebih dari 0. Isi minimal satu nilai mandays.',
+            ], 422);
+        }
+
         DB::beginTransaction();
         try {
-            $total = collect($request->details)->sum('mandays');
-
             if (!$existing || in_array($existing->status, ['canceled', 'approved'])) {
                 // Buat versi baru
                 $latestVersion = CustomerMandays::where('ticket_id', $ticketId)->max('version') ?? 0;

@@ -1,4 +1,4 @@
-@extends('dashboard')
+﻿@extends('dashboard')
 @section('title', 'Rejected Tickets')
 @section('page-title', 'Rejected Tickets')
 @section('page-subtitle', 'Tickets that were rejected during validation')
@@ -149,7 +149,7 @@ function debounceSearch() {
 // ─── Load Table ───────────────────────────────────────────────────────────────
 async function loadRejectedTickets(page = 1) {
     currentPage = page;
-    const params = new URLSearchParams({ status: 'rejected', per_page: 15, page });
+    const params = new URLSearchParams({ status: 'rejected', per_page: 200, page });
     const search = document.getElementById('searchInput').value.trim();
 
     const tbody = document.getElementById('rejectedTableBody');

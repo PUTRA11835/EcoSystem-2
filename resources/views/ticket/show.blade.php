@@ -4787,12 +4787,23 @@
     }
 
     async function picSaveDraft() {
+        const payload = picGetPayload();
+        const desc = (document.getElementById('picMandaysDescription')?.value || '').trim();
+        if (!desc) {
+            showNotification('Proposal Title wajib diisi.', 'warning');
+            document.getElementById('picMandaysDescription')?.focus();
+            return;
+        }
+        if (payload.details.length === 0) {
+            showNotification('Isi minimal satu nilai mandays sebelum menyimpan.', 'warning');
+            return;
+        }
         const btn = document.getElementById('picBtnSaveDraft');
         btn.disabled = true; btn.textContent = 'Saving...';
         try {
             const res = await fetch(MANDAYS_API('pic-draft'), {
                 method: 'POST', headers: getHeaders(), credentials: 'same-origin',
-                body: JSON.stringify(picGetPayload()),
+                body: JSON.stringify(payload),
             });
             const data = await res.json();
             if (data.success) {
@@ -5162,7 +5173,7 @@
             }
             const modData   = await modRes.json();
             const draftData = await draftRes.json();
-            const modules   = modData.data || [];
+            const modules   = (modData.data || []).map(m => m.name ?? m);
             const proposal  = draftData.data;
             const status    = draftData.ticket_mandays_status || 'none';
 

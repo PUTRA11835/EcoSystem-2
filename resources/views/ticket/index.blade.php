@@ -1,4 +1,4 @@
-@extends('dashboard')
+﻿@extends('dashboard')
 @section('title', 'Support Tickets')
 @section('page-title', 'Support Tickets')
 @section('page-subtitle', 'Manage and track all support requests')
@@ -614,7 +614,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     let filteredTickets = [];
     let currentFilter = 'all';
     let currentTicketSort = { key: 'last_update', dir: 'desc' };
-    let itemsPerPage = 20;
+    let itemsPerPage = 200;
     let currentPage = 1;
     let totalItems = 0;
     let totalPages = 0;
