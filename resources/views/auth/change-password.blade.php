@@ -149,7 +149,7 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('password-setup.submit') }}"
+            <form method="POST" action="/change-password"
                   style="display:flex;flex-direction:column;gap:1.125rem;opacity:0;animation:fadeInUp .5s ease forwards;animation-delay:.59s;">
                 @csrf
                 <input type="hidden" name="token" value="{{ $token }}">

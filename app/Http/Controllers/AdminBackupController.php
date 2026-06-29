@@ -1556,7 +1556,8 @@ class AdminBackupController extends Controller
             'type'          => ['type', 'ticket type', 'ticket_type', 'tipe'],
             'pic'           => ['pic'],
             'ticket_lead'   => ['ticket lead', 'ticket_lead', 'lead'],
-            'end_date'      => ['due date/time resolution time', 'end_date', 'due date', 'due_date'],
+            'end_date'        => ['due date/time resolution time', 'end_date', 'due date', 'due_date'],
+            'customer_mandays' => ['customer mandays', 'customer_mandays'],
         ];
 
         // Last-match wins: bila ada kolom duplikat (misal "Priority","Priority"),
@@ -1641,6 +1642,54 @@ class AdminBackupController extends Controller
                     ->where('employee_id', $empId)
                     ->update(['is_active' => true, 'updated_at' => now()]);
             }
+        };
+
+        $adminEmpId = DB::table('employee')
+            ->where('eci', session('user.eci') ?? '')
+            ->value('employee_id') ?? 1;
+
+        $handleCustomerMandays = function (int $ticketId) use ($colIndex, &$row, $adminEmpId): void {
+            if (!isset($colIndex['customer_mandays'])) return;
+            $rawCm = trim($row[$colIndex['customer_mandays']] ?? '');
+            if ($rawCm === '' || $rawCm === '-') return;
+            $mdVal = (float) str_replace(',', '.', $rawCm);
+            if ($mdVal <= 0) return;
+
+            $existing = DB::table('customer_mandays')->where('ticket_id', $ticketId)->first();
+            if ($existing) {
+                DB::table('customer_mandays')->where('id', $existing->id)->update([
+                    'status'        => 'approved',
+                    'total_mandays' => $mdVal,
+                    'updated_at'    => now(),
+                ]);
+                DB::table('customer_mandays_detail')->where('customer_mandays_id', $existing->id)->delete();
+                $cmId = $existing->id;
+            } else {
+                $cmId = DB::table('customer_mandays')->insertGetId([
+                    'ticket_id'                => $ticketId,
+                    'version'                  => 1,
+                    'proposed_by_agent_id'     => $adminEmpId,
+                    'proposed_at'              => now(),
+                    'submitted_to_customer_at' => now(),
+                    'status'                   => 'approved',
+                    'customer_response_at'     => now(),
+                    'total_mandays'            => $mdVal,
+                    'created_at'               => now(),
+                    'updated_at'               => now(),
+                ]);
+            }
+
+            DB::table('customer_mandays_detail')->insert([
+                'customer_mandays_id' => $cmId,
+                'module'              => 'General',
+                'mandays'             => $mdVal,
+                'notes'               => null,
+                'created_at'          => now(),
+                'updated_at'          => now(),
+            ]);
+
+            DB::table('ticket')->where('ticket_id', $ticketId)
+                ->update(['mandays_proposal_status' => 'approved', 'updated_at' => now()]);
         };
 
         while (($row = fgetcsv($handle)) !== false) {
@@ -1814,14 +1863,12 @@ class AdminBackupController extends Controller
                     ]);
                     $created++;
 
-                    // Add extra members from ticket_lead column (2nd, 3rd, ... names)
-                    if (!empty($extraMemberIdsCreate)) {
-                        $newTicketId = DB::table('ticket')->where('ticket_number', $ticketNumber)->value('ticket_id');
-                        if ($newTicketId) {
-                            foreach ($extraMemberIdsCreate as $memberId) {
-                                $upsertMember($newTicketId, $memberId);
-                            }
+                    $newTicketId = DB::table('ticket')->where('ticket_number', $ticketNumber)->value('ticket_id');
+                    if ($newTicketId) {
+                        foreach ($extraMemberIdsCreate as $memberId) {
+                            $upsertMember($newTicketId, $memberId);
                         }
+                        $handleCustomerMandays($newTicketId);
                     }
                 } catch (\Exception $e) {
                     $errors[] = "Row {$rowNum} (#{$ticketNumber}): " . $e->getMessage();
@@ -1971,6 +2018,7 @@ class AdminBackupController extends Controller
                 foreach ($extraMemberIdsUpdate as $memberId) {
                     $upsertMember($ticket->ticket_id, $memberId);
                 }
+                $handleCustomerMandays($ticket->ticket_id);
             } catch (\Exception $e) {
                 $errors[] = "Row {$rowNum} (#{$ticketNumber}): " . $e->getMessage();
             }
@@ -2346,6 +2394,61 @@ class AdminBackupController extends Controller
                         'man_days'               => $totalMd,
                         'updated_at'             => now(),
                     ]);
+
+                // Buat customer_mandays (proposal ke customer) dengan status approved.
+                // Agregasi per modul dari detail rows yang sudah diproses.
+                $custExisting = \Illuminate\Support\Facades\DB::table('customer_mandays')
+                    ->where('ticket_id', $ticket->ticket_id)
+                    ->first();
+
+                if ($custExisting) {
+                    \Illuminate\Support\Facades\DB::table('customer_mandays')
+                        ->where('id', $custExisting->id)
+                        ->update([
+                            'status'       => 'approved',
+                            'total_mandays'=> $totalMd,
+                            'updated_at'   => now(),
+                        ]);
+                    \Illuminate\Support\Facades\DB::table('customer_mandays_detail')
+                        ->where('customer_mandays_id', $custExisting->id)
+                        ->delete();
+                    $custMandaysId = $custExisting->id;
+                } else {
+                    $custMandaysId = \Illuminate\Support\Facades\DB::table('customer_mandays')->insertGetId([
+                        'ticket_id'             => $ticket->ticket_id,
+                        'version'               => 1,
+                        'proposed_by_agent_id'  => $adminEmpId,
+                        'proposed_at'           => now(),
+                        'submitted_to_customer_at' => now(),
+                        'status'                => 'approved',
+                        'customer_response_at'  => now(),
+                        'total_mandays'         => $totalMd,
+                        'created_at'            => now(),
+                        'updated_at'            => now(),
+                    ]);
+                }
+
+                // Agregasi detailRows per modul → customer_mandays_detail
+                $moduleAgg = [];
+                foreach ($detailRows as $d) {
+                    $mod = $d['module'] ?? 'General';
+                    if (!isset($moduleAgg[$mod])) $moduleAgg[$mod] = 0;
+                    $moduleAgg[$mod] += ($d['mandays'] ?? 0) + ($d['additional_mandays'] ?? 0);
+                }
+                foreach ($moduleAgg as $mod => $md) {
+                    \Illuminate\Support\Facades\DB::table('customer_mandays_detail')->insert([
+                        'customer_mandays_id' => $custMandaysId,
+                        'module'              => $mod,
+                        'mandays'             => $md,
+                        'notes'               => null,
+                        'created_at'          => now(),
+                        'updated_at'          => now(),
+                    ]);
+                }
+
+                \Illuminate\Support\Facades\DB::table('ticket')
+                    ->where('ticket_id', $ticket->ticket_id)
+                    ->update(['mandays_proposal_status' => 'approved', 'updated_at' => now()]);
 
                 \Illuminate\Support\Facades\DB::commit();
             } catch (\Exception $e) {
@@ -3098,11 +3201,16 @@ class AdminBackupController extends Controller
                 continue;
             }
 
-            $serviceStart = $get('service_window_start', $row);
-            $serviceEnd   = $get('service_window_end', $row);
-            // Pastikan format H:i
-            if ($serviceStart && !preg_match('/^\d{2}:\d{2}$/', $serviceStart)) $serviceStart = null;
-            if ($serviceEnd   && !preg_match('/^\d{2}:\d{2}$/', $serviceEnd))   $serviceEnd   = null;
+            $normalizeTime = function (?string $t): ?string {
+                if (!$t) return null;
+                // Accept H:mm or HH:mm, normalize to HH:mm
+                if (preg_match('/^(\d{1,2}):(\d{2})$/', $t, $m)) {
+                    return str_pad($m[1], 2, '0', STR_PAD_LEFT) . ':' . $m[2];
+                }
+                return null;
+            };
+            $serviceStart = $normalizeTime($get('service_window_start', $row));
+            $serviceEnd   = $normalizeTime($get('service_window_end', $row));
 
             try {
                 \Illuminate\Support\Facades\DB::beginTransaction();

@@ -294,7 +294,7 @@ class SlaController extends Controller
             ->reject(fn ($e) => in_array($e->event_type, $messageOnlyTypes))
             ->map(fn ($e) => [
                 'event_type'       => $e->event_type,
-                'event_at'         => $e->event_at->toDateTimeString(),
+                'event_at'         => $e->event_at->setTimezone('Asia/Jakarta')->toIso8601String(),
                 'label'            => $e->event_label,
                 'jarvis_status'    => $e->jarvis_status,
                 'waiting_hours'    => $e->waiting_hours !== null ? (float) $e->waiting_hours : null,
@@ -461,7 +461,7 @@ class SlaController extends Controller
 
             return [
                 'event_type'       => $isCustomer ? 'customer_replied' : 'agent_replied',
-                'event_at'         => $msg->created_at->toDateTimeString(),
+                'event_at'         => $msg->created_at->setTimezone('Asia/Jakarta')->toIso8601String(),
                 'label'            => $isCustomer ? 'Customer replied' : 'Agent replied',
                 'jarvis_status'    => $jarvisStatus,
                 'waiting_hours'    => $waitingH,

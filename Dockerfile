@@ -10,7 +10,8 @@ WORKDIR /var/www/ecosystem
 
 COPY . .
 
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader
+RUN git config --global --add safe.directory /var/www/ecosystem
+RUN composer install --no-interaction --prefer-dist --optimize-autoloader || composer install --no-interaction --prefer-source --optimize-autoloader
 
 RUN chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache

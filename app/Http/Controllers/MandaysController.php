@@ -88,21 +88,25 @@ class MandaysController extends Controller
 
     /**
      * GET /api/tickets/{ticketId}/mandays/modules
-     * Daftar modul unik dari kualifikasi PIC + semua member tiket.
+     * Modul aktif dari kualifikasi lead + member ticket.
      */
     public function getModules($ticketId)
     {
         $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
 
-        // Kumpulkan employee_id: PIC + members
-        $employeeIds = collect([$ticket->ticket_lead_id])
-            ->merge($ticket->members->pluck('employee_id'))
-            ->filter()
-            ->unique()
-            ->values();
+        // Kumpulkan employee IDs: lead + active members
+        $employeeIds = collect();
 
-        $modules = \App\Models\Module::whereHas('employees', function ($q) use ($employeeIds) {
-                $q->whereIn('employee_qualification.employee_id', $employeeIds);
+        if ($ticket->ticket_lead_id) {
+            $employeeIds->push($ticket->ticket_lead_id);
+        }
+
+        $memberIds = $ticket->members()->pluck('ticket_member.employee_id');
+        $employeeIds = $employeeIds->merge($memberIds)->unique()->filter()->values();
+
+        // Ambil module aktif yang ada di kualifikasi lead/member
+        $modules = \App\Models\Module::whereHas('qualifications', function ($q) use ($employeeIds) {
+                $q->whereIn('employee_id', $employeeIds);
             })
             ->where('is_active', true)
             ->orderBy('name')
@@ -155,7 +159,7 @@ class MandaysController extends Controller
             'details.*.activity'=> 'nullable|string|max:150',
             'details.*.module'  => 'required|string|max:100',
             'details.*.mandays' => 'required|numeric|min:0',
-            'description'       => 'nullable|string|max:255',
+            'description'       => 'required|string|max:255',
             'proposal_notes'    => 'nullable|string|max:2000',
         ]);
 
@@ -169,10 +173,16 @@ class MandaysController extends Controller
             ], 422);
         }
 
+        $total = collect($request->details)->sum('mandays');
+        if ($total <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Total mandays harus lebih dari 0. Isi minimal satu nilai mandays.',
+            ], 422);
+        }
+
         DB::beginTransaction();
         try {
-            $total = collect($request->details)->sum('mandays');
-
             if (!$existing || in_array($existing->status, ['canceled', 'approved'])) {
                 // Buat versi baru
                 $latestVersion = CustomerMandays::where('ticket_id', $ticketId)->max('version') ?? 0;

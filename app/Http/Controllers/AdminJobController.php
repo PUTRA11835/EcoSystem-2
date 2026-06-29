@@ -22,7 +22,7 @@ class AdminJobController extends Controller
         }
 
         try {
-            $perPage = max(1, min((int) $request->get('per_page', 20), 100));
+            $perPage = max(1, min((int) $request->get('per_page', 200), 500));
             $page    = max(1, (int) $request->get('page', 1));
             $offset  = ($page - 1) * $perPage;
 

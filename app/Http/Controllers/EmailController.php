@@ -372,8 +372,10 @@ class EmailController extends Controller
 
             // internetMessageHeaders dibutuhkan untuk mengekstrak In-Reply-To + References
             // agar reply customer dari Gmail/ext. client bisa di-thread ke tiket yang ada
-            // (Exchange conversationId tidak reliable lintas email system)
-            $select      = 'id,subject,from,ccRecipients,receivedDateTime,body,internetMessageId,conversationId,hasAttachments,internetMessageHeaders';
+            // (Exchange conversationId tidak reliable lintas email system).
+            // sentDateTime = header Date: dari email (waktu customer kirim) — dipakai sebagai
+            // acuan SLA agar timezone customer apapun tetap dikonversi ke WIB.
+            $select      = 'id,subject,from,ccRecipients,sentDateTime,receivedDateTime,body,internetMessageId,conversationId,hasAttachments,internetMessageHeaders';
             // Minta body dalam format HTML agar inline image (cid:) tetap terjaga
             $preferHtml  = ['Prefer' => 'outlook.body-content-type="html"'];
 
@@ -431,11 +433,17 @@ class EmailController extends Controller
                     $internetMsgId  = $msg['internetMessageId'] ?? null;
                     $conversationId = $msg['conversationId'] ?? null;
                     $hasAttachments = $msg['hasAttachments'] ?? false;
-                    // receivedDateTime dari Graph API selalu UTC — parse ke UTC Carbon agar
-                    // created_at mencerminkan waktu email diterima, bukan waktu scheduler jalan
+                    // sentDateTime = header Date: dari email (waktu customer kirim, UTC).
+                    // Dipakai sebagai acuan SLA — timezone customer apapun akan dikonversi ke WIB.
+                    // receivedDateTime dipakai sebagai fallback jika sentDateTime tidak tersedia.
+                    $sentAt = isset($msg['sentDateTime'])
+                        ? \Carbon\Carbon::parse($msg['sentDateTime'])->utc()
+                        : null;
                     $receivedAt = isset($msg['receivedDateTime'])
                         ? \Carbon\Carbon::parse($msg['receivedDateTime'])->utc()
                         : null;
+                    // emailAt = waktu acuan email (sentDateTime jika ada, fallback ke receivedDateTime)
+                    $emailAt = $sentAt ?? $receivedAt;
 
                     // Ekstrak CC recipients: [{name, address}, ...]
                     $ccEmails = collect($msg['ccRecipients'] ?? [])
@@ -629,9 +637,12 @@ class EmailController extends Controller
                                 'is_read_by_agent'    => false,
                             ]);
 
-                            // Gunakan waktu asli email (bukan waktu scheduler) untuk created_at.
-                            // PENTING: $receivedAt adalah Carbon UTC. Harus di-convert ke app timezone
-                            // (Asia/Jakarta) sebelum disimpan sebagai string via raw DB::table(),
+                            // Gunakan receivedDateTime (waktu Exchange menerima email) untuk created_at pesan.
+                            // BUKAN sentDateTime — customer di timezone lain bisa punya sentDateTime
+                            // lebih awal dari pesan-pesan yang sudah ada, sehingga pesannya muncul
+                            // di atas (urutan salah) di room chat.
+                            // receivedDateTime selalu kronologis sesuai urutan Exchange menerima email.
+                            // PENTING: Carbon UTC → konversi ke WIB sebelum disimpan via raw DB::table()
                             // karena Eloquent membaca string DB tanpa konversi UTC→WIB.
                             if ($receivedAt) {
                                 $appTz     = config('app.timezone', 'Asia/Jakarta');
@@ -750,7 +761,7 @@ class EmailController extends Controller
                             'graph_message_id'    => $graphMsgId,
                             'has_attachments'     => $hasAttachments,
                             'cc_emails'           => !empty($ccEmails) ? $ccEmails : null, // PHP array, bukan JSON string
-                            'received_at'         => $receivedAt, // Carbon UTC — used for created_at
+                            'received_at'         => $emailAt, // sentDateTime (Date: header) → WIB untuk SLA start
                         ]);
 
                         Log::info('EmailController@processInbox: email baru masuk ke staging', [

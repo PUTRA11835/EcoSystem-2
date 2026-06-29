@@ -1,4 +1,4 @@
-@extends('dashboard')
+﻿@extends('dashboard')
 @section('title', 'Incoming Ticket Validation')
 @section('page-title', 'Incoming Ticket Validation')
 @section('page-subtitle', 'Tickets submitted by customers awaiting approval')
@@ -204,7 +204,7 @@ function updateSidebarBadge(count) {
 async function loadStagingTickets(page = 1) {
     currentPage = page;
     const status = document.getElementById('filterStatus').value;
-    const params = new URLSearchParams({ per_page: 15, page });
+    const params = new URLSearchParams({ per_page: 200, page });
     if (status) params.append('status', status);
 
     const url = '/api/staging-tickets?' + params.toString();
@@ -1056,6 +1056,28 @@ async function fetchEmailInbox(silent = false) {
         if (!sent.success && sent.message)   console.warn(`[FetchEmail] process-sent server error:`, sent.message);
 
         const hasChanges = newFromInbox > 0 || linkedSent > 0;
+
+        if (newFromInbox > 0) {
+            // ── 1. Sound on current tab (staging page) ──────────────────────
+            if (typeof playStagingSound === 'function') playStagingSound();
+
+            // ── 2. OS notification hanya saat tab ini di background ─────────
+            if (document.hidden && typeof showOsNotification === 'function') {
+                showOsNotification(
+                    'Email Baru · Ticket Validation',
+                    `${newFromInbox} email baru menunggu validasi`,
+                    '/staging'
+                );
+            }
+
+            // ── 3. Broadcast ke tab lain di browser yang sama ───────────────
+            // localStorage hanya sebagai fallback jika BroadcastChannel tidak tersedia
+            // (mencegah double-play: BC dan storage event keduanya terpicu di tab penerima)
+            const _evt = { type: 'new-staging-email', count: newFromInbox, ts: Date.now() };
+            let _bcSent = false;
+            try { const _bc = new BroadcastChannel('ecosystem-staging'); _bc.postMessage(_evt); _bc.close(); _bcSent = true; } catch (_e) {}
+            if (!_bcSent) { try { localStorage.setItem('_eco_staging_evt', JSON.stringify(_evt)); } catch (_e) {} }
+        }
 
         if (!silent || hasChanges) {
             const parts = [];

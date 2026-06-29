@@ -1244,10 +1244,6 @@
 
             {{-- Matrix table --}}
             <div class="border border-gray-200 rounded-lg overflow-hidden">
-                <div class="px-3 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                    <span class="text-xs font-semibold text-gray-600">Activity &times; Module Matrix</span>
-                    <span class="text-[10px] text-gray-400">Enter mandays per cell</span>
-                </div>
                 <div id="picMandaysTableWrap" class="overflow-x-auto">
                     <div id="picMandaysLoading" class="py-10 text-center">
                         <i class="fas fa-spinner fa-spin text-xl primary-text opacity-60 mb-2 block"></i>
@@ -4747,12 +4743,23 @@
     }
 
     async function picSaveDraft() {
+        const payload = picGetPayload();
+        const desc = (document.getElementById('picMandaysDescription')?.value || '').trim();
+        if (!desc) {
+            showNotification('Proposal Title wajib diisi.', 'warning');
+            document.getElementById('picMandaysDescription')?.focus();
+            return;
+        }
+        if (payload.details.length === 0) {
+            showNotification('Isi minimal satu nilai mandays sebelum menyimpan.', 'warning');
+            return;
+        }
         const btn = document.getElementById('picBtnSaveDraft');
         btn.disabled = true; btn.textContent = 'Saving...';
         try {
             const res = await fetch(MANDAYS_API('pic-draft'), {
                 method: 'POST', headers: getHeaders(), credentials: 'same-origin',
-                body: JSON.stringify(picGetPayload()),
+                body: JSON.stringify(payload),
             });
             const data = await res.json();
             if (data.success) {
@@ -5122,7 +5129,7 @@
             }
             const modData   = await modRes.json();
             const draftData = await draftRes.json();
-            const modules   = modData.data || [];
+            const modules   = (modData.data || []).map(m => m.name ?? m);
             const proposal  = draftData.data;
             const status    = draftData.ticket_mandays_status || 'none';
 

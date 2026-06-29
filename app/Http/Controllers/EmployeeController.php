@@ -248,7 +248,7 @@ class EmployeeController extends Controller
             }
 
             // Server-side pagination (mengikuti pola Master Customer)
-            $perPage = max(1, min((int) $request->get('per_page', 15), 100));
+            $perPage = max(1, min((int) $request->get('per_page', 200), 500));
             // Urutkan berdasarkan nama (A-Z); pakai full name gabungan agar konsisten
             // dengan kolom "Full Name" di tabel, fallback ke ECI bila nama kosong.
             $page = max(1, (int) $request->get('page', 1));

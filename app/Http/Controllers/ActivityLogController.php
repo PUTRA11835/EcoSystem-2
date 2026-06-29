@@ -37,7 +37,7 @@ class ActivityLogController extends Controller
             return response()->json(['success' => false, 'message' => 'Access denied.'], 403);
         }
 
-        $perPage  = max(1, min((int) $request->input('per_page', 25), 100));
+        $perPage  = max(1, min((int) $request->input('per_page', 200), 500));
         $search   = trim($request->input('search', ''));
         $status   = $request->input('status', '');
         $userType = $request->input('user_type', '');
