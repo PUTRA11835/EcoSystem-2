@@ -1,4 +1,4 @@
-@extends('dashboard')
+﻿@extends('dashboard')
 @section('title', 'Delivery Support')
 @section('content')
 
@@ -522,7 +522,7 @@
     let allTickets = [];
     let filteredTickets = [];
     let currentFilter = 'all';
-    let itemsPerPage = 20;
+    let itemsPerPage = 200;
     let currentPage = 1;
     let totalItems = 0;
     let totalPages = 0;

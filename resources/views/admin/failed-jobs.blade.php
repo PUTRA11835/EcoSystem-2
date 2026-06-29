@@ -121,7 +121,7 @@ async function loadJobs(page = 1) {
     document.getElementById('pagination').classList.add('hidden');
 
     try {
-        const res  = await fetch(`/api/admin/failed-jobs?page=${page}&per_page=20`, { credentials: 'same-origin' });
+        const res  = await fetch(`/api/admin/failed-jobs?page=${page}&per_page=200`, { credentials: 'same-origin' });
         const json = await res.json();
         if (!json.success) throw new Error(json.message);
 

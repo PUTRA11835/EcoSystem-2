@@ -1,4 +1,4 @@
-@extends('dashboard')
+﻿@extends('dashboard')
 
 @section('title', 'Master Customer')
 @section('page-title', 'Customer Management')
@@ -378,7 +378,7 @@
     let deleteCustomerId = null;
     let currentPage = 1;
     let paginationMeta = null;
-    const PER_PAGE = 15;
+    const PER_PAGE = 200;
 
     // Toggle password visibility
     function togglePassword(fieldId) {

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Http\Controllers;
 
@@ -143,7 +143,7 @@ class CustomerController extends Controller
                 'filters' => $request->all()
             ]);
 
-            $perPage = max(1, min((int) $request->get('per_page', 15), 100));
+            $perPage = max(1, min((int) $request->get('per_page', 200), 500));
             
             $filters = [
                 'search' => $request->get('search'),

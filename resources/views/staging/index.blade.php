@@ -1,4 +1,4 @@
-@extends('dashboard')
+﻿@extends('dashboard')
 @section('title', 'Incoming Ticket Validation')
 @section('page-title', 'Incoming Ticket Validation')
 @section('page-subtitle', 'Tickets submitted by customers awaiting approval')
@@ -204,7 +204,7 @@ function updateSidebarBadge(count) {
 async function loadStagingTickets(page = 1) {
     currentPage = page;
     const status = document.getElementById('filterStatus').value;
-    const params = new URLSearchParams({ per_page: 15, page });
+    const params = new URLSearchParams({ per_page: 200, page });
     if (status) params.append('status', status);
 
     const url = '/api/staging-tickets?' + params.toString();

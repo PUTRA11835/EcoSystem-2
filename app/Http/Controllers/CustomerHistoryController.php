@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Http\Controllers;
 
@@ -45,7 +45,7 @@ class CustomerHistoryController extends Controller
             $totalRecords = $query->count();
 
             // Apply pagination
-            $perPage = max(1, min((int) $request->get('per_page', 10), 100));
+            $perPage = max(1, min((int) $request->get('per_page', 200), 500));
             $page = $request->get('page', 1);
             $offset = ($page - 1) * $perPage;
 
