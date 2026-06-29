@@ -1241,22 +1241,26 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $roleId = $sessionUser['role']['id'] ?? 0;
+        $roleIds = $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0];
         $allowed = array_merge(
             [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value],
             RoleId::HELPDESK_GROUP
         );
-        if (!in_array($roleId, $allowed, true)) {
+        if (!array_intersect($roleIds, $allowed)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
-        $pics = Employee::withRole(RoleId::DELIVERY_SUPPORT_USER->value)
+        $pics = Employee::withAnyRole([RoleId::DELIVERY_SUPPORT_USER->value])
+            ->where('is_active', true)
             ->with('basicData:employee_id,first_name,last_name')
             ->get()
             ->map(fn($e) => [
                 'employee_id' => $e->employee_id,
-                'name'        => trim(($e->basicData->first_name ?? '') . ' ' . ($e->basicData->last_name ?? '')),
+                'name'        => $e->basicData
+                                    ? trim(($e->basicData->first_name ?? '') . ' ' . ($e->basicData->last_name ?? ''))
+                                    : $e->eci,
             ])
+            ->filter(fn($e) => $e['name'] !== '')
             ->sortBy('name')
             ->values();
 

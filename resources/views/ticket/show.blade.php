@@ -1244,10 +1244,6 @@
 
             {{-- Matrix table --}}
             <div class="border border-gray-200 rounded-lg overflow-hidden">
-                <div class="px-3 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                    <span class="text-xs font-semibold text-gray-600">Activity &times; Module Matrix</span>
-                    <span class="text-[10px] text-gray-400">Enter mandays per cell</span>
-                </div>
                 <div id="picMandaysTableWrap" class="overflow-x-auto">
                     <div id="picMandaysLoading" class="py-10 text-center">
                         <i class="fas fa-spinner fa-spin text-xl primary-text opacity-60 mb-2 block"></i>
