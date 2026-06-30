@@ -239,7 +239,7 @@ class StagingTicketController extends Controller
             'description'          => 'required|string|max:5000',
             'body'                 => 'nullable|string',
             'ticket_priority'      => 'nullable|in:Very High,High,Medium,Low',
-            'ticket_type'          => 'nullable|string|in:Incident,Service Request,Change Request,Consult',
+            'ticket_type'          => 'nullable|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult',
             'sender_name'          => 'nullable|string|max:255',
             'submitted_by_email'   => 'nullable|email|max:255',
             'cc_emails'            => 'nullable|string',    // JSON string dari JARVIES
@@ -320,7 +320,7 @@ class StagingTicketController extends Controller
         }
 
         $request->validate([
-            'ticket_type'         => 'required|string|in:Incident,Service Request,Change Request,Consult',
+            'ticket_type'         => 'required|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult',
             'ticket_priority'     => 'required|string|in:Very High,High,Medium,Low',
             'scale'               => 'nullable|string|max:50',
             'name'                => 'nullable|string|max:255',

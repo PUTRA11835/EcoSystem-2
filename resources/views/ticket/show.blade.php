@@ -137,10 +137,12 @@
                     @if($ticket->ticket_type)
                     @php
                         $typeColors = [
-                            'Incident' => 'bg-red-100 text-red-700',
+                            'Incident'        => 'bg-red-100 text-red-700',
+                            'Change Request'  => 'bg-amber-100 text-amber-700',
                             'Service Request' => 'bg-indigo-100 text-indigo-700',
-                            'Change Request' => 'bg-amber-100 text-amber-700',
-                            'Consult' => 'bg-teal-100 text-teal-700',
+                            'EWA'             => 'bg-orange-100 text-orange-700',
+                            'RISE'            => 'bg-violet-100 text-violet-700',
+                            'Consult'         => 'bg-teal-100 text-teal-700',
                         ];
                     @endphp
                     <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $typeColors[$ticket->ticket_type] ?? 'bg-gray-100 text-gray-600' }}">
@@ -632,8 +634,10 @@
                         <input type="hidden" id="detailType" value="{{ $ticket->ticket_type ?? 'Incident' }}">
                         <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:150px;">
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Incident">Incident</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Service Request">Service Request</button>
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Change Request">Change Request</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Service Request">Service Request</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="EWA">EWA</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="RISE">RISE</button>
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Consult">Consult</button>
                         </div>
                     </div>

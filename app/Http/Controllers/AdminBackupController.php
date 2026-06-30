@@ -1593,7 +1593,7 @@ class AdminBackupController extends Controller
         ];
         $validPriorities = ['Very High', 'High', 'Medium', 'Low'];
         $validScales     = ['Simple', 'Medium', 'Complex'];
-        $validTypes      = ['Incident', 'Service Request', 'Change Request', 'Consult'];
+        $validTypes      = ['Incident', 'Change Request', 'Service Request', 'EWA', 'RISE', 'Consult'];
 
         $created = 0;
         $updated = 0;
@@ -1958,7 +1958,7 @@ class AdminBackupController extends Controller
                     if ($matched) {
                         $updateData['ticket_type'] = $matched;
                     } else {
-                        $errors[] = "Row {$rowNum} (#{$ticketNumber}): Invalid type '{$raw}' (accepted: Incident, Service Request, Change Request, Consult)";
+                        $errors[] = "Row {$rowNum} (#{$ticketNumber}): Invalid type '{$raw}' (accepted: Incident, Change Request, Service Request, EWA, RISE, Consult)";
                     }
                 }
             }
