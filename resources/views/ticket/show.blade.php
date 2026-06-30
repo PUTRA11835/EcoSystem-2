@@ -362,6 +362,12 @@
         // Priority: Head > Helpdesk > PIC to avoid duplicate sections for multi-role users
         if ($isHead)          { $isPic = false; $isHelpdesk = false; }
         elseif ($isHelpdesk)  { $isPic = false; }
+        // Computed AFTER override so dual-role Head+Helpdesk users get false
+        $hdCanEditDesc        = $isHelpdesk && $can('ticket.review-mandays.edit-description');
+        $hdCanEditNotes       = $isHelpdesk && $can('ticket.review-mandays.edit-proposal-notes');
+        $hdCanSendToCustomer  = $isHelpdesk && $can('ticket.review-mandays.send-to-customer');
+        $hdCanApprove         = $isHelpdesk && $can('ticket.review-mandays.approve');
+        $hdCanCancel          = $isHelpdesk && $can('ticket.review-mandays.cancel');
         $mandaysBadge    = [
             'none'            => ['bg-gray-100 text-gray-500',   'None'],
             'pic_draft'       => ['bg-yellow-100 text-yellow-700','Draft'],
@@ -1474,6 +1480,26 @@
                     <p class="text-xs font-semibold text-red-700 mb-1">Customer Rejection Reason:</p>
                     <p id="hdRejectionReasonText" class="text-xs text-red-800"></p>
                 </div>
+                @if($hdCanEditDesc || $hdCanEditNotes)
+                <div id="hdMetaFieldsWrap" class="hidden mb-4 space-y-3">
+                    @if($hdCanEditDesc)
+                    <div>
+                        <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</label>
+                        <input type="text" id="hdDescriptionInput" maxlength="255"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-800"
+                            placeholder="Proposal description...">
+                    </div>
+                    @endif
+                    @if($hdCanEditNotes)
+                    <div>
+                        <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Proposal Notes</label>
+                        <textarea id="hdProposalNotesInput" rows="2" maxlength="2000"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-800 resize-none"
+                            placeholder="Notes for this proposal..."></textarea>
+                    </div>
+                    @endif
+                </div>
+                @endif
                 <div class="overflow-x-auto mb-4">
                     <table class="w-full text-xs border-collapse">
                         <thead id="hdMandaysHead"></thead>
@@ -5111,6 +5137,12 @@
 
 
     // ==================== HELPDESK: CUSTOMER MANDAYS REVIEW ====================
+    const HD_CAN_EDIT_DESC       = {{ ($hdCanEditDesc       ?? false) ? 'true' : 'false' }};
+    const HD_CAN_EDIT_NOTES      = {{ ($hdCanEditNotes      ?? false) ? 'true' : 'false' }};
+    const HD_CAN_SEND_TO_CUSTOMER= {{ ($hdCanSendToCustomer ?? false) ? 'true' : 'false' }};
+    const HD_CAN_APPROVE         = {{ ($hdCanApprove        ?? false) ? 'true' : 'false' }};
+    const HD_CAN_CANCEL          = {{ ($hdCanCancel         ?? false) ? 'true' : 'false' }};
+
     async function openHdMandaysModal() {
         const modal = document.getElementById('hdMandaysModal');
         if (!modal) { console.warn('[hdMandays] modal element not found'); return; }
@@ -5213,6 +5245,21 @@
 
             // Table is editable only when Helpdesk can still make changes
             const isEditable = isPicSubmitted || isCustomerRejected;
+
+            // Populate description/notes edit fields if editable & permitted
+            const metaWrap = document.getElementById('hdMetaFieldsWrap');
+            if (metaWrap) {
+                if (isEditable) {
+                    metaWrap.classList.remove('hidden');
+                    const descEl = document.getElementById('hdDescriptionInput');
+                    if (descEl) descEl.value = proposal.description || '';
+                    const notesEl = document.getElementById('hdProposalNotesInput');
+                    if (notesEl) notesEl.value = proposal.proposal_notes || '';
+                } else {
+                    metaWrap.classList.add('hidden');
+                }
+            }
+
             let bodyHtml = '';
             activities.forEach(act => {
                 bodyHtml += `<tr><td class="px-2 py-1.5 border border-gray-200 text-xs font-medium">${act}</td>`;
@@ -5238,8 +5285,8 @@
             });
             if (isPicSubmitted) {
                 document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
-                document.getElementById('hdBtnSendToChat')?.classList.remove('hidden');
-                document.getElementById('hdBtnCancel')?.classList.remove('hidden');
+                if (HD_CAN_SEND_TO_CUSTOMER) document.getElementById('hdBtnSendToChat')?.classList.remove('hidden');
+                if (HD_CAN_CANCEL)           document.getElementById('hdBtnCancel')?.classList.remove('hidden');
                 // Show info banner: must send to chat before approving
                 banner.innerHTML = `<i class="fas fa-info-circle text-blue-500 text-sm mt-0.5 flex-shrink-0"></i>
                     <div><p class="font-semibold text-blue-800">Send to Customer First</p>
@@ -5248,12 +5295,11 @@
                 banner.classList.add('flex', 'bg-blue-50', 'border', 'border-blue-200', 'text-blue-800');
             } else if (isCustomerRejected) {
                 document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
-                document.getElementById('hdBtnReviseResend')?.classList.remove('hidden');
-                document.getElementById('hdBtnCancel')?.classList.remove('hidden');
+                if (HD_CAN_SEND_TO_CUSTOMER) document.getElementById('hdBtnReviseResend')?.classList.remove('hidden');
+                if (HD_CAN_CANCEL)           document.getElementById('hdBtnCancel')?.classList.remove('hidden');
             } else if (isSentToChat) {
-                // Helpdesk approve setelah baca chat dari customer
-                document.getElementById('hdBtnApprove')?.classList.remove('hidden');
-                document.getElementById('hdBtnCancel')?.classList.remove('hidden');
+                if (HD_CAN_APPROVE) document.getElementById('hdBtnApprove')?.classList.remove('hidden');
+                if (HD_CAN_CANCEL)  document.getElementById('hdBtnCancel')?.classList.remove('hidden');
             } else if (isCanceled) {
                 document.getElementById('hdBtnNewProposal')?.classList.remove('hidden');
             }
@@ -5303,9 +5349,18 @@
             if (v > 0) details.push({ activity: inp.dataset.activity, module: inp.dataset.module, mandays: v });
         });
         if (details.length > 0) {
+            const savePayload = { details };
+            if (HD_CAN_EDIT_DESC) {
+                const descEl = document.getElementById('hdDescriptionInput');
+                if (descEl) savePayload.description = descEl.value.trim();
+            }
+            if (HD_CAN_EDIT_NOTES) {
+                const notesEl = document.getElementById('hdProposalNotesInput');
+                if (notesEl) savePayload.proposal_notes = notesEl.value.trim();
+            }
             await fetch(MANDAYS_API('hd-draft'), {
                 method: 'PUT', headers: getHeaders(), credentials: 'same-origin',
-                body: JSON.stringify({ details }),
+                body: JSON.stringify(savePayload),
             });
         }
         const res = await fetch(MANDAYS_API(endpoint), {
@@ -5328,9 +5383,18 @@
                 showNotification('Please fill in at least one mandays value.', 'warning');
                 return;
             }
+            const payload = { details };
+            if (HD_CAN_EDIT_DESC) {
+                const descEl = document.getElementById('hdDescriptionInput');
+                if (descEl) payload.description = descEl.value.trim();
+            }
+            if (HD_CAN_EDIT_NOTES) {
+                const notesEl = document.getElementById('hdProposalNotesInput');
+                if (notesEl) payload.proposal_notes = notesEl.value.trim();
+            }
             const res = await fetch(MANDAYS_API('hd-draft'), {
                 method: 'PUT', headers: getHeaders(), credentials: 'same-origin',
-                body: JSON.stringify({ details }),
+                body: JSON.stringify(payload),
             });
             const data = await res.json();
             if (data.success) {

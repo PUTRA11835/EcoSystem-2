@@ -418,6 +418,8 @@ class EmailController extends Controller
             }
 
             $processed = 0;
+            $staged    = 0; // email baru → staging ticket
+            $linked    = 0; // email reply → ticket yang sudah ada
             $skipped   = 0;
             $errors    = [];
 
@@ -710,6 +712,7 @@ class EmailController extends Controller
                             $ticket->update($ticketCcUpdate);
                             $savedMessage = $message;
                         });
+                        $linked++;
 
                         // Trigger SLA event setelah transaction commit (non-fatal)
                         if ($savedMessage && $customer) {
@@ -768,6 +771,7 @@ class EmailController extends Controller
                             'from'    => $fromEmail,
                             'subject' => $subject,
                         ]);
+                        $staged++;
                     }
 
                     // Tandai sebagai sudah dibaca di Graph
@@ -789,6 +793,8 @@ class EmailController extends Controller
             return response()->json([
                 'status'    => 'done',
                 'processed' => $processed,
+                'staged'    => $staged,
+                'linked'    => $linked,
                 'skipped'   => $skipped,
                 'errors'    => $errors,
             ]);

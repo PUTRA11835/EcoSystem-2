@@ -1047,7 +1047,9 @@ async function fetchEmailInbox(silent = false) {
         if (inboxData.status === 'rejected') console.error(`[FetchEmail] process-inbox NETWORK ERROR:`, inboxData.reason);
         if (sentData.status  === 'rejected') console.error(`[FetchEmail] process-sent NETWORK ERROR:`, sentData.reason);
 
-        const newFromInbox = inbox.processed ?? 0;
+        // staged  = email baru yang masuk ke staging (notif harus bunyi)
+        // linked  = email reply ke tiket existing (JANGAN trigger notif staging)
+        const newStaged    = inbox.staged    ?? inbox.processed ?? 0;
         const linkedSent   = sent.linked     ?? 0;
 
         if (inbox.errors?.length) console.warn(`[FetchEmail] Inbox errors:`, inbox.errors);
@@ -1055,9 +1057,9 @@ async function fetchEmailInbox(silent = false) {
         if (!inbox.success && inbox.message) console.warn(`[FetchEmail] process-inbox server error:`, inbox.message);
         if (!sent.success && sent.message)   console.warn(`[FetchEmail] process-sent server error:`, sent.message);
 
-        const hasChanges = newFromInbox > 0 || linkedSent > 0;
+        const hasChanges = newStaged > 0 || linkedSent > 0;
 
-        if (newFromInbox > 0) {
+        if (newStaged > 0) {
             // ── 1. Sound on current tab (staging page) ──────────────────────
             if (typeof playStagingSound === 'function') playStagingSound();
 
@@ -1065,7 +1067,7 @@ async function fetchEmailInbox(silent = false) {
             if (document.hidden && typeof showOsNotification === 'function') {
                 showOsNotification(
                     'Email Baru · Ticket Validation',
-                    `${newFromInbox} email baru menunggu validasi`,
+                    `${newStaged} email baru menunggu validasi`,
                     '/staging'
                 );
             }
@@ -1073,7 +1075,7 @@ async function fetchEmailInbox(silent = false) {
             // ── 3. Broadcast ke tab lain di browser yang sama ───────────────
             // localStorage hanya sebagai fallback jika BroadcastChannel tidak tersedia
             // (mencegah double-play: BC dan storage event keduanya terpicu di tab penerima)
-            const _evt = { type: 'new-staging-email', count: newFromInbox, ts: Date.now() };
+            const _evt = { type: 'new-staging-email', count: newStaged, ts: Date.now() };
             let _bcSent = false;
             try { const _bc = new BroadcastChannel('ecosystem-staging'); _bc.postMessage(_evt); _bc.close(); _bcSent = true; } catch (_e) {}
             if (!_bcSent) { try { localStorage.setItem('_eco_staging_evt', JSON.stringify(_evt)); } catch (_e) {} }
@@ -1081,15 +1083,15 @@ async function fetchEmailInbox(silent = false) {
 
         if (!silent || hasChanges) {
             const parts = [];
-            if (newFromInbox > 0) parts.push(`${newFromInbox} new ticket(s) from inbox`);
-            if (linkedSent > 0)   parts.push(`${linkedSent} staging(s) linked to sent email`);
+            if (newStaged > 0)  parts.push(`${newStaged} new ticket(s) from inbox`);
+            if (linkedSent > 0) parts.push(`${linkedSent} staging(s) linked to sent email`);
             if (parts.length > 0) showNotif(parts.join(', ') + '.', 'success');
             else if (!silent) showNotif('No new emails.', 'info');
         }
 
         const statusParts = [];
-        if (newFromInbox > 0) statusParts.push(`${newFromInbox} inbox`);
-        if (linkedSent > 0)   statusParts.push(`${linkedSent} linked`);
+        if (newStaged > 0)  statusParts.push(`${newStaged} inbox`);
+        if (linkedSent > 0) statusParts.push(`${linkedSent} linked`);
         if (status) status.textContent = `Updated ${now} (WIB)${statusParts.length ? ' · ' + statusParts.join(', ') : ''}`;
 
         if (hasChanges) { loadStagingTickets(); loadStats(); }
