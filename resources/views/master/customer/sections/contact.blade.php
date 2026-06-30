@@ -414,7 +414,7 @@
             if (contact.auth_user_id) {
                 const isAdmin = contact.can_view_all_tickets == 1 || contact.can_view_all_tickets === true;
                 ticketAccessBadge = `
-                    <label class="inline-flex items-center gap-2 cursor-pointer select-none" onclick="event.stopPropagation()" title="${isAdmin ? 'Admin: can see all company tickets. Click to restrict.' : 'Regular: sees own tickets only. Click to grant admin.'}">
+                    <label class="inline-flex items-center gap-2 cursor-pointer select-none" onclick="event.stopPropagation()" title="${isAdmin ? 'Admin: can see all company tickets. Click to restrict to Member.' : 'Member: sees own tickets only. Click to grant Admin.'}">
                         <div class="relative flex-shrink-0">
                             <input type="checkbox" id="cbAdmin_${contact.contact_id}" ${isAdmin ? 'checked' : ''}
                                    onchange="window.toggleViewAllTickets(${contact.contact_id})"
@@ -425,7 +425,7 @@
                                         after:h-4 after:w-4 after:transition-all
                                         peer-checked:after:translate-x-4 peer-checked:after:border-white"></div>
                         </div>
-                        <span class="text-xs font-semibold ${isAdmin ? 'text-blue-700' : 'text-gray-400'}" id="cbAdminLabel_${contact.contact_id}">${isAdmin ? 'Admin' : 'Regular'}</span>
+                        <span class="text-xs font-semibold ${isAdmin ? 'text-blue-700' : 'text-gray-400'}" id="cbAdminLabel_${contact.contact_id}">${isAdmin ? 'Admin' : 'Member'}</span>
                     </label>`;
             } else {
                 ticketAccessBadge = `<span class="text-gray-300 text-xs">—</span>`;
