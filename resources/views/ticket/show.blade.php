@@ -801,6 +801,22 @@
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Created</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('d M Y H:i') }} WIB</p>
                 </div>
+                {{-- Hide / Unhide Ticket --}}
+                @if($can('ticket.hide'))
+                <div class="pt-3 border-t border-gray-200">
+                    @if($ticket->is_hidden)
+                    <button onclick="unhideTicket()" id="btnUnhideTicket"
+                        class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-all duration-200">
+                        <i class="fas fa-eye text-xs"></i> Tampilkan Kembali
+                    </button>
+                    @else
+                    <button onclick="hideTicket()" id="btnHideTicket"
+                        class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-500 text-white text-xs font-semibold rounded-lg hover:bg-orange-600 transition-all duration-200">
+                        <i class="fas fa-eye-slash text-xs"></i> Sembunyikan Tiket
+                    </button>
+                    @endif
+                </div>
+                @endif
                 {{-- Admin only: Delete Ticket --}}
                 @if($can('ticket.delete'))
                 <div class="pt-3 border-t border-gray-200">
@@ -4063,6 +4079,52 @@
         if (modal && modal.querySelector('.bg-white')?.contains(e.target)) return;
         dd.classList.add('hidden');
     });
+
+    async function hideTicket() {
+        if (!confirm('Sembunyikan tiket ini? Tiket tidak akan muncul di daftar utama.')) return;
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/hide`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Tiket berhasil disembunyikan.', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                showNotification(data.message || 'Gagal menyembunyikan tiket.', 'error');
+            }
+        } catch (e) {
+            showNotification('Terjadi kesalahan. Coba lagi.', 'error');
+        }
+    }
+
+    async function unhideTicket() {
+        if (!confirm('Tampilkan kembali tiket ini? Tiket akan muncul di daftar utama.')) return;
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/unhide`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Tiket berhasil ditampilkan kembali.', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                showNotification(data.message || 'Gagal menampilkan tiket.', 'error');
+            }
+        } catch (e) {
+            showNotification('Terjadi kesalahan. Coba lagi.', 'error');
+        }
+    }
 
     async function deleteTicket() {
         if (!confirm('Are you sure you want to delete this ticket?')) return;

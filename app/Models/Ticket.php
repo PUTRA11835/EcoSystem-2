@@ -58,6 +58,8 @@ class Ticket extends Model
         'onedrive_folder_id',
         'onedrive_folder_url',
         'onedrive_deliverable_folder_id',
+        // Visibility
+        'is_hidden',
     ];
 
     protected $casts = [

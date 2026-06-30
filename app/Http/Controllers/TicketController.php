@@ -101,6 +101,7 @@ class TicketController extends Controller
                 Log::info('External employee viewing own tickets only', ['employee_id' => $sessionUser['id']]);
                 $employeeId = $sessionUser['id'];
                 $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->where(function ($q) use ($employeeId) {
                         $q->where('ticket_lead_id', $employeeId)
                           ->orWhereHas('members', fn ($i) => $i->where('ticket_member.employee_id', $employeeId));
@@ -113,6 +114,7 @@ class TicketController extends Controller
                 Log::info('Admin viewing tickets', ['unassigned' => $filterUnassigned]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
                 if ($filterUnassigned) {
                     $query->whereNull('ticket_lead_id');
@@ -123,6 +125,7 @@ class TicketController extends Controller
             } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_USER->value) {
                 Log::info('Employee viewing unassigned tickets');
                 $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->whereNull('ticket_lead_id')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
@@ -137,6 +140,7 @@ class TicketController extends Controller
                 Log::info('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
                 if ($filterUnassigned) {
                     $query->whereNull('ticket_lead_id');
@@ -149,6 +153,7 @@ class TicketController extends Controller
                 Log::info('Support Manager viewing all tickets', ['employee_id' => $sessionUser['id']]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
 
                 if ($filterUnassigned) {
@@ -173,6 +178,7 @@ class TicketController extends Controller
                 ]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
                 if ($filterUnassigned) {
                     $query->whereNull('ticket_lead_id');
@@ -3184,6 +3190,145 @@ class TicketController extends Controller
                 'message' => 'Failed to create delivery support',
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Hide a ticket (set is_hidden = 1).
+     * Requires permission: ticket.hide
+     */
+    public function hide($id)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $employee = Employee::find($sessionUser['id'] ?? null);
+        if (!$employee || !$employee->hasPermission('ticket.hide')) {
+            return response()->json(['success' => false, 'message' => 'Access denied'], 403);
+        }
+
+        try {
+            $ticket = Ticket::findOrFail($id);
+
+            if ($ticket->is_hidden) {
+                return response()->json(['success' => false, 'message' => 'Ticket is already hidden'], 422);
+            }
+
+            $ticket->update(['is_hidden' => 1]);
+
+            Log::info('Ticket hidden', [
+                'ticket_id'   => $id,
+                'hidden_by'   => $sessionUser['id'],
+                'hidden_by_name' => $sessionUser['name'] ?? null,
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Ticket has been hidden']);
+        } catch (\Exception $e) {
+            Log::error('TicketController@hide: error', ['ticket_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to hide ticket'], 500);
+        }
+    }
+
+    /**
+     * Unhide a ticket (set is_hidden = null).
+     * Requires permission: ticket.hide
+     */
+    public function unhide($id)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $employee = Employee::find($sessionUser['id'] ?? null);
+        if (!$employee || !$employee->hasPermission('ticket.hide')) {
+            return response()->json(['success' => false, 'message' => 'Access denied'], 403);
+        }
+
+        try {
+            $ticket = Ticket::findOrFail($id);
+
+            if (!$ticket->is_hidden) {
+                return response()->json(['success' => false, 'message' => 'Ticket is not hidden'], 422);
+            }
+
+            $ticket->update(['is_hidden' => null]);
+
+            Log::info('Ticket unhidden', [
+                'ticket_id'     => $id,
+                'unhidden_by'   => $sessionUser['id'],
+                'unhidden_by_name' => $sessionUser['name'] ?? null,
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Ticket is now visible again']);
+        } catch (\Exception $e) {
+            Log::error('TicketController@unhide: error', ['ticket_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to unhide ticket'], 500);
+        }
+    }
+
+    /**
+     * List all hidden tickets.
+     * Requires permission: management.hidden-tickets
+     */
+    public function hiddenIndex()
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $employee = Employee::find($sessionUser['id'] ?? null);
+        if (!$employee || !$employee->hasPermission('management.hidden-tickets')) {
+            return response()->json(['success' => false, 'message' => 'Access denied'], 403);
+        }
+
+        try {
+            $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData'])
+                ->where('is_hidden', 1)
+                ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
+                ->get();
+
+            $data = $tickets->map(function ($ticket) {
+                return [
+                    'ticket_id'      => $ticket->ticket_id,
+                    'ticket_number'  => $ticket->ticket_number,
+                    'description'    => $ticket->description,
+                    'ticket_priority'=> $ticket->ticket_priority,
+                    'ticket_type'    => $ticket->ticket_type,
+                    'status'         => $ticket->status,
+                    'is_hidden'      => $ticket->is_hidden,
+                    'customer'       => $ticket->customer ? [
+                        'customer_id'   => $ticket->customer->customer_id,
+                        'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
+                        'customer_code' => $ticket->customer->customer_code,
+                    ] : null,
+                    'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
+                    'employee'       => $ticket->ticketLead ? [
+                        'employee_id'   => $ticket->ticketLead->employee_id,
+                        'employee_name' => $ticket->ticketLead->basicData->first_name ?? 'Unknown',
+                    ] : null,
+                    'members'        => $ticket->members->map(fn($m) => [
+                        'employee_id'   => $m->employee_id,
+                        'employee_name' => $m->basicData->first_name ?? 'Unknown',
+                    ]),
+                    'start_date'     => $ticket->start_date,
+                    'end_date'       => $ticket->end_date,
+                    'created_at'     => $ticket->created_at,
+                    'updated_at'     => $ticket->updated_at,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data'    => $data,
+                'message' => 'Hidden tickets retrieved successfully',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('TicketController@hiddenIndex: error', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to retrieve hidden tickets'], 500);
         }
     }
 }
