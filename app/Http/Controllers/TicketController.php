@@ -333,6 +333,7 @@ class TicketController extends Controller
         }
 
         $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData'])
+            ->whereNull('is_hidden')
             ->orderBy('ticket_id', 'asc');
 
         // Status — dari card filter
@@ -855,6 +856,7 @@ class TicketController extends Controller
                 $employeeId = $sessionUser['id'];
                 Log::info('My Tickets - External employee', ['employee_id' => $employeeId]);
                 $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->where(function ($query) use ($employeeId) {
                         $query->where('ticket.ticket_lead_id', $employeeId)
                             ->orWhereHas('members', fn ($inner) => $inner->where('ticket_member.employee_id', $employeeId));
@@ -870,6 +872,7 @@ class TicketController extends Controller
 
                 // Ticket yang employee handle sebagai PIC atau member
                 $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->where(function($query) use ($employeeId) {
                         $query->where('ticket.ticket_lead_id', $employeeId)
                             ->orWhereHas('members', function($inner) use ($employeeId) {
@@ -897,6 +900,7 @@ class TicketController extends Controller
                     ->values();
 
                 $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->whereIn('ticket_id', $managedTicketIds)
                     ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
                     ->get();
@@ -910,6 +914,7 @@ class TicketController extends Controller
                     'role_id'     => $sessionUser['role']['id'] ?? null,
                 ]);
                 $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->where(function ($query) use ($employeeId) {
                         $query->where('ticket.ticket_lead_id', $employeeId)
                             ->orWhereHas('members', function ($inner) use ($employeeId) {
@@ -1806,6 +1811,7 @@ class TicketController extends Controller
             }
 
             $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData'])
+                ->whereNull('is_hidden')
                 ->where('status', $status)
                 ->orderBy('created_at', 'desc');
 
@@ -1851,7 +1857,7 @@ class TicketController extends Controller
                 ], 403);
             }
 
-            $query = Ticket::query();
+            $query = Ticket::whereNull('is_hidden');
 
             // Admin (role_id = 1) dan Employee dengan DSM bisa lihat semua statistik
 
