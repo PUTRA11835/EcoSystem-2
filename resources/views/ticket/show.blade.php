@@ -359,6 +359,9 @@
         $isPic           = $can('ticket.propose-mandays');
         $isHelpdesk      = $can('ticket.review-mandays');
         $isHead          = $can('ticket.head-mandays');
+        // Priority: Head > Helpdesk > PIC to avoid duplicate sections for multi-role users
+        if ($isHead)          { $isPic = false; $isHelpdesk = false; }
+        elseif ($isHelpdesk)  { $isPic = false; }
         $mandaysBadge    = [
             'none'            => ['bg-gray-100 text-gray-500',   'None'],
             'pic_draft'       => ['bg-yellow-100 text-yellow-700','Draft'],
