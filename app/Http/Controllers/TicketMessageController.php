@@ -268,7 +268,12 @@ class TicketMessageController extends Controller
                     }
                 }
 
-                $ticket->update(['last_agent_reply_at' => now(), 'last_message_at' => now()]);
+                $chosenStatus    = $request->input('ticket_status');
+                $ticketUpdateFields = ['last_agent_reply_at' => now(), 'last_message_at' => now()];
+                if ($chosenStatus) {
+                    $ticketUpdateFields['status'] = $chosenStatus;
+                }
+                $ticket->update($ticketUpdateFields);
 
                 // Notifikasi ke PIC + member aktif lain
                 if ($message) {
@@ -345,15 +350,9 @@ class TicketMessageController extends Controller
                 );
             }
 
-            // Trigger SLA event (non-fatal)
+            // Trigger SLA event (non-fatal) — status sudah diupdate di atas bersama last_agent_reply_at
             if ($message && !$isInternalNote) {
                 try {
-                    // Terapkan status yang dipilih dari modal sebelum hitung SLA
-                    $chosenStatus = $request->input('ticket_status');
-                    if ($chosenStatus) {
-                        $ticket->update(['status' => $chosenStatus]);
-                    }
-
                     $ticket->refresh();
                     app(SlaService::class)->recordMessageEvent(
                         $ticket,
