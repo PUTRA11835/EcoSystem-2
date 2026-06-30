@@ -5874,7 +5874,18 @@
 
 {{-- ==================== DELIVERABLE MODAL ==================== --}}
 <div id="deliverableModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 flex flex-col" style="max-height:90vh">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 flex flex-col relative" style="max-height:90vh">
+
+        {{-- Loading overlay (send to customer) --}}
+        <div id="deliverableLoadingOverlay" class="hidden absolute inset-0 bg-white/80 backdrop-blur-sm rounded-2xl z-20 flex flex-col items-center justify-center gap-3">
+            <svg class="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <p class="text-sm font-semibold text-blue-600">Sending to Customer...</p>
+            <p class="text-xs text-gray-400">Please wait</p>
+        </div>
+
         {{-- Header --}}
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
             <div>
@@ -6302,6 +6313,8 @@ async function submitNewDoc() {
 
 async function sendDeliverable(id) {
     if (!await showConfirm('Mark this document as "Sended to Customer"?', 'Send to Customer')) return;
+    const overlay = document.getElementById('deliverableLoadingOverlay');
+    if (overlay) overlay.classList.remove('hidden');
     try {
         const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/send`, {
             method: 'PATCH',
@@ -6315,6 +6328,8 @@ async function sendDeliverable(id) {
     } catch (e) {
         showDelivError(e.message);
         showToast('Failed to send: ' + e.message, 'error');
+    } finally {
+        if (overlay) overlay.classList.add('hidden');
     }
 }
 
