@@ -366,6 +366,7 @@
         $hdCanEditActivity    = $isHelpdesk && $can('ticket.review-mandays.edit-activity');
         $hdCanEditDesc        = $isHelpdesk && $can('ticket.review-mandays.edit-description');
         $hdCanEditNotes       = $isHelpdesk && $can('ticket.review-mandays.edit-proposal-notes');
+        $hdCanSaveDraft       = $isHelpdesk && $can('ticket.review-mandays.save-draft');
         $hdCanSendToCustomer  = $isHelpdesk && $can('ticket.review-mandays.send-to-customer');
         $hdCanApprove         = $isHelpdesk && $can('ticket.review-mandays.approve');
         $hdCanCancel          = $isHelpdesk && $can('ticket.review-mandays.cancel');
@@ -5143,6 +5144,7 @@
     const HD_CAN_EDIT_ACTIVITY   = {{ ($hdCanEditActivity   ?? false) ? 'true' : 'false' }};
     const HD_CAN_EDIT_DESC       = {{ ($hdCanEditDesc       ?? false) ? 'true' : 'false' }};
     const HD_CAN_EDIT_NOTES      = {{ ($hdCanEditNotes      ?? false) ? 'true' : 'false' }};
+    const HD_CAN_SAVE_DRAFT      = {{ ($hdCanSaveDraft      ?? false) ? 'true' : 'false' }};
     const HD_CAN_SEND_TO_CUSTOMER= {{ ($hdCanSendToCustomer ?? false) ? 'true' : 'false' }};
     const HD_CAN_APPROVE         = {{ ($hdCanApprove        ?? false) ? 'true' : 'false' }};
     const HD_CAN_CANCEL          = {{ ($hdCanCancel         ?? false) ? 'true' : 'false' }};
@@ -5292,7 +5294,7 @@
                 document.getElementById(id)?.classList.add('hidden');
             });
             if (isPicSubmitted) {
-                document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
+                if (HD_CAN_SAVE_DRAFT)       document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
                 if (HD_CAN_SEND_TO_CUSTOMER) document.getElementById('hdBtnSendToChat')?.classList.remove('hidden');
                 if (HD_CAN_CANCEL)           document.getElementById('hdBtnCancel')?.classList.remove('hidden');
                 // Show info banner: must send to chat before approving
@@ -5302,7 +5304,7 @@
                 banner.classList.remove('hidden');
                 banner.classList.add('flex', 'bg-blue-50', 'border', 'border-blue-200', 'text-blue-800');
             } else if (isCustomerRejected) {
-                document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
+                if (HD_CAN_SAVE_DRAFT)       document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
                 if (HD_CAN_SEND_TO_CUSTOMER) document.getElementById('hdBtnReviseResend')?.classList.remove('hidden');
                 if (HD_CAN_CANCEL)           document.getElementById('hdBtnCancel')?.classList.remove('hidden');
             } else if (isSentToChat) {

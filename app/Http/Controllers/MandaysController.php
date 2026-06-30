@@ -310,11 +310,10 @@ class MandaysController extends Controller
      */
     public function saveHelpdeskDraft(Request $request, $ticketId)
     {
-        if ($deny = $this->denyUnlessRole(
-            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_HELPDESK->value],
-            'Only Helpdesk can edit the customer mandays proposal at this stage.'
-        )) {
-            return $deny;
+        $sessionUserId = session('user')['id'] ?? null;
+        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
+        if (!$employee?->canAccessMenu('ticket.review-mandays')) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to edit the customer mandays proposal.'], 403);
         }
 
         $request->validate([
@@ -333,9 +332,6 @@ class MandaysController extends Controller
         }
 
         $total = collect($request->details)->sum('mandays');
-
-        $sessionUserId = session('user')['id'] ?? null;
-        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
 
         $canEditActivity = $employee?->canAccessMenu('ticket.review-mandays.edit-activity');
 
@@ -383,13 +379,6 @@ class MandaysController extends Controller
      */
     public function submitToChat($ticketId)
     {
-        if ($deny = $this->denyUnlessRole(
-            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_HELPDESK->value],
-            'Only Helpdesk can send the mandays proposal to the customer.'
-        )) {
-            return $deny;
-        }
-
         $sessionUserId = session('user')['id'] ?? null;
         $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
         if (!$employee?->canAccessMenu('ticket.review-mandays.send-to-customer')) {
@@ -532,13 +521,6 @@ class MandaysController extends Controller
      */
     public function approveCustomerMandays($ticketId)
     {
-        if ($deny = $this->denyUnlessRole(
-            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_HELPDESK->value],
-            'Only Helpdesk can approve the customer mandays proposal.'
-        )) {
-            return $deny;
-        }
-
         $sessionUserId = session('user')['id'] ?? null;
         $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
         if (!$employee?->canAccessMenu('ticket.review-mandays.approve')) {
@@ -571,13 +553,6 @@ class MandaysController extends Controller
      */
     public function cancelCustomerMandays(Request $request, $ticketId)
     {
-        if ($deny = $this->denyUnlessRole(
-            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_HELPDESK->value],
-            'Only Helpdesk can cancel the customer mandays proposal.'
-        )) {
-            return $deny;
-        }
-
         $sessionUserId = session('user')['id'] ?? null;
         $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
         if (!$employee?->canAccessMenu('ticket.review-mandays.cancel')) {
