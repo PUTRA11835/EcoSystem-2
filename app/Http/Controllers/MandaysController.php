@@ -322,6 +322,8 @@ class MandaysController extends Controller
             'details.*.activity'=> 'nullable|string|max:150',
             'details.*.module'  => 'required|string|max:100',
             'details.*.mandays' => 'required|numeric|min:0',
+            'description'       => 'nullable|string|max:255',
+            'proposal_notes'    => 'nullable|string|max:2000',
         ]);
 
         $proposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
@@ -344,9 +346,18 @@ class MandaysController extends Controller
             }
         }
 
-        $proposal->update([
-            'total_mandays' => $total,
-        ]);
+        $sessionUserId = session('user')['id'] ?? null;
+        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
+
+        $updateData = ['total_mandays' => $total];
+        if ($request->has('description') && $employee?->canAccessMenu('ticket.review-mandays.edit-description')) {
+            $updateData['description'] = $request->description ?: null;
+        }
+        if ($request->has('proposal_notes') && $employee?->canAccessMenu('ticket.review-mandays.edit-proposal-notes')) {
+            $updateData['proposal_notes'] = $request->proposal_notes ?: null;
+        }
+
+        $proposal->update($updateData);
 
         return response()->json([
             'success' => true,
@@ -366,6 +377,12 @@ class MandaysController extends Controller
             'Only Helpdesk can send the mandays proposal to the customer.'
         )) {
             return $deny;
+        }
+
+        $sessionUserId = session('user')['id'] ?? null;
+        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
+        if (!$employee?->canAccessMenu('ticket.review-mandays.send-to-customer')) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to send the proposal to the customer.'], 403);
         }
 
         $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
@@ -511,6 +528,12 @@ class MandaysController extends Controller
             return $deny;
         }
 
+        $sessionUserId = session('user')['id'] ?? null;
+        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
+        if (!$employee?->canAccessMenu('ticket.review-mandays.approve')) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to approve the customer mandays proposal.'], 403);
+        }
+
         $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
         $proposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
 
@@ -542,6 +565,12 @@ class MandaysController extends Controller
             'Only Helpdesk can cancel the customer mandays proposal.'
         )) {
             return $deny;
+        }
+
+        $sessionUserId = session('user')['id'] ?? null;
+        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
+        if (!$employee?->canAccessMenu('ticket.review-mandays.cancel')) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to cancel the customer mandays proposal.'], 403);
         }
 
         $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();

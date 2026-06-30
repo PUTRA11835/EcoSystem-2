@@ -691,6 +691,10 @@
                     <div class="${progressBarColor(myPct)} h-2 rounded-full" style="width:${myPct}%"></div>
                 </div>
                 <span class="text-xs font-bold ${myPct>=75?'text-green-700':myPct>=40?'text-yellow-600':'text-red-600'}">${myPct}%</span>
+                ${myDetail && myDetail.detail_id ? `<button onclick="event.stopPropagation(); openWlCpModal(${t.ticket_id}, '${(t.ticket_number ?? '').replace(/'/g, "\\'")}', ${empId}, ${myDetail.detail_id})"
+                    class="ml-1 inline-flex items-center gap-0.5 text-xs font-semibold bg-indigo-500 hover:bg-indigo-600 text-white px-1.5 py-0.5 rounded transition" title="Edit Progress">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                </button>` : ''}
             </div>
             <div class="text-xs text-gray-400 mt-0.5">Updated: ${updAt}</div>
         </td>
@@ -737,6 +741,204 @@
         if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
         loadWorkload();
     });
+
+    // ── Progress Update Modal ──────────────────────────────────────────
+    let _wlCpModalTicketId = null;
+    let _wlCpModalEmpId    = null;
+
+    async function openWlCpModal(ticketId, ticketNumber, empId, detailId) {
+        _wlCpModalTicketId = ticketId;
+        _wlCpModalEmpId    = empId;
+        document.getElementById('wl-cp-modal-title').textContent = 'Progress: ' + (ticketNumber || '#' + ticketId);
+        document.getElementById('wl-cp-modal-body').innerHTML = '<div class="text-center py-6 text-gray-400">Memuat data…</div>';
+        document.getElementById('wl-cp-modal-overlay').style.display = 'flex';
+        const btn = document.getElementById('wl-cp-modal-save-btn');
+        btn.disabled = false;
+        btn.textContent = 'Simpan';
+        btn.className = btn.className.replace('bg-emerald-500', 'bg-indigo-600 hover:bg-indigo-700');
+
+        try {
+            const res  = await fetch(`/api/consultant-workload/tickets/${ticketId}/consultant-progress`);
+            const json = await res.json();
+            if (!json.success) {
+                document.getElementById('wl-cp-modal-body').innerHTML = '<p class="text-red-500 text-sm py-4 text-center">Gagal memuat data.</p>';
+                return;
+            }
+
+            const filtered = detailId ? json.data.filter(d => d.detail_id == detailId) : json.data;
+            if (filtered.length === 1) {
+                document.getElementById('wl-cp-modal-title').textContent = 'Progress: ' + filtered[0].emp_name;
+            }
+
+            const rows = filtered.map(d => `
+                <tr class="border-t border-gray-100" data-detail-id="${d.detail_id}" data-mandays="${d.mandays}">
+                    <td class="py-3 pr-4">
+                        <p class="font-semibold text-gray-800 text-sm">${d.emp_name}</p>
+                        <p class="text-gray-400 text-xs font-mono">${d.mandays} md</p>
+                    </td>
+                    <td class="py-3 pr-2 w-52">
+                        <div class="flex items-center gap-2">
+                            <input type="range" class="wl-cp-modal-range flex-1 accent-indigo-500 cursor-pointer"
+                                min="0" max="100" step="5" value="${d.progress_percentage || 0}"
+                                oninput="wlCpSyncPct(this)">
+                            <input type="number" class="wl-cp-modal-pct w-12 text-xs font-bold text-indigo-600 border border-indigo-200 rounded px-1 py-0.5 text-right"
+                                min="0" max="100" value="${d.progress_percentage || 0}"
+                                oninput="wlCpSyncRange(this)">
+                            <span class="text-gray-400 text-xs shrink-0">%</span>
+                        </div>
+                    </td>
+                    <td class="py-3 pl-2">
+                        <input type="text" class="wl-cp-modal-note w-full text-xs border border-gray-200 rounded px-2 py-1 text-gray-600 placeholder-gray-300"
+                            placeholder="Catatan…" value="${(d.progress_note ?? '').replace(/"/g, '&quot;')}">
+                    </td>
+                </tr>`).join('');
+
+            document.getElementById('wl-cp-modal-body').innerHTML = `
+                <table class="w-full text-xs">
+                    <thead><tr class="text-gray-400 uppercase text-[11px] tracking-wider">
+                        <th class="pb-2 text-left font-semibold">Consultant</th>
+                        <th class="pb-2 text-left font-semibold pl-1">Progress</th>
+                        <th class="pb-2 text-left font-semibold pl-2">Catatan</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+        } catch (e) {
+            document.getElementById('wl-cp-modal-body').innerHTML = '<p class="text-red-500 text-sm py-4 text-center">Error: ' + e.message + '</p>';
+        }
+    }
+
+    function closeWlCpModal() {
+        document.getElementById('wl-cp-modal-overlay').style.display = 'none';
+        _wlCpModalTicketId = null;
+        _wlCpModalEmpId    = null;
+    }
+
+    function wlCpSyncPct(rangeEl) {
+        rangeEl.closest('tr').querySelector('.wl-cp-modal-pct').value = rangeEl.value;
+    }
+
+    function wlCpSyncRange(numEl) {
+        const v = Math.min(100, Math.max(0, +numEl.value || 0));
+        numEl.value = v;
+        numEl.closest('tr').querySelector('.wl-cp-modal-range').value = v;
+    }
+
+    async function submitWlCpModal() {
+        if (!_wlCpModalTicketId) return;
+        const rows = document.querySelectorAll('#wl-cp-modal-body tr[data-detail-id]');
+        const progresses = [...rows].map(r => ({
+            detail_id:           parseInt(r.dataset.detailId),
+            progress_percentage: parseFloat(r.querySelector('.wl-cp-modal-range')?.value) || 0,
+            progress_note:       (r.querySelector('.wl-cp-modal-note')?.value ?? '').trim() || null,
+        }));
+
+        const btn = document.getElementById('wl-cp-modal-save-btn');
+        btn.disabled = true;
+        btn.textContent = 'Menyimpan…';
+
+        try {
+            const res  = await fetch(`/api/consultant-workload/tickets/${_wlCpModalTicketId}/consultant-progress`, {
+                method:  'PATCH',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                body:    JSON.stringify({ progresses }),
+            });
+            const json = await res.json();
+            if (json.success) {
+                btn.textContent = 'Tersimpan!';
+                btn.className = btn.className.replace('bg-indigo-600 hover:bg-indigo-700', 'bg-emerald-500');
+                const empIdToRefresh = _wlCpModalEmpId;
+                setTimeout(() => {
+                    closeWlCpModal();
+                    refreshAfterProgressUpdate(empIdToRefresh);
+                }, 700);
+            } else {
+                alert('Gagal: ' + (json.message ?? 'Error'));
+                btn.disabled = false;
+                btn.textContent = 'Simpan';
+            }
+        } catch (e) {
+            alert('Error: ' + e.message);
+            btn.disabled = false;
+            btn.textContent = 'Simpan';
+        }
+    }
+
+    async function refreshAfterProgressUpdate(empId) {
+        const month = document.getElementById('filterMonth').value;
+        const year  = document.getElementById('filterYear').value;
+
+        // Remember if this consultant's ticket-row was expanded
+        const ticketsRowEl = document.getElementById(`tickets-${empId}`);
+        const wasExpanded  = ticketsRowEl && !ticketsRowEl.classList.contains('hidden');
+
+        try {
+            const res  = await fetch(`/api/consultant-workload?month=${month}&year=${year}`);
+            const json = await res.json();
+            if (!json.success) return;
+
+            const freshConsultant = (json.data ?? []).find(c => c.employee_id == empId);
+            if (!freshConsultant) return;
+
+            // Update in-memory data for this consultant
+            const idx = allConsultants.findIndex(c => c.employee_id == empId);
+            if (idx !== -1) allConsultants[idx] = freshConsultant;
+
+            // Build new HTML for only this consultant's two rows
+            const temp = document.createElement('tbody');
+            temp.innerHTML = consultantRows(freshConsultant);
+            const [newMainRow, newTicketsRow] = [...temp.children];
+
+            // Swap the existing main row
+            const oldMainRow = document.querySelector(`tr[data-emp="${empId}"]`);
+            if (oldMainRow && newMainRow) oldMainRow.replaceWith(newMainRow);
+
+            // Swap the existing tickets row
+            const oldTicketsRow = document.getElementById(`tickets-${empId}`);
+            if (oldTicketsRow && newTicketsRow) oldTicketsRow.replaceWith(newTicketsRow);
+
+            // Restore expanded state
+            if (wasExpanded) {
+                const restored = document.getElementById(`tickets-${empId}`);
+                const chevron  = document.getElementById(`chevron-${empId}`);
+                if (restored) restored.classList.remove('hidden');
+                if (chevron)  chevron.style.transform = 'rotate(90deg)';
+            }
+
+            // Update summary cards only
+            updateSummary(allConsultants);
+        } catch (e) {
+            console.error('Refresh after progress update failed:', e);
+        }
+    }
 </script>
+
+{{-- Progress Update Modal --}}
+<div id="wl-cp-modal-overlay" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+    style="display:none; align-items:center; justify-content:center;" onclick="closeWlCpModal()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <h3 class="text-base font-bold text-gray-800" id="wl-cp-modal-title">Update Progress</h3>
+            <button onclick="closeWlCpModal()" class="text-gray-400 hover:text-gray-600 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="px-6 py-4" id="wl-cp-modal-body">
+            <div class="text-center py-6 text-gray-400">Memuat data…</div>
+        </div>
+        <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">
+            <button onclick="closeWlCpModal()"
+                class="px-4 py-2 text-sm font-semibold text-gray-600 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition">
+                Batal
+            </button>
+            <button id="wl-cp-modal-save-btn" onclick="submitWlCpModal()"
+                class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition">
+                Simpan
+            </button>
+        </div>
+    </div>
+</div>
+
 <script src="/js/custom-dropdown.js?v={{ filemtime(public_path('js/custom-dropdown.js')) }}"></script>
 @endsection

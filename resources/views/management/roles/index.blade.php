@@ -470,8 +470,8 @@ async function toggleMenuAccess(menuId, checkbox) {
             });
             ok = (await res.json()).success;
         } else {
-            const res = await fetch(`/api/roles/${currentRoleId}/permissions/${menuId}`, {
-                method: 'DELETE', headers: jsonHeaders(),
+            const res = await fetch(`/api/roles/${currentRoleId}/permissions/${menuId}/revoke`, {
+                method: 'POST', headers: jsonHeaders(),
             });
             ok = (await res.json()).success;
         }
@@ -505,8 +505,8 @@ async function cascadeRevokeChildren(parentId) {
         if (roleMenuPermissions[child.id]) {
             // Revoke dari API
             try {
-                await fetch(`/api/roles/${currentRoleId}/permissions/${child.id}`, {
-                    method: 'DELETE', headers: jsonHeaders(),
+                await fetch(`/api/roles/${currentRoleId}/permissions/${child.id}/revoke`, {
+                    method: 'POST', headers: jsonHeaders(),
                 });
             } catch(e) {}
             delete roleMenuPermissions[child.id];

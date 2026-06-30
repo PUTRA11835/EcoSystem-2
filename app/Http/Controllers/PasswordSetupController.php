@@ -90,8 +90,7 @@ class PasswordSetupController extends Controller
         // Customers are redirected to Jarvies login, employees to EcoSystem login
         $isCustomer = ($authUser->user_type ?? '') === 'customer' || !empty($authUser->customer_id);
         if ($isCustomer) {
-            // Gunakan config() bukan env() agar berfungsi saat config:cache
-            $jarviesBase  = rtrim(config('services.jarvies.url', config('app.url')), '/');
+            $jarviesBase  = rtrim(config('services.jarvies.public_url') ?: config('app.url'), '/');
             $jarviesLogin = $jarviesBase . '/login';
             return redirect($jarviesLogin)
                 ->with('success', 'Password set successfully. You can now log in to Jarvies with your new password.');

@@ -385,9 +385,9 @@ class StagingTicketController extends Controller
                 }
             }
 
-            // Apply SLA policy immediately if delivery support was selected at validation time
+            // Assign ticket to delivery support if selected at validation time
             if ($request->filled('delivery_support_id')) {
-                app(\App\Services\SlaService::class)->syncPolicy($ticket, (int) $request->delivery_support_id);
+                $this->assignTicketToDeliverySupport($ticket, (int) $request->delivery_support_id);
             }
 
             // Kirim notifikasi balasan otomatis ke customer
@@ -733,6 +733,127 @@ class StagingTicketController extends Controller
                 'rejected'    => StagingTicket::rejected()->count(),
                 'total'       => StagingTicket::count(),
             ],
+        ]);
+    }
+
+    // ─── Private: Assign ticket ke delivery support saat validasi ───────────
+
+    private function assignTicketToDeliverySupport(Ticket $ticket, int $supportId): void
+    {
+        $support = DB::table('delivery_support')->where('id', $supportId)->first();
+        if (!$support) {
+            Log::warning('StagingTicketController@assignTicketToDeliverySupport: delivery support not found', [
+                'ticket_id'  => $ticket->ticket_id,
+                'support_id' => $supportId,
+            ]);
+            return;
+        }
+
+        // Cegah duplikat assignment
+        $alreadyAssigned = DB::table('delivery_support_activities')
+            ->where('delivery_support_id', $supportId)
+            ->where('ticket_id', $ticket->ticket_id)
+            ->exists();
+
+        if ($alreadyAssigned) {
+            app(\App\Services\SlaService::class)->syncPolicy($ticket, $supportId);
+            return;
+        }
+
+        // Cari phase default (system default → fallback: phase aktif pertama)
+        $phase = DB::table('delivery_support_phases')
+            ->where('delivery_support_id', $supportId)
+            ->where('is_system_default', true)
+            ->first()
+            ?? DB::table('delivery_support_phases')
+                ->where('delivery_support_id', $supportId)
+                ->where('is_active', true)
+                ->first();
+
+        if (!$phase) {
+            Log::warning('StagingTicketController@assignTicketToDeliverySupport: no active phase found', [
+                'ticket_id'  => $ticket->ticket_id,
+                'support_id' => $supportId,
+            ]);
+            app(\App\Services\SlaService::class)->syncPolicy($ticket, $supportId);
+            return;
+        }
+
+        $group = DB::table('delivery_support_planning')
+            ->where('delivery_support_id', $supportId)
+            ->where('phase_id', $phase->id)
+            ->where('is_group', true)
+            ->first();
+
+        $nextOrder = DB::table('delivery_support_activities')
+            ->where('delivery_support_id', $supportId)
+            ->where('delivery_support_phase_id', $phase->id)
+            ->max('order_sequence') + 1;
+
+        $complexity = match (strtolower($ticket->ticket_priority ?? '')) {
+            'very high', 'high' => 'complex',
+            'low'               => 'simple',
+            default             => 'medium',
+        };
+
+        $status = match ($ticket->status ?? '') {
+            'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation' => 'in_progress',
+            'hold'                  => 'on_hold',
+            'closed', 'cancelled'  => 'completed',
+            default                => 'not_started',
+        };
+
+        DB::transaction(function () use ($ticket, $supportId, $phase, $group, $nextOrder, $complexity, $status) {
+            $activityId = DB::table('delivery_support_activities')->insertGetId([
+                'delivery_support_id'       => $supportId,
+                'delivery_support_phase_id' => $phase->id,
+                'ticket_id'                 => $ticket->ticket_id,
+                'stage_id'                  => null,
+                'name'                      => $ticket->ticket_number . ' - ' . ($ticket->description ?? "Ticket #{$ticket->ticket_id}"),
+                'description'               => $ticket->description,
+                'order_sequence'            => $nextOrder,
+                'module'                    => null,
+                'new_issue'                 => true,
+                'object'                    => null,
+                'incident_type'             => 'incident',
+                'complexity'                => $complexity,
+                'deliverable'               => null,
+                'start_date'                => $ticket->start_date ?? now(),
+                'end_date'                  => $ticket->end_date,
+                'status'                    => $status,
+                'progress_percentage'       => 0,
+                'weight'                    => $ticket->man_days ?? 1,
+                'notes'                     => "Auto-created from Ticket #{$ticket->ticket_id}",
+                'created_at'                => now(),
+                'updated_at'                => now(),
+            ]);
+
+            if ($group) {
+                DB::table('delivery_support_planning')->insert([
+                    'delivery_support_id' => $supportId,
+                    'phase_id'            => $phase->id,
+                    'parent_id'           => $group->id,
+                    'activity_id'         => $activityId,
+                    'name'                => $ticket->ticket_number . ' - ' . ($ticket->description ?? "Ticket #{$ticket->ticket_id}"),
+                    'is_group'            => false,
+                    'level'               => 1,
+                    'order_sequence'      => $nextOrder,
+                    'start_date'          => $ticket->start_date ?? now(),
+                    'end_date'            => $ticket->end_date,
+                    'weight'              => $ticket->man_days ?? 1,
+                    'status'              => $status,
+                    'progress_percentage' => 0,
+                    'created_at'          => now(),
+                    'updated_at'          => now(),
+                ]);
+            }
+        });
+
+        app(\App\Services\SlaService::class)->syncPolicy($ticket, $supportId);
+
+        Log::info('StagingTicketController@assignTicketToDeliverySupport: ticket assigned at validation time', [
+            'ticket_id'  => $ticket->ticket_id,
+            'support_id' => $supportId,
         ]);
     }
 

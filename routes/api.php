@@ -258,9 +258,11 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [CustomerContactController::class, 'store']);
         Route::put('/{contactId}', [CustomerContactController::class, 'update']);
         Route::delete('/{contactId}', [CustomerContactController::class, 'destroy']);
+        Route::post('/{contactId}/delete', [CustomerContactController::class, 'destroy']);
         // Jarvies login management per contact person
         Route::post('/{contactId}/create-login', [CustomerContactController::class, 'createLogin']);
         Route::delete('/{contactId}/revoke-login', [CustomerContactController::class, 'revokeLogin']);
+        Route::post('/{contactId}/revoke-login', [CustomerContactController::class, 'revokeLogin']);
         Route::patch('/{contactId}/toggle-view-all', [CustomerContactController::class, 'toggleViewAllTickets']);
     });
 
@@ -581,6 +583,7 @@ Route::middleware(['web'])->group(function () {
     Route::delete('/roles/{id}',                                    [\App\Http\Controllers\RoleController::class, 'destroy']);
     Route::get('/roles/{id}/permissions',                           [\App\Http\Controllers\RoleController::class, 'permissions']);
     Route::put('/roles/{id}/permissions/{menuId}',                  [\App\Http\Controllers\RoleController::class, 'updatePermission']);
+    Route::post('/roles/{id}/permissions/{menuId}/revoke',          [\App\Http\Controllers\RoleController::class, 'removePermission']);
     Route::delete('/roles/{id}/permissions/{menuId}',               [\App\Http\Controllers\RoleController::class, 'removePermission']);
     Route::get('/roles/{id}/employees',                             [\App\Http\Controllers\RoleController::class, 'employees']);
 
