@@ -583,6 +583,7 @@ Route::middleware(['web'])->group(function () {
     Route::delete('/roles/{id}',                                    [\App\Http\Controllers\RoleController::class, 'destroy']);
     Route::get('/roles/{id}/permissions',                           [\App\Http\Controllers\RoleController::class, 'permissions']);
     Route::put('/roles/{id}/permissions/{menuId}',                  [\App\Http\Controllers\RoleController::class, 'updatePermission']);
+    Route::post('/roles/{id}/permissions/{menuId}/revoke',          [\App\Http\Controllers\RoleController::class, 'removePermission']);
     Route::delete('/roles/{id}/permissions/{menuId}',               [\App\Http\Controllers\RoleController::class, 'removePermission']);
     Route::get('/roles/{id}/employees',                             [\App\Http\Controllers\RoleController::class, 'employees']);
 
