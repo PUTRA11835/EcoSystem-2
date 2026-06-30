@@ -336,8 +336,10 @@
                                 <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:170px;">
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Incident">Incident</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Service Request">Service Request</button>
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Change Request">Change Request</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Service Request">Service Request</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="EWA">EWA</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="RISE">RISE</button>
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Consult">Consult</button>
                                 </div>
                             </div>
@@ -471,8 +473,10 @@
                             class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
                             <option value="">-- Select Type --</option>
                             <option value="Incident">Incident</option>
-                            <option value="Service Request">Service Request</option>
                             <option value="Change Request">Change Request</option>
+                            <option value="Service Request">Service Request</option>
+                            <option value="EWA">EWA</option>
+                            <option value="RISE">RISE</option>
                             <option value="Consult">Consult</option>
                         </select>
                     </div>
@@ -958,10 +962,12 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             'closed':                  { label: 'Closed',                  cls: 'bg-green-50 text-green-700' },
         };
         const typeColors = {
-            'Incident':       'bg-red-50 text-red-600',
-            'Service Request':'bg-indigo-50 text-indigo-600',
-            'Change Request': 'bg-amber-50 text-amber-600',
-            'Consult':        'bg-teal-50 text-teal-600',
+            'Incident':        'bg-red-50 text-red-600',
+            'Change Request':  'bg-amber-50 text-amber-600',
+            'Service Request': 'bg-indigo-50 text-indigo-600',
+            'EWA':             'bg-orange-50 text-orange-600',
+            'RISE':            'bg-violet-50 text-violet-600',
+            'Consult':         'bg-teal-50 text-teal-600',
         };
 
         const scaleColors = {

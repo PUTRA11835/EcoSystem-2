@@ -437,7 +437,7 @@ class TicketController extends Controller
             $validated = $request->validate([
                 'description'     => 'required|string',
                 'ticket_priority' => 'required|in:Very High,High,Medium,Low',
-                'ticket_type'     => 'required|string|in:Incident,Service Request,Change Request,Consult',
+                'ticket_type'     => 'required|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult',
                 'customer_id'     => 'required|exists:customer,customer_id',
                 'scale'           => 'nullable|string|in:Simple,Medium,Complex',
                 'name'            => 'nullable|string|max:255',
@@ -556,7 +556,7 @@ class TicketController extends Controller
             'cc_emails'       => 'nullable|string|max:2000',
             'description'     => 'required|string|max:1000',
             'ticket_priority' => 'required|in:Very High,High,Medium,Low',
-            'ticket_type'     => 'required|string|in:Incident,Service Request,Change Request,Consult',
+            'ticket_type'     => 'required|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult',
             'scale'           => 'nullable|string|in:Simple,Medium,Complex',
             'name'            => 'nullable|string|max:255',
             'no_hp'           => 'nullable|string|max:255',
@@ -1695,7 +1695,7 @@ class TicketController extends Controller
 
         $validator = Validator::make($request->all(), [
             'ticket_priority' => 'sometimes|string|in:Very High,High,Medium,Low',
-            'ticket_type'    => 'sometimes|nullable|string|in:Incident,Service Request,Change Request,Consult',
+            'ticket_type'    => 'sometimes|nullable|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult',
             'scale'          => 'sometimes|nullable|string|in:Simple,Medium,Complex',
             'ticket_lead_id' => 'sometimes|nullable|exists:employee,employee_id',
             'man_days'       => 'sometimes|nullable|numeric|min:0|max:9999.99',
