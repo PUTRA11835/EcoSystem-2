@@ -258,9 +258,11 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [CustomerContactController::class, 'store']);
         Route::put('/{contactId}', [CustomerContactController::class, 'update']);
         Route::delete('/{contactId}', [CustomerContactController::class, 'destroy']);
+        Route::post('/{contactId}/delete', [CustomerContactController::class, 'destroy']);
         // Jarvies login management per contact person
         Route::post('/{contactId}/create-login', [CustomerContactController::class, 'createLogin']);
         Route::delete('/{contactId}/revoke-login', [CustomerContactController::class, 'revokeLogin']);
+        Route::post('/{contactId}/revoke-login', [CustomerContactController::class, 'revokeLogin']);
         Route::patch('/{contactId}/toggle-view-all', [CustomerContactController::class, 'toggleViewAllTickets']);
     });
 

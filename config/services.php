@@ -46,11 +46,10 @@ return [
         'customer_deliverable_path'       => env('ONEDRIVE_CUSTOMER_DELIVERABLE_PATH', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE'),
     ],
 
-    // Set JARVIES_URL in .env to the public JARVIES base URL in production
-    // (e.g. https://jarvies.example.com). Localhost fallback is dev-only.
     'jarvies' => [
-        'url'     => env('JARVIES_URL', ''),
-        'api_key' => env('JARVIES_API_KEY'),
+        'url'        => env('JARVIES_URL', ''),        // internal Docker URL (server-to-server API)
+        'public_url' => env('JARVIES_PUBLIC_URL', ''), // public URL (browser redirect)
+        'api_key'    => env('JARVIES_API_KEY'),
     ],
 
     'external_ticket' => [

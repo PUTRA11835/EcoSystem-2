@@ -784,8 +784,8 @@
         if (!deleteContactId) return;
 
         try {
-            const response = await fetch(`/api/customers/{{ $customerId }}/contacts/${deleteContactId}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/customers/{{ $customerId }}/contacts/${deleteContactId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -959,7 +959,7 @@
 
         try {
             const response = await fetch(`/api/customers/{{ $customerId }}/contacts/${selectedContactId}/revoke-login`, {
-                method: 'DELETE',
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
