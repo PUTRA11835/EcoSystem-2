@@ -359,10 +359,11 @@
         $isPic           = $can('ticket.propose-mandays');
         $isHelpdesk      = $can('ticket.review-mandays');
         $isHead          = $can('ticket.head-mandays');
-        // Priority: Head > Helpdesk > PIC to avoid duplicate sections for multi-role users
-        if ($isHead)          { $isPic = false; $isHelpdesk = false; }
-        elseif ($isHelpdesk)  { $isPic = false; }
-        // Computed AFTER override so dual-role Head+Helpdesk users get false
+        // Head dan Helpdesk bisa aktif bersamaan (role berbeda boleh punya keduanya).
+        // Yang di-override hanya PIC: jika user adalah Head atau Helpdesk, sembunyikan seksi PIC.
+        if ($isHead || $isHelpdesk) { $isPic = false; }
+        // Computed AFTER override
+        $hdCanEditActivity    = $isHelpdesk && $can('ticket.review-mandays.edit-activity');
         $hdCanEditDesc        = $isHelpdesk && $can('ticket.review-mandays.edit-description');
         $hdCanEditNotes       = $isHelpdesk && $can('ticket.review-mandays.edit-proposal-notes');
         $hdCanSendToCustomer  = $isHelpdesk && $can('ticket.review-mandays.send-to-customer');
@@ -3912,7 +3913,9 @@
                 body: JSON.stringify({ pic: picName }),
             });
             const result = await res.json();
-            if (!result.success) {
+            if (result.success) {
+                showNotification('PIC updated', 'success');
+            } else {
                 showNotification(result.message || 'Failed to update PIC', 'error');
             }
         } catch (e) {
@@ -5137,6 +5140,7 @@
 
 
     // ==================== HELPDESK: CUSTOMER MANDAYS REVIEW ====================
+    const HD_CAN_EDIT_ACTIVITY   = {{ ($hdCanEditActivity   ?? false) ? 'true' : 'false' }};
     const HD_CAN_EDIT_DESC       = {{ ($hdCanEditDesc       ?? false) ? 'true' : 'false' }};
     const HD_CAN_EDIT_NOTES      = {{ ($hdCanEditNotes      ?? false) ? 'true' : 'false' }};
     const HD_CAN_SEND_TO_CUSTOMER= {{ ($hdCanSendToCustomer ?? false) ? 'true' : 'false' }};
@@ -5260,14 +5264,18 @@
                 }
             }
 
+            const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
             let bodyHtml = '';
             activities.forEach(act => {
-                bodyHtml += `<tr><td class="px-2 py-1.5 border border-gray-200 text-xs font-medium">${act}</td>`;
+                const actCell = (isEditable && HD_CAN_EDIT_ACTIVITY)
+                    ? `<input type="text" class="hd-activity-input w-full px-2 py-1.5 text-xs border-0 focus:outline-none focus:bg-gray-50 bg-white font-medium" value="${escAttr(act)}" placeholder="Activity..." maxlength="150">`
+                    : `<span class="px-2 py-1.5 block text-xs font-medium">${escAttr(act)}</span>`;
+                bodyHtml += `<tr><td class="border border-gray-200 p-0">${actCell}</td>`;
                 mods.forEach(m => {
                     const val = valueMap[act]?.[m] || '';
                     bodyHtml += `<td class="border border-gray-200 p-0">
                         <input type="number" min="0" step="0.5" class="hd-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none ${isEditable?'focus:bg-gray-100 bg-white':'bg-gray-50 cursor-not-allowed'}"
-                        data-activity="${act}" data-module="${m}" value="${val}" ${isEditable?'':'readonly'} oninput="hdUpdateTotal()">
+                        data-activity="${escAttr(act)}" data-module="${escAttr(m)}" value="${val}" ${isEditable?'':'readonly'} oninput="hdUpdateTotal()">
                     </td>`;
                 });
                 bodyHtml += '</tr>';
@@ -5346,7 +5354,12 @@
         const details = [];
         document.querySelectorAll('.hd-cell:not([readonly])').forEach(inp => {
             const v = parseFloat(inp.value) || 0;
-            if (v > 0) details.push({ activity: inp.dataset.activity, module: inp.dataset.module, mandays: v });
+            if (v > 0) {
+                const row = inp.closest('tr');
+                const actInput = row?.querySelector('.hd-activity-input');
+                const act = actInput ? (actInput.value.trim() || inp.dataset.activity) : inp.dataset.activity;
+                details.push({ activity: act, module: inp.dataset.module, mandays: v });
+            }
         });
         if (details.length > 0) {
             const savePayload = { details };
@@ -5377,7 +5390,12 @@
             const details = [];
             document.querySelectorAll('.hd-cell:not([readonly])').forEach(inp => {
                 const v = parseFloat(inp.value) || 0;
-                if (v > 0) details.push({ activity: inp.dataset.activity, module: inp.dataset.module, mandays: v });
+                if (v > 0) {
+                    const row = inp.closest('tr');
+                    const actInput = row?.querySelector('.hd-activity-input');
+                    const act = actInput ? (actInput.value.trim() || inp.dataset.activity) : inp.dataset.activity;
+                    details.push({ activity: act, module: inp.dataset.module, mandays: v });
+                }
             });
             if (details.length === 0) {
                 showNotification('Please fill in at least one mandays value.', 'warning');

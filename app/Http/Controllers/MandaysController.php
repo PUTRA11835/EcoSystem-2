@@ -334,20 +334,31 @@ class MandaysController extends Controller
 
         $total = collect($request->details)->sum('mandays');
 
+        $sessionUserId = session('user')['id'] ?? null;
+        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
+
+        $canEditActivity = $employee?->canAccessMenu('ticket.review-mandays.edit-activity');
+
+        // Load original activity names sebelum di-delete (untuk preserve jika tidak ada permission)
+        // Key: module → activity (jika modul sama di banyak activity, pakai yang pertama)
+        $origActivityByModule = $canEditActivity
+            ? []
+            : $proposal->details()->get()->groupBy('module')->map(fn($rows) => $rows->first()->activity)->toArray();
+
         $proposal->details()->delete();
         foreach ($request->details as $d) {
             if (($d['mandays'] ?? 0) > 0) {
+                $activityName = $canEditActivity
+                    ? ($d['activity'] ?? null)
+                    : ($origActivityByModule[$d['module']] ?? $d['activity'] ?? null);
                 CustomerMandaysDetail::create([
                     'customer_mandays_id' => $proposal->id,
-                    'activity'            => $d['activity'] ?? null,
+                    'activity'            => $activityName,
                     'module'              => $d['module'],
                     'mandays'             => $d['mandays'],
                 ]);
             }
         }
-
-        $sessionUserId = session('user')['id'] ?? null;
-        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
 
         $updateData = ['total_mandays' => $total];
         if ($request->has('description') && $employee?->canAccessMenu('ticket.review-mandays.edit-description')) {
