@@ -431,7 +431,7 @@ class MandaysController extends Controller
                     ->first();
                 $inReplyTo = $lastEmailMsg?->email_message_id;
 
-                $subject = 'Ticket #' . $ticket->ticket_number . ': ' . mb_substr($ticket->description ?? '', 0, 80);
+                $subject = '[JARVIES] #' . $ticket->ticket_number . ' : ' . mb_substr($ticket->description ?? '', 0, 80);
 
                 // CC: prioritaskan ticket.cc_emails, fallback ke pesan pertama dengan CC.
                 // Gunakan is_array check karena model cast 'array' sudah decode JSON → array.

@@ -51,8 +51,7 @@
     </div>
 
     {{-- Filter Tabs --}}
-    @php $ticketManagerOrEmployee = array_merge(\App\Enums\RoleId::TICKET_MANAGER_GROUP, [\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value]); @endphp
-    @if($user->hasAnyRole($ticketManagerOrEmployee))
+    @if($can('ui.ticket.sidebar-tabs'))
     <div class="px-4 pb-3">
         <div class="flex bg-white bg-opacity-10 rounded-lg p-0.5 gap-0.5">
             <button id="sidebarTabAll" onclick="switchSidebarView('all')"
@@ -160,8 +159,7 @@
                 </div>
             </div>
             @php
-                $canViewCredential =
-                    $user->hasAnyRole(array_merge(\App\Enums\RoleId::TICKET_MANAGER_GROUP, [\App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value]))
+                $canViewCredential = $can('ticket.view-credential')
                     || $ticket->ticket_lead_id == $user->id
                     || $ticket->members->contains('employee_id', $user->id);
             @endphp
@@ -312,7 +310,7 @@
                     <button onclick="sendReply('internal_note')" class="inline-flex items-center px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg hover:bg-amber-100 transition-all duration-200">
                         Internal Note
                     </button>
-                    @if($user->hasAnyRole([1, 5, 6, 7]))
+                    @if($can('ticket.meeting'))
                     <button id="meetingBtn" onclick="openMeetingPanel()"
                         {{ $inMeeting ? 'disabled title=\'Meeting sedang berjalan\'' : '' }}
                         class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 {{ $inMeeting ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100' }}">
@@ -358,9 +356,12 @@
     @php
         $mandaysStatus   = $ticket->mandays_proposal_status   ?? 'none';
         $resolutionStatus  = $ticket->resolution_days_status    ?? 'none';
-        $isPic           = $user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value);
-        $isHelpdesk      = $user->hasAnyRole(\App\Enums\RoleId::HELPDESK_GROUP);
-        $isHead          = $user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value);
+        $isPic           = $can('ticket.propose-mandays');
+        $isHelpdesk      = $can('ticket.review-mandays');
+        $isHead          = $can('ticket.head-mandays');
+        // Priority: Head > Helpdesk > PIC to avoid duplicate sections for multi-role users
+        if ($isHead)          { $isPic = false; $isHelpdesk = false; }
+        elseif ($isHelpdesk)  { $isPic = false; }
         $mandaysBadge    = [
             'none'            => ['bg-gray-100 text-gray-500',   'None'],
             'pic_draft'       => ['bg-yellow-100 text-yellow-700','Draft'],
@@ -387,16 +388,16 @@
             default => 'Update Resolution Days',
         };
         $ticketAssigned    = $ticket->ticket_lead_id !== null;
-        $canTakeTicket     = $user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value)
-                             && !$ticketAssigned;
-        $canAssignPic      = $user->hasAnyRole(\App\Enums\RoleId::TICKET_MANAGER_GROUP);
+        $canTakeTicket     = $can('ticket.take') && !$ticketAssigned;
+        $canAssignPic      = $can('ticket.assign-pic');
+        $canAssignDelivery = $can('ticket.assign-delivery-support');
         // Mandays buttons only visible when ticket has a PIC
         $isPicMandays      = $isPic && $ticketAssigned;
         $isHelpdeskMandays = $isHelpdesk && $ticketAssigned;
         $isHeadMandays          = $isHead && $ticketAssigned && in_array($resolutionStatus, ['pending_head', 'approved', 'rejected', 'draft']);
         $isHeadCustomerMandays  = $isHead && $ticketAssigned && in_array($mandaysStatus, ['pic_draft', 'pending_helpdesk', 'sent_to_chat', 'approved', 'canceled']);
         $hasMandaysSection = $isPicMandays || $isHelpdeskMandays || $isHeadMandays || $isHeadCustomerMandays
-                           || $canTakeTicket || $canAssignPic || $user->hasAnyRole(\App\Enums\RoleId::TICKET_MANAGER_GROUP);
+                           || $canTakeTicket || $canAssignPic || $canAssignDelivery;
     @endphp
 
     <div id="rightSidePanel" class="hidden xl:flex xl:flex-col w-64 gap-3 flex-shrink-0 overflow-y-auto" style="transition: width 0.25s ease, opacity 0.25s ease;">
@@ -489,8 +490,8 @@
                     </button>
                 </div>
                 @endif
-                {{-- Assign to Delivery Support (Admin/Helpdesk only) --}}
-                @if($user->hasAnyRole(\App\Enums\RoleId::TICKET_MANAGER_GROUP))
+                {{-- Assign to Delivery Support --}}
+                @if($canAssignDelivery)
                 <div class="{{ ($isPicMandays || $isHelpdeskMandays || $isHeadMandays) ? 'pt-1 border-t border-gray-100' : '' }}">
                     <button onclick="openAssignSupportModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Assign to Delivery Support
@@ -526,7 +527,7 @@
                  onclick="toggleSidebarPanel('propertiesPanel', 'propertiesChevron')">
                 <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Properties</h4>
                 <div class="flex items-center gap-2">
-                    @if($user->hasAnyRole([\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value, \App\Enums\RoleId::DELIVERY_HELPDESK->value]))
+                    @if($can('ui.ticket.edit-fields'))
                     <button onclick="event.stopPropagation(); saveAllProperties()"
                             class="inline-flex items-center px-2.5 py-1 primary-gradient text-white text-[10px] font-semibold rounded-md hover:opacity-90 transition-all duration-200">
                         Save All
@@ -536,7 +537,7 @@
                 </div>
             </div>
             @php
-                $canEditProps  = $user->hasAnyRole([\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value, \App\Enums\RoleId::DELIVERY_HELPDESK->value]);
+                $canEditProps  = $can('ui.ticket.edit-fields');
                 $ddBtnCls      = 'custom-dd-btn w-full flex items-center justify-between gap-1 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white hover:border-gray-400 transition-all';
                 $roValCls      = 'text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 w-full block';
                 $statusLabels  = ['open'=>'Open','inprocess'=>'Inprocess','waiting_on_customer'=>'Waiting on Customer','waiting_on_3rd_party'=>'Waiting on 3rd Party','waiting_to_confirmation'=>'Waiting to Confirmation','hold'=>'Hold','cancelled'=>'Cancelled','closed'=>'Closed'];
@@ -646,7 +647,7 @@
                 </div>
                 {{-- PIC (In Charge) --}}
                 @php
-                    $canEditPic = $user->hasAnyRole(array_merge(\App\Enums\RoleId::TICKET_MANAGER_GROUP, [\App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value]))
+                    $canEditPic = $can('ticket.assign-pic')
                         || $ticket->ticket_lead_id == $user->id
                         || $ticket->members->contains('employee_id', $user->id);
                     $picOptions = [];
@@ -682,8 +683,8 @@
                 </div>
                 {{-- Team Members --}}
                 @php
-                    $canManageMembers = $user->hasAnyRole(\App\Enums\RoleId::TICKET_MANAGER_GROUP)
-                        || ($user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value) && $ticket->ticket_lead_id == $user->id);
+                    $canManageMembers = $can('ui.ticket.manage-members')
+                        || ($can('ticket.propose-mandays') && $ticket->ticket_lead_id == $user->id);
                     $allMemberIds = $ticket->allMembers->pluck('employee_id')->toArray();
                 @endphp
                 <div class="pt-3 border-t border-gray-200">
@@ -793,7 +794,7 @@
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('d M Y H:i') }} WIB</p>
                 </div>
                 {{-- Admin only: Delete Ticket --}}
-                @if($user->hasRole(\App\Enums\RoleId::EC_ADMINISTRATOR->value))
+                @if($can('ticket.delete'))
                 <div class="pt-3 border-t border-gray-200">
                     <button onclick="deleteTicket()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Delete Ticket
@@ -1148,7 +1149,7 @@
 </style>
 
 {{-- Assign to Delivery Support Modal --}}
-@if($user->hasAnyRole(\App\Enums\RoleId::TICKET_MANAGER_GROUP))
+@if($canAssignDelivery)
 <div id="assignSupportModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl">
         <div class="px-6 py-4 border-b border-gray-200">
@@ -1736,7 +1737,7 @@
 {{-- ===== END MANDAYS MODALS ===== --}}
 
 {{-- ===== MEETING MODAL ===== --}}
-@if($user->hasAnyRole([1, 5, 6, 7]))
+@if($can('ticket.meeting'))
 <div id="meetingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onclick="if(event.target===this) closeMeetingPanel()">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         {{-- Header --}}
@@ -6058,6 +6059,7 @@ function closeDeliverableModal() {
 async function loadDeliverables() {
     document.getElementById('deliverableBody').innerHTML =
         `<tr><td colspan="7" class="text-center py-10 text-gray-400">Loading...</td></tr>`;
+    document.getElementById('deliverableFooter').innerHTML = '';
 
     try {
         const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables`, {
