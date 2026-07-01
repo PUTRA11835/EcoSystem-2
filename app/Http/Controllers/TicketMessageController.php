@@ -243,22 +243,28 @@ class TicketMessageController extends Controller
                     $ticket->refresh();
                 }
 
-                // Resolve primary TO: jika user kirim to_emails, pakai entri pertama,
-                // fallback ke resolveCustomerEmail. Sisa entri diteruskan sebagai additional.
-                $customerEmail   = $requestTo[0] ?? $this->resolveCustomerEmail($ticket);
-                $additionalToList = $requestTo !== null && count($requestTo) > 1
+                // Resolve primary TO.
+                // - Jika frontend mengirim daftar to_emails (walau kosong), HORMATI apa
+                //   adanya — JANGAN fallback ke company email. To kosong = tak ada primary
+                //   recipient; email tetap terkirim bila ada CC (kasus EWA).
+                // - resolveCustomerEmail hanya untuk caller legacy yang tidak mengirim to_emails.
+                $requestToProvided = $requestTo !== null;
+                $primaryTo = $requestToProvided
+                    ? ($requestTo[0] ?? null)
+                    : $this->resolveCustomerEmail($ticket);
+                $additionalToList = $requestToProvided && count($requestTo) > 1
                     ? array_slice($requestTo, 1)
                     : [];
-                if ($customerEmail) {
-                    // Email-first: kirim → dapat hasil → simpan ke DB
-                    $message = $this->sendEmailThenSave($ticket, [
-                        'sender_type'  => $senderType,
-                        'sender_id'    => $senderId,
-                        'sender_name'  => $senderName,
-                        'message'      => trim(strip_tags($messageBody)),
-                        'message_html' => $messageBody,
-                    ], $uploadedFiles, $ticketId, $senderId, $requestCc, $customerEmail, $additionalToList);
-                }
+
+                // Email-first: sendEmailThenSave return null jika tak ada penerima (To & CC
+                // kosong) atau email gagal → fallback simpan internal di bawah.
+                $message = $this->sendEmailThenSave($ticket, [
+                    'sender_type'  => $senderType,
+                    'sender_id'    => $senderId,
+                    'sender_name'  => $senderName,
+                    'message'      => trim(strip_tags($messageBody)),
+                    'message_html' => $messageBody,
+                ], $uploadedFiles, $ticketId, $senderId, $requestCc, $primaryTo, $additionalToList, $requestToProvided);
 
                 if (!$message) {
                     // Fallback: tidak ada email customer atau email gagal → simpan tanpa email
@@ -841,26 +847,12 @@ class TicketMessageController extends Controller
         int    $senderId,
         ?array $ccOverride = null,
         ?string $toOverride = null,
-        array  $additionalToEmails = []
+        array  $additionalToEmails = [],
+        bool   $noCompanyFallback = false
     ): ?TicketMessage {
         try {
-            // Primary TO override dari caller (mis. user input UI). Fallback ke
-            // resolveCustomerEmail untuk menjaga perilaku lama (caller existing yang
-            // tidak mengirim $toOverride tetap berjalan apa adanya).
-            $customerEmail = $toOverride ?: $this->resolveCustomerEmail($ticket);
-            if (!$customerEmail) return null;
-
-            $subject = '[JARVIES] #' . $ticket->ticket_number . ' : ' . mb_substr($ticket->description ?? '', 0, 80);
-
-            // inReplyTo = internetMessageId pesan email terakhir (untuk thread yang benar)
-            $lastEmailMsg = TicketMessage::where('ticket_id', $ticketId)
-                ->where('channel', 'email')
-                ->whereNotNull('email_message_id')
-                ->orderBy('created_at', 'desc')
-                ->first();
-            $inReplyTo = $lastEmailMsg?->email_message_id;
-
-            // CC: pakai override dari request jika ada, fallback ke ticket.cc_emails, lalu pesan pertama
+            // CC: pakai override dari request jika ada, fallback ke ticket.cc_emails, lalu pesan pertama.
+            // Dihitung lebih dulu karena ikut menentukan apakah email perlu dikirim (kasus CC-only).
             if ($ccOverride !== null) {
                 $ccList = $ccOverride;
             } else {
@@ -878,6 +870,29 @@ class TicketMessageController extends Controller
                         : [];
                 }
             }
+
+            // Primary TO.
+            // - $noCompanyFallback (dari composer UI): hormati $toOverride apa adanya
+            //   (boleh kosong). JANGAN tarik company email. To kosong → kirim CC-only.
+            // - Selain itu (caller legacy): fallback ke resolveCustomerEmail spt semula.
+            if ($noCompanyFallback) {
+                $customerEmail = trim((string) ($toOverride ?? ''));
+                // Tidak ada penerima sama sekali (To & CC kosong) → tidak ada yang dikirim.
+                if ($customerEmail === '' && empty($ccList)) return null;
+            } else {
+                $customerEmail = $toOverride ?: $this->resolveCustomerEmail($ticket);
+                if (!$customerEmail) return null;
+            }
+
+            $subject = '[JARVIES] #' . $ticket->ticket_number . ' : ' . mb_substr($ticket->description ?? '', 0, 80);
+
+            // inReplyTo = internetMessageId pesan email terakhir (untuk thread yang benar)
+            $lastEmailMsg = TicketMessage::where('ticket_id', $ticketId)
+                ->where('channel', 'email')
+                ->whereNotNull('email_message_id')
+                ->orderBy('created_at', 'desc')
+                ->first();
+            $inReplyTo = $lastEmailMsg?->email_message_id;
 
             // ── Kirim email ───────────────────────────────────────────────────
             $result = app(EmailController::class)->sendTicketReply(

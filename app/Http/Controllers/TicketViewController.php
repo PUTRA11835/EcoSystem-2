@@ -187,9 +187,9 @@ class TicketViewController extends Controller
                 ->value('sender_email');
         }
 
-        if (!$customerEmail && $ticket->customer_id) {
-            $customerEmail = Customer::find($ticket->customer_id)?->email;
-        }
+        // CATATAN: sengaja TIDAK fallback ke company email (customer.email) untuk seed
+        // "To". Tiket manual/EWA dibuat dengan To kosong; company email tidak boleh
+        // otomatis jadi tujuan reply. To diisi manual bila perlu.
 
         $inMeeting = TicketSlaPause::where('ticket_id', $ticket->ticket_id)
             ->where('pause_reason', 'meeting')
