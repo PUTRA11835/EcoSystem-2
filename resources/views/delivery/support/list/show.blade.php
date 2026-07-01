@@ -410,7 +410,7 @@
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
                     <h3 class="text-lg font-semibold text-gray-900">Customer PIC</h3>
-                    @if($canManage)
+                    @if($can('delivery-support.manage-customer-pic'))
                     <button type="button" onclick="openCustomerPicModal()"
                             class="p-2 text-gray-400 edit-btn rounded-lg transition"
                             title="Manage Customer PIC">

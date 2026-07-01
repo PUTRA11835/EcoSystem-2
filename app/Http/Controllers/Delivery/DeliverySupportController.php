@@ -1121,6 +1121,12 @@ class DeliverySupportController extends Controller
      */
     public function syncCustomerPics(Request $request, DeliverySupport $support)
     {
+        $userId   = session('user.id');
+        $employee = $userId ? Employee::find($userId) : null;
+        if (!$employee || !$employee->canAccessMenu('delivery-support.manage-customer-pic')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
         $request->validate([
             'contact_ids'   => 'present|array',
             'contact_ids.*' => 'integer|exists:customer_contact,contact_id',
