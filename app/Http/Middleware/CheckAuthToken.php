@@ -6,7 +6,9 @@ use App\Http\Controllers\AuthController;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class CheckAuthToken
 {
@@ -56,38 +58,52 @@ class CheckAuthToken
     /**
      * Coba restore session dari remember-me cookie.
      * Return true jika berhasil, false jika token tidak valid / user tidak aktif.
+     *
+     * PENTING: seluruh proses dibungkus try/catch. Kegagalan restore (mis. query
+     * error karena skema DB berbeda) TIDAK boleh melempar 500 — cukup anggap
+     * cookie tidak valid dan jatuh ke jalur "silakan login".
      */
     private function tryRestoreSession(Request $request, string $rawToken): bool
     {
-        // Hash cookie value dan cari di DB
-        $hashed  = hash('sha256', $rawToken);
-        $authUser = DB::table('auth_users')
-            ->where('remember_token', $hashed)
-            ->where('is_active', true)
-            ->first();
+        try {
+            // Hash cookie value dan cari di DB
+            $hashed  = hash('sha256', $rawToken);
+            $authUser = DB::table('auth_users')
+                ->where('remember_token', $hashed)
+                ->where('is_active', true)
+                ->first();
 
-        if (!$authUser || empty($authUser->employee_id)) {
+            if (!$authUser || empty($authUser->employee_id)) {
+                return false;
+            }
+
+            // Bangun ulang session data employee
+            $sessionData = AuthController::buildEmployeeSessionData($authUser->employee_id);
+
+            if (!$sessionData) {
+                return false;
+            }
+
+            // Update last_login_at
+            DB::table('auth_users')
+                ->where('id', $authUser->id)
+                ->update(['last_login_at' => now()]);
+
+            // Regenerate session (keamanan) & isi ulang
+            $request->session()->regenerate();
+            $request->session()->put('auth_token', $sessionData['token']);
+            $request->session()->put('user', $sessionData['userData']);
+            $request->session()->save();
+
+            return true;
+        } catch (Throwable $e) {
+            // Restore gagal — jangan sampai men-crash request. Log lalu perlakukan
+            // sebagai cookie tidak valid.
+            Log::warning('CheckAuthToken: remember-me restore gagal', [
+                'error' => $e->getMessage(),
+            ]);
+
             return false;
         }
-
-        // Bangun ulang session data employee
-        $sessionData = AuthController::buildEmployeeSessionData($authUser->employee_id);
-
-        if (!$sessionData) {
-            return false;
-        }
-
-        // Update last_login_at
-        DB::table('auth_users')
-            ->where('id', $authUser->id)
-            ->update(['last_login_at' => now()]);
-
-        // Regenerate session (keamanan) & isi ulang
-        $request->session()->regenerate();
-        $request->session()->put('auth_token', $sessionData['token']);
-        $request->session()->put('user', $sessionData['userData']);
-        $request->session()->save();
-
-        return true;
     }
 }

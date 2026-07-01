@@ -49,6 +49,8 @@ class Ticket extends Model
         'resolution_days_status',
         // CC recipients (disalin dari staging saat approve)
         'cc_emails',
+        // TO recipients (primary customer + recipient tambahan dari form reply)
+        'to_emails',
         // Progress tracking
         'progress_percentage',
         'progress_note',
@@ -74,6 +76,7 @@ class Ticket extends Model
         'last_internal_note_at'        => 'datetime',
         'last_internal_note_sender_id' => 'integer',
         'cc_emails'                    => 'array',
+        'to_emails'                    => 'array',
     ];
 
     public function customer()

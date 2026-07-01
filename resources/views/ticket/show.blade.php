@@ -1018,7 +1018,46 @@
     border-radius: 6px;
     display: block;
     margin: 4px 0;
+    cursor: zoom-in;            /* klik gambar untuk buka preview full */
 }
+
+/* ── Image lightbox (preview full-view saat gambar diklik) ─────────────── */
+#imageLightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.85);
+    padding: 24px;
+    cursor: zoom-out;
+}
+#imageLightbox.open { display: flex; }
+#imageLightbox img {
+    max-width: 94vw;
+    max-height: 92vh;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    cursor: default;
+}
+#imageLightbox .lightbox-close {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+#imageLightbox .lightbox-close:hover { background: rgba(255, 255, 255, 0.25); }
 
 /* Quill Toolbar Tooltips */
 .ql-toolbar button, .ql-toolbar .ql-picker { position: relative; }
@@ -2061,11 +2100,17 @@
     }
 
     // ── TO state ────────────────────────────────────────────────────────────
-    // Default seeded dengan resolved customer email (sama dengan tampilan lama).
-    // User dapat menambah/menghapus tag untuk mengirim ke multiple primary recipient.
-    // Tidak dipersist ke DB (tiap reply mulai dari customer email lagi) — sesuai
-    // permintaan minimal-MVP, persistensi bisa ditambah kemudian.
-    let toEmails = @json(array_values(array_filter([$customerEmail ?? null])));
+    // Seeded dari ticket.to_emails (primary customer + recipient tambahan yang
+    // sudah dipersist). Jika belum ada, fallback ke resolved customer email.
+    // User dapat menambah/menghapus tag; perubahan dipersist saat reply terkirim.
+    let toEmails = @json(
+        !empty($ticket->to_emails)
+            ? collect($ticket->to_emails)
+                ->map(fn($t) => is_array($t) ? ($t['address'] ?? '') : (string)$t)
+                ->filter()
+                ->values()
+            : array_values(array_filter([$customerEmail ?? null]))
+    );
 
     function renderToTags() {
         const container = document.getElementById('toTagsContainer');
@@ -2525,6 +2570,59 @@
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') closeMentionDropdown();
     });
+
+    // ==================== IMAGE LIGHTBOX (preview full-view) ====================
+    // Klik gambar apa pun di thread pesan (inline image email atau thumbnail
+    // attachment) untuk membukanya dalam preview full-view. Overlay dibuat sekali
+    // dan di-append ke <body> agar tidak terpotong oleh ancestor overflow/transform.
+    (function initImageLightbox() {
+        let overlay = document.getElementById('imageLightbox');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'imageLightbox';
+            overlay.innerHTML =
+                '<button type="button" class="lightbox-close" aria-label="Close preview">' +
+                '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
+                '</button>' +
+                '<img id="imageLightboxImg" src="" alt="">';
+            document.body.appendChild(overlay);
+        }
+        const lightboxImg = overlay.querySelector('#imageLightboxImg');
+
+        window.openImageLightbox = function (src, alt) {
+            if (!src) return;
+            lightboxImg.src = src;
+            lightboxImg.alt = alt || '';
+            overlay.classList.add('open');
+            document.body.style.overflow = 'hidden'; // cegah scroll di belakang
+        };
+        window.closeImageLightbox = function () {
+            overlay.classList.remove('open');
+            document.body.style.overflow = '';
+            lightboxImg.src = '';
+        };
+
+        // Klik overlay/tombol close → tutup. Klik pada gambar itu sendiri → jangan tutup.
+        overlay.addEventListener('click', function (e) {
+            if (e.target === lightboxImg) return;
+            window.closeImageLightbox();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && overlay.classList.contains('open')) window.closeImageLightbox();
+        });
+
+        // Event delegation: tangkap klik gambar di dalam thread pesan.
+        const thread = document.getElementById('messagesThread');
+        if (thread) {
+            thread.addEventListener('click', function (e) {
+                const img = e.target.closest('img');
+                if (!img) return;
+                if (!img.closest('.message-content') && !img.closest('.message-bubble')) return;
+                e.preventDefault();  // cegah navigasi <a> pembungkus (buka tab baru)
+                window.openImageLightbox(img.currentSrc || img.getAttribute('src'), img.getAttribute('alt'));
+            });
+        }
+    })();
 
     // ==================== AUTO POLLING: reload pesan & cek email baru ====================
     function startMessagePolling() {
@@ -6422,9 +6520,20 @@ async function sendDeliverable(id) {
 async function deleteDeliverable(id) {
     if (!await showConfirm('Delete this deliverable document? This cannot be undone.', 'Delete Document', 'danger')) return;
     try {
+        // Sebagian edge production (reverse proxy / WAF / ModSecurity) memblokir
+        // verb HTTP DELETE dan membalas 403 sebelum request sampai ke Laravel —
+        // sementara local/dev (tanpa edge) berjalan normal. Agar aman di kedua
+        // lingkungan, request dikirim sebagai POST lalu diminta Laravel menerjemahkan
+        // kembali menjadi DELETE lewat header X-HTTP-Method-Override. Verb di kabel
+        // menjadi POST (diizinkan edge), namun route Route::delete tetap cocok dan
+        // handler destroy() yang dijalankan — tanpa perubahan sisi server.
         const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}`, {
-            method: 'DELETE',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': CSRF,
+                'Accept': 'application/json',
+                'X-HTTP-Method-Override': 'DELETE',
+            },
             credentials: 'same-origin',
         });
         const json = await delivParseJson(res);
