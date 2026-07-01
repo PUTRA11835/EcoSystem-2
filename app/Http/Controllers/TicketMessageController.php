@@ -13,6 +13,7 @@ use App\Services\SlaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class TicketMessageController extends Controller
@@ -77,6 +78,8 @@ class TicketMessageController extends Controller
                                                 return [];
                                             })($message->cc_emails),
                     'created_at'          => $message->created_at,
+                    'is_deleted'          => (bool) $message->is_deleted,
+                    'edited_at'           => $message->edited_at?->toIso8601String(),
                     'attachments'         => $message->attachments->map(fn ($a) => [
                         'id'              => $a->id,
                         'file_name'       => $a->file_name,
@@ -1133,6 +1136,137 @@ class TicketMessageController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Edit an internal note (sender only, within 10 minutes of posting).
+     */
+    public function updateInternalNote(Request $request, $ticketId, $messageId)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $message = TicketMessage::where('ticket_id', $ticketId)
+            ->where('id', $messageId)
+            ->where('is_internal_note', true)
+            ->firstOrFail();
+
+        if ((int) $message->sender_id !== (int) ($sessionUser['id'] ?? 0)) {
+            return response()->json(['success' => false, 'message' => 'You can only edit your own notes.'], 403);
+        }
+
+        if ($message->created_at->addMinutes(10)->isPast()) {
+            return response()->json(['success' => false, 'message' => 'Notes can only be edited within 10 minutes of posting.'], 403);
+        }
+
+        if ($message->is_deleted) {
+            return response()->json(['success' => false, 'message' => 'Cannot edit a deleted note.'], 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'message_html'            => 'nullable|string',
+            'remove_attachment_ids'   => 'nullable|array',
+            'remove_attachment_ids.*' => 'integer',
+            'attachments'             => 'nullable|array',
+            'attachments.*'           => 'file|max:10240',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($request, $message, $ticketId, $sessionUser) {
+                $messageHtml  = $request->input('message_html', '');
+                $messagePlain = trim(strip_tags($messageHtml));
+
+                $message->update([
+                    'message'      => $messagePlain,
+                    'message_html' => $messageHtml,
+                    'edited_at'    => now(),
+                ]);
+
+                // Remove attachments
+                $removeIds = $request->input('remove_attachment_ids', []);
+                if (!empty($removeIds)) {
+                    $toRemove = TicketAttachment::where('message_id', $message->id)
+                        ->whereIn('id', $removeIds)
+                        ->get();
+                    foreach ($toRemove as $att) {
+                        if ($att->file_path) {
+                            Storage::disk('public')->delete($att->file_path);
+                        }
+                        $att->delete();
+                    }
+                }
+
+                // Add new attachments
+                $uploadedFiles = $request->file('attachments') ?? [];
+                if (!empty($uploadedFiles)) {
+                    $this->saveLocalAttachments($uploadedFiles, $message, (int) $ticketId, (int) $sessionUser['id']);
+                }
+            });
+
+            $message->refresh();
+            $message->load('attachments');
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'id'           => $message->id,
+                    'message_body' => $message->message,
+                    'message_html' => $message->message_html,
+                    'edited_at'    => $message->edited_at?->toIso8601String(),
+                    'attachments'  => $message->attachments->map(fn($a) => [
+                        'id'              => $a->id,
+                        'file_name'       => $a->file_name,
+                        'file_size'       => $a->file_size,
+                        'mime_type'       => $a->mime_type,
+                        'attachment_type' => $a->attachment_type,
+                        'is_inline'       => (bool) $a->is_inline,
+                        'url'             => $a->public_url,
+                    ]),
+                ],
+                'message' => 'Note updated.',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('updateInternalNote error', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to update note.'], 500);
+        }
+    }
+
+    /**
+     * Soft-delete an internal note (sender only, within 10 minutes of posting).
+     */
+    public function destroyInternalNote($ticketId, $messageId)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $message = TicketMessage::where('ticket_id', $ticketId)
+            ->where('id', $messageId)
+            ->where('is_internal_note', true)
+            ->firstOrFail();
+
+        if ((int) $message->sender_id !== (int) ($sessionUser['id'] ?? 0)) {
+            return response()->json(['success' => false, 'message' => 'You can only delete your own notes.'], 403);
+        }
+
+        if ($message->created_at->addMinutes(10)->isPast()) {
+            return response()->json(['success' => false, 'message' => 'Notes can only be deleted within 10 minutes of posting.'], 403);
+        }
+
+        if ($message->is_deleted) {
+            return response()->json(['success' => false, 'message' => 'Note already deleted.'], 422);
+        }
+
+        $message->update(['is_deleted' => true]);
+
+        return response()->json(['success' => true, 'message' => 'Note deleted.']);
     }
 
     /**

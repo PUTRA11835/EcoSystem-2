@@ -136,6 +136,12 @@ class DeliverySupport extends Model
         return $this->hasMany(DeliverySupportUpdate::class, 'delivery_support_id');
     }
 
+    public function customerPics()
+    {
+        return $this->hasMany(DeliverySupportCustomerPic::class, 'delivery_support_id')
+                    ->with('contact');
+    }
+
     /**
      * Get team members from activities assigned to this delivery support
      */

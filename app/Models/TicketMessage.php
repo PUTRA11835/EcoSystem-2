@@ -21,6 +21,8 @@ class TicketMessage extends Model
         'message_html',
         'sla_message',
         'is_internal_note',
+        'is_deleted',
+        'edited_at',
         'message_type',
         'reply_to_id',
         'channel',
@@ -36,6 +38,8 @@ class TicketMessage extends Model
 
     protected $casts = [
         'is_internal_note'       => 'boolean',
+        'is_deleted'             => 'boolean',
+        'edited_at'              => 'datetime',
         'is_read_by_customer'    => 'boolean',
         'is_read_by_agent'       => 'boolean',
         'read_at'                => 'datetime',

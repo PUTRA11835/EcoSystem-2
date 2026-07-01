@@ -291,6 +291,7 @@
                 {{-- NOTE: wrapper TIDAK pakai overflow-hidden — itu memotong dropdown picker
                      "Normal" Quill yang muncul ke bawah. Border-radius cukup pakai rounded-lg
                      tanpa overflow clip; konten editor sudah dibatasi oleh .ql-editor overflow. --}}
+
                 <div class="relative">
                     <div class="bg-white border border-gray-300 rounded-lg">
                         <div id="quillEditor" style="min-height: 80px;"></div>
@@ -695,8 +696,10 @@
                 </div>
                 {{-- Team Members --}}
                 @php
-                    $canManageMembers = $can('ui.ticket.manage-members')
-                        || ($can('ticket.propose-mandays') && $ticket->ticket_lead_id == $user->id);
+                    $canManageMembers = $can('ui.ticket.manage-members') && (
+                            !$can('ticket.propose-mandays')               // non-DS-User roles: always OK
+                            || $ticket->ticket_lead_id == $user->id       // DS User: only if they are the lead
+                        );
                     $allMemberIds = $ticket->allMembers->pluck('employee_id')->toArray();
                 @endphp
                 <div class="pt-3 border-t border-gray-200">
@@ -1893,6 +1896,7 @@
     const DELIVERY_RPMO_HEAD_ROLE     = {{ \App\Enums\RoleId::DELIVERY_RPMO_HEAD->value }};
     const ticketCustomerId            = {{ $ticket->customer_id ?? 'null' }};
     const currentUserId               = {{ $user->id ?? 'null' }};
+    const DRAFT_KEY                   = `ticket_draft_${ticketId}_${currentUserId}`;
     const ticketChannel = @json($ticket->channel ?? 'web');
     let assignedDsId   = {{ isset($deliverySupport) && $deliverySupport ? $deliverySupport->id : 'null' }};
     const currentTicketLeadId   = {{ $ticket->ticket_lead_id ?? 'null' }};
@@ -2216,6 +2220,7 @@
     // Set berisi ID pesan yang sudah dirender ke DOM.
     // Digunakan agar polling tidak me-render ulang pesan lama &rarr; gambar tidak flicker.
     let renderedMessageIds = new Set();
+    const messageCache = new Map();
 
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
@@ -2392,6 +2397,28 @@
                 // Lepas format link dari spasi/enter yang menjadi pemisah
                 quillEditor.formatText(urlStart + lastWord.length, inserted.length, { link: false }, 'api');
             }, 0);
+        });
+
+        // ── Draft restore ────────────────────────────────────────────────────────
+        const savedDraft = localStorage.getItem(DRAFT_KEY);
+        if (savedDraft) {
+            try { quillEditor.setContents(JSON.parse(savedDraft), 'api'); }
+            catch { localStorage.removeItem(DRAFT_KEY); }
+        }
+
+        // ── Draft auto-save (debounce 1 s) ───────────────────────────────────
+        let _draftTimer;
+        quillEditor.on('text-change', function(delta, old, source) {
+            if (source !== 'user') return;
+            clearTimeout(_draftTimer);
+            _draftTimer = setTimeout(function() {
+                const hasText = quillEditor.getText().trim().length > 0;
+                if (hasText) {
+                    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(quillEditor.getContents())); } catch {}
+                } else {
+                    localStorage.removeItem(DRAFT_KEY);
+                }
+            }, 1000);
         });
 
         renderToTags();
@@ -2888,6 +2915,7 @@
     }
 
     function createMessageBubble(msg) {
+        messageCache.set(msg.id, msg);
         // Meeting events — kartu khusus di tengah chat
         if (msg.message_type === 'meeting_started' || msg.message_type === 'meeting_ended') {
             const isStart  = msg.message_type === 'meeting_started';
@@ -3028,6 +3056,45 @@
             const bubbleExtra = isMine ? 'mine' : '';
             const noteBadge = `<span class="inline-flex items-center gap-1 text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-semibold leading-none"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z"/><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd"/></svg>Internal Note</span>`;
 
+            // Soft-deleted placeholder
+            if (msg.is_deleted) {
+                const delText = isMine ? 'You deleted this note' : 'Internal note deleted';
+                const delBubble = `<div class="message-bubble internal-note ${bubbleExtra} p-3 inline-block text-left italic text-gray-400 text-sm flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    ${delText}
+                </div>`;
+                if (isMine) {
+                    return `<div class="flex gap-3 flex-row-reverse" data-msg-id="${msg.id}">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${avatarBgNote} ${avatarTextNote} text-xs font-bold">${initials}</div>
+                        <div class="text-right">
+                            <div class="flex items-center gap-2 justify-end mb-1">
+                                ${noteBadge}<span class="text-sm font-semibold text-gray-900">${senderName}</span><span class="text-xs text-gray-400">${date}</span>
+                            </div>${delBubble}
+                        </div>
+                    </div>`;
+                } else {
+                    return `<div class="flex gap-3" data-msg-id="${msg.id}">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${avatarBgNote} ${avatarTextNote} text-xs font-bold">${initials}</div>
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-sm font-semibold text-gray-900">${senderName}</span>${noteBadge}<span class="text-xs text-gray-400">${date}</span>
+                            </div>${delBubble}
+                        </div>
+                    </div>`;
+                }
+            }
+
+            // Edit window: 10 minutes from creation
+            const withinEditWindow = isMine && (Date.now() - new Date(msg.created_at).getTime()) < 10 * 60 * 1000;
+            const editBtns = withinEditWindow ? `
+                <button onclick="openEditNoteModal(${msg.id})" class="note-reply-btn opacity-0 group-hover:opacity-100 transition-opacity text-amber-600 hover:text-amber-800 text-[10px] font-semibold flex items-center gap-0.5 px-1.5 py-0.5 rounded hover:bg-amber-100 flex-shrink-0" title="Edit note">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </button>
+                <button onclick="confirmDeleteNote(${msg.id})" class="note-reply-btn opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600 text-[10px] font-semibold flex items-center gap-0.5 px-1.5 py-0.5 rounded hover:bg-red-50 flex-shrink-0" title="Delete note">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>` : '';
+            const editedLabel = msg.edited_at ? `<span class="text-[10px] text-gray-400 italic">(edited)</span>` : '';
+
             // Quoted context if this is a reply to another note
             const replyQuote = msg.reply_to_preview
                 ? `<div class="mb-2 border-l-[3px] border-amber-400 pl-2 py-0.5 bg-amber-50 rounded-r text-xs cursor-pointer" onclick="scrollToMessage(${msg.reply_to_preview.id})">
@@ -3048,10 +3115,12 @@
                     <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${avatarBgNote} ${avatarTextNote} text-xs font-bold">${initials}</div>
                     <div class="text-right">
                         <div class="flex items-center gap-2 justify-end mb-1">
+                            ${editBtns}
                             ${replyBtn}
                             ${noteBadge}
                             <span class="text-sm font-semibold text-gray-900">${senderName}</span>
                             <span class="text-xs text-gray-400">${date}</span>
+                            ${editedLabel}
                         </div>
                         <div class="message-bubble internal-note ${bubbleExtra} p-3 inline-block text-left">
                             ${replyQuote}
@@ -3070,6 +3139,7 @@
                             <span class="text-sm font-semibold text-gray-900">${senderName}</span>
                             ${noteBadge}
                             <span class="text-xs text-gray-400">${date}</span>
+                            ${editedLabel}
                             ${replyBtn}
                         </div>
                         <div class="message-bubble internal-note ${bubbleExtra} p-3 inline-block text-left">
@@ -3389,6 +3459,7 @@
 
             if (data.success) {
                 quillEditor.setContents([]);
+                localStorage.removeItem(DRAFT_KEY);
                 resetAttachments();
                 pendingMentions = []; // reset mentions
                 cancelReply();        // clear reply context
@@ -3712,12 +3783,13 @@
                 credentials: 'same-origin',
                 ...(body ? { body } : {}),
             });
-            const data = await res.json();
+            let data;
+            try { data = await res.json(); } catch { showNotification(`Server error (HTTP ${res.status})`, 'error'); return; }
             if (!data.success) { showNotification(data.message || 'Failed to update member.', 'error'); return; }
             renderMembers(data.data);
             showNotification(isActive ? 'Member deactivated.' : 'Member reactivated.', 'success');
-        } catch {
-            showNotification('Error updating member.', 'error');
+        } catch (err) {
+            showNotification('Network error: ' + (err?.message || 'unknown'), 'error');
         }
     }
 
@@ -5795,6 +5867,146 @@
         }
     });
     @endif
+
+    // ==================== INTERNAL NOTE EDIT / DELETE ====================
+    let editNoteQuill = null;
+    let editNoteId    = null;
+    let editNoteRemovedAttachmentIds = [];
+
+    function openEditNoteModal(msgId) {
+        const msg = messageCache.get(msgId);
+        if (!msg) return;
+
+        editNoteId = msgId;
+        editNoteRemovedAttachmentIds = [];
+
+        // Lazy-init Quill editor for the edit modal
+        if (!editNoteQuill) {
+            editNoteQuill = new Quill('#editNoteEditorContainer', {
+                theme: 'snow',
+                modules: {
+                    toolbar: [
+                        ['bold', 'italic', 'underline'],
+                        ['blockquote'],
+                        [{ list: 'ordered' }, { list: 'bullet' }],
+                        ['clean']
+                    ]
+                }
+            });
+        }
+
+        // Pre-fill content
+        if (msg.message_html) {
+            editNoteQuill.clipboard.dangerouslyPasteHTML(msg.message_html);
+        } else {
+            editNoteQuill.setText(msg.message_body || '');
+        }
+
+        // Render existing attachments
+        const attContainer = document.getElementById('editNoteExistingAtts');
+        attContainer.innerHTML = '';
+        (msg.attachments || []).forEach(att => {
+            const row = document.createElement('div');
+            row.className = 'flex items-center gap-2 text-xs text-gray-700 py-1';
+            row.dataset.attId = att.id;
+            row.innerHTML = `<svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                <span class="truncate max-w-xs">${escHtml(att.file_name)}</span>
+                <button type="button" onclick="removeEditNoteAtt(${att.id}, this.closest('[data-att-id]'))" class="ml-auto text-red-400 hover:text-red-600 flex-shrink-0" title="Remove attachment">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>`;
+            attContainer.appendChild(row);
+        });
+
+        // Clear new files input
+        document.getElementById('editNoteNewFiles').value = '';
+
+        document.getElementById('editNoteModal').classList.remove('hidden');
+    }
+
+    function removeEditNoteAtt(attId, rowEl) {
+        editNoteRemovedAttachmentIds.push(attId);
+        if (rowEl) {
+            rowEl.classList.add('opacity-30', 'line-through', 'pointer-events-none');
+            rowEl.querySelector('button')?.remove();
+        }
+    }
+
+    function closeEditNoteModal() {
+        document.getElementById('editNoteModal').classList.add('hidden');
+        editNoteId = null;
+        editNoteRemovedAttachmentIds = [];
+    }
+
+    async function saveEditNote() {
+        if (!editNoteId || !editNoteQuill) return;
+
+        const ticketId = {{ $ticket->ticket_id }};
+        const msgHtml  = editNoteQuill.root.innerHTML;
+        const formData = new FormData();
+        formData.append('message_html', msgHtml);
+
+        editNoteRemovedAttachmentIds.forEach(id => formData.append('remove_attachment_ids[]', id));
+
+        const newFiles = document.getElementById('editNoteNewFiles').files;
+        for (const file of newFiles) formData.append('attachments[]', file);
+
+        const btn = document.getElementById('editNoteSaveBtn');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        try {
+            const res  = await fetch(`/api/tickets/${ticketId}/messages/${editNoteId}/internal-note`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },
+                credentials: 'same-origin',
+                body: formData,
+            });
+            let json;
+            try { json = await res.json(); } catch { showNotification(`Server error (${res.status})`, 'error'); return; }
+            if (!json.success) { showNotification(json.message || 'Failed to update note.', 'error'); return; }
+
+            // Update cache + re-render element in place
+            const updatedMsg = { ...messageCache.get(editNoteId), message_html: json.data.message_html, message_body: json.data.message_body, edited_at: json.data.edited_at, attachments: json.data.attachments };
+            const el = document.querySelector(`[data-msg-id="${editNoteId}"]`);
+            if (el) el.outerHTML = createMessageBubble(updatedMsg);
+
+            showNotification('Note updated.', 'success');
+            closeEditNoteModal();
+        } catch (e) {
+            showNotification('Failed to update note.', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save';
+        }
+    }
+
+    async function confirmDeleteNote(msgId) {
+        const ok = await showConfirm('Delete this note? It will be replaced with a placeholder and cannot be restored.', 'Delete Internal Note', 'danger');
+        if (!ok) return;
+        deleteNote(msgId);
+    }
+
+    async function deleteNote(msgId) {
+        const ticketId = {{ $ticket->ticket_id }};
+        try {
+            const res  = await fetch(`/api/tickets/${ticketId}/messages/${msgId}/internal-note`, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content, 'Accept': 'application/json' },
+                credentials: 'same-origin',
+            });
+            let json;
+            try { json = await res.json(); } catch { showNotification(`Server error (${res.status})`, 'error'); return; }
+            if (!json.success) { showNotification(json.message || 'Failed to delete note.', 'error'); return; }
+
+            const updatedMsg = { ...messageCache.get(msgId), is_deleted: true };
+            const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+            if (el) el.outerHTML = createMessageBubble(updatedMsg);
+
+            showNotification('Note deleted.', 'success');
+        } catch (e) {
+            showNotification('Failed to delete note.', 'error');
+        }
+    }
 </script>
 
 @if($canViewCredential ?? false)
@@ -6044,6 +6256,48 @@
             <button onclick="closeEditDelivModal()"
                 class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
                 Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- ==================== EDIT INTERNAL NOTE MODAL ==================== --}}
+<div id="editNoteModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" onclick="if(event.target===this)closeEditNoteModal()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 flex flex-col" style="max-height:85vh">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 flex-shrink-0">
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1 text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-semibold">
+                    <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z"/><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd"/></svg>
+                    Edit Internal Note
+                </span>
+            </div>
+            <button onclick="closeEditNoteModal()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="px-5 pt-4 pb-2 flex-1 overflow-y-auto">
+            <div class="border border-gray-200 rounded-lg bg-white">
+                <div id="editNoteEditorContainer" style="min-height:120px;max-height:260px;overflow-y:auto"></div>
+            </div>
+            {{-- Existing attachments --}}
+            <div id="editNoteExistingAtts" class="mt-3 space-y-0.5"></div>
+            {{-- New attachments --}}
+            <div class="mt-3">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Add attachments</label>
+                <input type="file" id="editNoteNewFiles" multiple
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar,.csv"
+                    class="block w-full text-xs text-gray-600 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100 cursor-pointer">
+            </div>
+            <p class="mt-2 text-[11px] text-gray-400">Note: edit and delete are only available within <strong>10 minutes</strong> of posting.</p>
+        </div>
+        <div class="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 flex-shrink-0">
+            <button onclick="closeEditNoteModal()"
+                class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                Cancel
+            </button>
+            <button id="editNoteSaveBtn" onclick="saveEditNote()"
+                class="px-4 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
+                Save
             </button>
         </div>
     </div>
