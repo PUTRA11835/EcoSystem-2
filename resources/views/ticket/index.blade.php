@@ -336,8 +336,10 @@
                                 <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:170px;">
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Incident">Incident</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Service Request">Service Request</button>
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Change Request">Change Request</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Service Request">Service Request</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="EWA">EWA</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="RISE">RISE</button>
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Consult">Consult</button>
                                 </div>
                             </div>
@@ -354,6 +356,9 @@
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:160px;">Resolution Time Status</th>
                         @if($can('sla.report'))
                         <th class="px-3 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:110px;">SLA Report</th>
+                        @endif
+                        @if($can('ticket.hide'))
+                        <th class="px-3 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Actions</th>
                         @endif
                     </tr>
                 </thead>
@@ -471,8 +476,10 @@
                             class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
                             <option value="">-- Select Type --</option>
                             <option value="Incident">Incident</option>
-                            <option value="Service Request">Service Request</option>
                             <option value="Change Request">Change Request</option>
+                            <option value="Service Request">Service Request</option>
+                            <option value="EWA">EWA</option>
+                            <option value="RISE">RISE</option>
                             <option value="Consult">Consult</option>
                         </select>
                     </div>
@@ -647,6 +654,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     let userRole                      = userRoleIds[0] ?? 0;
     let currentEmployeeId             = {{ $currentEmployeeId ?? 'null' }};
     const CAN_VIEW_SLA_REPORT         = {{ $can('sla.report') ? 'true' : 'false' }};
+    const CAN_HIDE_TICKET             = {{ $can('ticket.hide') ? 'true' : 'false' }};
     const IS_EXTERNAL_EMPLOYEE        = {{ ($isExternalEmployee ?? false) ? 'true' : 'false' }};
     const EC_ADMINISTRATOR_ROLE       = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
     const DELIVERY_SUPPORT_USER_ROLE  = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};
@@ -958,10 +966,12 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             'closed':                  { label: 'Closed',                  cls: 'bg-green-50 text-green-700' },
         };
         const typeColors = {
-            'Incident':       'bg-red-50 text-red-600',
-            'Service Request':'bg-indigo-50 text-indigo-600',
-            'Change Request': 'bg-amber-50 text-amber-600',
-            'Consult':        'bg-teal-50 text-teal-600',
+            'Incident':        'bg-red-50 text-red-600',
+            'Change Request':  'bg-amber-50 text-amber-600',
+            'Service Request': 'bg-indigo-50 text-indigo-600',
+            'EWA':             'bg-orange-50 text-orange-600',
+            'RISE':            'bg-violet-50 text-violet-600',
+            'Consult':         'bg-teal-50 text-teal-600',
         };
 
         const scaleColors = {
@@ -1147,6 +1157,14 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                        </div>`
                     : `<span class="text-gray-300 text-xs">—</span>`
                 }
+            </td>` : ''}
+            ${CAN_HIDE_TICKET ? `
+            <td class="px-3 py-3 whitespace-nowrap text-center" onclick="event.stopPropagation()">
+                <button onclick="hideTicketFromList(${ticket.ticket_id}, event)"
+                    title="Sembunyikan tiket ini"
+                    class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-orange-300 hover:bg-orange-50 text-gray-400 hover:text-orange-600 transition text-[10px] font-medium">
+                    <i class="fas fa-eye-slash text-xs"></i><span>Hide</span>
+                </button>
             </td>` : ''}
         </tr>`;
     }
@@ -2012,6 +2030,26 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         document.getElementById('slaDetailStatsBar').classList.add('hidden');
         document.getElementById('slaDetailBadges').classList.add('hidden');
         _currentSlaTicketId = null;
+    }
+
+    async function hideTicketFromList(ticketId, event) {
+        event.stopPropagation();
+        if (!confirm('Sembunyikan tiket ini? Tiket tidak akan muncul di daftar utama.')) return;
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/hide`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Tiket berhasil disembunyikan.', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                showNotification(data.message || 'Gagal menyembunyikan tiket.', 'error');
+            }
+        } catch (e) {
+            showNotification('Terjadi kesalahan. Coba lagi.', 'error');
+        }
     }
 
 </script>

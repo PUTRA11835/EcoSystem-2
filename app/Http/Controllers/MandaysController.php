@@ -310,11 +310,10 @@ class MandaysController extends Controller
      */
     public function saveHelpdeskDraft(Request $request, $ticketId)
     {
-        if ($deny = $this->denyUnlessRole(
-            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_HELPDESK->value],
-            'Only Helpdesk can edit the customer mandays proposal at this stage.'
-        )) {
-            return $deny;
+        $sessionUserId = session('user')['id'] ?? null;
+        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
+        if (!$employee?->canAccessMenu('ticket.review-mandays')) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to edit the customer mandays proposal.'], 403);
         }
 
         $request->validate([
@@ -334,20 +333,28 @@ class MandaysController extends Controller
 
         $total = collect($request->details)->sum('mandays');
 
+        $canEditActivity = $employee?->canAccessMenu('ticket.review-mandays.edit-activity');
+
+        // Load original activity names sebelum di-delete (untuk preserve jika tidak ada permission)
+        // Key: module → activity (jika modul sama di banyak activity, pakai yang pertama)
+        $origActivityByModule = $canEditActivity
+            ? []
+            : $proposal->details()->get()->groupBy('module')->map(fn($rows) => $rows->first()->activity)->toArray();
+
         $proposal->details()->delete();
         foreach ($request->details as $d) {
             if (($d['mandays'] ?? 0) > 0) {
+                $activityName = $canEditActivity
+                    ? ($d['activity'] ?? null)
+                    : ($origActivityByModule[$d['module']] ?? $d['activity'] ?? null);
                 CustomerMandaysDetail::create([
                     'customer_mandays_id' => $proposal->id,
-                    'activity'            => $d['activity'] ?? null,
+                    'activity'            => $activityName,
                     'module'              => $d['module'],
                     'mandays'             => $d['mandays'],
                 ]);
             }
         }
-
-        $sessionUserId = session('user')['id'] ?? null;
-        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
 
         $updateData = ['total_mandays' => $total];
         if ($request->has('description') && $employee?->canAccessMenu('ticket.review-mandays.edit-description')) {
@@ -372,13 +379,6 @@ class MandaysController extends Controller
      */
     public function submitToChat($ticketId)
     {
-        if ($deny = $this->denyUnlessRole(
-            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_HELPDESK->value],
-            'Only Helpdesk can send the mandays proposal to the customer.'
-        )) {
-            return $deny;
-        }
-
         $sessionUserId = session('user')['id'] ?? null;
         $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
         if (!$employee?->canAccessMenu('ticket.review-mandays.send-to-customer')) {
@@ -521,13 +521,6 @@ class MandaysController extends Controller
      */
     public function approveCustomerMandays($ticketId)
     {
-        if ($deny = $this->denyUnlessRole(
-            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_HELPDESK->value],
-            'Only Helpdesk can approve the customer mandays proposal.'
-        )) {
-            return $deny;
-        }
-
         $sessionUserId = session('user')['id'] ?? null;
         $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
         if (!$employee?->canAccessMenu('ticket.review-mandays.approve')) {
@@ -560,13 +553,6 @@ class MandaysController extends Controller
      */
     public function cancelCustomerMandays(Request $request, $ticketId)
     {
-        if ($deny = $this->denyUnlessRole(
-            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_HELPDESK->value],
-            'Only Helpdesk can cancel the customer mandays proposal.'
-        )) {
-            return $deny;
-        }
-
         $sessionUserId = session('user')['id'] ?? null;
         $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
         if (!$employee?->canAccessMenu('ticket.review-mandays.cancel')) {

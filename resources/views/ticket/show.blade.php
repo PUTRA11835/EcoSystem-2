@@ -137,10 +137,12 @@
                     @if($ticket->ticket_type)
                     @php
                         $typeColors = [
-                            'Incident' => 'bg-red-100 text-red-700',
+                            'Incident'        => 'bg-red-100 text-red-700',
+                            'Change Request'  => 'bg-amber-100 text-amber-700',
                             'Service Request' => 'bg-indigo-100 text-indigo-700',
-                            'Change Request' => 'bg-amber-100 text-amber-700',
-                            'Consult' => 'bg-teal-100 text-teal-700',
+                            'EWA'             => 'bg-orange-100 text-orange-700',
+                            'RISE'            => 'bg-violet-100 text-violet-700',
+                            'Consult'         => 'bg-teal-100 text-teal-700',
                         ];
                     @endphp
                     <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $typeColors[$ticket->ticket_type] ?? 'bg-gray-100 text-gray-600' }}">
@@ -359,12 +361,14 @@
         $isPic           = $can('ticket.propose-mandays');
         $isHelpdesk      = $can('ticket.review-mandays');
         $isHead          = $can('ticket.head-mandays');
-        // Priority: Head > Helpdesk > PIC to avoid duplicate sections for multi-role users
-        if ($isHead)          { $isPic = false; $isHelpdesk = false; }
-        elseif ($isHelpdesk)  { $isPic = false; }
-        // Computed AFTER override so dual-role Head+Helpdesk users get false
+        // Head dan Helpdesk bisa aktif bersamaan (role berbeda boleh punya keduanya).
+        // Yang di-override hanya PIC: jika user adalah Head atau Helpdesk, sembunyikan seksi PIC.
+        if ($isHead || $isHelpdesk) { $isPic = false; }
+        // Computed AFTER override
+        $hdCanEditActivity    = $isHelpdesk && $can('ticket.review-mandays.edit-activity');
         $hdCanEditDesc        = $isHelpdesk && $can('ticket.review-mandays.edit-description');
         $hdCanEditNotes       = $isHelpdesk && $can('ticket.review-mandays.edit-proposal-notes');
+        $hdCanSaveDraft       = $isHelpdesk && $can('ticket.review-mandays.save-draft');
         $hdCanSendToCustomer  = $isHelpdesk && $can('ticket.review-mandays.send-to-customer');
         $hdCanApprove         = $isHelpdesk && $can('ticket.review-mandays.approve');
         $hdCanCancel          = $isHelpdesk && $can('ticket.review-mandays.cancel');
@@ -630,8 +634,10 @@
                         <input type="hidden" id="detailType" value="{{ $ticket->ticket_type ?? 'Incident' }}">
                         <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:150px;">
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Incident">Incident</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Service Request">Service Request</button>
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Change Request">Change Request</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Service Request">Service Request</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="EWA">EWA</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="RISE">RISE</button>
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Consult">Consult</button>
                         </div>
                     </div>
@@ -799,6 +805,22 @@
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Created</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('d M Y H:i') }} WIB</p>
                 </div>
+                {{-- Hide / Unhide Ticket --}}
+                @if($can('ticket.hide'))
+                <div class="pt-3 border-t border-gray-200">
+                    @if($ticket->is_hidden)
+                    <button onclick="unhideTicket()" id="btnUnhideTicket"
+                        class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-all duration-200">
+                        <i class="fas fa-eye text-xs"></i> Tampilkan Kembali
+                    </button>
+                    @else
+                    <button onclick="hideTicket()" id="btnHideTicket"
+                        class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-500 text-white text-xs font-semibold rounded-lg hover:bg-orange-600 transition-all duration-200">
+                        <i class="fas fa-eye-slash text-xs"></i> Sembunyikan Tiket
+                    </button>
+                    @endif
+                </div>
+                @endif
                 {{-- Admin only: Delete Ticket --}}
                 @if($can('ticket.delete'))
                 <div class="pt-3 border-t border-gray-200">
@@ -3912,7 +3934,9 @@
                 body: JSON.stringify({ pic: picName }),
             });
             const result = await res.json();
-            if (!result.success) {
+            if (result.success) {
+                showNotification('PIC updated', 'success');
+            } else {
                 showNotification(result.message || 'Failed to update PIC', 'error');
             }
         } catch (e) {
@@ -4059,6 +4083,52 @@
         if (modal && modal.querySelector('.bg-white')?.contains(e.target)) return;
         dd.classList.add('hidden');
     });
+
+    async function hideTicket() {
+        if (!confirm('Sembunyikan tiket ini? Tiket tidak akan muncul di daftar utama.')) return;
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/hide`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Tiket berhasil disembunyikan.', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                showNotification(data.message || 'Gagal menyembunyikan tiket.', 'error');
+            }
+        } catch (e) {
+            showNotification('Terjadi kesalahan. Coba lagi.', 'error');
+        }
+    }
+
+    async function unhideTicket() {
+        if (!confirm('Tampilkan kembali tiket ini? Tiket akan muncul di daftar utama.')) return;
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/unhide`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Tiket berhasil ditampilkan kembali.', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                showNotification(data.message || 'Gagal menampilkan tiket.', 'error');
+            }
+        } catch (e) {
+            showNotification('Terjadi kesalahan. Coba lagi.', 'error');
+        }
+    }
 
     async function deleteTicket() {
         if (!confirm('Are you sure you want to delete this ticket?')) return;
@@ -5137,8 +5207,10 @@
 
 
     // ==================== HELPDESK: CUSTOMER MANDAYS REVIEW ====================
+    const HD_CAN_EDIT_ACTIVITY   = {{ ($hdCanEditActivity   ?? false) ? 'true' : 'false' }};
     const HD_CAN_EDIT_DESC       = {{ ($hdCanEditDesc       ?? false) ? 'true' : 'false' }};
     const HD_CAN_EDIT_NOTES      = {{ ($hdCanEditNotes      ?? false) ? 'true' : 'false' }};
+    const HD_CAN_SAVE_DRAFT      = {{ ($hdCanSaveDraft      ?? false) ? 'true' : 'false' }};
     const HD_CAN_SEND_TO_CUSTOMER= {{ ($hdCanSendToCustomer ?? false) ? 'true' : 'false' }};
     const HD_CAN_APPROVE         = {{ ($hdCanApprove        ?? false) ? 'true' : 'false' }};
     const HD_CAN_CANCEL          = {{ ($hdCanCancel         ?? false) ? 'true' : 'false' }};
@@ -5260,14 +5332,18 @@
                 }
             }
 
+            const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
             let bodyHtml = '';
             activities.forEach(act => {
-                bodyHtml += `<tr><td class="px-2 py-1.5 border border-gray-200 text-xs font-medium">${act}</td>`;
+                const actCell = (isEditable && HD_CAN_EDIT_ACTIVITY)
+                    ? `<input type="text" class="hd-activity-input w-full px-2 py-1.5 text-xs border-0 focus:outline-none focus:bg-gray-50 bg-white font-medium" value="${escAttr(act)}" placeholder="Activity..." maxlength="150">`
+                    : `<span class="px-2 py-1.5 block text-xs font-medium">${escAttr(act)}</span>`;
+                bodyHtml += `<tr><td class="border border-gray-200 p-0">${actCell}</td>`;
                 mods.forEach(m => {
                     const val = valueMap[act]?.[m] || '';
                     bodyHtml += `<td class="border border-gray-200 p-0">
                         <input type="number" min="0" step="0.5" class="hd-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none ${isEditable?'focus:bg-gray-100 bg-white':'bg-gray-50 cursor-not-allowed'}"
-                        data-activity="${act}" data-module="${m}" value="${val}" ${isEditable?'':'readonly'} oninput="hdUpdateTotal()">
+                        data-activity="${escAttr(act)}" data-module="${escAttr(m)}" value="${val}" ${isEditable?'':'readonly'} oninput="hdUpdateTotal()">
                     </td>`;
                 });
                 bodyHtml += '</tr>';
@@ -5284,7 +5360,7 @@
                 document.getElementById(id)?.classList.add('hidden');
             });
             if (isPicSubmitted) {
-                document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
+                if (HD_CAN_SAVE_DRAFT)       document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
                 if (HD_CAN_SEND_TO_CUSTOMER) document.getElementById('hdBtnSendToChat')?.classList.remove('hidden');
                 if (HD_CAN_CANCEL)           document.getElementById('hdBtnCancel')?.classList.remove('hidden');
                 // Show info banner: must send to chat before approving
@@ -5294,7 +5370,7 @@
                 banner.classList.remove('hidden');
                 banner.classList.add('flex', 'bg-blue-50', 'border', 'border-blue-200', 'text-blue-800');
             } else if (isCustomerRejected) {
-                document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
+                if (HD_CAN_SAVE_DRAFT)       document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
                 if (HD_CAN_SEND_TO_CUSTOMER) document.getElementById('hdBtnReviseResend')?.classList.remove('hidden');
                 if (HD_CAN_CANCEL)           document.getElementById('hdBtnCancel')?.classList.remove('hidden');
             } else if (isSentToChat) {
@@ -5346,7 +5422,12 @@
         const details = [];
         document.querySelectorAll('.hd-cell:not([readonly])').forEach(inp => {
             const v = parseFloat(inp.value) || 0;
-            if (v > 0) details.push({ activity: inp.dataset.activity, module: inp.dataset.module, mandays: v });
+            if (v > 0) {
+                const row = inp.closest('tr');
+                const actInput = row?.querySelector('.hd-activity-input');
+                const act = actInput ? (actInput.value.trim() || inp.dataset.activity) : inp.dataset.activity;
+                details.push({ activity: act, module: inp.dataset.module, mandays: v });
+            }
         });
         if (details.length > 0) {
             const savePayload = { details };
@@ -5377,7 +5458,12 @@
             const details = [];
             document.querySelectorAll('.hd-cell:not([readonly])').forEach(inp => {
                 const v = parseFloat(inp.value) || 0;
-                if (v > 0) details.push({ activity: inp.dataset.activity, module: inp.dataset.module, mandays: v });
+                if (v > 0) {
+                    const row = inp.closest('tr');
+                    const actInput = row?.querySelector('.hd-activity-input');
+                    const act = actInput ? (actInput.value.trim() || inp.dataset.activity) : inp.dataset.activity;
+                    details.push({ activity: act, module: inp.dataset.module, mandays: v });
+                }
             });
             if (details.length === 0) {
                 showNotification('Please fill in at least one mandays value.', 'warning');
@@ -5874,7 +5960,18 @@
 
 {{-- ==================== DELIVERABLE MODAL ==================== --}}
 <div id="deliverableModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 flex flex-col" style="max-height:90vh">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 flex flex-col relative" style="max-height:90vh">
+
+        {{-- Loading overlay (send to customer) --}}
+        <div id="deliverableLoadingOverlay" class="hidden absolute inset-0 bg-white/80 backdrop-blur-sm rounded-2xl z-20 flex flex-col items-center justify-center gap-3">
+            <svg class="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <p class="text-sm font-semibold text-blue-600">Sending to Customer...</p>
+            <p class="text-xs text-gray-400">Please wait</p>
+        </div>
+
         {{-- Header --}}
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
             <div>
@@ -6302,6 +6399,8 @@ async function submitNewDoc() {
 
 async function sendDeliverable(id) {
     if (!await showConfirm('Mark this document as "Sended to Customer"?', 'Send to Customer')) return;
+    const overlay = document.getElementById('deliverableLoadingOverlay');
+    if (overlay) overlay.classList.remove('hidden');
     try {
         const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/send`, {
             method: 'PATCH',
@@ -6315,6 +6414,8 @@ async function sendDeliverable(id) {
     } catch (e) {
         showDelivError(e.message);
         showToast('Failed to send: ' + e.message, 'error');
+    } finally {
+        if (overlay) overlay.classList.add('hidden');
     }
 }
 

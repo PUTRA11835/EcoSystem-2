@@ -8,7 +8,7 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 RUN echo "upload_max_filesize=25M\npost_max_size=30M" > /usr/local/etc/php/conf.d/uploads.ini
 
-WORKDIR /var/www/html
+WORKDIR /var/www/ecosystem
 
 COPY . .
 
