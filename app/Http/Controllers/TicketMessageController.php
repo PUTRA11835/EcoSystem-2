@@ -206,7 +206,8 @@ class TicketMessageController extends Controller
 
             // Parse TO dari request — list email primary recipient.
             // Pertama dipakai sebagai $toEmail utama, sisanya jadi additional toRecipients.
-            // Tidak dipersist ke DB — UI re-seed dari resolveCustomerEmail() tiap reply.
+            // Dipersist ke ticket.to_emails (untuk reply) agar recipient tambahan
+            // bertahan antar reply/reload — mirror perilaku cc_emails.
             $requestToRaw = $request->input('to_emails');
             $requestTo    = null;
             if ($requestToRaw !== null) {
@@ -229,6 +230,13 @@ class TicketMessageController extends Controller
                 // Simpan CC baru ke ticket agar reply berikutnya juga pakai CC yang sama
                 if ($requestCc !== null) {
                     $ticket->update(['cc_emails' => $requestCc]);
+                    $ticket->refresh();
+                }
+
+                // Simpan daftar TO baru ke ticket (primary customer + recipient tambahan)
+                // agar reply berikutnya / reload tetap menampilkan recipient yang sama.
+                if ($requestTo !== null) {
+                    $ticket->update(['to_emails' => $requestTo]);
                     $ticket->refresh();
                 }
 
