@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\DeliverySupport;
+use App\Models\Employee;
 use App\Models\SlaPolicy;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
@@ -34,6 +35,14 @@ class SlaController extends Controller
     private function canManagePolicies(): bool
     {
         return in_array(session('user.role.id'), [1, 5], true);
+    }
+
+    // Diatur lewat Role Management (menu slug: ticket.meeting), bukan role hardcode,
+    // supaya role apa pun bisa diberi/dicabut akses meeting dari UI Role Management.
+    private function assertMeetingAccess(): bool
+    {
+        $employee = Employee::find(session('user.id'));
+        return (bool) $employee?->hasPermission('ticket.meeting');
     }
 
     // ── Web Pages ─────────────────────────────────────────────────────────────
@@ -609,7 +618,7 @@ class SlaController extends Controller
 
     public function startMeeting(Request $request, $id)
     {
-        if (!$this->assertSlaAccess()) {
+        if (!$this->assertMeetingAccess()) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -754,7 +763,7 @@ class SlaController extends Controller
 
     public function endMeeting(Request $request, $id)
     {
-        if (!$this->assertSlaAccess()) {
+        if (!$this->assertMeetingAccess()) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 

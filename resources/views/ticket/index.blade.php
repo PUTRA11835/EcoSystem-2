@@ -734,7 +734,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
     function startEmailPolling() {
         checkTicketUpdates();
-        setInterval(checkTicketUpdates, 10000);
+        // Auto-refresh dimatikan — cek update tiket hanya dilakukan sekali saat halaman dimuat.
     }
 
     function exportWithFilters() {
@@ -1045,7 +1045,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                     : unreadCls === 'ticket-unread-customer'  ? '#f0f7ff'
                     : '#ffffff';
 
-        return `<tr class="${unreadCls} border-b border-gray-100" onclick="window.location='/ticket/${ticket.ticket_id}'">
+        return `<tr class="${unreadCls} border-b border-gray-100" onclick="window.location='/ticket/${ticket.ticket_id}'" oncontextmenu="openTicketContextMenu(event,${ticket.ticket_id})">
             {{-- Last Update --}}
             <td class="px-3 py-3 whitespace-nowrap sticky left-0" style="background:${rowBg}" title="${lastUpdateTitle}">
                 <div class="flex items-center gap-1.5">
@@ -1059,7 +1059,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             </td>
             {{-- Description --}}
             <td class="px-3 py-3 text-sm" style="min-width:260px;max-width:320px;">
-                <span class="block truncate text-gray-700 font-medium leading-snug"
+                <span class="block truncate text-gray-700 ${ticket.is_read ? 'font-normal' : 'font-bold'} leading-snug"
                       title="${(ticket.description||'').replace(/"/g,'&quot;')}">${ticket.description || '—'}</span>
             </td>
             {{-- Date --}}
@@ -2141,5 +2141,51 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 @endphp
 <script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
+
+{{-- Ticket row context menu --}}
+<div id="ticketContextMenu"
+     class="hidden fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl py-1 min-w-[170px]"
+     style="pointer-events:auto;">
+    <button type="button" id="ctxOpenNewTab"
+            class="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors text-left">
+        <i class="fas fa-external-link-alt text-gray-400 w-3.5"></i>
+        Open in new tab
+    </button>
+</div>
+
+<script>
+(function () {
+    let _ctxTicketId = null;
+    const menu = document.getElementById('ticketContextMenu');
+
+    window.openTicketContextMenu = function (e, ticketId) {
+        e.preventDefault();
+        e.stopPropagation();
+        _ctxTicketId = ticketId;
+
+        // Posisi tepat di kursor, jaga agar tidak keluar viewport
+        const vw = window.innerWidth, vh = window.innerHeight;
+        const mw = 180, mh = 44;
+        let x = e.clientX, y = e.clientY;
+        if (x + mw > vw) x = vw - mw - 8;
+        if (y + mh > vh) y = vh - mh - 8;
+
+        menu.style.left = x + 'px';
+        menu.style.top  = y + 'px';
+        menu.classList.remove('hidden');
+    };
+
+    document.getElementById('ctxOpenNewTab').addEventListener('click', function () {
+        if (_ctxTicketId) window.open('/ticket/' + _ctxTicketId, '_blank');
+        menu.classList.add('hidden');
+        _ctxTicketId = null;
+    });
+
+    document.addEventListener('click', function () {
+        menu.classList.add('hidden');
+        _ctxTicketId = null;
+    });
+})();
+</script>
 
 @endsection

@@ -192,9 +192,19 @@ class TicketController extends Controller
             $ticketIds   = $tickets->pluck('ticket_id')->toArray();
             $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
 
+            // Tiket yang sudah dibaca oleh employee yang sedang login (hanya jika role punya fungsi istimewa ticket.read)
+            $canReadFeature = (bool) \App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.read');
+            $readTicketIds = $canReadFeature
+                ? DB::table('ticket_reads')
+                    ->where('employee_id', $sessionUser['id'])
+                    ->whereIn('ticket_id', $ticketIds)
+                    ->pluck('ticket_id')
+                    ->flip()
+                : collect();
+
             // Batch load support manager & admin per ticket via delivery_support_activities
             $deliverySupportMap = \App\Models\DeliverySupportActivity::with([
-                'deliverySupport.supportManager.basicData',
+                'deliverySupport.supportManagers.basicData',
                 'deliverySupport.supportAdmin.basicData',
             ])
             ->whereIn('ticket_id', $ticketIds)
@@ -204,7 +214,7 @@ class TicketController extends Controller
             ->map(function ($activity) {
                 $ds = $activity->deliverySupport;
                 return [
-                    'support_manager_name' => $ds?->supportManager?->basicData?->first_name,
+                    'support_manager_name' => $ds?->supportManagers->pluck('basicData.first_name')->filter()->implode(', '),
                     'support_admin_name'   => $ds?->supportAdmin?->basicData?->first_name,
                 ];
             });
@@ -217,22 +227,21 @@ class TicketController extends Controller
                 ->groupBy('ticket_id')
                 ->map(fn($group) => $group->first()->total_mandays);
 
+            // Batch-load semua pending confirmations sekaligus (hindari N+1)
+            $confirmationMap = DB::table('ticket_confirmation')
+                ->whereIn('ticket_id', $ticketIds)
+                ->where('status', 'pending')
+                ->get()
+                ->groupBy('ticket_id');
+
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap, $readTicketIds, $canReadFeature, $confirmationMap) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
-                // ✅ Hitung pending confirmations untuk admin
-                $pendingCount = DB::table('ticket_confirmation')
-                    ->where('ticket_id', $ticket->ticket_id)
-                    ->where('status', 'pending')
-                    ->count();
-                
-                // ✅ Get pending confirmation detail (untuk status waiting employee)
-                $pendingConfirmation = DB::table('ticket_confirmation')
-                    ->where('ticket_id', $ticket->ticket_id)
-                    ->where('status', 'pending')
-                    ->first();
+                $pendingConfirmations = $confirmationMap->get($ticket->ticket_id, collect());
+                $pendingCount         = $pendingConfirmations->count();
+                $pendingConfirmation  = $pendingConfirmations->first();
 
                 return [
                     'ticket_id' => $ticket->ticket_id,
@@ -260,6 +269,7 @@ class TicketController extends Controller
                     'last_agent_reply_at' => $ticket->last_agent_reply_at,
                     'last_internal_note_at'        => $ticket->last_internal_note_at,
                     'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
+                    'is_read' => $canReadFeature ? $readTicketIds->has($ticket->ticket_id) : true,
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -897,9 +907,9 @@ class TicketController extends Controller
 
                 Log::info('My Tickets - Filtering for support manager', ['employee_id' => $employeeId]);
 
-                $managedDeliveryIds = DB::table('delivery_support')
-                    ->where('support_manager_id', $employeeId)
-                    ->pluck('id');
+                $managedDeliveryIds = DB::table('delivery_support_managers')
+                    ->where('employee_id', $employeeId)
+                    ->pluck('delivery_support_id');
 
                 $managedTicketIds = DB::table('delivery_support_activities')
                     ->whereIn('delivery_support_id', $managedDeliveryIds)
@@ -940,6 +950,16 @@ class TicketController extends Controller
             $myTicketIds   = $tickets->pluck('ticket_id')->toArray();
             $myProgressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($myTicketIds);
 
+            // Tiket yang sudah dibaca oleh employee yang sedang login (hanya jika role punya fungsi istimewa ticket.read)
+            $myCanReadFeature = (bool) \App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.read');
+            $myReadTicketIds = $myCanReadFeature
+                ? DB::table('ticket_reads')
+                    ->where('employee_id', $sessionUser['id'])
+                    ->whereIn('ticket_id', $myTicketIds)
+                    ->pluck('ticket_id')
+                    ->flip()
+                : collect();
+
             // Batch load approved customer mandays (latest approved version per ticket)
             $myCustomerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $myTicketIds)
                 ->where('status', 'approved')
@@ -949,7 +969,7 @@ class TicketController extends Controller
                 ->map(fn($group) => $group->first()->total_mandays);
 
             // ✅ Transform data dengan confirmation info
-            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadTicketIds, $myCanReadFeature) {
                 $myAllProgress = $myProgressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -991,6 +1011,7 @@ class TicketController extends Controller
                     'last_agent_reply_at' => $ticket->last_agent_reply_at,
                     'last_internal_note_at'        => $ticket->last_internal_note_at,
                     'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
+                    'is_read' => $myCanReadFeature ? $myReadTicketIds->has($ticket->ticket_id) : true,
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -1326,7 +1347,7 @@ class TicketController extends Controller
 
         $roleIds = $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0];
         $allowed = array_merge(
-            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value],
+            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value, RoleId::DELIVERY_SUPPORT_MANAGER->value],
             RoleId::HELPDESK_GROUP
         );
         if (!array_intersect($roleIds, $allowed)) {
@@ -1362,11 +1383,11 @@ class TicketController extends Controller
 
         $roleId = $sessionUser['role']['id'] ?? 0;
         $allowed = array_merge(
-            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value],
+            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value, RoleId::DELIVERY_SUPPORT_MANAGER->value],
             RoleId::HELPDESK_GROUP
         );
         if (!in_array($roleId, $allowed, true)) {
-            return response()->json(['success' => false, 'message' => 'Only Admin, Helpdesk, or Head of Support can assign a Ticket Lead'], 403);
+            return response()->json(['success' => false, 'message' => 'Only Admin, Helpdesk, Head of Support, or Support Manager can assign a Ticket Lead'], 403);
         }
 
         $validator = Validator::make($request->all(), [
@@ -2111,10 +2132,10 @@ class TicketController extends Controller
         }
 
         $ticket  = Ticket::with('members.basicData')->findOrFail($id);
-        $roleId     = $sessionUser['role']['id'];
-        $isAdmin    = $roleId === RoleId::EC_ADMINISTRATOR->value;
-        $isHelpdesk = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
-        $isPic      = $roleId === RoleId::DELIVERY_SUPPORT_USER->value && $ticket->ticket_lead_id == $sessionUser['id'];
+        $roleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id']]);
+        $isAdmin    = (bool) array_intersect($roleIds, [RoleId::EC_ADMINISTRATOR->value]);
+        $isHelpdesk = (bool) array_intersect($roleIds, RoleId::TICKET_MANAGER_GROUP);
+        $isPic      = in_array(RoleId::DELIVERY_SUPPORT_USER->value, $roleIds, true) && $ticket->ticket_lead_id == $sessionUser['id'];
 
         if (!$isAdmin && !$isHelpdesk && !$isPic) {
             return response()->json([
@@ -2396,14 +2417,15 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $ticket     = Ticket::with('members.basicData')->findOrFail($ticketId);
-        $roleId     = $sessionUser['role']['id'];
-        $isAdmin    = $roleId === RoleId::EC_ADMINISTRATOR->value;
-        $isHoS      = $roleId === RoleId::DELIVERY_SUPPORT_HEAD->value;
-        $isHelpdesk = in_array($roleId, RoleId::HELPDESK_GROUP, true);
-        $isPic      = $roleId === RoleId::DELIVERY_SUPPORT_USER->value && $ticket->ticket_lead_id == $sessionUser['id'];
+        $ticket  = Ticket::with('members.basicData')->findOrFail($ticketId);
+        $roleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id']]);
+        $isAdmin    = in_array(RoleId::EC_ADMINISTRATOR->value, $roleIds, true);
+        $isHoS      = in_array(RoleId::DELIVERY_SUPPORT_HEAD->value, $roleIds, true);
+        $isManager  = in_array(RoleId::DELIVERY_SUPPORT_MANAGER->value, $roleIds, true);
+        $isHelpdesk = (bool) array_intersect($roleIds, RoleId::HELPDESK_GROUP);
+        $isPic      = in_array(RoleId::DELIVERY_SUPPORT_USER->value, $roleIds, true) && $ticket->ticket_lead_id == $sessionUser['id'];
 
-        if (!$isAdmin && !$isHoS && !$isHelpdesk && !$isPic) {
+        if (!$isAdmin && !$isHoS && !$isManager && !$isHelpdesk && !$isPic) {
             return response()->json([
                 'success' => false,
                 'message' => 'Tidak memiliki akses untuk menghapus member.'
@@ -2813,22 +2835,25 @@ class TicketController extends Controller
                 ], 404);
             }
 
-            // Check if ticket is already assigned to this support (check both ticket_id and notes for backward compatibility)
-            $existingActivity = DB::table('delivery_support_activities')
+            // Check if ticket is already assigned to this exact support
+            $sameSupport = DB::table('delivery_support_activities')
                 ->where('delivery_support_id', $supportId)
-                ->where(function ($query) use ($ticket) {
-                    $query->where('ticket_id', $ticket->ticket_id)
-                        ->orWhere('notes', 'like', '%Ticket #' . $ticket->ticket_id . '%');
-                })
-                ->first();
+                ->where('ticket_id', $ticket->ticket_id)
+                ->exists();
 
-            if ($existingActivity) {
+            if ($sameSupport) {
                 DB::rollBack();
                 return response()->json([
                     'success' => false,
-                    'message' => 'This ticket is already assigned to this delivery support'
+                    'message' => 'This ticket is already assigned to this delivery support.',
                 ], 400);
             }
+
+            // If ticket is in a different DS, remove the link there first (one DS per ticket rule)
+            DB::table('delivery_support_activities')
+                ->where('ticket_id', $ticket->ticket_id)
+                ->whereNot('delivery_support_id', $supportId)
+                ->update(['ticket_id' => null, 'updated_at' => now()]);
 
             // Find the default "Support" phase
             $phase = DB::table('delivery_support_phases')

@@ -21,7 +21,6 @@ class DeliverySupport extends Model
         'name',
         'type',
         'delivery_owner_id',
-        'support_manager_id',
         'co_pm_id',
         'support_admin_id',
         'sales_id',
@@ -75,9 +74,10 @@ class DeliverySupport extends Model
         return $this->belongsTo(Employee::class, 'delivery_owner_id', 'employee_id');
     }
 
-    public function supportManager()
+    public function supportManagers()
     {
-        return $this->belongsTo(Employee::class, 'support_manager_id', 'employee_id');
+        return $this->belongsToMany(Employee::class, 'delivery_support_managers', 'delivery_support_id', 'employee_id', 'id', 'employee_id')
+            ->withTimestamps();
     }
 
     public function coPm()
@@ -134,6 +134,12 @@ class DeliverySupport extends Model
     public function updates()
     {
         return $this->hasMany(DeliverySupportUpdate::class, 'delivery_support_id');
+    }
+
+    public function customerPics()
+    {
+        return $this->hasMany(DeliverySupportCustomerPic::class, 'delivery_support_id')
+                    ->with('contact');
     }
 
     /**

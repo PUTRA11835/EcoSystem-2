@@ -118,7 +118,7 @@ class StagingTicketController extends Controller
             $query->where('customer_id', $request->customer_id);
         }
 
-        $query->with(['customer.basicData', 'endCustomer.basicData', 'validator.basicData'])
+        $query->with(['customer.basicData', 'endCustomer.basicData', 'validator.basicData', 'ticket'])
               ->orderBy('created_at', 'desc');
 
         $perPage = max(1, min((int) $request->get('per_page', 200), 500));

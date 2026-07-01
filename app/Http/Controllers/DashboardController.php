@@ -446,9 +446,9 @@ class DashboardController extends Controller
             if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::DELIVERY_SUPPORT_MANAGER->value) {
                 $employeeId = $user['id'];
 
-                $managedDeliveryIds = DB::table('delivery_support')
-                    ->where('support_manager_id', $employeeId)
-                    ->pluck('id');
+                $managedDeliveryIds = DB::table('delivery_support_managers')
+                    ->where('employee_id', $employeeId)
+                    ->pluck('delivery_support_id');
 
                 $managedTicketIds = DB::table('delivery_support_activities')
                     ->whereIn('delivery_support_id', $managedDeliveryIds)

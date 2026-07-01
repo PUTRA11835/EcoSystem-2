@@ -372,7 +372,7 @@
                             </div>
                             <div>
                                 <p class="text-sm font-medium text-gray-900">Support Manager</p>
-                                <p class="text-xs text-gray-500" id="display-support_manager">{{ $support->supportManager->basicData->full_name ?? 'Not assigned' }}</p>
+                                <p class="text-xs text-gray-500" id="display-support_manager">{{ $support->supportManagers->pluck('basicData.full_name')->filter()->join(', ') ?: 'Not assigned' }}</p>
                             </div>
                         </div>
                         <div class="flex items-center space-x-3" id="team-co-pm">
@@ -406,6 +406,27 @@
                 </div>
             </div>
 
+            {{-- Customer PIC --}}
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                    <h3 class="text-lg font-semibold text-gray-900">Customer PIC</h3>
+                    @if($canManage)
+                    <button type="button" onclick="openCustomerPicModal()"
+                            class="p-2 text-gray-400 edit-btn rounded-lg transition"
+                            title="Manage Customer PIC">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                    </button>
+                    @endif
+                </div>
+                <div class="p-6" id="customerPicPanel">
+                    <div id="customerPicList" class="space-y-2">
+                        <p class="text-xs text-gray-400 italic">Loading...</p>
+                    </div>
+                </div>
+            </div>
+
             {{-- Quick Actions --}}
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
@@ -427,6 +448,20 @@
                         <span class="text-sm font-medium text-gray-700">Updates & Notes</span>
                         <span class="text-xs text-gray-500">{{ $support->updates->count() ?? 0 }}</span>
                     </button>
+                    @if($isEcAdmin)
+                    <div class="border-t border-gray-100 mt-1 pt-1">
+                        <button type="button" onclick="openRemoveTicketModal()"
+                                class="w-full flex items-center justify-between p-3 rounded-lg hover:bg-orange-50 transition text-left text-orange-600">
+                            <span class="text-sm font-medium">Remove Ticket from DS</span>
+                            <span class="flex items-center gap-1.5">
+                                @if($linkedTickets->count() > 0)
+                                <span class="text-xs bg-orange-100 text-orange-700 font-semibold px-1.5 py-0.5 rounded-full">{{ $linkedTickets->count() }}</span>
+                                @endif
+                                <i class="fas fa-unlink text-sm"></i>
+                            </span>
+                        </button>
+                    </div>
+                    @endif
                     <div class="border-t border-gray-100 mt-1 pt-1">
                         <form id="deleteSupportForm" action="{{ route('delivery.support.destroy', $support->id, false) }}" method="POST">
                             @csrf
@@ -740,7 +775,6 @@
                     @php
                         $currentLabels = [
                             'delivery_owner_id'  => '',
-                            'support_manager_id' => '',
                             'co_pm_id'           => '',
                             'support_admin_id'   => '',
                             'sales_id'           => '',
@@ -748,7 +782,6 @@
                         foreach($employees ?? [] as $_e) {
                             $name = $_e->basicData->full_name ?? 'N/A';
                             if ($support->delivery_owner_id  == $_e->employee_id) $currentLabels['delivery_owner_id']  = $name;
-                            if ($support->support_manager_id == $_e->employee_id) $currentLabels['support_manager_id'] = $name;
                             if ($support->co_pm_id           == $_e->employee_id) $currentLabels['co_pm_id']           = $name;
                             if ($support->support_admin_id   == $_e->employee_id) $currentLabels['support_admin_id']   = $name;
                             if ($support->sales_id           == $_e->employee_id) $currentLabels['sales_id']           = $name;
@@ -756,12 +789,37 @@
 
                         $teamFields = [
                             ['key' => 'delivery_owner_id',  'label' => 'Delivery Owner',  'value' => $support->delivery_owner_id],
-                            ['key' => 'support_manager_id', 'label' => 'Support Manager', 'value' => $support->support_manager_id],
                             ['key' => 'co_pm_id',           'label' => 'Co PM',           'value' => $support->co_pm_id],
                             ['key' => 'support_admin_id',   'label' => 'Support Admin',   'value' => $support->support_admin_id],
                             ['key' => 'sales_id',           'label' => 'Sales',           'value' => $support->sales_id],
                         ];
+
+                        $currentSupportManagerIds    = $support->supportManagers->pluck('employee_id')->implode(',');
+                        $currentSupportManagerLabel  = $support->supportManagers->pluck('basicData.full_name')->filter()->join(', ');
                     @endphp
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Support Manager</label>
+                        <div class="custom-dd relative" data-fixed="true" data-multi="true" data-placeholder="Not assigned">
+                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                <span class="custom-dd-label {{ $currentSupportManagerLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $currentSupportManagerLabel ?: 'Not assigned' }}</span>
+                                <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <input type="hidden" name="support_manager_ids" id="edit-support_manager_ids" value="{{ $currentSupportManagerIds }}">
+                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                                <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                    <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
+                                </div>
+                                @foreach($employees ?? [] as $employee)
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">
+                                        <span class="custom-dd-item-text">{{ $employee->basicData->full_name ?? 'N/A' }}</span>
+                                        <svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    </button>
+                                @endforeach
+                                <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+                            </div>
+                        </div>
+                    </div>
 
                     @foreach($teamFields as $tf)
                     <div>
@@ -939,11 +997,10 @@ function updateDisplayValues(section, data) {
     }
     else if (section === 'team-info') {
         const teamMap = {
-            delivery_owner_id:  'display-delivery_owner',
-            support_manager_id: 'display-support_manager',
-            co_pm_id:           'display-co_pm',
-            support_admin_id:   'display-support_admin',
-            sales_id:           'display-sales',
+            delivery_owner_id: 'display-delivery_owner',
+            co_pm_id:          'display-co_pm',
+            support_admin_id:  'display-support_admin',
+            sales_id:          'display-sales',
         };
         Object.entries(teamMap).forEach(([field, displayId]) => {
             const el = document.getElementById(displayId);
@@ -956,6 +1013,15 @@ function updateDisplayValues(section, data) {
                 el.textContent = 'Not assigned';
             }
         });
+
+        const smEl = document.getElementById('display-support_manager');
+        if (smEl) {
+            const ids = (data.support_manager_ids || '').split(',').filter(Boolean);
+            const names = ids
+                .map(id => employeesData.find(e => e.employee_id == id)?.basic_data?.full_name)
+                .filter(Boolean);
+            smEl.textContent = names.length ? names.join(', ') : 'Not assigned';
+        }
     }
 }
 
@@ -1609,11 +1675,306 @@ document.addEventListener('DOMContentLoaded', loadSlaPolicies);
     </div>
 </div>
 
+{{-- Customer PIC Modal --}}
+<div id="customerPicModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeCustomerPicModal()"></div>
+        <div class="relative bg-white rounded-xl shadow-xl w-full max-w-lg z-10">
+            <div class="flex items-center justify-between px-6 py-4 bg-gray-800 rounded-t-xl">
+                <h3 class="text-lg font-semibold text-white">Manage Customer PIC</h3>
+                <button type="button" onclick="closeCustomerPicModal()" class="text-white hover:text-gray-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p class="text-xs text-gray-500">Pilih customer contact yang menjadi PIC untuk delivery support ini. Customer tersebut hanya akan melihat ticket yang terhubung ke DS ini di JARVIES.</p>
+
+                {{-- Search input --}}
+                <div class="relative">
+                    <input type="text" id="cpicSearchInput" placeholder="Cari nama atau email..."
+                        class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-800"
+                        oninput="filterCpicOptions()">
+                    <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </div>
+
+                {{-- Contact list with checkboxes --}}
+                <div id="cpicContactList" class="border border-gray-200 rounded-lg max-h-64 overflow-y-auto divide-y divide-gray-100">
+                    <p class="text-xs text-gray-400 px-4 py-3 italic">Loading contacts...</p>
+                </div>
+
+                {{-- Selected count --}}
+                <p class="text-xs text-gray-500">Dipilih: <span id="cpicSelectedCount" class="font-semibold text-gray-800">0</span> contact</p>
+            </div>
+            <div class="flex gap-3 px-6 pb-6">
+                <button type="button" onclick="closeCustomerPicModal()"
+                    class="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
+                    Batal
+                </button>
+                <button type="button" id="cpicSaveBtn" onclick="saveCustomerPics()"
+                    class="flex-1 bg-gray-800 hover:bg-gray-700 text-white rounded-xl py-2.5 text-sm font-semibold transition">
+                    Simpan
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==================== CUSTOMER PIC ====================
+const SUPPORT_ID = {{ $support->id }};
+const CPIC_CONTACTS_URL = '{{ route("delivery.support.client-contacts", $support->id) }}';
+const CPIC_SYNC_URL     = '{{ route("delivery.support.customer-pics.sync", $support->id) }}';
+const CPIC_INDEX_URL    = '{{ route("delivery.support.customer-pics.index", $support->id) }}';
+const CSRF_TOKEN        = '{{ csrf_token() }}';
+
+let cpicAllContacts  = [];  // semua contact milik client
+let cpicSelectedIds  = new Set();  // contact_id yang dipilih
+
+// ── Panel render ─────────────────────────────────────────────────────────────
+
+async function loadCustomerPicPanel() {
+    try {
+        const res  = await fetch(CPIC_INDEX_URL);
+        const json = await res.json();
+        renderCustomerPicPanel(json.data ?? []);
+    } catch (e) {
+        document.getElementById('customerPicList').innerHTML =
+            '<p class="text-xs text-red-400 italic">Gagal memuat data.</p>';
+    }
+}
+
+function renderCustomerPicPanel(pics) {
+    const el = document.getElementById('customerPicList');
+    if (!pics.length) {
+        el.innerHTML = '<p class="text-xs text-gray-400 italic">Belum ada Customer PIC yang ditentukan.</p>';
+        return;
+    }
+    el.innerHTML = pics.map(p => `
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold flex-shrink-0">
+                ${(p.full_name || '?').charAt(0).toUpperCase()}
+            </div>
+            <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-900 truncate">${escHtml(p.full_name ?? '—')}</p>
+                <p class="text-xs text-gray-400 truncate">${escHtml(p.email_work ?? '')}${p.position ? ' · ' + escHtml(p.position) : ''}</p>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────────
+
+async function openCustomerPicModal() {
+    document.getElementById('customerPicModal').classList.remove('hidden');
+    document.getElementById('cpicSearchInput').value = '';
+    document.getElementById('cpicContactList').innerHTML =
+        '<p class="text-xs text-gray-400 px-4 py-3 italic">Loading contacts...</p>';
+
+    try {
+        const [contactsRes, picsRes] = await Promise.all([
+            fetch(CPIC_CONTACTS_URL),
+            fetch(CPIC_INDEX_URL),
+        ]);
+        const contactsJson = await contactsRes.json();
+        const picsJson     = await picsRes.json();
+
+        cpicAllContacts = contactsJson.data ?? [];
+        cpicSelectedIds = new Set((picsJson.data ?? []).map(p => p.contact_id));
+
+        renderCpicList(cpicAllContacts);
+        updateCpicCount();
+    } catch (e) {
+        document.getElementById('cpicContactList').innerHTML =
+            '<p class="text-xs text-red-400 px-4 py-3 italic">Gagal memuat data contact.</p>';
+    }
+}
+
+function closeCustomerPicModal() {
+    document.getElementById('customerPicModal').classList.add('hidden');
+}
+
+function renderCpicList(contacts) {
+    const el = document.getElementById('cpicContactList');
+    if (!contacts.length) {
+        el.innerHTML = '<p class="text-xs text-gray-400 px-4 py-3 italic">Tidak ada contact ditemukan.</p>';
+        return;
+    }
+    el.innerHTML = contacts.map(c => {
+        const checked = cpicSelectedIds.has(c.contact_id) ? 'checked' : '';
+        return `
+        <label class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer">
+            <input type="checkbox" value="${c.contact_id}" ${checked}
+                class="cpic-checkbox w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-700"
+                onchange="toggleCpic(${c.contact_id}, this.checked)">
+            <div class="min-w-0 flex-1">
+                <p class="text-sm font-medium text-gray-900">${escHtml(c.full_name ?? '—')}</p>
+                <p class="text-xs text-gray-400">${escHtml(c.email_work ?? '')}${c.position ? ' · ' + escHtml(c.position) : ''}</p>
+            </div>
+        </label>`;
+    }).join('');
+}
+
+function toggleCpic(contactId, checked) {
+    if (checked) cpicSelectedIds.add(contactId);
+    else         cpicSelectedIds.delete(contactId);
+    updateCpicCount();
+}
+
+function filterCpicOptions() {
+    const q = document.getElementById('cpicSearchInput').value.trim().toLowerCase();
+    const filtered = q
+        ? cpicAllContacts.filter(c =>
+            (c.full_name ?? '').toLowerCase().includes(q) ||
+            (c.email_work ?? '').toLowerCase().includes(q))
+        : cpicAllContacts;
+    renderCpicList(filtered);
+}
+
+function updateCpicCount() {
+    document.getElementById('cpicSelectedCount').textContent = cpicSelectedIds.size;
+}
+
+async function saveCustomerPics() {
+    const btn = document.getElementById('cpicSaveBtn');
+    btn.disabled = true;
+    btn.textContent = 'Menyimpan...';
+
+    try {
+        const res = await fetch(CPIC_SYNC_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+            credentials: 'same-origin',
+            body: JSON.stringify({ contact_ids: [...cpicSelectedIds] }),
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message ?? 'Gagal menyimpan');
+
+        renderCustomerPicPanel(json.data ?? []);
+        closeCustomerPicModal();
+        showToast('Customer PIC berhasil disimpan.', 'success');
+    } catch (e) {
+        showToast(e.message || 'Gagal menyimpan Customer PIC.', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Simpan';
+    }
+}
+
+function escHtml(str) {
+    return String(str ?? '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function showToast(msg, type) {
+    // Gunakan notifikasi bawaan sistem jika tersedia, fallback ke alert
+    if (typeof showNotification === 'function') {
+        showNotification(msg, type);
+    } else {
+        alert(msg);
+    }
+}
+
+// Auto-load panel saat halaman siap
+document.addEventListener('DOMContentLoaded', () => loadCustomerPicPanel());
+</script>
+
 {{-- Load custom-dd script + cache buster supaya production auto-invalidate setiap deploy. --}}
 @php
     $customDdPath = public_path('js/custom-dropdown.js');
     $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 @endphp
 <script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
+
+@if($isEcAdmin)
+{{-- Remove Ticket from DS Modal --}}
+<div id="removeTicketModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="text-base font-semibold text-gray-900">Remove Ticket from DS</h3>
+            <button onclick="closeRemoveTicketModal()" class="text-gray-400 hover:text-gray-600 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="px-6 py-4 space-y-2 max-h-72 overflow-y-auto">
+            @forelse($linkedTickets as $lt)
+            <div class="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-100 hover:border-orange-200 hover:bg-orange-50 transition">
+                <div class="min-w-0">
+                    <p class="text-sm font-semibold text-gray-800 truncate">{{ $lt->ticket_number }}</p>
+                    <p class="text-xs text-gray-500 truncate">{{ Str::limit($lt->description, 60) }}</p>
+                </div>
+                <button onclick="confirmRemoveTicket({{ $lt->activity_id }}, '{{ $lt->ticket_number }}')"
+                        class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-700 bg-orange-100 hover:bg-orange-200 rounded-lg transition">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                    </svg>
+                    Remove
+                </button>
+            </div>
+            @empty
+            <p class="text-sm text-gray-400 italic text-center py-4">No tickets currently linked to this DS.</p>
+            @endforelse
+        </div>
+        <div class="px-6 py-4 border-t border-gray-100 flex justify-end">
+            <button onclick="closeRemoveTicketModal()" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openRemoveTicketModal() {
+    const modal = document.getElementById('removeTicketModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeRemoveTicketModal() {
+    const modal = document.getElementById('removeTicketModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+async function confirmRemoveTicket(activityId, ticketNumber) {
+    const ok = await showConfirm(
+        `Remove ticket ${ticketNumber} from this delivery support? The activity will remain; only the ticket link will be cleared.`,
+        'Remove Ticket from DS',
+        'warning',
+        { okText: 'Remove' }
+    );
+    if (!ok) return;
+
+    const supportId = {{ $support->id }};
+    const csrf = document.querySelector('meta[name="csrf-token"]').content;
+
+    try {
+        const res  = await fetch(`/delivery/support/${supportId}/activities/${activityId}/remove-ticket`, {
+            method: 'PATCH',
+            headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            showNotification(data.message, 'success');
+            closeRemoveTicketModal();
+            setTimeout(() => location.reload(), 800);
+        } else {
+            showNotification(data.message || 'Failed to remove ticket.', 'error');
+        }
+    } catch (e) {
+        showNotification('Network error. Please try again.', 'error');
+    }
+}
+
+document.getElementById('removeTicketModal').addEventListener('click', function(e) {
+    if (e.target === this) closeRemoveTicketModal();
+});
+</script>
+@endif
 
 @endsection

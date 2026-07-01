@@ -140,6 +140,7 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
             Route::get('/{activity}', [DeliverySupportActivityController::class, 'show'])->name('show');
             Route::put('/{activity}', [DeliverySupportActivityController::class, 'update'])->name('update');
             Route::delete('/{activity}', [DeliverySupportActivityController::class, 'destroy'])->name('destroy');
+            Route::patch('/{activity}/remove-ticket', [DeliverySupportActivityController::class, 'removeTicketLink'])->name('remove-ticket');
 
             // Employee assignment
             Route::get('/{activity}/employees', [DeliverySupportActivityController::class, 'getAssignedEmployees'])->name('employees.index');
@@ -208,6 +209,13 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
             Route::post('/', [DeliverySupportController::class, 'addTeamMember'])->name('store');
             Route::delete('/{employee}', [DeliverySupportController::class, 'removeTeamMember'])->name('destroy');
         });
+
+        // =====================================================================
+        // CUSTOMER PIC
+        // =====================================================================
+        Route::get('/client-contacts', [DeliverySupportController::class, 'getClientContacts'])->name('client-contacts');
+        Route::get('/customer-pics', [DeliverySupportController::class, 'getCustomerPics'])->name('customer-pics.index');
+        Route::post('/customer-pics', [DeliverySupportController::class, 'syncCustomerPics'])->name('customer-pics.sync');
     });
 });
 

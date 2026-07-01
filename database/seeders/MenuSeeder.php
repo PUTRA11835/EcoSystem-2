@@ -69,7 +69,6 @@ class MenuSeeder extends Seeder
             ['slug' => 'ticket.assign-pic',            'name' => 'Assign PIC',              'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 5],
             ['slug' => 'ticket.confirm-assignment',    'name' => 'Confirm Assignment',      'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 6],
             ['slug' => 'ticket.take',                  'name' => 'Take Ticket',             'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 7],
-            ['slug' => 'ui.ticket.sidebar-tabs',       'name' => 'Sidebar Tabs',            'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 8],
             ['slug' => 'ui.ticket.edit-fields',        'name' => 'Edit Status/Priority/Type','type' => 'function','parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 9],
             ['slug' => 'ui.ticket.manage-members',     'name' => 'Manage Members',          'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 10],
             ['slug' => 'ui.ticket.internal-notes',     'name' => 'Internal Notes',          'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 11],
@@ -81,6 +80,11 @@ class MenuSeeder extends Seeder
             ['slug' => 'ticket.meeting',          'name' => 'Meeting',                   'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 17],
             ['slug' => 'ticket.delete',           'name' => 'Delete Ticket',             'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 18],
             ['slug' => 'ticket.hide',             'name' => 'Hide Ticket',               'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 19],
+
+            // ── Room Chat (ticket detail sidebar toggles) ───────────────────────────
+            ['slug' => 'room-chat',                    'name' => 'Room Chat',               'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-comments',          'order_seq' => 8],
+            ['slug' => 'room-chat.tab-all-ticket',     'name' => 'All Ticket Button',       'type' => 'function', 'parent_slug' => 'room-chat',   'route_name' => null,                           'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'room-chat.tab-my-ticket',      'name' => 'My Ticket Button',        'type' => 'function', 'parent_slug' => 'room-chat',   'route_name' => null,                           'icon' => null,                   'order_seq' => 2],
 
             // ── My Tasks ─────────────────────────────────────────────────────────
             ['slug' => 'ticket.my-tasks',              'name' => 'My Tasks',                'type' => 'page',     'parent_slug' => null,          'route_name' => 'ticket.task',                  'icon' => 'fa-tasks',             'order_seq' => 9],
@@ -222,10 +226,9 @@ class MenuSeeder extends Seeder
             'ticket.view-all'             => [self::ADMIN=>$v],
             'ticket.view-own'             => [self::EMPLOYEE=>$v],
             'ticket.view-team'            => [self::HOP=>$v,      self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
-            'ticket.assign-pic'           => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
+            'ticket.assign-pic'           => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v, self::MANAGER=>$v],
             'ticket.confirm-assignment'   => [self::ADMIN=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
             'ticket.take'                 => [self::EMPLOYEE=>$v],
-            'ui.ticket.sidebar-tabs'      => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::HOS=>$v,    self::HELPDESK=>$v, self::RPMO=>$v],
             'ui.ticket.edit-fields'       => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
             'ui.ticket.manage-members'    => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::HOS=>$v,    self::HELPDESK=>$v, self::RPMO=>$v],
             'ui.ticket.internal-notes'    => [self::ADMIN=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
@@ -237,6 +240,10 @@ class MenuSeeder extends Seeder
             'ticket.meeting'          => [self::ADMIN=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             'ticket.delete'           => [self::ADMIN=>$v],
             'ticket.hide'             => [self::ADMIN=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            // Room Chat
+            'room-chat'                   => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            'room-chat.tab-all-ticket'    => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            'room-chat.tab-my-ticket'     => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             // My Tasks (Delivery Support User=2, Delivery Project User=15)
             'ticket.my-tasks'             => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   15=>$v],
             // Consultant Workload

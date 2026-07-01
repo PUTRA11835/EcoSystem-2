@@ -373,6 +373,8 @@ Route::middleware(['web'])->group(function () {
         Route::put('/{ticketId}/messages/mark-all-read', [TicketMessageController::class, 'markAllRead']);
         Route::post('/{ticketId}/initiate-email', [TicketMessageController::class, 'initiateEmail']);
         Route::patch('/{ticketId}/messages/{messageId}/sla-message', [TicketMessageController::class, 'updateSlaMessage']);
+        Route::post('/{ticketId}/messages/{messageId}/internal-note', [TicketMessageController::class, 'updateInternalNote']);
+        Route::delete('/{ticketId}/messages/{messageId}/internal-note', [TicketMessageController::class, 'destroyInternalNote']);
 
         // ==================== DELIVERABLE ROUTES ====================
         Route::get('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'index']);
