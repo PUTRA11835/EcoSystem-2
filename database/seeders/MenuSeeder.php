@@ -226,7 +226,7 @@ class MenuSeeder extends Seeder
             'ticket.view-all'             => [self::ADMIN=>$v],
             'ticket.view-own'             => [self::EMPLOYEE=>$v],
             'ticket.view-team'            => [self::HOP=>$v,      self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
-            'ticket.assign-pic'           => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
+            'ticket.assign-pic'           => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v, self::MANAGER=>$v],
             'ticket.confirm-assignment'   => [self::ADMIN=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
             'ticket.take'                 => [self::EMPLOYEE=>$v],
             'ui.ticket.edit-fields'       => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],

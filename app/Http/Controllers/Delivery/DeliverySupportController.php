@@ -11,6 +11,8 @@ use App\Models\DeliverySupportActivity;
 use App\Models\DeliverySupportViewConfiguration;
 use App\Models\DeliveryList;
 use App\Models\Customer;
+use App\Models\CustomerContact;
+use App\Models\DeliverySupportCustomerPic;
 use App\Models\Employee;
 use App\Models\Ticket;
 use App\Services\OneDriveService;
@@ -349,7 +351,25 @@ class DeliverySupportController extends Controller
 
         $canManage = in_array(session('user.role.id'), [1, 5], true);
 
-        return view('delivery.support.list.show', compact('support', 'employees', 'clients', 'canManage'));
+        $sessionUser = session('user') ?? [];
+        $roleIds     = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+        $isEcAdmin   = in_array(RoleId::EC_ADMINISTRATOR->value, $roleIds, true);
+
+        $linkedTickets = $isEcAdmin
+            ? DB::table('delivery_support_activities')
+                ->join('ticket', 'delivery_support_activities.ticket_id', '=', 'ticket.ticket_id')
+                ->where('delivery_support_activities.delivery_support_id', $support->id)
+                ->whereNotNull('delivery_support_activities.ticket_id')
+                ->get([
+                    'delivery_support_activities.id as activity_id',
+                    'ticket.ticket_id',
+                    'ticket.ticket_number',
+                    'ticket.description',
+                    'ticket.status',
+                ])
+            : collect();
+
+        return view('delivery.support.list.show', compact('support', 'employees', 'clients', 'canManage', 'isEcAdmin', 'linkedTickets'));
     }
 
     /**
@@ -1069,5 +1089,100 @@ class DeliverySupportController extends Controller
             'onedrive_deliverable_folder_url' => null,
         ]);
         return response()->json(['success' => true]);
+    }
+
+    // =========================================================================
+    // CUSTOMER PIC
+    // =========================================================================
+
+    /**
+     * GET /delivery/support/{support}/customer-contacts
+     * Kembalikan semua customer contact milik client dari DS ini, untuk pilihan dropdown.
+     */
+    public function getClientContacts(DeliverySupport $support)
+    {
+        if (!$support->client_id) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        $contacts = CustomerContact::where('customer_id', $support->client_id)
+            ->whereNotNull('email_work')
+            ->orderBy('full_name')
+            ->get(['contact_id', 'full_name', 'position', 'department', 'email_work']);
+
+        return response()->json(['success' => true, 'data' => $contacts]);
+    }
+
+    /**
+     * GET /delivery/support/{support}/customer-pics
+     * Kembalikan daftar contact yang saat ini menjadi PIC Customer untuk DS ini.
+     */
+    public function getCustomerPics(DeliverySupport $support)
+    {
+        $pics = DeliverySupportCustomerPic::where('delivery_support_id', $support->id)
+            ->with(['contact:contact_id,full_name,position,department,email_work'])
+            ->get()
+            ->map(fn($p) => [
+                'id'         => $p->id,
+                'contact_id' => $p->contact_id,
+                'full_name'  => $p->contact->full_name ?? '—',
+                'position'   => $p->contact->position ?? null,
+                'department' => $p->contact->department ?? null,
+                'email_work' => $p->contact->email_work ?? null,
+            ]);
+
+        return response()->json(['success' => true, 'data' => $pics]);
+    }
+
+    /**
+     * POST /delivery/support/{support}/customer-pics
+     * Simpan/replace daftar PIC Customer (sync: hapus yang tidak ada, tambah yang baru).
+     * Body: { contact_ids: [1, 2, 3] }
+     */
+    public function syncCustomerPics(Request $request, DeliverySupport $support)
+    {
+        $request->validate([
+            'contact_ids'   => 'present|array',
+            'contact_ids.*' => 'integer|exists:customer_contact,contact_id',
+        ]);
+
+        $contactIds = collect($request->contact_ids)->filter()->unique()->values();
+
+        // Validasi semua contact milik client yang sama
+        if ($contactIds->isNotEmpty()) {
+            $valid = CustomerContact::whereIn('contact_id', $contactIds)
+                ->where('customer_id', $support->client_id)
+                ->pluck('contact_id');
+
+            if ($valid->count() !== $contactIds->count()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Beberapa contact tidak termasuk dalam customer yang dipilih.',
+                ], 422);
+            }
+        }
+
+        DB::transaction(function () use ($support, $contactIds) {
+            $existing = DeliverySupportCustomerPic::where('delivery_support_id', $support->id)
+                ->pluck('contact_id');
+
+            $toDelete = $existing->diff($contactIds);
+            $toAdd    = $contactIds->diff($existing);
+
+            if ($toDelete->isNotEmpty()) {
+                DeliverySupportCustomerPic::where('delivery_support_id', $support->id)
+                    ->whereIn('contact_id', $toDelete)
+                    ->delete();
+            }
+
+            foreach ($toAdd as $contactId) {
+                DeliverySupportCustomerPic::create([
+                    'delivery_support_id' => $support->id,
+                    'contact_id'          => $contactId,
+                ]);
+            }
+        });
+
+        return $this->getCustomerPics($support);
     }
 }
