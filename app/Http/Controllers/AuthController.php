@@ -775,12 +775,16 @@ class AuthController extends Controller
                 $rememberUpdates = ['last_login_at' => now()];
 
                 // ── Remember Me ──────────────────────────────────────────────
+                // Catatan: blok ini hanya tercapai untuk akun is_already_cp = 1,
+                // karena akun is_already_cp = 0 sudah di-return di atas (jalur
+                // require_password_change) sebelum sampai ke sini. Jadi untuk
+                // akun password-initial, checkbox otomatis diabaikan.
                 $responseCookies = [];
                 if ($remember) {
                     $rawRememberToken = Str::random(60);
                     $rememberUpdates['remember_token'] = hash('sha256', $rawRememberToken);
 
-                    // Cookie HttpOnly, SameSite=Lax, 30 hari
+                    // Cookie HttpOnly, SameSite=Lax, REMEMBER_DAYS hari
                     // secure: ikut SESSION_SECURE_COOKIE (.env) — false lokal, true production HTTPS
                     $responseCookies[] = cookie(
                         self::REMEMBER_COOKIE,

@@ -357,6 +357,9 @@
                         @if($can('sla.report'))
                         <th class="px-3 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:110px;">SLA Report</th>
                         @endif
+                        @if($can('ticket.hide'))
+                        <th class="px-3 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Actions</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody id="ticketsListBody" class="divide-y divide-gray-100 bg-white"></tbody>
@@ -433,7 +436,17 @@
                     </div>
                 </div>
 
-                {{-- CC Emails --}}
+                {{-- To (dikosongkan by default — TIDAK auto company email; diisi manual bila perlu) --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        To <span class="text-gray-400 font-normal normal-case">(optional — kosongkan untuk EWA, isi manual bila perlu)</span>
+                    </label>
+                    <input type="text" id="newToEmail"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                        placeholder="Kosongkan agar tidak dikirim ke company email">
+                </div>
+
+                {{-- CC Emails (diisi manual — TIDAK auto dari contact) --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
                         CC <span class="text-gray-400 font-normal normal-case">(optional, pisah koma)</span>
@@ -651,6 +664,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     let userRole                      = userRoleIds[0] ?? 0;
     let currentEmployeeId             = {{ $currentEmployeeId ?? 'null' }};
     const CAN_VIEW_SLA_REPORT         = {{ $can('sla.report') ? 'true' : 'false' }};
+    const CAN_HIDE_TICKET             = {{ $can('ticket.hide') ? 'true' : 'false' }};
     const IS_EXTERNAL_EMPLOYEE        = {{ ($isExternalEmployee ?? false) ? 'true' : 'false' }};
     const EC_ADMINISTRATOR_ROLE       = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
     const DELIVERY_SUPPORT_USER_ROLE  = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};
@@ -720,7 +734,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
     function startEmailPolling() {
         checkTicketUpdates();
-        setInterval(checkTicketUpdates, 10000);
+        // Auto-refresh dimatikan — cek update tiket hanya dilakukan sekali saat halaman dimuat.
     }
 
     function exportWithFilters() {
@@ -1045,7 +1059,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             </td>
             {{-- Description --}}
             <td class="px-3 py-3 text-sm" style="min-width:260px;max-width:320px;">
-                <span class="block truncate text-gray-700 font-medium leading-snug"
+                <span class="block truncate text-gray-700 ${ticket.is_read ? 'font-normal' : 'font-bold'} leading-snug"
                       title="${(ticket.description||'').replace(/"/g,'&quot;')}">${ticket.description || '—'}</span>
             </td>
             {{-- Date --}}
@@ -1153,6 +1167,14 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                        </div>`
                     : `<span class="text-gray-300 text-xs">—</span>`
                 }
+            </td>` : ''}
+            ${CAN_HIDE_TICKET ? `
+            <td class="px-3 py-3 whitespace-nowrap text-center" onclick="event.stopPropagation()">
+                <button onclick="hideTicketFromList(${ticket.ticket_id}, event)"
+                    title="Sembunyikan tiket ini"
+                    class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 hover:border-orange-300 hover:bg-orange-50 text-gray-400 hover:text-orange-600 transition text-[10px] font-medium">
+                    <i class="fas fa-eye-slash text-xs"></i><span>Hide</span>
+                </button>
             </td>` : ''}
         </tr>`;
     }
@@ -1714,6 +1736,8 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         document.getElementById('createTicketModal').classList.add('hidden');
         document.getElementById('createTicketForm').reset();
         if (typeof setCustomDropdownValue === 'function') setCustomDropdownValue('newCustomerId', '');
+        const toEl = document.getElementById('newToEmail');
+        if (toEl) toEl.value = '';
         const ccEl = document.getElementById('newCcEmails');
         if (ccEl) ccEl.value = '';
         document.getElementById('adminCreateError').classList.add('hidden');
@@ -1756,6 +1780,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         form.append('ticket_priority', document.getElementById('newPriority').value);
         form.append('customer_id',     document.getElementById('newCustomerId').value);
         form.append('ticket_type',     ticketTypeVal);
+        form.append('to_email',        document.getElementById('newToEmail').value.trim() || '');
         form.append('cc_emails',       document.getElementById('newCcEmails').value || '');
         const scaleVal = document.getElementById('newScale').value;
         if (scaleVal) form.append('scale', scaleVal);
@@ -2018,6 +2043,26 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         document.getElementById('slaDetailStatsBar').classList.add('hidden');
         document.getElementById('slaDetailBadges').classList.add('hidden');
         _currentSlaTicketId = null;
+    }
+
+    async function hideTicketFromList(ticketId, event) {
+        event.stopPropagation();
+        if (!confirm('Sembunyikan tiket ini? Tiket tidak akan muncul di daftar utama.')) return;
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/hide`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Tiket berhasil disembunyikan.', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                showNotification(data.message || 'Gagal menyembunyikan tiket.', 'error');
+            }
+        } catch (e) {
+            showNotification('Terjadi kesalahan. Coba lagi.', 'error');
+        }
     }
 
 </script>
