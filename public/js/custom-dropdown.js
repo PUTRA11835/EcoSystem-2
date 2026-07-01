@@ -47,6 +47,13 @@ function initCustomDropdowns(root) {
         // Store panel ref so _selectItem can find it even when detached (fixed mode)
         dd._ddPanel = panel;
 
+        // Multi-select mode (data-multi="true"): pre-fill checked state + label
+        // from the hidden input's comma-separated value (set server-side for
+        // edit/show pages where some items are already selected).
+        if (dd.dataset.multi === 'true') {
+            _syncMultiVisualState(dd);
+        }
+
         // Wire up search input. Tiga kondisi yang trigger:
         // 1. Hardcoded di HTML (`<input class="custom-dd-search">` sudah ada di markup)
         //    — selalu wire up, tidak peduli threshold. Ini pattern yang dipakai untuk
@@ -141,7 +148,11 @@ function initCustomDropdowns(root) {
             const text       = item.textContent.trim();
             const owner      = panel._ddOwner || dd;
             const onchangeFn = owner.dataset.onchange;
-            _selectItem(owner, val, text);
+            if (owner.dataset.multi === 'true') {
+                _toggleMultiItem(owner, item, val);
+            } else {
+                _selectItem(owner, val, text);
+            }
             if (onchangeFn && typeof window[onchangeFn] === 'function') {
                 window[onchangeFn]();
             }
@@ -405,7 +416,11 @@ function _selectHighlightedOrFirst(panel, dd) {
         const text       = hi.textContent.trim();
         const owner      = panel._ddOwner || dd;
         const onchangeFn = owner.dataset.onchange;
-        _selectItem(owner, val, text);
+        if (owner.dataset.multi === 'true') {
+            _toggleMultiItem(owner, hi, val);
+        } else {
+            _selectItem(owner, val, text);
+        }
         if (onchangeFn && typeof window[onchangeFn] === 'function') {
             window[onchangeFn]();
         }
@@ -516,6 +531,74 @@ function _closeAllDropdowns() {
             }
         }
     });
+}
+
+// ──────────────────────────────────────────────
+// MULTI-SELECT MODE (opt-in via data-multi="true" on the .custom-dd wrapper)
+// ──────────────────────────────────────────────
+// Unlike _selectItem (single value, closes panel), this toggles one item
+// on/off and keeps the panel open so several items can be picked in one
+// interaction. Selection is stored as a comma-separated string of values
+// in the same hidden input that single-select uses for one value.
+
+// Toggle one item; update hidden input + label. Panel stays open.
+function _toggleMultiItem(dd, item, val) {
+    if (val === '') return;
+
+    const hidden = dd.querySelector('input[type="hidden"]');
+    if (!hidden) return;
+
+    let ids = hidden.value ? hidden.value.split(',').filter(Boolean) : [];
+    if (ids.includes(val)) {
+        ids = ids.filter(id => id !== val);
+        item.classList.remove('bg-gray-50', 'font-medium', 'text-gray-900');
+        item.querySelector('.custom-dd-check')?.classList.add('opacity-0');
+    } else {
+        ids.push(val);
+        item.classList.add('bg-gray-50', 'font-medium', 'text-gray-900');
+        item.querySelector('.custom-dd-check')?.classList.remove('opacity-0');
+    }
+    hidden.value = ids.join(',');
+
+    _updateMultiLabel(dd, ids);
+}
+
+// Rebuild the button label from the currently selected ids.
+function _updateMultiLabel(dd, ids) {
+    const label = dd.querySelector('.custom-dd-label');
+    if (!label) return;
+
+    const panel = dd.querySelector('.custom-dd-panel') || dd._ddPanel;
+    const names = ids
+        .map(id => panel?.querySelector(`.custom-dd-item[data-value="${CSS.escape(id)}"] .custom-dd-item-text`)?.textContent.trim())
+        .filter(Boolean);
+
+    if (names.length) {
+        label.textContent = names.join(', ');
+        label.className   = 'custom-dd-label text-gray-700';
+    } else {
+        label.textContent = dd.dataset.placeholder || 'Select…';
+        label.className   = 'custom-dd-label text-gray-500';
+    }
+}
+
+// Called once during init for data-multi dropdowns — marks items as checked
+// and sets the initial label from the hidden input's pre-filled CSV value
+// (used by edit/show pages where some items are already selected).
+function _syncMultiVisualState(dd) {
+    const hidden = dd.querySelector('input[type="hidden"]');
+    const panel  = dd.querySelector('.custom-dd-panel');
+    if (!hidden || !panel) return;
+
+    const ids = hidden.value ? hidden.value.split(',').filter(Boolean) : [];
+    ids.forEach(id => {
+        const item = panel.querySelector(`.custom-dd-item[data-value="${CSS.escape(id)}"]`);
+        if (item) {
+            item.classList.add('bg-gray-50', 'font-medium', 'text-gray-900');
+            item.querySelector('.custom-dd-check')?.classList.remove('opacity-0');
+        }
+    });
+    _updateMultiLabel(dd, ids);
 }
 
 /**

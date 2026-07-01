@@ -101,6 +101,7 @@ class TicketController extends Controller
                 Log::info('External employee viewing own tickets only', ['employee_id' => $sessionUser['id']]);
                 $employeeId = $sessionUser['id'];
                 $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->where(function ($q) use ($employeeId) {
                         $q->where('ticket_lead_id', $employeeId)
                           ->orWhereHas('members', fn ($i) => $i->where('ticket_member.employee_id', $employeeId));
@@ -113,6 +114,7 @@ class TicketController extends Controller
                 Log::info('Admin viewing tickets', ['unassigned' => $filterUnassigned]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
                 if ($filterUnassigned) {
                     $query->whereNull('ticket_lead_id');
@@ -123,6 +125,7 @@ class TicketController extends Controller
             } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_USER->value) {
                 Log::info('Employee viewing unassigned tickets');
                 $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->whereNull('ticket_lead_id')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
@@ -137,6 +140,7 @@ class TicketController extends Controller
                 Log::info('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
                 if ($filterUnassigned) {
                     $query->whereNull('ticket_lead_id');
@@ -149,6 +153,7 @@ class TicketController extends Controller
                 Log::info('Support Manager viewing all tickets', ['employee_id' => $sessionUser['id']]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
 
                 if ($filterUnassigned) {
@@ -173,6 +178,7 @@ class TicketController extends Controller
                 ]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
                 if ($filterUnassigned) {
                     $query->whereNull('ticket_lead_id');
@@ -186,9 +192,19 @@ class TicketController extends Controller
             $ticketIds   = $tickets->pluck('ticket_id')->toArray();
             $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
 
+            // Tiket yang sudah dibaca oleh employee yang sedang login (hanya jika role punya fungsi istimewa ticket.read)
+            $canReadFeature = (bool) \App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.read');
+            $readTicketIds = $canReadFeature
+                ? DB::table('ticket_reads')
+                    ->where('employee_id', $sessionUser['id'])
+                    ->whereIn('ticket_id', $ticketIds)
+                    ->pluck('ticket_id')
+                    ->flip()
+                : collect();
+
             // Batch load support manager & admin per ticket via delivery_support_activities
             $deliverySupportMap = \App\Models\DeliverySupportActivity::with([
-                'deliverySupport.supportManager.basicData',
+                'deliverySupport.supportManagers.basicData',
                 'deliverySupport.supportAdmin.basicData',
             ])
             ->whereIn('ticket_id', $ticketIds)
@@ -198,7 +214,7 @@ class TicketController extends Controller
             ->map(function ($activity) {
                 $ds = $activity->deliverySupport;
                 return [
-                    'support_manager_name' => $ds?->supportManager?->basicData?->first_name,
+                    'support_manager_name' => $ds?->supportManagers->pluck('basicData.first_name')->filter()->implode(', '),
                     'support_admin_name'   => $ds?->supportAdmin?->basicData?->first_name,
                 ];
             });
@@ -219,7 +235,7 @@ class TicketController extends Controller
                 ->groupBy('ticket_id');
 
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap, $confirmationMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap, $readTicketIds, $canReadFeature, $confirmationMap) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -253,6 +269,7 @@ class TicketController extends Controller
                     'last_agent_reply_at' => $ticket->last_agent_reply_at,
                     'last_internal_note_at'        => $ticket->last_internal_note_at,
                     'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
+                    'is_read' => $canReadFeature ? $readTicketIds->has($ticket->ticket_id) : true,
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -326,6 +343,7 @@ class TicketController extends Controller
         }
 
         $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData'])
+            ->whereNull('is_hidden')
             ->orderBy('ticket_id', 'asc');
 
         // Status — dari card filter
@@ -552,6 +570,7 @@ class TicketController extends Controller
 
         $validated = $request->validate([
             'customer_id'     => 'required|exists:customer,customer_id',
+            'to_email'        => 'nullable|email|max:255',
             'cc_emails'       => 'nullable|string|max:2000',
             'description'     => 'required|string|max:1000',
             'ticket_priority' => 'required|in:Very High,High,Medium,Low',
@@ -574,7 +593,9 @@ class TicketController extends Controller
             ], 422);
         }
 
-        $customerEmail = $customer->email ?? '';
+        // "To" HANYA dari input manual — TIDAK auto-baca company email ($customer->email).
+        // Default kosong (mis. EWA): email hanya dikirim ke CC contact terdaftar.
+        $toEmail = trim((string) ($validated['to_email'] ?? ''));
 
         $ccList = [];
         if (!empty($validated['cc_emails'])) {
@@ -587,34 +608,38 @@ class TicketController extends Controller
         $files = $request->file('attachments', []);
 
         // ── Kirim email via Graph ─────────────────────────────────────────────
+        // Hanya kirim jika ada minimal satu penerima (To manual ATAU CC contact).
+        // Untuk EWA umumnya To kosong → email tetap terkirim ke CC saja.
         set_time_limit(120);
         $emailResult    = null;
         $conversationId = null;
         $internetMsgId  = null;
 
-        try {
-            $emailCtrl   = new EmailController();
-            $emailResult = $emailCtrl->sendTicketReply(
-                toEmail:       $customerEmail,
-                subject:       '[JARVIES] ' . $validated['description'],
-                body:          $validated['body'] ?? '',
-                inReplyTo:     null,
-                files:         $files,
-                ccList:        array_column($ccList, 'address'),
-                noRePrefix:    true,
-            );
-            $conversationId = $emailResult['conversation_id'] ?? null;
-            $internetMsgId  = $emailResult['internet_message_id'] ?? null;
-        } catch (\Exception $e) {
-            Log::warning('TicketController@storeFromHelpdesk: email gagal (non-fatal)', [
-                'customer_email' => $customerEmail,
-                'error'          => $e->getMessage(),
-            ]);
+        if ($toEmail !== '' || !empty($ccList)) {
+            try {
+                $emailCtrl   = new EmailController();
+                $emailResult = $emailCtrl->sendTicketReply(
+                    toEmail:       $toEmail,
+                    subject:       '[JARVIES] ' . $validated['description'],
+                    body:          $validated['body'] ?? '',
+                    inReplyTo:     null,
+                    files:         $files,
+                    ccList:        array_column($ccList, 'address'),
+                    noRePrefix:    true,
+                );
+                $conversationId = $emailResult['conversation_id'] ?? null;
+                $internetMsgId  = $emailResult['internet_message_id'] ?? null;
+            } catch (\Exception $e) {
+                Log::warning('TicketController@storeFromHelpdesk: email gagal (non-fatal)', [
+                    'to_email' => $toEmail,
+                    'error'    => $e->getMessage(),
+                ]);
+            }
         }
 
         // ── Buat ticket langsung (bypass staging) ────────────────────────────
         try {
-            $ticket = DB::transaction(function () use ($validated, $customer, $customerEmail, $ccList, $conversationId, $internetMsgId, $emailResult, $user) {
+            $ticket = DB::transaction(function () use ($validated, $customer, $toEmail, $ccList, $conversationId, $internetMsgId, $emailResult, $user) {
                 $ticket = Ticket::create([
                     'ticket_number'      => $this->ticketNumbers->generate(),
                     'customer_id'        => $customer->customer_id,
@@ -629,7 +654,9 @@ class TicketController extends Controller
                     'status'             => 'open',
                     'channel'            => $emailResult ? 'email' : 'web',
                     'email_thread_id'    => $conversationId,
-                    'submitted_by_email' => $customerEmail,
+                    // Simpan HANYA "To" manual (nullable) — bukan company email — supaya
+                    // balasan berikutnya juga tidak otomatis tertuju ke company email.
+                    'submitted_by_email' => $toEmail !== '' ? $toEmail : null,
                     'cc_emails'          => !empty($ccList) ? $ccList : null,
                     'last_message_at'    => now(),
                     'last_agent_reply_at'=> now(),
@@ -848,6 +875,7 @@ class TicketController extends Controller
                 $employeeId = $sessionUser['id'];
                 Log::info('My Tickets - External employee', ['employee_id' => $employeeId]);
                 $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->where(function ($query) use ($employeeId) {
                         $query->where('ticket.ticket_lead_id', $employeeId)
                             ->orWhereHas('members', fn ($inner) => $inner->where('ticket_member.employee_id', $employeeId));
@@ -863,6 +891,7 @@ class TicketController extends Controller
 
                 // Ticket yang employee handle sebagai PIC atau member
                 $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->where(function($query) use ($employeeId) {
                         $query->where('ticket.ticket_lead_id', $employeeId)
                             ->orWhereHas('members', function($inner) use ($employeeId) {
@@ -878,9 +907,9 @@ class TicketController extends Controller
 
                 Log::info('My Tickets - Filtering for support manager', ['employee_id' => $employeeId]);
 
-                $managedDeliveryIds = DB::table('delivery_support')
-                    ->where('support_manager_id', $employeeId)
-                    ->pluck('id');
+                $managedDeliveryIds = DB::table('delivery_support_managers')
+                    ->where('employee_id', $employeeId)
+                    ->pluck('delivery_support_id');
 
                 $managedTicketIds = DB::table('delivery_support_activities')
                     ->whereIn('delivery_support_id', $managedDeliveryIds)
@@ -890,6 +919,7 @@ class TicketController extends Controller
                     ->values();
 
                 $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->whereIn('ticket_id', $managedTicketIds)
                     ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
                     ->get();
@@ -903,6 +933,7 @@ class TicketController extends Controller
                     'role_id'     => $sessionUser['role']['id'] ?? null,
                 ]);
                 $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    ->whereNull('is_hidden')
                     ->where(function ($query) use ($employeeId) {
                         $query->where('ticket.ticket_lead_id', $employeeId)
                             ->orWhereHas('members', function ($inner) use ($employeeId) {
@@ -919,6 +950,16 @@ class TicketController extends Controller
             $myTicketIds   = $tickets->pluck('ticket_id')->toArray();
             $myProgressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($myTicketIds);
 
+            // Tiket yang sudah dibaca oleh employee yang sedang login (hanya jika role punya fungsi istimewa ticket.read)
+            $myCanReadFeature = (bool) \App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.read');
+            $myReadTicketIds = $myCanReadFeature
+                ? DB::table('ticket_reads')
+                    ->where('employee_id', $sessionUser['id'])
+                    ->whereIn('ticket_id', $myTicketIds)
+                    ->pluck('ticket_id')
+                    ->flip()
+                : collect();
+
             // Batch load approved customer mandays (latest approved version per ticket)
             $myCustomerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $myTicketIds)
                 ->where('status', 'approved')
@@ -928,7 +969,7 @@ class TicketController extends Controller
                 ->map(fn($group) => $group->first()->total_mandays);
 
             // ✅ Transform data dengan confirmation info
-            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadTicketIds, $myCanReadFeature) {
                 $myAllProgress = $myProgressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -970,6 +1011,7 @@ class TicketController extends Controller
                     'last_agent_reply_at' => $ticket->last_agent_reply_at,
                     'last_internal_note_at'        => $ticket->last_internal_note_at,
                     'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
+                    'is_read' => $myCanReadFeature ? $myReadTicketIds->has($ticket->ticket_id) : true,
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -1799,6 +1841,7 @@ class TicketController extends Controller
             }
 
             $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData'])
+                ->whereNull('is_hidden')
                 ->where('status', $status)
                 ->orderBy('created_at', 'desc');
 
@@ -1844,7 +1887,7 @@ class TicketController extends Controller
                 ], 403);
             }
 
-            $query = Ticket::query();
+            $query = Ticket::whereNull('is_hidden');
 
             // Admin (role_id = 1) dan Employee dengan DSM bisa lihat semua statistik
 
@@ -3187,6 +3230,145 @@ class TicketController extends Controller
                 'message' => 'Failed to create delivery support',
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Hide a ticket (set is_hidden = 1).
+     * Requires permission: ticket.hide
+     */
+    public function hide($id)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $employee = Employee::find($sessionUser['id'] ?? null);
+        if (!$employee || !$employee->hasPermission('ticket.hide')) {
+            return response()->json(['success' => false, 'message' => 'Access denied'], 403);
+        }
+
+        try {
+            $ticket = Ticket::findOrFail($id);
+
+            if ($ticket->is_hidden) {
+                return response()->json(['success' => false, 'message' => 'Ticket is already hidden'], 422);
+            }
+
+            $ticket->update(['is_hidden' => 1]);
+
+            Log::info('Ticket hidden', [
+                'ticket_id'   => $id,
+                'hidden_by'   => $sessionUser['id'],
+                'hidden_by_name' => $sessionUser['name'] ?? null,
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Ticket has been hidden']);
+        } catch (\Exception $e) {
+            Log::error('TicketController@hide: error', ['ticket_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to hide ticket'], 500);
+        }
+    }
+
+    /**
+     * Unhide a ticket (set is_hidden = null).
+     * Requires permission: ticket.hide
+     */
+    public function unhide($id)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $employee = Employee::find($sessionUser['id'] ?? null);
+        if (!$employee || !$employee->hasPermission('ticket.hide')) {
+            return response()->json(['success' => false, 'message' => 'Access denied'], 403);
+        }
+
+        try {
+            $ticket = Ticket::findOrFail($id);
+
+            if (!$ticket->is_hidden) {
+                return response()->json(['success' => false, 'message' => 'Ticket is not hidden'], 422);
+            }
+
+            $ticket->update(['is_hidden' => null]);
+
+            Log::info('Ticket unhidden', [
+                'ticket_id'     => $id,
+                'unhidden_by'   => $sessionUser['id'],
+                'unhidden_by_name' => $sessionUser['name'] ?? null,
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Ticket is now visible again']);
+        } catch (\Exception $e) {
+            Log::error('TicketController@unhide: error', ['ticket_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to unhide ticket'], 500);
+        }
+    }
+
+    /**
+     * List all hidden tickets.
+     * Requires permission: management.hidden-tickets
+     */
+    public function hiddenIndex()
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $employee = Employee::find($sessionUser['id'] ?? null);
+        if (!$employee || !$employee->hasPermission('management.hidden-tickets')) {
+            return response()->json(['success' => false, 'message' => 'Access denied'], 403);
+        }
+
+        try {
+            $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData'])
+                ->where('is_hidden', 1)
+                ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
+                ->get();
+
+            $data = $tickets->map(function ($ticket) {
+                return [
+                    'ticket_id'      => $ticket->ticket_id,
+                    'ticket_number'  => $ticket->ticket_number,
+                    'description'    => $ticket->description,
+                    'ticket_priority'=> $ticket->ticket_priority,
+                    'ticket_type'    => $ticket->ticket_type,
+                    'status'         => $ticket->status,
+                    'is_hidden'      => $ticket->is_hidden,
+                    'customer'       => $ticket->customer ? [
+                        'customer_id'   => $ticket->customer->customer_id,
+                        'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
+                        'customer_code' => $ticket->customer->customer_code,
+                    ] : null,
+                    'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
+                    'employee'       => $ticket->ticketLead ? [
+                        'employee_id'   => $ticket->ticketLead->employee_id,
+                        'employee_name' => $ticket->ticketLead->basicData->first_name ?? 'Unknown',
+                    ] : null,
+                    'members'        => $ticket->members->map(fn($m) => [
+                        'employee_id'   => $m->employee_id,
+                        'employee_name' => $m->basicData->first_name ?? 'Unknown',
+                    ]),
+                    'start_date'     => $ticket->start_date,
+                    'end_date'       => $ticket->end_date,
+                    'created_at'     => $ticket->created_at,
+                    'updated_at'     => $ticket->updated_at,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data'    => $data,
+                'message' => 'Hidden tickets retrieved successfully',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('TicketController@hiddenIndex: error', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to retrieve hidden tickets'], 500);
         }
     }
 }

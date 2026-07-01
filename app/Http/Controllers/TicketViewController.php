@@ -90,12 +90,21 @@ class TicketViewController extends Controller
         $ticket = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'allMembers.basicData'])
             ->findOrFail($id);
 
+        // Tandai tiket sudah dibaca oleh employee ini (hanya jika role punya fungsi istimewa ticket.read)
+        $employee = \App\Models\Employee::find($user->id);
+        if ($employee && $employee->hasPermission('ticket.read')) {
+            $now = now();
+            DB::table('ticket_reads')->upsert(
+                [['ticket_id' => $ticket->ticket_id, 'employee_id' => $user->id, 'read_at' => $now, 'created_at' => $now, 'updated_at' => $now]],
+                ['ticket_id', 'employee_id'],
+                ['read_at', 'updated_at']
+            );
+        }
+
         // Check if ticket is assigned to a delivery support
         // First try via activities (newer method), then fallback to direct ticket_id on delivery_support (older method)
         $deliverySupport = DB::table('delivery_support_activities')
             ->join('delivery_support', 'delivery_support_activities.delivery_support_id', '=', 'delivery_support.id')
-            ->leftJoin('employee as mgr', 'delivery_support.support_manager_id', '=', 'mgr.employee_id')
-            ->leftJoin('employee_basic_data as mgr_bd', 'mgr.employee_id', '=', 'mgr_bd.employee_id')
             ->leftJoin('employee as adm', 'delivery_support.support_admin_id', '=', 'adm.employee_id')
             ->leftJoin('employee_basic_data as adm_bd', 'adm.employee_id', '=', 'adm_bd.employee_id')
             ->where('delivery_support_activities.ticket_id', $ticket->ticket_id)
@@ -105,7 +114,10 @@ class TicketViewController extends Controller
                 'delivery_support.name',
                 'delivery_support.type',
                 'delivery_support.onedrive_deliverable_folder_id',
-                DB::raw("TRIM(CONCAT(mgr_bd.first_name, ' ', COALESCE(mgr_bd.last_name, ''))) as support_manager_name"),
+                DB::raw("(SELECT GROUP_CONCAT(TRIM(CONCAT(mgr_bd.first_name, ' ', COALESCE(mgr_bd.last_name, ''))) SEPARATOR ', ')
+                          FROM delivery_support_managers dsm
+                          JOIN employee_basic_data mgr_bd ON mgr_bd.employee_id = dsm.employee_id
+                          WHERE dsm.delivery_support_id = delivery_support.id) as support_manager_name"),
                 DB::raw("TRIM(CONCAT(adm_bd.first_name, ' ', COALESCE(adm_bd.last_name, ''))) as support_admin_name")
             )
             ->first();

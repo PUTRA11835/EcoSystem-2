@@ -24,7 +24,6 @@
 
     $teamLabels = [
         'delivery_owner_id'  => '',
-        'support_manager_id' => '',
         'co_pm_id'           => '',
         'support_admin_id'   => '',
         'sales_id'           => '',
@@ -32,7 +31,6 @@
     foreach ($employees as $_e) {
         $name = $_e->basicData->full_name ?? 'N/A';
         if ($support->delivery_owner_id  == $_e->employee_id) $teamLabels['delivery_owner_id']  = $name;
-        if ($support->support_manager_id == $_e->employee_id) $teamLabels['support_manager_id'] = $name;
         if ($support->co_pm_id           == $_e->employee_id) $teamLabels['co_pm_id']           = $name;
         if ($support->support_admin_id   == $_e->employee_id) $teamLabels['support_admin_id']   = $name;
         if ($support->sales_id           == $_e->employee_id) $teamLabels['sales_id']           = $name;
@@ -43,11 +41,13 @@
 
     $teamFields = [
         ['key' => 'delivery_owner_id',  'label' => 'Delivery Owner',  'placeholder' => 'Select delivery owner',  'value' => $support->delivery_owner_id],
-        ['key' => 'support_manager_id', 'label' => 'Support Manager', 'placeholder' => 'Select support manager', 'value' => $support->support_manager_id],
         ['key' => 'co_pm_id',           'label' => 'Co PM',           'placeholder' => 'Select co pm',           'value' => $support->co_pm_id],
         ['key' => 'support_admin_id',   'label' => 'Support Admin',   'placeholder' => 'Select support admin',   'value' => $support->support_admin_id],
         ['key' => 'sales_id',           'label' => 'Sales',           'placeholder' => 'Select sales',           'value' => $support->sales_id],
     ];
+
+    $currentSupportManagerIds   = old('support_manager_ids', $support->supportManagers->pluck('employee_id')->implode(','));
+    $currentSupportManagerLabel = $support->supportManagers->pluck('basicData.full_name')->filter()->join(', ');
 @endphp
 
 <div class="min-h-screen bg-gray-50">
@@ -250,6 +250,28 @@
                     </div>
                     <div class="p-6">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="support_manager_ids" class="block text-sm font-medium text-gray-700 mb-1">Support Manager</label>
+                                <div class="custom-dd relative" data-fixed="true" data-multi="true" data-placeholder="Select support manager(s)">
+                                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                        <span class="custom-dd-label {{ $currentSupportManagerLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $currentSupportManagerLabel ?: 'Select support manager(s)' }}</span>
+                                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" name="support_manager_ids" id="support_manager_ids" value="{{ $currentSupportManagerIds }}">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                                        <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                            <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
+                                        </div>
+                                        @foreach($employees as $employee)
+                                            <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">
+                                                <span class="custom-dd-item-text">{{ $employee->basicData->full_name ?? 'N/A' }}</span>
+                                                <svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                            </button>
+                                        @endforeach
+                                        <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+                                    </div>
+                                </div>
+                            </div>
                             @foreach($teamFields as $tf)
                             <div>
                                 <label for="{{ $tf['key'] }}" class="block text-sm font-medium text-gray-700 mb-1">{{ $tf['label'] }}</label>

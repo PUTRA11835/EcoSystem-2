@@ -51,17 +51,21 @@
     </div>
 
     {{-- Filter Tabs --}}
-    @if($can('ui.ticket.sidebar-tabs'))
+    @if($can('room-chat.tab-all-ticket') || $can('room-chat.tab-my-ticket'))
     <div class="px-4 pb-3">
         <div class="flex bg-white bg-opacity-10 rounded-lg p-0.5 gap-0.5">
+            @if($can('room-chat.tab-all-ticket'))
             <button id="sidebarTabAll" onclick="switchSidebarView('all')"
                 class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all text-white" style="background:rgba(255,255,255,0.2)">
                 All Ticket
             </button>
+            @endif
+            @if($can('room-chat.tab-my-ticket'))
             <button id="sidebarTabMy" onclick="switchSidebarView('my')"
                 class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all text-white opacity-60">
                 My Ticket
             </button>
+            @endif
         </div>
     </div>
     @endif
@@ -315,8 +319,8 @@
                     </button>
                     @if($can('ticket.meeting'))
                     <button id="meetingBtn" onclick="openMeetingPanel()"
-                        {{ $inMeeting ? 'disabled title=\'Meeting sedang berjalan\'' : '' }}
-                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 {{ $inMeeting ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100' }}">
+                        {{ $inMeeting ? 'title=\'Meeting sedang berjalan — klik untuk menjadwalkan meeting baru\'' : '' }}
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
                         </svg>
@@ -808,6 +812,22 @@
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Created</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('d M Y H:i') }} WIB</p>
                 </div>
+                {{-- Hide / Unhide Ticket --}}
+                @if($can('ticket.hide'))
+                <div class="pt-3 border-t border-gray-200">
+                    @if($ticket->is_hidden)
+                    <button onclick="unhideTicket()" id="btnUnhideTicket"
+                        class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-all duration-200">
+                        <i class="fas fa-eye text-xs"></i> Tampilkan Kembali
+                    </button>
+                    @else
+                    <button onclick="hideTicket()" id="btnHideTicket"
+                        class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-500 text-white text-xs font-semibold rounded-lg hover:bg-orange-600 transition-all duration-200">
+                        <i class="fas fa-eye-slash text-xs"></i> Sembunyikan Tiket
+                    </button>
+                    @endif
+                </div>
+                @endif
                 {{-- Admin only: Delete Ticket --}}
                 @if($can('ticket.delete'))
                 <div class="pt-3 border-t border-gray-200">
@@ -1005,7 +1025,46 @@
     border-radius: 6px;
     display: block;
     margin: 4px 0;
+    cursor: zoom-in;            /* klik gambar untuk buka preview full */
 }
+
+/* ── Image lightbox (preview full-view saat gambar diklik) ─────────────── */
+#imageLightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.85);
+    padding: 24px;
+    cursor: zoom-out;
+}
+#imageLightbox.open { display: flex; }
+#imageLightbox img {
+    max-width: 94vw;
+    max-height: 92vh;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    cursor: default;
+}
+#imageLightbox .lightbox-close {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+#imageLightbox .lightbox-close:hover { background: rgba(255, 255, 255, 0.25); }
 
 /* Quill Toolbar Tooltips */
 .ql-toolbar button, .ql-toolbar .ql-picker { position: relative; }
@@ -1463,6 +1522,43 @@
     </div>
 </div>
 
+{{-- ── Confirm Send Modal (review To/Cc/message/status before sending) ──── --}}
+<div id="confirmSendModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
+        <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
+            <div>
+                <h3 class="text-sm font-bold text-gray-900">Konfirmasi Kirim</h3>
+                <p class="text-[11px] text-gray-400 mt-0.5">Periksa kembali sebelum mengirim</p>
+            </div>
+            <button onclick="closeConfirmSendModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-red-700 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="px-5 py-4 flex-1 overflow-y-auto space-y-3">
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</span>
+                <p id="confirmSendTo" class="text-xs text-gray-800 break-words">-</p>
+            </div>
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Cc</span>
+                <p id="confirmSendCc" class="text-xs text-gray-800 break-words">-</p>
+            </div>
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Pesan</span>
+                <div id="confirmSendMessage" class="text-xs text-gray-800 border border-gray-200 rounded-lg px-3 py-2 max-h-40 overflow-y-auto bg-gray-50"></div>
+            </div>
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Status</span>
+                <span id="confirmSendStatusBadge" class="sb-badge">-</span>
+            </div>
+        </div>
+        <div class="px-5 py-4 border-t border-gray-100 flex justify-end gap-2 flex-shrink-0">
+            <button onclick="closeConfirmSendModal()" class="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all">Edit</button>
+            <button onclick="finalizeSend()" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">Kirim</button>
+        </div>
+    </div>
+</div>
+
 {{-- Helpdesk: Customer Mandays Review Modal --}}
 @if(isset($isHelpdesk) && $isHelpdesk)
 <div id="hdMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -1894,6 +1990,7 @@
     const EC_USER_ROLE                = {{ \App\Enums\RoleId::EC_USER->value }};
     const DELIVERY_HELPDESK_ROLE      = {{ \App\Enums\RoleId::DELIVERY_HELPDESK->value }};
     const DELIVERY_RPMO_HEAD_ROLE     = {{ \App\Enums\RoleId::DELIVERY_RPMO_HEAD->value }};
+    const canViewMyTicketTab          = {{ $can('room-chat.tab-my-ticket') ? 'true' : 'false' }};
     const ticketCustomerId            = {{ $ticket->customer_id ?? 'null' }};
     const currentUserId               = {{ $user->id ?? 'null' }};
     const DRAFT_KEY                   = `ticket_draft_${ticketId}_${currentUserId}`;
@@ -2049,11 +2146,17 @@
     }
 
     // ── TO state ────────────────────────────────────────────────────────────
-    // Default seeded dengan resolved customer email (sama dengan tampilan lama).
-    // User dapat menambah/menghapus tag untuk mengirim ke multiple primary recipient.
-    // Tidak dipersist ke DB (tiap reply mulai dari customer email lagi) — sesuai
-    // permintaan minimal-MVP, persistensi bisa ditambah kemudian.
-    let toEmails = @json(array_values(array_filter([$customerEmail ?? null])));
+    // Seeded dari ticket.to_emails (primary customer + recipient tambahan yang
+    // sudah dipersist). Jika belum ada, fallback ke resolved customer email.
+    // User dapat menambah/menghapus tag; perubahan dipersist saat reply terkirim.
+    let toEmails = @json(
+        !empty($ticket->to_emails)
+            ? collect($ticket->to_emails)
+                ->map(fn($t) => is_array($t) ? ($t['address'] ?? '') : (string)$t)
+                ->filter()
+                ->values()
+            : array_values(array_filter([$customerEmail ?? null]))
+    );
 
     function renderToTags() {
         const container = document.getElementById('toTagsContainer');
@@ -2424,7 +2527,7 @@
         renderToTags();
         renderCcTags();
         loadMessages();
-        switchSidebarView('my');
+        switchSidebarView(canViewMyTicketTab ? 'my' : 'all');
         markMessagesRead();
         startMessagePolling();
     });
@@ -2536,6 +2639,59 @@
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') closeMentionDropdown();
     });
+
+    // ==================== IMAGE LIGHTBOX (preview full-view) ====================
+    // Klik gambar apa pun di thread pesan (inline image email atau thumbnail
+    // attachment) untuk membukanya dalam preview full-view. Overlay dibuat sekali
+    // dan di-append ke <body> agar tidak terpotong oleh ancestor overflow/transform.
+    (function initImageLightbox() {
+        let overlay = document.getElementById('imageLightbox');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'imageLightbox';
+            overlay.innerHTML =
+                '<button type="button" class="lightbox-close" aria-label="Close preview">' +
+                '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
+                '</button>' +
+                '<img id="imageLightboxImg" src="" alt="">';
+            document.body.appendChild(overlay);
+        }
+        const lightboxImg = overlay.querySelector('#imageLightboxImg');
+
+        window.openImageLightbox = function (src, alt) {
+            if (!src) return;
+            lightboxImg.src = src;
+            lightboxImg.alt = alt || '';
+            overlay.classList.add('open');
+            document.body.style.overflow = 'hidden'; // cegah scroll di belakang
+        };
+        window.closeImageLightbox = function () {
+            overlay.classList.remove('open');
+            document.body.style.overflow = '';
+            lightboxImg.src = '';
+        };
+
+        // Klik overlay/tombol close → tutup. Klik pada gambar itu sendiri → jangan tutup.
+        overlay.addEventListener('click', function (e) {
+            if (e.target === lightboxImg) return;
+            window.closeImageLightbox();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && overlay.classList.contains('open')) window.closeImageLightbox();
+        });
+
+        // Event delegation: tangkap klik gambar di dalam thread pesan.
+        const thread = document.getElementById('messagesThread');
+        if (thread) {
+            thread.addEventListener('click', function (e) {
+                const img = e.target.closest('img');
+                if (!img) return;
+                if (!img.closest('.message-content') && !img.closest('.message-bubble')) return;
+                e.preventDefault();  // cegah navigasi <a> pembungkus (buka tab baru)
+                window.openImageLightbox(img.currentSrc || img.getAttribute('src'), img.getAttribute('alt'));
+            });
+        }
+    })();
 
     // ==================== AUTO POLLING: reload pesan & cek email baru ====================
     function startMessagePolling() {
@@ -3303,13 +3459,62 @@
 
     function confirmSendWithStatus(chosenStatus) {
         document.getElementById('sendStatusModal').classList.add('hidden');
-        _doSendReply(_pendingSendType, chosenStatus || 'inprocess');
-        _pendingSendType = null;
+        openConfirmSendModal(chosenStatus || 'inprocess');
     }
 
     // Klik backdrop modal → tutup
     document.getElementById('sendStatusModal').addEventListener('click', function(e) {
         if (e.target === this) closeSendStatusModal();
+    });
+
+    // ── Confirm Send Modal ────────────────────────────────────────────────────
+    let _pendingChosenStatus = null;
+
+    function openConfirmSendModal(chosenStatus) {
+        _pendingChosenStatus = chosenStatus;
+
+        // Pastikan input TO/CC yang belum ter-commit ikut ditampilkan.
+        commitToInput();
+        commitCcInput();
+
+        const statusLabels = {
+            'open':                    'Open',
+            'inprocess':               'Inprocess',
+            'waiting_on_customer':     'Waiting on Customer',
+            'waiting_on_3rd_party':    'Waiting on 3rd Party',
+            'waiting_to_confirmation': 'Waiting to Confirmation',
+            'hold':                    'Hold',
+            'cancelled':               'Cancelled',
+            'closed':                  'Closed',
+        };
+
+        document.getElementById('confirmSendTo').textContent = toEmails.length ? toEmails.join(', ') : '-';
+        document.getElementById('confirmSendCc').textContent = ccEmails.length ? ccEmails.join(', ') : '-';
+        document.getElementById('confirmSendMessage').innerHTML = trimQuillHtml(quillEditor.root.innerHTML) || '<span class="text-gray-400">(kosong)</span>';
+
+        const badge = document.getElementById('confirmSendStatusBadge');
+        badge.className = `sb-badge sb-status-${chosenStatus}`;
+        badge.textContent = statusLabels[chosenStatus] || chosenStatus;
+
+        document.getElementById('confirmSendModal').classList.remove('hidden');
+    }
+
+    function closeConfirmSendModal() {
+        document.getElementById('confirmSendModal').classList.add('hidden');
+        _pendingSendType = null;
+        _pendingChosenStatus = null;
+    }
+
+    async function finalizeSend() {
+        document.getElementById('confirmSendModal').classList.add('hidden');
+        await _doSendReply(_pendingSendType, _pendingChosenStatus);
+        _pendingSendType = null;
+        _pendingChosenStatus = null;
+    }
+
+    // Klik backdrop modal → tutup (setara tombol Edit, tidak jadi kirim)
+    document.getElementById('confirmSendModal').addEventListener('click', function(e) {
+        if (e.target === this) closeConfirmSendModal();
     });
 
     async function sendReply(messageType) {
@@ -4139,6 +4344,52 @@
         if (modal && modal.querySelector('.bg-white')?.contains(e.target)) return;
         dd.classList.add('hidden');
     });
+
+    async function hideTicket() {
+        if (!confirm('Sembunyikan tiket ini? Tiket tidak akan muncul di daftar utama.')) return;
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/hide`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Tiket berhasil disembunyikan.', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                showNotification(data.message || 'Gagal menyembunyikan tiket.', 'error');
+            }
+        } catch (e) {
+            showNotification('Terjadi kesalahan. Coba lagi.', 'error');
+        }
+    }
+
+    async function unhideTicket() {
+        if (!confirm('Tampilkan kembali tiket ini? Tiket akan muncul di daftar utama.')) return;
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/unhide`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Tiket berhasil ditampilkan kembali.', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                showNotification(data.message || 'Gagal menampilkan tiket.', 'error');
+            }
+        } catch (e) {
+            showNotification('Terjadi kesalahan. Coba lagi.', 'error');
+        }
+    }
 
     async function deleteTicket() {
         if (!confirm('Are you sure you want to delete this ticket?')) return;
@@ -6110,7 +6361,18 @@
 
 {{-- ==================== DELIVERABLE MODAL ==================== --}}
 <div id="deliverableModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 flex flex-col" style="max-height:90vh">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 flex flex-col relative" style="max-height:90vh">
+
+        {{-- Loading overlay (send to customer) --}}
+        <div id="deliverableLoadingOverlay" class="hidden absolute inset-0 bg-white/80 backdrop-blur-sm rounded-2xl z-20 flex flex-col items-center justify-center gap-3">
+            <svg class="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <p class="text-sm font-semibold text-blue-600">Sending to Customer...</p>
+            <p class="text-xs text-gray-400">Please wait</p>
+        </div>
+
         {{-- Header --}}
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
             <div>
@@ -6580,6 +6842,8 @@ async function submitNewDoc() {
 
 async function sendDeliverable(id) {
     if (!await showConfirm('Mark this document as "Sended to Customer"?', 'Send to Customer')) return;
+    const overlay = document.getElementById('deliverableLoadingOverlay');
+    if (overlay) overlay.classList.remove('hidden');
     try {
         const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/send`, {
             method: 'PATCH',
@@ -6593,15 +6857,28 @@ async function sendDeliverable(id) {
     } catch (e) {
         showDelivError(e.message);
         showToast('Failed to send: ' + e.message, 'error');
+    } finally {
+        if (overlay) overlay.classList.add('hidden');
     }
 }
 
 async function deleteDeliverable(id) {
     if (!await showConfirm('Delete this deliverable document? This cannot be undone.', 'Delete Document', 'danger')) return;
     try {
+        // Sebagian edge production (reverse proxy / WAF / ModSecurity) memblokir
+        // verb HTTP DELETE dan membalas 403 sebelum request sampai ke Laravel —
+        // sementara local/dev (tanpa edge) berjalan normal. Agar aman di kedua
+        // lingkungan, request dikirim sebagai POST lalu diminta Laravel menerjemahkan
+        // kembali menjadi DELETE lewat header X-HTTP-Method-Override. Verb di kabel
+        // menjadi POST (diizinkan edge), namun route Route::delete tetap cocok dan
+        // handler destroy() yang dijalankan — tanpa perubahan sisi server.
         const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}`, {
-            method: 'DELETE',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': CSRF,
+                'Accept': 'application/json',
+                'X-HTTP-Method-Override': 'DELETE',
+            },
             credentials: 'same-origin',
         });
         const json = await delivParseJson(res);

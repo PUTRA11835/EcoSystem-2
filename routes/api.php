@@ -335,6 +335,7 @@ Route::middleware(['web'])->group(function () {
         // Static routes first
         Route::get('/', [TicketController::class, 'index']);
         Route::get('/my', [TicketController::class, 'myTickets']);
+        Route::get('/hidden', [TicketController::class, 'hiddenIndex']);
         Route::get('/latest-update', [TicketController::class, 'latestUpdate']);
         Route::get('/statistics', [TicketController::class, 'statistics']);
         Route::get('/pending-confirmations', [TicketController::class, 'pendingConfirmations']);
@@ -351,6 +352,8 @@ Route::middleware(['web'])->group(function () {
         // Routes with {id} parameter last
         Route::get('/{id}', [TicketController::class, 'show']);
         Route::get('/{id}/mandays-history', [TicketController::class, 'getMandaysHistory']);
+        Route::patch('/{id}/hide', [TicketController::class, 'hide']);
+        Route::patch('/{id}/unhide', [TicketController::class, 'unhide']);
         Route::post('/{id}/take', [TicketController::class, 'takeTicket']);
         Route::post('/{id}/assign-ticket-lead', [TicketController::class, 'assignTicketLead']);
         Route::patch('/{id}/pic', [TicketController::class, 'updatePic']);

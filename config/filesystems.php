@@ -33,7 +33,12 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // 'serve' => false: JANGAN daftarkan route bawaan Laravel "storage.local"
+            // (GET /storage/{path}). Route itu melayani dari disk 'local' (private)
+            // dan mewajibkan signed URL, sehingga mencegat semua URL /storage/...
+            // (inline image, attachment, staging) lalu mengembalikan 403 (lokal) /
+            // 404 (production). Aset publik dilayani lewat disk 'public' di bawah.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],
@@ -43,6 +48,11 @@ return [
             'root' => storage_path('app/public'),
             'url' => env('APP_URL').'/storage',
             'visibility' => 'public',
+            // 'serve' => true: daftarkan route GET /storage/{path} yang melayani
+            // dari disk 'public'. Karena visibility 'public', ServeFile tidak butuh
+            // signed URL → file langsung di-serve Laravel tanpa bergantung pada
+            // symlink public/storage (yang kerap hilang di server production).
+            'serve' => true,
             'throw' => false,
             'report' => false,
         ],
