@@ -436,7 +436,17 @@
                     </div>
                 </div>
 
-                {{-- CC Emails --}}
+                {{-- To (dikosongkan by default — TIDAK auto company email; diisi manual bila perlu) --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
+                        To <span class="text-gray-400 font-normal normal-case">(optional — kosongkan untuk EWA, isi manual bila perlu)</span>
+                    </label>
+                    <input type="text" id="newToEmail"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                        placeholder="Kosongkan agar tidak dikirim ke company email">
+                </div>
+
+                {{-- CC Emails (diisi manual — TIDAK auto dari contact) --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
                         CC <span class="text-gray-400 font-normal normal-case">(optional, pisah koma)</span>
@@ -1726,6 +1736,8 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         document.getElementById('createTicketModal').classList.add('hidden');
         document.getElementById('createTicketForm').reset();
         if (typeof setCustomDropdownValue === 'function') setCustomDropdownValue('newCustomerId', '');
+        const toEl = document.getElementById('newToEmail');
+        if (toEl) toEl.value = '';
         const ccEl = document.getElementById('newCcEmails');
         if (ccEl) ccEl.value = '';
         document.getElementById('adminCreateError').classList.add('hidden');
@@ -1768,6 +1780,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         form.append('ticket_priority', document.getElementById('newPriority').value);
         form.append('customer_id',     document.getElementById('newCustomerId').value);
         form.append('ticket_type',     ticketTypeVal);
+        form.append('to_email',        document.getElementById('newToEmail').value.trim() || '');
         form.append('cc_emails',       document.getElementById('newCcEmails').value || '');
         const scaleVal = document.getElementById('newScale').value;
         if (scaleVal) form.append('scale', scaleVal);

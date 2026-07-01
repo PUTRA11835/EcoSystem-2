@@ -560,6 +560,7 @@ class TicketController extends Controller
 
         $validated = $request->validate([
             'customer_id'     => 'required|exists:customer,customer_id',
+            'to_email'        => 'nullable|email|max:255',
             'cc_emails'       => 'nullable|string|max:2000',
             'description'     => 'required|string|max:1000',
             'ticket_priority' => 'required|in:Very High,High,Medium,Low',
@@ -582,7 +583,9 @@ class TicketController extends Controller
             ], 422);
         }
 
-        $customerEmail = $customer->email ?? '';
+        // "To" HANYA dari input manual — TIDAK auto-baca company email ($customer->email).
+        // Default kosong (mis. EWA): email hanya dikirim ke CC contact terdaftar.
+        $toEmail = trim((string) ($validated['to_email'] ?? ''));
 
         $ccList = [];
         if (!empty($validated['cc_emails'])) {
@@ -595,34 +598,38 @@ class TicketController extends Controller
         $files = $request->file('attachments', []);
 
         // ── Kirim email via Graph ─────────────────────────────────────────────
+        // Hanya kirim jika ada minimal satu penerima (To manual ATAU CC contact).
+        // Untuk EWA umumnya To kosong → email tetap terkirim ke CC saja.
         set_time_limit(120);
         $emailResult    = null;
         $conversationId = null;
         $internetMsgId  = null;
 
-        try {
-            $emailCtrl   = new EmailController();
-            $emailResult = $emailCtrl->sendTicketReply(
-                toEmail:       $customerEmail,
-                subject:       '[JARVIES] ' . $validated['description'],
-                body:          $validated['body'] ?? '',
-                inReplyTo:     null,
-                files:         $files,
-                ccList:        array_column($ccList, 'address'),
-                noRePrefix:    true,
-            );
-            $conversationId = $emailResult['conversation_id'] ?? null;
-            $internetMsgId  = $emailResult['internet_message_id'] ?? null;
-        } catch (\Exception $e) {
-            Log::warning('TicketController@storeFromHelpdesk: email gagal (non-fatal)', [
-                'customer_email' => $customerEmail,
-                'error'          => $e->getMessage(),
-            ]);
+        if ($toEmail !== '' || !empty($ccList)) {
+            try {
+                $emailCtrl   = new EmailController();
+                $emailResult = $emailCtrl->sendTicketReply(
+                    toEmail:       $toEmail,
+                    subject:       '[JARVIES] ' . $validated['description'],
+                    body:          $validated['body'] ?? '',
+                    inReplyTo:     null,
+                    files:         $files,
+                    ccList:        array_column($ccList, 'address'),
+                    noRePrefix:    true,
+                );
+                $conversationId = $emailResult['conversation_id'] ?? null;
+                $internetMsgId  = $emailResult['internet_message_id'] ?? null;
+            } catch (\Exception $e) {
+                Log::warning('TicketController@storeFromHelpdesk: email gagal (non-fatal)', [
+                    'to_email' => $toEmail,
+                    'error'    => $e->getMessage(),
+                ]);
+            }
         }
 
         // ── Buat ticket langsung (bypass staging) ────────────────────────────
         try {
-            $ticket = DB::transaction(function () use ($validated, $customer, $customerEmail, $ccList, $conversationId, $internetMsgId, $emailResult, $user) {
+            $ticket = DB::transaction(function () use ($validated, $customer, $toEmail, $ccList, $conversationId, $internetMsgId, $emailResult, $user) {
                 $ticket = Ticket::create([
                     'ticket_number'      => $this->ticketNumbers->generate(),
                     'customer_id'        => $customer->customer_id,
@@ -637,7 +644,9 @@ class TicketController extends Controller
                     'status'             => 'open',
                     'channel'            => $emailResult ? 'email' : 'web',
                     'email_thread_id'    => $conversationId,
-                    'submitted_by_email' => $customerEmail,
+                    // Simpan HANYA "To" manual (nullable) — bukan company email — supaya
+                    // balasan berikutnya juga tidak otomatis tertuju ke company email.
+                    'submitted_by_email' => $toEmail !== '' ? $toEmail : null,
                     'cc_emails'          => !empty($ccList) ? $ccList : null,
                     'last_message_at'    => now(),
                     'last_agent_reply_at'=> now(),
