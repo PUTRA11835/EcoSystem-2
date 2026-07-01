@@ -1401,8 +1401,15 @@ class EmailController extends Controller
         // Primary $toEmail SELALU di posisi pertama agar Reply/Reply-All di mail client
         // memprioritaskan customer. Additional address ditambah jika valid & belum ada.
         $senderLower    = strtolower((string) $sender);
-        $toRecipients   = [['emailAddress' => ['address' => $toEmail]]];
-        $seenToLower    = [strtolower(trim($toEmail))];
+        // $toEmail boleh kosong (mis. tiket EWA yang sengaja tanpa "To", hanya CC).
+        // Jangan tambahkan recipient dengan address kosong — Graph akan menolaknya.
+        $toRecipients   = [];
+        $seenToLower    = [];
+        $primaryTo      = trim((string) $toEmail);
+        if ($primaryTo !== '') {
+            $toRecipients[] = ['emailAddress' => ['address' => $primaryTo]];
+            $seenToLower[]  = strtolower($primaryTo);
+        }
         foreach ($additionalToEmails as $addr) {
             $cleaned = is_string($addr) ? trim($addr) : '';
             if ($cleaned === '') continue;
