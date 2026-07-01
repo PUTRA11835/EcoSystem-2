@@ -90,6 +90,17 @@ class TicketViewController extends Controller
         $ticket = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'allMembers.basicData'])
             ->findOrFail($id);
 
+        // Tandai tiket sudah dibaca oleh employee ini (hanya jika role punya fungsi istimewa ticket.read)
+        $employee = \App\Models\Employee::find($user->id);
+        if ($employee && $employee->hasPermission('ticket.read')) {
+            $now = now();
+            DB::table('ticket_reads')->upsert(
+                [['ticket_id' => $ticket->ticket_id, 'employee_id' => $user->id, 'read_at' => $now, 'created_at' => $now, 'updated_at' => $now]],
+                ['ticket_id', 'employee_id'],
+                ['read_at', 'updated_at']
+            );
+        }
+
         // Check if ticket is assigned to a delivery support
         // First try via activities (newer method), then fallback to direct ticket_id on delivery_support (older method)
         $deliverySupport = DB::table('delivery_support_activities')

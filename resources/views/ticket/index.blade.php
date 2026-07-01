@@ -1049,7 +1049,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             </td>
             {{-- Description --}}
             <td class="px-3 py-3 text-sm" style="min-width:260px;max-width:320px;">
-                <span class="block truncate text-gray-700 font-medium leading-snug"
+                <span class="block truncate text-gray-700 ${ticket.is_read ? 'font-normal' : 'font-bold'} leading-snug"
                       title="${(ticket.description||'').replace(/"/g,'&quot;')}">${ticket.description || '—'}</span>
             </td>
             {{-- Date --}}

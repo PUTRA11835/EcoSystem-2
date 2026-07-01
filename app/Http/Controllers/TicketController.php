@@ -192,6 +192,16 @@ class TicketController extends Controller
             $ticketIds   = $tickets->pluck('ticket_id')->toArray();
             $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
 
+            // Tiket yang sudah dibaca oleh employee yang sedang login (hanya jika role punya fungsi istimewa ticket.read)
+            $canReadFeature = (bool) \App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.read');
+            $readTicketIds = $canReadFeature
+                ? DB::table('ticket_reads')
+                    ->where('employee_id', $sessionUser['id'])
+                    ->whereIn('ticket_id', $ticketIds)
+                    ->pluck('ticket_id')
+                    ->flip()
+                : collect();
+
             // Batch load support manager & admin per ticket via delivery_support_activities
             $deliverySupportMap = \App\Models\DeliverySupportActivity::with([
                 'deliverySupport.supportManager.basicData',
@@ -218,7 +228,7 @@ class TicketController extends Controller
                 ->map(fn($group) => $group->first()->total_mandays);
 
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap, $readTicketIds, $canReadFeature) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -260,6 +270,7 @@ class TicketController extends Controller
                     'last_agent_reply_at' => $ticket->last_agent_reply_at,
                     'last_internal_note_at'        => $ticket->last_internal_note_at,
                     'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
+                    'is_read' => $canReadFeature ? $readTicketIds->has($ticket->ticket_id) : true,
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -931,6 +942,16 @@ class TicketController extends Controller
             $myTicketIds   = $tickets->pluck('ticket_id')->toArray();
             $myProgressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($myTicketIds);
 
+            // Tiket yang sudah dibaca oleh employee yang sedang login (hanya jika role punya fungsi istimewa ticket.read)
+            $myCanReadFeature = (bool) \App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.read');
+            $myReadTicketIds = $myCanReadFeature
+                ? DB::table('ticket_reads')
+                    ->where('employee_id', $sessionUser['id'])
+                    ->whereIn('ticket_id', $myTicketIds)
+                    ->pluck('ticket_id')
+                    ->flip()
+                : collect();
+
             // Batch load approved customer mandays (latest approved version per ticket)
             $myCustomerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $myTicketIds)
                 ->where('status', 'approved')
@@ -940,7 +961,7 @@ class TicketController extends Controller
                 ->map(fn($group) => $group->first()->total_mandays);
 
             // ✅ Transform data dengan confirmation info
-            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadTicketIds, $myCanReadFeature) {
                 $myAllProgress = $myProgressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -982,6 +1003,7 @@ class TicketController extends Controller
                     'last_agent_reply_at' => $ticket->last_agent_reply_at,
                     'last_internal_note_at'        => $ticket->last_internal_note_at,
                     'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
+                    'is_read' => $myCanReadFeature ? $myReadTicketIds->has($ticket->ticket_id) : true,
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
