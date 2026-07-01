@@ -51,17 +51,21 @@
     </div>
 
     {{-- Filter Tabs --}}
-    @if($can('ui.ticket.sidebar-tabs'))
+    @if($can('room-chat.tab-all-ticket') || $can('room-chat.tab-my-ticket'))
     <div class="px-4 pb-3">
         <div class="flex bg-white bg-opacity-10 rounded-lg p-0.5 gap-0.5">
+            @if($can('room-chat.tab-all-ticket'))
             <button id="sidebarTabAll" onclick="switchSidebarView('all')"
                 class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all text-white" style="background:rgba(255,255,255,0.2)">
                 All Ticket
             </button>
+            @endif
+            @if($can('room-chat.tab-my-ticket'))
             <button id="sidebarTabMy" onclick="switchSidebarView('my')"
                 class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all text-white opacity-60">
                 My Ticket
             </button>
+            @endif
         </div>
     </div>
     @endif
@@ -1907,6 +1911,7 @@
     const EC_USER_ROLE                = {{ \App\Enums\RoleId::EC_USER->value }};
     const DELIVERY_HELPDESK_ROLE      = {{ \App\Enums\RoleId::DELIVERY_HELPDESK->value }};
     const DELIVERY_RPMO_HEAD_ROLE     = {{ \App\Enums\RoleId::DELIVERY_RPMO_HEAD->value }};
+    const canViewMyTicketTab          = {{ $can('room-chat.tab-my-ticket') ? 'true' : 'false' }};
     const ticketCustomerId            = {{ $ticket->customer_id ?? 'null' }};
     const currentUserId               = {{ $user->id ?? 'null' }};
     const ticketChannel = @json($ticket->channel ?? 'web');
@@ -2413,7 +2418,7 @@
         renderToTags();
         renderCcTags();
         loadMessages();
-        switchSidebarView('my');
+        switchSidebarView(canViewMyTicketTab ? 'my' : 'all');
         markMessagesRead();
         startMessagePolling();
     });
