@@ -21,11 +21,30 @@ use Illuminate\Support\Facades\Log;
 class DeliverySupportController extends Controller
 {
     /**
+     * Parse the comma-separated employee-id string sent by the Support
+     * Manager multi-select dropdown into a clean array of ints.
+     */
+    private function parseEmployeeIdList(?string $csv): array
+    {
+        if (!$csv) {
+            return [];
+        }
+
+        return collect(explode(',', $csv))
+            ->map(fn ($v) => trim($v))
+            ->filter(fn ($v) => $v !== '' && is_numeric($v))
+            ->map(fn ($v) => (int) $v)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
      * Display listing of support deliveries
      */
     public function index(Request $request)
     {
-        $query = DeliverySupport::with(['client', 'deliveryOwner', 'supportManager']);
+        $query = DeliverySupport::with(['client', 'deliveryOwner', 'supportManagers.basicData']);
 
         // Search
         if ($request->filled('search')) {
@@ -72,7 +91,7 @@ class DeliverySupportController extends Controller
         $query = DeliverySupport::with([
             'client.basicData',
             'deliveryOwner.basicData',
-            'supportManager.basicData',
+            'supportManagers.basicData',
             'phases' => function ($q) {
                 $q->where('is_visible', true)->orderBy('order_sequence');
             },
@@ -133,7 +152,7 @@ class DeliverySupportController extends Controller
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'resolution_estimated' => 'nullable|date',
             'delivery_owner_id' => 'nullable|exists:employee,employee_id',
-            'support_manager_id' => 'nullable|exists:employee,employee_id',
+            'support_manager_ids' => 'nullable|string',
             'co_pm_id' => 'nullable|exists:employee,employee_id',
             'support_admin_id' => 'nullable|exists:employee,employee_id',
             'sales_id' => 'nullable|exists:employee,employee_id',
@@ -160,7 +179,6 @@ class DeliverySupportController extends Controller
                 'end_date' => $validated['end_date'] ?? null,
                 'resolution_estimated' => $validated['resolution_estimated'] ?? null,
                 'delivery_owner_id' => $validated['delivery_owner_id'] ?? null,
-                'support_manager_id' => $validated['support_manager_id'] ?? null,
                 'co_pm_id' => $validated['co_pm_id'] ?? null,
                 'support_admin_id' => $validated['support_admin_id'] ?? null,
                 'sales_id' => $validated['sales_id'] ?? null,
@@ -172,6 +190,8 @@ class DeliverySupportController extends Controller
                 'service_window_end' => $validated['service_window_end'] ?? null,
                 'created_by_id' => session('user.id'),
             ]);
+
+            $support->supportManagers()->sync($this->parseEmployeeIdList($validated['support_manager_ids'] ?? null));
 
             // Create default view configuration
             DeliverySupportViewConfiguration::create([
@@ -209,7 +229,7 @@ class DeliverySupportController extends Controller
         $support->load([
             'client.basicData',
             'deliveryOwner.basicData',
-            'supportManager.basicData',
+            'supportManagers.basicData',
             'coPm.basicData',
             'supportAdmin.basicData',
             'sales.basicData',
@@ -238,7 +258,7 @@ class DeliverySupportController extends Controller
             'end_date'             => 'nullable|date|after_or_equal:start_date',
             'resolution_estimated' => 'nullable|date',
             'delivery_owner_id'    => 'nullable|exists:employee,employee_id',
-            'support_manager_id'   => 'nullable|exists:employee,employee_id',
+            'support_manager_ids'  => 'nullable|string',
             'co_pm_id'             => 'nullable|exists:employee,employee_id',
             'support_admin_id'     => 'nullable|exists:employee,employee_id',
             'sales_id'             => 'nullable|exists:employee,employee_id',
@@ -263,7 +283,6 @@ class DeliverySupportController extends Controller
                 'end_date'             => $validated['end_date']             ?? null,
                 'resolution_estimated' => $validated['resolution_estimated'] ?? null,
                 'delivery_owner_id'    => $validated['delivery_owner_id']    ?: null,
-                'support_manager_id'   => $validated['support_manager_id']   ?: null,
                 'co_pm_id'             => $validated['co_pm_id']             ?: null,
                 'support_admin_id'     => $validated['support_admin_id']     ?: null,
                 'sales_id'             => $validated['sales_id']             ?: null,
@@ -279,6 +298,7 @@ class DeliverySupportController extends Controller
             }
 
             $support->update($updateData);
+            $support->supportManagers()->sync($this->parseEmployeeIdList($validated['support_manager_ids'] ?? null));
 
             return redirect()
                 ->route('delivery.support.show', $support)
@@ -305,7 +325,7 @@ class DeliverySupportController extends Controller
         $support->load([
             'client.basicData',
             'deliveryOwner.basicData',
-            'supportManager.basicData',
+            'supportManagers.basicData',
             'coPm.basicData',
             'supportAdmin.basicData',
             'sales.basicData',
@@ -396,20 +416,20 @@ class DeliverySupportController extends Controller
 
                 case 'team-info':
                     $validated = validator($data, [
-                        'delivery_owner_id'  => 'nullable|exists:employee,employee_id',
-                        'support_manager_id' => 'nullable|exists:employee,employee_id',
-                        'co_pm_id'           => 'nullable|exists:employee,employee_id',
-                        'support_admin_id'   => 'nullable|exists:employee,employee_id',
-                        'sales_id'           => 'nullable|exists:employee,employee_id',
+                        'delivery_owner_id'   => 'nullable|exists:employee,employee_id',
+                        'support_manager_ids' => 'nullable|string',
+                        'co_pm_id'            => 'nullable|exists:employee,employee_id',
+                        'support_admin_id'    => 'nullable|exists:employee,employee_id',
+                        'sales_id'            => 'nullable|exists:employee,employee_id',
                     ])->validate();
 
                     $support->update([
                         'delivery_owner_id'  => $validated['delivery_owner_id']  ?: null,
-                        'support_manager_id' => $validated['support_manager_id'] ?: null,
                         'co_pm_id'           => $validated['co_pm_id']           ?: null,
                         'support_admin_id'   => $validated['support_admin_id']   ?: null,
                         'sales_id'           => $validated['sales_id']           ?: null,
                     ]);
+                    $support->supportManagers()->sync($this->parseEmployeeIdList($validated['support_manager_ids'] ?? null));
                     break;
 
                 default:

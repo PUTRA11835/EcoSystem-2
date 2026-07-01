@@ -372,7 +372,7 @@
                             </div>
                             <div>
                                 <p class="text-sm font-medium text-gray-900">Support Manager</p>
-                                <p class="text-xs text-gray-500" id="display-support_manager">{{ $support->supportManager->basicData->full_name ?? 'Not assigned' }}</p>
+                                <p class="text-xs text-gray-500" id="display-support_manager">{{ $support->supportManagers->pluck('basicData.full_name')->filter()->join(', ') ?: 'Not assigned' }}</p>
                             </div>
                         </div>
                         <div class="flex items-center space-x-3" id="team-co-pm">
@@ -740,7 +740,6 @@
                     @php
                         $currentLabels = [
                             'delivery_owner_id'  => '',
-                            'support_manager_id' => '',
                             'co_pm_id'           => '',
                             'support_admin_id'   => '',
                             'sales_id'           => '',
@@ -748,7 +747,6 @@
                         foreach($employees ?? [] as $_e) {
                             $name = $_e->basicData->full_name ?? 'N/A';
                             if ($support->delivery_owner_id  == $_e->employee_id) $currentLabels['delivery_owner_id']  = $name;
-                            if ($support->support_manager_id == $_e->employee_id) $currentLabels['support_manager_id'] = $name;
                             if ($support->co_pm_id           == $_e->employee_id) $currentLabels['co_pm_id']           = $name;
                             if ($support->support_admin_id   == $_e->employee_id) $currentLabels['support_admin_id']   = $name;
                             if ($support->sales_id           == $_e->employee_id) $currentLabels['sales_id']           = $name;
@@ -756,12 +754,37 @@
 
                         $teamFields = [
                             ['key' => 'delivery_owner_id',  'label' => 'Delivery Owner',  'value' => $support->delivery_owner_id],
-                            ['key' => 'support_manager_id', 'label' => 'Support Manager', 'value' => $support->support_manager_id],
                             ['key' => 'co_pm_id',           'label' => 'Co PM',           'value' => $support->co_pm_id],
                             ['key' => 'support_admin_id',   'label' => 'Support Admin',   'value' => $support->support_admin_id],
                             ['key' => 'sales_id',           'label' => 'Sales',           'value' => $support->sales_id],
                         ];
+
+                        $currentSupportManagerIds    = $support->supportManagers->pluck('employee_id')->implode(',');
+                        $currentSupportManagerLabel  = $support->supportManagers->pluck('basicData.full_name')->filter()->join(', ');
                     @endphp
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Support Manager</label>
+                        <div class="custom-dd relative" data-fixed="true" data-multi="true" data-placeholder="Not assigned">
+                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                <span class="custom-dd-label {{ $currentSupportManagerLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $currentSupportManagerLabel ?: 'Not assigned' }}</span>
+                                <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <input type="hidden" name="support_manager_ids" id="edit-support_manager_ids" value="{{ $currentSupportManagerIds }}">
+                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                                <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                    <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
+                                </div>
+                                @foreach($employees ?? [] as $employee)
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">
+                                        <span class="custom-dd-item-text">{{ $employee->basicData->full_name ?? 'N/A' }}</span>
+                                        <svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    </button>
+                                @endforeach
+                                <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+                            </div>
+                        </div>
+                    </div>
 
                     @foreach($teamFields as $tf)
                     <div>
@@ -939,11 +962,10 @@ function updateDisplayValues(section, data) {
     }
     else if (section === 'team-info') {
         const teamMap = {
-            delivery_owner_id:  'display-delivery_owner',
-            support_manager_id: 'display-support_manager',
-            co_pm_id:           'display-co_pm',
-            support_admin_id:   'display-support_admin',
-            sales_id:           'display-sales',
+            delivery_owner_id: 'display-delivery_owner',
+            co_pm_id:          'display-co_pm',
+            support_admin_id:  'display-support_admin',
+            sales_id:          'display-sales',
         };
         Object.entries(teamMap).forEach(([field, displayId]) => {
             const el = document.getElementById(displayId);
@@ -956,6 +978,15 @@ function updateDisplayValues(section, data) {
                 el.textContent = 'Not assigned';
             }
         });
+
+        const smEl = document.getElementById('display-support_manager');
+        if (smEl) {
+            const ids = (data.support_manager_ids || '').split(',').filter(Boolean);
+            const names = ids
+                .map(id => employeesData.find(e => e.employee_id == id)?.basic_data?.full_name)
+                .filter(Boolean);
+            smEl.textContent = names.length ? names.join(', ') : 'Not assigned';
+        }
     }
 }
 

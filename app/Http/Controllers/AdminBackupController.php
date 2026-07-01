@@ -3231,7 +3231,6 @@ class AdminBackupController extends Controller
                     'end_date'               => $this->normalizeDate($get('end_date', $row)),
                     'resolution_estimated'   => $this->normalizeDate($get('resolution_estimated', $row)),
                     'delivery_owner_id'      => $resolveEci($get('delivery_owner_eci', $row)),
-                    'support_manager_id'     => $resolveEci($get('support_manager_eci', $row)),
                     'co_pm_id'               => $resolveEci($get('co_pm_eci', $row)),
                     'support_admin_id'       => $resolveEci($get('support_admin_eci', $row)),
                     'sales_id'               => $resolveEci($get('sales_eci', $row)),
@@ -3246,6 +3245,16 @@ class AdminBackupController extends Controller
                     'created_at'             => now(),
                     'updated_at'             => now(),
                 ]);
+
+                $supportManagerId = $resolveEci($get('support_manager_eci', $row));
+                if ($supportManagerId) {
+                    \Illuminate\Support\Facades\DB::table('delivery_support_managers')->insert([
+                        'delivery_support_id' => $supportId,
+                        'employee_id'         => $supportManagerId,
+                        'created_at'          => now(),
+                        'updated_at'          => now(),
+                    ]);
+                }
 
                 // 3. Buat view configuration default
                 \Illuminate\Support\Facades\DB::table('delivery_support_view_configurations')->insert([

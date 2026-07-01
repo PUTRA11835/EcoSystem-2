@@ -204,7 +204,7 @@ class TicketController extends Controller
 
             // Batch load support manager & admin per ticket via delivery_support_activities
             $deliverySupportMap = \App\Models\DeliverySupportActivity::with([
-                'deliverySupport.supportManager.basicData',
+                'deliverySupport.supportManagers.basicData',
                 'deliverySupport.supportAdmin.basicData',
             ])
             ->whereIn('ticket_id', $ticketIds)
@@ -214,7 +214,7 @@ class TicketController extends Controller
             ->map(function ($activity) {
                 $ds = $activity->deliverySupport;
                 return [
-                    'support_manager_name' => $ds?->supportManager?->basicData?->first_name,
+                    'support_manager_name' => $ds?->supportManagers->pluck('basicData.first_name')->filter()->implode(', '),
                     'support_admin_name'   => $ds?->supportAdmin?->basicData?->first_name,
                 ];
             });
@@ -899,9 +899,9 @@ class TicketController extends Controller
 
                 Log::info('My Tickets - Filtering for support manager', ['employee_id' => $employeeId]);
 
-                $managedDeliveryIds = DB::table('delivery_support')
-                    ->where('support_manager_id', $employeeId)
-                    ->pluck('id');
+                $managedDeliveryIds = DB::table('delivery_support_managers')
+                    ->where('employee_id', $employeeId)
+                    ->pluck('delivery_support_id');
 
                 $managedTicketIds = DB::table('delivery_support_activities')
                     ->whereIn('delivery_support_id', $managedDeliveryIds)
