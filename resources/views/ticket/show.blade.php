@@ -362,8 +362,8 @@
         $isPic           = $can('ticket.propose-mandays');
         $isHelpdesk      = $can('ticket.review-mandays');
         $isHead          = $can('ticket.head-mandays');
-        // Head dan Helpdesk bisa aktif bersamaan (role berbeda boleh punya keduanya).
-        // Yang di-override hanya PIC: jika user adalah Head atau Helpdesk, sembunyikan seksi PIC.
+        // Head takes priority over Helpdesk for multi-role users; PIC is hidden for both.
+        if ($isHead) { $isHelpdesk = false; }
         if ($isHead || $isHelpdesk) { $isPic = false; }
         // Computed AFTER override
         $hdCanEditActivity    = $isHelpdesk && $can('ticket.review-mandays.edit-activity');
