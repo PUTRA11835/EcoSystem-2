@@ -724,7 +724,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
     function startEmailPolling() {
         checkTicketUpdates();
-        setInterval(checkTicketUpdates, 10000);
+        // Auto-refresh dimatikan — cek update tiket hanya dilakukan sekali saat halaman dimuat.
     }
 
     function exportWithFilters() {
