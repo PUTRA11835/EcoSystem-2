@@ -39,7 +39,7 @@ class DashboardController extends Controller
                 ->whereNotIn('status', ['completed', 'closed', 'cancel'])
                 ->count();
 
-            $totalTickets = DB::table('ticket')->whereNull('deleted_at')->count();
+            $totalTickets = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden')->count();
 
             $dashboardData = [
                 'employee' => $totalEmployees,
@@ -51,7 +51,7 @@ class DashboardController extends Controller
 
             // ── EC Administrator dashboard data ───────────────────────────────
             if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::EC_ADMINISTRATOR->value) {
-                $base = DB::table('ticket')->whereNull('deleted_at');
+                $base = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden');
 
                 $dashboardData['ticket_stats'] = [
                     'total'                   => (clone $base)->count(),
@@ -68,7 +68,7 @@ class DashboardController extends Controller
                 // Ticket trend last 30 days
                 $start30 = now()->subDays(29)->format('Y-m-d');
                 $byDay   = DB::table('ticket')
-                    ->whereNull('deleted_at')
+                    ->whereNull('deleted_at')->whereNull('is_hidden')
                     ->where('start_date', '>=', $start30)
                     ->select(DB::raw('DATE(start_date) as day'), DB::raw('COUNT(*) as cnt'))
                     ->groupBy('day')
@@ -86,7 +86,7 @@ class DashboardController extends Controller
 
                 // Recent 5 tickets
                 $dashboardData['recent_tickets'] = DB::table('ticket as t')
-                    ->whereNull('t.deleted_at')
+                    ->whereNull('t.deleted_at')->whereNull('t.is_hidden')
                     ->leftJoin('customer as c', 't.customer_id', '=', 'c.customer_id')
                     ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
                     ->leftJoin('employee as e', 't.ticket_lead_id', '=', 'e.employee_id')
@@ -103,7 +103,7 @@ class DashboardController extends Controller
 
                 // Team load: top 5 agents by active ticket count
                 $dashboardData['team_load'] = DB::table('ticket as t')
-                    ->whereNull('t.deleted_at')
+                    ->whereNull('t.deleted_at')->whereNull('t.is_hidden')
                     ->whereNotIn('t.status', ['closed', 'cancelled'])
                     ->join('employee as e', 't.ticket_lead_id', '=', 'e.employee_id')
                     ->leftJoin('employee_basic_data as ebd', 'e.employee_id', '=', 'ebd.employee_id')
@@ -124,9 +124,9 @@ class DashboardController extends Controller
 
                 // SLA compliance summary (if table exists)
                 try {
-                    $slaTotal    = DB::table('ticket_sla')->whereNotNull('ticket_id')->count();
-                    $slaMet      = DB::table('ticket_sla')->where('resolution_status', 'met')->count();
-                    $slaBreached = DB::table('ticket_sla')->where('resolution_status', 'breached')->count();
+                    $slaTotal    = $this->visibleSla(DB::table('ticket_sla')->whereNotNull('ticket_id'))->count();
+                    $slaMet      = $this->visibleSla(DB::table('ticket_sla'))->where('resolution_status', 'met')->count();
+                    $slaBreached = $this->visibleSla(DB::table('ticket_sla'))->where('resolution_status', 'breached')->count();
                     $dashboardData['sla_summary'] = [
                         'total'           => $slaTotal,
                         'met'             => $slaMet,
@@ -142,7 +142,7 @@ class DashboardController extends Controller
 
             // ── EC User dashboard data (all tickets — same scope as ticket list) ─
             if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::EC_USER->value) {
-                $base = DB::table('ticket')->whereNull('deleted_at');
+                $base = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden');
 
                 $dashboardData['ticket_stats'] = [
                     'total'                   => (clone $base)->count(),
@@ -157,7 +157,7 @@ class DashboardController extends Controller
                 ];
 
                 $start30 = now()->subDays(29)->format('Y-m-d');
-                $byDay   = DB::table('ticket')->whereNull('deleted_at')
+                $byDay   = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden')
                     ->where('start_date', '>=', $start30)
                     ->select(DB::raw('DATE(start_date) as day'), DB::raw('COUNT(*) as cnt'))
                     ->groupBy('day')->pluck('cnt', 'day')->toArray();
@@ -171,7 +171,7 @@ class DashboardController extends Controller
                 $dashboardData['ticket_chart'] = ['labels' => $chartLabels, 'data' => $chartData];
 
                 $dashboardData['recent_tickets'] = DB::table('ticket as t')
-                    ->whereNull('t.deleted_at')
+                    ->whereNull('t.deleted_at')->whereNull('t.is_hidden')
                     ->leftJoin('customer as c', 't.customer_id', '=', 'c.customer_id')
                     ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
                     ->leftJoin('employee as e', 't.ticket_lead_id', '=', 'e.employee_id')
@@ -187,7 +187,7 @@ class DashboardController extends Controller
                     ->get();
 
                 $dashboardData['team_load'] = DB::table('ticket as t')
-                    ->whereNull('t.deleted_at')
+                    ->whereNull('t.deleted_at')->whereNull('t.is_hidden')
                     ->whereNotIn('t.status', ['closed', 'cancelled'])
                     ->join('employee as e', 't.ticket_lead_id', '=', 'e.employee_id')
                     ->leftJoin('employee_basic_data as ebd', 'e.employee_id', '=', 'ebd.employee_id')
@@ -205,8 +205,8 @@ class DashboardController extends Controller
                     ->where('status', 'unvalidated')->count();
 
                 try {
-                    $slaMet      = DB::table('ticket_sla')->where('resolution_status', 'met')->count();
-                    $slaBreached = DB::table('ticket_sla')->where('resolution_status', 'breached')->count();
+                    $slaMet      = $this->visibleSla(DB::table('ticket_sla'))->where('resolution_status', 'met')->count();
+                    $slaBreached = $this->visibleSla(DB::table('ticket_sla'))->where('resolution_status', 'breached')->count();
                     $dashboardData['sla_summary'] = [
                         'met'             => $slaMet,
                         'breached'        => $slaBreached,
@@ -221,7 +221,7 @@ class DashboardController extends Controller
 
             // Extra data for Delivery Support Head dashboard
             if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::DELIVERY_SUPPORT_HEAD->value) {
-                $base = DB::table('ticket')->whereNull('deleted_at');
+                $base = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden');
 
                 $dashboardData['ticket_stats'] = [
                     'total'                   => (clone $base)->count(),
@@ -238,7 +238,7 @@ class DashboardController extends Controller
                 // Chart: all tickets by start_date in last 30 days
                 $start30 = now()->subDays(29)->format('Y-m-d');
                 $byDay = DB::table('ticket')
-                    ->whereNull('deleted_at')
+                    ->whereNull('deleted_at')->whereNull('is_hidden')
                     ->where('start_date', '>=', $start30)
                     ->select(DB::raw('DATE(start_date) as day'), DB::raw('COUNT(*) as cnt'))
                     ->groupBy('day')
@@ -256,7 +256,7 @@ class DashboardController extends Controller
 
                 // Recent 8 tickets (all) — includes priority for dashboard display
                 $dashboardData['recent_tickets'] = DB::table('ticket as t')
-                    ->whereNull('t.deleted_at')
+                    ->whereNull('t.deleted_at')->whereNull('t.is_hidden')
                     ->leftJoin('customer as c', 't.customer_id', '=', 'c.customer_id')
                     ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
                     ->leftJoin('employee as e', 't.ticket_lead_id', '=', 'e.employee_id')
@@ -273,7 +273,7 @@ class DashboardController extends Controller
 
                 // Team load: top 6 employees by active ticket count
                 $dashboardData['team_load'] = DB::table('ticket as t')
-                    ->whereNull('t.deleted_at')
+                    ->whereNull('t.deleted_at')->whereNull('t.is_hidden')
                     ->whereNotIn('t.status', ['closed', 'cancelled'])
                     ->join('employee as e', 't.ticket_lead_id', '=', 'e.employee_id')
                     ->leftJoin('employee_basic_data as ebd', 'e.employee_id', '=', 'ebd.employee_id')
@@ -294,8 +294,8 @@ class DashboardController extends Controller
 
                 // SLA compliance summary
                 try {
-                    $slaMet      = DB::table('ticket_sla')->where('resolution_status', 'met')->count();
-                    $slaBreached = DB::table('ticket_sla')->where('resolution_status', 'breached')->count();
+                    $slaMet      = $this->visibleSla(DB::table('ticket_sla'))->where('resolution_status', 'met')->count();
+                    $slaBreached = $this->visibleSla(DB::table('ticket_sla'))->where('resolution_status', 'breached')->count();
                     $dashboardData['sla_summary'] = [
                         'met'             => $slaMet,
                         'breached'        => $slaBreached,
@@ -310,7 +310,7 @@ class DashboardController extends Controller
 
             // ── Helpdesk dashboard data ───────────────────────────────────────
             if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::DELIVERY_HELPDESK->value) {
-                $base = DB::table('ticket')->whereNull('deleted_at');
+                $base = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden');
 
                 $dashboardData['ticket_stats'] = [
                     'total'                   => (clone $base)->count(),
@@ -337,12 +337,11 @@ class DashboardController extends Controller
 
                 // SLA metrics
                 try {
-                    $dashboardData['sla_breached'] = DB::table('ticket_sla')
-                        ->whereNotNull('ticket_id')
+                    $dashboardData['sla_breached'] = $this->visibleSla(DB::table('ticket_sla')->whereNotNull('ticket_id'))
                         ->where('resolution_status', 'breached')
                         ->count();
 
-                    $dashboardData['sla_warning'] = DB::table('ticket_sla as ts')
+                    $dashboardData['sla_warning'] = $this->visibleSla(DB::table('ticket_sla as ts'), 'ts.ticket_id')
                         ->whereNotNull('ts.ticket_id')
                         ->whereIn('ts.resolution_status', ['pending', 'paused'])
                         ->whereNotNull('ts.resolution_due_at')
@@ -350,11 +349,11 @@ class DashboardController extends Controller
                         ->where('ts.resolution_due_at', '<=', now()->addHours(4))
                         ->count();
 
-                    $dashboardData['sla_compliance'] = (function () {
-                        $met      = DB::table('ticket_sla')->where('resolution_status', 'met')->count();
-                        $breached = DB::table('ticket_sla')->where('resolution_status', 'breached')->count();
-                        return ($met + $breached) > 0 ? round($met / ($met + $breached) * 100, 1) : null;
-                    })();
+                    $slaMet      = $this->visibleSla(DB::table('ticket_sla'))->where('resolution_status', 'met')->count();
+                    $slaBreached = $this->visibleSla(DB::table('ticket_sla'))->where('resolution_status', 'breached')->count();
+                    $dashboardData['sla_compliance'] = ($slaMet + $slaBreached) > 0
+                        ? round($slaMet / ($slaMet + $slaBreached) * 100, 1)
+                        : null;
                 } catch (\Throwable) {
                     $dashboardData['sla_breached']    = 0;
                     $dashboardData['sla_warning']     = 0;
@@ -378,7 +377,7 @@ class DashboardController extends Controller
                 // 30-day ticket trend
                 $start30 = now()->subDays(29)->format('Y-m-d');
                 $byDay   = DB::table('ticket')
-                    ->whereNull('deleted_at')
+                    ->whereNull('deleted_at')->whereNull('is_hidden')
                     ->where('start_date', '>=', $start30)
                     ->select(DB::raw('DATE(start_date) as day'), DB::raw('COUNT(*) as cnt'))
                     ->groupBy('day')
@@ -396,7 +395,7 @@ class DashboardController extends Controller
 
                 // Recent tickets (8)
                 $dashboardData['recent_tickets'] = DB::table('ticket as t')
-                    ->whereNull('t.deleted_at')
+                    ->whereNull('t.deleted_at')->whereNull('t.is_hidden')
                     ->leftJoin('customer as c', 't.customer_id', '=', 'c.customer_id')
                     ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
                     ->leftJoin('employee as e', 't.ticket_lead_id', '=', 'e.employee_id')
@@ -417,7 +416,7 @@ class DashboardController extends Controller
 
                 // Urgent tickets: Very High OR SLA breached, still active
                 $dashboardData['urgent_tickets'] = DB::table('ticket as t')
-                    ->whereNull('t.deleted_at')
+                    ->whereNull('t.deleted_at')->whereNull('t.is_hidden')
                     ->whereNotIn('t.status', ['closed', 'cancelled'])
                     ->leftJoin('customer as c', 't.customer_id', '=', 'c.customer_id')
                     ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
@@ -459,7 +458,7 @@ class DashboardController extends Controller
 
                 // Base: tiket yang dia kelola ATAU belum di-assign (belum closed/cancelled)
                 $base = DB::table('ticket')
-                    ->whereNull('deleted_at')
+                    ->whereNull('deleted_at')->whereNull('is_hidden')
                     ->where(function ($q) use ($managedTicketIds) {
                         $q->whereIn('ticket_id', $managedTicketIds)
                           ->orWhereNull('ticket_lead_id');
@@ -517,7 +516,7 @@ class DashboardController extends Controller
 
                 // Agent workload: hanya agent pada tiket yang dia kelola
                 $dashboardData['team_load'] = DB::table('ticket as t')
-                    ->whereNull('t.deleted_at')
+                    ->whereNull('t.deleted_at')->whereNull('t.is_hidden')
                     ->whereIn('t.ticket_id', $managedTicketIds)
                     ->whereNotIn('t.status', ['closed', 'cancelled'])
                     ->join('employee as e', 't.ticket_lead_id', '=', 'e.employee_id')
@@ -558,7 +557,7 @@ class DashboardController extends Controller
 
                 // Recent 8 tickets dengan SLA info (dalam scope)
                 $dashboardData['recent_tickets'] = DB::table('ticket as t')
-                    ->whereNull('t.deleted_at')
+                    ->whereNull('t.deleted_at')->whereNull('t.is_hidden')
                     ->where(function ($q) use ($managedTicketIds) {
                         $q->whereIn('t.ticket_id', $managedTicketIds)
                           ->orWhereNull('t.ticket_lead_id');
@@ -582,7 +581,7 @@ class DashboardController extends Controller
 
                 // Urgent: Very High atau SLA breached, aktif, dalam scope
                 $dashboardData['urgent_tickets'] = DB::table('ticket as t')
-                    ->whereNull('t.deleted_at')
+                    ->whereNull('t.deleted_at')->whereNull('t.is_hidden')
                     ->whereNotIn('t.status', ['closed', 'cancelled'])
                     ->where(function ($q) use ($managedTicketIds) {
                         $q->whereIn('t.ticket_id', $managedTicketIds)
@@ -612,11 +611,11 @@ class DashboardController extends Controller
             if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::DELIVERY_SUPPORT_USER->value) {
                 $employeeId = $user['id'];
 
-                $picIds    = DB::table('ticket')->whereNull('deleted_at')->where('ticket_lead_id', $employeeId)->pluck('ticket_id');
+                $picIds    = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden')->where('ticket_lead_id', $employeeId)->pluck('ticket_id');
                 $memberIds = DB::table('ticket_member')->where('employee_id', $employeeId)->pluck('ticket_id');
                 $ticketIds = $picIds->merge($memberIds)->unique()->values();
 
-                $base      = DB::table('ticket')->whereNull('deleted_at')->whereIn('ticket_id', $ticketIds);
+                $base      = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden')->whereIn('ticket_id', $ticketIds);
                 $activeIds = (clone $base)->whereNotIn('status', ['closed', 'cancelled'])->pluck('ticket_id');
 
                 $dashboardData['ticket_stats'] = [
@@ -645,7 +644,7 @@ class DashboardController extends Controller
 
                 // 30-day trend
                 $start30 = now()->subDays(29)->format('Y-m-d');
-                $byDay   = DB::table('ticket')->whereNull('deleted_at')
+                $byDay   = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden')
                     ->whereIn('ticket_id', $ticketIds)
                     ->where('start_date', '>=', $start30)
                     ->select(DB::raw('DATE(start_date) as day'), DB::raw('COUNT(*) as cnt'))
@@ -661,7 +660,7 @@ class DashboardController extends Controller
 
                 // Recent tickets with SLA & priority
                 $dashboardData['recent_tickets'] = DB::table('ticket as t')
-                    ->whereNull('t.deleted_at')
+                    ->whereNull('t.deleted_at')->whereNull('t.is_hidden')
                     ->whereIn('t.ticket_id', $ticketIds)
                     ->leftJoin('customer as c', 't.customer_id', '=', 'c.customer_id')
                     ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
@@ -681,7 +680,7 @@ class DashboardController extends Controller
 
                 // Urgent: Very High or SLA breached, active
                 $dashboardData['urgent_tickets'] = DB::table('ticket as t')
-                    ->whereNull('t.deleted_at')
+                    ->whereNull('t.deleted_at')->whereNull('t.is_hidden')
                     ->whereIn('t.ticket_id', $activeIds)
                     ->leftJoin('customer as c', 't.customer_id', '=', 'c.customer_id')
                     ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
@@ -723,5 +722,20 @@ class DashboardController extends Controller
 
             abort(500, 'Dashboard error: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Batasi query ticket_sla hanya ke tiket yang visible — belum di-soft-delete
+     * dan belum di-hide. Dipakai agar kartu SLA Compliance konsisten dengan kartu
+     * jumlah tiket yang sudah mengecualikan tiket hidden.
+     */
+    private function visibleSla($query, string $column = 'ticket_id')
+    {
+        return $query->whereIn($column, function ($q) {
+            $q->select('ticket_id')
+              ->from('ticket')
+              ->whereNull('deleted_at')
+              ->whereNull('is_hidden');
+        });
     }
 }

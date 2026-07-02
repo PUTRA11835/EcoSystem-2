@@ -214,7 +214,7 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1.5">Priority</label>
                         <select name="priority" id="addPriority" required onchange="updatePreview()"
@@ -236,7 +236,7 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response (Hour)</label>
                         <input type="number" name="response_hours" step="0.5" min="0.5" required placeholder="e.g. 4"
@@ -295,7 +295,7 @@
             <form id="editPolicyForm" onsubmit="submitEditPolicy(event)" class="p-6 space-y-4">
                 <input type="hidden" id="editPolicyId">
 
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response (Hour)</label>
                         <input type="number" id="editResponseHours" step="0.5" min="0.5" required
@@ -744,7 +744,7 @@ function hideErr(pfx) {
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
-function csrf() { return document.querySelector('meta[name=csrf-token]').content; }
+function csrf() { return document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || ''; }
 
 async function submitAddPolicy(e) {
     e.preventDefault();

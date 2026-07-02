@@ -49,20 +49,22 @@
 
     <!-- Calendar Grid -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <!-- Weekday Headers -->
-        <div class="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
-            <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Sunday</div>
-            <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Monday</div>
-            <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Tuesday</div>
-            <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Wednesday</div>
-            <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Thursday</div>
-            <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Friday</div>
-            <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700">Saturday</div>
-        </div>
+        <div class="overflow-x-auto">
+            <!-- Weekday Headers -->
+            <div class="grid grid-cols-7 min-w-[640px] bg-gray-50 border-b border-gray-200">
+                <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Sunday</div>
+                <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Monday</div>
+                <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Tuesday</div>
+                <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Wednesday</div>
+                <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Thursday</div>
+                <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Friday</div>
+                <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700">Saturday</div>
+            </div>
 
-        <!-- Calendar Days -->
-        <div id="calendarGrid" class="grid grid-cols-7" style="min-height: 600px;">
-            <!-- Days will be generated here -->
+            <!-- Calendar Days -->
+            <div id="calendarGrid" class="grid grid-cols-7 min-w-[640px]" style="min-height: 600px;">
+                <!-- Days will be generated here -->
+            </div>
         </div>
     </div>
 
@@ -157,7 +159,7 @@
         <!-- Body -->
         <form id="eventForm" class="overflow-y-auto flex-1 px-6 py-6">
             <input type="hidden" id="eventId">
-            <div class="grid grid-cols-2 gap-10">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-10">
 
                 <!-- Column 1: Event Details -->
                 <div>
@@ -197,7 +199,7 @@
                 <div>
                     <h4 class="text-xs font-bold text-gray-500 uppercase tracking-widest pb-2 mb-5 border-b border-gray-200">Schedule & Location</h4>
                     <div class="space-y-4">
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-sm font-semibold text-gray-700 mb-1.5">Start Date <span class="text-red-600">*</span></label>
                                 <input type="date" id="eventStartDate" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">

@@ -56,30 +56,34 @@
     <div id="calendarContainer" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <!-- Month View -->
         <div id="monthView" class="view-container">
-            <!-- Weekday Headers -->
-            <div class="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
-                <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Sun</div>
-                <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Mon</div>
-                <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Tue</div>
-                <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Wed</div>
-                <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Thu</div>
-                <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Fri</div>
-                <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700">Sat</div>
-            </div>
+            <div class="overflow-x-auto">
+                <!-- Weekday Headers -->
+                <div class="grid grid-cols-7 min-w-[640px] bg-gray-50 border-b border-gray-200">
+                    <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Sun</div>
+                    <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Mon</div>
+                    <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Tue</div>
+                    <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Wed</div>
+                    <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Thu</div>
+                    <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700 border-r border-gray-200">Fri</div>
+                    <div class="py-3 px-2 text-center text-sm font-semibold text-gray-700">Sat</div>
+                </div>
 
-            <!-- Calendar Grid -->
-            <div id="monthGrid" class="grid grid-cols-7" style="min-height: 600px;"></div>
+                <!-- Calendar Grid -->
+                <div id="monthGrid" class="grid grid-cols-7 min-w-[640px]" style="min-height: 600px;"></div>
+            </div>
         </div>
 
         <!-- Week View -->
         <div id="weekView" class="view-container hidden">
-            <div class="grid grid-cols-8">
-                <!-- Time column header -->
-                <div class="border-r border-b border-gray-200 bg-gray-50 p-2"></div>
-                <!-- Day headers will be inserted here -->
-                <div id="weekHeaders" class="col-span-7 grid grid-cols-7"></div>
+            <div class="overflow-x-auto">
+                <div class="grid grid-cols-8 min-w-[720px]">
+                    <!-- Time column header -->
+                    <div class="border-r border-b border-gray-200 bg-gray-50 p-2"></div>
+                    <!-- Day headers will be inserted here -->
+                    <div id="weekHeaders" class="col-span-7 grid grid-cols-7"></div>
+                </div>
+                <div id="weekGrid" class="grid grid-cols-8 min-w-[720px]" style="max-height: 600px; overflow-y: auto;"></div>
             </div>
-            <div id="weekGrid" class="grid grid-cols-8" style="max-height: 600px; overflow-y: auto;"></div>
         </div>
 
         <!-- Day View -->
@@ -252,7 +256,7 @@
                     </div>
 
                     <!-- Start Date + Start Time -->
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1.5">
                                 Start Date <span class="text-red-600">*</span>
@@ -270,7 +274,7 @@
                     </div>
 
                     <!-- End Date + End Time -->
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1.5">End Date</label>
                             <input type="date" id="eventEndDate"

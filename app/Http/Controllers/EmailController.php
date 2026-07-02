@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
 use App\Models\Customer;
+use App\Models\Notification;
 use App\Models\StagingTicket;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
@@ -729,6 +730,38 @@ class EmailController extends Controller
                                     'ticket_id'  => $ticket->ticket_id,
                                     'message_id' => $savedMessage->id,
                                     'error'      => $e->getMessage(),
+                                ]);
+                            }
+
+                            // Bell notification ke PIC dan member ticket (non-fatal)
+                            try {
+                                $senderLabel = $fromName ?: $fromEmail;
+                                $ticketNum   = $ticket->ticket_number ?? $ticket->ticket_id;
+                                $preview     = "Ticket #{$ticketNum} — {$senderLabel} replied via email";
+                                $link        = "/ticket/{$ticket->ticket_id}";
+
+                                $recipients = collect();
+                                if ($ticket->ticket_lead_id) {
+                                    $recipients->push($ticket->ticket_lead_id);
+                                }
+                                $ticket->members()->pluck('ticket_member.employee_id')
+                                    ->each(fn ($id) => $recipients->push($id));
+
+                                $recipients->unique()->each(function ($empId) use ($preview, $link, $senderLabel) {
+                                    Notification::create([
+                                        'employee_id'      => $empId,
+                                        'type'             => 'customer_email_reply',
+                                        'from_employee_id' => null,
+                                        'from_name'        => $senderLabel,
+                                        'preview'          => $preview,
+                                        'link'             => $link,
+                                        'is_read'          => false,
+                                    ]);
+                                });
+                            } catch (\Throwable $e) {
+                                Log::warning('EmailController@processInbox: bell notification gagal (non-fatal)', [
+                                    'ticket_id' => $ticket->ticket_id,
+                                    'error'     => $e->getMessage(),
                                 ]);
                             }
                         }

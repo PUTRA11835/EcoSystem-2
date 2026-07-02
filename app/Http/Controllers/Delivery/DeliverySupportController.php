@@ -250,8 +250,8 @@ class DeliverySupportController extends Controller
     public function update(Request $request, DeliverySupport $support)
     {
         $sessionUser = session('user');
-        $roleId = $sessionUser['role']['id'] ?? null;
-        $canEditType = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
+        $roleIds     = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+        $canEditType = (bool) array_intersect($roleIds, RoleId::TICKET_MANAGER_GROUP);
 
         $rules = [
             'name'                 => 'required|string|max:255',
@@ -384,8 +384,8 @@ class DeliverySupportController extends Controller
             switch ($section) {
                 case 'support-info':
                     $sessionUser = session('user');
-                    $roleId = $sessionUser['role']['id'] ?? null;
-                    $canEditType = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
+                    $roleIds     = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+                    $canEditType = (bool) array_intersect($roleIds, RoleId::TICKET_MANAGER_GROUP);
 
                     $rules = [
                         'name' => 'required|string|max:255',

@@ -22,7 +22,7 @@
     <!-- General Data -->
     <div>
         <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">General Data</h3>
-        <div class="grid grid-cols-6 gap-4">
+        <div class="grid grid-cols-6 gap-4 form-grid">
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Title</label>
                 <input type="text" id="contactTitle"
@@ -74,7 +74,7 @@
     <!-- Communication -->
     <div>
         <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Communication</h3>
-        <div class="grid grid-cols-6 gap-4">
+        <div class="grid grid-cols-6 gap-4 form-grid">
             <!-- Cell Phone -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Cell Phone Country</label>
@@ -144,12 +144,12 @@
 
     <!-- Contact Details Table -->
     <div>
-        <div class="flex justify-between items-center mb-4">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
             <h3 class="text-base font-semibold text-gray-900">Contact</h3>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <!-- Search -->
                 <div class="relative">
-                    <input type="text" id="contactSearch" placeholder="Search" class="w-64 px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                    <input type="text" id="contactSearch" placeholder="Search" class="w-full sm:w-64 px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
                     <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                             <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
@@ -273,7 +273,7 @@
             </button>
         </div>
         <div class="p-6 space-y-3">
-            <div class="flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+            <div class="flex flex-wrap items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-orange-500 flex-shrink-0">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                 </svg>

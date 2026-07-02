@@ -89,6 +89,27 @@ class Ticket extends Model
         return $this->belongsTo(Customer::class, 'end_customer_id', 'customer_id');
     }
 
+    /**
+     * Customer deliverable folder name (per customer), e.g. "125 DEMOGRP2".
+     * Returns null when customer / basic data is missing.
+     *
+     * Deliverable ticket disimpan di level customer ({root}/{customer}/TICKETING/...),
+     * sehingga folder-nya diturunkan langsung dari customer ticket — TIDAK lagi
+     * bergantung pada delivery support. Format dijaga identik dengan
+     * DeliverySupport::customerDeliverableFolderName() agar folder existing tetap match.
+     */
+    public function customerDeliverableFolderName(): ?string
+    {
+        $this->loadMissing('customer.basicData');
+
+        if (!$this->customer || !$this->customer->basicData) {
+            return null;
+        }
+
+        return str_pad((string) $this->customer_id, 3, '0', STR_PAD_LEFT)
+            . ' ' . strtoupper($this->customer->basicData->name_1);
+    }
+
     // Relasi ke Employee (Ticket Lead)
     public function ticketLead()
     {

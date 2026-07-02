@@ -281,12 +281,12 @@ class TicketController extends Controller
                     'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
                     'employee' => $ticket->ticketLead ? [
                         'employee_id' => $ticket->ticketLead->employee_id,
-                        'employee_name' => $ticket->ticketLead->basicData->first_name ?? 'Unknown',
+                        'employee_name' => $ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown',
                     ] : null,
                     'members' => $ticket->members->map(function($member) {
                         return [
                             'employee_id' => $member->employee_id,
-                            'employee_name' => $member->basicData->first_name ?? 'Unknown',
+                            'employee_name' => $member->basicData->nick_name ?? $member->basicData->first_name ?? 'Unknown',
                         ];
                     }),
                     'member_ids' => $ticket->members->pluck('employee_id')->toArray(),
@@ -430,7 +430,7 @@ class TicketController extends Controller
                 'start_date'             => $ticket->start_date,
                 'customer'               => ['customer_name' => $ticket->customer?->basicData?->name_1 ?? $ticket->customer?->email],
                 'end_customer_name'      => $ticket->endCustomer?->basicData?->name_1,
-                'employee'               => $ticket->ticketLead ? ['employee_name' => $ticket->ticketLead->basicData?->first_name ?? 'Unknown'] : null,
+                'employee'               => $ticket->ticketLead ? ['employee_name' => $ticket->ticketLead->basicData?->nick_name ?? $ticket->ticketLead->basicData?->first_name ?? 'Unknown'] : null,
                 'ticket_priority'        => $ticket->ticket_priority,
                 'scale'                  => $ticket->scale,
                 'status'                 => $ticket->status,
@@ -463,7 +463,7 @@ class TicketController extends Controller
                 'no_hp'           => 'nullable|string|max:255',
                 'module'          => 'nullable|string|max:255',
                 'client'          => 'nullable|string|max:255',
-                'to_email'        => 'nullable|email|max:255',
+                'to_email'        => 'nullable|string|max:2000',
                 'cc_emails'       => 'nullable|string|max:2000',
                 'body'            => 'nullable|string',
                 'attachments'     => 'nullable|array',
@@ -475,7 +475,19 @@ class TicketController extends Controller
 
             // "To" HANYA dari input manual — TIDAK auto-baca company email.
             // Default kosong (mis. EWA): email dikirim hanya ke CC contact.
-            $toEmail = trim((string) ($validated['to_email'] ?? ''));
+            // Bisa lebih dari satu penerima, pisah koma (mirror perilaku CC).
+            // Primary = elemen pertama; sisanya jadi additional toRecipients.
+            $toList = [];
+            if (!empty($validated['to_email'])) {
+                foreach (array_filter(array_map('trim', explode(',', $validated['to_email']))) as $to) {
+                    if (filter_var($to, FILTER_VALIDATE_EMAIL)
+                        && !in_array(strtolower($to), array_map('strtolower', $toList), true)) {
+                        $toList[] = $to;
+                    }
+                }
+            }
+            $toEmail      = $toList[0] ?? '';
+            $additionalTo = array_slice($toList, 1);
 
             // Parse CC emails menjadi array format [{address,name}] untuk disimpan di ticket.
             $ccList = [];
@@ -495,13 +507,14 @@ class TicketController extends Controller
             if ($toEmail !== '' || !empty($ccList)) {
                 try {
                     $emailResult = (new EmailController())->sendTicketReply(
-                        toEmail:    $toEmail,
-                        subject:    '[JARVIES] ' . $validated['description'],
-                        body:       $body ?? '',
-                        inReplyTo:  null,
-                        files:      $files,
-                        ccList:     array_column($ccList, 'address'),
-                        noRePrefix: true,
+                        toEmail:            $toEmail,
+                        subject:            '[JARVIES] ' . $validated['description'],
+                        body:               $body ?? '',
+                        inReplyTo:          null,
+                        files:              $files,
+                        ccList:             array_column($ccList, 'address'),
+                        noRePrefix:         true,
+                        additionalToEmails: $additionalTo,
                     );
                     $conversationId = $emailResult['conversation_id'] ?? null;
                     $internetMsgId  = $emailResult['internet_message_id'] ?? null;
@@ -514,7 +527,7 @@ class TicketController extends Controller
             }
 
             try {
-                $ticket = DB::transaction(function () use ($validated, $toEmail, $ccList, $conversationId, $user) {
+                $ticket = DB::transaction(function () use ($validated, $toEmail, $toList, $ccList, $conversationId, $user) {
                     return Ticket::create([
                         'ticket_number'      => $this->ticketNumbers->generate(),
                         'customer_id'        => $validated['customer_id'],
@@ -532,7 +545,10 @@ class TicketController extends Controller
                         'channel'            => 'email',
                         'email_thread_id'    => $conversationId,
                         // Simpan HANYA "To" manual (nullable) — bukan company email.
+                        // submitted_by_email = primary; to_emails = seluruh daftar To
+                        // (primary + tambahan) agar reply berikutnya tetap ke semua penerima.
                         'submitted_by_email' => $toEmail !== '' ? $toEmail : null,
+                        'to_emails'          => !empty($toList) ? $toList : null,
                         'cc_emails'          => !empty($ccList) ? $ccList : null,
                     ]);
                 });
@@ -639,7 +655,7 @@ class TicketController extends Controller
 
         $validated = $request->validate([
             'customer_id'     => 'required|exists:customer,customer_id',
-            'to_email'        => 'nullable|email|max:255',
+            'to_email'        => 'nullable|string|max:2000',
             'cc_emails'       => 'nullable|string|max:2000',
             'description'     => 'required|string|max:1000',
             'ticket_priority' => 'required|in:Very High,High,Medium,Low',
@@ -664,7 +680,19 @@ class TicketController extends Controller
 
         // "To" HANYA dari input manual — TIDAK auto-baca company email ($customer->email).
         // Default kosong (mis. EWA): email hanya dikirim ke CC contact terdaftar.
-        $toEmail = trim((string) ($validated['to_email'] ?? ''));
+        // Bisa lebih dari satu penerima, pisah koma (mirror perilaku CC).
+        // Primary = elemen pertama; sisanya jadi additional toRecipients.
+        $toList = [];
+        if (!empty($validated['to_email'])) {
+            foreach (array_filter(array_map('trim', explode(',', $validated['to_email']))) as $to) {
+                if (filter_var($to, FILTER_VALIDATE_EMAIL)
+                    && !in_array(strtolower($to), array_map('strtolower', $toList), true)) {
+                    $toList[] = $to;
+                }
+            }
+        }
+        $toEmail      = $toList[0] ?? '';
+        $additionalTo = array_slice($toList, 1);
 
         $ccList = [];
         if (!empty($validated['cc_emails'])) {
@@ -688,13 +716,14 @@ class TicketController extends Controller
             try {
                 $emailCtrl   = new EmailController();
                 $emailResult = $emailCtrl->sendTicketReply(
-                    toEmail:       $toEmail,
-                    subject:       '[JARVIES] ' . $validated['description'],
-                    body:          $validated['body'] ?? '',
-                    inReplyTo:     null,
-                    files:         $files,
-                    ccList:        array_column($ccList, 'address'),
-                    noRePrefix:    true,
+                    toEmail:            $toEmail,
+                    subject:            '[JARVIES] ' . $validated['description'],
+                    body:               $validated['body'] ?? '',
+                    inReplyTo:          null,
+                    files:              $files,
+                    ccList:             array_column($ccList, 'address'),
+                    noRePrefix:         true,
+                    additionalToEmails: $additionalTo,
                 );
                 $conversationId = $emailResult['conversation_id'] ?? null;
                 $internetMsgId  = $emailResult['internet_message_id'] ?? null;
@@ -708,7 +737,7 @@ class TicketController extends Controller
 
         // ── Buat ticket langsung (bypass staging) ────────────────────────────
         try {
-            $ticket = DB::transaction(function () use ($validated, $customer, $toEmail, $ccList, $conversationId, $internetMsgId, $emailResult, $user) {
+            $ticket = DB::transaction(function () use ($validated, $customer, $toEmail, $toList, $ccList, $conversationId, $internetMsgId, $emailResult, $user) {
                 $ticket = Ticket::create([
                     'ticket_number'      => $this->ticketNumbers->generate(),
                     'customer_id'        => $customer->customer_id,
@@ -727,7 +756,10 @@ class TicketController extends Controller
                     'email_thread_id'    => $conversationId,
                     // Simpan HANYA "To" manual (nullable) — bukan company email — supaya
                     // balasan berikutnya juga tidak otomatis tertuju ke company email.
+                    // submitted_by_email = primary; to_emails = seluruh daftar To
+                    // (primary + tambahan) agar reply berikutnya tetap ke semua penerima.
                     'submitted_by_email' => $toEmail !== '' ? $toEmail : null,
+                    'to_emails'          => !empty($toList) ? $toList : null,
                     'cc_emails'          => !empty($ccList) ? $ccList : null,
                     'last_message_at'    => now(),
                     'last_agent_reply_at'=> now(),
@@ -1094,12 +1126,12 @@ class TicketController extends Controller
                     'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
                     'employee' => $ticket->ticketLead ? [
                         'employee_id' => $ticket->ticketLead->employee_id,
-                        'employee_name' => $ticket->ticketLead->basicData->first_name ?? 'Unknown',
+                        'employee_name' => $ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown',
                     ] : null,
                     'members' => $ticket->members->map(function($member) {
                         return [
                             'employee_id' => $member->employee_id,
-                            'employee_name' => $member->basicData->first_name ?? 'Unknown',
+                            'employee_name' => $member->basicData->nick_name ?? $member->basicData->first_name ?? 'Unknown',
                         ];
                     }),
                     'member_ids' => $ticket->members->pluck('employee_id')->toArray(),
@@ -1267,7 +1299,7 @@ class TicketController extends Controller
                     'ticket_confirmation.*',
                     'ticket.description',
                     'ticket.ticket_priority',
-                    'employee_basic_data.first_name as employee_name',
+                    DB::raw("COALESCE(NULLIF(employee_basic_data.nick_name, ''), employee_basic_data.first_name) as employee_name"),
                     DB::raw('COALESCE(customer_basic_data.name_1, customer.email) as customer_name')
                 )
                 ->orderBy('ticket_confirmation.created_at', 'desc')
@@ -1722,6 +1754,14 @@ class TicketController extends Controller
                 'channel' => $ticket->channel,
                 'folder' => $ticket->folder,
                 'file_log' => $ticket->file_log,
+                // Link folder deliverable OneDrive (scoped ke folder ticket saja).
+                // Ini anonymous edit-link yang dibuat pada folder ticket di
+                // TicketDeliverableController::store — customer yang membuka link
+                // hanya melihat isi folder ticket ini (tidak bisa naik ke folder
+                // customer/CUSTOMER DELIVERABLE, sehingga tidak melihat customer lain).
+                // Null selama belum ada file deliverable yang diupload (folder lazy-create).
+                'deliverable_folder_url' => $ticket->onedrive_folder_url,
+                'has_deliverable_folder' => !empty($ticket->onedrive_folder_url),
                 'start_date' => $ticket->start_date,
                 'end_date' => $ticket->end_date,
                 'man_days' => $ticket->man_days,
@@ -2731,7 +2771,7 @@ class TicketController extends Controller
                     'ticket_confirmation.*',
                     'ticket.description',
                     'ticket.ticket_priority',
-                    'employee_basic_data.first_name as employee_name',
+                    DB::raw("COALESCE(NULLIF(employee_basic_data.nick_name, ''), employee_basic_data.first_name) as employee_name"),
                     DB::raw('COALESCE(customer_basic_data.name_1, customer.email) as customer_name')
                 )
                 ->first();
@@ -3099,7 +3139,8 @@ class TicketController extends Controller
         }
 
         // Only Admin, Helpdesk, and RPMO can create delivery supports
-        if (!in_array($sessionUser['role']['id'], RoleId::TICKET_MANAGER_GROUP, true)) {
+        $roleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id']]);
+        if (!array_intersect($roleIds, RoleId::TICKET_MANAGER_GROUP)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only Admin, Helpdesk, and RPMO can create delivery supports'

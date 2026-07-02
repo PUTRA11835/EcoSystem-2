@@ -346,14 +346,17 @@
         /* ── Mobile ─────────────────────────────────────────────────── */
         .mobile-strip { display:none; }
         @media (max-width:767px) {
-            body { flex-direction:column; overflow-y:auto; height:auto; }
-            html { height:auto; }
+            html { height:auto; overflow:auto; }
+            body { flex-direction:column; overflow-y:auto; height:auto; min-height:100vh; }
             .mobile-strip {
                 display:flex; align-items:center; justify-content:center; gap:.75rem;
                 background:linear-gradient(135deg, #1A0000, #6B0000);
                 padding:1.25rem 1.5rem;
             }
-            #login-panel { width:100%; height:auto; min-height:calc(100vh - 62px); }
+            /* The panel carries inline height:100vh/overflow:hidden — beat it with
+               !important so the whole form (incl. submit) can scroll into view on
+               short screens (phone landscape / on-screen keyboard). */
+            #login-panel { width:100%; height:auto !important; min-height:calc(100vh - 62px); overflow:visible !important; }
             #login-panel > div:nth-child(3) { padding:1rem 1.5rem 0; }
             .lp-inner { max-width:100%; }
         }
@@ -774,7 +777,7 @@
                 headers:{
                     'Content-Type':'application/json',
                     'Accept':'application/json',
-                    'X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]').content,
+                    'X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                     'X-Requested-With':'XMLHttpRequest',
                 },
                 credentials:'same-origin',

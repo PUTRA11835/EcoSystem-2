@@ -141,7 +141,7 @@
         $showTabs     = !$lockedType && ($tabProject + $tabSupport + $tabOffice) > 1;
     @endphp
     @if($showTabs)
-    <div class="flex items-center gap-2 mb-4">
+    <div class="flex flex-wrap items-center gap-2 mb-4">
         <button id="typeTabAll"
             onclick="filterByType('')"
             class="type-tab-btn inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border-2 border-red-600 bg-red-600 text-white transition-all duration-150">
@@ -248,7 +248,7 @@
     <!-- Timesheets Table -->
     <div class="ts-card bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         {{-- Table Toolbar --}}
-        <div class="ts-toolbar flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/60">
+        <div class="ts-toolbar flex flex-wrap items-center justify-between gap-y-2 px-4 py-2.5 border-b border-gray-100 bg-gray-50/60">
             <!-- Bulk Actions Bar (Hidden by default) -->
             <div id="bulkActions" class="hidden items-center gap-2">
                 <span class="text-xs font-medium text-gray-700">
@@ -1380,7 +1380,7 @@ async function submitLateAccessRequest() {
             </button>
         </div>
         <div class="p-6 flex flex-col gap-4">
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-semibold text-gray-500 mb-1">Dari Tanggal</label>
                     <input type="date" id="tsExportFrom" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400">
@@ -1390,7 +1390,7 @@ async function submitLateAccessRequest() {
                     <input type="date" id="tsExportTo" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400">
                 </div>
             </div>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-semibold text-gray-500 mb-1">Status</label>
                     <select id="tsExportStatus" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400">
