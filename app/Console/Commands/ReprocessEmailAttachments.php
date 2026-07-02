@@ -39,9 +39,9 @@ class ReprocessEmailAttachments extends Command
             return 0;
         }
 
-        $sender = env('MS_SENDER_EMAIL');
+        $sender = config('services.microsoft_graph.sender_email');
         $token  = $this->getAccessToken();
-        $base   = rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/');
+        $base   = rtrim(config('services.microsoft_graph.base_url', 'https://graph.microsoft.com/v1.0'), '/');
 
         foreach ($messages as $msg) {
             $this->info("Message #{$msg->id} | {$msg->email_message_id}");
@@ -152,11 +152,11 @@ class ReprocessEmailAttachments extends Command
     private function getAccessToken(): string
     {
         $res = Http::asForm()->post(
-            "https://login.microsoftonline.com/" . env('MS_TENANT_ID') . "/oauth2/v2.0/token",
+            "https://login.microsoftonline.com/" . config('services.microsoft_graph.tenant_id') . "/oauth2/v2.0/token",
             [
                 'grant_type'    => 'client_credentials',
-                'client_id'     => env('MS_CLIENT_ID'),
-                'client_secret' => env('MS_CLIENT_SECRET'),
+                'client_id'     => config('services.microsoft_graph.client_id'),
+                'client_secret' => config('services.microsoft_graph.client_secret'),
                 'scope'         => 'https://graph.microsoft.com/.default',
             ]
         );
