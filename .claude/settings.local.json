@@ -158,7 +158,8 @@
       "Bash(Write-Output \"Controllers deleted\")",
       "Bash(not exist *)",
       "Bash(php /Users/tiopramudya/Documents/EC/EcoSystem-2/artisan tinker '--execute= *)",
-      "Bash(grep -A 20 'protected $middleware' /Users/tiopramudya/Documents/EC/EcoSystem-2/app/Http/Kernel.php)"
+      "Bash(grep -A 20 'protected $middleware' /Users/tiopramudya/Documents/EC/EcoSystem-2/app/Http/Kernel.php)",
+      "Bash(php artisan tinker '--execute= *)"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",

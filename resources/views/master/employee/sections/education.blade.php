@@ -28,7 +28,7 @@
         
         <!-- Basic Education Information Section -->
         <div class="mb-6">
-            <div class="grid grid-cols-6 gap-4">
+            <div class="grid grid-cols-6 gap-4 form-grid">
                 <!-- Education Level -->
                 <div class="col-span-1">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Education Level <span class="text-red-600">*</span></label>
@@ -80,7 +80,7 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-6 gap-4 mt-4">
+            <div class="grid grid-cols-6 gap-4 form-grid mt-4">
                 <!-- Unit/Faculty -->
                 <div class="col-span-2">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Unit/Faculty</label>
@@ -116,7 +116,7 @@
         <!-- Attachments Section -->
         <div class="mb-6">
             <h5 class="text-sm font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">Attachments</h5>
-            <div class="grid grid-cols-6 gap-4">
+            <div class="grid grid-cols-6 gap-4 form-grid">
                 <!-- Attachment Name -->
                 <div class="col-span-2">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Attachment Name</label>
@@ -151,12 +151,12 @@
 
     <!-- EDUCATION DETAILS SECTION (Table) -->
     <div>
-        <div class="flex justify-between items-center mb-4">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
             <h3 class="text-base font-semibold text-gray-900">Education Details</h3>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <!-- Search -->
                 <div class="relative">
-                    <input type="text" id="educationSearch" placeholder="Search" class="w-64 px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                    <input type="text" id="educationSearch" placeholder="Search" class="w-full sm:w-64 px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
                     <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                             <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />

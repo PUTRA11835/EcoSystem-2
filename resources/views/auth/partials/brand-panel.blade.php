@@ -106,13 +106,13 @@
     /* ── Mobile strip ──────────────────────────────────────────── */
     .mobile-strip { display:none; }
     @media (max-width:767px) {
-        body { flex-direction:column; overflow-y:auto; height:auto; }
-        html { height:auto; }
+        html { height:auto; overflow:auto; }
+        body { flex-direction:column; overflow-y:auto; height:auto; min-height:100vh; }
         .mobile-strip {
             display:flex; align-items:center; justify-content:center; gap:.75rem;
             background:linear-gradient(135deg,#1A0000,#6B0000); padding:1.25rem 1.5rem;
         }
-        #content-panel { width:100%; height:auto; min-height:calc(100vh - 62px); }
+        #content-panel { width:100%; height:auto; min-height:calc(100vh - 62px); overflow:visible; }
     }
 </style>
 

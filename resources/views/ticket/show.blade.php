@@ -22,7 +22,7 @@
 @endsection
 
 @section('page-actions')
-{{-- Folder ticket diturunkan dari folder Customer Deliverable milik delivery support yang di-assign.
+{{-- Folder ticket diturunkan langsung dari folder Customer Deliverable milik customer ticket.
      Link "Open Folder" muncul otomatis setelah deliverable pertama di-upload. --}}
 @if($ticket->onedrive_folder_url)
 <a id="ticketFolderBtn" href="{{ $ticket->onedrive_folder_url }}" target="_blank" rel="noopener"
@@ -1904,6 +1904,20 @@
 
         {{-- Body --}}
         <div class="px-6 pb-2 space-y-3">
+            {{-- Template Meeting --}}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Gunakan Template</label>
+                <div class="custom-dd relative w-full" data-onchange="onMeetingTemplateSelect" data-fixed="true">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between gap-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white hover:border-gray-400 transition-all">
+                        <span class="custom-dd-label text-gray-500">Tidak pakai template</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="meetingTemplateSelect" value="">
+                    <div id="meetingTemplatePanel" class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">Tidak pakai template (kosongkan)</button>
+                    </div>
+                </div>
+            </div>
             {{-- Link meeting — hanya tampil saat mulai meeting --}}
             <div id="meetingLinkWrap">
                 {{-- Waktu --}}
@@ -1914,7 +1928,7 @@
                 {{-- Mulai: tanggal + jam --}}
                 <div id="meetingStartRow" class="mb-2">
                     <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">Mulai</p>
-                    <div class="grid grid-cols-2 gap-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
                             <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -1935,7 +1949,7 @@
                 {{-- Selesai: tanggal + jam --}}
                 <div class="mb-3">
                     <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">Selesai</p>
-                    <div class="grid grid-cols-2 gap-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
                             <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -1976,6 +1990,19 @@
                 <textarea id="meetingNotes" rows="2"
                     class="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all bg-white"
                     placeholder="(opsional)"></textarea>
+            </div>
+
+            {{-- Simpan sebagai template --}}
+            <div class="pt-1">
+                <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                    <input type="checkbox" id="saveAsTemplateCheckbox" class="rounded border-gray-300 text-purple-600 focus:ring-purple-400" onchange="toggleSaveTemplateFields()">
+                    Simpan sebagai template
+                </label>
+                <div id="saveTemplateFields" class="hidden mt-2 space-y-2">
+                    <input id="templateNameInput" type="text" placeholder="Nama template, mis. Sync Mingguan Support"
+                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300">
+                    <p class="text-xs text-gray-400">Template ini hanya bisa dipakai di tiket ini.</p>
+                </div>
             </div>
         </div>
 
@@ -3064,18 +3091,20 @@
     }
 
     // â"€â"€ Render attachment list (gambar inline, file sebagai link download) â"€â"€â"€â"€â"€â"€
-    // isEmailWithHtml: true jika pesan email sudah punya message_html &rarr;
-    //   inline images sudah ditampilkan di dalam HTML body, jadi tidak perlu ditampilkan ulang sebagai thumbnail
-    function renderAttachments(attachments, isEmailWithHtml = false) {
+    // bodyHasInlineImages: true jika message_html sudah me-render inline image di
+    //   dalam body (email setelah CID replacement, ATAU internal note yang
+    //   inline image-nya sudah jadi <img src="/storage/..."> lewat InlineImageService).
+    //   Bila true, jangan tampilkan inline image lagi sebagai thumbnail (cegah double).
+    function renderAttachments(attachments, bodyHasInlineImages = false) {
         if (!attachments || attachments.length === 0) return '';
 
         // Pisahkan inline images dan file biasa
-        // Jika email dengan HTML body: abaikan inline images (sudah ada di message_html setelah CID replacement)
-        const inlineImgs = isEmailWithHtml
+        // Jika body sudah punya inline image: abaikan is_inline (sudah ada di message_html)
+        const inlineImgs = bodyHasInlineImages
             ? []
             : attachments.filter(a => a.is_inline && a.mime_type?.startsWith('image/'));
-        // Untuk email dengan HTML body: juga exclude is_inline=true dari files (sudah ada di HTML body)
-        const files = isEmailWithHtml
+        // Bila body sudah punya inline image: juga exclude is_inline=true dari files (sudah ada di HTML body)
+        const files = bodyHasInlineImages
             ? attachments.filter(a => !a.is_inline)
             : attachments.filter(a => !inlineImgs.includes(a));
 
@@ -3319,6 +3348,13 @@
         }
     }
 
+    function toggleCcExtra(id, btn) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.toggle('hidden');
+        btn.textContent = el.classList.contains('hidden') ? `+${btn.dataset.count} more` : 'show less';
+    }
+
     function createMessageBubble(msg) {
         messageCache.set(msg.id, msg);
         // Meeting events — kartu khusus di tengah chat
@@ -3443,16 +3479,34 @@
         const rawCc  = msg.cc_emails;
         const ccList = Array.isArray(rawCc) ? rawCc
                      : (typeof rawCc === 'string' && rawCc ? ((() => { try { return JSON.parse(rawCc); } catch(e) { return []; } })()) : []);
+        const ccChip = c => `<span class="truncate max-w-[160px]" title="${c.address || c}">${c.name || c.address || c}</span>`;
+        const CC_VISIBLE = 2;
+        const ccExtraCount = ccList.length - CC_VISIBLE;
+        const ccExtraId    = `ccExtra-${msg.id}`;
         const ccBadge  = ccList.length > 0
-            ? `<span class="inline-flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
-                <svg style="width:9px;height:9px;flex-shrink:0" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
-                <span class="font-medium text-gray-500">CC:</span>
-                ${ccList.map(c => `<span title="${c.address || c}">${c.name || c.address || c}</span>`).join(', ')}
+            ? `<span class="flex flex-wrap ${isEmployee ? 'justify-end' : ''} items-center gap-x-1 gap-y-0.5 max-w-full text-[10px] text-gray-400 mt-0.5">
+                <span class="inline-flex items-center gap-1 flex-shrink-0">
+                    <svg style="width:9px;height:9px;flex-shrink:0" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
+                    <span class="font-medium text-gray-500">CC:</span>
+                </span>
+                ${ccList.slice(0, CC_VISIBLE).map(ccChip).join('<span>,</span>')}
+                ${ccExtraCount > 0 ? `
+                    <span>,</span>
+                    <span id="${ccExtraId}" class="hidden flex flex-wrap items-center gap-x-1 gap-y-0.5">
+                        ${ccList.slice(CC_VISIBLE).map(ccChip).join('<span>,</span>')}
+                    </span>
+                    <button type="button" data-count="${ccExtraCount}" onclick="toggleCcExtra('${ccExtraId}', this)"
+                        class="text-blue-500 hover:text-blue-700 font-medium hover:underline flex-shrink-0">+${ccExtraCount} more</button>
+                ` : ''}
                </span>`
             : '';
 
-        const isEmailWithHtml = msg.channel === 'email' && !!msg.message_html;
-        const attachmentsHtml = renderAttachments(msg.attachments, isEmailWithHtml);
+        // Body sudah me-render inline image bila: email dengan HTML body, ATAU
+        // internal note dengan message_html (inline image-nya jadi <img src="/storage/...">).
+        // Keduanya tidak boleh menampilkan ulang inline image sebagai thumbnail (cegah double).
+        const bodyHasInlineImages = !!msg.message_html
+            && (msg.channel === 'email' || msg.message_type === 'internal_note');
+        const attachmentsHtml = renderAttachments(msg.attachments, bodyHasInlineImages);
 
         if (isInternalNote) {
             const isMine = msg.sender_id && currentUserId && String(msg.sender_id) === String(currentUserId);
@@ -3577,7 +3631,7 @@
         return `
             <div class="flex gap-3 ${isEmployee ? 'flex-row-reverse' : ''}">
                 <div class="w-8 h-8 ${avatarBg} rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">${initials}</div>
-                <div class="${isEmployee ? 'text-right' : ''}">
+                <div class="max-w-[85%] ${isEmployee ? 'text-right' : ''}">
                     <div class="flex flex-col mb-1 ${isEmployee ? 'items-end' : ''}">
                         <div class="flex items-center gap-2 ${isEmployee ? 'justify-end' : ''}">
                             <span class="text-sm font-semibold text-gray-900">${senderName}</span>
@@ -4268,6 +4322,15 @@
         notesArea.value = '';
         if (linkInput) linkInput.value = '';
 
+        // Reset pilihan template & form "simpan sebagai template" setiap kali modal dibuka
+        setCustomDropdownValue('meetingTemplateSelect', '');
+        const saveTplCheckbox = document.getElementById('saveAsTemplateCheckbox');
+        if (saveTplCheckbox) saveTplCheckbox.checked = false;
+        const templateNameInput = document.getElementById('templateNameInput');
+        if (templateNameInput) templateNameInput.value = '';
+        toggleSaveTemplateFields();
+        loadMeetingTemplates();
+
         // Always "Schedule Meeting" mode — no manual End Meeting needed
         const header     = document.getElementById('meetingModalHeader');
         const iconWrap   = document.getElementById('meetingModalIconWrap');
@@ -4313,6 +4376,99 @@
         if (modal) modal.classList.add('hidden');
     }
 
+    // ==================== MEETING TEMPLATES ====================
+    let _meetingTemplates = [];
+
+    async function loadMeetingTemplates() {
+        const panel = document.getElementById('meetingTemplatePanel');
+        if (!panel) return;
+
+        try {
+            const res  = await fetch(`/api/tickets/${ticketId}/meeting-templates`, { headers: getHeaders(), credentials: 'same-origin' });
+            const data = await res.json();
+            _meetingTemplates = data.success ? (data.data || []) : [];
+        } catch {
+            _meetingTemplates = [];
+        }
+
+        // Catatan: item.textContent dipakai apa adanya oleh custom-dropdown.js sebagai
+        // label tombol setelah dipilih — jangan sisipkan teks tambahan (mis. "oleh X")
+        // di dalam .custom-dd-item, taruh di attribute `title` (tooltip) saja.
+        const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+        const renderItem = (t) => `
+            <div class="custom-dd-item w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer" data-value="${t.id}" title="${t.created_by_name ? 'Dibuat oleh ' + escapeHtml(t.created_by_name) : ''}">
+                <span class="truncate">${escapeHtml(t.name)}</span>
+                ${t.is_owner ? `<button type="button" onclick="event.stopPropagation(); deleteMeetingTemplate(${t.id})" class="text-gray-300 hover:text-red-500 flex-shrink-0 p-0.5" title="Hapus template">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>` : ''}
+            </div>`;
+
+        let html = `<button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">Tidak pakai template (kosongkan)</button>`;
+        html += _meetingTemplates.map(renderItem).join('');
+        panel.innerHTML = html;
+    }
+
+    function onMeetingTemplateSelect() {
+        const val = document.getElementById('meetingTemplateSelect')?.value;
+        const linkInput = document.getElementById('meetingLink');
+        const notesArea = document.getElementById('meetingNotes');
+        if (!val) {
+            if (linkInput) linkInput.value = '';
+            if (notesArea) notesArea.value = '';
+            return;
+        }
+        const tpl = _meetingTemplates.find(t => String(t.id) === String(val));
+        if (!tpl) return;
+        if (linkInput) linkInput.value = tpl.meeting_link || '';
+        if (notesArea)  notesArea.value = tpl.notes || '';
+    }
+
+    function toggleSaveTemplateFields() {
+        const checked = !!document.getElementById('saveAsTemplateCheckbox')?.checked;
+        const fields  = document.getElementById('saveTemplateFields');
+        if (fields) fields.classList.toggle('hidden', !checked);
+    }
+
+    async function saveMeetingTemplateIfRequested(link, notes) {
+        const checkbox = document.getElementById('saveAsTemplateCheckbox');
+        if (!checkbox?.checked) return;
+
+        const name = document.getElementById('templateNameInput')?.value?.trim();
+        if (!name) return;
+
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/meeting-templates`, {
+                method: 'POST',
+                headers: getHeaders(),
+                credentials: 'same-origin',
+                body: JSON.stringify({ name, meeting_link: link, notes }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Template "' + name + '" tersimpan.', 'success');
+            } else {
+                showNotification(data.message || 'Gagal menyimpan template', 'error');
+            }
+        } catch {
+            showNotification('Meeting terkirim, tapi template gagal disimpan (jaringan)', 'error');
+        }
+    }
+
+    async function deleteMeetingTemplate(id) {
+        if (!confirm('Hapus template ini?')) return;
+        try {
+            const res  = await fetch(`/api/tickets/${ticketId}/meeting-templates/${id}`, { method: 'DELETE', headers: getHeaders(), credentials: 'same-origin' });
+            const data = await res.json();
+            if (data.success) {
+                loadMeetingTemplates();
+            } else {
+                showNotification(data.message || 'Gagal menghapus template', 'error');
+            }
+        } catch {
+            showNotification('Terjadi kesalahan jaringan', 'error');
+        }
+    }
+
     async function confirmMeeting() {
         const btn    = document.getElementById('meetingConfirmBtn');
         const notes     = document.getElementById('meetingNotes')?.value?.trim() || null;
@@ -4354,6 +4510,7 @@
                 closeMeetingPanel();
                 showNotification(data.message, 'success');
                 btn.disabled = false;
+                await saveMeetingTemplateIfRequested(link, notes);
                 try { await loadMessages(); } catch (_) {}
             } else {
                 showNotification(data.message || 'Gagal', 'error');
@@ -6411,10 +6568,14 @@
             editNoteQuill.setText(msg.message_body || '');
         }
 
-        // Render existing attachments
+        // Render existing attachments — HANYA file non-inline. Inline image tidak
+        // ditampilkan sebagai baris removable karena byte-nya direferensikan langsung
+        // oleh <img src="/storage/..."> di dalam editor body. Menghapusnya lewat daftar
+        // ini akan meng-orphan URL di body → gambar 404 setelah cache browser hilang.
+        // Inline image dikelola lewat isi editor (hapus <img> dari body untuk membuang).
         const attContainer = document.getElementById('editNoteExistingAtts');
         attContainer.innerHTML = '';
-        (msg.attachments || []).forEach(att => {
+        (msg.attachments || []).filter(att => !att.is_inline).forEach(att => {
             const row = document.createElement('div');
             row.className = 'flex items-center gap-2 text-xs text-gray-700 py-1';
             row.dataset.attId = att.id;
@@ -6548,7 +6709,7 @@
 @endif
 
 {{-- OneDrive folder generation dihapus — folder ticket kini otomatis dibuat di bawah
-     folder Customer Deliverable milik delivery support saat upload deliverable. --}}
+     folder Customer Deliverable milik customer ticket saat upload deliverable. --}}
 
 {{-- ==================== REUSABLE CONFIRM MODAL ==================== --}}
 <div id="confirmModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
@@ -6710,12 +6871,7 @@
             </div>
             {{-- File --}}
             <div>
-                <label class="text-xs font-semibold text-gray-600 mb-1 block">File
-                    <span id="ndNoSupportHint" class="ml-1 text-orange-500 font-normal {{ ($deliverySupport ?? null) ? 'hidden' : '' }}">(ticket belum dihubungkan ke delivery support)</span>
-                    @if(($deliverySupport ?? null) && empty($deliverySupport->onedrive_deliverable_folder_id))
-                    <span class="ml-1 text-orange-500 font-normal">(generate Customer Deliverable folder di halaman support dulu)</span>
-                    @endif
-                </label>
+                <label class="text-xs font-semibold text-gray-600 mb-1 block">File</label>
                 <div class="flex items-center gap-2">
                     <label class="flex-1 cursor-pointer flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition">
                         <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -7031,10 +7187,6 @@ function openNewDocModal() {
     document.getElementById('ndFileName').textContent = 'Choose file...';
     document.getElementById('ndError').classList.add('hidden');
     document.getElementById('ndSubmitBtn').disabled = false;
-    // Sinkronkan hint "belum dihubungkan ke delivery support" dengan status assign terkini
-    // (assignedDsId di-update saat assign tanpa reload halaman).
-    const noSupportHint = document.getElementById('ndNoSupportHint');
-    if (noSupportHint) noSupportHint.classList.toggle('hidden', !!assignedDsId);
     document.getElementById('newDocModal').classList.remove('hidden');
 }
 

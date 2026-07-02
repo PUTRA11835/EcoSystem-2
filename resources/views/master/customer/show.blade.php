@@ -19,8 +19,8 @@
 
     <!-- Customer Profile Card -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div class="flex items-start gap-6">
-            <div id="headerInitials" class="w-32 h-32 rounded-full bg-gradient-to-br from-red-800 to-red-950 text-white flex items-center justify-center font-bold text-4xl flex-shrink-0">
+        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 text-center sm:text-left">
+            <div id="headerInitials" class="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-red-800 to-red-950 text-white flex items-center justify-center font-bold text-3xl sm:text-4xl flex-shrink-0">
                 @php
                     $name1 = $customer->basicData->name_1 ?? 'N';
                     $initials = strtoupper(substr($name1, 0, 1));
@@ -31,10 +31,10 @@
                 @endphp
                 {{ $initials }}
             </div>
-            <div class="flex-1">
-                <div class="flex items-start justify-between mb-4">
+            <div class="flex-1 w-full min-w-0">
+                <div class="flex flex-col sm:flex-row items-center sm:items-start sm:justify-between gap-2 mb-4">
                     <div>
-                        <h1 id="headerName1" class="text-3xl font-bold text-gray-900">{{ $customer->basicData->name_1 ?? 'N/A' }}</h1>
+                        <h1 id="headerName1" class="text-2xl sm:text-3xl font-bold text-gray-900">{{ $customer->basicData->name_1 ?? 'N/A' }}</h1>
                         <p id="headerName2" class="text-lg text-gray-600 mt-1 {{ ($customer->basicData->name_2 ?? '') ? '' : 'hidden' }}">{{ $customer->basicData->name_2 ?? '' }}</p>
                     </div>
                     @php

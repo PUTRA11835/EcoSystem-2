@@ -234,6 +234,25 @@
             box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15);
         }
 
+        /* ── Responsive form grids ───────────────────────────────────────────
+           Master data section forms use a dense `grid-cols-6` layout for
+           desktop. Add `form-grid` alongside it: below the lg breakpoint the
+           column count steps down and every field spans a single cell, so the
+           mixed col-span-1/2/3/4/6 children never overflow or misalign.
+           At >= 1024px the original grid-cols-6 + col-span-* rules apply. */
+        @media (max-width: 1023px) {
+            .form-grid > * { grid-column: auto !important; }
+        }
+        @media (min-width: 768px) and (max-width: 1023px) {
+            .form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+        }
+        @media (min-width: 480px) and (max-width: 767px) {
+            .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+        }
+        @media (max-width: 479px) {
+            .form-grid { grid-template-columns: minmax(0, 1fr) !important; }
+        }
+
         /* Card hover effect */
         .card-hover {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -322,8 +341,11 @@
     <div id="toast-container"></div>
     <div class="flex min-h-screen">
         
+        <!-- Mobile sidebar backdrop (only visible when drawer is open on < lg) -->
+        <div id="sidebarOverlay" onclick="closeSidebar()" class="fixed inset-0 z-40 hidden lg:hidden" style="background-color: rgba(0,0,0,0.5);"></div>
+
         <!-- Sidebar - Modern Design -->
-        <aside id="sidebar" class="sidebar-transition fixed h-screen overflow-y-auto {{ $preferences['sidebar_style'] === 'gradient' ? 'primary-gradient' : 'primary-solid' }} text-white shadow-2xl z-50 w-64">
+        <aside id="sidebar" class="sidebar-transition fixed inset-y-0 left-0 h-screen overflow-y-auto {{ $preferences['sidebar_style'] === 'gradient' ? 'primary-gradient' : 'primary-solid' }} text-white shadow-2xl z-50 w-64 -translate-x-full lg:translate-x-0">
             <!-- Logo Section -->
             <div class="sidebar-logo p-5 pb-2 flex items-center justify-center">
                     <div class="w-full rounded-xl p-3 backdrop-blur-sm">
@@ -833,21 +855,21 @@
         </aside>
 
         <!-- Main Content -->
-        <main id="mainContent" class="sidebar-transition flex-1 ml-64 min-w-0">
+        <main id="mainContent" class="sidebar-transition flex-1 ml-0 lg:ml-64 min-w-0">
             <!-- Header - Modern Design -->
             <header class="sticky top-0 z-40 shadow-sm border-b border-gray-100" style="background-color: var(--card-bg);">
-                <div class="px-6 py-4 flex justify-between items-center">
-                    <div class="flex items-center gap-4">
-                        <button onclick="toggleSidebar()" class="w-10 h-10 flex items-center justify-center border-2 rounded-xl hover:bg-opacity-10 primary-hover primary-border transition-all" style="border-color: var(--primary-color); color: var(--text-color);">
+                <div class="px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center gap-3">
+                    <div class="flex items-center gap-3 sm:gap-4 min-w-0">
+                        <button onclick="toggleSidebar()" class="flex-shrink-0 w-10 h-10 flex items-center justify-center border-2 rounded-xl hover:bg-opacity-10 primary-hover primary-border transition-all" style="border-color: var(--primary-color); color: var(--text-color);">
                             <i class="fas fa-bars"></i>
                         </button>
-                        <div>
-                            <h1 class="text-xl font-bold mb-0.5" style="color: var(--text-color);">@yield('page-title', 'Dashboard')</h1>
-                            <p class="text-xs text-gray-500">@yield('page-subtitle', 'Welcome back')</p>
+                        <div class="min-w-0">
+                            <h1 class="text-base sm:text-xl font-bold mb-0.5 truncate" style="color: var(--text-color);">@yield('page-title', 'Dashboard')</h1>
+                            <p class="text-xs text-gray-500 truncate">@yield('page-subtitle', 'Welcome back')</p>
                         </div>
                     </div>
-                    
-                    <div class="flex items-center gap-4">
+
+                    <div class="flex items-center gap-2 sm:gap-4 flex-shrink-0">
                         <!-- Search Bar -->
                         @yield('page-actions')
                         <!-- Notification Bell -->
@@ -965,24 +987,68 @@
         var isDeliveryDropdownOpen = {{ Request::is('project*') || Request::is('support*') ? 'true' : 'false' }};
         var isReportingDropdownOpen = {{ Request::is('reporting*') ? 'true' : 'false' }};
         
+        // Desktop = docked sidebar (>= Tailwind lg breakpoint 1024px).
+        // Below that we treat the sidebar as a slide-in drawer with a backdrop.
+        function isDesktopViewport() { return window.innerWidth >= 1024; }
+
+        function openSidebar() {
+            var sidebar = document.getElementById('sidebar');
+            var overlay = document.getElementById('sidebarOverlay');
+            // Guarantee full width even if the sidebar was collapsed on desktop first.
+            sidebar.classList.remove('w-0', 'overflow-hidden', '-translate-x-full');
+            sidebar.classList.add('w-64', 'translate-x-0');
+            if (overlay) overlay.classList.remove('hidden');
+            document.body.style.overflow = 'hidden'; // lock scroll behind drawer
+        }
+
+        function closeSidebar() {
+            var sidebar = document.getElementById('sidebar');
+            var overlay = document.getElementById('sidebarOverlay');
+            sidebar.classList.add('-translate-x-full');
+            sidebar.classList.remove('translate-x-0');
+            if (overlay) overlay.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
         function toggleSidebar() {
             var sidebar     = document.getElementById('sidebar');
             var mainContent = document.getElementById('mainContent');
 
-            isCollapsed = !isCollapsed;
-
-            if (isCollapsed) {
-                sidebar.classList.remove('w-64');
-                sidebar.classList.add('w-0', 'overflow-hidden');
-                mainContent.classList.remove('ml-64');
-                mainContent.classList.add('ml-0');
+            if (isDesktopViewport()) {
+                // Desktop: collapse/expand the docked sidebar and reflow content.
+                isCollapsed = !isCollapsed;
+                if (isCollapsed) {
+                    sidebar.classList.remove('w-64');
+                    sidebar.classList.add('w-0', 'overflow-hidden');
+                    mainContent.classList.remove('lg:ml-64');
+                    mainContent.classList.add('lg:ml-0');
+                } else {
+                    sidebar.classList.remove('w-0', 'overflow-hidden');
+                    sidebar.classList.add('w-64');
+                    mainContent.classList.remove('lg:ml-0');
+                    mainContent.classList.add('lg:ml-64');
+                }
             } else {
-                sidebar.classList.remove('w-0', 'overflow-hidden');
-                sidebar.classList.add('w-64');
-                mainContent.classList.remove('ml-0');
-                mainContent.classList.add('ml-64');
+                // Mobile/tablet: open or close the drawer.
+                var isOpen = sidebar.classList.contains('translate-x-0');
+                if (isOpen) closeSidebar(); else openSidebar();
             }
         }
+
+        // When resizing up to desktop, drop any mobile drawer state so the
+        // docked sidebar and scroll lock are always in a clean state.
+        window.addEventListener('resize', function () {
+            if (isDesktopViewport()) {
+                var overlay = document.getElementById('sidebarOverlay');
+                if (overlay) overlay.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+        });
+
+        // Close the drawer with the Escape key on mobile.
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && !isDesktopViewport()) closeSidebar();
+        });
 
         function toggleMasterDropdown() {
             isMasterDropdownOpen = !isMasterDropdownOpen;
@@ -1198,9 +1264,11 @@
         });
 
         /* ---- notification sound (HTML Audio — works without immediate user gesture) ---- */
-        var _soundEnabled    = localStorage.getItem('notif_sound_enabled') !== 'false';
-        var _lastUnreadCount = null;
-        var _pageTitle       = document.title;
+        var _soundEnabled     = localStorage.getItem('notif_sound_enabled') !== 'false';
+        var _lastUnreadCount  = null;
+        var _lastNonMsgCount  = null;
+        var _lastMessageCount = null;
+        var _pageTitle        = document.title;
 
         // Use <audio> element — simpler and respects Chrome's per-origin user activation,
         // meaning it works even when triggered by push/postMessage without a direct click.
@@ -1392,7 +1460,8 @@
                     var badge = document.getElementById('bellBadge');
                     if (!badge) return;
 
-                    // Badge + OS notification only for non-message types
+                    // Badge now includes chat/message types (ticket replies, internal notes)
+                    // alongside every other notification type.
                     var count = data.count || 0;
                     if (count > 0) {
                         badge.textContent = count > 99 ? '99+' : count;
@@ -1401,17 +1470,24 @@
                         badge.classList.add('hidden');
                     }
                     updateTabTitle(count);
-                    if (_lastUnreadCount !== null && count > _lastUnreadCount) {
+
+                    // Split the delta so message-type increases play the chat sound while
+                    // everything else keeps using the ticket sound + OS notification.
+                    var msgCount    = data.message_sound_count || 0;
+                    var nonMsgCount = count - msgCount;
+
+                    if (_lastNonMsgCount !== null && nonMsgCount > _lastNonMsgCount) {
                         handleNewNotifications();
                     }
-                    _lastUnreadCount = count;
+                    _lastNonMsgCount = nonMsgCount;
 
-                    // Message sound only (internal note / email reply) — no badge, no OS notif
-                    var msgCount = data.message_sound_count || 0;
-                    if (msgCount > 0) {
+                    if (_lastMessageCount !== null && msgCount > _lastMessageCount) {
                         var onTicketPage = /^\/ticket\/\d+/.test(window.location.pathname);
                         if (!onTicketPage) { playChatSound(); }
                     }
+                    _lastMessageCount = msgCount;
+
+                    _lastUnreadCount = count;
                 })
                 .catch(function () {});
         }
@@ -1699,10 +1775,8 @@
                     } else {
                         if (typeof window.playTicketSound === 'function') window.playTicketSound();
                     }
-                    if (!msgTypes.includes(payload.type)) {
-                        if (typeof window.fetchUnreadCount === 'function') {
-                            window.fetchUnreadCount();
-                        }
+                    if (typeof window.fetchUnreadCount === 'function') {
+                        window.fetchUnreadCount();
                     }
                 }
             });

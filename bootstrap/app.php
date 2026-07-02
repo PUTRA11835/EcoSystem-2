@@ -50,5 +50,23 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // CSRF token expired/invalid (session timeout, stale form tab, dsb).
+        // Tanpa ini, Laravel merender halaman 419 langsung sebagai response
+        // dari POST tsb (bukan redirect) -> browser mengira halaman itu "hasil
+        // POST" -> reload/back kemudian memicu "Confirm Form Resubmission"
+        // dan bisa berujung ERR_CACHE_MISS. Redirect back mengembalikan alur
+        // ke pola redirect-setelah-POST yang aman untuk reload/back.
+        $exceptions->render(function (\Illuminate\Session\TokenMismatchException $e, $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Session expired. Please refresh the page and try again.',
+                ], 419);
+            }
+
+            return redirect()
+                ->back()
+                ->withInput($request->except('_token', 'password', 'password_confirmation'))
+                ->with('error', 'Your session expired. Please try again.');
+        });
     })->create();

@@ -16,7 +16,7 @@
             </button>
         </div>
 
-        <div class="grid grid-cols-6 gap-4">
+        <div class="grid grid-cols-6 gap-4 form-grid">
             <!-- Document Type -->
             <div class="col-span-2">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Document Type <span class="text-red-600">*</span></label>
@@ -75,7 +75,7 @@
 
     <!-- DOCUMENTS TABLE -->
     <div>
-        <div class="flex justify-between items-center mb-4">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
             <h3 class="text-base font-semibold text-gray-900">Uploaded Documents</h3>
             <button onclick="deleteSelectedAttachment()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-red-600 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">

@@ -381,7 +381,7 @@
             </button>
         </div>
         <div class="p-6 space-y-4">
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Year</label>
                     <input type="number" id="cpYear" min="2020" max="2100" required
@@ -405,7 +405,7 @@
             <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-500" id="cpDefaultHint">
                 Select year and month to see default date range.
             </div>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Start Date</label>
                     <input type="date" id="cpStartDate" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus-ring">
@@ -915,7 +915,7 @@ async function executeDeletePeriod() {
                 <i class="fas fa-info-circle mr-1"></i>
                 Changing dates will affect timesheet submission windows. All timesheets already submitted will remain unchanged.
             </div>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Start Date</label>
                     <input type="date" id="edStartDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus-ring">

@@ -211,11 +211,11 @@
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Manager</label>
                 <input type="text" id="manager" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <input type="checkbox" id="block" class="w-5 h-5 text-red-800 border-gray-300 rounded focus:ring-red-800">
                 <label for="block" class="text-sm font-semibold text-gray-700">Block Employee</label>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <input type="checkbox" id="deletionFlag" class="w-5 h-5 text-red-800 border-gray-300 rounded focus:ring-red-800">
                 <label for="deletionFlag" class="text-sm font-semibold text-gray-700">Deletion Flag</label>
             </div>

@@ -1,7 +1,7 @@
 <div class="space-y-6">
     <!-- General Information -->
     <div>
-        <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 pb-2 border-b border-gray-200">
             <h3 class="text-base font-semibold text-gray-900">General Information</h3>
             <button onclick="saveCustomerBasicData(customerId)" class="inline-flex items-center gap-2 px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
@@ -10,7 +10,7 @@
                 Save Changes
             </button>
         </div>
-        <div class="grid grid-cols-6 gap-4">
+        <div class="grid grid-cols-6 gap-4 form-grid">
             <!-- Customer Code (Editable, max 4 alphanumeric) -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Customer Code <span class="text-red-600">*</span></label>
@@ -137,7 +137,7 @@
     <div>
         <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Customer Information</h3>
 
-        <div class="grid grid-cols-6 gap-4">
+        <div class="grid grid-cols-6 gap-4 form-grid">
             <!-- Customer Group (struktural — anggota mandiri, ditampilkan bersama di Grouping) -->
             <div class="col-span-2">
                 <div class="flex items-center justify-between mb-1.5">

@@ -439,11 +439,11 @@
                 {{-- To (dikosongkan by default — TIDAK auto company email; diisi manual bila perlu) --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                        To <span class="text-gray-400 font-normal normal-case">(optional — kosongkan untuk EWA, isi manual bila perlu)</span>
+                        To <span class="text-gray-400 font-normal normal-case">(optional — kosongkan untuk EWA; bisa lebih dari satu, pisah koma)</span>
                     </label>
                     <input type="text" id="newToEmail"
                         class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                        placeholder="Kosongkan agar tidak dikirim ke company email">
+                        placeholder="to1@example.com, to2@example.com">
                 </div>
 
                 {{-- CC Emails (diisi manual — TIDAK auto dari contact) --}}
@@ -467,7 +467,7 @@
                 </div>
 
                 {{-- Priority + Ticket Type (2 col) --}}
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Priority <span class="text-red-500">*</span></label>
                         <select id="newPriority" required
@@ -512,7 +512,7 @@
                 {{-- Additional Info --}}
                 <div class="border-t border-gray-100 pt-3">
                     <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Additional Info <span class="font-normal normal-case">(optional)</span></p>
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Name</label>
                             <input type="text" id="newName" maxlength="255"
@@ -700,11 +700,14 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     });
 
     // -------------------------------------------------------------------------
-    // Ticket polling: cek update tiket setiap 10 detik dari DB lokal (bukan Graph API)
+    // Ticket polling: cek update tiket setiap 20 detik dari DB lokal (bukan Graph API)
     // Email inbox diproses server-side oleh scheduler (email:process-inbox tiap menit)
+    // Kalau ada perubahan, langsung auto-refresh (silent, tanpa spinner/flash) — search,
+    // filter, sort, dan posisi halaman yang sedang aktif tetap dipertahankan.
     // -------------------------------------------------------------------------
     let _lastTicketUpdate = null;
     let _isFirstPoll      = true;
+    const TICKET_POLL_INTERVAL_MS = 20000;
 
     async function checkTicketUpdates() {
         try {
@@ -725,7 +728,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
             if (latest !== _lastTicketUpdate) {
                 _lastTicketUpdate = latest;
-                loadTickets();
+                loadTickets(true);
             }
         } catch (err) {
             console.warn('[Ticket Polling] error:', err.message);
@@ -734,7 +737,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
     function startEmailPolling() {
         checkTicketUpdates();
-        // Auto-refresh dimatikan — cek update tiket hanya dilakukan sekali saat halaman dimuat.
+        setInterval(checkTicketUpdates, TICKET_POLL_INTERVAL_MS);
     }
 
     function exportWithFilters() {
@@ -809,11 +812,13 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         }
     }
 
-    async function loadTickets() {
+    async function loadTickets(silent = false) {
         try {
-            document.getElementById('loadingState').classList.remove('hidden');
-            document.getElementById('ticketsContainer').classList.add('hidden');
-            document.getElementById('emptyState').classList.add('hidden');
+            if (!silent) {
+                document.getElementById('loadingState').classList.remove('hidden');
+                document.getElementById('ticketsContainer').classList.add('hidden');
+                document.getElementById('emptyState').classList.add('hidden');
+            }
 
             let endpoint = '/api/tickets';
             if (userRole === EC_USER_ROLE) endpoint = '/api/tickets/my';
@@ -847,11 +852,17 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                 allTickets = data.data.sort((a, b) => new Date(b.last_message_at || b.created_at) - new Date(a.last_message_at || a.created_at));
                 populateCustomerFilter();
                 populatePicFilter();
-                filteredTickets = getViewBase();
-                populateCustomerFilter();
-                populatePicFilter();
                 updateStats();
-                renderTickets();
+                // applyAdvancedFilters (bukan getViewBase langsung) supaya search/filter yang
+                // sedang aktif tidak ke-reset setiap kali data di-refresh (mis. dari polling).
+                const pageBeforeRefresh = currentPage;
+                applyAdvancedFilters();
+                // Saat silent refresh, kembalikan ke halaman semula (bukan balik ke halaman 1)
+                // supaya user yang sedang baca halaman 2/3 dst tidak tiba-tiba ke-lempar.
+                if (silent && pageBeforeRefresh > 1) {
+                    currentPage = Math.min(pageBeforeRefresh, totalPages || 1);
+                    renderTickets();
+                }
             } else {
                 showNotification(data.message || 'Failed to load tickets', 'error');
                 document.getElementById('loadingState').classList.add('hidden');
@@ -892,18 +903,31 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const container = document.getElementById('ticketsContainer');
 
         document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('emptyState').classList.add('hidden');
+        container.classList.remove('hidden');
         totalItems = filteredTickets.length;
         totalPages = Math.ceil(totalItems / itemsPerPage);
 
         if (filteredTickets.length === 0) {
-            container.classList.add('hidden');
-            document.getElementById('emptyState').classList.remove('hidden');
+            // Kosongkan hanya baris data; header, toolbar, dan popup search/filter tetap tampil.
+            const colCount = container.querySelectorAll('thead th').length;
+            listBody.innerHTML = `
+                <tr>
+                    <td colspan="${colCount}" class="px-4 py-16 text-center">
+                        <div class="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4 mx-auto">
+                            <i class="fas fa-search text-gray-300 text-2xl"></i>
+                        </div>
+                        <p class="text-gray-700 font-semibold mb-1">No tickets found</p>
+                        <p class="text-gray-400 text-xs mb-5">Try adjusting your filters or search terms</p>
+                        <button onclick="resetFilters()"
+                            class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-xl hover:opacity-90 transition-all shadow-sm">
+                            <i class="fas fa-times text-xs"></i>Clear Filters
+                        </button>
+                    </td>
+                </tr>`;
             updatePaginationDisplay();
             return;
         }
-
-        container.classList.remove('hidden');
-        document.getElementById('emptyState').classList.add('hidden');
 
         const startIndex = (currentPage - 1) * itemsPerPage;
         const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
@@ -1015,8 +1039,13 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const hasUnreadCustomer = lastCustomer && (!lastAgent || lastCustomer > lastAgent);
         const hasUnreadInternal = lastInternal && (Number(lastNoteSender) !== currentEmployeeId);
 
+        // Kalau dua-duanya aktif, menangkan yang waktunya paling baru — bukan selalu
+        // internal note yang menang (perilaku lama), supaya warna mengikuti update terakhir.
+        const customerTs = hasUnreadCustomer ? lastCustomer.getTime() : -Infinity;
+        const internalTs = hasUnreadInternal ? lastInternal.getTime() : -Infinity;
+
         let unreadCls = '', dot = '', timeColor = 'text-gray-400', numColor = 'text-gray-700';
-        if (hasUnreadInternal) {
+        if (internalTs >= customerTs && hasUnreadInternal) {
             unreadCls = 'ticket-unread-internal';
             dot       = '<span class="unread-dot unread-dot-yellow" title="Ada internal note belum dibalas"></span>';
             timeColor = 'text-amber-600 font-semibold';
