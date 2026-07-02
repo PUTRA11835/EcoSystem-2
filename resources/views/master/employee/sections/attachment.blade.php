@@ -1,9 +1,14 @@
-<div class="space-y-6">
+<div class="space-y-6 {{ (isset($isReadonly) && $isReadonly) ? 'profile-readonly' : '' }}">
     <!-- UPLOAD FORM SECTION -->
     <div>
         <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
-            <h3 class="text-base font-semibold text-gray-900">Upload Document</h3>
-            <button type="button" onclick="submitAttachment()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all">
+            <div class="flex items-center gap-2">
+                <h3 class="text-base font-semibold text-gray-900">Upload Document</h3>
+                @if(isset($isReadonly) && $isReadonly)
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium"><i class="fas fa-lock text-[10px]"></i> View Only</span>
+                @endif
+            </div>
+            <button type="button" onclick="submitAttachment()" class="js-section-action inline-flex items-center gap-1.5 px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
                 </svg>

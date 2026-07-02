@@ -24,29 +24,19 @@ class MandaysController extends Controller
     // AUTH HELPERS
     // =========================================================================
 
-    /** Return 403 response if session user's role is not in $allowed, else null. */
-    private function denyUnlessRole(array $allowed, string $msg = 'You do not have permission to perform this action.'): ?\Illuminate\Http\JsonResponse
-    {
-        $roleId = session('user')['role']['id'] ?? 0;
-        if (!in_array($roleId, $allowed, true)) {
-            return response()->json(['success' => false, 'message' => $msg], 403);
-        }
-        return null;
-    }
-
-    /** Return 403 response if session user is not the PIC or a member of $ticket, else null. */
+    /** Return 403 if session user is not a PIC or member of $ticket. Head-level permission bypasses this check. */
     private function denyUnlessParticipant(Ticket $ticket, string $msg = 'You are not a participant of this ticket.'): ?\Illuminate\Http\JsonResponse
     {
-        $sessionUser = session('user');
-        $roleId      = $sessionUser['role']['id'] ?? 0;
-        $empId       = $sessionUser['id'] ?? null;
-
-        // Admins bypass participant check
-        if ($roleId === RoleId::EC_ADMINISTRATOR->value) return null;
+        $empId = session('user')['id'] ?? null;
 
         if (!$empId) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
+
+        $employee = Employee::find($empId);
+
+        // Users with head-level mandays permission bypass the participant check
+        if ($employee?->canAccessMenu('ticket.head-mandays')) return null;
 
         $isPic    = (int) $ticket->ticket_lead_id === (int) $empId;
         $isMember = $ticket->members()->where('ticket_member.employee_id', $empId)->exists();
@@ -58,19 +48,18 @@ class MandaysController extends Controller
         return null;
     }
 
-    /** Return 403 if session user is neither a ticket participant nor a head/admin role. */
+    /** Return 403 if session user is neither a ticket participant nor has head-level mandays permission. */
     private function denyUnlessParticipantOrHead(Ticket $ticket, string $msg = 'You do not have access to this proposal.'): ?\Illuminate\Http\JsonResponse
     {
-        $sessionUser = session('user');
-        $roleId      = $sessionUser['role']['id'] ?? 0;
-        $empId       = $sessionUser['id'] ?? null;
-
-        $headRoles = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value, RoleId::DELIVERY_PROJECT_HEAD->value];
-        if (in_array($roleId, $headRoles, true)) return null;
+        $empId = session('user')['id'] ?? null;
 
         if (!$empId) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
+
+        $employee = Employee::find($empId);
+
+        if ($employee?->canAccessMenu('ticket.head-mandays')) return null;
 
         $isPic    = (int) $ticket->ticket_lead_id === (int) $empId;
         $isMember = $ticket->members()->where('ticket_member.employee_id', $empId)->exists();
@@ -875,11 +864,10 @@ class MandaysController extends Controller
      */
     public function approveResolutionProposal(Request $request, $ticketId)
     {
-        if ($deny = $this->denyUnlessRole(
-            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value, RoleId::DELIVERY_PROJECT_HEAD->value],
-            'Only Head of Support or Head of Project can approve resolution days proposals.'
-        )) {
-            return $deny;
+        $sessionUserId = session('user')['id'] ?? null;
+        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
+        if (!$employee?->canAccessMenu('ticket.head-mandays')) {
+            return response()->json(['success' => false, 'message' => 'Only Head of Support or Head of Project can approve resolution days proposals.'], 403);
         }
 
         $request->validate([

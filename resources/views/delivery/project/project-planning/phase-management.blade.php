@@ -793,7 +793,7 @@ window.editItem = function(itemId) {
         
         const data = {
             default_view: view,
-            _token: document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}'
+            _token: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
         };
         
         

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -86,9 +87,22 @@ class ProfileController extends Controller
             return redirect()->route('dashboard');
         }
 
+        $emp = Employee::find($employeeId);
+        $sections = array_keys(\App\Http\Controllers\SettingsController::PROFILE_SECTIONS);
+        $profileSectionHidden   = [];
+        $profileSectionReadonly = [];
+        foreach ($sections as $key) {
+            $canView   = (bool) $emp?->canAccessMenu("my-profile.section.{$key}.view");
+            $canUpdate = (bool) $emp?->canAccessMenu("my-profile.section.{$key}.update");
+            $profileSectionHidden[$key]   = !$canView;
+            $profileSectionReadonly[$key] = $canView && !$canUpdate;
+        }
+
         return view('master.employee.show', [
-            'employee'     => $employee,
-            'isOwnProfile' => true,
+            'employee'               => $employee,
+            'isOwnProfile'           => true,
+            'profileSectionHidden'   => $profileSectionHidden,
+            'profileSectionReadonly' => $profileSectionReadonly,
         ]);
     }
 

@@ -221,7 +221,7 @@
             url: url,
             data: data,
             headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
             }
         })
         .then(response => {
@@ -278,7 +278,7 @@
             if (result.isConfirmed) {
                 axios.delete(`/delivery/support/${window.supportId}/planning/stages/${stageId}`, {
                     headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
                     }
                 })
                 .then(response => {

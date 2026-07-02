@@ -774,7 +774,7 @@
                 headers:{
                     'Content-Type':'application/json',
                     'Accept':'application/json',
-                    'X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]').content,
+                    'X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                     'X-Requested-With':'XMLHttpRequest',
                 },
                 credentials:'same-origin',

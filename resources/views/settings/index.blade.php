@@ -744,7 +744,7 @@ async function _loadSounds(){
 }
 _loadSounds();
 
-function _csrf(){ return document.querySelector('meta[name="csrf-token"]').content; }
+function _csrf(){ return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''; }
 
 // ── Expose ────────────────────────────────────────────────────────────────────
 window.switchTab=switchTab; window.selectTheme=selectTheme; window.selectColor=selectColor;

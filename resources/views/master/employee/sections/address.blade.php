@@ -1,8 +1,16 @@
-<div class="space-y-6">
+<div class="space-y-6 {{ (isset($isReadonly) && $isReadonly) ? 'profile-readonly' : '' }}">
     <!-- FORM HEADER -->
     <div class="flex justify-between items-center pb-2 border-b border-gray-200">
-        <h3 class="text-base font-semibold text-gray-900">Address Information</h3>
-        <div class="flex gap-2">
+        <div class="flex items-center gap-2">
+            <h3 class="text-base font-semibold text-gray-900">Address Information</h3>
+            @if(isset($isReadonly) && $isReadonly)
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium">
+                    <i class="fas fa-lock text-[10px]"></i> View Only
+                </span>
+            @endif
+        </div>
+        @if(!isset($isReadonly) || !$isReadonly)
+        <div class="flex gap-2 js-section-action">
             <input type="hidden" id="editAddressId">
             <button type="button" onclick="clearAddressForm()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-gray-500 text-white text-xs font-semibold rounded-lg hover:bg-gray-600 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
@@ -17,6 +25,9 @@
                 <span id="saveAddressButtonText">Save</span>
             </button>
         </div>
+        @else
+        <input type="hidden" id="editAddressId">
+        @endif
     </div>
 
     <!-- STANDARD ADDRESS SECTION -->

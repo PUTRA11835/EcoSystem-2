@@ -94,7 +94,7 @@
 </div>
 
 <script>
-const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 let sessions = [];
 let selectedSessionId = null;
 

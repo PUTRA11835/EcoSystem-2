@@ -95,79 +95,78 @@
         </div>
     </div>
 
+    @php
+        $isOwn = isset($isOwnProfile) && $isOwnProfile;
+        $hidden   = $isOwn ? ($profileSectionHidden   ?? []) : [];
+        $ro       = $isOwn ? ($profileSectionReadonly ?? []) : [];
+        $sec      = ['employee' => $employee, 'employeeId' => $employee->id];
+
+        // Sections config: key => [tab-id, label, partial]
+        $allSections = [
+            'basic_data'     => ['basic-data',     'Basic Data',    'basicdata'],
+            'address'        => ['address',         'Address',       'address'],
+            'identification' => ['identification',  'Identification','identification'],
+            'family'         => ['family',          'Family',        'family'],
+            'education'      => ['education',       'Education',     'education'],
+            'qualification'  => ['qualification',   'Qualification', 'qualification'],
+            'contract'       => ['contract',        'Contract',      'contract'],
+            'bank'           => ['bank',            'Bank Account',  'bank'],
+            'payment'        => ['payment',         'Basic Payment', 'payment'],
+            'attachment'     => ['attachment',      'Attachment',    'attachment'],
+        ];
+        $visibleSections = array_filter($allSections, fn($k) => !($hidden[$k] ?? false), ARRAY_FILTER_USE_KEY);
+        $firstKey = array_key_first($visibleSections);
+    @endphp
+
     <!-- Tabs Navigation -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200">
         <div class="border-b border-gray-200">
             <nav class="flex -mb-px overflow-x-auto">
-                <button onclick="switchSection('basic-data')" data-section="basic-data" class="section-tab px-6 py-4 text-sm font-semibold border-b-2 border-red-800 text-red-800 whitespace-nowrap">
-                    Basic Data
+                @foreach($visibleSections as $key => [$tabId, $label, $partial])
+                <button onclick="switchSection('{{ $tabId }}')" data-section="{{ $tabId }}"
+                    class="section-tab px-6 py-4 text-sm font-semibold border-b-2 whitespace-nowrap
+                        {{ $key === $firstKey ? 'border-red-800 text-red-800' : 'border-transparent text-gray-600 hover:text-red-800 hover:border-gray-300' }}">
+                    {{ $label }}
                 </button>
-                <button onclick="switchSection('address')" data-section="address" class="section-tab px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-gray-600 hover:text-red-800 hover:border-gray-300 whitespace-nowrap">
-                    Address
-                </button>
-                <button onclick="switchSection('identification')" data-section="identification" class="section-tab px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-gray-600 hover:text-red-800 hover:border-gray-300 whitespace-nowrap">
-                    Identification
-                </button>
-                <button onclick="switchSection('family')" data-section="family" class="section-tab px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-gray-600 hover:text-red-800 hover:border-gray-300 whitespace-nowrap">
-                    Family
-                </button>
-                <button onclick="switchSection('education')" data-section="education" class="section-tab px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-gray-600 hover:text-red-800 hover:border-gray-300 whitespace-nowrap">
-                    Education
-                </button>
-                <button onclick="switchSection('qualification')" data-section="qualification" class="section-tab px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-gray-600 hover:text-red-800 hover:border-gray-300 whitespace-nowrap">
-                    Qualification
-                </button>
-                <button onclick="switchSection('contract')" data-section="contract" class="section-tab px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-gray-600 hover:text-red-800 hover:border-gray-300 whitespace-nowrap">
-                    Contract
-                </button>
-                <button onclick="switchSection('bank')" data-section="bank" class="section-tab px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-gray-600 hover:text-red-800 hover:border-gray-300 whitespace-nowrap">
-                    Bank Account
-                </button>
-                <button onclick="switchSection('payment')" data-section="payment" class="section-tab px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-gray-600 hover:text-red-800 hover:border-gray-300 whitespace-nowrap">
-                    Basic Payment
-                </button>
-                <button onclick="switchSection('attachment')" data-section="attachment" class="section-tab px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-gray-600 hover:text-red-800 hover:border-gray-300 whitespace-nowrap">
-                    Attachment
-                </button>
+                @endforeach
             </nav>
         </div>
 
         <!-- Tab Content -->
         <div class="p-6">
-            <div id="section-basic-data" class="section-content">
-                @include('master.employee.sections.basicdata', ['employee' => $employee, 'employeeId' => $employee->id])
+            @foreach($visibleSections as $key => [$tabId, $label, $partial])
+            <div id="section-{{ $tabId }}" class="section-content {{ $key !== $firstKey ? 'hidden' : '' }}">
+                @include("master.employee.sections.{$partial}", $sec + ['isReadonly' => (bool)($ro[$key] ?? false)])
             </div>
-            <div id="section-address" class="section-content hidden">
-                @include('master.employee.sections.address', ['employee' => $employee, 'employeeId' => $employee->id])
-            </div>
-            <div id="section-identification" class="section-content hidden">
-                @include('master.employee.sections.identification', ['employee' => $employee, 'employeeId' => $employee->id])
-            </div>
-            <div id="section-family" class="section-content hidden">
-                @include('master.employee.sections.family', ['employee' => $employee, 'employeeId' => $employee->id])
-            </div>
-            <div id="section-education" class="section-content hidden">
-                @include('master.employee.sections.education', ['employee' => $employee, 'employeeId' => $employee->id])
-            </div>
-            <div id="section-qualification" class="section-content hidden">
-                @include('master.employee.sections.qualification', ['employee' => $employee, 'employeeId' => $employee->id])
-            </div>
-            <div id="section-contract" class="section-content hidden">
-                @include('master.employee.sections.contract', ['employee' => $employee, 'employeeId' => $employee->id])
-            </div>
-            <div id="section-bank" class="section-content hidden">
-                @include('master.employee.sections.bank', ['employee' => $employee, 'employeeId' => $employee->id])
-            </div>
-            <div id="section-payment" class="section-content hidden">
-                @include('master.employee.sections.payment', ['employee' => $employee, 'employeeId' => $employee->id])
-            </div>
-            <div id="section-attachment" class="section-content hidden">
-                @include('master.employee.sections.attachment', ['employee' => $employee, 'employeeId' => $employee->id])
-            </div>
-
+            @endforeach
         </div>
     </div>
 </div>
+
+@if(isset($isOwnProfile) && $isOwnProfile)
+<style>
+.profile-readonly { position: relative; }
+.profile-readonly::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    cursor: not-allowed;
+    border-radius: 0.5rem;
+}
+.profile-readonly input,
+.profile-readonly textarea,
+.profile-readonly select {
+    background: #f9fafb !important;
+    color: #6b7280 !important;
+    border-color: #e5e7eb !important;
+    pointer-events: none !important;
+    cursor: not-allowed !important;
+}
+.profile-readonly .custom-dd-btn { pointer-events: none !important; cursor: not-allowed !important; }
+.profile-readonly .js-section-action { display: none !important; }
+</style>
+@endif
 
 <script>
     const employeeId = {{ $employee->id }};

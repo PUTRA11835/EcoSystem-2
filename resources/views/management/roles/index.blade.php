@@ -568,7 +568,7 @@ function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 function jsonHeaders() {
     return {
         'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
     };
 }
 

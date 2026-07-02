@@ -744,7 +744,7 @@ function hideErr(pfx) {
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
-function csrf() { return document.querySelector('meta[name=csrf-token]').content; }
+function csrf() { return document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || ''; }
 
 async function submitAddPolicy(e) {
     e.preventDefault();

@@ -562,7 +562,7 @@
 let _activePeriodId  = null;
 let _pendingPeriodId = null;
 let _pendingDomain   = null;
-const CSRF = document.querySelector('meta[name="csrf-token"]')?.content;
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 const getHeaders = () => ({ 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF });
 
 // Teleport dropdown ke body agar tidak ter-clip oleh overflow-x-hidden pada <main>
