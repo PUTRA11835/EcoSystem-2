@@ -1,7 +1,7 @@
 <div class="space-y-6">
     <!-- General Information -->
     <div>
-        <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 pb-2 border-b border-gray-200">
             <h3 class="text-base font-semibold text-gray-900">General Information</h3>
             <button onclick="saveCurrentSection()" class="px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
                 Save Changes
@@ -202,11 +202,11 @@
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Manager</label>
                 <input type="text" id="manager" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <input type="checkbox" id="block" class="w-5 h-5 text-red-800 border-gray-300 rounded focus:ring-red-800">
                 <label for="block" class="text-sm font-semibold text-gray-700">Block Employee</label>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <input type="checkbox" id="deletionFlag" class="w-5 h-5 text-red-800 border-gray-300 rounded focus:ring-red-800">
                 <label for="deletionFlag" class="text-sm font-semibold text-gray-700">Deletion Flag</label>
             </div>

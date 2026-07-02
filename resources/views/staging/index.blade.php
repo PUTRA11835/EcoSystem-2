@@ -48,7 +48,7 @@ const canRejectStaging  = {{ $can('staging.reject')  ? 'true' : 'false' }};
 </div>
 
 {{-- ── Stats Cards ──────────────────────────────────────────────────────────── --}}
-<div class="grid grid-cols-3 gap-2 mb-4">
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mb-4">
     <div class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-amber-200 transition-all duration-200">
         <div class="flex items-center gap-1.5 mb-2">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
@@ -499,7 +499,7 @@ function fillModal(s) {
                 <span class="text-xs font-semibold text-gray-600">Ticket Classification</span>
                 <span class="text-xs text-gray-400 ml-1">— required before approving</span>
             </div>
-            <div class="px-4 py-4 grid grid-cols-3 gap-4">
+            <div class="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Type <span class="text-red-500">*</span></label>
                     <select id="approveTicketType"
@@ -576,7 +576,7 @@ function fillModal(s) {
             </div>
             <div class="border-t border-gray-100 px-4 pt-3 pb-4">
                 <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Additional Info <span class="font-normal normal-case">(optional)</span></p>
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1.5">Name</label>
                         <input type="text" id="approveName" maxlength="255"

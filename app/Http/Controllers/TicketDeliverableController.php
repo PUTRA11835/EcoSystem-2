@@ -32,14 +32,14 @@ class TicketDeliverableController extends Controller
             ->get()
             ->map(fn($d) => $this->format($d));
 
-        // Folder ticket diturunkan dari delivery support yang di-assign ke ticket.
-        [$state, $message, $support] = $this->resolveFolderState($ticket);
+        // Folder ticket diturunkan langsung dari customer ticket (bukan delivery support).
+        [$state, $message] = $this->resolveFolderState($ticket);
 
         return response()->json([
             'success'        => true,
             'data'           => $deliverables,
             'has_folder'     => $state === 'ready',
-            'folder_state'   => $state,           // no_support | no_support_folder | ready
+            'folder_state'   => $state,           // no_customer | ready
             'folder_message' => $message,
             'folder_url'     => $ticket->onedrive_folder_url,
         ]);
@@ -47,31 +47,25 @@ class TicketDeliverableController extends Controller
 
     /**
      * Tentukan kesiapan folder deliverable untuk sebuah ticket.
-     * Folder ticket berada di level customer (sejajar folder per-support):
+     * Folder ticket berada di level customer:
      *   {root}/{customer}/TICKETING/{ticket_number}/Deliverable
-     * Support tetap dibutuhkan hanya untuk menurunkan customer (client) folder.
-     * Folder dibuat lazy saat upload pertama — tidak perlu "generate" lebih dulu.
+     * Folder diturunkan langsung dari customer ticket — TIDAK lagi bergantung pada
+     * delivery support (deliverable tidak masuk ke folder support). Folder dibuat
+     * lazy saat upload pertama — tidak perlu "generate" lebih dulu.
      *
-     * @return array{0:string,1:?string,2:?\App\Models\DeliverySupport}
-     *   [state, message, support]
+     * @return array{0:string,1:?string}
+     *   [state, message]  state: no_customer | ready
      */
     private function resolveFolderState(Ticket $ticket): array
     {
-        $support = $ticket->deliverySupports()->orderByDesc('delivery_support.id')->first();
-
-        if (!$support) {
-            return ['no_support', 'Ticket belum dihubungkan ke delivery support. Hubungkan ticket ke support terlebih dahulu.', null];
-        }
-
-        if ($support->customerDeliverableFolderName() === null) {
+        if ($ticket->customerDeliverableFolderName() === null) {
             return [
                 'no_customer',
-                "Data client untuk support '{$support->name}' belum lengkap. Lengkapi data client terlebih dahulu.",
-                $support,
+                'Data customer untuk ticket ini belum lengkap. Lengkapi data customer terlebih dahulu.',
             ];
         }
 
-        return ['ready', null, $support];
+        return ['ready', null];
     }
 
     /**
@@ -98,9 +92,9 @@ class TicketDeliverableController extends Controller
         $fileName = null;
 
         if ($request->hasFile('file') && $request->file('file')->isValid()) {
-            // Folder ticket berada di level customer (sejajar folder per-support):
-            //   {root}/{client} {NAMA}/TICKETING/{ticket_number}/Deliverable
-            [$state, $message, $support] = $this->resolveFolderState($ticket);
+            // Folder ticket berada di level customer:
+            //   {root}/{customer_id} {NAMA}/TICKETING/{ticket_number}/Deliverable
+            [$state, $message] = $this->resolveFolderState($ticket);
             if ($state !== 'ready') {
                 return response()->json(['success' => false, 'message' => $message], 422);
             }
@@ -113,9 +107,9 @@ class TicketDeliverableController extends Controller
             try {
                 $oneDrive = new OneDriveService();
 
-                // Folder customer (di-find-or-create, decoupled dari folder support).
+                // Folder customer (di-find-or-create, diturunkan langsung dari customer ticket).
                 $rootPath           = config('services.microsoft_graph.customer_deliverable_path', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE');
-                $customerFolderId   = $oneDrive->findOrCreateFolderInPath($rootPath, $support->customerDeliverableFolderName());
+                $customerFolderId   = $oneDrive->findOrCreateFolderInPath($rootPath, $ticket->customerDeliverableFolderName());
 
                 // Rantai folder (idempotent, case-insensitive): TICKETING -> {ticket_number} -> Deliverable
                 $ticketingId    = $oneDrive->findOrCreateSubFolderById($customerFolderId, 'TICKETING');

@@ -28,14 +28,14 @@
 
     <!-- Employee Profile Card -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div class="flex items-start gap-6">
-            <div id="headerInitials" class="w-32 h-32 rounded-full bg-gradient-to-br from-red-800 to-red-950 text-white flex items-center justify-center font-bold text-4xl flex-shrink-0">
+        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 text-center sm:text-left">
+            <div id="headerInitials" class="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-red-800 to-red-950 text-white flex items-center justify-center font-bold text-3xl sm:text-4xl flex-shrink-0">
                 {{ strtoupper(substr(($employee->first_name ?? 'N'), 0, 1) . substr(($employee->last_name ?? 'A'), 0, 1)) }}
             </div>
-            <div class="flex-1">
-                <div class="flex items-start justify-between mb-4">
+            <div class="flex-1 w-full min-w-0">
+                <div class="flex flex-col sm:flex-row items-center sm:items-start sm:justify-between gap-2 mb-4">
                     <div>
-                        <h1 id="headerFullName" class="text-3xl font-bold text-gray-900">{{ trim(($employee->first_name ?? '') . ' ' . ($employee->last_name ?? '')) ?: 'N/A' }}</h1>
+                        <h1 id="headerFullName" class="text-2xl sm:text-3xl font-bold text-gray-900">{{ trim(($employee->first_name ?? '') . ' ' . ($employee->last_name ?? '')) ?: 'N/A' }}</h1>
                         <p id="headerPosition" class="text-lg text-gray-600 mt-1">{{ $employee->position ?? 'N/A' }}</p>
                     </div>
                     @php

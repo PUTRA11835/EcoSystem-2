@@ -22,7 +22,7 @@
 @endsection
 
 @section('page-actions')
-{{-- Folder ticket diturunkan dari folder Customer Deliverable milik delivery support yang di-assign.
+{{-- Folder ticket diturunkan langsung dari folder Customer Deliverable milik customer ticket.
      Link "Open Folder" muncul otomatis setelah deliverable pertama di-upload. --}}
 @if($ticket->onedrive_folder_url)
 <a id="ticketFolderBtn" href="{{ $ticket->onedrive_folder_url }}" target="_blank" rel="noopener"
@@ -1900,7 +1900,7 @@
                 {{-- Mulai: tanggal + jam --}}
                 <div id="meetingStartRow" class="mb-2">
                     <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">Mulai</p>
-                    <div class="grid grid-cols-2 gap-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
                             <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -1921,7 +1921,7 @@
                 {{-- Selesai: tanggal + jam --}}
                 <div class="mb-3">
                     <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">Selesai</p>
-                    <div class="grid grid-cols-2 gap-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
                             <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -6290,7 +6290,7 @@
 @endif
 
 {{-- OneDrive folder generation dihapus — folder ticket kini otomatis dibuat di bawah
-     folder Customer Deliverable milik delivery support saat upload deliverable. --}}
+     folder Customer Deliverable milik customer ticket saat upload deliverable. --}}
 
 {{-- ==================== REUSABLE CONFIRM MODAL ==================== --}}
 <div id="confirmModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
@@ -6452,12 +6452,7 @@
             </div>
             {{-- File --}}
             <div>
-                <label class="text-xs font-semibold text-gray-600 mb-1 block">File
-                    <span id="ndNoSupportHint" class="ml-1 text-orange-500 font-normal {{ ($deliverySupport ?? null) ? 'hidden' : '' }}">(ticket belum dihubungkan ke delivery support)</span>
-                    @if(($deliverySupport ?? null) && empty($deliverySupport->onedrive_deliverable_folder_id))
-                    <span class="ml-1 text-orange-500 font-normal">(generate Customer Deliverable folder di halaman support dulu)</span>
-                    @endif
-                </label>
+                <label class="text-xs font-semibold text-gray-600 mb-1 block">File</label>
                 <div class="flex items-center gap-2">
                     <label class="flex-1 cursor-pointer flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition">
                         <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -6773,10 +6768,6 @@ function openNewDocModal() {
     document.getElementById('ndFileName').textContent = 'Choose file...';
     document.getElementById('ndError').classList.add('hidden');
     document.getElementById('ndSubmitBtn').disabled = false;
-    // Sinkronkan hint "belum dihubungkan ke delivery support" dengan status assign terkini
-    // (assignedDsId di-update saat assign tanpa reload halaman).
-    const noSupportHint = document.getElementById('ndNoSupportHint');
-    if (noSupportHint) noSupportHint.classList.toggle('hidden', !!assignedDsId);
     document.getElementById('newDocModal').classList.remove('hidden');
 }
 
