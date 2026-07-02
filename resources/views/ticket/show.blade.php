@@ -246,7 +246,7 @@
 
             {{-- To Row: selalu dirender; untuk non-email ticket dikontrol JS (showEmailInitMode/hideEmailInitMode) --}}
             <div class="px-4 pt-1.5" id="toRow" @if(!($ticket->channel === 'email' || $ticket->email_thread_id)) style="display:none" @endif>
-                <div class="flex flex-wrap items-center gap-1 min-h-[30px] border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text" onclick="document.getElementById('toInput').focus()">
+                <div class="flex flex-wrap items-center gap-1 min-h-[30px] max-h-[76px] overflow-y-auto border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text" onclick="document.getElementById('toInput').focus()">
                     <span class="text-[11px] text-gray-500 font-semibold mr-0.5 flex-shrink-0">To</span>
                     <div id="toTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
                     <input type="text" id="toInput"
@@ -260,7 +260,7 @@
 
             {{-- CC Row: selalu dirender; untuk non-email ticket dikontrol JS --}}
             <div class="px-4 pt-1.5" id="ccRow" @if(!($ticket->channel === 'email' || $ticket->email_thread_id)) style="display:none" @endif>
-                <div class="flex flex-wrap items-center gap-1 min-h-[30px] border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text" onclick="document.getElementById('ccInput').focus()">
+                <div class="flex flex-wrap items-center gap-1 min-h-[30px] max-h-[76px] overflow-y-auto border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text" onclick="document.getElementById('ccInput').focus()">
                     <span class="text-[11px] text-gray-500 font-semibold mr-0.5 flex-shrink-0">CC</span>
                     <div id="ccTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
                     <input type="text" id="ccInput"
@@ -3070,6 +3070,13 @@
         }
     }
 
+    function toggleCcExtra(id, btn) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.toggle('hidden');
+        btn.textContent = el.classList.contains('hidden') ? `+${btn.dataset.count} more` : 'show less';
+    }
+
     function createMessageBubble(msg) {
         messageCache.set(msg.id, msg);
         // Meeting events — kartu khusus di tengah chat
@@ -3194,11 +3201,25 @@
         const rawCc  = msg.cc_emails;
         const ccList = Array.isArray(rawCc) ? rawCc
                      : (typeof rawCc === 'string' && rawCc ? ((() => { try { return JSON.parse(rawCc); } catch(e) { return []; } })()) : []);
+        const ccChip = c => `<span class="truncate max-w-[160px]" title="${c.address || c}">${c.name || c.address || c}</span>`;
+        const CC_VISIBLE = 2;
+        const ccExtraCount = ccList.length - CC_VISIBLE;
+        const ccExtraId    = `ccExtra-${msg.id}`;
         const ccBadge  = ccList.length > 0
-            ? `<span class="inline-flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
-                <svg style="width:9px;height:9px;flex-shrink:0" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
-                <span class="font-medium text-gray-500">CC:</span>
-                ${ccList.map(c => `<span title="${c.address || c}">${c.name || c.address || c}</span>`).join(', ')}
+            ? `<span class="flex flex-wrap ${isEmployee ? 'justify-end' : ''} items-center gap-x-1 gap-y-0.5 max-w-full text-[10px] text-gray-400 mt-0.5">
+                <span class="inline-flex items-center gap-1 flex-shrink-0">
+                    <svg style="width:9px;height:9px;flex-shrink:0" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
+                    <span class="font-medium text-gray-500">CC:</span>
+                </span>
+                ${ccList.slice(0, CC_VISIBLE).map(ccChip).join('<span>,</span>')}
+                ${ccExtraCount > 0 ? `
+                    <span>,</span>
+                    <span id="${ccExtraId}" class="hidden flex flex-wrap items-center gap-x-1 gap-y-0.5">
+                        ${ccList.slice(CC_VISIBLE).map(ccChip).join('<span>,</span>')}
+                    </span>
+                    <button type="button" data-count="${ccExtraCount}" onclick="toggleCcExtra('${ccExtraId}', this)"
+                        class="text-blue-500 hover:text-blue-700 font-medium hover:underline flex-shrink-0">+${ccExtraCount} more</button>
+                ` : ''}
                </span>`
             : '';
 
@@ -3319,7 +3340,7 @@
         return `
             <div class="flex gap-3 ${isEmployee ? 'flex-row-reverse' : ''}">
                 <div class="w-8 h-8 ${avatarBg} rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">${initials}</div>
-                <div class="${isEmployee ? 'text-right' : ''}">
+                <div class="max-w-[85%] ${isEmployee ? 'text-right' : ''}">
                     <div class="flex flex-col mb-1 ${isEmployee ? 'items-end' : ''}">
                         <div class="flex items-center gap-2 ${isEmployee ? 'justify-end' : ''}">
                             <span class="text-sm font-semibold text-gray-900">${senderName}</span>

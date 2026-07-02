@@ -277,6 +277,7 @@ class TicketMessageController extends Controller
                         'message_html'        => $messageBody,
                         'is_internal_note'    => false,
                         'channel'             => 'web',
+                        'cc_emails'           => !empty($requestCc) ? $requestCc : null,
                         'is_read_by_customer' => false,
                         'is_read_by_agent'    => true,
                     ]);
@@ -920,6 +921,7 @@ class TicketMessageController extends Controller
                 'is_internal_note'    => false,
                 'channel'             => 'email',
                 'email_message_id'    => $result['internet_message_id'] ?? null,
+                'cc_emails'           => !empty($ccList) ? $ccList : null,
                 'is_read_by_customer' => false,
                 'is_read_by_agent'    => true,
             ]);
