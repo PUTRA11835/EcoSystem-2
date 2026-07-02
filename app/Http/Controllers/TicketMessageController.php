@@ -292,6 +292,7 @@ class TicketMessageController extends Controller
                     $ticketUpdateFields['status'] = $chosenStatus;
                 }
                 $ticket->update($ticketUpdateFields);
+                $this->markTicketReadForSender($ticketId, $senderId);
 
                 // Notifikasi ke PIC + member aktif lain
                 if ($message) {
@@ -346,6 +347,7 @@ class TicketMessageController extends Controller
                     'last_internal_note_at'        => now(),
                     'last_internal_note_sender_id' => $senderId,
                 ]);
+                $this->markTicketReadForSender($ticketId, $senderId);
 
                 // Fire mention notifications (non-fatal)
                 if (!empty($mentionedEmployeeIds) || !empty($mentionedRoleIds)) {
@@ -604,6 +606,24 @@ class TicketMessageController extends Controller
                 'message' => 'Failed to save message',
             ], 500);
         }
+    }
+
+    /**
+     * Keep the sender's own read state fresh after they post a reply/note, so the
+     * ticket doesn't immediately show as bold/unread for the person who just wrote it
+     * (only other participants should see it as unread again).
+     */
+    private function markTicketReadForSender(int $ticketId, ?int $employeeId): void
+    {
+        if (!$employeeId) {
+            return;
+        }
+        $now = now();
+        DB::table('ticket_reads')->upsert(
+            [['ticket_id' => $ticketId, 'employee_id' => $employeeId, 'read_at' => $now, 'created_at' => $now, 'updated_at' => $now]],
+            ['ticket_id', 'employee_id'],
+            ['read_at', 'updated_at']
+        );
     }
 
     /**
@@ -1417,6 +1437,7 @@ class TicketMessageController extends Controller
                     'is_read_by_agent'    => true,
                 ]);
             });
+            $this->markTicketReadForSender($ticket->ticket_id, $sessionUser['id']);
 
             Log::info('TicketMessageController@initiateEmail: email thread dimulai', [
                 'ticket_id'      => $ticket->ticket_id,

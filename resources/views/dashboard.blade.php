@@ -1198,9 +1198,11 @@
         });
 
         /* ---- notification sound (HTML Audio — works without immediate user gesture) ---- */
-        var _soundEnabled    = localStorage.getItem('notif_sound_enabled') !== 'false';
-        var _lastUnreadCount = null;
-        var _pageTitle       = document.title;
+        var _soundEnabled     = localStorage.getItem('notif_sound_enabled') !== 'false';
+        var _lastUnreadCount  = null;
+        var _lastNonMsgCount  = null;
+        var _lastMessageCount = null;
+        var _pageTitle        = document.title;
 
         // Use <audio> element — simpler and respects Chrome's per-origin user activation,
         // meaning it works even when triggered by push/postMessage without a direct click.
@@ -1392,7 +1394,8 @@
                     var badge = document.getElementById('bellBadge');
                     if (!badge) return;
 
-                    // Badge + OS notification only for non-message types
+                    // Badge now includes chat/message types (ticket replies, internal notes)
+                    // alongside every other notification type.
                     var count = data.count || 0;
                     if (count > 0) {
                         badge.textContent = count > 99 ? '99+' : count;
@@ -1401,17 +1404,24 @@
                         badge.classList.add('hidden');
                     }
                     updateTabTitle(count);
-                    if (_lastUnreadCount !== null && count > _lastUnreadCount) {
+
+                    // Split the delta so message-type increases play the chat sound while
+                    // everything else keeps using the ticket sound + OS notification.
+                    var msgCount    = data.message_sound_count || 0;
+                    var nonMsgCount = count - msgCount;
+
+                    if (_lastNonMsgCount !== null && nonMsgCount > _lastNonMsgCount) {
                         handleNewNotifications();
                     }
-                    _lastUnreadCount = count;
+                    _lastNonMsgCount = nonMsgCount;
 
-                    // Message sound only (internal note / email reply) — no badge, no OS notif
-                    var msgCount = data.message_sound_count || 0;
-                    if (msgCount > 0) {
+                    if (_lastMessageCount !== null && msgCount > _lastMessageCount) {
                         var onTicketPage = /^\/ticket\/\d+/.test(window.location.pathname);
                         if (!onTicketPage) { playChatSound(); }
                     }
+                    _lastMessageCount = msgCount;
+
+                    _lastUnreadCount = count;
                 })
                 .catch(function () {});
         }
@@ -1697,10 +1707,8 @@
                     } else {
                         if (typeof window.playTicketSound === 'function') window.playTicketSound();
                     }
-                    if (!msgTypes.includes(payload.type)) {
-                        if (typeof window.fetchUnreadCount === 'function') {
-                            window.fetchUnreadCount();
-                        }
+                    if (typeof window.fetchUnreadCount === 'function') {
+                        window.fetchUnreadCount();
                     }
                 }
             });
