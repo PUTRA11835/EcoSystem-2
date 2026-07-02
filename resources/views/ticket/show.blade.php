@@ -22,7 +22,7 @@
 @endsection
 
 @section('page-actions')
-{{-- Folder ticket diturunkan dari folder Customer Deliverable milik delivery support yang di-assign.
+{{-- Folder ticket diturunkan langsung dari folder Customer Deliverable milik customer ticket.
      Link "Open Folder" muncul otomatis setelah deliverable pertama di-upload. --}}
 @if($ticket->onedrive_folder_url)
 <a id="ticketFolderBtn" href="{{ $ticket->onedrive_folder_url }}" target="_blank" rel="noopener"
@@ -1914,7 +1914,7 @@
                 {{-- Mulai: tanggal + jam --}}
                 <div id="meetingStartRow" class="mb-2">
                     <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">Mulai</p>
-                    <div class="grid grid-cols-2 gap-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
                             <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -1935,7 +1935,7 @@
                 {{-- Selesai: tanggal + jam --}}
                 <div class="mb-3">
                     <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">Selesai</p>
-                    <div class="grid grid-cols-2 gap-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
                             <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -2842,18 +2842,20 @@
     }
 
     // â"€â"€ Render attachment list (gambar inline, file sebagai link download) â"€â"€â"€â"€â"€â"€
-    // isEmailWithHtml: true jika pesan email sudah punya message_html &rarr;
-    //   inline images sudah ditampilkan di dalam HTML body, jadi tidak perlu ditampilkan ulang sebagai thumbnail
-    function renderAttachments(attachments, isEmailWithHtml = false) {
+    // bodyHasInlineImages: true jika message_html sudah me-render inline image di
+    //   dalam body (email setelah CID replacement, ATAU internal note yang
+    //   inline image-nya sudah jadi <img src="/storage/..."> lewat InlineImageService).
+    //   Bila true, jangan tampilkan inline image lagi sebagai thumbnail (cegah double).
+    function renderAttachments(attachments, bodyHasInlineImages = false) {
         if (!attachments || attachments.length === 0) return '';
 
         // Pisahkan inline images dan file biasa
-        // Jika email dengan HTML body: abaikan inline images (sudah ada di message_html setelah CID replacement)
-        const inlineImgs = isEmailWithHtml
+        // Jika body sudah punya inline image: abaikan is_inline (sudah ada di message_html)
+        const inlineImgs = bodyHasInlineImages
             ? []
             : attachments.filter(a => a.is_inline && a.mime_type?.startsWith('image/'));
-        // Untuk email dengan HTML body: juga exclude is_inline=true dari files (sudah ada di HTML body)
-        const files = isEmailWithHtml
+        // Bila body sudah punya inline image: juga exclude is_inline=true dari files (sudah ada di HTML body)
+        const files = bodyHasInlineImages
             ? attachments.filter(a => !a.is_inline)
             : attachments.filter(a => !inlineImgs.includes(a));
 
@@ -3250,8 +3252,12 @@
                </span>`
             : '';
 
-        const isEmailWithHtml = msg.channel === 'email' && !!msg.message_html;
-        const attachmentsHtml = renderAttachments(msg.attachments, isEmailWithHtml);
+        // Body sudah me-render inline image bila: email dengan HTML body, ATAU
+        // internal note dengan message_html (inline image-nya jadi <img src="/storage/...">).
+        // Keduanya tidak boleh menampilkan ulang inline image sebagai thumbnail (cegah double).
+        const bodyHasInlineImages = !!msg.message_html
+            && (msg.channel === 'email' || msg.message_type === 'internal_note');
+        const attachmentsHtml = renderAttachments(msg.attachments, bodyHasInlineImages);
 
         if (isInternalNote) {
             const isMine = msg.sender_id && currentUserId && String(msg.sender_id) === String(currentUserId);
@@ -6304,10 +6310,14 @@
             editNoteQuill.setText(msg.message_body || '');
         }
 
-        // Render existing attachments
+        // Render existing attachments — HANYA file non-inline. Inline image tidak
+        // ditampilkan sebagai baris removable karena byte-nya direferensikan langsung
+        // oleh <img src="/storage/..."> di dalam editor body. Menghapusnya lewat daftar
+        // ini akan meng-orphan URL di body → gambar 404 setelah cache browser hilang.
+        // Inline image dikelola lewat isi editor (hapus <img> dari body untuk membuang).
         const attContainer = document.getElementById('editNoteExistingAtts');
         attContainer.innerHTML = '';
-        (msg.attachments || []).forEach(att => {
+        (msg.attachments || []).filter(att => !att.is_inline).forEach(att => {
             const row = document.createElement('div');
             row.className = 'flex items-center gap-2 text-xs text-gray-700 py-1';
             row.dataset.attId = att.id;
@@ -6441,7 +6451,7 @@
 @endif
 
 {{-- OneDrive folder generation dihapus — folder ticket kini otomatis dibuat di bawah
-     folder Customer Deliverable milik delivery support saat upload deliverable. --}}
+     folder Customer Deliverable milik customer ticket saat upload deliverable. --}}
 
 {{-- ==================== REUSABLE CONFIRM MODAL ==================== --}}
 <div id="confirmModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
@@ -6603,12 +6613,7 @@
             </div>
             {{-- File --}}
             <div>
-                <label class="text-xs font-semibold text-gray-600 mb-1 block">File
-                    <span id="ndNoSupportHint" class="ml-1 text-orange-500 font-normal {{ ($deliverySupport ?? null) ? 'hidden' : '' }}">(ticket belum dihubungkan ke delivery support)</span>
-                    @if(($deliverySupport ?? null) && empty($deliverySupport->onedrive_deliverable_folder_id))
-                    <span class="ml-1 text-orange-500 font-normal">(generate Customer Deliverable folder di halaman support dulu)</span>
-                    @endif
-                </label>
+                <label class="text-xs font-semibold text-gray-600 mb-1 block">File</label>
                 <div class="flex items-center gap-2">
                     <label class="flex-1 cursor-pointer flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition">
                         <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -6924,10 +6929,6 @@ function openNewDocModal() {
     document.getElementById('ndFileName').textContent = 'Choose file...';
     document.getElementById('ndError').classList.add('hidden');
     document.getElementById('ndSubmitBtn').disabled = false;
-    // Sinkronkan hint "belum dihubungkan ke delivery support" dengan status assign terkini
-    // (assignedDsId di-update saat assign tanpa reload halaman).
-    const noSupportHint = document.getElementById('ndNoSupportHint');
-    if (noSupportHint) noSupportHint.classList.toggle('hidden', !!assignedDsId);
     document.getElementById('newDocModal').classList.remove('hidden');
 }
 

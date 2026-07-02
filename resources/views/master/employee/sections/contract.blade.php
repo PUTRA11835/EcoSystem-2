@@ -1,7 +1,7 @@
 <div class="space-y-6">
     <!-- CONTRACT INFORMATION SECTION (Form untuk Create & Update) -->
     <div>
-        <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 pb-2 border-b border-gray-200">
             <h3 class="text-base font-semibold text-gray-900">Contract Information</h3>
             <div class="flex gap-2">
                 <button type="button" onclick="clearContractForm()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-gray-500 text-white text-xs font-semibold rounded-lg hover:bg-gray-600 transition-all">
@@ -24,7 +24,7 @@
         <!-- Contract Details Section -->
         <div class="mb-6">
             <h5 class="text-sm font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200"> Contract Details</h5>
-            <div class="grid grid-cols-6 gap-4">
+            <div class="grid grid-cols-6 gap-4 form-grid">
                 <!-- Contract Number -->
                 <div class="col-span-1">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Contract No <span class="text-red-600">*</span></label>
@@ -75,7 +75,7 @@
         <!-- Employment Period & Compensation Section -->
         <div class="mb-6">
             <h5 class="text-sm font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200"> Employment Period & Compensation</h5>
-            <div class="grid grid-cols-6 gap-4">
+            <div class="grid grid-cols-6 gap-4 form-grid">
                 <!-- Start Date -->
                 <div class="col-span-1">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Start Date <span class="text-red-600">*</span></label>
@@ -107,7 +107,7 @@
         <!-- Attachments Section -->
         <div class="bg-gray-50 rounded-lg p-4">
             <h5 class="text-sm font-bold text-gray-900 mb-3"> Attachments</h5>
-            <div class="grid grid-cols-6 gap-4">
+            <div class="grid grid-cols-6 gap-4 form-grid">
                 <!-- Drive Link -->
                 <div class="col-span-3">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Drive Link</label>
@@ -125,12 +125,12 @@
 
     <!-- CONTRACT DETAILS SECTION (Table) -->
     <div>
-        <div class="flex justify-between items-center mb-4">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
             <h3 class="text-base font-semibold text-gray-900">Contract Details</h3>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <!-- Search -->
                 <div class="relative">
-                    <input type="text" id="contractSearch" placeholder="Search" class="w-64 px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                    <input type="text" id="contractSearch" placeholder="Search" class="w-full sm:w-64 px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
                     <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                             <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />

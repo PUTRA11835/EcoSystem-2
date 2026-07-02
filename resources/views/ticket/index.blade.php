@@ -439,11 +439,11 @@
                 {{-- To (dikosongkan by default — TIDAK auto company email; diisi manual bila perlu) --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">
-                        To <span class="text-gray-400 font-normal normal-case">(optional — kosongkan untuk EWA, isi manual bila perlu)</span>
+                        To <span class="text-gray-400 font-normal normal-case">(optional — kosongkan untuk EWA; bisa lebih dari satu, pisah koma)</span>
                     </label>
                     <input type="text" id="newToEmail"
                         class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                        placeholder="Kosongkan agar tidak dikirim ke company email">
+                        placeholder="to1@example.com, to2@example.com">
                 </div>
 
                 {{-- CC Emails (diisi manual — TIDAK auto dari contact) --}}
@@ -467,7 +467,7 @@
                 </div>
 
                 {{-- Priority + Ticket Type (2 col) --}}
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Priority <span class="text-red-500">*</span></label>
                         <select id="newPriority" required
@@ -512,7 +512,7 @@
                 {{-- Additional Info --}}
                 <div class="border-t border-gray-100 pt-3">
                     <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Additional Info <span class="font-normal normal-case">(optional)</span></p>
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Name</label>
                             <input type="text" id="newName" maxlength="255"

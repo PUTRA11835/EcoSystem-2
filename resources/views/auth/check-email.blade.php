@@ -12,7 +12,7 @@
             display:flex; flex-direction:column;
             background:#fff; height:100vh; overflow:hidden; position:relative;
         }
-        @media (max-width:767px) { #content-panel { overflow:visible; } }
+        @media (max-width:767px) { #content-panel { height:auto; min-height:calc(100vh - 62px); overflow:visible; } }
 
         .ce-inner {
             width:100%; max-width:400px;
