@@ -461,32 +461,78 @@ class TicketController extends Controller
                 'no_hp'           => 'nullable|string|max:255',
                 'module'          => 'nullable|string|max:255',
                 'client'          => 'nullable|string|max:255',
+                'to_email'        => 'nullable|email|max:255',
                 'cc_emails'       => 'nullable|string|max:2000',
                 'body'            => 'nullable|string',
                 'attachments'     => 'nullable|array',
                 'attachments.*'   => 'file|max:20480',
             ]);
 
-            $body     = $validated['body'] ?? null;
-            $ccRaw    = $validated['cc_emails'] ?? null;
-            $files    = $request->file('attachments', []);
-            $validated['status'] = 'inprocess';
-            // Parse CC emails menjadi array format yang disimpan di ticket
-            if ($ccRaw) {
-                $ccList = [];
-                foreach (array_filter(array_map('trim', explode(',', $ccRaw))) as $cc) {
+            $body  = $validated['body'] ?? null;
+            $files = $request->file('attachments', []);
+
+            // "To" HANYA dari input manual — TIDAK auto-baca company email.
+            // Default kosong (mis. EWA): email dikirim hanya ke CC contact.
+            $toEmail = trim((string) ($validated['to_email'] ?? ''));
+
+            // Parse CC emails menjadi array format [{address,name}] untuk disimpan di ticket.
+            $ccList = [];
+            if (!empty($validated['cc_emails'])) {
+                foreach (array_filter(array_map('trim', explode(',', $validated['cc_emails']))) as $cc) {
                     if (filter_var($cc, FILTER_VALIDATE_EMAIL)) {
                         $ccList[] = ['address' => $cc, 'name' => null];
                     }
                 }
-                $validated['cc_emails'] = !empty($ccList) ? $ccList : null;
             }
-            unset($validated['body'], $validated['attachments']);
+
+            // ── Kirim email via Graph bila ada minimal satu penerima (To/CC) ──────
+            set_time_limit(120);
+            $emailResult    = null;
+            $conversationId = null;
+            $internetMsgId  = null;
+            if ($toEmail !== '' || !empty($ccList)) {
+                try {
+                    $emailResult = (new EmailController())->sendTicketReply(
+                        toEmail:    $toEmail,
+                        subject:    '[JARVIES] ' . $validated['description'],
+                        body:       $body ?? '',
+                        inReplyTo:  null,
+                        files:      $files,
+                        ccList:     array_column($ccList, 'address'),
+                        noRePrefix: true,
+                    );
+                    $conversationId = $emailResult['conversation_id'] ?? null;
+                    $internetMsgId  = $emailResult['internet_message_id'] ?? null;
+                } catch (\Exception $e) {
+                    Log::warning('TicketController@store (admin): email gagal (non-fatal)', [
+                        'to_email' => $toEmail,
+                        'error'    => $e->getMessage(),
+                    ]);
+                }
+            }
 
             try {
-                $ticket = DB::transaction(function () use ($validated, $body, $user) {
-                    $validated['ticket_number'] = $this->ticketNumbers->generate();
-                    return Ticket::create($validated);
+                $ticket = DB::transaction(function () use ($validated, $toEmail, $ccList, $conversationId, $user) {
+                    return Ticket::create([
+                        'ticket_number'      => $this->ticketNumbers->generate(),
+                        'customer_id'        => $validated['customer_id'],
+                        'description'        => $validated['description'],
+                        'ticket_priority'    => $validated['ticket_priority'],
+                        'ticket_type'        => $validated['ticket_type'] ?: null,
+                        'scale'              => $validated['scale'] ?? null,
+                        'name'               => $validated['name'] ?? null,
+                        'no_hp'              => $validated['no_hp'] ?? null,
+                        'module'             => $validated['module'] ?? null,
+                        'client'             => $validated['client'] ?? null,
+                        'status'             => 'inprocess',
+                        // channel 'email' agar composer To/CC selalu tersedia di halaman tiket,
+                        // walau To dikosongkan saat create (bisa diisi manual saat balas).
+                        'channel'            => 'email',
+                        'email_thread_id'    => $conversationId,
+                        // Simpan HANYA "To" manual (nullable) — bukan company email.
+                        'submitted_by_email' => $toEmail !== '' ? $toEmail : null,
+                        'cc_emails'          => !empty($ccList) ? $ccList : null,
+                    ]);
                 });
 
                 $message = null;
@@ -500,13 +546,33 @@ class TicketController extends Controller
                         'message'             => strip_tags($body),
                         'message_html'        => $body,
                         'is_internal_note'    => false,
-                        'channel'             => 'web',
+                        'channel'             => $emailResult ? 'email' : 'web',
+                        'email_message_id'    => $internetMsgId,
                         'is_read_by_customer' => false,
                         'is_read_by_agent'    => true,
                     ]);
                 }
 
-                if ($files && $message) {
+                // Attachment: jika email terkirim, simpan metadata Graph; jika tidak,
+                // simpan file lokal seperti sebelumnya.
+                if ($emailResult && !empty($emailResult['attachments']) && $message) {
+                    foreach ($emailResult['attachments'] as $att) {
+                        \App\Models\TicketAttachment::create([
+                            'ticket_id'           => $ticket->ticket_id,
+                            'message_id'          => $message->id,
+                            'uploaded_by_type'    => 'employee',
+                            'uploaded_by_id'      => $user['employee_id'] ?? null,
+                            'attachment_type'     => app(EmailController::class)->resolveAttachmentTypePublic($att['mime'] ?? ''),
+                            'file_name'           => $att['name'],
+                            'link_title'          => $att['name'],
+                            'file_size'           => $att['size'] ?? 0,
+                            'mime_type'           => $att['mime'] ?? 'application/octet-stream',
+                            'is_inline'           => false,
+                            'graph_attachment_id' => $att['graph_att_id'] ?? null,
+                            'graph_message_id'    => $emailResult['graph_message_id'] ?? null,
+                        ]);
+                    }
+                } elseif (!$emailResult && $files && $message) {
                     foreach ($files as $file) {
                         try {
                             $path = $file->store("ticket-attachments/{$ticket->ticket_id}", 'public');
@@ -531,9 +597,10 @@ class TicketController extends Controller
                 }
 
                 return response()->json([
-                    'success' => true,
-                    'message' => 'Ticket created successfully',
-                    'data'    => $ticket,
+                    'success'    => true,
+                    'message'    => 'Ticket created successfully',
+                    'data'       => $ticket,
+                    'email_sent' => $emailResult !== null,
                 ], 201);
             } catch (\Exception $e) {
                 Log::error('TicketController@store (admin): gagal', [
@@ -652,7 +719,9 @@ class TicketController extends Controller
                     'module'             => $validated['module'] ?? null,
                     'client'             => $validated['client'] ?? null,
                     'status'             => 'open',
-                    'channel'            => $emailResult ? 'email' : 'web',
+                    // channel 'email' agar composer To/CC selalu tersedia di halaman tiket,
+                    // walau To dikosongkan saat create (bisa diisi manual saat balas).
+                    'channel'            => 'email',
                     'email_thread_id'    => $conversationId,
                     // Simpan HANYA "To" manual (nullable) — bukan company email — supaya
                     // balasan berikutnya juga tidak otomatis tertuju ke company email.
