@@ -2531,7 +2531,11 @@ class TicketController extends Controller
         }
 
         $ticket  = Ticket::with('members.basicData')->findOrFail($ticketId);
-        $roleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id']]);
+        $roleIds = !empty($sessionUser['role_ids'])
+            ? array_map('intval', $sessionUser['role_ids'])
+            : DB::table('employee_role_assignment')
+                ->where('employee_id', (int) ($sessionUser['id'] ?? 0))
+                ->pluck('role_id')->map(fn($id) => (int) $id)->toArray();
         $isAdmin    = in_array(RoleId::EC_ADMINISTRATOR->value, $roleIds, true);
         $isHoS      = in_array(RoleId::DELIVERY_SUPPORT_HEAD->value, $roleIds, true);
         $isManager  = in_array(RoleId::DELIVERY_SUPPORT_MANAGER->value, $roleIds, true);
