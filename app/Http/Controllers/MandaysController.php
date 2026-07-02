@@ -1310,6 +1310,10 @@ class MandaysController extends Controller
      */
     private function resolveCustomerEmailForTicket(Ticket $ticket): ?string
     {
+        if (!empty($ticket->submitted_by_email)) {
+            return $ticket->submitted_by_email;
+        }
+
         $submittedEmail = DB::table('staging_tickets')
             ->where('ticket_id', $ticket->ticket_id)
             ->whereNotNull('submitted_by_email')
