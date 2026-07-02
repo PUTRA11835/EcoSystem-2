@@ -1039,8 +1039,13 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const hasUnreadCustomer = lastCustomer && (!lastAgent || lastCustomer > lastAgent);
         const hasUnreadInternal = lastInternal && (Number(lastNoteSender) !== currentEmployeeId);
 
+        // Kalau dua-duanya aktif, menangkan yang waktunya paling baru — bukan selalu
+        // internal note yang menang (perilaku lama), supaya warna mengikuti update terakhir.
+        const customerTs = hasUnreadCustomer ? lastCustomer.getTime() : -Infinity;
+        const internalTs = hasUnreadInternal ? lastInternal.getTime() : -Infinity;
+
         let unreadCls = '', dot = '', timeColor = 'text-gray-400', numColor = 'text-gray-700';
-        if (hasUnreadInternal) {
+        if (internalTs >= customerTs && hasUnreadInternal) {
             unreadCls = 'ticket-unread-internal';
             dot       = '<span class="unread-dot unread-dot-yellow" title="Ada internal note belum dibalas"></span>';
             timeColor = 'text-amber-600 font-semibold';
