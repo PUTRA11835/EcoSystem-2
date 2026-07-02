@@ -2815,18 +2815,20 @@
     }
 
     // â"€â"€ Render attachment list (gambar inline, file sebagai link download) â"€â"€â"€â"€â"€â"€
-    // isEmailWithHtml: true jika pesan email sudah punya message_html &rarr;
-    //   inline images sudah ditampilkan di dalam HTML body, jadi tidak perlu ditampilkan ulang sebagai thumbnail
-    function renderAttachments(attachments, isEmailWithHtml = false) {
+    // bodyHasInlineImages: true jika message_html sudah me-render inline image di
+    //   dalam body (email setelah CID replacement, ATAU internal note yang
+    //   inline image-nya sudah jadi <img src="/storage/..."> lewat InlineImageService).
+    //   Bila true, jangan tampilkan inline image lagi sebagai thumbnail (cegah double).
+    function renderAttachments(attachments, bodyHasInlineImages = false) {
         if (!attachments || attachments.length === 0) return '';
 
         // Pisahkan inline images dan file biasa
-        // Jika email dengan HTML body: abaikan inline images (sudah ada di message_html setelah CID replacement)
-        const inlineImgs = isEmailWithHtml
+        // Jika body sudah punya inline image: abaikan is_inline (sudah ada di message_html)
+        const inlineImgs = bodyHasInlineImages
             ? []
             : attachments.filter(a => a.is_inline && a.mime_type?.startsWith('image/'));
-        // Untuk email dengan HTML body: juga exclude is_inline=true dari files (sudah ada di HTML body)
-        const files = isEmailWithHtml
+        // Bila body sudah punya inline image: juga exclude is_inline=true dari files (sudah ada di HTML body)
+        const files = bodyHasInlineImages
             ? attachments.filter(a => !a.is_inline)
             : attachments.filter(a => !inlineImgs.includes(a));
 
@@ -3202,8 +3204,12 @@
                </span>`
             : '';
 
-        const isEmailWithHtml = msg.channel === 'email' && !!msg.message_html;
-        const attachmentsHtml = renderAttachments(msg.attachments, isEmailWithHtml);
+        // Body sudah me-render inline image bila: email dengan HTML body, ATAU
+        // internal note dengan message_html (inline image-nya jadi <img src="/storage/...">).
+        // Keduanya tidak boleh menampilkan ulang inline image sebagai thumbnail (cegah double).
+        const bodyHasInlineImages = !!msg.message_html
+            && (msg.channel === 'email' || msg.message_type === 'internal_note');
+        const attachmentsHtml = renderAttachments(msg.attachments, bodyHasInlineImages);
 
         if (isInternalNote) {
             const isMine = msg.sender_id && currentUserId && String(msg.sender_id) === String(currentUserId);
@@ -6153,10 +6159,14 @@
             editNoteQuill.setText(msg.message_body || '');
         }
 
-        // Render existing attachments
+        // Render existing attachments — HANYA file non-inline. Inline image tidak
+        // ditampilkan sebagai baris removable karena byte-nya direferensikan langsung
+        // oleh <img src="/storage/..."> di dalam editor body. Menghapusnya lewat daftar
+        // ini akan meng-orphan URL di body → gambar 404 setelah cache browser hilang.
+        // Inline image dikelola lewat isi editor (hapus <img> dari body untuk membuang).
         const attContainer = document.getElementById('editNoteExistingAtts');
         attContainer.innerHTML = '';
-        (msg.attachments || []).forEach(att => {
+        (msg.attachments || []).filter(att => !att.is_inline).forEach(att => {
             const row = document.createElement('div');
             row.className = 'flex items-center gap-2 text-xs text-gray-700 py-1';
             row.dataset.attId = att.id;

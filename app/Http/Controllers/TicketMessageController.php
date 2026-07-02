@@ -1211,13 +1211,22 @@ class TicketMessageController extends Controller
                     'edited_at'    => now(),
                 ]);
 
-                // Remove attachments
+                // Remove attachments.
+                // GUARD: jangan pernah hapus inline image yang byte-nya masih
+                // direferensikan oleh <img src="/storage/..."> di message_html baru.
+                // Menghapus file-nya akan meng-orphan URL di body → gambar 404
+                // (mirror invariant email: inline image dikelola lewat body, bukan
+                // daftar attachment). File di-serve dari public disk via InlineImageService.
                 $removeIds = $request->input('remove_attachment_ids', []);
                 if (!empty($removeIds)) {
                     $toRemove = TicketAttachment::where('message_id', $message->id)
                         ->whereIn('id', $removeIds)
                         ->get();
                     foreach ($toRemove as $att) {
+                        if ($att->is_inline && $att->file_path
+                            && str_contains((string) $messageHtml, $att->file_path)) {
+                            continue; // masih dipakai di body → jangan hapus (cegah 404)
+                        }
                         if ($att->file_path) {
                             Storage::disk('public')->delete($att->file_path);
                         }

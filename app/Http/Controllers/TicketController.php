@@ -1750,6 +1750,14 @@ class TicketController extends Controller
                 'channel' => $ticket->channel,
                 'folder' => $ticket->folder,
                 'file_log' => $ticket->file_log,
+                // Link folder deliverable OneDrive (scoped ke folder ticket saja).
+                // Ini anonymous edit-link yang dibuat pada folder ticket di
+                // TicketDeliverableController::store — customer yang membuka link
+                // hanya melihat isi folder ticket ini (tidak bisa naik ke folder
+                // customer/CUSTOMER DELIVERABLE, sehingga tidak melihat customer lain).
+                // Null selama belum ada file deliverable yang diupload (folder lazy-create).
+                'deliverable_folder_url' => $ticket->onedrive_folder_url,
+                'has_deliverable_folder' => !empty($ticket->onedrive_folder_url),
                 'start_date' => $ticket->start_date,
                 'end_date' => $ticket->end_date,
                 'man_days' => $ticket->man_days,
