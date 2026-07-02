@@ -483,6 +483,7 @@ async function toggleMenuAccess(menuId, checkbox) {
     } else {
         if (grant) {
             roleMenuPermissions[menuId] = { can_view: true, can_create: false, can_edit: false, can_delete: false };
+            await cascadeGrantChildren(menuId);
             showToast(`Access to "${menuName}" granted successfully.`, 'success');
         } else {
             delete roleMenuPermissions[menuId];
@@ -513,6 +514,28 @@ async function cascadeRevokeChildren(parentId) {
         }
         // Rekursif ke grandchildren
         await cascadeRevokeChildren(child.id);
+    }
+}
+
+// Rekursif beri akses semua children (dan panggil API grant)
+async function cascadeGrantChildren(parentId) {
+    const node = findMenuNode(menuTree, parentId);
+    if (!node || !node.children?.length) return;
+
+    for (const child of node.children) {
+        if (!roleMenuPermissions[child.id]) {
+            try {
+                const res = await fetch(`/api/roles/${currentRoleId}/permissions/${child.id}`, {
+                    method: 'PUT', headers: jsonHeaders(),
+                    body: JSON.stringify({ can_view: true, can_create: false, can_edit: false, can_delete: false }),
+                });
+                if ((await res.json()).success) {
+                    roleMenuPermissions[child.id] = { can_view: true, can_create: false, can_edit: false, can_delete: false };
+                }
+            } catch(e) {}
+        }
+        // Rekursif ke grandchildren
+        await cascadeGrantChildren(child.id);
     }
 }
 
