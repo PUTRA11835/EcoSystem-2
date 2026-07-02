@@ -4287,9 +4287,9 @@
     }
 
     async function toggleMemberBtn(employeeId, isActive) {
-        const method = isActive ? 'DELETE' : 'POST';
+        const method = 'POST';
         const url    = isActive
-            ? `/api/tickets/${ticketId}/members/${employeeId}`
+            ? `/api/tickets/${ticketId}/members/${employeeId}/remove`
             : `/api/tickets/${ticketId}/members`;
         const body   = isActive ? null : JSON.stringify({ employee_id: employeeId });
 
@@ -6659,8 +6659,8 @@
     async function deleteNote(msgId) {
         const ticketId = {{ $ticket->ticket_id }};
         try {
-            const res  = await fetch(`/api/tickets/${ticketId}/messages/${msgId}/internal-note`, {
-                method: 'DELETE',
+            const res  = await fetch(`/api/tickets/${ticketId}/messages/${msgId}/internal-note/delete`, {
+                method: 'POST',
                 headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '', 'Accept': 'application/json' },
                 credentials: 'same-origin',
             });
