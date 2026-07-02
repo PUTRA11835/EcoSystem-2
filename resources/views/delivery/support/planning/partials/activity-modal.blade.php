@@ -475,7 +475,7 @@ window.saveActivity = function(event) {
         description: document.getElementById('activityDescription').value || null,
         deliverable: document.getElementById('activityDeliverable').value || null,
         new_issue: document.getElementById('activityNewIssue').checked,
-        _token: document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}'
+        _token: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
     };
     
     

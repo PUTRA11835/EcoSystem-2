@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\Customer;
 use App\Models\CustomerMandays;
@@ -100,6 +101,14 @@ class TicketViewController extends Controller
                 ['read_at', 'updated_at']
             );
         }
+
+        // Opening the ticket also clears any unread reply/internal-note notifications
+        // for it, so the bell badge doesn't stay stuck after the user has seen them here.
+        Notification::where('employee_id', $user->id)
+            ->where('ticket_id', $ticket->ticket_id)
+            ->whereIn('type', ['ticket_reply', 'ticket_internal_note'])
+            ->where('is_read', false)
+            ->update(['is_read' => true, 'read_at' => now()]);
 
         // Check if ticket is assigned to a delivery support
         // First try via activities (newer method), then fallback to direct ticket_id on delivery_support (older method)

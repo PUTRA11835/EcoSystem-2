@@ -117,7 +117,7 @@ class EmployeeBasicDataController extends Controller
         // nullable field empty strings to null so nullable|in:, nullable|date,
         // and nullable|string rules pass correctly.
         $nullableFields = [
-            'title', 'nick_name', 'gender', 'religion', 'last_name',
+            'title', 'gender', 'religion', 'last_name',
             'search_term_1', 'search_term_2', 'marital_status',
             'birth_date', 'birth_place', 'since_date',
             'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup',
@@ -133,7 +133,7 @@ class EmployeeBasicDataController extends Controller
         $validator = Validator::make($request->all(), [
             // Identitas Pribadi
             'title' => 'nullable|string|max:10',
-            'nick_name' => 'nullable|string|max:100',
+            'nick_name' => 'required|string|max:100|unique:employee_basic_data,nick_name',
             'gender' => 'nullable|string|max:10',
             'religion' => 'nullable|string|max:50',
             'first_name' => 'required|string|max:255',
@@ -274,7 +274,7 @@ class EmployeeBasicDataController extends Controller
             }
 
             $nullableFields = [
-                'title', 'nick_name', 'gender', 'religion', 'last_name',
+                'title', 'gender', 'religion', 'last_name',
                 'search_term_1', 'search_term_2', 'marital_status',
                 'birth_date', 'birth_place', 'since_date',
                 'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup',
@@ -290,7 +290,7 @@ class EmployeeBasicDataController extends Controller
             // Validate only provided fields
             $validator = Validator::make($partialInput, [
                 'title' => 'nullable|string|max:10',
-                'nick_name' => 'nullable|string|max:100',
+                'nick_name' => 'sometimes|required|string|max:100|unique:employee_basic_data,nick_name,' . $basicData->basic_data_id . ',basic_data_id',
                 'gender' => 'nullable|in:Male,Female',
                 'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Confucian',
                 'first_name' => 'nullable|string|max:255',

@@ -162,7 +162,7 @@
 
         const formData = new FormData();
         formData.append('file', fileInput.files[0]);
-        formData.append('_token', document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}');
+        formData.append('_token', document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}');
 
         // Processing state: spinner + disabled + label change + info toast
         btn.disabled = true;

@@ -197,7 +197,7 @@ window.addEventListener('resize', closeRecapTextPanelAll);
 async function loadCurrentPeriodBadge() {
     try {
         const res  = await fetch('/api/reporting/current-period', {
-            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
             credentials: 'same-origin'
         });
         const json = await res.json();
@@ -238,7 +238,7 @@ async function loadRecap() {
     const params = _getPeriodParams();
     try {
         const res  = await fetch(`/api/reporting/md-recap?${params.toString()}`, {
-            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
             credentials: 'same-origin'
         });
         const json = await res.json();

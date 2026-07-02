@@ -557,6 +557,12 @@ Route::middleware(['web'])->group(function () {
     Route::post('/tickets/{id}/sla/meeting/start', [\App\Http\Controllers\SlaController::class, 'startMeeting']);
     Route::post('/tickets/{id}/sla/meeting/end',   [\App\Http\Controllers\SlaController::class, 'endMeeting']);
 
+    // ── Meeting Templates (terikat per tiket) ───────────────────────────────────
+    Route::get('/tickets/{id}/meeting-templates',            [\App\Http\Controllers\MeetingTemplateController::class, 'index']);
+    Route::post('/tickets/{id}/meeting-templates',           [\App\Http\Controllers\MeetingTemplateController::class, 'store']);
+    Route::put('/tickets/{id}/meeting-templates/{tplId}',    [\App\Http\Controllers\MeetingTemplateController::class, 'update']);
+    Route::delete('/tickets/{id}/meeting-templates/{tplId}', [\App\Http\Controllers\MeetingTemplateController::class, 'destroy']);
+
     // Admin-only SLA endpoints
     Route::get('/admin/sla/policies',          [\App\Http\Controllers\SlaController::class, 'getPolicies']);
     Route::post('/admin/sla/policies',         [\App\Http\Controllers\SlaController::class, 'storePolicy']);

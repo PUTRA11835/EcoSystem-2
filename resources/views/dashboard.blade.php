@@ -1240,7 +1240,7 @@
     <script>
     (function () {
         var bellOpen = false;
-        var csrf = document.querySelector('meta[name=”csrf-token”]') ? document.querySelector('meta[name=”csrf-token”]').content : '';
+        var csrf = document.querySelector('meta[name=”csrf-token”]')?.getAttribute('content') || '';
 
         /* ---- toggle dropdown ---- */
         function toggleBellDropdown() {
@@ -1264,9 +1264,11 @@
         });
 
         /* ---- notification sound (HTML Audio — works without immediate user gesture) ---- */
-        var _soundEnabled    = localStorage.getItem('notif_sound_enabled') !== 'false';
-        var _lastUnreadCount = null;
-        var _pageTitle       = document.title;
+        var _soundEnabled     = localStorage.getItem('notif_sound_enabled') !== 'false';
+        var _lastUnreadCount  = null;
+        var _lastNonMsgCount  = null;
+        var _lastMessageCount = null;
+        var _pageTitle        = document.title;
 
         // Use <audio> element — simpler and respects Chrome's per-origin user activation,
         // meaning it works even when triggered by push/postMessage without a direct click.
@@ -1458,7 +1460,8 @@
                     var badge = document.getElementById('bellBadge');
                     if (!badge) return;
 
-                    // Badge + OS notification only for non-message types
+                    // Badge now includes chat/message types (ticket replies, internal notes)
+                    // alongside every other notification type.
                     var count = data.count || 0;
                     if (count > 0) {
                         badge.textContent = count > 99 ? '99+' : count;
@@ -1467,17 +1470,24 @@
                         badge.classList.add('hidden');
                     }
                     updateTabTitle(count);
-                    if (_lastUnreadCount !== null && count > _lastUnreadCount) {
+
+                    // Split the delta so message-type increases play the chat sound while
+                    // everything else keeps using the ticket sound + OS notification.
+                    var msgCount    = data.message_sound_count || 0;
+                    var nonMsgCount = count - msgCount;
+
+                    if (_lastNonMsgCount !== null && nonMsgCount > _lastNonMsgCount) {
                         handleNewNotifications();
                     }
-                    _lastUnreadCount = count;
+                    _lastNonMsgCount = nonMsgCount;
 
-                    // Message sound only (internal note / email reply) — no badge, no OS notif
-                    var msgCount = data.message_sound_count || 0;
-                    if (msgCount > 0) {
+                    if (_lastMessageCount !== null && msgCount > _lastMessageCount) {
                         var onTicketPage = /^\/ticket\/\d+/.test(window.location.pathname);
                         if (!onTicketPage) { playChatSound(); }
                     }
+                    _lastMessageCount = msgCount;
+
+                    _lastUnreadCount = count;
                 })
                 .catch(function () {});
         }
@@ -1500,7 +1510,8 @@
             ticket_member_removed:        { bg: '#fee2e2', color: '#dc2626', fa: 'fa-user-minus' },
             ticket_member_reactivated:    { bg: '#dbeafe', color: '#2563eb', fa: 'fa-user-check' },
             ticket_internal_note:         { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-sticky-note' },
-            ticket_reply:                 { bg: '#dbeafe', color: '#2563eb', fa: 'fa-reply' }
+            ticket_reply:                 { bg: '#dbeafe', color: '#2563eb', fa: 'fa-reply' },
+            customer_email_reply:         { bg: '#dcfce7', color: '#16a34a', fa: 'fa-envelope' }
         };
         var DEFAULT_CFG = { bg: '#fee2e2', color: '#b91c1c', fa: 'fa-at' };
 
@@ -1523,6 +1534,7 @@
                 case 'ticket_member_reactivated': return (n.from_name || 'Someone') + ' re-added a member to a ticket';
                 case 'ticket_internal_note':      return (n.from_name || 'Someone') + ' added an internal note';
                 case 'ticket_reply':              return (n.from_name || 'Someone') + ' replied to a ticket';
+                case 'customer_email_reply':      return (n.from_name || 'Customer') + ' replied via email';
                 default: return (n.from_name || 'Someone') + ' mentioned you';
             }
         }
@@ -1763,10 +1775,8 @@
                     } else {
                         if (typeof window.playTicketSound === 'function') window.playTicketSound();
                     }
-                    if (!msgTypes.includes(payload.type)) {
-                        if (typeof window.fetchUnreadCount === 'function') {
-                            window.fetchUnreadCount();
-                        }
+                    if (typeof window.fetchUnreadCount === 'function') {
+                        window.fetchUnreadCount();
                     }
                 }
             });

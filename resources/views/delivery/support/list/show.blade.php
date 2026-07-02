@@ -1188,7 +1188,7 @@ async function openDeliverableLink(folderId, row) {
             headers: {
                 'Content-Type': 'application/json',
                 'Accept':       'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
             },
             body: JSON.stringify({ folder_id: folderId }),
         });
@@ -1255,7 +1255,7 @@ async function generateDeliverableFolder() {
             headers: {
                 'Content-Type': 'application/json',
                 'Accept':       'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
             },
             body: JSON.stringify({ subfolder_name: name }),
         });
@@ -1404,7 +1404,7 @@ async function submitSlaAddPolicy(e) {
         const res  = await fetch('/api/admin/sla/policies', {
             method: 'POST',
             credentials: 'include',
-            headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+            headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '' },
             body: JSON.stringify(payload),
         });
         const json = await res.json();
@@ -1478,7 +1478,7 @@ async function submitSlaEditPolicy(e) {
         const res  = await fetch(`/api/admin/sla/policies/${id}`, {
             method: 'PUT',
             credentials: 'include',
-            headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+            headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '' },
             body: JSON.stringify(payload),
         });
         const json = await res.json();
@@ -1504,7 +1504,7 @@ async function deleteSlaPolicy(id) {
         const res  = await fetch(`/api/admin/sla/policies/${id}`, {
             method: 'DELETE',
             credentials: 'include',
-            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '' },
         });
         const json = await res.json();
         if (json.success) {
@@ -1950,7 +1950,7 @@ async function confirmRemoveTicket(activityId, ticketNumber) {
     if (!ok) return;
 
     const supportId = {{ $support->id }};
-    const csrf = document.querySelector('meta[name="csrf-token"]').content;
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     try {
         const res  = await fetch(`/delivery/support/${supportId}/activities/${activityId}/remove-ticket`, {

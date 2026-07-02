@@ -194,12 +194,11 @@ class TicketController extends Controller
 
             // Tiket yang sudah dibaca oleh employee yang sedang login (hanya jika role punya fungsi istimewa ticket.read)
             $canReadFeature = (bool) \App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.read');
-            $readTicketIds = $canReadFeature
+            $readAtMap = $canReadFeature
                 ? DB::table('ticket_reads')
                     ->where('employee_id', $sessionUser['id'])
                     ->whereIn('ticket_id', $ticketIds)
-                    ->pluck('ticket_id')
-                    ->flip()
+                    ->pluck('read_at', 'ticket_id')
                 : collect();
 
             // Batch load support manager & admin per ticket via delivery_support_activities
@@ -235,7 +234,7 @@ class TicketController extends Controller
                 ->groupBy('ticket_id');
 
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap, $readTicketIds, $canReadFeature, $confirmationMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap, $readAtMap, $canReadFeature, $confirmationMap) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -269,7 +268,10 @@ class TicketController extends Controller
                     'last_agent_reply_at' => $ticket->last_agent_reply_at,
                     'last_internal_note_at'        => $ticket->last_internal_note_at,
                     'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
-                    'is_read' => $canReadFeature ? $readTicketIds->has($ticket->ticket_id) : true,
+                    'is_read' => !$canReadFeature || (
+                        $readAtMap->has($ticket->ticket_id)
+                        && (!$ticket->last_message_at || \Carbon\Carbon::parse($readAtMap->get($ticket->ticket_id))->gte($ticket->last_message_at))
+                    ),
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -279,12 +281,12 @@ class TicketController extends Controller
                     'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
                     'employee' => $ticket->ticketLead ? [
                         'employee_id' => $ticket->ticketLead->employee_id,
-                        'employee_name' => $ticket->ticketLead->basicData->first_name ?? 'Unknown',
+                        'employee_name' => $ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown',
                     ] : null,
                     'members' => $ticket->members->map(function($member) {
                         return [
                             'employee_id' => $member->employee_id,
-                            'employee_name' => $member->basicData->first_name ?? 'Unknown',
+                            'employee_name' => $member->basicData->nick_name ?? $member->basicData->first_name ?? 'Unknown',
                         ];
                     }),
                     'member_ids' => $ticket->members->pluck('employee_id')->toArray(),
@@ -428,7 +430,7 @@ class TicketController extends Controller
                 'start_date'             => $ticket->start_date,
                 'customer'               => ['customer_name' => $ticket->customer?->basicData?->name_1 ?? $ticket->customer?->email],
                 'end_customer_name'      => $ticket->endCustomer?->basicData?->name_1,
-                'employee'               => $ticket->ticketLead ? ['employee_name' => $ticket->ticketLead->basicData?->first_name ?? 'Unknown'] : null,
+                'employee'               => $ticket->ticketLead ? ['employee_name' => $ticket->ticketLead->basicData?->nick_name ?? $ticket->ticketLead->basicData?->first_name ?? 'Unknown'] : null,
                 'ticket_priority'        => $ticket->ticket_priority,
                 'scale'                  => $ticket->scale,
                 'status'                 => $ticket->status,
@@ -1053,12 +1055,11 @@ class TicketController extends Controller
 
             // Tiket yang sudah dibaca oleh employee yang sedang login (hanya jika role punya fungsi istimewa ticket.read)
             $myCanReadFeature = (bool) \App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.read');
-            $myReadTicketIds = $myCanReadFeature
+            $myReadAtMap = $myCanReadFeature
                 ? DB::table('ticket_reads')
                     ->where('employee_id', $sessionUser['id'])
                     ->whereIn('ticket_id', $myTicketIds)
-                    ->pluck('ticket_id')
-                    ->flip()
+                    ->pluck('read_at', 'ticket_id')
                 : collect();
 
             // Batch load approved customer mandays (latest approved version per ticket)
@@ -1070,7 +1071,7 @@ class TicketController extends Controller
                 ->map(fn($group) => $group->first()->total_mandays);
 
             // ✅ Transform data dengan confirmation info
-            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadTicketIds, $myCanReadFeature) {
+            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadAtMap, $myCanReadFeature) {
                 $myAllProgress = $myProgressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -1112,7 +1113,10 @@ class TicketController extends Controller
                     'last_agent_reply_at' => $ticket->last_agent_reply_at,
                     'last_internal_note_at'        => $ticket->last_internal_note_at,
                     'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
-                    'is_read' => $myCanReadFeature ? $myReadTicketIds->has($ticket->ticket_id) : true,
+                    'is_read' => !$myCanReadFeature || (
+                        $myReadAtMap->has($ticket->ticket_id)
+                        && (!$ticket->last_message_at || \Carbon\Carbon::parse($myReadAtMap->get($ticket->ticket_id))->gte($ticket->last_message_at))
+                    ),
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -1122,12 +1126,12 @@ class TicketController extends Controller
                     'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
                     'employee' => $ticket->ticketLead ? [
                         'employee_id' => $ticket->ticketLead->employee_id,
-                        'employee_name' => $ticket->ticketLead->basicData->first_name ?? 'Unknown',
+                        'employee_name' => $ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown',
                     ] : null,
                     'members' => $ticket->members->map(function($member) {
                         return [
                             'employee_id' => $member->employee_id,
-                            'employee_name' => $member->basicData->first_name ?? 'Unknown',
+                            'employee_name' => $member->basicData->nick_name ?? $member->basicData->first_name ?? 'Unknown',
                         ];
                     }),
                     'member_ids' => $ticket->members->pluck('employee_id')->toArray(),
@@ -1295,7 +1299,7 @@ class TicketController extends Controller
                     'ticket_confirmation.*',
                     'ticket.description',
                     'ticket.ticket_priority',
-                    'employee_basic_data.first_name as employee_name',
+                    DB::raw("COALESCE(NULLIF(employee_basic_data.nick_name, ''), employee_basic_data.first_name) as employee_name"),
                     DB::raw('COALESCE(customer_basic_data.name_1, customer.email) as customer_name')
                 )
                 ->orderBy('ticket_confirmation.created_at', 'desc')
@@ -2767,7 +2771,7 @@ class TicketController extends Controller
                     'ticket_confirmation.*',
                     'ticket.description',
                     'ticket.ticket_priority',
-                    'employee_basic_data.first_name as employee_name',
+                    DB::raw("COALESCE(NULLIF(employee_basic_data.nick_name, ''), employee_basic_data.first_name) as employee_name"),
                     DB::raw('COALESCE(customer_basic_data.name_1, customer.email) as customer_name')
                 )
                 ->first();
@@ -3135,7 +3139,8 @@ class TicketController extends Controller
         }
 
         // Only Admin, Helpdesk, and RPMO can create delivery supports
-        if (!in_array($sessionUser['role']['id'], RoleId::TICKET_MANAGER_GROUP, true)) {
+        $roleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id']]);
+        if (!array_intersect($roleIds, RoleId::TICKET_MANAGER_GROUP)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only Admin, Helpdesk, and RPMO can create delivery supports'

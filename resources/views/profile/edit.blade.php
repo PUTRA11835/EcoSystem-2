@@ -605,7 +605,7 @@ async function submitChangePassword() {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
     closeModal();
 
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const body = {
         current_password:      document.getElementById('current_password').value,
         password:              document.getElementById('password').value,

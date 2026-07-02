@@ -776,7 +776,7 @@
 </div>
 
 <script>
-const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 const empFiles  = {};
 const custFiles = {};
 
