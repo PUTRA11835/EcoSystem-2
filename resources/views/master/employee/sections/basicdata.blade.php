@@ -1,11 +1,20 @@
-<div class="space-y-6">
+<div class="space-y-6 {{ (isset($isReadonly) && $isReadonly) ? 'profile-readonly' : '' }}">
     <!-- General Information -->
     <div>
-        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 pb-2 border-b border-gray-200">
-            <h3 class="text-base font-semibold text-gray-900">General Information</h3>
-            <button onclick="saveCurrentSection()" class="px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
+        <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
+            <div class="flex items-center gap-2">
+                <h3 class="text-base font-semibold text-gray-900">General Information</h3>
+                @if(isset($isReadonly) && $isReadonly)
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium">
+                        <i class="fas fa-lock text-[10px]"></i> View Only
+                    </span>
+                @endif
+            </div>
+            @if(!isset($isReadonly) || !$isReadonly)
+            <button onclick="saveCurrentSection()" class="js-section-action px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
                 Save Changes
             </button>
+            @endif
         </div>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div class="flex flex-col">

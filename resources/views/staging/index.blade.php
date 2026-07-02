@@ -151,7 +151,7 @@ const canRejectStaging  = {{ $can('staging.reject')  ? 'true' : 'false' }};
 
 @push('scripts')
 <script>
-const CSRF = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 let currentPage = 1;
 let meta = {};
 let currentStagingId = null;

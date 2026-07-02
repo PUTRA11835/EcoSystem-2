@@ -2080,7 +2080,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         try {
             const res = await fetch(`/api/tickets/${ticketId}/hide`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
             });
             const data = await res.json();
             if (data.success) {

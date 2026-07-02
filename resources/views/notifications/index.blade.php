@@ -22,25 +22,31 @@
 
     @php
         $lateExceptionTypes = [
-            'late_exception_submitted'    => ['icon' => 'fa-user-clock',    'color' => 'yellow', 'title' => 'Late Access Request submitted'],
-            'late_exception_pending_rpmo' => ['icon' => 'fa-user-clock',    'color' => 'blue',   'title' => 'Late Access Request needs RPMO review'],
-            'late_exception_head_approved'=> ['icon' => 'fa-check-circle',  'color' => 'green',  'title' => 'Late Access Request approved by Head'],
-            'late_exception_head_rejected'=> ['icon' => 'fa-times-circle',  'color' => 'red',    'title' => 'Late Access Request rejected by Head'],
-            'late_exception_approved'     => ['icon' => 'fa-unlock',        'color' => 'green',  'title' => 'Late Access Request approved by RPMO'],
-            'late_exception_rejected'     => ['icon' => 'fa-ban',           'color' => 'red',    'title' => 'Late Access Request rejected by RPMO'],
-            'customer_mandays_proposed'   => ['icon' => 'fa-file-invoice',  'color' => 'blue',   'title' => 'Customer Mandays Proposal — needs review'],
-            'resolution_days_proposed'   => ['icon' => 'fa-users',         'color' => 'indigo', 'title' => 'Resolution Days Proposal — needs review'],
-            'customer_mandays_canceled'   => ['icon' => 'fa-times-circle',  'color' => 'orange', 'title' => 'Customer Mandays Proposal canceled'],
-            'contract_end_reminder'       => ['icon' => 'fa-file-contract', 'color' => 'yellow', 'title' => 'Contract deadline reminder'],
-            'top_invoice_reminder'        => ['icon' => 'fa-file-invoice-dollar', 'color' => 'blue', 'title' => 'Invoice submission due'],
+            'late_exception_submitted'    => ['icon' => 'fa-user-clock',          'color' => 'yellow', 'title' => 'Late Access Request submitted'],
+            'late_exception_pending_rpmo' => ['icon' => 'fa-user-clock',          'color' => 'blue',   'title' => 'Late Access Request needs RPMO review'],
+            'late_exception_head_approved'=> ['icon' => 'fa-check-circle',        'color' => 'green',  'title' => 'Late Access Request approved by Head'],
+            'late_exception_head_rejected'=> ['icon' => 'fa-times-circle',        'color' => 'red',    'title' => 'Late Access Request rejected by Head'],
+            'late_exception_approved'     => ['icon' => 'fa-unlock',              'color' => 'green',  'title' => 'Late Access Request approved by RPMO'],
+            'late_exception_rejected'     => ['icon' => 'fa-ban',                 'color' => 'red',    'title' => 'Late Access Request rejected by RPMO'],
+            'customer_mandays_proposed'   => ['icon' => 'fa-file-invoice',        'color' => 'blue',   'title' => 'Customer Mandays Proposal — needs review'],
+            'resolution_days_proposed'    => ['icon' => 'fa-users',               'color' => 'indigo', 'title' => 'Resolution Days Proposal — needs review'],
+            'customer_mandays_canceled'   => ['icon' => 'fa-times-circle',        'color' => 'orange', 'title' => 'Customer Mandays Proposal canceled'],
+            'contract_end_reminder'       => ['icon' => 'fa-file-contract',       'color' => 'yellow', 'title' => 'Contract deadline reminder'],
+            'top_invoice_reminder'        => ['icon' => 'fa-file-invoice-dollar', 'color' => 'blue',   'title' => 'Invoice submission due'],
+            'customer_email_reply'        => ['icon' => 'fa-envelope',            'color' => 'green',  'title' => null], // title built dynamically from from_name
+            'ticket_reply'                => ['icon' => 'fa-reply',               'color' => 'blue',   'title' => null],
+            'ticket_internal_note'        => ['icon' => 'fa-sticky-note',         'color' => 'yellow', 'title' => null],
+            'ticket_member_added'         => ['icon' => 'fa-user-plus',           'color' => 'green',  'title' => null],
+            'ticket_member_removed'       => ['icon' => 'fa-user-minus',          'color' => 'red',    'title' => null],
+            'ticket_member_reactivated'   => ['icon' => 'fa-user-check',          'color' => 'blue',   'title' => null],
         ];
         $colorMap = [
             'yellow' => ['bg' => 'bg-yellow-100', 'icon' => 'text-yellow-600'],
             'blue'   => ['bg' => 'bg-blue-100',   'icon' => 'text-blue-600'],
             'green'  => ['bg' => 'bg-green-100',  'icon' => 'text-green-600'],
             'red'    => ['bg' => 'bg-red-100',     'icon' => 'text-red-600'],
-            'indigo'  => ['bg' => 'bg-indigo-100',  'icon' => 'text-indigo-600'],
-            'orange'  => ['bg' => 'bg-orange-100',  'icon' => 'text-orange-600'],
+            'indigo' => ['bg' => 'bg-indigo-100',  'icon' => 'text-indigo-600'],
+            'orange' => ['bg' => 'bg-orange-100',  'icon' => 'text-orange-600'],
         ];
     @endphp
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100" id="notifContainer">
@@ -65,13 +71,25 @@
                 <div class="flex items-start justify-between gap-2">
                     <div>
                         <p class="text-sm font-semibold text-gray-800">
-                            @if($isLateEx)
+                            @if($isLateEx && $leInfo['title'])
                                 {{ $leInfo['title'] }}
                                 @if($notif->from_name)
                                     <span class="font-normal text-gray-500">· {{ $notif->from_name }}</span>
                                 @endif
                             @elseif($notif->type === 'timesheet_submitted')
                                 {{ $notif->from_name ?? 'Consultant' }} submitted a timesheet
+                            @elseif($notif->type === 'customer_email_reply')
+                                {{ $notif->from_name ?? 'Customer' }} replied via email
+                            @elseif($notif->type === 'ticket_reply')
+                                {{ $notif->from_name ?? 'Someone' }} replied to a ticket
+                            @elseif($notif->type === 'ticket_internal_note')
+                                {{ $notif->from_name ?? 'Someone' }} added an internal note
+                            @elseif($notif->type === 'ticket_member_added')
+                                {{ $notif->from_name ?? 'Someone' }} added you to a ticket
+                            @elseif($notif->type === 'ticket_member_removed')
+                                {{ $notif->from_name ?? 'Someone' }} removed a member from a ticket
+                            @elseif($notif->type === 'ticket_member_reactivated')
+                                {{ $notif->from_name ?? 'Someone' }} re-added a member to a ticket
                             @else
                                 {{ $notif->from_name ?? 'Someone' }} mentioned you
                                 @if($notif->ticket_id)
@@ -118,7 +136,7 @@
 </div>
 
 <script>
-const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
 // Mark a single notification as read (it STAYS on the page, just shown as read).
 function markRead(id) {

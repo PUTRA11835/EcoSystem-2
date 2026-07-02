@@ -160,7 +160,7 @@
                     <span>{{ $ticket->created_at->format('d M Y H:i') }} WIB</span>
                     @if($ticket->ticketLead)
                         <span class="text-gray-300">|</span>
-                        <span>Ticket Lead: {{ $ticket->ticketLead->basicData ? trim($ticket->ticketLead->basicData->first_name . ' ' . ($ticket->ticketLead->basicData->last_name ?? '')) : 'Assigned' }}</span>
+                        <span>Ticket Lead: {{ $ticket->ticketLead->basicData ? ($ticket->ticketLead->basicData->nick_name ?: trim($ticket->ticketLead->basicData->first_name . ' ' . ($ticket->ticketLead->basicData->last_name ?? ''))) : 'Assigned' }}</span>
                     @endif
                 </div>
             </div>
@@ -246,29 +246,49 @@
 
             {{-- To Row: selalu dirender; untuk non-email ticket dikontrol JS (showEmailInitMode/hideEmailInitMode) --}}
             <div class="px-4 pt-1.5" id="toRow" @if(!($ticket->channel === 'email' || $ticket->email_thread_id)) style="display:none" @endif>
-                <div class="flex flex-wrap items-center gap-1 min-h-[30px] max-h-[76px] overflow-y-auto border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text" onclick="document.getElementById('toInput').focus()">
+                <div id="toDropZone"
+                     class="flex flex-wrap items-center gap-1 min-h-[30px] border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text transition-colors"
+                     onclick="document.getElementById('toInput').focus()"
+                     ondragover="emailChipDragOver(event)"
+                     ondragenter="emailChipDragEnter(event,'to')"
+                     ondragleave="emailChipDragLeave(event,'to')"
+                     ondrop="emailChipDrop(event,'to')">
                     <span class="text-[11px] text-gray-500 font-semibold mr-0.5 flex-shrink-0">To</span>
                     <div id="toTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
-                    <input type="text" id="toInput"
-                           placeholder="Add email and press Enter..."
-                           class="text-xs border-none bg-transparent outline-none flex-1 min-w-[150px] placeholder-gray-300 py-0.5"
-                           onkeydown="handleToKeydown(event)"
-                           onblur="commitToInput()"
-                           onpaste="handleToPaste(event)">
+                    <div class="relative flex-1 min-w-[150px]">
+                        <input type="text" id="toInput"
+                               placeholder="Add email and press Enter..."
+                               class="text-xs border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
+                               onkeydown="handleToKeydown(event)"
+                               oninput="showEmailSuggest(event,'to')"
+                               onblur="handleToBlur()"
+                               onpaste="handleToPaste(event)">
+                        <div id="toSuggest" class="hidden absolute left-0 top-full mt-0.5 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 max-h-44 overflow-y-auto"></div>
+                    </div>
                 </div>
             </div>
 
             {{-- CC Row: selalu dirender; untuk non-email ticket dikontrol JS --}}
             <div class="px-4 pt-1.5" id="ccRow" @if(!($ticket->channel === 'email' || $ticket->email_thread_id)) style="display:none" @endif>
-                <div class="flex flex-wrap items-center gap-1 min-h-[30px] max-h-[76px] overflow-y-auto border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text" onclick="document.getElementById('ccInput').focus()">
+                <div id="ccDropZone"
+                     class="flex flex-wrap items-center gap-1 min-h-[30px] border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text transition-colors"
+                     onclick="document.getElementById('ccInput').focus()"
+                     ondragover="emailChipDragOver(event)"
+                     ondragenter="emailChipDragEnter(event,'cc')"
+                     ondragleave="emailChipDragLeave(event,'cc')"
+                     ondrop="emailChipDrop(event,'cc')">
                     <span class="text-[11px] text-gray-500 font-semibold mr-0.5 flex-shrink-0">CC</span>
                     <div id="ccTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
-                    <input type="text" id="ccInput"
-                           placeholder="Add email and press Enter..."
-                           class="text-xs border-none bg-transparent outline-none flex-1 min-w-[150px] placeholder-gray-300 py-0.5"
-                           onkeydown="handleCcKeydown(event)"
-                           onblur="commitCcInput()"
-                           onpaste="handleCcPaste(event)">
+                    <div class="relative flex-1 min-w-[150px]">
+                        <input type="text" id="ccInput"
+                               placeholder="Add email and press Enter..."
+                               class="text-xs border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
+                               onkeydown="handleCcKeydown(event)"
+                               oninput="showEmailSuggest(event,'cc')"
+                               onblur="handleCcBlur()"
+                               onpaste="handleCcPaste(event)">
+                        <div id="ccSuggest" class="hidden absolute left-0 top-full mt-0.5 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 max-h-44 overflow-y-auto"></div>
+                    </div>
                 </div>
             </div>
 
@@ -363,11 +383,9 @@
     @php
         $mandaysStatus   = $ticket->mandays_proposal_status   ?? 'none';
         $resolutionStatus  = $ticket->resolution_days_status    ?? 'none';
-        $isPic           = $can('ticket.propose-mandays');
-        $isHelpdesk      = $can('ticket.review-mandays');
-        $isHead          = $can('ticket.head-mandays');
-        // Head takes priority over Helpdesk for multi-role users; PIC is hidden for both.
-        if ($isHead) { $isHelpdesk = false; }
+        $isPic      = $can('ticket.propose-mandays');
+        $isHelpdesk = $can('ticket.review-mandays');
+        $isHead     = $can('ticket.head-mandays');
         if ($isHead || $isHelpdesk) { $isPic = false; }
         // Computed AFTER override
         $hdCanEditActivity    = $isHelpdesk && $can('ticket.review-mandays.edit-activity');
@@ -407,10 +425,12 @@
         $canAssignPic      = $can('ticket.assign-pic');
         $canAssignDelivery = $can('ticket.assign-delivery-support');
         // Mandays buttons only visible when ticket has a PIC
-        $isPicMandays      = $isPic && $ticketAssigned;
-        $isHelpdeskMandays = $isHelpdesk && $ticketAssigned;
-        $isHeadMandays          = $isHead && $ticketAssigned && in_array($resolutionStatus, ['pending_head', 'approved', 'rejected', 'draft']);
-        $isHeadCustomerMandays  = $isHead && $ticketAssigned && in_array($mandaysStatus, ['pic_draft', 'pending_helpdesk', 'sent_to_chat', 'approved', 'canceled']);
+        $isPicMandays           = $isPic      && $ticketAssigned;
+        $isHelpdeskMandays      = $isHelpdesk && $ticketAssigned;
+        $isHeadMandays          = $isHead     && $ticketAssigned;
+        // Tampilkan Head "View Mandays Proposal" hanya jika user tidak punya akses Helpdesk review
+        // (jika punya keduanya, Helpdesk block sudah cukup — hindari duplikasi Customer Mandays di sidebar)
+        $isHeadCustomerMandays  = $isHead && !$isHelpdesk && $ticketAssigned;
         $hasMandaysSection = $isPicMandays || $isHelpdeskMandays || $isHeadMandays || $isHeadCustomerMandays
                            || $canTakeTicket || $canAssignPic || $canAssignDelivery;
     @endphp
@@ -454,15 +474,9 @@
                         <label class="text-xs font-semibold text-gray-500">Mandays Review</label>
                         <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $mBadgeClass }}">{{ $mBadgeLabel }}</span>
                     </div>
-                    @if(in_array($mandaysStatus, ['pic_draft', 'pending_helpdesk', 'sent_to_chat', 'approved', 'canceled']))
                     <button onclick="openMandaysVersionList('hd')" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Review Mandays Proposal
                     </button>
-                    @else
-                    <p class="text-[11px] text-gray-400 italic text-center py-1">
-                        {{ $mandaysStatus === 'none' ? 'Waiting for PIC proposal' : 'PIC is drafting proposal...' }}
-                    </p>
-                    @endif
                 </div>
                 @endif
                 {{-- Delivery Support Head: Customer Mandays (view only) --}}
@@ -479,7 +493,7 @@
                 @endif
                 {{-- Delivery Support Head: Resolution Days --}}
                 @if($isHeadMandays)
-                <div {{ $isHeadCustomerMandays ? 'class="pt-1 border-t border-gray-100"' : '' }}>
+                <div class="pt-1 border-t border-gray-100">
                     <div class="flex items-center justify-between mb-1.5">
                         <label class="text-xs font-semibold text-gray-500">Resolution Days</label>
                         <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $iBadgeClass }}">{{ $iBadgeLabel }}</span>
@@ -2107,7 +2121,7 @@
                 headers: {
                     'Content-Type':     'application/json',
                     'Accept':           'application/json',
-                    'X-CSRF-TOKEN':     document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                    'X-CSRF-TOKEN':     document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
                 body: JSON.stringify({ to, cc: ccStr, body: bodyHtml }),
@@ -2189,8 +2203,13 @@
         const container = document.getElementById('toTagsContainer');
         if (!container) return;
         container.innerHTML = toEmails.map((email, i) =>
-            `<span class="inline-flex items-center gap-1 bg-green-50 border border-green-200 text-green-700 text-[11px] rounded-full px-2 py-0.5 max-w-[220px]">
-                <span class="truncate">${escHtmlCC(email)}</span>
+            `<span draggable="true"
+                   data-email="${escHtmlCC(email)}"
+                   data-source="to"
+                   ondragstart="emailChipDragStart(event)"
+                   ondragend="emailChipDragEnd(event)"
+                   class="inline-flex items-center gap-1 bg-green-50 border border-green-200 text-green-700 text-[11px] rounded-full px-2 py-0.5 max-w-[220px] cursor-grab active:cursor-grabbing select-none">
+                <span class="truncate pointer-events-none">${escHtmlCC(email)}</span>
                 <button type="button" onclick="removeToTag(${i})" class="text-green-300 hover:text-red-500 transition-colors flex-shrink-0 leading-none ml-0.5">&times;</button>
             </span>`
         ).join('');
@@ -2202,6 +2221,23 @@
     }
 
     function handleToKeydown(e) {
+        const suggest = document.getElementById('toSuggest');
+        const isOpen  = suggest && !suggest.classList.contains('hidden');
+
+        if (e.key === 'Escape' && isOpen) {
+            e.preventDefault();
+            hideEmailSuggest('to');
+            return;
+        }
+        if (e.key === 'ArrowDown' && isOpen) { e.preventDefault(); navigateSuggest('to', 1); return; }
+        if (e.key === 'ArrowUp'   && isOpen) { e.preventDefault(); navigateSuggest('to', -1); return; }
+        if ((e.key === 'Enter' || e.key === ',') && isOpen && _suggestIndex >= 0) {
+            e.preventDefault();
+            const highlighted = suggest.querySelector('[data-suggest-idx="' + _suggestIndex + '"]');
+            if (highlighted) selectEmailSuggest(highlighted.dataset.suggestEmail, 'to');
+            return;
+        }
+
         if (e.key === 'Enter' || e.key === ',') {
             e.preventDefault();
             commitToInput();
@@ -2221,11 +2257,18 @@
             if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !lowerExisting.has(email.toLowerCase())) {
                 toEmails.push(email);
                 lowerExisting.add(email.toLowerCase());
+                saveEmailToHistory(email);
                 added = true;
             }
         }
         if (added) renderToTags();
         input.value = '';
+        hideEmailSuggest('to');
+    }
+
+    function handleToBlur() {
+        // Delay seluruh commit agar click pada item suggest sempat fire sebelum dropdown disembunyikan
+        setTimeout(() => { commitToInput(); hideEmailSuggest('to'); }, 150);
     }
 
     function handleToPaste(e) {
@@ -2247,8 +2290,13 @@
         const container = document.getElementById('ccTagsContainer');
         if (!container) return;
         container.innerHTML = ccEmails.map((email, i) =>
-            `<span class="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-700 text-[11px] rounded-full px-2 py-0.5 max-w-[200px]">
-                <span class="truncate">${escHtmlCC(email)}</span>
+            `<span draggable="true"
+                   data-email="${escHtmlCC(email)}"
+                   data-source="cc"
+                   ondragstart="emailChipDragStart(event)"
+                   ondragend="emailChipDragEnd(event)"
+                   class="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-700 text-[11px] rounded-full px-2 py-0.5 max-w-[200px] cursor-grab active:cursor-grabbing select-none">
+                <span class="truncate pointer-events-none">${escHtmlCC(email)}</span>
                 <button type="button" onclick="removeCcTag(${i})" class="text-blue-300 hover:text-red-500 transition-colors flex-shrink-0 leading-none ml-0.5">&times;</button>
             </span>`
         ).join('');
@@ -2260,6 +2308,23 @@
     }
 
     function handleCcKeydown(e) {
+        const suggest = document.getElementById('ccSuggest');
+        const isOpen  = suggest && !suggest.classList.contains('hidden');
+
+        if (e.key === 'Escape' && isOpen) {
+            e.preventDefault();
+            hideEmailSuggest('cc');
+            return;
+        }
+        if (e.key === 'ArrowDown' && isOpen) { e.preventDefault(); navigateSuggest('cc', 1); return; }
+        if (e.key === 'ArrowUp'   && isOpen) { e.preventDefault(); navigateSuggest('cc', -1); return; }
+        if ((e.key === 'Enter' || e.key === ',') && isOpen && _suggestIndex >= 0) {
+            e.preventDefault();
+            const highlighted = suggest.querySelector('[data-suggest-idx="' + _suggestIndex + '"]');
+            if (highlighted) selectEmailSuggest(highlighted.dataset.suggestEmail, 'cc');
+            return;
+        }
+
         if (e.key === 'Enter' || e.key === ',') {
             e.preventDefault();
             commitCcInput();
@@ -2274,14 +2339,22 @@
         if (!input) return;
         const parts = input.value.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
         let added = false;
+        const lowerExisting = new Set(ccEmails.map(e => String(e).toLowerCase()));
         for (const email of parts) {
-            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !ccEmails.includes(email)) {
+            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !lowerExisting.has(email.toLowerCase())) {
                 ccEmails.push(email);
+                lowerExisting.add(email.toLowerCase());
+                saveEmailToHistory(email);
                 added = true;
             }
         }
         if (added) renderCcTags();
         input.value = '';
+        hideEmailSuggest('cc');
+    }
+
+    function handleCcBlur() {
+        setTimeout(() => { commitCcInput(); hideEmailSuggest('cc'); }, 150);
     }
 
     function handleCcPaste(e) {
@@ -2293,6 +2366,182 @@
 
     function escHtmlCC(str) {
         return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Email chip drag & drop ──────────────────────────────────────────────
+    let _chipDragEmail  = null;
+    let _chipDragSource = null; // 'to' | 'cc'
+
+    function emailChipDragStart(e) {
+        const chip      = e.currentTarget;
+        _chipDragEmail  = chip.dataset.email;
+        _chipDragSource = chip.dataset.source;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', _chipDragEmail);
+        requestAnimationFrame(() => chip.classList.add('opacity-40'));
+    }
+
+    function emailChipDragEnd(e) {
+        e.target.classList.remove('opacity-40');
+        _cleanChipDropHighlights();
+    }
+
+    function emailChipDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    }
+
+    function emailChipDragEnter(e, target) {
+        e.preventDefault();
+        const zone = document.getElementById(target === 'to' ? 'toDropZone' : 'ccDropZone');
+        if (!zone) return;
+        // Skip highlight when dragging over its own zone
+        if (target === _chipDragSource) return;
+        zone.classList.add('ring-2',
+                           target === 'to' ? 'ring-green-400' : 'ring-blue-400',
+                           target === 'to' ? 'bg-green-50' : 'bg-blue-50');
+    }
+
+    function emailChipDragLeave(e, target) {
+        const zone = document.getElementById(target === 'to' ? 'toDropZone' : 'ccDropZone');
+        // Only remove highlight when truly leaving the zone (not moving to a child element)
+        if (zone && !zone.contains(e.relatedTarget)) {
+            zone.classList.remove('ring-2', 'ring-green-400', 'ring-blue-400', 'bg-green-50', 'bg-blue-50');
+        }
+    }
+
+    function emailChipDrop(e, target) {
+        e.preventDefault();
+        const email  = _chipDragEmail;
+        const source = _chipDragSource;
+
+        _cleanChipDropHighlights();
+
+        if (!email || target === source) return;
+
+        const lower = email.toLowerCase();
+
+        if (target === 'to') {
+            ccEmails = ccEmails.filter(c => String(c).toLowerCase() !== lower);
+            if (!toEmails.some(t => String(t).toLowerCase() === lower)) toEmails.push(email);
+        } else {
+            toEmails = toEmails.filter(t => String(t).toLowerCase() !== lower);
+            if (!ccEmails.some(c => String(c).toLowerCase() === lower)) ccEmails.push(email);
+        }
+
+        saveEmailToHistory(email);
+        renderToTags();
+        renderCcTags();
+
+        _chipDragEmail  = null;
+        _chipDragSource = null;
+    }
+
+    function _cleanChipDropHighlights() {
+        ['toDropZone', 'ccDropZone'].forEach(id => {
+            document.getElementById(id)?.classList.remove(
+                'ring-2', 'ring-green-400', 'ring-blue-400', 'bg-green-50', 'bg-blue-50'
+            );
+        });
+    }
+
+    // ── Email suggest (localStorage history) ───────────────────────────────
+    const EMAIL_HISTORY_KEY = 'ec_email_history';
+    const EMAIL_HISTORY_MAX = 100;
+    let _suggestIndex = -1;
+
+    function loadEmailHistory() {
+        try { return JSON.parse(localStorage.getItem(EMAIL_HISTORY_KEY) || '[]'); }
+        catch { return []; }
+    }
+
+    function saveEmailToHistory(email) {
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+        let history = loadEmailHistory();
+        const lower = email.toLowerCase();
+        // Hapus duplikat, tambah ke depan (most recent first)
+        history = history.filter(e => e.toLowerCase() !== lower);
+        history.unshift(email);
+        if (history.length > EMAIL_HISTORY_MAX) history.length = EMAIL_HISTORY_MAX;
+        localStorage.setItem(EMAIL_HISTORY_KEY, JSON.stringify(history));
+    }
+
+    function showEmailSuggest(e, field) {
+        const q   = e.target.value.trim().toLowerCase();
+        const key = field === 'to' ? 'toSuggest' : 'ccSuggest';
+        const dropdown = document.getElementById(key);
+        if (!dropdown) return;
+
+        if (!q) { hideEmailSuggest(field); return; }
+
+        const existingSet = new Set(
+            (field === 'to' ? toEmails : ccEmails).map(x => String(x).toLowerCase())
+        );
+
+        const matches = loadEmailHistory()
+            .filter(email => email.toLowerCase().includes(q) && !existingSet.has(email.toLowerCase()))
+            .slice(0, 6);
+
+        if (!matches.length) { hideEmailSuggest(field); return; }
+
+        _suggestIndex = -1;
+        dropdown.innerHTML = matches.map((email, i) =>
+            `<div data-suggest-email="${escHtmlCC(email)}"
+                  data-suggest-idx="${i}"
+                  onmousedown="event.preventDefault()"
+                  onclick="selectEmailSuggest(this.dataset.suggestEmail,'${field}')"
+                  class="px-3 py-1.5 text-xs cursor-pointer hover:bg-gray-50 truncate text-gray-700">
+                ${escHtmlCC(email)}
+            </div>`
+        ).join('');
+        dropdown.classList.remove('hidden');
+    }
+
+    function hideEmailSuggest(field) {
+        document.getElementById(field === 'to' ? 'toSuggest' : 'ccSuggest')
+            ?.classList.add('hidden');
+        _suggestIndex = -1;
+    }
+
+    function selectEmailSuggest(email, field) {
+        if (!email) return;
+        const lower = email.toLowerCase();
+        if (field === 'to') {
+            if (!toEmails.some(t => String(t).toLowerCase() === lower)) {
+                toEmails.push(email);
+                renderToTags();
+            }
+            const inp = document.getElementById('toInput');
+            if (inp) { inp.value = ''; inp.focus(); }
+        } else {
+            if (!ccEmails.some(c => String(c).toLowerCase() === lower)) {
+                ccEmails.push(email);
+                renderCcTags();
+            }
+            const inp = document.getElementById('ccInput');
+            if (inp) { inp.value = ''; inp.focus(); }
+        }
+        saveEmailToHistory(email);
+        hideEmailSuggest(field);
+    }
+
+    function navigateSuggest(field, dir) {
+        const dropdown = document.getElementById(field === 'to' ? 'toSuggest' : 'ccSuggest');
+        if (!dropdown) return;
+        const items = dropdown.querySelectorAll('[data-suggest-idx]');
+        if (!items.length) return;
+
+        _suggestIndex = Math.max(-1, Math.min(items.length - 1, _suggestIndex + dir));
+
+        items.forEach((item, i) => {
+            const active = i === _suggestIndex;
+            item.classList.toggle('bg-blue-50', active);
+            item.classList.toggle('text-blue-700', active);
+            item.classList.toggle('hover:bg-gray-50', !active);
+        });
+
+        // Scroll item ke dalam view
+        if (_suggestIndex >= 0) items[_suggestIndex].scrollIntoView({ block: 'nearest' });
     }
 
     // Ekstrak alamat email dari raw CC value — dukung string, {address,name}, atau JSON string.
@@ -2732,7 +2981,7 @@
                             'Accept': 'application/json',
                             'Content-Type': 'application/json',
                             'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? ''
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
                         },
                         credentials: 'same-origin'
                     });
@@ -3081,7 +3330,7 @@
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content || ''
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
                 },
                 body: JSON.stringify({ sla_message: val })
             });
@@ -3295,12 +3544,21 @@
             }
 
             // Edit window: 10 minutes from creation
-            const withinEditWindow = isMine && (Date.now() - new Date(msg.created_at).getTime()) < 10 * 60 * 1000;
+            const msgCreatedAt      = new Date(msg.created_at).getTime();
+            const msElapsed         = Date.now() - msgCreatedAt;
+            const editWindowMs      = 10 * 60 * 1000;
+            const withinEditWindow  = isMine && msElapsed < editWindowMs;
+            if (withinEditWindow) {
+                const msLeft = editWindowMs - msElapsed;
+                setTimeout(() => {
+                    document.querySelectorAll(`[data-note-edit-id="${msg.id}"]`).forEach(el => el.remove());
+                }, msLeft);
+            }
             const editBtns = withinEditWindow ? `
-                <button onclick="openEditNoteModal(${msg.id})" class="note-reply-btn opacity-0 group-hover:opacity-100 transition-opacity text-amber-600 hover:text-amber-800 text-[10px] font-semibold flex items-center gap-0.5 px-1.5 py-0.5 rounded hover:bg-amber-100 flex-shrink-0" title="Edit note">
+                <button data-note-edit-id="${msg.id}" onclick="openEditNoteModal(${msg.id})" class="note-reply-btn opacity-0 group-hover:opacity-100 transition-opacity text-amber-600 hover:text-amber-800 text-[10px] font-semibold flex items-center gap-0.5 px-1.5 py-0.5 rounded hover:bg-amber-100 flex-shrink-0" title="Edit note">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 </button>
-                <button onclick="confirmDeleteNote(${msg.id})" class="note-reply-btn opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600 text-[10px] font-semibold flex items-center gap-0.5 px-1.5 py-0.5 rounded hover:bg-red-50 flex-shrink-0" title="Delete note">
+                <button data-note-edit-id="${msg.id}" onclick="confirmDeleteNote(${msg.id})" class="note-reply-btn opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600 text-[10px] font-semibold flex items-center gap-0.5 px-1.5 py-0.5 rounded hover:bg-red-50 flex-shrink-0" title="Delete note">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 </button>` : '';
             const editedLabel = msg.edited_at ? `<span class="text-[10px] text-gray-400 italic">(edited)</span>` : '';
@@ -6369,7 +6627,7 @@
         try {
             const res  = await fetch(`/api/tickets/${ticketId}/messages/${editNoteId}/internal-note`, {
                 method: 'POST',
-                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },
+                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
                 credentials: 'same-origin',
                 body: formData,
             });
@@ -6403,7 +6661,7 @@
         try {
             const res  = await fetch(`/api/tickets/${ticketId}/messages/${msgId}/internal-note`, {
                 method: 'DELETE',
-                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content, 'Accept': 'application/json' },
+                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '', 'Accept': 'application/json' },
                 credentials: 'same-origin',
             });
             let json;
@@ -6777,7 +7035,7 @@ function showConfirm(message, title = 'Confirm', variant = 'default') {
 
 // ==================== DELIVERABLE JS ====================
 const DELIV_TICKET_ID = {{ $ticket->ticket_id }};
-const CSRF = document.querySelector('meta[name="csrf-token"]')?.content ?? '{{ csrf_token() }}';
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
 let deliverableData = [];
 
 const DOC_TYPE_ROWS = ['IR', 'RCA', 'CR Form', 'FSD', 'TD', 'UAT', 'MOM', 'BAST', 'Other'];

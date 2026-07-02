@@ -2474,7 +2474,7 @@
     const BASE_URL   = `/projects/${PROJECT_ID}/costs`;
     // CSRF dibaca di sini untuk digunakan di dalam request (bukan di top-level)
     function getCsrf() {
-        return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     }
 
     // ── Formatter ──────────────────────────────────────────────────
@@ -4754,7 +4754,7 @@ document.getElementById('editTeamMemberForm')?.addEventListener('submit', async 
         const response = await fetch(form.action, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 'Accept': 'application/json',
                 'Content-Type': 'application/json'
             },
@@ -5599,7 +5599,7 @@ async function confirmDeleteFolder() {
     try {
         const res  = await fetch('/projects/{{ $project->id }}/folder', {
             method:  'DELETE',
-            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
         });
         const data = await res.json();
         if (data.success) {
@@ -5647,7 +5647,7 @@ async function generateProjectFolder() {
             headers: {
                 'Content-Type': 'application/json',
                 'Accept':       'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
             },
             body: JSON.stringify({ folder_name: document.getElementById('odrFolderName').value.trim() }),
         });
@@ -5821,7 +5821,7 @@ window.RiskRegister = (function () {
     };
 
     function getCsrf() {
-        return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     }
 
     let _risks  = [];
@@ -6259,7 +6259,7 @@ window.IssueLog = (function () {
     const RISK_URL   = `/projects/${PROJECT_ID}/risks`;
 
     function getCsrf() {
-        return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     }
 
     let _issues = [];
@@ -6603,7 +6603,7 @@ window.PaymentTermPlan = (function () {
     let _revenue = parseFloat('{{ $project->revenue ?? 0 }}') || 0;
 
     function getCsrf() {
-        return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     }
 
     function esc(str) {

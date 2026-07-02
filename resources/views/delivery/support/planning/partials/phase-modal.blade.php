@@ -716,7 +716,7 @@ window.saveAllPhaseChanges = async function() {
 
     try {
         const supportId = {{ $support->id }};
-        const token = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
+        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
 
         // 1. Delete phases
         for (const phaseId of window.phaseChanges.toDelete) {

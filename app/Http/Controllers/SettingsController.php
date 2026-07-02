@@ -7,6 +7,19 @@ use Illuminate\Support\Facades\Log;
 
 class SettingsController extends Controller
 {
+    const PROFILE_SECTIONS = [
+        'basic_data'     => 'Basic Data',
+        'address'        => 'Address',
+        'identification' => 'Identification',
+        'family'         => 'Family',
+        'education'      => 'Education',
+        'qualification'  => 'Qualification',
+        'contract'       => 'Contract',
+        'bank'           => 'Bank Account',
+        'payment'        => 'Basic Payment',
+        'attachment'     => 'Attachment',
+    ];
+
     public function index(Request $request)
     {
         try {
@@ -39,7 +52,7 @@ class SettingsController extends Controller
             ]);
 
             return view('settings.index', [
-                'user' => $user,
+                'user'        => $user,
                 'preferences' => $userPreferences,
             ]);
 
