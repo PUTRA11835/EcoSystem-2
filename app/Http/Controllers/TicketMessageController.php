@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use App\Http\Controllers\EmailController;
 use App\Models\Customer;
 use App\Models\Employee;
@@ -1306,11 +1307,21 @@ class TicketMessageController extends Controller
             ->where('is_internal_note', true)
             ->firstOrFail();
 
-        if ((int) $message->sender_id !== (int) ($sessionUser['id'] ?? 0)) {
+        $sessionRoleIds = !empty($sessionUser['role_ids'])
+            ? array_map('intval', $sessionUser['role_ids'])
+            : DB::table('employee_role_assignment')
+                ->where('employee_id', (int) ($sessionUser['id'] ?? 0))
+                ->pluck('role_id')->map(fn($id) => (int) $id)->toArray();
+
+        $isAdmin   = in_array(RoleId::EC_ADMINISTRATOR->value, $sessionRoleIds, true);
+        $isSender  = $message->sender_id !== null
+                     && (int) $message->sender_id === (int) ($sessionUser['id'] ?? 0);
+
+        if (!$isAdmin && !$isSender) {
             return response()->json(['success' => false, 'message' => 'You can only delete your own notes.'], 403);
         }
 
-        if ($message->created_at->addMinutes(10)->isPast()) {
+        if (!$isAdmin && $message->created_at->addMinutes(10)->isPast()) {
             return response()->json(['success' => false, 'message' => 'Notes can only be deleted within 10 minutes of posting.'], 403);
         }
 
