@@ -7,6 +7,7 @@ use App\Enums\RoleId;
 use App\Models\Grade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -22,16 +23,21 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Scheme URL TIDAK lagi dipaksa ke https. Sistem harus kompatibel diakses
-        // baik via http maupun https tanpa memunculkan error / Mixed Content.
+        // Scheme URL dipaksa ke https HANYA bila APP_URL memang https (produksi).
         //
-        // Caranya: biarkan Laravel mengikuti scheme request yang sebenarnya.
-        // Di belakang reverse proxy / load balancer yang terminate SSL, scheme
-        // asli (https) sudah terbaca otomatis lewat header X-Forwarded-Proto yang
-        // di-trust di bootstrap/app.php (trustProxies). Jadi:
-        //   - diakses via https  -> route()/url()/asset() menghasilkan https://
-        //   - diakses via http   -> menghasilkan http://
-        // Tidak ada lagi pemaksaan yang membuat link error saat dibuka via http.
+        // Mengandalkan trustProxies + header X-Forwarded-Proto saja tidak cukup:
+        // sebagian hosting/reverse proxy TIDAK meneruskan header tsb ke PHP,
+        // sehingga Laravel melihat request sebagai HTTP dan route()/url()/asset()
+        // menghasilkan http:// -> browser memblokirnya sebagai Mixed Content pada
+        // halaman HTTPS (mis. action <form> = http:// -> "form not secure").
+        //
+        // forceScheme('https') memaksa langsung tanpa bergantung pada header proxy.
+        // Digate ke APP_URL agar lokal (http://localhost) TIDAK terpengaruh:
+        //   - APP_URL https:// (produksi) -> semua URL absolut jadi https ✅
+        //   - APP_URL http://  (lokal)    -> tetap http, kompatibel ✅
+        if (str_starts_with((string) config('app.url'), 'https://')) {
+            URL::forceScheme('https');
+        }
 
         Gate::define('viewApiDocs', function ($user = null) {
             return (int) session('user.role.id') === RoleId::EC_ADMINISTRATOR->value;
