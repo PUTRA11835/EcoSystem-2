@@ -257,7 +257,7 @@ async function deleteRole(id, name) {
         iconColor:'text-red-500',
     });
     if (!ok) return;
-    const res  = await fetch(`/api/roles/${id}`, { method: 'DELETE', headers: jsonHeaders() });
+    const res  = await fetch(`/api/roles/${id}/delete`, { method: 'POST', headers: jsonHeaders() });
     const json = await res.json();
     if (json.success) {
         showToast(`Role "${name}" deleted successfully.`, 'success');

@@ -2893,7 +2893,7 @@
             if (!id) return;
 
             try {
-                await axios.delete(`${BASE_URL}/${id}`);
+                await axios.post(`${BASE_URL}/${id}/delete`);
                 PlanCost.closeDeleteModal();
                 await load();
                 showPlanCostToast('Cost item deleted successfully.', 'success');
@@ -2985,7 +2985,7 @@
         async deleteExpenseItem(itemId, rowEl) {
             if (!confirm('Delete this expense?')) return;
             try {
-                const res = await axios.delete(`${BASE_URL}/${_adCostId}/items/${itemId}`);
+                const res = await axios.post(`${BASE_URL}/${_adCostId}/items/${itemId}/delete`);
                 _adTotal = res.data.total ?? 0;
                 _adDirty = true;
                 rowEl.remove();
@@ -4579,7 +4579,7 @@ async function executeBulkDelete() {
         try {
             let url;
             let fetchOptions = {
-                method: 'DELETE',
+                method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
                     'Accept': 'application/json',
@@ -4587,7 +4587,7 @@ async function executeBulkDelete() {
             };
 
             if (currentType === 'document') {
-                url = `/project/documents/${id}`;
+                url = `/project/documents/${id}/delete`;
             } else {
                 // Team members cannot be deleted — delete button is hidden for type 'team'
                 continue;
@@ -5044,8 +5044,8 @@ async function executeProjectDelete(projectId) {
     btn.disabled = true;
     
     try {
-        const response = await fetch(`/projects/${projectId}`, {
-            method: 'DELETE',
+        const response = await fetch(`/projects/${projectId}/delete`, {
+            method: 'POST',
             headers: {
                 'X-CSRF-TOKEN': '{{ csrf_token() }}',
                 'Accept': 'application/json',
@@ -5597,8 +5597,8 @@ async function confirmDeleteFolder() {
     btn.disabled = true;
     btn.innerHTML = `<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Deleting...`;
     try {
-        const res  = await fetch('/projects/{{ $project->id }}/folder', {
-            method:  'DELETE',
+        const res  = await fetch('/projects/{{ $project->id }}/folder/delete', {
+            method:  'POST',
             headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
         });
         const data = await res.json();
@@ -6179,7 +6179,7 @@ window.RiskRegister = (function () {
         btn.innerHTML = 'Deleting…';
 
         try {
-            const res = await axios.delete(`${BASE_URL}/${id}`, {
+            const res = await axios.post(`${BASE_URL}/${id}/delete`, {}, {
                 headers: { 'X-CSRF-TOKEN': getCsrf() },
             });
             closeDeleteModal();
@@ -6567,7 +6567,7 @@ window.IssueLog = (function () {
         btn.innerHTML = 'Deleting…';
 
         try {
-            const res = await axios.delete(`${BASE_URL}/${id}`, {
+            const res = await axios.post(`${BASE_URL}/${id}/delete`, {}, {
                 headers: { 'X-CSRF-TOKEN': getCsrf() },
             });
             closeDeleteModal();
@@ -6883,7 +6883,7 @@ window.PaymentTermPlan = (function () {
         btn.innerHTML = 'Deleting…';
 
         try {
-            const res = await axios.delete(`${BASE_URL}/${id}`, {
+            const res = await axios.post(`${BASE_URL}/${id}/delete`, {}, {
                 headers: { 'X-CSRF-TOKEN': getCsrf() },
             });
             closeDeleteModal();

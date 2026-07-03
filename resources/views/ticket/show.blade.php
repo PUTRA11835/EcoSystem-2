@@ -4457,7 +4457,7 @@
     async function deleteMeetingTemplate(id) {
         if (!confirm('Hapus template ini?')) return;
         try {
-            const res  = await fetch(`/api/tickets/${ticketId}/meeting-templates/${id}`, { method: 'DELETE', headers: getHeaders(), credentials: 'same-origin' });
+            const res  = await fetch(`/api/tickets/${ticketId}/meeting-templates/${id}/delete`, { method: 'POST', headers: getHeaders(), credentials: 'same-origin' });
             const data = await res.json();
             if (data.success) {
                 loadMeetingTemplates();
@@ -4809,8 +4809,8 @@
     async function deleteTicket() {
         if (!confirm('Are you sure you want to delete this ticket?')) return;
         try {
-            const response = await fetch(`/api/tickets/${ticketId}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/tickets/${ticketId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json', 'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -7280,19 +7280,11 @@ async function sendDeliverable(id) {
 async function deleteDeliverable(id) {
     if (!await showConfirm('Delete this deliverable document? This cannot be undone.', 'Delete Document', 'danger')) return;
     try {
-        // Sebagian edge production (reverse proxy / WAF / ModSecurity) memblokir
-        // verb HTTP DELETE dan membalas 403 sebelum request sampai ke Laravel —
-        // sementara local/dev (tanpa edge) berjalan normal. Agar aman di kedua
-        // lingkungan, request dikirim sebagai POST lalu diminta Laravel menerjemahkan
-        // kembali menjadi DELETE lewat header X-HTTP-Method-Override. Verb di kabel
-        // menjadi POST (diizinkan edge), namun route Route::delete tetap cocok dan
-        // handler destroy() yang dijalankan — tanpa perubahan sisi server.
-        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}`, {
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/delete`, {
             method: 'POST',
             headers: {
                 'X-CSRF-TOKEN': CSRF,
                 'Accept': 'application/json',
-                'X-HTTP-Method-Override': 'DELETE',
             },
             credentials: 'same-origin',
         });

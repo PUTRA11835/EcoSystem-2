@@ -1797,7 +1797,7 @@
                     sub.unsubscribe().then(function () {
                         var csrf = document.querySelector('meta[name="csrf-token"]');
                         fetch('/api/push/unsubscribe', {
-                            method:      'DELETE',
+                            method:      'POST',
                             credentials: 'same-origin',
                             headers: {
                                 'Content-Type': 'application/json',

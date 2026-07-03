@@ -174,9 +174,11 @@ class AttachmentController extends Controller
             // Inline: tampilkan di browser (gambar, PDF). Attachment: paksa download.
             $disposition = $attachment->is_inline ? 'inline' : 'attachment';
 
+            $asciiName = str_replace(['"', '\\', "\r", "\n"], '', preg_replace('/[^\x20-\x7E]/', '_', $filename));
+
             return response($content, 200)
                 ->header('Content-Type', $mime)
-                ->header('Content-Disposition', $disposition . '; filename="' . rawurlencode($filename) . '"')
+                ->header('Content-Disposition', $disposition . '; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($filename))
                 ->header('Content-Length', strlen($content))
                 ->header('Cache-Control', 'private, max-age=3600');
 

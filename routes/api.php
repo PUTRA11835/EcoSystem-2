@@ -95,6 +95,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/{id}/header', [EmployeeController::class, 'headerData']);
         Route::put('/{id}', [EmployeeController::class, 'update']);
         Route::delete('/{id}', [EmployeeController::class, 'destroy']);
+        Route::post('/{id}/delete', [EmployeeController::class, 'destroy']);
         Route::patch('/{id}/change-password', [EmployeeController::class, 'changePassword']);
         Route::patch('/{id}/change-role', [EmployeeController::class, 'changeRole']);
     });
@@ -104,6 +105,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/basic-data', [EmployeeBasicDataController::class, 'show']);
         Route::post('/basic-data', [EmployeeBasicDataController::class, 'store']);
         Route::delete('/basic-data', [EmployeeBasicDataController::class, 'destroy']);
+        Route::post('/basic-data/delete', [EmployeeBasicDataController::class, 'destroy']);
     });
 
     // Employee Address endpoints
@@ -113,6 +115,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/employees/{employeeId}/addresses', [EmployeeAddressController::class, 'store']);
         Route::put('/employees/{employeeId}/addresses/{addressId}', [EmployeeAddressController::class, 'update']);
         Route::delete('/employees/{employeeId}/addresses/{addressId}', [EmployeeAddressController::class, 'destroy']);
+        Route::post('/employees/{employeeId}/addresses/{addressId}/delete', [EmployeeAddressController::class, 'destroy']);
         Route::patch('/employees/{employeeId}/addresses/{addressId}/set-primary', [EmployeeAddressController::class, 'setPrimary']);
     });
 
@@ -123,6 +126,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/{identificationId}', [EmployeeIdentificationController::class, 'show']);
         Route::put('/{identificationId}', [EmployeeIdentificationController::class, 'update']);
         Route::delete('/{identificationId}', [EmployeeIdentificationController::class, 'destroy']);
+        Route::post('/{identificationId}/delete', [EmployeeIdentificationController::class, 'destroy']);
     });
 
     // Employee Family endpoints
@@ -133,6 +137,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/family', [EmployeeFamilyController::class, 'store']);
         Route::put('/family/{familyId}', [EmployeeFamilyController::class, 'update']);
         Route::delete('/family/{familyId}', [EmployeeFamilyController::class, 'destroy']);
+        Route::post('/family/{familyId}/delete', [EmployeeFamilyController::class, 'destroy']);
     });
 
     // Employee Education endpoints
@@ -142,6 +147,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [EmployeeEducationController::class, 'store']);
         Route::put('/{educationId}', [EmployeeEducationController::class, 'update']);
         Route::delete('/{educationId}', [EmployeeEducationController::class, 'destroy']);
+        Route::post('/{educationId}/delete', [EmployeeEducationController::class, 'destroy']);
     });
 
     // Employee Qualification endpoints
@@ -151,6 +157,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [EmployeeQualificationController::class, 'store']);
         Route::put('/{qualificationId}', [EmployeeQualificationController::class, 'update']);
         Route::delete('/{qualificationId}', [EmployeeQualificationController::class, 'destroy']);
+        Route::post('/{qualificationId}/delete', [EmployeeQualificationController::class, 'destroy']);
     });
 
     // Employee Contract endpoints
@@ -160,6 +167,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [EmployeeContractController::class, 'store']);
         Route::put('/{contractId}', [EmployeeContractController::class, 'update']);
         Route::delete('/{contractId}', [EmployeeContractController::class, 'destroy']);
+        Route::post('/{contractId}/delete', [EmployeeContractController::class, 'destroy']);
     });
 
     // Employee Bank endpoints
@@ -169,6 +177,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [EmployeeBankController::class, 'store']);
         Route::put('/{bankId}', [EmployeeBankController::class, 'update']);
         Route::delete('/{bankId}', [EmployeeBankController::class, 'destroy']);
+        Route::post('/{bankId}/delete', [EmployeeBankController::class, 'destroy']);
     });
 
     // Employee Payment endpoints
@@ -178,6 +187,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [EmployeePaymentController::class, 'store']);
         Route::put('/{paymentId}', [EmployeePaymentController::class, 'update']);
         Route::delete('/{paymentId}', [EmployeePaymentController::class, 'destroy']);
+        Route::post('/{paymentId}/delete', [EmployeePaymentController::class, 'destroy']);
     });
 
     // Employee Attachment endpoints
@@ -185,6 +195,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/', [EmployeeAttachmentController::class, 'index']);
         Route::post('/', [EmployeeAttachmentController::class, 'store']);
         Route::delete('/{attachmentId}', [EmployeeAttachmentController::class, 'destroy']);
+        Route::post('/{attachmentId}/delete', [EmployeeAttachmentController::class, 'destroy']);
     });
 
     // Employee Module endpoints
@@ -193,6 +204,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/sync', [EmployeeModuleController::class, 'sync']);
         Route::post('/attach', [EmployeeModuleController::class, 'attach']);
         Route::delete('/{moduleId}', [EmployeeModuleController::class, 'detach']);
+        Route::post('/{moduleId}/delete', [EmployeeModuleController::class, 'detach']);
     });
 
     // Module master data endpoints
@@ -202,6 +214,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/{id}', [ModuleController::class, 'show']);
         Route::put('/{id}', [ModuleController::class, 'update']);
         Route::delete('/{id}', [ModuleController::class, 'destroy']);
+        Route::post('/{id}/delete', [ModuleController::class, 'destroy']);
     });
 
 // ==================== CUSTOMER ROUTES ====================
@@ -219,6 +232,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/{id}/end-customers', [CustomerController::class, 'endCustomers']);
         Route::put('/{id}', [CustomerController::class, 'update']);
         Route::delete('/{id}', [CustomerController::class, 'destroy']);
+        Route::post('/{id}/delete', [CustomerController::class, 'destroy']);
         Route::post('/{id}/soft-delete', [CustomerController::class, 'softDelete']);
         Route::post('/{id}/restore', [CustomerController::class, 'restore']);
     });
@@ -231,8 +245,10 @@ Route::middleware(['web'])->group(function () {
         Route::get('/available-customers', [CustomerGroupController::class, 'availableCustomers']);
         Route::put('/{id}', [CustomerGroupController::class, 'update']);
         Route::delete('/{id}', [CustomerGroupController::class, 'destroy']);
+        Route::post('/{id}/delete', [CustomerGroupController::class, 'destroy']);
         Route::post('/{id}/members', [CustomerGroupController::class, 'addMember']);
         Route::delete('/{id}/members/{customerId}', [CustomerGroupController::class, 'removeMember']);
+        Route::post('/{id}/members/{customerId}/delete', [CustomerGroupController::class, 'removeMember']);
     });
 
     // Customer Basic Data endpoints
@@ -240,6 +256,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/', [CustomerBasicDataController::class, 'show']);
         Route::post('/', [CustomerBasicDataController::class, 'store']);
         Route::delete('/', [CustomerBasicDataController::class, 'destroy']);
+        Route::post('/delete', [CustomerBasicDataController::class, 'destroy']);
     });
 
     // Customer Address endpoints
@@ -249,6 +266,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [CustomerAddressController::class, 'store']);
         Route::put('/{addressId}', [CustomerAddressController::class, 'update']);
         Route::delete('/{addressId}', [CustomerAddressController::class, 'destroy']);
+        Route::post('/{addressId}/delete', [CustomerAddressController::class, 'destroy']);
     });
 
     // Customer Contact endpoints
@@ -273,6 +291,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [CustomerIdentificationController::class, 'store']);
         Route::put('/{identificationId}', [CustomerIdentificationController::class, 'update']);
         Route::delete('/{identificationId}', [CustomerIdentificationController::class, 'destroy']);
+        Route::post('/{identificationId}/delete', [CustomerIdentificationController::class, 'destroy']);
     });
 
     // Customer Bank endpoints
@@ -282,6 +301,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [CustomerBankController::class, 'store']);
         Route::put('/{bankId}', [CustomerBankController::class, 'update']);
         Route::delete('/{bankId}', [CustomerBankController::class, 'destroy']);
+        Route::post('/{bankId}/delete', [CustomerBankController::class, 'destroy']);
     });
 
     // Customer Attachment endpoints
@@ -291,6 +311,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [CustomerAttachmentController::class, 'store']);
         Route::put('/{attachmentId}', [CustomerAttachmentController::class, 'update']);
         Route::delete('/{attachmentId}', [CustomerAttachmentController::class, 'destroy']);
+        Route::post('/{attachmentId}/delete', [CustomerAttachmentController::class, 'destroy']);
         Route::get('/{attachmentId}/download', [CustomerAttachmentController::class, 'download']);
     });
 
@@ -366,6 +387,9 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/update-members', [TicketController::class, 'updateMembers']);
         Route::post('/{id}/request-member-change', [TicketController::class, 'requestMemberChange']);
         Route::delete('/{id}/request-member-removal/{employeeId}', [TicketController::class, 'requestMemberRemoval']);
+        Route::post('/{id}/request-member-removal/{employeeId}/delete', [TicketController::class, 'requestMemberRemoval']);
+        Route::delete('/{id}', [TicketController::class, 'destroy']);
+        Route::post('/{id}/delete', [TicketController::class, 'destroy']);
 
         // Ticket Messages
         Route::get('/{ticketId}/messages', [TicketMessageController::class, 'index']);
@@ -384,6 +408,7 @@ Route::middleware(['web'])->group(function () {
         Route::patch('/{id}/deliverables/{delivId}', [\App\Http\Controllers\TicketDeliverableController::class, 'update']);
         Route::patch('/{id}/deliverables/{delivId}/send', [\App\Http\Controllers\TicketDeliverableController::class, 'send']);
         Route::delete('/{id}/deliverables/{delivId}', [\App\Http\Controllers\TicketDeliverableController::class, 'destroy']);
+        Route::post('/{id}/deliverables/{delivId}/delete', [\App\Http\Controllers\TicketDeliverableController::class, 'destroy']);
 
         // Assign ticket to delivery support
         Route::get('/{id}/available-supports', [TicketController::class, 'getAvailableSupports']);
@@ -468,7 +493,9 @@ Route::middleware(['web'])->group(function () {
         Route::put('/read-all',      [NotificationController::class, 'markAllRead']);
         Route::put('/{id}/read',     [NotificationController::class, 'markRead']);
         Route::delete('/bulk-delete', [NotificationController::class, 'bulkDelete']);
+        Route::post('/bulk-delete',  [NotificationController::class, 'bulkDelete']);
         Route::delete('/{id}',       [NotificationController::class, 'deleteOne']);
+        Route::post('/{id}/delete',  [NotificationController::class, 'deleteOne']);
     });
 
     // ==================== WEB PUSH ROUTES ====================
@@ -476,6 +503,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/vapid-public-key', [PushSubscriptionController::class, 'vapidPublicKey']);
         Route::post('/subscribe',       [PushSubscriptionController::class, 'subscribe']);
         Route::delete('/unsubscribe',   [PushSubscriptionController::class, 'unsubscribe']);
+        Route::post('/unsubscribe',     [PushSubscriptionController::class, 'unsubscribe']);
         Route::post('/test',            [PushSubscriptionController::class, 'test']);
     });
 
@@ -510,6 +538,7 @@ Route::middleware(['web'])->group(function () {
             // RPMO / Admin: edit dates & delete
             Route::patch('/dates',       [\App\Http\Controllers\PeriodManagementController::class, 'updateDates']);
             Route::delete('/',           [\App\Http\Controllers\PeriodManagementController::class, 'destroy']);
+            Route::post('/delete',       [\App\Http\Controllers\PeriodManagementController::class, 'destroy']);
             // Heads: domain lifecycle
             Route::post('/open-domain',  [\App\Http\Controllers\PeriodManagementController::class, 'openDomain']);
             Route::post('/close-domain', [\App\Http\Controllers\PeriodManagementController::class, 'closeDomain']);
@@ -525,12 +554,15 @@ Route::middleware(['web'])->group(function () {
         // Session Management
         Route::get('/sessions', [AdminSessionController::class, 'index']);
         Route::delete('/sessions/{sessionId}', [AdminSessionController::class, 'destroy']);
+        Route::post('/sessions/{sessionId}/delete', [AdminSessionController::class, 'destroy']);
         Route::delete('/sessions', [AdminSessionController::class, 'destroyAll']);
+        Route::post('/sessions/delete-all', [AdminSessionController::class, 'destroyAll']);
 
         // DB Backup
         Route::get('/backup/list', [AdminBackupController::class, 'listBackups']);
         Route::post('/backup/create', [AdminBackupController::class, 'createBackup']);
         Route::delete('/backup/{filename}', [AdminBackupController::class, 'deleteBackup']);
+        Route::post('/backup/{filename}/delete', [AdminBackupController::class, 'deleteBackup']);
 
         // Import
         Route::post('/import/employees', [AdminBackupController::class, 'importEmployees']);
@@ -551,7 +583,9 @@ Route::middleware(['web'])->group(function () {
         Route::post('/failed-jobs/{uuid}/retry', [AdminJobController::class, 'retry']);
         Route::post('/failed-jobs/retry-all', [AdminJobController::class, 'retryAll']);
         Route::delete('/failed-jobs/{uuid}', [AdminJobController::class, 'destroy']);
+        Route::post('/failed-jobs/{uuid}/delete', [AdminJobController::class, 'destroy']);
         Route::delete('/failed-jobs', [AdminJobController::class, 'clearAll']);
+        Route::post('/failed-jobs/clear', [AdminJobController::class, 'clearAll']);
     });
 
     // ── SLA ────────────────────────────────────────────────────────────────
@@ -564,12 +598,14 @@ Route::middleware(['web'])->group(function () {
     Route::post('/tickets/{id}/meeting-templates',           [\App\Http\Controllers\MeetingTemplateController::class, 'store']);
     Route::put('/tickets/{id}/meeting-templates/{tplId}',    [\App\Http\Controllers\MeetingTemplateController::class, 'update']);
     Route::delete('/tickets/{id}/meeting-templates/{tplId}', [\App\Http\Controllers\MeetingTemplateController::class, 'destroy']);
+    Route::post('/tickets/{id}/meeting-templates/{tplId}/delete', [\App\Http\Controllers\MeetingTemplateController::class, 'destroy']);
 
     // Admin-only SLA endpoints
     Route::get('/admin/sla/policies',          [\App\Http\Controllers\SlaController::class, 'getPolicies']);
     Route::post('/admin/sla/policies',         [\App\Http\Controllers\SlaController::class, 'storePolicy']);
     Route::put('/admin/sla/policies/{id}',     [\App\Http\Controllers\SlaController::class, 'updatePolicy']);
     Route::delete('/admin/sla/policies/{id}',  [\App\Http\Controllers\SlaController::class, 'destroyPolicy']);
+    Route::post('/admin/sla/policies/{id}/delete', [\App\Http\Controllers\SlaController::class, 'destroyPolicy']);
     Route::get('/admin/sla/report',            [\App\Http\Controllers\SlaController::class, 'getReport']);
 
     // Notification sounds list (accessible to all authenticated users)
@@ -585,8 +621,10 @@ Route::middleware(['web'])->group(function () {
     Route::post('/menus',                                           [\App\Http\Controllers\MenuController::class, 'store']);
     Route::put('/menus/{menuId}',                                   [\App\Http\Controllers\MenuController::class, 'update']);
     Route::delete('/menus/{menuId}',                                [\App\Http\Controllers\MenuController::class, 'destroy']);
+    Route::post('/menus/{menuId}/delete',                           [\App\Http\Controllers\MenuController::class, 'destroy']);
     Route::put('/menus/{menuId}/roles/{roleId}',                    [\App\Http\Controllers\MenuController::class, 'updateRolePermission']);
     Route::delete('/menus/{menuId}/roles/{roleId}',                 [\App\Http\Controllers\MenuController::class, 'removeRolePermission']);
+    Route::post('/menus/{menuId}/roles/{roleId}/delete',            [\App\Http\Controllers\MenuController::class, 'removeRolePermission']);
 
     // Role management
     Route::get('/roles',                                            [\App\Http\Controllers\RoleController::class, 'index']);
@@ -594,10 +632,12 @@ Route::middleware(['web'])->group(function () {
     Route::get('/roles/{id}',                                       [\App\Http\Controllers\RoleController::class, 'show']);
     Route::put('/roles/{id}',                                       [\App\Http\Controllers\RoleController::class, 'update']);
     Route::delete('/roles/{id}',                                    [\App\Http\Controllers\RoleController::class, 'destroy']);
+    Route::post('/roles/{id}/delete',                               [\App\Http\Controllers\RoleController::class, 'destroy']);
     Route::get('/roles/{id}/permissions',                           [\App\Http\Controllers\RoleController::class, 'permissions']);
     Route::put('/roles/{id}/permissions/{menuId}',                  [\App\Http\Controllers\RoleController::class, 'updatePermission']);
     Route::post('/roles/{id}/permissions/{menuId}/revoke',          [\App\Http\Controllers\RoleController::class, 'removePermission']);
     Route::delete('/roles/{id}/permissions/{menuId}',               [\App\Http\Controllers\RoleController::class, 'removePermission']);
+    Route::post('/roles/{id}/permissions/{menuId}/delete',          [\App\Http\Controllers\RoleController::class, 'removePermission']);
     Route::get('/roles/{id}/employees',                             [\App\Http\Controllers\RoleController::class, 'employees']);
 
     // Holiday management (Manajemen → Hari Libur)
@@ -605,12 +645,14 @@ Route::middleware(['web'])->group(function () {
     Route::post('/management/holidays',        [\App\Http\Controllers\HolidayManagementController::class, 'store']);
     Route::put('/management/holidays/{id}',    [\App\Http\Controllers\HolidayManagementController::class, 'update']);
     Route::delete('/management/holidays/{id}', [\App\Http\Controllers\HolidayManagementController::class, 'destroy']);
+    Route::post('/management/holidays/{id}/delete', [\App\Http\Controllers\HolidayManagementController::class, 'destroy']);
 
     // Employee ↔ Role assignment
     Route::get('/employees/{employeeId}/roles',                     [\App\Http\Controllers\RoleController::class, 'employeeRoles']);
     Route::post('/employees/{employeeId}/roles',                    [\App\Http\Controllers\RoleController::class, 'assignRoles']);
     Route::put('/employees/{employeeId}/roles',                     [\App\Http\Controllers\RoleController::class, 'syncRoles']);
     Route::delete('/employees/{employeeId}/roles/{roleId}',         [\App\Http\Controllers\RoleController::class, 'revokeRole']);
+    Route::post('/employees/{employeeId}/roles/{roleId}/delete',    [\App\Http\Controllers\RoleController::class, 'revokeRole']);
 
     }); // end auth.session protected group
 });
@@ -678,6 +720,7 @@ Route::middleware(['jarvies.api_key'])->prefix('jarvies')->group(function () {
 
     Route::get('/customers/{customerId}/attachments', [CustomerAttachmentController::class, 'index']);
     Route::get('/customers/{customerId}/attachments/{attachmentId}', [CustomerAttachmentController::class, 'show']);
+    Route::get('/customers/{customerId}/attachments/{attachmentId}/download', [CustomerAttachmentController::class, 'download']);
 
     // --- Tickets (customer-scoped) ---
     Route::get('/tickets', [TicketController::class, 'index']);

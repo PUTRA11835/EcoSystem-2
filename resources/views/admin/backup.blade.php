@@ -1060,8 +1060,8 @@ document.getElementById('btnCreateBackup').addEventListener('click', async () =>
 async function deleteBackup(filename) {
     if (!confirm('Delete backup: ' + filename + '?')) return;
     try {
-        const res  = await fetch('/api/admin/backup/' + encodeURIComponent(filename), {
-            method: 'DELETE',
+        const res  = await fetch('/api/admin/backup/' + encodeURIComponent(filename) + '/delete', {
+            method: 'POST',
             credentials: 'same-origin',
             headers: { 'X-CSRF-TOKEN': CSRF },
         });

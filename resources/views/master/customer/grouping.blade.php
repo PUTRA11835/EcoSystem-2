@@ -453,8 +453,8 @@ function closeDeleteGroup() {
 async function confirmDeleteGroup() {
     const id = document.getElementById('deleteGroupId').value;
     try {
-        const res = await fetch(`/api/customer-groups/${id}`, {
-            method: 'DELETE',
+        const res = await fetch(`/api/customer-groups/${id}/delete`, {
+            method: 'POST',
             headers: {
                 'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
@@ -640,8 +640,8 @@ async function confirmRemoveMember() {
     const { groupId, customerId } = removeMemberCtx;
     if (!groupId || !customerId) return;
     try {
-        const res = await fetch(`/api/customer-groups/${groupId}/members/${customerId}`, {
-            method: 'DELETE',
+        const res = await fetch(`/api/customer-groups/${groupId}/members/${customerId}/delete`, {
+            method: 'POST',
             headers: {
                 'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',

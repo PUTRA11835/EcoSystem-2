@@ -165,7 +165,7 @@ function markAllRead() {
 
 function clearRead() {
     fetch('/api/notifications/bulk-delete', {
-        method: 'DELETE',
+        method: 'POST',
         credentials: 'same-origin',
         headers: { 'X-CSRF-TOKEN': csrfToken }
     }).then(() => location.reload()).catch(() => {});

@@ -319,8 +319,8 @@
     async function confirmDeleteAttachment() {
         if (!deleteAttachmentId) return;
         try {
-            const response = await fetch(`/api/employees/${_attachEmpId}/attachments/${deleteAttachmentId}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/employees/${_attachEmpId}/attachments/${deleteAttachmentId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',

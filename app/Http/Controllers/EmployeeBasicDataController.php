@@ -171,6 +171,8 @@ class EmployeeBasicDataController extends Controller
         ], [
             'first_name.required' => 'First Name is required.',
             'first_name.max'      => 'First Name may not exceed 255 characters.',
+            'nick_name.required'  => 'Nick Name is required.',
+            'nick_name.unique'    => 'Nick Name is already taken. Please choose a different nick name.',
             'religion.in'         => 'Religion value is not valid.',
             'birth_date.date'     => 'Birth Date must be a valid date.',
             'since_date.date'     => 'Since Date must be a valid date.',
@@ -316,6 +318,7 @@ class EmployeeBasicDataController extends Controller
                 'block' => 'nullable|boolean',
                 'deletion_flag' => 'nullable|boolean',
             ], [
+                'nick_name.unique'  => 'Nick Name is already taken. Please choose a different nick name.',
                 'religion.in'       => 'Religion value is not valid.',
                 'birth_date.date'   => 'Birth Date must be a valid date.',
                 'since_date.date'   => 'Since Date must be a valid date.',

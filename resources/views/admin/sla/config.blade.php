@@ -820,8 +820,8 @@ async function confirmDelete() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i>Deleting...';
     try {
-        const res  = await fetch('/api/admin/sla/policies/' + _deleteId, {
-            method: 'DELETE', credentials: 'include',
+        const res  = await fetch('/api/admin/sla/policies/' + _deleteId + '/delete', {
+            method: 'POST', credentials: 'include',
             headers: { 'X-CSRF-TOKEN': csrf() },
         });
         const json = await res.json();
