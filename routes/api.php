@@ -362,6 +362,7 @@ Route::middleware(['web'])->group(function () {
         Route::put('/{id}/update-mandays', [TicketController::class, 'updateManDays']);
         Route::post('/{id}/members', [TicketController::class, 'addMember']);
         Route::delete('/{id}/members/{employeeId}', [TicketController::class, 'removeMember']);
+        Route::post('/{id}/members/{employeeId}/remove', [TicketController::class, 'removeMember']);
         Route::post('/{id}/update-members', [TicketController::class, 'updateMembers']);
         Route::post('/{id}/request-member-change', [TicketController::class, 'requestMemberChange']);
         Route::delete('/{id}/request-member-removal/{employeeId}', [TicketController::class, 'requestMemberRemoval']);
@@ -375,6 +376,7 @@ Route::middleware(['web'])->group(function () {
         Route::patch('/{ticketId}/messages/{messageId}/sla-message', [TicketMessageController::class, 'updateSlaMessage']);
         Route::post('/{ticketId}/messages/{messageId}/internal-note', [TicketMessageController::class, 'updateInternalNote']);
         Route::delete('/{ticketId}/messages/{messageId}/internal-note', [TicketMessageController::class, 'destroyInternalNote']);
+        Route::post('/{ticketId}/messages/{messageId}/internal-note/delete', [TicketMessageController::class, 'destroyInternalNote']);
 
         // ==================== DELIVERABLE ROUTES ====================
         Route::get('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'index']);

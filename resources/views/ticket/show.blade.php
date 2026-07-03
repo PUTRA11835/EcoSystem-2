@@ -4300,9 +4300,9 @@
     }
 
     async function toggleMemberBtn(employeeId, isActive) {
-        const method = isActive ? 'DELETE' : 'POST';
+        const method = 'POST';
         const url    = isActive
-            ? `/api/tickets/${ticketId}/members/${employeeId}`
+            ? `/api/tickets/${ticketId}/members/${employeeId}/remove`
             : `/api/tickets/${ticketId}/members`;
         const body   = isActive ? null : JSON.stringify({ employee_id: employeeId });
 
@@ -6184,6 +6184,11 @@
         }
     }
 
+    function hdEmailSentMsg(data, defaultMsg) {
+        if (data.email_warning) return null;
+        const to = data.email_to ? ` → ${data.email_to}` : '';
+        return (data.message || defaultMsg) + to;
+    }
     async function hdSubmitToChat() {
         const btn = document.getElementById('hdBtnSendToChat');
         if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
@@ -6193,7 +6198,7 @@
                 if (data.email_warning) {
                     showNotification('Status updated. Warning: ' + data.email_warning, 'warning');
                 } else {
-                    showNotification(data.message || 'Sent to customer via email!', 'success');
+                    showNotification(hdEmailSentMsg(data, 'Sent to customer via email!'), 'success');
                 }
                 closeHdMandaysModal();
             } else {
@@ -6214,7 +6219,7 @@
                 if (data.email_warning) {
                     showNotification('Status updated. Warning: ' + data.email_warning, 'warning');
                 } else {
-                    showNotification(data.message || 'Revised proposal sent to customer!', 'success');
+                    showNotification(hdEmailSentMsg(data, 'Revised proposal sent to customer!'), 'success');
                 }
                 closeHdMandaysModal();
             } else {
@@ -6672,8 +6677,8 @@
     async function deleteNote(msgId) {
         const ticketId = {{ $ticket->ticket_id }};
         try {
-            const res  = await fetch(`/api/tickets/${ticketId}/messages/${msgId}/internal-note`, {
-                method: 'DELETE',
+            const res  = await fetch(`/api/tickets/${ticketId}/messages/${msgId}/internal-note/delete`, {
+                method: 'POST',
                 headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '', 'Accept': 'application/json' },
                 credentials: 'same-origin',
             });
