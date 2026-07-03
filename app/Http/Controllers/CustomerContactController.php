@@ -344,6 +344,14 @@ class CustomerContactController extends Controller
         ]);
 
         try {
+            // Explicitly remove any linked login account first. Don't rely
+            // solely on the auth_users.contact_id ON DELETE CASCADE FK —
+            // it has been observed not to fire in production, leaving an
+            // orphaned auth_users row still bound to this customer.
+            DB::table('auth_users')
+                ->where('contact_id', $contactId)
+                ->delete();
+
             $deleted = DB::table('customer_contact')
                 ->where('customer_id', $customerId)
                 ->where('contact_id', $contactId)
