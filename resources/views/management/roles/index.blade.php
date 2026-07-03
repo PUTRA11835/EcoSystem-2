@@ -434,11 +434,16 @@ async function toggleMenuAccess(menuId, checkbox) {
     const grant = checkbox.checked;
     const menuName = checkbox.title || 'menu ini';
     const roleName = document.getElementById('menuAccessTitle').textContent.replace('Menu Access — ', '');
+    const node = findMenuNode(menuTree, menuId);
+    const hasChildren = !!(node?.children?.length);
 
     if (grant) {
+        const message = hasChildren
+            ? `Grant access to "${menuName}" and all its sub-items for role "${roleName}"?`
+            : `Grant access to "${menuName}" for role "${roleName}"?`;
         const confirmed = await customConfirm({
             title:    'Grant Access?',
-            message:  `Grant access to "${menuName}" for role "${roleName}"?`,
+            message,
             okLabel:  'Yes, Grant',
             okClass:  'bg-green-600 hover:bg-green-700',
             icon:     'fas fa-key',
@@ -483,7 +488,8 @@ async function toggleMenuAccess(menuId, checkbox) {
     } else {
         if (grant) {
             roleMenuPermissions[menuId] = { can_view: true, can_create: false, can_edit: false, can_delete: false };
-            showToast(`Access to "${menuName}" granted successfully.`, 'success');
+            if (hasChildren) await cascadeGrantChildren(menuId);
+            showToast(`Access to "${menuName}"${hasChildren ? ' and all sub-items' : ''} granted successfully.`, 'success');
         } else {
             delete roleMenuPermissions[menuId];
             await cascadeRevokeChildren(menuId);
@@ -496,23 +502,76 @@ async function toggleMenuAccess(menuId, checkbox) {
     delete savingMenu[key];
 }
 
-// Rekursif hapus akses semua children dari state (dan panggil API revoke)
+// Kumpulkan semua descendant ID yang belum punya akses, lalu grant paralel
+async function cascadeGrantChildren(parentId) {
+    const toGrant = [];
+    function collect(pId) {
+        const n = findMenuNode(menuTree, pId);
+        if (!n?.children?.length) return;
+        for (const child of n.children) {
+            if (!roleMenuPermissions[child.id]) toGrant.push(child.id);
+            collect(child.id);
+        }
+    }
+    collect(parentId);
+    if (!toGrant.length) return;
+
+    await Promise.all(toGrant.map(async id => {
+        try {
+            const res = await fetch(`/api/roles/${currentRoleId}/permissions/${id}`, {
+                method: 'PUT', headers: jsonHeaders(),
+                body: JSON.stringify({ can_view: true, can_create: false, can_edit: false, can_delete: false }),
+            });
+            if ((await res.json()).success) {
+                roleMenuPermissions[id] = { can_view: true, can_create: false, can_edit: false, can_delete: false };
+            }
+        } catch(e) {}
+    }));
+}
+
+// Kumpulkan semua descendant ID yang punya akses, lalu revoke paralel
 async function cascadeRevokeChildren(parentId) {
+    const toRevoke = [];
+    function collect(pId) {
+        const n = findMenuNode(menuTree, pId);
+        if (!n?.children?.length) return;
+        for (const child of n.children) {
+            if (roleMenuPermissions[child.id]) toRevoke.push(child.id);
+            collect(child.id);
+        }
+    }
+    collect(parentId);
+    if (!toRevoke.length) return;
+
+    await Promise.all(toRevoke.map(async id => {
+        try {
+            await fetch(`/api/roles/${currentRoleId}/permissions/${id}/revoke`, {
+                method: 'POST', headers: jsonHeaders(),
+            });
+        } catch(e) {}
+        delete roleMenuPermissions[id];
+    }));
+}
+
+// Rekursif beri akses semua children (dan panggil API grant)
+async function cascadeGrantChildren(parentId) {
     const node = findMenuNode(menuTree, parentId);
     if (!node || !node.children?.length) return;
 
     for (const child of node.children) {
-        if (roleMenuPermissions[child.id]) {
-            // Revoke dari API
+        if (!roleMenuPermissions[child.id]) {
             try {
-                await fetch(`/api/roles/${currentRoleId}/permissions/${child.id}/revoke`, {
-                    method: 'POST', headers: jsonHeaders(),
+                const res = await fetch(`/api/roles/${currentRoleId}/permissions/${child.id}`, {
+                    method: 'PUT', headers: jsonHeaders(),
+                    body: JSON.stringify({ can_view: true, can_create: false, can_edit: false, can_delete: false }),
                 });
+                if ((await res.json()).success) {
+                    roleMenuPermissions[child.id] = { can_view: true, can_create: false, can_edit: false, can_delete: false };
+                }
             } catch(e) {}
-            delete roleMenuPermissions[child.id];
         }
         // Rekursif ke grandchildren
-        await cascadeRevokeChildren(child.id);
+        await cascadeGrantChildren(child.id);
     }
 }
 

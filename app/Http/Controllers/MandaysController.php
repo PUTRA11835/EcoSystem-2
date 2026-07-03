@@ -422,14 +422,29 @@ class MandaysController extends Controller
         // Coba kirim email ke customer (non-fatal jika gagal — pesan sudah tersimpan di chat)
         $emailSent    = false;
         $emailWarning = null;
+        $emailTo      = null;
 
         try {
-            $customerEmail = $this->resolveCustomerEmailForTicket($ticket);
+            // Resolve primary TO dan additional TO dari ticket.to_emails (dipersist setiap reply).
+            // Jika to_emails tidak ada, fallback ke resolveCustomerEmailForTicket().
+            $ticketToEmails = array_values(array_filter(
+                is_array($ticket->to_emails) ? $ticket->to_emails : [],
+                fn($e) => is_string($e) && $e !== ''
+            ));
+            if (!empty($ticketToEmails)) {
+                $customerEmail = $ticketToEmails[0];
+                $additionalTo  = array_slice($ticketToEmails, 1);
+            } else {
+                $customerEmail = $this->resolveCustomerEmailForTicket($ticket);
+                $additionalTo  = [];
+            }
 
             if (!$customerEmail) {
                 $emailWarning = 'No customer email address found. Proposal saved to chat only.';
                 Log::warning('MandaysController@submitToChat: no customer email', ['ticket_id' => $ticketId]);
             } else {
+                $emailTo = $customerEmail;
+
                 $lastEmailMsg = TicketMessage::where('ticket_id', $ticketId)
                     ->where('channel', 'email')
                     ->whereNotNull('email_message_id')
@@ -440,7 +455,6 @@ class MandaysController extends Controller
                 $subject = '[JARVIES] #' . $ticket->ticket_number . ' : ' . mb_substr($ticket->description ?? '', 0, 80);
 
                 // CC: prioritaskan ticket.cc_emails, fallback ke pesan pertama dengan CC.
-                // Gunakan is_array check karena model cast 'array' sudah decode JSON → array.
                 $rawTicketCc = $ticket->cc_emails;
                 $ccList = $rawTicketCc
                     ? (is_array($rawTicketCc) ? $rawTicketCc : (json_decode($rawTicketCc, true) ?? []))
@@ -464,7 +478,10 @@ class MandaysController extends Controller
                     [],
                     $ccList,
                     true,
-                    $ticket->email_thread_id ?? null
+                    $ticket->email_thread_id ?? null,
+                    false,
+                    [],
+                    $additionalTo
                 );
 
                 // Update message channel dan email_message_id setelah email berhasil terkirim
@@ -473,15 +490,17 @@ class MandaysController extends Controller
                     'email_message_id' => $result['internet_message_id'] ?? null,
                 ]);
 
-                // Selalu sync email_thread_id ke conversationId terbaru (bukan hanya saat kosong)
+                // Selalu sync email_thread_id ke conversationId terbaru
                 if (!empty($result['conversation_id']) && $result['conversation_id'] !== $ticket->email_thread_id) {
                     $ticket->update(['email_thread_id' => $result['conversation_id']]);
                 }
 
                 $emailSent = true;
                 Log::info('MandaysController@submitToChat: email sent', [
-                    'ticket_id' => $ticketId,
-                    'to'        => $customerEmail,
+                    'ticket_id'    => $ticketId,
+                    'to'           => $customerEmail,
+                    'additional'   => $additionalTo,
+                    'cc_count'     => count($ccList),
                 ]);
             }
         } catch (\Throwable $e) {
@@ -500,6 +519,7 @@ class MandaysController extends Controller
                 : ($emailWarning ?? 'Status updated.'),
             'email_sent'            => $emailSent,
             'email_warning'         => $emailWarning,
+            'email_to'              => $emailTo,
             'ticket_mandays_status' => 'sent_to_chat',
         ]);
     }
@@ -1310,6 +1330,10 @@ class MandaysController extends Controller
      */
     private function resolveCustomerEmailForTicket(Ticket $ticket): ?string
     {
+        if (!empty($ticket->submitted_by_email)) {
+            return $ticket->submitted_by_email;
+        }
+
         $submittedEmail = DB::table('staging_tickets')
             ->where('ticket_id', $ticket->ticket_id)
             ->whereNotNull('submitted_by_email')
