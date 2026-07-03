@@ -2644,6 +2644,19 @@
             }
         });
 
+        // Saat teks disalin dari bubble lain (mis. internal note kuning) lalu ditempel,
+        // browser ikut menyalin computed style (background-color, color) sebagai inline style.
+        // Hilangkan agar warna bubble asal tidak terbawa ke pesan baru.
+        quillEditor.clipboard.addMatcher(Node.ELEMENT_NODE, function (node, delta) {
+            delta.ops.forEach(op => {
+                if (op.attributes) {
+                    delete op.attributes.background;
+                    delete op.attributes.color;
+                }
+            });
+            return delta;
+        });
+
         // Handle image paste (Ctrl+V) — compress & resize before inserting
         quillEditor.root.addEventListener('paste', function (e) {
             const items = (e.clipboardData || e.originalEvent.clipboardData).items;
