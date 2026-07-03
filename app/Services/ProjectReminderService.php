@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\RoleId;
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectPaymentTerm;
 use App\Models\Employee;
@@ -31,6 +30,15 @@ class ProjectReminderService
     /** Days before contract_end_date at which the reminder starts appearing. */
     private const CONTRACT_WINDOW_DAYS = 30;
 
+    /**
+     * Roles that receive project-deadline reminders, matched by the stable
+     * `employee_role.name` (not by ID — see syncAll() for why).
+     */
+    private const RECIPIENT_ROLE_NAMES = [
+        'Delivery Project Head',
+        'Delivery Project Administrator',
+    ];
+
     private const TYPE_CONTRACT = 'contract_end_reminder';
     private const TYPE_INVOICE  = 'top_invoice_reminder';
 
@@ -44,10 +52,15 @@ class ProjectReminderService
         $today = Carbon::today();
 
         // Recipients: all active Head of Project + Delivery Project Administrator.
-        $recipientIds = Employee::withAnyRole([
-                RoleId::DELIVERY_PROJECT_HEAD->value,
-                RoleId::DELIVERY_PROJECT_ADMIN->value,
-            ])
+        //
+        // Resolve by role NAME, not by fixed enum ID: role IDs diverge between
+        // environments (migrate:fresh assigns different IDs to the extended roles,
+        // e.g. "Delivery Project Administrator" is id 62 here but the enum hardcodes
+        // 12 — which actually maps to "Delivery RPMO User" in this DB). Matching on the
+        // stable role name guarantees only the intended roles ever get notified and
+        // avoids silently leaking reminders to an unrelated role.
+        $recipientIds = Employee::whereHas('roles', fn($q) =>
+                $q->whereIn('employee_role.name', self::RECIPIENT_ROLE_NAMES))
             ->where('is_active', true)
             ->pluck('employee_id')
             ->all();

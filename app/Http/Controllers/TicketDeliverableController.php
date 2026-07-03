@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\EmailSendException;
 use App\Models\Customer;
 use App\Models\Ticket;
 use App\Models\TicketDeliverable;
@@ -296,6 +297,7 @@ class TicketDeliverableController extends Controller
         // Resolusi email mengikuti urutan prioritas yang sama dengan reply biasa
         // (TicketMessageController::resolveCustomerEmail) agar selalu konsisten —
         // customer.email (company email) sering kosong sehingga tidak bisa jadi sumber utama.
+        $emailError = null; // alasan gagal (untuk response → notifikasi frontend)
         try {
             $customerEmail = $this->resolveCustomerEmail($ticket);
 
@@ -346,21 +348,52 @@ class TicketDeliverableController extends Controller
                 );
 
                 if (!empty($result['internet_message_id'])) {
-                    $ticketMsg->update(['email_message_id' => $result['internet_message_id']]);
+                    // Sebagian alamat di-drop (salah tulis) → email tetap terkirim ke
+                    // penerima valid, tapi tandai 'partial' + sebut alamat yang gagal.
+                    $invalidRecipients = $result['invalid_recipients'] ?? [];
+                    $isPartial         = !empty($invalidRecipients);
+                    if ($isPartial) {
+                        $emailError = EmailController::deliveryFailureReason($invalidRecipients, false);
+                    }
+                    $ticketMsg->update([
+                        'email_message_id'        => $result['internet_message_id'],
+                        'email_status'            => $isPartial ? 'partial' : 'sent',
+                        'email_error'             => $isPartial ? $emailError : null,
+                        'email_recipients'        => $result['recipients'] ?? null,
+                        'email_failed_recipients' => $isPartial ? array_values($invalidRecipients) : null,
+                    ]);
                 }
                 if (!empty($result['conversation_id']) && $result['conversation_id'] !== $ticket->email_thread_id) {
                     $ticket->update(['email_thread_id' => $result['conversation_id']]);
                 }
             }
         } catch (\Throwable $e) {
+            // Email gagal → tandai bubble pesan "Tidak terkirim" + alasan.
+            // Pesan sudah tersimpan di atas, jadi cukup di-update statusnya.
+            $emailError    = EmailSendException::reasonFrom($e);
+            $failedInvalid = EmailSendException::failedRecipientsFrom($e);
+            $ticketMsg->update([
+                'email_status'            => 'failed',
+                'email_error'             => $emailError,
+                'email_failed_recipients' => !empty($failedInvalid) ? array_values($failedInvalid) : null,
+            ]);
             Log::warning('TicketDeliverableController@send: email failed', [
-                'error'     => $e->getMessage(),
-                'ticket_id' => $ticketId,
-                'deliv_id'  => $delivId,
+                'reason'     => $emailError,
+                'error'      => $e->getMessage(),
+                'ticket_id'  => $ticketId,
+                'deliv_id'   => $delivId,
+                'raw_detail' => $e instanceof EmailSendException ? $e->rawDetail : null,
             ]);
         }
 
-        return response()->json(['success' => true, 'data' => $this->format($deliverable->fresh())]);
+        return response()->json([
+            'success'      => true,
+            'data'         => $this->format($deliverable->fresh()),
+            // Dokumen tetap tersimpan/terkirim ke chat, tapi email ke customer GAGAL →
+            // frontend tampilkan peringatan (bukan sukses) agar tidak membingungkan.
+            'email_failed' => $emailError !== null,
+            'email_error'  => $emailError,
+        ]);
     }
 
     /**
