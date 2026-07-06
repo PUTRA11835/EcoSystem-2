@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Notification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class NotificationController extends Controller
@@ -21,7 +22,11 @@ class NotificationController extends Controller
 
         $employeeId = $sessionUser['id'];
 
-        $notifications = Notification::where('employee_id', $employeeId)
+        $notifications = Notification::with([
+                'ticket:ticket_id,ticket_number,customer_id',
+                'ticket.customer:customer_id,customer_code',
+            ])
+            ->where('employee_id', $employeeId)
             ->orderBy('created_at', 'desc')
             ->paginate(30);
 
@@ -46,20 +51,31 @@ class NotificationController extends Controller
 
         // Bell dropdown menampilkan 20 notifikasi terbaru (read + unread), termasuk
         // ticket_reply / ticket_internal_note — badge memakai unread_count di bawah.
-        $notifications = Notification::where('employee_id', $employeeId)
-            ->orderBy('created_at', 'desc')
+        $notifications = DB::table('notifications as n')
+            ->leftJoin('ticket as t', 't.ticket_id', '=', 'n.ticket_id')
+            ->leftJoin('customer as c', 'c.customer_id', '=', 't.customer_id')
+            ->where('n.employee_id', $employeeId)
+            ->orderBy('n.created_at', 'desc')
             ->limit(20)
+            ->select([
+                'n.id', 'n.type', 'n.ticket_id', 'n.message_id',
+                'n.from_name', 'n.preview', 'n.link', 'n.is_read', 'n.created_at',
+                't.ticket_number',
+                'c.customer_code',
+            ])
             ->get()
             ->map(fn ($n) => [
-                'id'         => $n->id,
-                'type'       => $n->type,
-                'ticket_id'  => $n->ticket_id,
-                'message_id' => $n->message_id,
-                'from_name'  => $n->from_name,
-                'preview'    => $n->preview,
-                'link'       => $n->link,
-                'is_read'    => $n->is_read,
-                'created_at' => $n->created_at?->diffForHumans(),
+                'id'            => $n->id,
+                'type'          => $n->type,
+                'ticket_id'     => $n->ticket_id,
+                'ticket_number' => $n->ticket_number,
+                'customer_name' => $n->customer_code,
+                'message_id'    => $n->message_id,
+                'from_name'     => $n->from_name,
+                'preview'       => $n->preview,
+                'link'          => $n->link,
+                'is_read'       => (bool) $n->is_read,
+                'created_at'    => $n->created_at ? \Carbon\Carbon::parse($n->created_at)->diffForHumans() : null,
             ]);
 
         $unreadCount = Notification::where('employee_id', $employeeId)

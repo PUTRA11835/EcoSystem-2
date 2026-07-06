@@ -130,10 +130,17 @@ class EmployeeBasicDataController extends Controller
             }
         }
 
+        // Cek apakah record sudah ada — diperlukan sebelum validasi agar unique rule
+        // bisa mengecualikan record milik employee ini sendiri saat update via POST.
+        $existingBasicData = EmployeeBasicData::where('employee_id', $employeeId)->first();
+        $nickNameUnique    = $existingBasicData
+            ? 'unique:employee_basic_data,nick_name,' . $existingBasicData->basic_data_id . ',basic_data_id'
+            : 'unique:employee_basic_data,nick_name';
+
         $validator = Validator::make($request->all(), [
             // Identitas Pribadi
-            'title' => 'nullable|string|max:10',
-            'nick_name' => 'required|string|max:100|unique:employee_basic_data,nick_name',
+            'title'     => 'nullable|string|max:10',
+            'nick_name' => 'required|string|max:100|' . $nickNameUnique,
             'gender' => 'nullable|string|max:10',
             'religion' => 'nullable|string|max:50',
             'first_name' => 'required|string|max:255',
@@ -290,7 +297,7 @@ class EmployeeBasicDataController extends Controller
             }
 
             // Validate only provided fields
-            $validator = Validator::make($partialInput, [
+            $validator = Validator::make($request->all(), [
                 'title' => 'nullable|string|max:10',
                 'nick_name' => 'sometimes|required|string|max:100|unique:employee_basic_data,nick_name,' . $basicData->basic_data_id . ',basic_data_id',
                 'gender' => 'nullable|in:Male,Female',

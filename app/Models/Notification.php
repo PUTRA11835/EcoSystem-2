@@ -29,6 +29,11 @@ class Notification extends Model
         'read_at' => 'datetime',
     ];
 
+    public function ticket()
+    {
+        return $this->belongsTo(\App\Models\Ticket::class, 'ticket_id', 'ticket_id');
+    }
+
     protected static function booted(): void
     {
         static::created(function (self $notification) {
@@ -38,9 +43,18 @@ class Notification extends Model
             // Send Web Push after the HTTP response so it doesn't add latency
             app()->terminating(function () use ($notification) {
                 try {
+                    $metaParts = [];
+                    if ($notification->ticket_id) {
+                        $ticket = \App\Models\Ticket::select('ticket_id', 'ticket_number', 'customer_id')
+                            ->with('customer:customer_id,customer_code')
+                            ->find($notification->ticket_id);
+                        if ($ticket?->ticket_number) $metaParts[] = $ticket->ticket_number;
+                        if ($ticket?->customer?->customer_code) $metaParts[] = $ticket->customer->customer_code;
+                    }
+                    $meta  = $metaParts ? implode(' · ', $metaParts) . "\n" : '';
                     $payload = [
                         'title' => self::buildTitle($notification),
-                        'body'  => $notification->preview ?? '',
+                        'body'  => $meta . ($notification->preview ?? ''),
                         'url'   => $notification->link ?? '/',
                         'tag'   => 'ecosystem-' . $notification->type . '-' . $notification->id,
                         'type'  => $notification->type,

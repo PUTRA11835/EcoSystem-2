@@ -28,6 +28,7 @@ use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TicketMessageController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\TimesheetController;
+use App\Http\Controllers\TicketActivityLogController;
 use App\Http\Controllers\EmailController;
 use App\Http\Controllers\StagingTicketController;
 use App\Http\Controllers\MandaysController;
@@ -457,6 +458,14 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/{id}', [CalendarController::class, 'destroy']);
     });
 
+    // ==================== TICKET ACTIVITY LOG ROUTES ====================
+    Route::prefix('tickets/{ticketId}/activity-logs')->group(function () {
+        Route::get('/',              [TicketActivityLogController::class, 'index']);
+        Route::post('/',             [TicketActivityLogController::class, 'store']);
+        Route::post('/{logId}/update', [TicketActivityLogController::class, 'update']);
+        Route::post('/{logId}/delete', [TicketActivityLogController::class, 'destroy']);
+    });
+
     // ==================== TIMESHEET ROUTES ====================
     Route::prefix('timesheets')->group(function () {
         Route::get('/', [TimesheetController::class, 'index']);
@@ -471,8 +480,8 @@ Route::middleware(['web'])->group(function () {
         Route::get('/export', [TimesheetController::class, 'exportToExcel']);
         Route::get('/{id}', [TimesheetController::class, 'show']);
         Route::post('/', [TimesheetController::class, 'store']);
-        Route::put('/{id}', [TimesheetController::class, 'update']);
-        Route::delete('/{id}', [TimesheetController::class, 'destroy']);
+        Route::post('/{id}/update', [TimesheetController::class, 'update']);
+        Route::post('/{id}/delete', [TimesheetController::class, 'destroy']);
         Route::post('/{id}/submit', [TimesheetController::class, 'submit']);
         Route::post('/{id}/approve', [TimesheetController::class, 'approve']);
         Route::post('/{id}/reject', [TimesheetController::class, 'reject']);

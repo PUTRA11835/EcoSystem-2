@@ -97,6 +97,11 @@
                                 @endif
                             @endif
                         </p>
+                        @if($notif->ticket?->ticket_number || $notif->ticket?->customer?->customer_code)
+                        <p class="text-xs font-medium text-gray-700 mt-0.5">
+                            {{ implode(' · ', array_filter([$notif->ticket?->ticket_number, $notif->ticket?->customer?->customer_code])) }}
+                        </p>
+                        @endif
                         @if($notif->preview)
                         <p class="text-xs text-gray-500 mt-0.5 line-clamp-2">{{ $notif->preview }}</p>
                         @endif

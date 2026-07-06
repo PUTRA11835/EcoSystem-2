@@ -22,17 +22,6 @@
 @endsection
 
 @section('page-actions')
-{{-- Folder ticket diturunkan langsung dari folder Customer Deliverable milik customer ticket.
-     Link "Open Folder" muncul otomatis setelah deliverable pertama di-upload. --}}
-@if($ticket->onedrive_folder_url)
-<a id="ticketFolderBtn" href="{{ $ticket->onedrive_folder_url }}" target="_blank" rel="noopener"
-   class="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-    </svg>
-    Open Folder
-</a>
-@endif
 @endsection
 
 {{-- Override sidebar with ticket inbox --}}
@@ -3054,6 +3043,12 @@
                 // Load pertama: render semua sekaligus (innerHTML sekali, bukan per-pesan)
                 thread.innerHTML = messages.map(msg => createMessageBubble(msg)).join('');
                 messages.forEach(msg => renderedMessageIds.add(msg.id));
+
+                // Jika ada ?msg= dari notifikasi, scroll & highlight ke pesan tersebut
+                const targetMsgId = new URLSearchParams(window.location.search).get('msg');
+                if (targetMsgId) {
+                    setTimeout(() => scrollToMessage(parseInt(targetMsgId, 10)), 300);
+                }
             } else {
                 // Poll berikutnya: hanya append pesan baru di bawah, pesan lama tidak disentuh
                 newMessages.forEach(msg => {

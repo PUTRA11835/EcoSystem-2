@@ -1394,9 +1394,13 @@
                     .then(function (data) {
                         if (data.data && data.data.length > 0) {
                             var n = data.data[0];
+                            var metaParts = [];
+                            if (n.ticket_number) metaParts.push(n.ticket_number);
+                            if (n.customer_name) metaParts.push(n.customer_name);
+                            var body = (metaParts.length ? metaParts.join(' · ') + '\n' : '') + (n.preview || '');
                             showOsNotification(
                                 getTitle(n),
-                                n.preview || '',
+                                body,
                                 n.link || (n.ticket_id ? '/ticket/' + n.ticket_id : '/notifications')
                             );
                         }
@@ -1599,6 +1603,22 @@
             pTitle.style.whiteSpace    = 'nowrap';
             pTitle.style.textOverflow  = 'ellipsis';
             pTitle.textContent = getTitle(n);
+
+            if (n.ticket_number || n.customer_name) {
+                var pMeta = document.createElement('p');
+                pMeta.style.margin       = '2px 0 0';
+                pMeta.style.fontSize     = '11px';
+                pMeta.style.fontWeight   = '500';
+                pMeta.style.color        = '#374151';
+                pMeta.style.overflow     = 'hidden';
+                pMeta.style.whiteSpace   = 'nowrap';
+                pMeta.style.textOverflow = 'ellipsis';
+                var parts = [];
+                if (n.ticket_number) parts.push(n.ticket_number);
+                if (n.customer_name) parts.push(n.customer_name);
+                pMeta.textContent = parts.join(' · ');
+                textBox.appendChild(pMeta);
+            }
 
             var pPreview = document.createElement('p');
             pPreview.style.margin       = '2px 0 0';

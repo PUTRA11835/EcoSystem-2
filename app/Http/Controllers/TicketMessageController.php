@@ -645,8 +645,6 @@ class TicketMessageController extends Controller
         string        $type,    // 'ticket_internal_note' | 'ticket_reply'
         string        $preview
     ): void {
-        $link = "/ticket/{$ticket->ticket_id}";
-
         // Kumpulkan PIC + member aktif, hapus duplikat dan pengirim sendiri
         $recipients = collect();
 
@@ -657,6 +655,8 @@ class TicketMessageController extends Controller
         $ticket->members // hanya aktif (via wherePivot)
             ->pluck('employee_id')
             ->each(fn ($id) => $recipients->push((int) $id));
+
+        $link = "/ticket/{$ticket->ticket_id}?msg={$message->id}";
 
         $recipients->unique()
             ->reject(fn ($id) => $id === $senderId)
@@ -688,7 +688,7 @@ class TicketMessageController extends Controller
             $ticketNum = $ticket->ticket_number ?? $ticketId;
             $rawText   = mb_substr(strip_tags($message->message ?? ''), 0, 100);
             $preview   = "[Ticket #{$ticketNum}] {$rawText}";
-            $link      = "/ticket/{$ticketId}";
+            $link      = "/ticket/{$ticketId}?msg={$message->id}";
 
             // Collect all recipient employee IDs (unique, exclude sender)
             $recipientIds = collect($mentionedEmployeeIds)->map(fn ($id) => (int) $id)->toArray();
