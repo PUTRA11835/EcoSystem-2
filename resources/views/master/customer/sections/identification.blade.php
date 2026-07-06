@@ -516,8 +516,8 @@
         if (!deleteIdentificationId) return;
 
         try {
-            const response = await fetch(`/api/customers/{{ $customerId }}/identifications/${deleteIdentificationId}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/customers/{{ $customerId }}/identifications/${deleteIdentificationId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',

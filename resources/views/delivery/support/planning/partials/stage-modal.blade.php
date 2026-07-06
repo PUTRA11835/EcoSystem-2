@@ -276,7 +276,7 @@
             confirmButtonText: 'Yes, delete it!'
         }).then((result) => {
             if (result.isConfirmed) {
-                axios.delete(`/delivery/support/${window.supportId}/planning/stages/${stageId}`, {
+                axios.post(`/delivery/support/${window.supportId}/stages/${stageId}/delete`, {}, {
                     headers: {
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
                     }

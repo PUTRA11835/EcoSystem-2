@@ -2059,8 +2059,8 @@ async function confirmDelete() {
     if (!deleteTimesheetId) return;
     
     try {
-        const response = await fetch(`/api/timesheets/${deleteTimesheetId}`, {
-            method: 'DELETE',
+        const response = await fetch(`/api/timesheets/${deleteTimesheetId}/delete`, {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
@@ -2256,8 +2256,8 @@ async function confirmBulkDelete() {
         const id = checkbox.getAttribute('data-id');
         
         try {
-            const response = await fetch(`/api/timesheets/${id}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/timesheets/${id}/delete`, {
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
@@ -2524,8 +2524,8 @@ async function handleFormSubmit(e) {
     }
     
     try {
-        const url = timesheetId?.value ? `/api/timesheets/${timesheetId.value}` : '/api/timesheets';
-        const method = timesheetId?.value ? 'PUT' : 'POST';
+        const url = timesheetId?.value ? `/api/timesheets/${timesheetId.value}/update` : '/api/timesheets';
+        const method = 'POST';
         
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         

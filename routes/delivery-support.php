@@ -61,10 +61,12 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
         Route::post('/generate-folder', [DeliverySupportController::class, 'generateFolder'])->name('generate-folder');
         // Delete OneDrive folder
         Route::delete('/folder', [DeliverySupportController::class, 'deleteFolder'])->name('delete-folder');
+        Route::post('/folder/delete', [DeliverySupportController::class, 'deleteFolder'])->name('delete-folder-post');
 
         // Generate Customer Deliverable sub-folder (Delivery Support/Customer Deliverable/{customer}/{subfolder})
         Route::post('/generate-deliverable-folder', [DeliverySupportController::class, 'generateCustomerDeliverableFolder'])->name('generate-deliverable-folder');
         Route::delete('/deliverable-folder', [DeliverySupportController::class, 'deleteCustomerDeliverableFolder'])->name('delete-deliverable-folder');
+        Route::post('/deliverable-folder/delete', [DeliverySupportController::class, 'deleteCustomerDeliverableFolder'])->name('delete-deliverable-folder-post');
         // List sub-folders inside the customer deliverable folder
         Route::get('/deliverable-subfolders', [DeliverySupportController::class, 'getDeliverableSubfolders'])->name('deliverable-subfolders');
         // Generate anonymous share link for a specific sub-folder
@@ -72,6 +74,7 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
 
         // Delete support
         Route::delete('/', [DeliverySupportController::class, 'destroy'])->name('destroy');
+        Route::post('/delete', [DeliverySupportController::class, 'destroy'])->name('destroy-post');
 
         // =====================================================================
         // TICKET ASSIGNMENT
@@ -93,6 +96,7 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
             Route::post('/', [DeliverySupportPlanningController::class, 'store'])->name('store');
             Route::put('/{planning}', [DeliverySupportPlanningController::class, 'update'])->name('update');
             Route::delete('/{planning}', [DeliverySupportPlanningController::class, 'destroy'])->name('destroy');
+            Route::post('/{planning}/delete', [DeliverySupportPlanningController::class, 'destroy'])->name('destroy-post');
 
             // Reorder planning items
             Route::post('/reorder', [DeliverySupportPlanningController::class, 'reorder'])->name('reorder');
@@ -118,6 +122,7 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
             Route::get('/{phase}', [DeliverySupportPhaseController::class, 'show'])->name('show');
             Route::put('/{phase}', [DeliverySupportPhaseController::class, 'update'])->name('update');
             Route::delete('/{phase}', [DeliverySupportPhaseController::class, 'destroy'])->name('destroy');
+            Route::post('/{phase}/delete', [DeliverySupportPhaseController::class, 'destroy'])->name('destroy-post');
             Route::post('/{phase}/toggle', [DeliverySupportPhaseController::class, 'toggleVisibility'])->name('toggle');
         });
 
@@ -140,6 +145,7 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
             Route::get('/{activity}', [DeliverySupportActivityController::class, 'show'])->name('show');
             Route::put('/{activity}', [DeliverySupportActivityController::class, 'update'])->name('update');
             Route::delete('/{activity}', [DeliverySupportActivityController::class, 'destroy'])->name('destroy');
+            Route::post('/{activity}/delete', [DeliverySupportActivityController::class, 'destroy'])->name('destroy-post');
             Route::patch('/{activity}/remove-ticket', [DeliverySupportActivityController::class, 'removeTicketLink'])->name('remove-ticket');
 
             // Employee assignment
@@ -147,6 +153,7 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
             Route::post('/{activity}/employees', [DeliverySupportActivityController::class, 'assignEmployee'])->name('employees.store');
             Route::put('/{activity}/employees/{employeeId}', [DeliverySupportActivityController::class, 'updateAssignment'])->name('employees.update');
             Route::delete('/{activity}/employees/{employeeId}', [DeliverySupportActivityController::class, 'unassignEmployee'])->name('employees.destroy');
+            Route::post('/{activity}/employees/{employeeId}/delete', [DeliverySupportActivityController::class, 'unassignEmployee'])->name('employees.destroy-post');
         });
 
         // =====================================================================
@@ -169,6 +176,7 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
             Route::get('/{stage}', [DeliverySupportStageController::class, 'show'])->name('show');
             Route::put('/{stage}', [DeliverySupportStageController::class, 'update'])->name('update');
             Route::delete('/{stage}', [DeliverySupportStageController::class, 'destroy'])->name('destroy');
+            Route::post('/{stage}/delete', [DeliverySupportStageController::class, 'destroy'])->name('destroy-post');
         });
 
         // =====================================================================
@@ -189,6 +197,7 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
             Route::post('/', [DeliverySupportController::class, 'storeDocument'])->name('store');
             Route::put('/{document}', [DeliverySupportController::class, 'updateDocument'])->name('update');
             Route::delete('/{document}', [DeliverySupportController::class, 'destroyDocument'])->name('destroy');
+            Route::post('/{document}/delete', [DeliverySupportController::class, 'destroyDocument'])->name('destroy-post');
         });
 
         // =====================================================================
@@ -199,6 +208,7 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
             Route::post('/', [DeliverySupportController::class, 'storeUpdate'])->name('store');
             Route::put('/{update}', [DeliverySupportController::class, 'updateUpdate'])->name('update');
             Route::delete('/{update}', [DeliverySupportController::class, 'destroyUpdate'])->name('destroy');
+            Route::post('/{update}/delete', [DeliverySupportController::class, 'destroyUpdate'])->name('destroy-post');
         });
 
         // =====================================================================
@@ -208,6 +218,7 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
             Route::get('/', [DeliverySupportController::class, 'getTeamMembers'])->name('index');
             Route::post('/', [DeliverySupportController::class, 'addTeamMember'])->name('store');
             Route::delete('/{employee}', [DeliverySupportController::class, 'removeTeamMember'])->name('destroy');
+            Route::post('/{employee}/delete', [DeliverySupportController::class, 'removeTeamMember'])->name('destroy-post');
         });
 
         // =====================================================================

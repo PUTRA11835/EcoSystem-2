@@ -394,8 +394,8 @@
     async function confirmDeleteBank() {
         if (!deleteBankId) return;
         try {
-            const response = await fetch(`/api/customers/{{ $customer->customer_id }}/banks/${deleteBankId}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/customers/{{ $customer->customer_id }}/banks/${deleteBankId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',

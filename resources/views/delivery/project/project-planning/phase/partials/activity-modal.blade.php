@@ -1369,7 +1369,7 @@ async function confirmRemoveActivityMember() {
     if (btn) { btn.disabled = true; btn.innerHTML = 'Removing…'; }
 
     try {
-        await axios.delete(`/planning/${window.projectId}/activities/${currentActivityId}/members/${employeeId}`);
+        await axios.post(`/planning/${window.projectId}/activities/${currentActivityId}/members/${employeeId}/delete`, {});
 
         showNotification('Team member removed', 'success');
         await loadAssignedMembers(currentActivityId);

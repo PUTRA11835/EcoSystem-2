@@ -668,8 +668,8 @@
 
         try {
             
-            const response = await fetch(`/api/employees/${employeeId}/qualification/${deleteQualificationId}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/employees/${employeeId}/qualification/${deleteQualificationId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',

@@ -746,8 +746,8 @@ window.saveAllPhaseChanges = async function() {
         for (const phaseId of window.phaseChanges.toDelete) {
             if (isNewPhaseId(phaseId)) continue;
             
-            await axios.delete(`/planning/${projectId}/phases/${phaseId}`, {
-                data: { _token: '{{ csrf_token() }}' }
+            await axios.post(`/planning/${projectId}/phases/${phaseId}/delete`, {
+                _token: '{{ csrf_token() }}'
             });
         }
         

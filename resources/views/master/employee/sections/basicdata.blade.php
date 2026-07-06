@@ -35,7 +35,7 @@
                 </div>
             </div>
             <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Nick Name</label>
+                <label class="text-sm font-semibold text-gray-700 mb-1.5">Nick Name <span class="text-red-500">*</span></label>
                 <input type="text" id="nickName" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
             <div class="flex flex-col">

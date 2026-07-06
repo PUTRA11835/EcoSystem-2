@@ -1074,7 +1074,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                     : unreadCls === 'ticket-unread-customer'  ? '#f0f7ff'
                     : '#ffffff';
 
-        return `<tr class="${unreadCls} border-b border-gray-100" onclick="window.location='/ticket/${ticket.ticket_id}'" oncontextmenu="openTicketContextMenu(event,${ticket.ticket_id})">
+        return `<tr class="${unreadCls} border-b border-gray-100" data-ticket-num="${(ticket.ticket_number||'').replace(/"/g,'')}" onclick="window.location='/ticket/${ticket.ticket_id}'" oncontextmenu="openTicketContextMenu(event,${ticket.ticket_id},this)">
             {{-- Last Update --}}
             <td class="px-3 py-3 whitespace-nowrap sticky left-0" style="background:${rowBg}" title="${lastUpdateTitle}">
                 <div class="flex items-center gap-1.5">
@@ -2180,24 +2180,34 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
 {{-- Ticket row context menu --}}
 <div id="ticketContextMenu"
-     class="hidden fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl py-1 min-w-[170px]"
+     class="hidden fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl py-1 min-w-[190px]"
      style="pointer-events:auto;">
     <button type="button" id="ctxOpenNewTab"
             class="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors text-left">
         <i class="fas fa-external-link-alt text-gray-400 w-3.5"></i>
         Open in new tab
     </button>
+    @if($can('ticket.activity-log'))
+    <div class="border-t border-gray-100 my-1"></div>
+    <button type="button" id="ctxActivityLog"
+            class="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors text-left">
+        <i class="fas fa-clipboard-list text-gray-400 w-3.5"></i>
+        Log Ticket Activity
+    </button>
+    @endif
 </div>
 
 <script>
 (function () {
-    let _ctxTicketId = null;
+    let _ctxTicketId  = null;
+    let _ctxTicketNum = null;
     const menu = document.getElementById('ticketContextMenu');
 
-    window.openTicketContextMenu = function (e, ticketId) {
+    window.openTicketContextMenu = function (e, ticketId, rowEl) {
         e.preventDefault();
         e.stopPropagation();
-        _ctxTicketId = ticketId;
+        _ctxTicketId  = ticketId;
+        _ctxTicketNum = rowEl ? (rowEl.dataset.ticketNum || null) : null;
 
         // Posisi tepat di kursor, jaga agar tidak keluar viewport
         const vw = window.innerWidth, vh = window.innerHeight;
@@ -2217,11 +2227,342 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         _ctxTicketId = null;
     });
 
+    const ctxLog = document.getElementById('ctxActivityLog');
+    if (ctxLog) {
+        ctxLog.addEventListener('click', function () {
+            if (_ctxTicketId) openActivityLogModal(_ctxTicketId, _ctxTicketNum);
+            menu.classList.add('hidden');
+            _ctxTicketId  = null;
+            _ctxTicketNum = null;
+        });
+    }
+
     document.addEventListener('click', function () {
         menu.classList.add('hidden');
         _ctxTicketId = null;
     });
 })();
 </script>
+
+@if($can('ticket.activity-log'))
+{{-- ══════════════════════════════════════════════════════════════════════════
+     TICKET ACTIVITY LOG MODAL
+══════════════════════════════════════════════════════════════════════════ --}}
+<div id="activityLogModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[9990] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+
+        {{-- Header --}}
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
+            <div>
+                <h3 class="text-sm font-bold text-gray-900">Ticket Activity Log</h3>
+                <p id="alModalTicketNum" class="text-xs text-gray-400 mt-0.5">—</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="openAlForm(null)"
+                        class="flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold rounded-lg transition-all">
+                    Add Activity
+                </button>
+                <button onclick="closeActivityLogModal()"
+                        class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all text-sm">✕</button>
+            </div>
+        </div>
+
+        {{-- Table --}}
+        <div class="flex-1 overflow-auto">
+            <table class="w-full text-xs border-collapse">
+                <thead class="sticky top-0 bg-gray-50 z-10">
+                    <tr>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 w-8">#</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">Date</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">PIC</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">Activity</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">File Ref.</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 w-16">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="alTableBody">
+                    <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{{-- Activity Log Form Modal --}}
+<div id="alFormModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[9995] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <h3 id="alFormTitle" class="text-sm font-bold text-gray-900">Add Activity</h3>
+            <button onclick="closeAlForm()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all text-sm">✕</button>
+        </div>
+        <form id="alForm" class="px-6 py-5 space-y-4" onsubmit="submitAlForm(event)">
+            <input type="hidden" id="alFormLogId">
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Date <span class="text-red-500">*</span></label>
+                <input type="date" id="alFormDate" required
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-500">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Activity <span class="text-red-500">*</span></label>
+                <textarea id="alFormActivity" rows="4" required maxlength="5000"
+                          placeholder="Describe the activity…"
+                          class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-500 resize-y"></textarea>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">File Ref. — Link</label>
+                <input type="url" id="alFormUrl" placeholder="https://…"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-500">
+                <p class="text-[10px] text-gray-400 mt-1">Paste a Google Drive, OneDrive, or other link</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">File Ref. — Upload</label>
+                <div id="alFileArea" class="border border-dashed border-gray-300 rounded-lg px-3 py-3 text-xs text-gray-500">
+                    <div id="alCurrentFile" class="hidden flex items-center gap-2 mb-2 p-2 bg-gray-50 rounded-lg">
+                        <i class="fas fa-paperclip text-gray-400"></i>
+                        <span id="alCurrentFileName" class="flex-1 truncate text-gray-700"></span>
+                        <button type="button" onclick="removeAlFile()" class="text-red-400 hover:text-red-600 text-xs">✕</button>
+                    </div>
+                    <label class="cursor-pointer flex items-center gap-2 hover:text-gray-700 transition-colors">
+                        <i class="fas fa-upload text-gray-400"></i>
+                        <span id="alUploadLabel">Choose file (max 10 MB)</span>
+                        <input type="file" id="alFormFile" class="hidden" onchange="onAlFileChange(this)">
+                    </label>
+                </div>
+                <input type="hidden" id="alRemoveFile" value="0">
+            </div>
+
+            <div class="flex gap-3 pt-2">
+                <button type="button" onclick="closeAlForm()"
+                        class="flex-1 px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+                <button type="submit" id="alFormSubmitBtn"
+                        class="flex-1 px-4 py-2 bg-red-700 text-white text-sm font-semibold rounded-lg hover:bg-red-800 transition-all">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    const CSRF = () => document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const ESC  = s  => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const CURR_EMP_ID = {{ session('user.id', 0) }};
+
+    let _alTicketId   = null;
+    let _alTicketNum  = null;
+    let _alLogs       = [];
+    let _alEditId     = null;
+
+    // ── Open / Close main modal ──────────────────────────────────────────────
+    window.openActivityLogModal = async function (ticketId, ticketNum) {
+        _alTicketId  = ticketId;
+        _alTicketNum = ticketNum || null;
+        document.getElementById('alModalTicketNum').textContent = ticketNum || `#${ticketId}`;
+        document.getElementById('activityLogModal').classList.remove('hidden');
+        document.getElementById('activityLogModal').classList.add('flex');
+        document.getElementById('alTableBody').innerHTML =
+            '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Loading…</td></tr>';
+        await loadAlLogs();
+    };
+
+    window.closeActivityLogModal = function () {
+        document.getElementById('activityLogModal').classList.add('hidden');
+        document.getElementById('activityLogModal').classList.remove('flex');
+        closeAlForm();
+        _alTicketId = null;
+    };
+
+    // ── Load logs ────────────────────────────────────────────────────────────
+    async function loadAlLogs() {
+        try {
+            const res  = await fetch(`/api/tickets/${_alTicketId}/activity-logs`, {
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF() },
+                credentials: 'same-origin',
+            });
+            const data = await res.json();
+            if (data.success) {
+                _alLogs = data.data;
+                renderAlTable();
+            } else {
+                document.getElementById('alTableBody').innerHTML =
+                    `<tr><td colspan="6" class="px-4 py-6 text-center text-red-500">Failed to load</td></tr>`;
+            }
+        } catch (e) {
+            document.getElementById('alTableBody').innerHTML =
+                `<tr><td colspan="6" class="px-4 py-6 text-center text-red-500">Error: ${ESC(e.message)}</td></tr>`;
+        }
+    }
+
+    function renderAlTable() {
+        if (_alLogs.length === 0) {
+            document.getElementById('alTableBody').innerHTML =
+                '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400 text-xs">No activity entries yet. Click "Add Activity" to start.</td></tr>';
+            return;
+        }
+        document.getElementById('alTableBody').innerHTML = _alLogs.map((log, idx) => {
+            const isOwner = log.employee_id == CURR_EMP_ID;
+            const fileHtml = buildFileRefHtml(log);
+            return `<tr class="border-b border-gray-100 hover:bg-gray-50 align-top">
+                <td class="px-3 py-2.5 text-gray-400 font-mono">${idx + 1}</td>
+                <td class="px-3 py-2.5 text-gray-700 whitespace-nowrap">${ESC(log.activity_date)}</td>
+                <td class="px-3 py-2.5 text-gray-700 whitespace-nowrap">${ESC(log.pic)}</td>
+                <td class="px-3 py-2.5 text-gray-700" style="max-width:400px;white-space:pre-wrap;">${ESC(log.activity)}</td>
+                <td class="px-3 py-2.5">${fileHtml}</td>
+                <td class="px-3 py-2.5 whitespace-nowrap">
+                    ${isOwner ? `
+                    <button onclick="openAlForm(${log.id})" class="text-blue-500 hover:text-blue-700 mr-2" title="Edit"><i class="fas fa-pen text-xs"></i></button>
+                    <button onclick="deleteAlLog(${log.id})" class="text-red-400 hover:text-red-600" title="Delete"><i class="fas fa-trash text-xs"></i></button>
+                    ` : '<span class="text-gray-300">—</span>'}
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function buildFileRefHtml(log) {
+        const parts = [];
+        if (log.file_ref_url) {
+            parts.push(`<a href="${ESC(log.file_ref_url)}" target="_blank" rel="noopener" class="flex items-center gap-1 text-blue-500 hover:underline"><i class="fas fa-link text-[10px]"></i><span class="truncate max-w-[120px]">Link</span></a>`);
+        }
+        if (log.file_ref_path) {
+            parts.push(`<a href="${ESC(log.file_ref_path)}" target="_blank" rel="noopener" class="flex items-center gap-1 text-blue-500 hover:underline"><i class="fas fa-paperclip text-[10px]"></i><span class="truncate max-w-[120px]">${ESC(log.file_ref_name || 'File')}</span></a>`);
+        }
+        return parts.length ? `<div class="space-y-0.5">${parts.join('')}</div>` : '<span class="text-gray-300">—</span>';
+    }
+
+    // ── Form ─────────────────────────────────────────────────────────────────
+    window.openAlForm = function (logId) {
+        _alEditId = logId;
+        document.getElementById('alFormTitle').textContent = logId ? 'Edit Activity' : 'Add Activity';
+        document.getElementById('alFormLogId').value = logId || '';
+        document.getElementById('alFormDate').value = '';
+        document.getElementById('alFormActivity').value = '';
+        document.getElementById('alFormUrl').value = '';
+        document.getElementById('alFormFile').value = '';
+        document.getElementById('alRemoveFile').value = '0';
+        document.getElementById('alCurrentFile').classList.add('hidden');
+        document.getElementById('alUploadLabel').textContent = 'Choose file (max 10 MB)';
+
+        if (logId) {
+            const log = _alLogs.find(l => l.id === logId);
+            if (log) {
+                document.getElementById('alFormDate').value     = log.activity_date || '';
+                document.getElementById('alFormActivity').value = log.activity || '';
+                document.getElementById('alFormUrl').value      = log.file_ref_url || '';
+                if (log.file_ref_name) {
+                    document.getElementById('alCurrentFileName').textContent = log.file_ref_name;
+                    document.getElementById('alCurrentFile').classList.remove('hidden');
+                    document.getElementById('alUploadLabel').textContent = 'Replace file';
+                }
+            }
+        } else {
+            // default date = today
+            document.getElementById('alFormDate').value = new Date().toISOString().slice(0, 10);
+        }
+
+        document.getElementById('alFormModal').classList.remove('hidden');
+        document.getElementById('alFormModal').classList.add('flex');
+        document.getElementById('alFormDate').focus();
+    };
+
+    window.closeAlForm = function () {
+        document.getElementById('alFormModal').classList.add('hidden');
+        document.getElementById('alFormModal').classList.remove('flex');
+        _alEditId = null;
+    };
+
+    window.onAlFileChange = function (input) {
+        if (input.files && input.files[0]) {
+            document.getElementById('alCurrentFileName').textContent = input.files[0].name;
+            document.getElementById('alCurrentFile').classList.remove('hidden');
+            document.getElementById('alRemoveFile').value = '0';
+            document.getElementById('alUploadLabel').textContent = 'Replace file';
+        }
+    };
+
+    window.removeAlFile = function () {
+        document.getElementById('alFormFile').value = '';
+        document.getElementById('alCurrentFile').classList.add('hidden');
+        document.getElementById('alRemoveFile').value = '1';
+        document.getElementById('alUploadLabel').textContent = 'Choose file (max 10 MB)';
+    };
+
+    window.submitAlForm = async function (e) {
+        e.preventDefault();
+        const btn = document.getElementById('alFormSubmitBtn');
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+
+        const logId    = document.getElementById('alFormLogId').value;
+        const formData = new FormData();
+        formData.append('activity_date', document.getElementById('alFormDate').value);
+        formData.append('activity',      document.getElementById('alFormActivity').value);
+        const url = document.getElementById('alFormUrl').value.trim();
+        if (url) formData.append('file_ref_url', url);
+
+        const fileInput = document.getElementById('alFormFile');
+        if (fileInput.files && fileInput.files[0]) {
+            formData.append('file_ref', fileInput.files[0]);
+        } else if (document.getElementById('alRemoveFile').value === '1') {
+            formData.append('remove_file', '1');
+        }
+
+        const endpoint = logId
+            ? `/api/tickets/${_alTicketId}/activity-logs/${logId}/update`
+            : `/api/tickets/${_alTicketId}/activity-logs`;
+
+        try {
+            const res  = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': CSRF(), 'Accept': 'application/json' },
+                credentials: 'same-origin',
+                body: formData,
+            });
+            const data = await res.json();
+            if (data.success) {
+                closeAlForm();
+                await loadAlLogs();
+            } else {
+                showNotification(data.message || 'Failed to save activity.', 'error');
+            }
+        } catch (err) {
+            showNotification('Error: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save';
+        }
+    };
+
+    window.deleteAlLog = async function (logId) {
+        if (!confirm('Delete this activity entry? This cannot be undone.')) return;
+        try {
+            const res  = await fetch(`/api/tickets/${_alTicketId}/activity-logs/${logId}/delete`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': CSRF(), 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+            });
+            const data = await res.json();
+            if (data.success) {
+                await loadAlLogs();
+            } else {
+                showNotification(data.message || 'Failed to delete activity.', 'error');
+            }
+        } catch (err) {
+            showNotification('Error: ' + err.message, 'error');
+        }
+    };
+
+    // Close modals on backdrop click
+    document.getElementById('activityLogModal').addEventListener('click', function (e) {
+        if (e.target === this) closeActivityLogModal();
+    });
+    document.getElementById('alFormModal').addEventListener('click', function (e) {
+        if (e.target === this) closeAlForm();
+    });
+})();
+</script>
+@endif
 
 @endsection

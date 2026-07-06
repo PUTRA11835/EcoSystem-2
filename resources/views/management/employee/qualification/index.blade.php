@@ -242,8 +242,8 @@
     async function confirmDelete() {
         if (!deleteTargetId) return;
         try {
-            const res  = await fetch(`/api/modules/${deleteTargetId}`, {
-                method: 'DELETE',
+            const res  = await fetch(`/api/modules/${deleteTargetId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',

@@ -485,6 +485,7 @@ class EmployeeController extends Controller
             'password' => 'required|string|min:6|confirmed',
             'first_name' => 'required|string|max:255',
             'last_name' => 'nullable|string|max:255',
+            'nick_name' => 'required|string|max:100|unique:employee_basic_data,nick_name',
             'role' => 'nullable|integer',
             'gender' => 'nullable|in:Male,Female',
             'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Confucian',
@@ -495,6 +496,8 @@ class EmployeeController extends Controller
             'eci.required' => 'Employee ID is required',
             'eci.unique' => 'Employee ID already exists',
             'first_name.required' => 'First name is required',
+            'nick_name.required' => 'Nick Name is required.',
+            'nick_name.unique' => 'Nick Name is already taken. Please choose a different nick name.',
             'password.required' => 'Password is required',
             'password.min' => 'Password must be at least 6 characters',
             'password.confirmed' => 'Password confirmation does not match',
@@ -740,12 +743,19 @@ class EmployeeController extends Controller
             'updated_by_eci' => $currentUserECI
         ]);
 
+        $existingBasicData = DB::table('employee_basic_data')->where('employee_id', $id)->first();
+        $basicDataId = $existingBasicData?->basic_data_id;
+
         $validator = Validator::make($request->all(), [
             'eci' => 'required|max:50|unique:employee,eci,' . $id . ',employee_id',
             'first_name' => 'required|string|max:255',
+            'nick_name' => 'required|string|max:100|unique:employee_basic_data,nick_name,' . $basicDataId . ',basic_data_id',
             'gender' => 'nullable|in:Male,Female',
             'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Confucian',
             'marital_status' => 'nullable|in:Single,Married,Divorced,Widow/Widower',
+        ], [
+            'nick_name.required' => 'Nick Name is required.',
+            'nick_name.unique' => 'Nick Name is already taken. Please choose a different nick name.',
         ]);
 
         if ($validator->fails()) {

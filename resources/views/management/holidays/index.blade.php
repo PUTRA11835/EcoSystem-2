@@ -250,7 +250,7 @@ async function deleteHoliday(id) {
         iconColor: 'text-red-500',
     });
     if (!ok) return;
-    const res  = await fetch(`/api/management/holidays/${id}`, { method: 'DELETE', headers: jsonHeaders() });
+    const res  = await fetch(`/api/management/holidays/${id}/delete`, { method: 'POST', headers: jsonHeaders() });
     const json = await res.json();
     if (json.success) {
         showToast('Holiday deleted successfully.', 'success');
