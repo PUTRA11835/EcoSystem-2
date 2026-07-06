@@ -543,10 +543,15 @@ function _closeAllDropdowns() {
 
 // Toggle one item; update hidden input + label. Panel stays open.
 function _toggleMultiItem(dd, item, val) {
-    if (val === '') return;
-
     const hidden = dd.querySelector('input[type="hidden"]');
     if (!hidden) return;
+
+    // The "All" option (data-value="") clears every selection instead of
+    // toggling itself — there's nothing meaningful to "check" for it.
+    if (val === '') {
+        _clearMultiSelection(dd);
+        return;
+    }
 
     let ids = hidden.value ? hidden.value.split(',').filter(Boolean) : [];
     if (ids.includes(val)) {
@@ -561,6 +566,19 @@ function _toggleMultiItem(dd, item, val) {
     hidden.value = ids.join(',');
 
     _updateMultiLabel(dd, ids);
+}
+
+// Uncheck every item and clear the hidden input for a multi-select dropdown.
+function _clearMultiSelection(dd) {
+    const hidden = dd.querySelector('input[type="hidden"]');
+    if (!hidden) return;
+    hidden.value = '';
+    const panel = dd.querySelector('.custom-dd-panel') || dd._ddPanel;
+    panel?.querySelectorAll('.custom-dd-item').forEach(i => {
+        i.classList.remove('bg-gray-50', 'font-medium', 'text-gray-900');
+        i.querySelector('.custom-dd-check')?.classList.add('opacity-0');
+    });
+    _updateMultiLabel(dd, []);
 }
 
 // Rebuild the button label from the currently selected ids.
@@ -626,4 +644,17 @@ function setCustomDropdownValue(hiddenId, value) {
         text = panel?.querySelector('.custom-dd-item[data-value=""]')?.textContent.trim() || '';
     }
     _selectItem(dd, value, text);
+}
+
+/**
+ * Programmatically clear all selections for a multi-select custom dropdown
+ * (data-multi="true"). Counterpart to setCustomDropdownValue() for single-select.
+ * @param {string} hiddenId — the id of the hidden input inside the dropdown
+ */
+function clearCustomDropdownMulti(hiddenId) {
+    const hidden = document.getElementById(hiddenId);
+    if (!hidden) return;
+    const dd = hidden.closest('.custom-dd');
+    if (!dd) return;
+    _clearMultiSelection(dd);
 }
