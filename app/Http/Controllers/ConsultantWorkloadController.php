@@ -199,7 +199,8 @@ class ConsultantWorkloadController extends Controller
         $ticketIds = $picIds->merge($memberIds)->merge($mandaysIds)->unique()->values();
 
         $baseSelect = [
-            'ticket.ticket_id', 'ticket.ticket_number', 'ticket.subject',
+            'ticket.ticket_id', 'ticket.ticket_number',
+            DB::raw("COALESCE(NULLIF(ticket.subject, ''), ticket.description) as subject"),
             'ticket.status', 'ticket.ticket_priority', 'ticket.ticket_type',
             'ticket.man_days', 'ticket.progress_percentage', 'ticket.progress_note',
             'ticket.last_progress_at', 'ticket.module', 'ticket.start_date',

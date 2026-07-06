@@ -1540,10 +1540,15 @@
         }
 
         function getUrl(n) {
-            if (n.link) return n.link;
-            if (n.type === 'timesheet_submitted') return '/calendar/timesheets';
-            if (n.ticket_id) return '/ticket/' + n.ticket_id;
-            return '/notifications';
+            var base = n.link
+                ? n.link
+                : (n.type === 'timesheet_submitted'
+                    ? '/calendar/timesheets'
+                    : (n.ticket_id ? '/ticket/' + n.ticket_id : '/notifications'));
+            if (n.message_id && base.indexOf('#') === -1) {
+                base += '#msg-' + n.message_id;
+            }
+            return base;
         }
 
         /* ---- build one notification item using createElement (no Tailwind dependency) ---- */

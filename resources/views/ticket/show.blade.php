@@ -2186,6 +2186,19 @@
         if (iconUp)   iconUp.classList.toggle('hidden', !isExpanded);
     }
 
+    // Snapshot read-only recipient "To" tiket, dipakai untuk badge "To:" di bubble
+    // chat (lihat renderRecipientBadge). Terpisah dari `toEmails` di bawah karena
+    // itu adalah state MUTABLE composer reply — kalau dipakai langsung, bubble yang
+    // sudah terkirim akan ikut berubah tampilannya saat user mengetik di field To.
+    const ticketToEmailsInitial = @json(
+        !empty($ticket->to_emails)
+            ? collect($ticket->to_emails)
+                ->map(fn($t) => is_array($t) ? ($t['address'] ?? '') : (string)$t)
+                ->filter()
+                ->values()
+            : array_values(array_filter([$customerEmail ?? null]))
+    );
+
     // ── TO state ────────────────────────────────────────────────────────────
     // Seeded dari ticket.to_emails (primary customer + recipient tambahan yang
     // sudah dipersist). Jika belum ada, fallback ke resolved customer email.
@@ -2586,6 +2599,7 @@
     let mentionQuery      = null; // null = not in mention mode
     let mentionStartIndex = -1;   // character index where '@' was typed
     let mentionFetchTimer = null;
+    const MENTION_COLORS  = ['#1d4ed8', '#7c3aed'];
 
     function toggleSidebarPanel(panelId, chevronId) {
         const panel   = document.getElementById(panelId);
@@ -2638,6 +2652,30 @@
                                 };
                                 reader.readAsDataURL(file);
                             };
+                        }
+                    }
+                },
+                keyboard: {
+                    bindings: {
+                        // Hapus seluruh chip @mention sekaligus saat backspace mengenai
+                        // teks berwarna mention, alih-alih menghapus 1 karakter dan
+                        // menyisakan potongan teks yang masih berwarna biru/ungu.
+                        mentionBackspace: {
+                            key: 'Backspace',
+                            handler: function (range, context) {
+                                if (range.length > 0) return true;
+                                const idx = range.index;
+                                if (idx === 0) return true;
+                                const fmt = this.quill.getFormat(idx - 1, 1);
+                                if (!MENTION_COLORS.includes(fmt.color)) return true;
+                                let start = idx - 1;
+                                while (start > 0 && MENTION_COLORS.includes(this.quill.getFormat(start - 1, 1).color)) {
+                                    start--;
+                                }
+                                this.quill.deleteText(start, idx - start, 'user');
+                                this.quill.setSelection(start, 0, 'user');
+                                return false;
+                            }
                         }
                     }
                 }
@@ -2755,6 +2793,23 @@
         // Ketika user mengetik spasi atau Enter setelah URL, format teks sebagai hyperlink biru.
         // Gunakan posisi dari delta.ops (bukan getSelection) agar lebih reliable.
         // setTimeout untuk menghindari masalah re-entrancy Quill.
+        quillEditor.on('text-change', function (delta, oldDelta, source) {
+            // Cegah format mention (warna+bold) "bocor" ke teks lanjutan.
+            // Chip mention diberi warna+bold lalu diikuti spasi netral sebagai pemisah;
+            // jika spasi pemisah itu dihapus user, kursor menempel tepat di belakang teks
+            // berwarna sehingga Quill melanjutkan format tsb saat mengetik lagi.
+            if (source === 'user') {
+                const sel = quillEditor.getSelection();
+                if (sel && sel.length === 0) {
+                    const fmt = quillEditor.getFormat(sel.index);
+                    if (MENTION_COLORS.includes(fmt.color)) {
+                        quillEditor.format('color', false);
+                        if (fmt.bold) quillEditor.format('bold', false);
+                    }
+                }
+            }
+        });
+
         quillEditor.on('text-change', function(delta, _old, source) {
             // Hanya proses input dari user (bukan format API call)
             if (source !== 'user' || !delta || !delta.ops) return;
@@ -2815,11 +2870,17 @@
 
         renderToTags();
         renderCcTags();
-        loadMessages();
+        loadMessages().then(scrollToMessageFromHash);
         switchSidebarView(canViewMyTicketTab ? 'my' : 'all');
         markMessagesRead();
         startMessagePolling();
     });
+
+    // Jika dibuka dari notifikasi mention (#msg-123), scroll ke bubble pesan tsb
+    function scrollToMessageFromHash() {
+        const match = /^#msg-(\d+)$/.exec(window.location.hash);
+        if (match) scrollToMessage(match[1]);
+    }
 
     // ==================== @MENTION AUTOCOMPLETE ====================
     function fetchMentionables(q) {
@@ -2832,7 +2893,7 @@
             if (!data.success) return;
             const items = [];
             (data.employees || []).forEach(e => items.push({ type: 'employee', id: e.id, display: e.display_name, sub: e.role_name }));
-            (data.roles     || []).forEach(r => items.push({ type: 'role',     id: r.id, display: '@' + r.name, sub: 'All in role' }));
+            (data.roles     || []).forEach(r => items.push({ type: 'role',     id: r.id, display: r.name, sub: 'All in role' }));
             renderMentionDropdown(items);
         })
         .catch(() => closeMentionDropdown());
@@ -2926,7 +2987,7 @@
 
     // Close on Escape
     document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') closeMentionDropdown();
+        if (e.key === 'Escape') { closeMentionDropdown(); closeRecipientPopover(); }
     });
 
     // ==================== IMAGE LIGHTBOX (preview full-view) ====================
@@ -3361,12 +3422,84 @@
         }
     }
 
-    function toggleCcExtra(id, btn) {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.classList.toggle('hidden');
-        btn.textContent = el.classList.contains('hidden') ? `+${btn.dataset.count} more` : 'show less';
+    // ── To/Cc recipient badge (bubble chat) ─────────────────────────────────────
+    // Tampilkan maksimal 2 nama + tombol "+N lainnya" yang membuka popover kecil
+    // berisi daftar lengkap (scrollable). Dipakai untuk badge "To:" dan "Cc:" —
+    // dibuat lewat popover (bukan expand inline) supaya bubble tetap ringkas walau
+    // penerima CC-nya banyak (puluhan).
+    function renderRecipientBadge(kind, label, list, msgId, alignEnd) {
+        if (!list || list.length === 0) return '';
+
+        const recip = item => typeof item === 'string'
+            ? { addr: item, name: item }
+            : { addr: item.address || '', name: item.name || item.address || '' };
+
+        const VISIBLE = 2;
+        const extra   = list.length - VISIBLE;
+        const popId   = `recipPop-${kind}-${msgId}`;
+        const chip    = item => {
+            const { addr, name } = recip(item);
+            return `<span class="truncate max-w-[160px]" title="${escHtml(addr)}">${escHtml(name)}</span>`;
+        };
+        const iconSvg = kind === 'to'
+            ? `<svg style="width:9px;height:9px;flex-shrink:0" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg>`
+            : `<svg style="width:9px;height:9px;flex-shrink:0" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>`;
+
+        const popoverList = list.map(item => {
+            const { addr, name } = recip(item);
+            return `<div class="truncate px-2 py-1 rounded hover:bg-gray-50" title="${escHtml(addr)}">${escHtml(name)}</div>`;
+        }).join('');
+
+        return `<span class="inline-flex flex-wrap ${alignEnd ? 'justify-end' : ''} items-center gap-x-1 gap-y-0.5 max-w-full text-[10px] text-gray-400 mt-0.5">
+            <span class="inline-flex items-center gap-1 flex-shrink-0">
+                ${iconSvg}
+                <span class="font-medium text-gray-500">${label}:</span>
+            </span>
+            ${list.slice(0, VISIBLE).map(chip).join('<span>,</span>')}
+            ${extra > 0 ? `
+                <span>,</span>
+                <button type="button" class="text-blue-500 hover:text-blue-700 font-medium hover:underline flex-shrink-0"
+                    onclick="toggleRecipientPopover(event, '${popId}')">+${extra} lainnya</button>
+                <div id="${popId}" class="hidden fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-xl py-1.5 min-w-[160px] max-w-[280px] max-h-[220px] overflow-y-auto text-[11px] text-gray-700 text-left">
+                    <div class="font-semibold text-gray-400 uppercase tracking-wide text-[9px] px-2 pb-1">${label} &middot; ${list.length}</div>
+                    ${popoverList}
+                </div>
+            ` : ''}
+        </span>`;
     }
+
+    let openRecipientPopoverId = null;
+    function closeRecipientPopover() {
+        if (!openRecipientPopoverId) return;
+        document.getElementById(openRecipientPopoverId)?.classList.add('hidden');
+        openRecipientPopoverId = null;
+    }
+    function toggleRecipientPopover(event, popId) {
+        event.stopPropagation();
+        const el = document.getElementById(popId);
+        if (!el) return;
+
+        const wasOpen = popId === openRecipientPopoverId;
+        closeRecipientPopover();
+        if (wasOpen) return;
+
+        // Posisikan fixed relatif ke tombol pemicu agar tidak terpotong overflow bubble
+        const rect = event.currentTarget.getBoundingClientRect();
+        el.style.left = Math.min(rect.left, window.innerWidth - 290) + 'px';
+        const spaceBelow = window.innerHeight - rect.bottom;
+        if (spaceBelow < 230 && rect.top > 230) {
+            el.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+            el.style.top    = 'auto';
+        } else {
+            el.style.top    = (rect.bottom + 4) + 'px';
+            el.style.bottom = 'auto';
+        }
+        el.classList.remove('hidden');
+        openRecipientPopoverId = popId;
+    }
+    document.addEventListener('click', function (e) {
+        if (openRecipientPopoverId && !e.target.closest(`#${openRecipientPopoverId}`)) closeRecipientPopover();
+    });
 
     function createMessageBubble(msg) {
         messageCache.set(msg.id, msg);
@@ -3487,32 +3620,17 @@
             ? `<span class="msg-channel-badge msg-channel-email"><svg style="width:9px;height:9px;display:inline" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg> Email</span>`
             : `<span class="msg-channel-badge msg-channel-web"><svg style="width:9px;height:9px;display:inline" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clip-rule="evenodd"/></svg> Web</span>`;
 
-        // CC badge — hanya tampil kalau ada CC
-        // Normalisasi: API mungkin kembalikan array atau JSON string (data lama) &rarr; selalu array
+        // To/Cc badge — hanya tampil untuk pesan email. Ringkas (2 nama + "+N lainnya"),
+        // sisanya dibuka lewat popover (lihat renderRecipientBadge) alih-alih expand inline,
+        // supaya bubble tidak melebar/terpecah saat CC-nya banyak (puluhan penerima).
+        // Normalisasi cc_emails: API mungkin kembalikan array atau JSON string (data lama).
         const rawCc  = msg.cc_emails;
         const ccList = Array.isArray(rawCc) ? rawCc
                      : (typeof rawCc === 'string' && rawCc ? ((() => { try { return JSON.parse(rawCc); } catch(e) { return []; } })()) : []);
-        const ccChip = c => `<span class="truncate max-w-[160px]" title="${c.address || c}">${c.name || c.address || c}</span>`;
-        const CC_VISIBLE = 2;
-        const ccExtraCount = ccList.length - CC_VISIBLE;
-        const ccExtraId    = `ccExtra-${msg.id}`;
-        const ccBadge  = ccList.length > 0
-            ? `<span class="flex flex-wrap ${isEmployee ? 'justify-end' : ''} items-center gap-x-1 gap-y-0.5 max-w-full text-[10px] text-gray-400 mt-0.5">
-                <span class="inline-flex items-center gap-1 flex-shrink-0">
-                    <svg style="width:9px;height:9px;flex-shrink:0" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
-                    <span class="font-medium text-gray-500">CC:</span>
-                </span>
-                ${ccList.slice(0, CC_VISIBLE).map(ccChip).join('<span>,</span>')}
-                ${ccExtraCount > 0 ? `
-                    <span>,</span>
-                    <span id="${ccExtraId}" class="hidden flex flex-wrap items-center gap-x-1 gap-y-0.5">
-                        ${ccList.slice(CC_VISIBLE).map(ccChip).join('<span>,</span>')}
-                    </span>
-                    <button type="button" data-count="${ccExtraCount}" onclick="toggleCcExtra('${ccExtraId}', this)"
-                        class="text-blue-500 hover:text-blue-700 font-medium hover:underline flex-shrink-0">+${ccExtraCount} more</button>
-                ` : ''}
-               </span>`
+        const toBadge = msg.channel === 'email'
+            ? renderRecipientBadge('to', 'To', ticketToEmailsInitial, msg.id, isEmployee)
             : '';
+        const ccBadge = renderRecipientBadge('cc', 'Cc', ccList, msg.id, isEmployee);
 
         // Body sudah me-render inline image bila: email dengan HTML body, ATAU
         // internal note dengan message_html (inline image-nya jadi <img src="/storage/...">).
@@ -3651,7 +3769,7 @@
                             ${channelBadge}
                             <span class="text-xs text-gray-400">${date}</span>
                         </div>
-                        ${ccBadge}
+                        ${toBadge}${ccBadge}
                     </div>
                     <div class="message-bubble ${bubbleClass} p-3 inline-block text-left">
                         ${messageContent(msg)}
@@ -6574,7 +6692,28 @@
                         ['blockquote'],
                         [{ list: 'ordered' }, { list: 'bullet' }],
                         ['clean']
-                    ]
+                    ],
+                    keyboard: {
+                        bindings: {
+                            mentionBackspace: {
+                                key: 'Backspace',
+                                handler: function (range, context) {
+                                    if (range.length > 0) return true;
+                                    const idx = range.index;
+                                    if (idx === 0) return true;
+                                    const fmt = this.quill.getFormat(idx - 1, 1);
+                                    if (!MENTION_COLORS.includes(fmt.color)) return true;
+                                    let start = idx - 1;
+                                    while (start > 0 && MENTION_COLORS.includes(this.quill.getFormat(start - 1, 1).color)) {
+                                        start--;
+                                    }
+                                    this.quill.deleteText(start, idx - start, 'user');
+                                    this.quill.setSelection(start, 0, 'user');
+                                    return false;
+                                }
+                            }
+                        }
+                    }
                 }
             });
         }
