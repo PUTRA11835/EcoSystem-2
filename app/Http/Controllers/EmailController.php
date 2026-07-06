@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Exceptions\EmailSendException;
 use App\Models\Customer;
 use App\Models\Notification;
 use App\Models\StagingTicket;
@@ -124,6 +125,235 @@ class EmailController extends Controller
         if (!$response->successful()) {
             throw new \RuntimeException("Graph PATCH {$path} gagal: " . $response->body());
         }
+    }
+
+    /**
+     * Terjemahkan pesan error mentah Graph (dari POST /send) menjadi alasan
+     * berbahasa Indonesia yang bisa ditampilkan langsung ke helpdesk di bubble chat.
+     *
+     * Error mentah biasanya berupa string berisi JSON:
+     *   {"error":{"code":"ErrorInvalidRecipients","message":"..."}}
+     */
+    private function humanizeGraphSendError(string $raw): string
+    {
+        // Ekstrak error.code dari body JSON (bila ada).
+        $code = '';
+        if (preg_match('/"code"\s*:\s*"([^"]+)"/i', $raw, $m)) {
+            $code = strtolower($m[1]);
+        }
+
+        // Cocokkan berdasarkan kode; fallback ke pencocokan kata kunci pada pesan.
+        $rawLower = strtolower($raw);
+
+        if (str_contains($code, 'invalidrecipient') || str_contains($rawLower, 'recipient is not valid') || str_contains($rawLower, 'invalid recipients')) {
+            return 'The destination email address is invalid — a recipient (To/CC) is malformed or was rejected by the server. Check the recipient list and resend.';
+        }
+        if (str_contains($code, 'recipientnotfound') || str_contains($code, 'nonexistentmailbox') || str_contains($rawLower, 'not found') && str_contains($rawLower, 'recipient')) {
+            return 'One of the destination email addresses was not found (mailbox does not exist). Check the recipient list and resend.';
+        }
+        if (str_contains($code, 'toomanyrecipient') || str_contains($rawLower, 'too many recipients')) {
+            return 'The number of recipients exceeds the limit allowed by the email server. Reduce the number of To/CC recipients.';
+        }
+        if (str_contains($code, 'messagesizeexceeded') || str_contains($rawLower, 'message size') || str_contains($rawLower, 'size exceeded')) {
+            return 'The email size (including attachments) exceeds the server limit. Reduce it or share the attachment via a link.';
+        }
+        if (str_contains($code, 'submissionblocked') || str_contains($code, 'sendasdenied') || str_contains($code, 'accessdenied') || str_contains($rawLower, 'submission') && str_contains($rawLower, 'blocked')) {
+            return 'Sending was blocked by the email server (possibly a policy or send permission). Please contact the email administrator.';
+        }
+        if (str_contains($code, 'mailboxnotenabledforrestapi') || str_contains($code, 'inactivemailbox')) {
+            return 'The sender mailbox has a problem / is not active for sending. Please contact the email administrator.';
+        }
+
+        // Default: pesan generik agar tetap informatif tanpa membocorkan detail teknis.
+        return 'The email could not be delivered to the customer due to an email server issue. Please try resending.';
+    }
+
+    // =========================================================================
+    // NON-DELIVERY REPORT (NDR / BOUNCE) HANDLING
+    // =========================================================================
+
+    /**
+     * Deteksi apakah sebuah email masuk merupakan Non-Delivery Report (NDR / bounce)
+     * — laporan "Undeliverable" yang dikirim balik oleh server mail (Exchange/Outlook
+     * postmaster) ketika alamat tujuan salah ketik / tidak ada.
+     *
+     * NDR TIDAK boleh disimpan sebagai pesan chat: body-nya berupa laporan HTML/tabel
+     * yang merusak tampilan bubble. Pemanggil memakai hasil `true` untuk men-skip email
+     * ini lalu menandai pesan keluar terkait sebagai "Tidak terkirim".
+     */
+    private function isNonDeliveryReport(?string $fromEmail, ?string $fromName, array $headers, string $subject): bool
+    {
+        $fromEmail = strtolower(trim((string) $fromEmail));
+        $fromName  = strtolower(trim((string) $fromName));
+
+        // 1) Header teknis — sinyal paling kuat & tidak bergantung bahasa.
+        foreach ($headers as $h) {
+            $name = strtolower($h['name'] ?? '');
+            $val  = strtolower($h['value'] ?? '');
+            if ($name === 'x-ms-exchange-message-is-ndr') return true;
+            if ($name === 'x-failed-recipients')          return true;
+            if ($name === 'content-type'
+                && str_contains($val, 'multipart/report')
+                && str_contains($val, 'delivery-status')) {
+                return true;
+            }
+        }
+
+        // 2) Pengirim adalah sistem mail (postmaster / mailer-daemon / mailbox NDR Exchange).
+        $localPart = strtok($fromEmail, '@') ?: '';
+        if (in_array($localPart, ['postmaster', 'mailer-daemon', 'mailerdaemon'], true)) return true;
+        if (str_starts_with($fromEmail, 'microsoftexchange')) return true;
+        if (in_array($fromName, ['microsoft outlook', 'mail delivery subsystem', 'postmaster'], true)) return true;
+
+        // 3) Subject khas NDR (fallback; ID + EN).
+        if (preg_match('/^\s*(undeliverable|undelivered mail|delivery status notification|mail delivery (failed|subsystem)|returned mail|delivery has failed|failure notice|tidak terkirim|tidak dapat dikirim|pesan tidak terkirim)\b/iu', $subject)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Ambil alamat email tujuan yang GAGAL dari sebuah NDR — untuk ditampilkan pada
+     * pesan error di ticket ("Email tidak terkirim ke <alamat>").
+     *
+     * Sumber (urut prioritas):
+     *   1. Header `X-Failed-Recipients` (paling bersih; diisi Exchange).
+     *   2. Scan body laporan: ambil alamat email pertama yang BUKAN milik akun sendiri /
+     *      postmaster / domain sendiri (alamat gagal biasanya disebut paling awal).
+     */
+    private function extractFailedRecipient(array $headers, string $rawBody): ?string
+    {
+        foreach ($headers as $h) {
+            if (strtolower($h['name'] ?? '') === 'x-failed-recipients') {
+                $first = trim(explode(',', $h['value'] ?? '')[0]);
+                if (filter_var($first, FILTER_VALIDATE_EMAIL)) return $first;
+            }
+        }
+
+        $ownSender = strtolower((string) config('services.microsoft_graph.sender_email'));
+        $ownDomain = str_contains($ownSender, '@') ? substr(strrchr($ownSender, '@'), 1) : '';
+
+        if ($rawBody !== '') {
+            $text = html_entity_decode(strip_tags($rawBody), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if (preg_match_all('/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/i', $text, $m)) {
+                foreach ($m[0] as $addr) {
+                    $addrL = strtolower($addr);
+                    if ($addrL === $ownSender)                                 continue;
+                    if (str_starts_with($addrL, 'postmaster@'))                continue;
+                    if (str_contains($addrL, 'microsoftexchange'))             continue;
+                    if ($ownDomain && str_ends_with($addrL, '@' . $ownDomain)) continue;
+                    return $addr;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Tandai pesan keluar (reply helpdesk) yang gagal terkirim akibat sebuah NDR.
+     *
+     * Pesan keluar dicari dengan urutan:
+     *   a. Presisi — References / In-Reply-To NDR menunjuk Message-ID email yang bounce
+     *      → cocokkan ke `ticket_message.email_message_id`.
+     *   b. Fallback — pesan email keluar terakhir pada thread (via conversationId).
+     *
+     * Tidak membuat pesan chat baru. Status ditentukan bertingkat:
+     *   - 'partial' : sebagian penerima gagal, sebagian lain TETAP menerima (warna amber).
+     *   - 'failed'  : SEMUA penerima gagal (warna merah).
+     * Alamat gagal diakumulasi (beberapa NDR untuk satu pesan) di email_failed_recipients.
+     */
+    private function markBounceOnOutgoingMessage(array $headers, ?string $inReplyToId, array $referencesIds, ?string $conversationId, string $rawBody): void
+    {
+        // a) Cocokkan by Message-ID (paling presisi; ID terbaru dulu).
+        $candidateIds    = array_values(array_filter(array_merge($referencesIds, [$inReplyToId])));
+        $originalMessage = null;
+        foreach (array_reverse($candidateIds) as $mid) {
+            $originalMessage = TicketMessage::where('email_message_id', $mid)->first();
+            if ($originalMessage) break;
+        }
+
+        // b) Fallback: pesan email keluar terakhir pada thread.
+        $ticket = $originalMessage?->ticket;
+        if (!$ticket && $conversationId) {
+            $ticket = Ticket::where('email_thread_id', $conversationId)->first();
+        }
+        if (!$originalMessage && $ticket) {
+            $originalMessage = TicketMessage::where('ticket_id', $ticket->ticket_id)
+                ->where('channel', 'email')
+                ->where('sender_type', 'employee')
+                ->where('is_internal_note', false)
+                ->orderBy('created_at', 'desc')
+                ->first();
+        }
+
+        if (!$originalMessage) {
+            Log::info('EmailController: NDR diterima tapi pesan keluar tidak ditemukan', [
+                'conversation_id' => $conversationId,
+                'in_reply_to'     => $inReplyToId,
+                'ticket_id'       => $ticket?->ticket_id,
+            ]);
+            return;
+        }
+
+        $failedRecipient = $this->extractFailedRecipient($headers, $rawBody);
+
+        // Akumulasi alamat gagal (beberapa NDR bisa datang untuk satu pesan yang sama).
+        $failed = collect($originalMessage->email_failed_recipients ?? [])
+            ->map(fn ($a) => strtolower(trim((string) $a)))->filter()->all();
+        if ($failedRecipient) {
+            $failed[] = strtolower($failedRecipient);
+        }
+        $failed = array_values(array_unique($failed));
+
+        // Tentukan total vs partial.
+        $recipients = collect($originalMessage->email_recipients ?? [])
+            ->map(fn ($a) => strtolower(trim((string) $a)))->filter()->all();
+        if (!empty($recipients)) {
+            // Total bila TIDAK ada penerima tersisa yang belum gagal.
+            $total = count(array_diff($recipients, $failed)) === 0;
+        } else {
+            // Pesan lama tanpa email_recipients: perkiraan dari 1 To customer + jumlah CC.
+            $ccCount    = collect($originalMessage->cc_emails ?? [])->filter()->count();
+            $approxTotal = 1 + $ccCount;
+            $total = count($failed) >= $approxTotal;
+        }
+
+        $status = $total ? 'failed' : 'partial';
+        $reason = self::deliveryFailureReason($failed ?: array_filter([$failedRecipient]), $total);
+
+        $originalMessage->update([
+            'email_status'            => $status,
+            'email_error'             => $reason,
+            'email_failed_recipients' => $failed,
+        ]);
+
+        Log::info('EmailController: NDR ditandai pada pesan keluar', [
+            'ticket_id'  => $originalMessage->ticket_id,
+            'message_id' => $originalMessage->id,
+            'recipient'  => $failedRecipient,
+            'status'     => $status,
+        ]);
+    }
+
+    /**
+     * Bangun teks alasan gagal-kirim yang ramah pengguna (English) untuk ditampilkan
+     * di bubble chat. `$total` menentukan nuansa: total (tidak sampai ke siapapun) vs
+     * partial (sampai ke penerima lain, kecuali alamat berikut).
+     */
+    public static function deliveryFailureReason(array $failedRecipients, bool $total): string
+    {
+        $failedRecipients = array_values(array_unique(array_filter(array_map('trim', $failedRecipients))));
+        $list = implode(', ', array_slice($failedRecipients, 0, 5));
+        $more = count($failedRecipients) > 5 ? ' and ' . (count($failedRecipients) - 5) . ' more' : '';
+
+        if ($total) {
+            return $list !== ''
+                ? "Email could not be delivered — the destination address(es) were not found or rejected: {$list}{$more}. Check the spelling and resend."
+                : 'Email could not be delivered — the destination address was not found or rejected by the server. Check the recipient list and resend.';
+        }
+
+        return "Email was delivered, but not to: {$list}{$more} — the address(es) were not found or rejected by the destination server. The other recipients received it.";
     }
 
     /**
@@ -477,6 +707,28 @@ class EmailController extends Controller
                             preg_match_all('/<([^>]+)>/', $headerVal, $refMatches);
                             $referencesIds = array_map(fn($id) => '<' . $id . '>', $refMatches[1] ?? []);
                         }
+                    }
+
+                    // ── NDR / bounce (Undeliverable) intercept ──────────────────────────────
+                    // Laporan "Undeliverable" dari postmaster/Exchange (mis. alamat customer
+                    // salah ketik) TIDAK boleh masuk sebagai bubble chat — HTML laporannya
+                    // merusak tampilan. Alih-alih, tandai pesan keluar yang gagal terkirim
+                    // sebagai "Tidak terkirim" + alasan, lalu skip email NDR-nya.
+                    if ($this->isNonDeliveryReport($fromEmail, $fromName, $msg['internetMessageHeaders'] ?? [], $subject)) {
+                        $this->markBounceOnOutgoingMessage(
+                            $msg['internetMessageHeaders'] ?? [],
+                            $inReplyToId,
+                            $referencesIds,
+                            $conversationId,
+                            $msg['body']['content'] ?? ''
+                        );
+                        $this->graphPatch("/users/{$sender}/messages/{$graphMsgId}", ['isRead' => true]);
+                        Log::info('EmailController@processInbox: NDR/bounce di-skip (tidak masuk chat)', [
+                            'from'    => $fromEmail,
+                            'subject' => $subject,
+                        ]);
+                        $skipped++;
+                        continue;
                     }
 
                     // ── Cari tiket terkait — 5 strategi, prioritas dari paling tepat ─────────
@@ -1436,12 +1688,18 @@ class EmailController extends Controller
         $senderLower    = strtolower((string) $sender);
         // $toEmail boleh kosong (mis. tiket EWA yang sengaja tanpa "To", hanya CC).
         // Jangan tambahkan recipient dengan address kosong — Graph akan menolaknya.
-        $toRecipients   = [];
-        $seenToLower    = [];
-        $primaryTo      = trim((string) $toEmail);
+        $toRecipients      = [];
+        $seenToLower       = [];
+        $invalidRecipients = []; // alamat To/CC yang tak valid sintaksis → DROP + tandai gagal
+        $primaryTo         = trim((string) $toEmail);
         if ($primaryTo !== '') {
-            $toRecipients[] = ['emailAddress' => ['address' => $primaryTo]];
-            $seenToLower[]  = strtolower($primaryTo);
+            if (filter_var($primaryTo, FILTER_VALIDATE_EMAIL)) {
+                $toRecipients[] = ['emailAddress' => ['address' => $primaryTo]];
+                $seenToLower[]  = strtolower($primaryTo);
+            } else {
+                // To utama salah tulis → jangan sertakan; catat sebagai gagal.
+                $invalidRecipients[] = $primaryTo;
+            }
         }
         foreach ($additionalToEmails as $addr) {
             $cleaned = is_string($addr) ? trim($addr) : '';
@@ -1449,23 +1707,60 @@ class EmailController extends Controller
             $cleanedLower = strtolower($cleaned);
             if (in_array($cleanedLower, $seenToLower, true)) continue;
             if ($cleanedLower === $senderLower) continue;  // jangan kirim ke helpdesk sendiri
-            if (!filter_var($cleaned, FILTER_VALIDATE_EMAIL)) continue;
+            if (!filter_var($cleaned, FILTER_VALIDATE_EMAIL)) {
+                $invalidRecipients[] = $cleaned;           // salah tulis → drop + tandai gagal
+                continue;
+            }
             $toRecipients[] = ['emailAddress' => ['address' => $cleaned]];
             $seenToLower[]  = $cleanedLower;
         }
 
         // Normalisasi ccList → format Graph API: [{emailAddress: {address, name}}]
-        $ccRecipients = [];
+        // Sekaligus kumpulkan alamat CC yang TIDAK valid secara sintaksis.
+        // Ini sumber utama bug "email tersimpan sebagai draft tapi tidak terkirim":
+        // ticket.cc_emails bisa menampung alamat rusak dari thread email panjang.
+        // Graph menerima alamat rusak saat MENYIMPAN draft, tapi menolak saat /send —
+        // sehingga draft tertinggal. Kita validasi lebih dulu agar bisa memberi alasan jelas.
+        $ccRecipients   = [];
         foreach ($ccList as $cc) {
-            if (is_string($cc)) {
-                $ccRecipients[] = ['emailAddress' => ['address' => $cc]];
-            } elseif (is_array($cc) && !empty($cc['address'])) {
-                $ccRecipients[] = ['emailAddress' => array_filter([
-                    'address' => $cc['address'],
-                    'name'    => $cc['name'] ?? null,
-                ])];
+            $addr = is_string($cc)
+                ? trim($cc)
+                : (is_array($cc) && !empty($cc['address']) ? trim((string) $cc['address']) : '');
+            if ($addr === '') continue;
+            if (!filter_var($addr, FILTER_VALIDATE_EMAIL)) {
+                $invalidRecipients[] = $addr;              // salah tulis → drop + tandai gagal
+                continue;
             }
+            $ccRecipients[] = ['emailAddress' => array_filter([
+                'address' => $addr,
+                'name'    => is_array($cc) ? ($cc['name'] ?? null) : null,
+            ])];
         }
+
+        $invalidRecipients = array_values(array_unique($invalidRecipients));
+
+        // Kebijakan (diubah Jul 2026): JANGAN batalkan seluruh pengiriman hanya karena
+        // ada satu alamat salah tulis. Alamat invalid sudah DI-DROP dari To/CC di atas —
+        // kirim ke penerima yang valid, lalu tandai pesan 'partial' (sebagian) dengan
+        // menyebut alamat gagal. HANYA bila TIDAK ADA penerima valid tersisa barulah
+        // pengiriman dibatalkan (total gagal) — mencegah draft orphan tanpa penerima.
+        if (empty($toRecipients) && empty($ccRecipients)) {
+            $list = implode(', ', array_slice($invalidRecipients, 0, 5));
+            throw new EmailSendException(
+                'The email was not sent — all destination addresses are invalid: ' . $list
+                . '. Fix the recipient list (To/CC) and resend.',
+                'no valid recipients; invalid: ' . implode(', ', $invalidRecipients),
+                null,
+                $invalidRecipients
+            );
+        }
+
+        // Daftar SEMUA alamat valid yang benar-benar dikirimi (To+CC) — disimpan di pesan
+        // sebagai email_recipients agar penentuan partial vs total saat NDR datang akurat.
+        $sentRecipients = array_values(array_unique(array_map(
+            fn ($r) => strtolower($r['emailAddress']['address']),
+            array_merge($toRecipients, $ccRecipients)
+        )));
 
         // ── Ekstrak inline images (base64) dari body HTML ──────────────────────
         // Email clients block data URI images; replace with cid: references.
@@ -1772,7 +2067,18 @@ class EmailController extends Controller
         }
 
         // ── Kirim draft ───────────────────────────────────────────────────────
-        $this->graphPost("/users/{$sender}/messages/{$draftId}/send", []);
+        // Kegagalan di sinilah yang menyisakan draft di M365 (mis. penerima ditolak
+        // Exchange saat submit). Terjemahkan error Graph mentah → alasan ramah pengguna
+        // supaya caller bisa menandai bubble "Tidak terkirim" + alasannya.
+        try {
+            $this->graphPost("/users/{$sender}/messages/{$draftId}/send", []);
+        } catch (\Throwable $e) {
+            throw new EmailSendException(
+                $this->humanizeGraphSendError($e->getMessage()),
+                $e->getMessage(),
+                $e
+            );
+        }
 
         // ── Cari ID pesan di Sent Items setelah terkirim ──────────────────────
         // Setelah /send, draft berpindah dari Drafts → Sent Items dengan ID baru.
@@ -1853,6 +2159,8 @@ class EmailController extends Controller
             'conversation_id'     => $conversationId,
             'internet_message_id' => $internetMessageId,
             'attachments'         => $attachmentRecords,
+            'recipients'          => $sentRecipients,     // semua alamat valid yang dikirimi
+            'invalid_recipients'  => $invalidRecipients,  // alamat di-drop (salah tulis) → partial
         ];
     }
 

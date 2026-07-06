@@ -120,10 +120,12 @@ class DeliveryProjectPaymentTermController extends Controller
             'submit_invoice_date' => 'nullable|date',
             // Invoice number wajib diisi ketika Submit Invoice Date terisi
             'invoice_number'      => 'nullable|required_with:submit_invoice_date|string|max:255',
-            'paid_date'           => 'nullable|date',
+            // Paid date wajib diisi ketika status = Paid
+            'paid_date'           => 'nullable|required_if:status,Paid|date',
             'status'              => 'required|string|in:Open,Paid,Delay',
         ], [
             'invoice_number.required_with' => 'Invoice Number is required when Submit Invoice Date is filled.',
+            'paid_date.required_if'        => 'Paid Date is required when Status is Paid.',
         ]);
     }
 

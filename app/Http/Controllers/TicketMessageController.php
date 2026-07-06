@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Exceptions\EmailSendException;
 use App\Http\Controllers\EmailController;
 use App\Models\Customer;
 use App\Models\Employee;
@@ -19,6 +20,19 @@ use Illuminate\Support\Facades\Validator;
 
 class TicketMessageController extends Controller
 {
+    /**
+     * Alasan kegagalan email dari percobaan sendEmailThenSave() terakhir.
+     * Diisi di blok catch, dibaca oleh caller (store) untuk menandai bubble
+     * pesan "Tidak terkirim" beserta alasannya. null = tidak ada kegagalan.
+     */
+    private ?string $lastEmailError = null;
+
+    /**
+     * Alamat tujuan yang gagal pada percobaan sendEmailThenSave() terakhir (total failure /
+     * semua invalid). Dibaca oleh store() untuk mengisi email_failed_recipients.
+     */
+    private array $lastEmailFailedRecipients = [];
+
     /**
      * Get messages for a ticket
      */
@@ -44,7 +58,28 @@ class TicketMessageController extends Controller
                 ->where('ticket_id', $ticketId)
                 ->orderBy('created_at', 'asc');
 
-            $messages = $query->get()->map(function ($message) {
+            $messages = $query->get()->map(function ($message) use ($ticket) {
+                // To recipients untuk pesan KELUAR (employee via email) — ditampilkan
+                // seperti From/CC pada pesan masuk. Diturunkan dari email_recipients
+                // (semua To+CC) dikurangi alamat CC; fallback ke ticket.to_emails untuk
+                // pesan lama yang belum menyimpan email_recipients.
+                $toEmails = [];
+                if ($message->sender_type === 'employee' && ($message->channel ?? '') === 'email') {
+                    $ccAddrs = collect($message->cc_emails ?? [])
+                        ->map(fn ($c) => strtolower(is_array($c) ? ($c['address'] ?? '') : (string) $c))
+                        ->filter()->all();
+                    if (!empty($message->email_recipients)) {
+                        $toEmails = collect($message->email_recipients)
+                            ->map(fn ($a) => strtolower(trim((string) $a)))
+                            ->reject(fn ($a) => $a === '' || in_array($a, $ccAddrs, true))
+                            ->unique()->values()->all();
+                    } elseif (!empty($ticket->to_emails)) {
+                        $toEmails = collect($ticket->to_emails)
+                            ->map(fn ($a) => is_array($a) ? ($a['address'] ?? '') : (string) $a)
+                            ->filter()->values()->all();
+                    }
+                }
+
                 $replyToPreview = null;
                 if ($message->reply_to_id && $message->replyTo) {
                     $parent = $message->replyTo;
@@ -69,7 +104,10 @@ class TicketMessageController extends Controller
                     'reply_to_id'         => $message->reply_to_id,
                     'reply_to_preview'    => $replyToPreview,
                     'channel'             => $message->channel ?? 'web',
+                    'to_emails'           => $toEmails,
                     'email_message_id'    => $message->email_message_id,
+                    'email_status'        => $message->email_status,
+                    'email_error'         => $message->email_error,
                     'is_read_by_customer' => $message->is_read_by_customer,
                     'is_read_by_agent'    => $message->is_read_by_agent,
                     'read_at'             => $message->read_at?->toIso8601String(),
@@ -268,19 +306,26 @@ class TicketMessageController extends Controller
                 ], $uploadedFiles, $ticketId, $senderId, $requestCc, $primaryTo, $additionalToList, $requestToProvided);
 
                 if (!$message) {
-                    // Fallback: tidak ada email customer atau email gagal → simpan tanpa email
+                    // Fallback: tidak ada email customer, atau email GAGAL dikirim.
+                    // $this->lastEmailError terisi hanya bila email dicoba tapi ditolak
+                    // (mis. alamat tujuan tidak valid) — bukan saat memang tak ada penerima.
+                    // Simpan pesan + tandai status 'failed' + alasan agar tampil di bubble.
+                    $failedReason = $this->lastEmailError;
                     $message = TicketMessage::create([
-                        'ticket_id'           => $ticketId,
-                        'sender_type'         => $senderType,
-                        'sender_id'           => $senderId,
-                        'sender_name'         => $senderName,
-                        'message'             => trim(strip_tags($messageBody)),
-                        'message_html'        => $messageBody,
-                        'is_internal_note'    => false,
-                        'channel'             => 'web',
-                        'cc_emails'           => !empty($requestCc) ? $requestCc : null,
-                        'is_read_by_customer' => false,
-                        'is_read_by_agent'    => true,
+                        'ticket_id'               => $ticketId,
+                        'sender_type'             => $senderType,
+                        'sender_id'               => $senderId,
+                        'sender_name'             => $senderName,
+                        'message'                 => trim(strip_tags($messageBody)),
+                        'message_html'            => $messageBody,
+                        'is_internal_note'        => false,
+                        'channel'                 => 'web',
+                        'email_status'            => $failedReason ? 'failed' : null,
+                        'email_error'             => $failedReason,
+                        'email_failed_recipients' => !empty($this->lastEmailFailedRecipients) ? $this->lastEmailFailedRecipients : null,
+                        'cc_emails'               => !empty($requestCc) ? $requestCc : null,
+                        'is_read_by_customer'     => false,
+                        'is_read_by_agent'        => true,
                     ]);
                     if (!empty($uploadedFiles)) {
                         $this->saveLocalAttachments($uploadedFiles, $message, $ticketId, $senderId);
@@ -400,8 +445,15 @@ class TicketMessageController extends Controller
                     'message_body'=> $message->message,
                     'channel'     => $message->channel,
                     'message_type'=> $message->is_internal_note ? 'internal_note' : 'reply',
+                    'email_status'=> $message->email_status,
+                    'email_error' => $message->email_error,
                     'created_at'  => $message->created_at,
                 ],
+                // Flag peringatan (bukan sukses) saat email GAGAL total ATAU hanya
+                // sebagian terkirim (partial) — keduanya perlu toast peringatan + alasan.
+                'email_failed'  => in_array($message->email_status, ['failed', 'partial'], true),
+                'email_status'  => $message->email_status,
+                'email_error'   => $message->email_error,
                 'message' => 'Message sent successfully'
             ], 201);
         } catch (\Exception $e) {
@@ -872,6 +924,9 @@ class TicketMessageController extends Controller
         array  $additionalToEmails = [],
         bool   $noCompanyFallback = false
     ): ?TicketMessage {
+        // Reset penanda error di awal — nilai lama tidak boleh bocor ke percobaan ini.
+        $this->lastEmailError = null;
+        $this->lastEmailFailedRecipients = [];
         try {
             // CC: pakai override dari request jika ada, fallback ke ticket.cc_emails, lalu pesan pertama.
             // Dihitung lebih dulu karena ikut menentukan apakah email perlu dikirim (kasus CC-only).
@@ -931,20 +986,29 @@ class TicketMessageController extends Controller
                 $additionalToEmails         // additional toRecipients selain primary
             );
 
+            // Sebagian alamat di-drop karena salah tulis → email TETAP terkirim ke penerima
+            // valid, tapi pesan ditandai 'partial' (amber) + sebut alamat yang gagal.
+            $invalidRecipients = $result['invalid_recipients'] ?? [];
+            $isPartial         = !empty($invalidRecipients);
+
             // ── Simpan TicketMessage SETELAH email berhasil ───────────────────
             $message = TicketMessage::create([
-                'ticket_id'           => $ticketId,
-                'sender_type'         => $msgData['sender_type'],
-                'sender_id'           => $msgData['sender_id'],
-                'sender_name'         => $msgData['sender_name'],
-                'message'             => $msgData['message'],
-                'message_html'        => $msgData['message_html'],
-                'is_internal_note'    => false,
-                'channel'             => 'email',
-                'email_message_id'    => $result['internet_message_id'] ?? null,
-                'cc_emails'           => !empty($ccList) ? $ccList : null,
-                'is_read_by_customer' => false,
-                'is_read_by_agent'    => true,
+                'ticket_id'               => $ticketId,
+                'sender_type'             => $msgData['sender_type'],
+                'sender_id'               => $msgData['sender_id'],
+                'sender_name'             => $msgData['sender_name'],
+                'message'                 => $msgData['message'],
+                'message_html'            => $msgData['message_html'],
+                'is_internal_note'        => false,
+                'channel'                 => 'email',
+                'email_message_id'        => $result['internet_message_id'] ?? null,
+                'email_status'            => $isPartial ? 'partial' : null,
+                'email_error'             => $isPartial ? EmailController::deliveryFailureReason($invalidRecipients, false) : null,
+                'email_recipients'        => $result['recipients'] ?? null,
+                'email_failed_recipients' => $isPartial ? array_values($invalidRecipients) : null,
+                'cc_emails'               => !empty($ccList) ? $ccList : null,
+                'is_read_by_customer'     => false,
+                'is_read_by_agent'        => true,
             ]);
 
             // Selalu sync email_thread_id ke convId reply helpdesk ini (bukan hanya
@@ -988,9 +1052,16 @@ class TicketMessageController extends Controller
             return $message;
 
         } catch (\Exception $e) {
+            // Simpan alasan gagal agar caller bisa menandai bubble "Tidak terkirim".
+            // EmailSendException sudah berisi alasan ramah pengguna; exception lain
+            // (mis. bug tak terduga) dapat pesan generik.
+            $this->lastEmailError = EmailSendException::reasonFrom($e);
+            $this->lastEmailFailedRecipients = EmailSendException::failedRecipientsFrom($e);
             Log::error('TicketMessageController@sendEmailThenSave: failed', [
-                'ticket_id' => $ticket->ticket_id,
-                'error'     => $e->getMessage(),
+                'ticket_id'  => $ticket->ticket_id,
+                'reason'     => $this->lastEmailError,
+                'error'      => $e->getMessage(),
+                'raw_detail' => $e instanceof EmailSendException ? $e->rawDetail : null,
             ]);
             return null;
         }

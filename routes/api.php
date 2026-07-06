@@ -493,6 +493,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/current-period',    [\App\Http\Controllers\ReportingController::class, 'currentPeriod']);
         Route::post('/close-period',     [\App\Http\Controllers\ReportingController::class, 'closePeriod']);
         Route::get('/md-recap',          [\App\Http\Controllers\ReportingController::class, 'mdRecap']);
+        Route::get('/collection-outlook', [\App\Http\Controllers\ReportingController::class, 'collectionOutlook']);
     });
 
     // ==================== NOTIFICATION ROUTES ====================
