@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\DeliveryProject;
+use App\Models\DeliveryProjectCost;
 use App\Models\Employee;
 use App\Models\Document;
 use App\Models\DeliveryProjectPlanning;
@@ -265,6 +266,14 @@ class DeliveryProjectController extends Controller
             ->orderBy('created_at')
             ->get();
 
+        // Actual Cost = total actual spending across all cost items (mirrors the
+        // "Total Actual" summary in the Plan Cost section). Parent rows store a
+        // null actual (aggregate only), so summing every row yields the leaf
+        // total. Used to seed Delivery Information → Actual Cost / GP / % on
+        // first paint; the frontend keeps it live as expenses change.
+        $actualCost = (float) DeliveryProjectCost::where('delivery_projects_id', $project->id)
+            ->sum('actual_amount');
+
         return view('delivery.project.projects.show', compact(
             'project',
             'employees',
@@ -273,7 +282,8 @@ class DeliveryProjectController extends Controller
             'phases',
             'deliveryActivities',
             'finalPhaseWeights',
-            'teamPivotRows'
+            'teamPivotRows',
+            'actualCost'
         ));
     }
 
