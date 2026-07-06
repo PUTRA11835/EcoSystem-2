@@ -107,6 +107,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/reporting/md-recap',         [\App\Http\Controllers\ReportingController::class, 'mdRecapIndex'])->name('reporting.md-recap')->middleware('menu:reporting.md-recap');
     Route::get('/reporting/md-recap/export',           [\App\Http\Controllers\ReportingController::class, 'exportMdRecap'])->name('reporting.md-recap.export');
     Route::get('/reporting/resolution-days/export',    [\App\Http\Controllers\ReportingController::class, 'exportResolutionDays'])->name('reporting.resolution-days.export');
+    Route::get('/reporting/collection-outlook',        [\App\Http\Controllers\ReportingController::class, 'collectionOutlookIndex'])->name('reporting.collection-outlook')->middleware('menu:reporting.collection-outlook');
 
     // ==================== MASTER ====================
     Route::prefix('master')->name('master.')->group(function () {
@@ -247,6 +248,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // Cost item (expense line-items) routes
     Route::get('/projects/{project}/costs/{cost}/items',                         [DeliveryProjectCostController::class, 'indexItems'])->name('projects.costs.items.index');
     Route::post('/projects/{project}/costs/{cost}/items',                        [DeliveryProjectCostController::class, 'storeItem'])->name('projects.costs.items.store');
+    Route::put('/projects/{project}/costs/{cost}/items/{item}',                  [DeliveryProjectCostController::class, 'updateItem'])->name('projects.costs.items.update');
     Route::delete('/projects/{project}/costs/{cost}/items/{item}',               [DeliveryProjectCostController::class, 'destroyItem'])->name('projects.costs.items.destroy');
 
     // Document management routes

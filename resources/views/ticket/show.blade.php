@@ -938,7 +938,12 @@
 .email-html-body { word-break: break-word; }
 .email-html-body p  { margin-bottom: 0.3rem; }
 .email-html-body a  { color: #2563eb; text-decoration: underline; }
-.email-html-body ul, .email-html-body ol { padding-left: 1.25rem; margin-bottom: 0.4rem; }
+.email-html-body ul, .email-html-body ol { padding-left: 1.5rem; margin-bottom: 0.4rem; }
+/* Tailwind preflight me-reset list-style→none; kembalikan marker agar bullet/nomor
+   dari Quill/Outlook tetap tampil di luar .ql-editor. */
+.email-html-body ol { list-style-type: decimal !important; list-style-position: inside !important; }
+.email-html-body ul { list-style-type: disc !important; list-style-position: inside !important; }
+.email-html-body li { display: list-item !important; }
 .email-html-body blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; margin: 0.25rem 0; }
 /* !important diperlukan karena HTML email dari Outlook/Gmail sering menyertakan
    inline style="width: NNNpx" pada <img> yang akan override CSS biasa. */
@@ -958,6 +963,44 @@
 /* Links di semua bubble (plain text, Quill HTML, internal note) */
 .message-content a { color: #2563eb !important; text-decoration: underline !important; word-break: break-all; cursor: pointer; }
 .message-content a:hover { color: #1d4ed8 !important; }
+
+/* ─── Rich-text (Quill) di dalam bubble internal note ─────────────────────────
+   Quill 1.3.7 me-render list/heading sebagai <ol>/<ul>/<hN> polos + counter CSS
+   yang hanya aktif di dalam .ql-editor. Saat HTML dirender di bubble (di luar
+   editor), Tailwind preflight me-reset list-style, margin, dan ukuran heading →
+   format numbering/bullet/heading "hilang". Kembalikan semua di sini agar tampilan
+   internal note yang terkirim sama persis dengan yang diketik di editor. */
+.message-content ol, .message-content ul { padding-left: 1.5em; margin: 0.25rem 0; }
+.message-content ol { list-style-type: decimal; }
+.message-content ul { list-style-type: disc; }
+.message-content li { display: list-item; margin: 0.1rem 0; }
+.message-content p  { margin: 0.15rem 0; }
+.message-content h1 { font-size: 1.5em;  font-weight: 700; margin: 0.35rem 0; }
+.message-content h2 { font-size: 1.3em;  font-weight: 700; margin: 0.35rem 0; }
+.message-content h3 { font-size: 1.15em; font-weight: 700; margin: 0.35rem 0; }
+.message-content h4, .message-content h5, .message-content h6 { font-size: 1em; font-weight: 700; margin: 0.35rem 0; }
+.message-content strong, .message-content b { font-weight: 700; }
+.message-content em, .message-content i { font-style: italic; }
+.message-content u { text-decoration: underline; }
+.message-content s, .message-content strike { text-decoration: line-through; }
+.message-content blockquote {
+    border-left: 3px solid #d1d5db;
+    padding-left: 0.75rem;
+    color: #6b7280;
+    margin: 0.25rem 0;
+}
+/* Quill alignment & indent (class-based, butuh CSS Quill yang tak ter-load di bubble) */
+.message-content .ql-align-center  { text-align: center; }
+.message-content .ql-align-right   { text-align: right; }
+.message-content .ql-align-justify { text-align: justify; }
+.message-content .ql-indent-1 { padding-left: 3em; }
+.message-content .ql-indent-2 { padding-left: 6em; }
+.message-content .ql-indent-3 { padding-left: 9em; }
+.message-content .ql-indent-4 { padding-left: 12em; }
+.message-content .ql-indent-5 { padding-left: 15em; }
+.message-content .ql-indent-6 { padding-left: 18em; }
+.message-content .ql-indent-7 { padding-left: 21em; }
+.message-content .ql-indent-8 { padding-left: 24em; }
 .email-html-body a  { color: #2563eb !important; text-decoration: underline !important; }
 /* Links di Quill editor saat mengetik */
 .ql-editor a { color: #2563eb !important; text-decoration: underline !important; cursor: pointer; }
@@ -1122,11 +1165,58 @@
     line-height: 1;
 }
 .msg-status.read { color: #2563eb; font-weight: 600; }
+.msg-status.failed { color: #dc2626; font-weight: 600; }
+.msg-status.failed svg { width: 12px; height: 12px; flex-shrink: 0; }
+.msg-status.partial { color: #b45309; font-weight: 600; }
+.msg-status.partial svg { width: 12px; height: 12px; flex-shrink: 0; }
 .msg-status .check-pair {
     display: inline-flex; align-items: center; flex-shrink: 0;
 }
 .msg-status .check-pair svg { width: 12px; height: 12px; }
 .msg-status .check-pair svg + svg { margin-left: -7px; }
+
+/* Bubble reply yang emailnya GAGAL terkirim */
+.message-bubble.email-failed {
+    border: 1px solid #fecaca;
+    background: #fff5f5;
+}
+.msg-failed-banner {
+    display: flex; align-items: flex-start; gap: 6px;
+    margin-top: 8px; padding: 8px 10px;
+    background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
+    color: #b91c1c; text-align: left;
+}
+.msg-failed-banner svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+.msg-failed-title  { display: block; font-size: 11px; font-weight: 700; line-height: 1.3; }
+.msg-failed-reason { display: block; font-size: 11px; color: #7f1d1d; line-height: 1.4; margin-top: 1px; }
+
+/* Bubble reply yang emailnya terkirim SEBAGIAN (partial) — nuansa amber, bukan merah */
+.message-bubble.email-partial {
+    border: 1px solid #fde68a;
+    background: #fffbeb;
+}
+.msg-warn-banner {
+    display: flex; align-items: flex-start; gap: 6px;
+    margin-top: 8px; padding: 8px 10px;
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+    color: #92400e; text-align: left;
+}
+.msg-warn-banner svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+.msg-warn-title  { display: block; font-size: 11px; font-weight: 700; line-height: 1.3; }
+.msg-warn-reason { display: block; font-size: 11px; color: #78350f; line-height: 1.4; margin-top: 1px; }
+
+/* Input To/CC saat alamat tidak valid — flash merah singkat */
+.recipient-invalid {
+    background: #fef2f2 !important;
+    box-shadow: 0 0 0 2px #fecaca inset;
+    border-radius: 6px;
+    animation: recipientShake 0.3s ease;
+}
+@keyframes recipientShake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-3px); }
+    75% { transform: translateX(3px); }
+}
 
 /* SLA button next to Read/status indicator */
 .sla-open-btn {
@@ -1150,7 +1240,14 @@
 /* Message content */
 .message-content p { margin-bottom: 0.25rem; }
 .message-content p:last-child { margin-bottom: 0; }
+/* !important WAJIB: Tailwind preflight (`ol,ul{list-style:none}`) dan reset lain
+   ikut ter-load di halaman ini; tanpa !important marker numbering/bullet Quill
+   tetap hilang saat dirender di bubble (di luar .ql-editor). list-style-position
+   inside agar marker tak terpotong oleh overflow bubble. */
 .message-content ul, .message-content ol { padding-left: 1.5rem; margin-bottom: 0.5rem; }
+.message-content ol { list-style-type: decimal !important; list-style-position: inside !important; }
+.message-content ul { list-style-type: disc !important; list-style-position: inside !important; }
+.message-content li { display: list-item !important; }
 .message-content blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; }
 
 /* â"€â"€â"€ Sidebar resize handle hover glow â"€â"€â"€ */
@@ -2260,28 +2357,56 @@
         }
     }
 
-    function commitToInput() {
-        const input = document.getElementById('toInput');
+    // Regex validasi email (dipakai To & CC). Sama dengan filter_var(FILTER_VALIDATE_EMAIL)
+    // di backend secara garis besar — cegah alamat rusak masuk sejak di UI.
+    const RECIPIENT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    /**
+     * Commit isi input To/CC menjadi chip, dengan VALIDASI eksplisit:
+     * - alamat valid & belum ada  → jadi chip
+     * - alamat TIDAK valid         → tidak ditambah, dikembalikan ke input + notifikasi merah
+     * - duplikat                   → dilewati diam-diam
+     *
+     * @param {'to'|'cc'} field
+     * @param {boolean}   viaBlur  true = dipicu blur (jangan spam notifikasi, cukup tandai)
+     */
+    function commitRecipientInput(field, viaBlur = false) {
+        const input = document.getElementById(field === 'to' ? 'toInput' : 'ccInput');
         if (!input) return;
+        const list = field === 'to' ? toEmails : ccEmails;
         const parts = input.value.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+        const lowerExisting = new Set(list.map(e => String(e).toLowerCase()));
         let added = false;
-        const lowerExisting = new Set(toEmails.map(e => String(e).toLowerCase()));
+        const invalid = [];
         for (const email of parts) {
-            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !lowerExisting.has(email.toLowerCase())) {
-                toEmails.push(email);
-                lowerExisting.add(email.toLowerCase());
-                saveEmailToHistory(email);
-                added = true;
-            }
+            if (!RECIPIENT_EMAIL_RE.test(email)) { invalid.push(email); continue; }
+            if (lowerExisting.has(email.toLowerCase())) continue; // duplikat → skip
+            list.push(email);
+            lowerExisting.add(email.toLowerCase());
+            saveEmailToHistory(email);
+            added = true;
         }
-        if (added) renderToTags();
-        input.value = '';
-        hideEmailSuggest('to');
+        if (added) (field === 'to' ? renderToTags() : renderCcTags());
+
+        if (invalid.length) {
+            // Sisakan yang tidak valid di input agar bisa dikoreksi + tandai merah.
+            input.value = invalid.join(', ');
+            input.classList.add('recipient-invalid');
+            setTimeout(() => input.classList.remove('recipient-invalid'), 1500);
+            if (!viaBlur) {
+                showNotification('Alamat email tidak valid: ' + invalid.join(', '), 'error');
+            }
+        } else {
+            input.value = '';
+        }
+        hideEmailSuggest(field);
     }
+
+    function commitToInput() { commitRecipientInput('to'); }
 
     function handleToBlur() {
         // Delay seluruh commit agar click pada item suggest sempat fire sebelum dropdown disembunyikan
-        setTimeout(() => { commitToInput(); hideEmailSuggest('to'); }, 150);
+        setTimeout(() => { commitRecipientInput('to', true); hideEmailSuggest('to'); }, 150);
     }
 
     function handleToPaste(e) {
@@ -2347,27 +2472,10 @@
         }
     }
 
-    function commitCcInput() {
-        const input = document.getElementById('ccInput');
-        if (!input) return;
-        const parts = input.value.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
-        let added = false;
-        const lowerExisting = new Set(ccEmails.map(e => String(e).toLowerCase()));
-        for (const email of parts) {
-            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !lowerExisting.has(email.toLowerCase())) {
-                ccEmails.push(email);
-                lowerExisting.add(email.toLowerCase());
-                saveEmailToHistory(email);
-                added = true;
-            }
-        }
-        if (added) renderCcTags();
-        input.value = '';
-        hideEmailSuggest('cc');
-    }
+    function commitCcInput() { commitRecipientInput('cc'); }
 
     function handleCcBlur() {
-        setTimeout(() => { commitCcInput(); hideEmailSuggest('cc'); }, 150);
+        setTimeout(() => { commitRecipientInput('cc', true); hideEmailSuggest('cc'); }, 150);
     }
 
     function handleCcPaste(e) {
@@ -3106,6 +3214,13 @@
             // Filter hanya pesan yang belum pernah dirender
             const newMessages = messages.filter(msg => !renderedMessageIds.has(msg.id));
 
+            // Rekonsiliasi status "Tidak terkirim" untuk bubble yang SUDAH dirender.
+            // Poll bersifat append-only (bubble lama tidak dirender ulang), sehingga NDR
+            // yang datang setelah reply terkirim tidak akan terlihat tanpa refresh manual.
+            // Update ini surgical: hanya menambah banner/indikator, tidak menyentuh isi
+            // pesan/gambar (menghindari flicker inline image).
+            reconcileMessageStatuses(messages);
+
             if (newMessages.length === 0) {
                 // Tidak ada pesan baru — DOM tidak disentuh, gambar tidak hilang
                 return;
@@ -3162,6 +3277,43 @@
                 thread.innerHTML = createFallbackMessage();
             }
         }
+    }
+
+    // Rekonsiliasi bubble yang sudah dirender saat status email berubah jadi 'failed'
+    // (merah) atau 'partial' (amber) — mis. NDR/bounce datang setelah reply terkirim.
+    // Poll bersifat append-only (bubble lama tidak dirender ulang), jadi tanpa ini banner
+    // baru terlihat setelah refresh. Surgical: hanya menambah/menukar banner + indikator
+    // status; isi pesan & gambar tidak disentuh.
+    function reconcileMessageStatuses(messages) {
+        messages.forEach(msg => {
+            const status = msg.email_status;
+            if (status !== 'failed' && status !== 'partial') return;
+            const wrap = document.querySelector(`[data-msg-id="${msg.id}"]`);
+            if (!wrap) return;
+            const bubble = wrap.querySelector('.message-bubble');
+            if (!bubble) return;
+
+            // Sudah ditandai dengan status yang sama → tidak perlu diapa-apakan.
+            const already = (status === 'failed'  && bubble.classList.contains('email-failed'))
+                         || (status === 'partial' && bubble.classList.contains('email-partial'));
+            if (already) return;
+
+            // Bersihkan penanda lama (menangani transisi partial → failed saat NDR menyusul).
+            bubble.classList.remove('email-failed', 'email-partial');
+            bubble.querySelectorAll('.msg-failed-banner, .msg-warn-banner').forEach(el => el.remove());
+            bubble.querySelectorAll('.msg-status.failed, .msg-status.partial').forEach(el => el.remove());
+
+            bubble.classList.add(status === 'failed' ? 'email-failed' : 'email-partial');
+            const banner    = deliveryBannerHtml(msg);
+            const statusRow = bubble.querySelector('.msg-status-row');
+            if (statusRow) {
+                statusRow.insertAdjacentHTML('beforebegin', banner);
+                statusRow.querySelectorAll('.msg-status').forEach(el => el.remove()); // ganti indikator lama
+                statusRow.insertAdjacentHTML('afterbegin', statusIndicator(msg));
+            } else {
+                bubble.insertAdjacentHTML('beforeend', banner);
+            }
+        });
     }
 
     // â"€â"€ Render attachment list (gambar inline, file sebagai link download) â"€â"€â"€â"€â"€â"€
@@ -3333,9 +3485,23 @@
      * internal note, atau system message — indikator hanya relevan saat
      * helpdesk perlu tahu apakah pesannya sampai dan dibaca customer.
      */
+    const ICON_WARNING = `<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>`;
+
     function statusIndicator(msg) {
         if (msg.sender_type !== 'employee') return '';
         if (msg.message_type === 'internal_note') return '';
+
+        // Email GAGAL total → indikator merah. Banner alasan penuh dirender di dalam bubble.
+        if (msg.email_status === 'failed') {
+            const reason = (msg.email_error || 'Email could not be delivered to the customer.').replace(/"/g, '&quot;');
+            return `<div class="msg-status failed" title="${reason}">${ICON_WARNING}<span>Not delivered</span></div>`;
+        }
+
+        // Email terkirim SEBAGIAN (sebagian penerima gagal) → indikator amber.
+        if (msg.email_status === 'partial') {
+            const reason = (msg.email_error || 'Some recipients did not receive the email.').replace(/"/g, '&quot;');
+            return `<div class="msg-status partial" title="${reason}">${ICON_WARNING}<span>Partially delivered</span></div>`;
+        }
 
         // Format read_at sebagai tooltip "Read at 06 May 2026, 14:25 (WIB)"
         let readAtTip = '';
@@ -3360,6 +3526,23 @@
         }
 
         return `<div class="msg-status" title="Saved to ticket">${ICON_CHECK_SINGLE}<span>Sent</span></div>`;
+    }
+
+    // Banner alasan di dalam bubble: merah untuk gagal total, amber untuk terkirim sebagian.
+    // Mengembalikan '' jika status normal. Dipakai createMessageBubble & reconcileMessageStatuses.
+    function deliveryBannerHtml(msg) {
+        if (msg.email_status !== 'failed' && msg.email_status !== 'partial') return '';
+        const partial = msg.email_status === 'partial';
+        const cls   = partial ? 'msg-warn-banner'  : 'msg-failed-banner';
+        const tcls  = partial ? 'msg-warn-title'   : 'msg-failed-title';
+        const rcls  = partial ? 'msg-warn-reason'  : 'msg-failed-reason';
+        const title = partial ? 'Email partially delivered' : 'Email not delivered to customer';
+        const reason = escHtml(msg.email_error || (partial
+            ? 'Some recipients did not receive the email.'
+            : 'There was a problem with the email server. Please try resending.'));
+        return `<div class="${cls}">${ICON_WARNING}<div>`
+            + `<span class="${tcls}">${title}</span>`
+            + `<span class="${rcls}">${reason}</span></div></div>`;
     }
 
     const SLA_ICON = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>`;
@@ -3759,8 +3942,11 @@
         const statusHtml    = statusIndicator(msg);
         const statusSection = `<div class="msg-status-row">${statusHtml}${slaMsgBtn(msg)}</div>`;
 
+        // Banner alasan bila email GAGAL total (merah) atau terkirim SEBAGIAN (amber).
+        const deliveryBanner = (isEmployee ? deliveryBannerHtml(msg) : '');
+
         return `
-            <div class="flex gap-3 ${isEmployee ? 'flex-row-reverse' : ''}">
+            <div class="flex gap-3 ${isEmployee ? 'flex-row-reverse' : ''}" data-msg-id="${msg.id}">
                 <div class="w-8 h-8 ${avatarBg} rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">${initials}</div>
                 <div class="max-w-[85%] ${isEmployee ? 'text-right' : ''}">
                     <div class="flex flex-col mb-1 ${isEmployee ? 'items-end' : ''}">
@@ -3771,9 +3957,10 @@
                         </div>
                         ${toBadge}${ccBadge}
                     </div>
-                    <div class="message-bubble ${bubbleClass} p-3 inline-block text-left">
+                    <div class="message-bubble ${bubbleClass}${msg.email_status === 'failed' ? ' email-failed' : msg.email_status === 'partial' ? ' email-partial' : ''} p-3 inline-block text-left">
                         ${messageContent(msg)}
                         ${attachmentsHtml}
+                        ${deliveryBanner}
                         ${statusSection}
                     </div>
                 </div>
@@ -4113,7 +4300,12 @@
                 cancelReply();        // clear reply context
                 if (chosenStatus) updateStatusUI(chosenStatus);
                 await loadMessages();
-                showNotification(messageType === 'internal_note' ? 'Internal note added' : 'Reply sent', 'success');
+                if (data.email_failed) {
+                    // Pesan tersimpan, tapi email TIDAK terkirim ke customer.
+                    showNotification(data.email_error || 'Message saved, but the email could not be delivered to the customer.', 'error');
+                } else {
+                    showNotification(messageType === 'internal_note' ? 'Internal note added' : 'Reply sent', 'success');
+                }
             } else {
                 console.warn('[sendReply] API error:', data.message, data.errors);
                 showNotification(data.message || 'Failed to send message', 'error');
@@ -7420,7 +7612,14 @@ async function sendDeliverable(id) {
         const json = await delivParseJson(res);
         if (!json.success) throw new Error(json.message);
         await loadDeliverables();
-        showToast('Document sent to customer.', 'success');
+        // Muat ulang chat agar bubble deliverable + status email (termasuk "Tidak terkirim") ikut update.
+        if (typeof loadMessages === 'function') { try { await loadMessages(); } catch (_) {} }
+        if (json.email_failed) {
+            // Dokumen tersimpan & masuk chat, tapi EMAIL ke customer gagal → peringatan, bukan sukses.
+            showToast(json.email_error || 'Document saved, but the email to the customer could not be delivered.', 'error');
+        } else {
+            showToast('Document sent to customer.', 'success');
+        }
     } catch (e) {
         showDelivError(e.message);
         showToast('Failed to send: ' + e.message, 'error');

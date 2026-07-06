@@ -426,6 +426,14 @@
                             <span class="nav-text text-sm">MD Recap</span>
                         </a>
                         @endif
+                        @if($can('reporting.collection-outlook'))
+                        <a href="{{ route('reporting.collection-outlook') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/collection-outlook*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-hand-holding-usd text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Collection Outlook</span>
+                        </a>
+                        @endif
                     </div>
                 </div>
                 @endif

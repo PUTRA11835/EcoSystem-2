@@ -245,6 +245,87 @@ class DeliveryProjectCostController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────
+    // PUT /projects/{project}/costs/{cost}/items/{item}
+    // Update an expense line-item (name, amount, optional document).
+    // NOTE: the frontend sends this as POST + X-HTTP-Method-Override:PUT
+    // because some production edges block the PUT verb — Laravel still
+    // routes it here. Multipart is parsed normally (real verb is POST).
+    // ──────────────────────────────────────────────────────────────
+    public function updateItem(
+        Request $request,
+        DeliveryProject $project,
+        DeliveryProjectCost $cost,
+        DeliveryProjectCostItem $item
+    ) {
+        if ($cost->delivery_projects_id !== $project->id
+            || $item->delivery_project_cost_id !== $cost->id) {
+            return response()->json(['message' => 'Not found.'], 404);
+        }
+
+        $validated = $request->validate([
+            'description'     => 'required|string|max:200',
+            'amount'          => 'required|numeric|min:0',
+            'document'        => 'nullable|file|max:102400',
+            // When true (and no new file), the existing document is cleared.
+            'remove_document' => 'nullable|boolean',
+        ]);
+
+        // Keep current document unless the user replaces or removes it.
+        $docName = $item->document_name;
+        $docUrl  = $item->document_url;
+
+        if ($request->hasFile('document')) {
+            if (!$project->onedrive_folder_id) {
+                return response()->json([
+                    'message' => 'OneDrive folder has not been set up for this project. Please create the OneDrive folder first.',
+                ], 422);
+            }
+
+            $file    = $request->file('document');
+            $docName = $file->getClientOriginalName();
+
+            try {
+                $oneDrive = new OneDriveService();
+                $planCostFolderId = $oneDrive->findOrCreateSubFolderById(
+                    $project->onedrive_folder_id,
+                    'Plan Cost'
+                );
+                $result  = $oneDrive->uploadFile(
+                    $planCostFolderId,
+                    $docName,
+                    file_get_contents($file->getRealPath()),
+                    $file->getMimeType() ?: 'application/octet-stream'
+                );
+                $docUrl = $result['webUrl'];
+            } catch (\Throwable $e) {
+                Log::error('Plan Cost OneDrive upload failed', ['error' => $e->getMessage()]);
+                return response()->json([
+                    'message' => 'Failed to upload document to OneDrive: ' . $e->getMessage(),
+                ], 500);
+            }
+        } elseif ($request->boolean('remove_document')) {
+            $docName = null;
+            $docUrl  = null;
+        }
+
+        $item->update([
+            'description'   => $validated['description'],
+            'amount'        => $validated['amount'],
+            'document_name' => $docName,
+            'document_url'  => $docUrl,
+        ]);
+
+        // Actual amount = sum of all expense items (single source of truth).
+        $total = $this->syncActualFromItems($cost);
+
+        return response()->json([
+            'message' => 'Expense item updated.',
+            'item'    => $this->formatItem($item),
+            'total'   => $total,
+        ]);
+    }
+
+    // ──────────────────────────────────────────────────────────────
     // DELETE /projects/{project}/costs/{cost}/items/{item}
     // Delete an expense line-item and its file (if any)
     // ──────────────────────────────────────────────────────────────

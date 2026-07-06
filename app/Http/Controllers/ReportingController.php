@@ -605,6 +605,135 @@ class ReportingController extends Controller
         }
     }
 
+    // ── Web: Collection Outlook page ──────────────────────────────────────
+
+    public function collectionOutlookIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        return view('reporting.collection-outlook', ['user' => session('user')]);
+    }
+
+    // ── API: Collection Outlook data ──────────────────────────────────────
+    //
+    // Menampilkan outlook penagihan (Term Of Payment) per project × termin,
+    // ditata ke dalam kolom bulan sesuai range (bulan+tahun) yang dipilih.
+    // Placement bulan = estimated_date (tanggal rencana penagihan); fallback
+    // ke paid_date lalu submit_invoice_date bila estimasi kosong.
+
+    public function collectionOutlook(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.collection-outlook')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $fromMonth = (int) $request->input('from_month', now()->month);
+            $fromYear  = (int) $request->input('from_year',  now()->year);
+            $toMonth   = (int) $request->input('to_month',   now()->month);
+            $toYear    = (int) $request->input('to_year',    now()->year);
+
+            // Guard bulan agar valid 1..12
+            $fromMonth = min(max($fromMonth, 1), 12);
+            $toMonth   = min(max($toMonth, 1), 12);
+
+            $start = Carbon::create($fromYear, $fromMonth, 1)->startOfMonth();
+            $end   = Carbon::create($toYear,  $toMonth,  1)->startOfMonth();
+            if ($start->gt($end)) {
+                [$start, $end] = [$end, $start];
+            }
+
+            // Bangun daftar kolom bulan (batasi maks 36 bulan agar tabel wajar)
+            $months    = [];
+            $monthKeys = [];
+            $cursor    = $start->copy();
+            $guard     = 0;
+            while ($cursor->lte($end) && $guard < 36) {
+                $key         = $cursor->format('Y-m');
+                $months[]    = [
+                    'key'         => $key,
+                    'year'        => (int) $cursor->format('Y'),
+                    'month'       => (int) $cursor->format('n'),
+                    'label'       => $cursor->format('M Y'),   // e.g. Jan 2026
+                    'month_label' => $cursor->format('F'),     // e.g. January
+                ];
+                $monthKeys[] = $key;
+                $cursor->addMonth();
+                $guard++;
+            }
+
+            $terms = DB::table('delivery_project_payment_terms as pt')
+                ->join('delivery_projects as p', 'pt.delivery_projects_id', '=', 'p.id')
+                ->leftJoin('customer_basic_data as cbd', 'p.client_id', '=', 'cbd.customer_id')
+                ->select(
+                    'pt.*',
+                    'p.name as project_name',
+                    'p.io_number as io_number',
+                    'p.revenue as project_revenue',
+                    DB::raw("COALESCE(cbd.name_1, '') as client_name")
+                )
+                ->get();
+
+            $rows = [];
+            foreach ($terms as $t) {
+                $placementRaw = $t->estimated_date ?: $t->paid_date ?: $t->submit_invoice_date;
+                if (!$placementRaw) {
+                    continue; // tanpa tanggal → tidak bisa ditempatkan di kolom bulan
+                }
+
+                $key = Carbon::parse($placementRaw)->format('Y-m');
+                if (!in_array($key, $monthKeys, true)) {
+                    continue; // di luar range bulan yang dipilih
+                }
+
+                $rows[] = [
+                    'project_id'          => (int) $t->delivery_projects_id,
+                    'project_name'        => $t->project_name ?? '-',
+                    'io_number'           => $t->io_number,
+                    'client_name'         => $t->client_name,
+                    'term_id'             => (int) $t->id,
+                    'term_number'         => (int) $t->term_number,
+                    'month_key'           => $key,
+                    'amount'              => (float) $t->amount,
+                    'status'              => $t->status,
+                    'payment_term'        => $t->payment_term,
+                    'payment_percentage'  => (float) $t->payment_percentage,
+                    'requirements'        => $t->requirements,
+                    'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : null,
+                    'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : null,
+                    'invoice_number'      => $t->invoice_number,
+                    'paid_date'           => $t->paid_date ? Carbon::parse($t->paid_date)->format('d M Y') : null,
+                    'project_revenue'     => (float) $t->project_revenue,
+                ];
+            }
+
+            // Urut: nama project (A→Z) lalu nomor termin
+            usort($rows, function ($a, $b) {
+                $c = strcasecmp($a['project_name'], $b['project_name']);
+                return $c !== 0 ? $c : ($a['term_number'] <=> $b['term_number']);
+            });
+
+            return response()->json([
+                'success' => true,
+                'months'  => $months,
+                'rows'    => $rows,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('collectionOutlook error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load collection outlook data. Please try again.'], 500);
+        }
+    }
+
     // ── Helper ────────────────────────────────────────────────────────────
 
     private function monthName(int $month): string

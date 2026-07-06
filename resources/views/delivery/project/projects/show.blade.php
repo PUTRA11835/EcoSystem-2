@@ -657,6 +657,47 @@
                         <input type="hidden" name="gross_profit_percentage" id="sfin_pct_val" value="{{ $project->gross_profit_percentage }}">
                     </div>
                 </div>
+                {{-- Actual Cost (auto: Total Actual dari expense detail Plan Cost).
+                     lg:col-start-2 → sejajar tepat di bawah Plan Cost, sehingga
+                     baris Actual berpasangan dengan baris Plan di atasnya. --}}
+                <div class="lg:col-start-2">
+                    <label class="block text-sm font-medium text-gray-900 mb-1">
+                        Actual Cost
+                    </label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
+                        <input type="text" id="sfin_ac_disp" readonly tabindex="-1"
+                               class="block w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-md bg-gray-50 cursor-not-allowed text-sm text-gray-500 text-right"
+                               placeholder="0">
+                        <input type="hidden" id="sfin_ac_val" value="{{ $actualCost }}">
+                    </div>
+                </div>
+                {{-- Actual Gross Profit (auto-calc: Revenue − Actual Cost) --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">
+                        Actual Gross Profit
+                    </label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
+                        <input type="text" id="sfin_agp_disp" readonly tabindex="-1"
+                               class="block w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-md bg-gray-50 cursor-not-allowed text-sm text-gray-500 text-right"
+                               placeholder="0">
+                        <input type="hidden" id="sfin_agp_val" value="">
+                    </div>
+                </div>
+                {{-- % Actual Gross Profit (auto-calc: Actual GP / Revenue × 100) --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">
+                        % Actual Gross Profit
+                    </label>
+                    <div class="relative">
+                        <input type="text" id="sfin_apct_disp" readonly tabindex="-1"
+                               class="block w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-md bg-gray-50 cursor-not-allowed text-sm text-gray-500 text-right"
+                               placeholder="0,00">
+                        <span class="absolute inset-y-0 right-0 flex items-center pr-3 text-sm text-gray-500 pointer-events-none">%</span>
+                        <input type="hidden" id="sfin_apct_val" value="">
+                    </div>
+                </div>
             </div>
 
             {{-- ── Term Of Payment (TOP) Plan ─────────────────────────── --}}
@@ -1806,6 +1847,122 @@
     </div>
 </div>
 
+{{-- Delete Expense Confirm Modal (pengganti native confirm()) --}}
+<div id="expenseDeleteModal" class="fixed inset-0 z-[55] hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="PlanCost.closeExpenseDeleteModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-semibold text-gray-900 mb-1">Delete Expense?</h3>
+                <p class="text-sm text-gray-500 mb-1">Expense "<span id="expenseDeleteName" class="font-medium text-gray-700"></span>" will be deleted.</p>
+                <p class="text-xs text-red-500 mb-5">The actual amount will be recalculated automatically.</p>
+                <div class="flex gap-3 justify-center">
+                    <button type="button" onclick="PlanCost.closeExpenseDeleteModal()"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" id="expenseDeleteConfirmBtn" onclick="PlanCost.confirmDeleteExpense()"
+                            class="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition">
+                        Yes, Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Edit Expense Modal --}}
+<div id="expenseEditModal" class="fixed inset-0 z-[55] hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="PlanCost.closeExpenseEditModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col" style="max-height:90vh;">
+
+            {{-- Header --}}
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <h3 class="text-base font-semibold text-gray-900">Edit Expense</h3>
+                <button type="button" onclick="PlanCost.closeExpenseEditModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            {{-- Body --}}
+            <div class="overflow-y-auto flex-1 p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Expense Name <span class="text-red-500">*</span></label>
+                    <input type="text" id="aeDescInput" maxlength="200"
+                           class="block w-full py-2 px-3 border border-gray-300 rounded-lg shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+                           placeholder="e.g. Transportation, Accommodation…">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Amount (Rp) <span class="text-red-500">*</span></label>
+                    <input type="text" id="aeAmountInput" inputmode="numeric"
+                           class="block w-full py-2 px-3 border border-gray-300 rounded-lg shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+                           placeholder="0">
+                </div>
+
+                {{-- Current document (shown only when one exists) --}}
+                <div id="aeCurrentDocRow" class="hidden">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Current Document</label>
+                    <div class="flex items-center justify-between gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
+                        <a id="aeCurrentDocLink" href="#" target="_blank" rel="noopener"
+                           class="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline truncate">
+                            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                            </svg>
+                            <span id="aeCurrentDocName" class="truncate">View</span>
+                        </a>
+                        <button type="button" onclick="PlanCost.removeEditDoc()"
+                                class="text-xs text-red-500 hover:text-red-700 font-medium flex-shrink-0">Remove</button>
+                    </div>
+                </div>
+
+                {{-- Replace / add document --}}
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">
+                        <span id="aeDropTitle">Supporting Document</span>
+                        <span class="font-normal text-gray-400">(optional)</span>
+                    </label>
+                    <div id="aeDropZone"
+                         class="border-2 border-dashed border-gray-300 rounded-lg py-4 px-4 text-center cursor-pointer hover:border-orange-300 hover:bg-orange-50/30 transition-all duration-200"
+                         onclick="document.getElementById('aeFileInput').click()"
+                         ondragover="event.preventDefault();this.classList.add('border-orange-400','bg-orange-50/40')"
+                         ondragleave="this.classList.remove('border-orange-400','bg-orange-50/40')"
+                         ondrop="PlanCost.handleEditDocDrop(event)">
+                        <svg class="w-6 h-6 text-gray-300 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                        </svg>
+                        <p class="text-xs text-gray-400" id="aeDropLabel">Click or drag &amp; drop proof document</p>
+                        <input type="file" id="aeFileInput" class="hidden"
+                               onchange="PlanCost.onEditFileSelected(this)">
+                    </div>
+                </div>
+            </div>
+
+            {{-- Footer --}}
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+                <button type="button" onclick="PlanCost.closeExpenseEditModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    Cancel
+                </button>
+                <button type="button" id="aeSaveBtn" onclick="PlanCost.saveEditExpense()"
+                        class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition disabled:opacity-50">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- CONTRACT WINDOW WARNING MODAL (pengganti native alert)        --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
@@ -1843,7 +2000,7 @@
 <div id="actualDetailModal" class="fixed inset-0 z-50 hidden">
     <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="PlanCost.closeActualDetailModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col" style="max-height:90vh;">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col" style="max-height:90vh;">
 
             {{-- Header --}}
             <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
@@ -1881,7 +2038,7 @@
                                     <th class="px-4 py-2.5 text-left font-medium">Expense Name</th>
                                     <th class="px-4 py-2.5 text-right font-medium">Amount</th>
                                     <th class="px-4 py-2.5 text-center font-medium">Document</th>
-                                    <th class="px-4 py-2.5 text-center font-medium w-12">Delete</th>
+                                    <th class="px-4 py-2.5 text-center font-medium w-24">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="actualDetailTableBody" class="divide-y divide-gray-100">
@@ -2073,18 +2230,22 @@
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {{-- Paid Date --}}
+                    {{-- Paid Date — wajib saat Status = Paid --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Paid Date</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Paid Date <span id="pt_paid_date_req" class="text-red-500 hidden">*</span>
+                        </label>
                         <input type="text" id="pt_paid_date" autocomplete="off"
                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"
                                placeholder="dd/mm/yyyy">
+                        <p id="pt_paid_date_hint" class="mt-1 text-xs text-gray-400 hidden">Required because Status is Paid.</p>
                     </div>
 
                     {{-- Status --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
-                        <select id="pt_status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus">
+                        <select id="pt_status" onchange="PaymentTermPlan.togglePaidDateRequired()"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus">
                             @foreach(['Open','Paid','Delay'] as $s)
                                 <option value="{{ $s }}">{{ $s }}</option>
                             @endforeach
@@ -2513,6 +2674,11 @@
     let _adCostId      = null;  // current cost item id
     let _adTotal       = 0;     // sum of expense line-items (= the actual amount)
     let _adDirty       = false; // expenses changed → main cost table needs reload
+    let _adDeleteId    = null;  // expense item id pending deletion (confirm modal)
+    let _adDeleteRowEl = null;  // <tr> element pending removal on confirm
+    let _adEditId      = null;  // expense item id being edited
+    let _adEditRowEl   = null;  // <tr> element being edited
+    let _adEditRemoveDoc = false; // user asked to remove the existing document
 
     // Cost form modal: current actual_amount (derived from expenses, read-only here)
     let _currentActual = 0;
@@ -2679,6 +2845,10 @@
             card('Total Actual',        s.total_actual,        'text-orange-600', '💸') +
             card('Avail. Budget',       s.total_avail_budget,  s.total_avail_budget  < 0 ? 'text-red-600' : 'text-green-700', '✅') +
             card('Avail. Release',      s.total_avail_release, s.total_avail_release < 0 ? 'text-red-600' : 'text-teal-700',  '📊');
+
+        // Keep Delivery Information → Actual Cost / GP / % in sync with the
+        // Plan Cost "Total Actual" (no page reload needed).
+        if (window.sfinSetActualCost) window.sfinSetActualCost(s.total_actual ?? 0);
     }
 
     // ── Modal helpers ─────────────────────────────────────────────
@@ -2873,7 +3043,8 @@
                 if (mode === 'create') {
                     await axios.post(BASE_URL, payload);
                 } else {
-                    await axios.put(`${BASE_URL}/${id}`, payload);
+                    // POST + X-HTTP-Method-Override:PUT — verb PUT diblokir sebagian edge production.
+                    await axios.post(`${BASE_URL}/${id}`, payload, { headers: { 'X-HTTP-Method-Override': 'PUT' } });
                 }
                 _close();
                 await load();
@@ -2893,7 +3064,8 @@
             if (!id) return;
 
             try {
-                await axios.delete(`${BASE_URL}/${id}`);
+                // POST + X-HTTP-Method-Override agar tidak diblokir WAF production (lihat confirmDeleteExpense).
+                await axios.post(`${BASE_URL}/${id}`, {}, { headers: { 'X-HTTP-Method-Override': 'DELETE' } });
                 PlanCost.closeDeleteModal();
                 await load();
                 showPlanCostToast('Cost item deleted successfully.', 'success');
@@ -2982,19 +3154,50 @@
             }
         },
 
-        async deleteExpenseItem(itemId, rowEl) {
-            if (!confirm('Delete this expense?')) return;
+        // Opens the confirm modal (view-consistent, replaces native confirm()).
+        deleteExpenseItem(itemId, rowEl) {
+            _adDeleteId    = itemId;
+            _adDeleteRowEl = rowEl;
+            const name = rowEl?.querySelector('td:nth-child(2)')?.textContent?.trim() || '';
+            document.getElementById('expenseDeleteName').textContent = name;
+            document.getElementById('expenseDeleteModal').classList.remove('hidden');
+        },
+
+        closeExpenseDeleteModal() {
+            document.getElementById('expenseDeleteModal').classList.add('hidden');
+            _adDeleteId    = null;
+            _adDeleteRowEl = null;
+        },
+
+        async confirmDeleteExpense() {
+            if (!_adDeleteId) return;
+            const itemId = _adDeleteId;
+            const rowEl  = _adDeleteRowEl;
+            const btn    = document.getElementById('expenseDeleteConfirmBtn');
+            btn.disabled = true;
             try {
-                const res = await axios.delete(`${BASE_URL}/${_adCostId}/items/${itemId}`);
+                // Sebagian edge production (reverse proxy / WAF / ModSecurity) memblokir
+                // verb HTTP DELETE dan membalas 403 sebelum sampai ke Laravel. Agar aman
+                // di local maupun production, request dikirim sebagai POST lalu diterjemahkan
+                // kembali ke DELETE oleh Laravel via header X-HTTP-Method-Override — route
+                // Route::delete tetap cocok, handler destroyItem() dijalankan tanpa perubahan server.
+                const res = await axios.post(
+                    `${BASE_URL}/${_adCostId}/items/${itemId}`,
+                    {},
+                    { headers: { 'X-HTTP-Method-Override': 'DELETE' } }
+                );
                 _adTotal = res.data.total ?? 0;
                 _adDirty = true;
-                rowEl.remove();
+                rowEl?.remove();
                 _adRenumberRows();
                 _adUpdateSummary();
                 if (_adGetCurrentCount() === 0) _adShowEmpty();
+                PlanCost.closeExpenseDeleteModal();
                 showPlanCostToast('Expense deleted.', 'success');
             } catch (err) {
                 showPlanCostToast('Failed to delete expense.', 'error');
+            } finally {
+                btn.disabled = false;
             }
         },
 
@@ -3018,6 +3221,132 @@
             } else {
                 label.textContent = 'Click or drag & drop proof document';
                 label.className   = 'text-xs text-gray-400';
+            }
+        },
+
+        // ── Edit Expense Modal ───────────────────────────────────────
+
+        openEditExpenseModal(itemId, rowEl) {
+            _adEditId        = itemId;
+            _adEditRowEl     = rowEl;
+            _adEditRemoveDoc = false;
+
+            const desc   = rowEl?.dataset.desc   ?? '';
+            const amount = parseFloat(rowEl?.dataset.amount ?? '0') || 0;
+            const docName = rowEl?.dataset.docName ?? '';
+            const docUrl  = rowEl?.dataset.docUrl  ?? '';
+
+            document.getElementById('aeDescInput').value   = desc;
+            document.getElementById('aeAmountInput').value = amount
+                ? new Intl.NumberFormat('id-ID').format(amount) : '';
+
+            // Current document row (only when the item already has one)
+            const curRow = document.getElementById('aeCurrentDocRow');
+            if (docUrl) {
+                document.getElementById('aeCurrentDocLink').href        = docUrl;
+                document.getElementById('aeCurrentDocName').textContent = docName || 'View';
+                curRow.classList.remove('hidden');
+                document.getElementById('aeDropTitle').textContent = 'Replace Document';
+            } else {
+                curRow.classList.add('hidden');
+                document.getElementById('aeDropTitle').textContent = 'Supporting Document';
+            }
+
+            // Reset "attach new file" input
+            document.getElementById('aeFileInput').value = '';
+            const label = document.getElementById('aeDropLabel');
+            label.textContent = 'Click or drag & drop proof document';
+            label.className   = 'text-xs text-gray-400';
+
+            document.getElementById('expenseEditModal').classList.remove('hidden');
+        },
+
+        closeExpenseEditModal() {
+            document.getElementById('expenseEditModal').classList.add('hidden');
+            _adEditId        = null;
+            _adEditRowEl     = null;
+            _adEditRemoveDoc = false;
+        },
+
+        removeEditDoc() {
+            _adEditRemoveDoc = true;
+            document.getElementById('aeCurrentDocRow').classList.add('hidden');
+            document.getElementById('aeDropTitle').textContent = 'Supporting Document';
+        },
+
+        onEditFileSelected(input) {
+            const file = input.files[0];
+            const label = document.getElementById('aeDropLabel');
+            if (file) {
+                // A freshly attached file supersedes any "remove existing" intent.
+                _adEditRemoveDoc = false;
+                label.textContent = file.name;
+                label.className   = 'text-xs text-orange-600 font-medium';
+            } else {
+                label.textContent = 'Click or drag & drop proof document';
+                label.className   = 'text-xs text-gray-400';
+            }
+        },
+
+        handleEditDocDrop(event) {
+            event.preventDefault();
+            document.getElementById('aeDropZone').classList.remove('border-orange-400', 'bg-orange-50/40');
+            const file = event.dataTransfer.files[0];
+            if (!file) return;
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            document.getElementById('aeFileInput').files = dt.files;
+            PlanCost.onEditFileSelected(document.getElementById('aeFileInput'));
+        },
+
+        async saveEditExpense() {
+            if (!_adEditId) return;
+            const desc   = document.getElementById('aeDescInput').value.trim();
+            const rawAmt = document.getElementById('aeAmountInput').value.replace(/\./g, '').replace(',', '.');
+            const amount = parseFloat(rawAmt);
+            const file   = document.getElementById('aeFileInput').files[0];
+
+            if (!desc) {
+                showPlanCostToast('Expense name is required.', 'error');
+                document.getElementById('aeDescInput').focus();
+                return;
+            }
+            if (!rawAmt || isNaN(amount) || amount <= 0) {
+                showPlanCostToast('Amount must be greater than 0.', 'error');
+                document.getElementById('aeAmountInput').focus();
+                return;
+            }
+
+            const btn = document.getElementById('aeSaveBtn');
+            btn.disabled = true;
+            try {
+                const fd = new FormData();
+                fd.append('description', desc);
+                fd.append('amount', amount);
+                if (file) fd.append('document', file);
+                if (_adEditRemoveDoc) fd.append('remove_document', '1');
+
+                // POST + X-HTTP-Method-Override:PUT — verb PUT diblokir sebagian edge
+                // production; Laravel tetap merutekan ke updateItem() (lihat confirmDeleteExpense).
+                const res = await axios.post(
+                    `${BASE_URL}/${_adCostId}/items/${_adEditId}`,
+                    fd,
+                    { headers: { 'Content-Type': 'multipart/form-data', 'X-HTTP-Method-Override': 'PUT' } }
+                );
+
+                _adTotal = res.data.total ?? 0;
+                _adDirty = true;
+                _adUpdateRow(_adEditRowEl, res.data.item);
+                _adUpdateSummary();
+                PlanCost.closeExpenseEditModal();
+                showPlanCostToast('Expense updated successfully.', 'success');
+            } catch (err) {
+                const msg = err.response?.data?.message
+                         ?? (err.response?.data?.errors ? Object.values(err.response.data.errors).flat().join(' ') : null)
+                         ?? 'Failed to update expense.';
+                showPlanCostToast(msg, 'error');
+            } finally {
+                btn.disabled = false;
             }
         },
     };
@@ -3073,35 +3402,67 @@
         const emptyRow = tbody.querySelector('[data-empty]');
         if (emptyRow) emptyRow.remove();
 
-        const docCell = item.document_url
+        const docCell = _adDocCellHtml(item);
+
+        const tr = document.createElement('tr');
+        tr.className   = 'hover:bg-gray-50 transition-colors';
+        tr.dataset.itemId  = item.id;
+        // Raw values cached on the row so the edit modal can be populated
+        // without another round-trip.
+        tr.dataset.desc    = item.description ?? '';
+        tr.dataset.amount  = item.amount ?? 0;
+        tr.dataset.docName = item.document_name ?? '';
+        tr.dataset.docUrl  = item.document_url ?? '';
+        tr.innerHTML = `
+            <td class="px-4 py-2.5 text-gray-400 text-xs">${no}</td>
+            <td class="px-4 py-2.5 text-gray-700 text-sm">${_esc(item.description)}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-sm text-blue-700 font-medium whitespace-nowrap">${fmtRp(item.amount)}</td>
+            <td class="px-4 py-2.5 text-center whitespace-nowrap">${docCell}</td>
+            <td class="px-4 py-2.5 text-center whitespace-nowrap">
+                <div class="inline-flex items-center gap-0.5">
+                    <button type="button" title="Edit"
+                            onclick="PlanCost.openEditExpenseModal(${item.id}, this.closest('tr'))"
+                            class="p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                    </button>
+                    <button type="button" title="Delete"
+                            onclick="PlanCost.deleteExpenseItem(${item.id}, this.closest('tr'))"
+                            class="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                </div>
+            </td>`;
+        tbody.appendChild(tr);
+        tfoot.classList.remove('hidden');
+    }
+
+    function _adDocCellHtml(item) {
+        return item.document_url
             ? `<a href="${item.document_url}" target="_blank" rel="noopener"
                   class="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
                    </svg>
-                   ${item.document_name ?? 'View'}
+                   ${_esc(item.document_name ?? 'View')}
                </a>`
             : `<span class="text-gray-300 text-xs">—</span>`;
+    }
 
-        const tr = document.createElement('tr');
-        tr.className   = 'hover:bg-gray-50 transition-colors';
-        tr.dataset.itemId = item.id;
-        tr.innerHTML = `
-            <td class="px-4 py-2.5 text-gray-400 text-xs">${no}</td>
-            <td class="px-4 py-2.5 text-gray-700 text-sm">${_esc(item.description)}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-sm text-blue-700 font-medium">${fmtRp(item.amount)}</td>
-            <td class="px-4 py-2.5 text-center">${docCell}</td>
-            <td class="px-4 py-2.5 text-center">
-                <button type="button" title="Delete"
-                        onclick="PlanCost.deleteExpenseItem(${item.id}, this.closest('tr'))"
-                        class="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                    </svg>
-                </button>
-            </td>`;
-        tbody.appendChild(tr);
-        tfoot.classList.remove('hidden');
+    // Update an existing row (cells + cached dataset) after an edit.
+    function _adUpdateRow(tr, item) {
+        if (!tr || !item) return;
+        tr.dataset.desc    = item.description ?? '';
+        tr.dataset.amount  = item.amount ?? 0;
+        tr.dataset.docName = item.document_name ?? '';
+        tr.dataset.docUrl  = item.document_url ?? '';
+        const tds = tr.querySelectorAll('td');
+        if (tds[1]) tds[1].textContent = item.description ?? '';
+        if (tds[2]) tds[2].textContent = fmtRp(item.amount);
+        if (tds[3]) tds[3].innerHTML   = _adDocCellHtml(item);
     }
 
     function _adRenumberRows() {
@@ -3139,7 +3500,7 @@
         // Setup axios CSRF header — dilakukan di sini agar axios sudah tersedia
         axios.defaults.headers.common['X-CSRF-TOKEN'] = getCsrf();
 
-        ['costBudgetInput', 'costReleaseInput', 'adAmountInput'].forEach(id => {
+        ['costBudgetInput', 'costReleaseInput', 'adAmountInput', 'aeAmountInput'].forEach(id => {
             const el = document.getElementById(id);
             if (el) formatCurrencyInput(el);
         });
@@ -4074,7 +4435,38 @@
         if (pctVal)  pctVal.value  = pct.toFixed(2);
         if (gpDisp)  gpDisp.value  = fmtRp(gp);
         if (pctDisp) pctDisp.value = pct.toFixed(2).replace('.', ',');
+
+        // Actual GP juga bergantung pada Revenue → ikut dihitung ulang.
+        sfinRecalcActual();
     }
+    // Actual Cost = Total Actual (dari expense detail Plan Cost).
+    // Actual Gross Profit = Revenue − Actual Cost; % = Actual GP / Revenue × 100.
+    function sfinRecalcActual() {
+        const rev = parseNum(document.getElementById('sfin_rev_val')?.value);
+        const ac  = parseNum(document.getElementById('sfin_ac_val')?.value);
+        const agp = rev - ac;
+        const apct = (rev !== 0) ? (agp / rev) * 100 : 0;
+
+        const agpVal   = document.getElementById('sfin_agp_val');
+        const apctVal  = document.getElementById('sfin_apct_val');
+        const acDisp   = document.getElementById('sfin_ac_disp');
+        const agpDisp  = document.getElementById('sfin_agp_disp');
+        const apctDisp = document.getElementById('sfin_apct_disp');
+
+        if (agpVal)   agpVal.value   = agp;
+        if (apctVal)  apctVal.value  = apct.toFixed(2);
+        if (acDisp)   acDisp.value   = fmtRp(ac);
+        if (agpDisp)  agpDisp.value  = fmtRp(agp);
+        if (apctDisp) apctDisp.value = apct.toFixed(2).replace('.', ',');
+    }
+    // Dipanggil oleh section Plan Cost saat "Total Actual" berubah agar
+    // Delivery Information → Actual Cost / GP / % tetap sinkron tanpa reload.
+    window.sfinSetActualCost = function (actualCost) {
+        const acVal = document.getElementById('sfin_ac_val');
+        if (!acVal) return;
+        acVal.value = actualCost ?? 0;
+        sfinRecalcActual();
+    };
     function bindInput(dispId, valId) {
         const disp = document.getElementById(dispId);
         const val  = document.getElementById(valId);
@@ -6736,6 +7128,15 @@ window.PaymentTermPlan = (function () {
         if (hint) hint.classList.toggle('hidden', !hasDate);
     }
 
+    // Toggle indikator "wajib" pada Paid Date sesuai nilai Status (Paid → wajib)
+    function togglePaidDateRequired() {
+        const isPaid = document.getElementById('pt_status').value === 'Paid';
+        const req  = document.getElementById('pt_paid_date_req');
+        const hint = document.getElementById('pt_paid_date_hint');
+        if (req)  req.classList.toggle('hidden', !isPaid);
+        if (hint) hint.classList.toggle('hidden', !isPaid);
+    }
+
     // ── Modal helpers ──────────────────────────────────────────────
     function resetForm() {
         document.getElementById('pt_payment_term').value        = '';
@@ -6751,6 +7152,7 @@ window.PaymentTermPlan = (function () {
         if (window._fpPtSubmitInvoice) window._fpPtSubmitInvoice.clear();
         if (window._fpPtPaid)          window._fpPtPaid.clear();
         toggleInvoiceRequired();
+        togglePaidDateRequired();
     }
 
     function openAdd() {
@@ -6785,6 +7187,7 @@ window.PaymentTermPlan = (function () {
         else if (t.paid_date) document.getElementById('pt_paid_date').value = t.paid_date;
 
         toggleInvoiceRequired();
+        togglePaidDateRequired();
         recalcAmount();
         document.getElementById('paymentTermModal').classList.remove('hidden');
     }
@@ -6801,11 +7204,14 @@ window.PaymentTermPlan = (function () {
 
         const submitInvoiceDate = document.getElementById('pt_submit_invoice_date').value || null;
         const invoiceNumber     = document.getElementById('pt_invoice_number').value.trim();
+        const paidDate          = document.getElementById('pt_paid_date').value || null;
+        const status            = document.getElementById('pt_status').value;
 
         if (!term) { showNotification('Payment Term is required.', 'error'); return; }
         if (pct === '' || isNaN(parseFloat(pct))) { showNotification('Payment % is required.', 'error'); return; }
         if (parseFloat(pct) < 0 || parseFloat(pct) > 100) { showNotification('Payment % must be between 0 and 100.', 'error'); return; }
         if (submitInvoiceDate && !invoiceNumber) { showNotification('Invoice Number is required when Submit Invoice Date is filled.', 'error'); return; }
+        if (status === 'Paid' && !paidDate) { showNotification('Paid Date is required when Status is Paid.', 'error'); return; }
 
         // Guard: total payment terms tidak boleh melebihi 100% / revenue
         const editId    = mode === 'edit' ? parseInt(document.getElementById('paymentTermModalId').value, 10) : null;
@@ -6831,8 +7237,8 @@ window.PaymentTermPlan = (function () {
             estimated_date:      document.getElementById('pt_estimated_date').value || null,
             submit_invoice_date: submitInvoiceDate,
             invoice_number:      invoiceNumber || null,
-            paid_date:           document.getElementById('pt_paid_date').value || null,
-            status:              document.getElementById('pt_status').value,
+            paid_date:           paidDate,
+            status:              status,
             _token:              getCsrf(),
         };
 
@@ -6899,7 +7305,7 @@ window.PaymentTermPlan = (function () {
 
     document.addEventListener('DOMContentLoaded', function () { load(); });
 
-    return { openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete, recalcAmount, toggleInvoiceRequired, reload: load };
+    return { openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete, recalcAmount, toggleInvoiceRequired, togglePaidDateRequired, reload: load };
 })();
 </script>
 @endsection
