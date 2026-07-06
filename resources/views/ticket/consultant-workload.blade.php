@@ -667,8 +667,12 @@
         return `
     <tr class="border-t border-blue-100 hover:bg-blue-50/60 transition-colors" style="background:#ffffff">
         <td class="pl-6 pr-3 py-2.5 text-xs text-gray-400">${num}</td>
-        <td class="px-3 py-2.5 font-mono text-xs text-gray-500 whitespace-nowrap">${t.ticket_number ?? '—'}</td>
-        <td class="px-3 py-2.5 text-xs text-gray-700 max-w-xs"><span class="line-clamp-2">${t.subject || '—'}</span></td>
+        <td class="px-3 py-2.5 font-mono text-xs text-gray-500 hover:underline cursor-pointer whitespace-nowrap"
+            onclick="event.stopPropagation(); window.location='/ticket/${t.ticket_id}'">${t.ticket_number ?? '—'}</td>
+        <td class="px-3 py-2.5 text-xs text-gray-700 hover:underline cursor-pointer max-w-xs"
+            onclick="event.stopPropagation(); window.location='/ticket/${t.ticket_id}'">
+            <span class="line-clamp-2">${t.subject || '—'}</span>
+        </td>
         <td class="px-3 py-2.5">
             <span class="px-1.5 py-0.5 rounded text-xs font-semibold ${roleCls}">${roleLabel}</span>
         </td>

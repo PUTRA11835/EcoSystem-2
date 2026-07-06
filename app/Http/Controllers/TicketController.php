@@ -352,21 +352,21 @@ class TicketController extends Controller
         if ($request->filled('card_status')) {
             $query->where('status', $request->card_status);
         }
-        // Status — dari column filter (bisa bersamaan dengan card_status)
+        // Status — dari column filter (bisa bersamaan dengan card_status; comma-separated untuk multi-select)
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->whereIn('status', explode(',', $request->status));
         }
-        // Priority
+        // Priority (comma-separated untuk multi-select)
         if ($request->filled('priority')) {
-            $query->where('ticket_priority', $request->priority);
+            $query->whereIn('ticket_priority', explode(',', $request->priority));
         }
-        // Scale
+        // Scale (comma-separated untuk multi-select)
         if ($request->filled('scale')) {
-            $query->where('scale', $request->scale);
+            $query->whereIn('scale', explode(',', $request->scale));
         }
-        // Ticket type
+        // Ticket type (comma-separated untuk multi-select)
         if ($request->filled('type')) {
-            $query->where('ticket_type', $request->type);
+            $query->whereIn('ticket_type', explode(',', $request->type));
         }
         // Ticket number keyword
         if ($request->filled('ticket_number')) {
