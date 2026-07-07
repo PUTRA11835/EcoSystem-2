@@ -667,46 +667,6 @@ Route::middleware(['web'])->group(function () {
     }); // end auth.session protected group
 });
 
-// ==================== MOBILE AUTH — EMPLOYEE ====================
-Route::prefix('mobile/employee')->group(function () {
-    Route::post('/auth/login', [\App\Http\Controllers\Mobile\EmployeeAuthController::class, 'login']);
-    Route::post('/auth/refresh', [\App\Http\Controllers\Mobile\EmployeeAuthController::class, 'refresh']);
-
-    Route::middleware(['mobile.employee'])->group(function () {
-        Route::post('/auth/logout', [\App\Http\Controllers\Mobile\EmployeeAuthController::class, 'logout']);
-        Route::get('/auth/me', [\App\Http\Controllers\Mobile\EmployeeAuthController::class, 'me']);
-
-        // Dashboard
-        Route::get('/dashboard', [\App\Http\Controllers\Mobile\DashboardController::class, 'index']);
-
-        // ==================== TICKET ROUTES (MOBILE) ====================
-        Route::prefix('tickets')->group(function () {
-            Route::get('/',                            [\App\Http\Controllers\Mobile\TicketController::class, 'index']);
-            Route::post('/',                           [\App\Http\Controllers\Mobile\TicketController::class, 'store']);
-            Route::get('/stats',                       [\App\Http\Controllers\Mobile\TicketController::class, 'stats']);
-            Route::get('/{id}',                        [\App\Http\Controllers\Mobile\TicketController::class, 'show']);
-            Route::put('/{id}/status',                 [\App\Http\Controllers\Mobile\TicketController::class, 'updateStatus']);
-            Route::get('/{id}/messages',               [\App\Http\Controllers\Mobile\TicketController::class, 'getMessages']);
-            Route::post('/{id}/messages',              [\App\Http\Controllers\Mobile\TicketController::class, 'sendMessage']);
-            Route::post('/{id}/ownership',             [\App\Http\Controllers\Mobile\TicketController::class, 'takeOwnership']);
-            Route::put('/{id}/mandays',                [\App\Http\Controllers\Mobile\TicketController::class, 'updateMandays']);
-            Route::post('/{id}/send-to-customer',      [\App\Http\Controllers\Mobile\TicketController::class, 'sendToCustomer']);
-        });
-
-        // ==================== SUPPORT TICKET ROUTES (MOBILE) ====================
-        Route::prefix('support-tickets')->group(function () {
-            Route::get('/',      [\App\Http\Controllers\Mobile\SupportTicketController::class, 'index']);
-            Route::get('/{id}',  [\App\Http\Controllers\Mobile\SupportTicketController::class, 'show']);
-        });
-
-        // ==================== PROJECT ROUTES (MOBILE) ====================
-        Route::prefix('projects')->group(function () {
-            Route::get('/',               [\App\Http\Controllers\Mobile\ProjectController::class, 'index']);
-            Route::get('/{id}',           [\App\Http\Controllers\Mobile\ProjectController::class, 'show']);
-            Route::post('/{id}/updates',  [\App\Http\Controllers\Mobile\ProjectController::class, 'storeUpdate']);
-        });
-    });
-});
 // ==================== JARVIES EXTERNAL API ====================
 // Diakses dari server Jarvies menggunakan X-Api-Key header
 // Tidak butuh browser session — autentikasi via JARVIES_API_KEY di .env

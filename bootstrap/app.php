@@ -44,7 +44,6 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'auth.session'      => CheckAuthToken::class,
             'jarvies.api_key'   => CheckJarviesApiKey::class,
-            'mobile.employee'   => \App\Http\Middleware\EnsureMobileEmployee::class,
             'external.api_key'  => \App\Http\Middleware\CheckExternalApiKey::class,
             'menu'              => \App\Http\Middleware\CheckMenuAccess::class,
         ]);
