@@ -170,12 +170,45 @@ class AttachmentController extends Controller
             $data    = $response->json();
             $content = base64_decode($data['contentBytes'] ?? '');
 
+            // itemAttachment (email yang dilampirkan, mis. .eml) tidak menyediakan
+            // contentBytes. Ambil konten MIME mentah (RFC822) via endpoint /$value.
+            if (empty($content)) {
+                $odataType = $data['@odata.type'] ?? '';
+                $isItem    = str_contains($odataType, 'itemAttachment')
+                          || $attachment->mime_type === 'message/rfc822';
+                if ($isItem) {
+                    $valueResp = Http::withToken($token)->get(
+                        "{$baseUrl}/users/{$sender}/messages/{$attachment->graph_message_id}/attachments/{$attachment->graph_attachment_id}/\$value"
+                    );
+                    if ($valueResp->successful()) {
+                        $content = $valueResp->body();
+                    } else {
+                        Log::warning('AttachmentController@show: gagal fetch /$value untuk itemAttachment', [
+                            'attachment_id' => $id,
+                            'status'        => $valueResp->status(),
+                        ]);
+                    }
+                }
+            }
+
             if (empty($content)) {
                 abort(404, 'The file content is empty. The attachment may be corrupted or unavailable.');
             }
 
             $mime     = $data['contentType'] ?? $attachment->mime_type ?? 'application/octet-stream';
             $filename = $data['name'] ?? $attachment->file_name ?? 'attachment';
+
+            // Email yang dilampirkan: pastikan mime message/rfc822 + ekstensi .eml
+            // agar terunduh dan terbuka sebagai file email yang benar.
+            if ($attachment->mime_type === 'message/rfc822' || str_contains($mime, 'rfc822')) {
+                $mime = 'message/rfc822';
+                if ($attachment->file_name) {
+                    $filename = $attachment->file_name;
+                }
+                if (!preg_match('/\.eml$/i', $filename)) {
+                    $filename .= '.eml';
+                }
+            }
 
             Log::info('AttachmentController: file downloaded via Graph', [
                 'attachment_id' => $id,

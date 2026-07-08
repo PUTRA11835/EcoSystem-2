@@ -3346,19 +3346,24 @@
         if (files.length > 0) {
             html += `<div class="mt-2 space-y-1">`;
             files.forEach(file => {
-                const icon  = attachmentIcon(file.attachment_type, file.mime_type);
-                const size  = formatFileSize(file.file_size);
-                const isImg = file.mime_type?.startsWith('image/');
+                const icon   = attachmentIcon(file.attachment_type, file.mime_type);
+                const size   = formatFileSize(file.file_size);
+                const isImg  = file.mime_type?.startsWith('image/');
+                // Link cloud (referenceAttachment OneDrive/SharePoint): buka di tab baru,
+                // bukan diunduh (file ada di drive pengirim, tak bisa kita proxy).
+                const isLink = file.attachment_type === 'link';
+                const actions = isLink
+                    ? `<a href="${file.url}" target="_blank" rel="noopener" class="text-xs text-blue-500 hover:underline">Open</a>`
+                    : `${isImg ? `<a href="${file.url}" target="_blank" class="text-xs text-blue-500 hover:underline">View</a>` : ''}
+                       <a href="${file.url}" download="${escHtml(file.file_name)}" class="text-xs text-blue-500 hover:underline">Download</a>`;
                 html += `<div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 max-w-xs">
                     ${icon}
                     <div class="flex-1 min-w-0">
                         <p class="text-xs font-medium text-gray-700 truncate">${escHtml(file.file_name)}</p>
-                        ${size ? `<p class="text-[10px] text-gray-400">${size}</p>` : ''}
+                        ${size ? `<p class="text-[10px] text-gray-400">${size}</p>` : (isLink ? `<p class="text-[10px] text-gray-400">Cloud link</p>` : '')}
                     </div>
                     <div class="flex gap-1 flex-shrink-0">
-                        ${isImg ? `<a href="${file.url}" target="_blank" class="text-xs text-blue-500 hover:underline">View</a>` : ''}
-                        <a href="${file.url}" download="${escHtml(file.file_name)}"
-                           class="text-xs text-blue-500 hover:underline">Download</a>
+                        ${actions}
                     </div>
                 </div>`;
             });
@@ -3373,6 +3378,8 @@
     // dan font emoji OS yang berbeda-beda.
     function attachmentIcon(type, mime, sizeClass = 'w-5 h-5') {
         const cls = `${sizeClass} flex-shrink-0`;
+        if (type === 'link') return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-sky-500" fill="currentColor" viewBox="0 0 20 20"><path d="M5.5 13a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 13H5.5z"/></svg>`;
+        if (type === 'email' || mime === 'message/rfc822') return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-indigo-500" fill="currentColor" viewBox="0 0 20 20"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg>`;
         if (mime?.startsWith('image/')) return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-purple-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>`;
         if (type === 'pdf')             return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>`;
         if (type === 'document')        return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/><path d="M3 8a2 2 0 012-2v10h8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>`;
@@ -7202,7 +7209,7 @@
                 <label class="text-xs font-semibold text-gray-600 mb-1 block">Doc Type <span class="text-red-500">*</span></label>
                 <select id="ndDocType" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 focus:outline-none">
                     <option value="">-- Select --</option>
-                    @foreach(['IR','RCA','CR Form','FSD','TD','UAT','MOM','BAST','Other'] as $dt)
+                    @foreach(['IR','RCA','CR Form','FSD','TD','UAT','MOM','BAST','EWA','Other'] as $dt)
                     <option value="{{ $dt }}">{{ $dt }}</option>
                     @endforeach
                 </select>
@@ -7382,7 +7389,7 @@ const DELIV_TICKET_ID = {{ $ticket->ticket_id }};
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
 let deliverableData = [];
 
-const DOC_TYPE_ROWS = ['IR', 'RCA', 'CR Form', 'FSD', 'TD', 'UAT', 'MOM', 'BAST', 'Other'];
+const DOC_TYPE_ROWS = ['IR', 'RCA', 'CR Form', 'FSD', 'TD', 'UAT', 'MOM', 'BAST', 'EWA', 'Other'];
 
 // Batas ukuran file deliverable (sinkron dengan validasi server: 20 MB).
 const DELIV_MAX_FILE_BYTES = 20 * 1024 * 1024;

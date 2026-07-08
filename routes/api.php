@@ -118,6 +118,10 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/employees/{employeeId}/addresses/{addressId}', [EmployeeAddressController::class, 'destroy']);
         Route::post('/employees/{employeeId}/addresses/{addressId}/delete', [EmployeeAddressController::class, 'destroy']);
         Route::patch('/employees/{employeeId}/addresses/{addressId}/set-primary', [EmployeeAddressController::class, 'setPrimary']);
+
+        // Referensi wilayah Indonesia — dropdown alamat cascading
+        // (Region → City → District → Rural/Urban Village).
+        Route::get('/regions/children', [\App\Http\Controllers\RegionController::class, 'children']);
     });
 
     // Employee Identification endpoints

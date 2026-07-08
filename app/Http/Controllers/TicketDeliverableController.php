@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 
 class TicketDeliverableController extends Controller
 {
-    private const DOC_TYPES = ['IR', 'RCA', 'CR Form', 'FSD', 'TD', 'UAT', 'MOM', 'BAST', 'Other'];
+    private const DOC_TYPES = ['IR', 'RCA', 'CR Form', 'FSD', 'TD', 'UAT', 'MOM', 'BAST', 'EWA', 'Other'];
 
     /**
      * GET /api/tickets/{id}/deliverables
