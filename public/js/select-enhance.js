@@ -186,7 +186,16 @@
     }
 
     function renderItems(sel, panel, label) {
+        // Pertahankan UI search yang sudah diinject (sticky input + "No results")
+        // saat re-render, supaya dropdown dinamis — yang opsinya di-repopulate via
+        // AJAX/cascade — tetap punya search box setelahnya. Untuk select tanpa
+        // search, `_seSearchWrap` undefined → perilaku identik seperti sebelumnya.
+        const searchWrap = panel._seSearchWrap || null;
+        const emptyEl    = panel._seEmpty || null;
+
         panel.innerHTML = '';
+        if (searchWrap) panel.appendChild(searchWrap);
+
         const opts = Array.from(sel.options);
         const selectedOpt = opts[sel.selectedIndex] ?? null;
 
@@ -204,6 +213,9 @@
             panel.appendChild(item);
         });
 
+        // "No results" selalu di urutan terakhir (di bawah daftar item).
+        if (emptyEl) { emptyEl.style.display = 'none'; panel.appendChild(emptyEl); }
+
         // Update label dari selected option
         if (selectedOpt) {
             label.textContent = selectedOpt.textContent.trim() || selectedOpt.value || '—';
@@ -213,6 +225,11 @@
         } else {
             label.textContent = '—';
             label.classList.add('is-placeholder');
+        }
+
+        // Terapkan ulang filter bila user sedang mengetik saat opsi berganti.
+        if (panel._seSearch && panel._seSearch.value.trim() !== '') {
+            panel._seSearch.dispatchEvent(new Event('input'));
         }
     }
 
@@ -268,8 +285,9 @@
             }
         });
 
-        panel._seSearch = input;
-        panel._seEmpty  = empty;
+        panel._seSearchWrap = searchWrap;
+        panel._seSearch     = input;
+        panel._seEmpty      = empty;
     }
 
     function resetSearch(panel) {

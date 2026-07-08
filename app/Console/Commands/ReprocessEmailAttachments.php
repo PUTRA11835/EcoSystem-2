@@ -86,8 +86,16 @@ class ReprocessEmailAttachments extends Command
             $cidMap = [];
 
             foreach ($attRes->json('value') ?? [] as $att) {
-                $odataType = $att['@odata.type'] ?? '';
-                if ($odataType && !str_contains($odataType, 'fileAttachment')) {
+                // fileAttachment & itemAttachment (email .eml) diproses; referenceAttachment
+                // (link OneDrive/SharePoint) disimpan sebagai link; tipe lain dilewati.
+                // itemAttachment: konten diambil via /$value saat diakses.
+                $odataType             = $att['@odata.type'] ?? '';
+                $isItemAttachment      = str_contains($odataType, 'itemAttachment');
+                $isReferenceAttachment = str_contains($odataType, 'referenceAttachment');
+                if ($odataType
+                    && !str_contains($odataType, 'fileAttachment')
+                    && !$isItemAttachment
+                    && !$isReferenceAttachment) {
                     continue;
                 }
                 if (empty($att['name'])) continue;
@@ -98,6 +106,42 @@ class ReprocessEmailAttachments extends Command
                 $isInline     = $att['isInline'] ?? false;
                 $fileSize     = $att['size'] ?? 0;
                 $contentId    = $att['contentId'] ?? null;
+
+                if ($isReferenceAttachment) {
+                    if (TicketAttachment::where('graph_attachment_id', $graphAttId)->exists()) {
+                        $this->line("  Skip (sudah ada): {$originalName}");
+                        continue;
+                    }
+                    $sourceUrl = $att['sourceUrl'] ?? null;
+                    if (!$sourceUrl) { continue; }
+                    TicketAttachment::create([
+                        'ticket_id'           => $msg->ticket_id,
+                        'message_id'          => $msg->id,
+                        'uploaded_by_type'    => 'system',
+                        'uploaded_by_id'      => null,
+                        'attachment_type'     => 'link',
+                        'link_url'            => $sourceUrl,
+                        'link_title'          => $originalName,
+                        'file_name'           => $originalName,
+                        'file_size'           => $fileSize,
+                        'mime_type'           => $mimeType !== 'application/octet-stream' ? $mimeType : null,
+                        'is_inline'           => false,
+                        'graph_attachment_id' => $graphAttId,
+                        'content_id'          => null,
+                    ]);
+                    $this->info("  Saved cloud link: {$originalName}");
+                    $saved++;
+                    continue;
+                }
+
+                if ($isItemAttachment) {
+                    $mimeType = 'message/rfc822';
+                    if (!preg_match('/\.eml$/i', $originalName)) {
+                        $originalName .= '.eml';
+                    }
+                    $isInline  = false;
+                    $contentId = null;
+                }
 
                 $existing = TicketAttachment::where('graph_attachment_id', $graphAttId)->first();
                 if ($existing) {
@@ -165,6 +209,7 @@ class ReprocessEmailAttachments extends Command
 
     private function resolveType(string $mime): string
     {
+        if ($mime === 'message/rfc822')                                          return 'email';
         if (str_starts_with($mime, 'image/'))                                    return 'image';
         if ($mime === 'application/pdf')                                          return 'pdf';
         if (str_contains($mime, 'word') || str_contains($mime, 'document'))      return 'document';

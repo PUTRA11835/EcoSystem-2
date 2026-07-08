@@ -1388,9 +1388,22 @@ class EmailController extends Controller
             $result = $this->graphGet("/users/{$senderEmail}/messages/{$graphMsgId}/attachments");
 
             foreach ($result['value'] ?? [] as $att) {
-                // Lewati non-fileAttachment (referenceAttachment, itemAttachment, dll)
-                $odataType = $att['@odata.type'] ?? '';
-                if ($odataType && !str_contains($odataType, 'fileAttachment')) {
+                // Tipe attachment Graph:
+                //  - fileAttachment       → file biasa (punya contentBytes)
+                //  - itemAttachment       → email/kalender yang dilampirkan (mis. .eml). TIDAK
+                //    menyediakan contentBytes; konten mentah (RFC822) diambil via endpoint
+                //    /$value saat diakses (lihat AttachmentController@show).
+                //  - referenceAttachment  → link cloud (OneDrive/SharePoint). Tidak ada byte
+                //    yang bisa kita ambil (file di drive pengirim, di luar izin app) → simpan
+                //    sebagai link agar tetap terlihat & bisa dibuka agent.
+                //  - tipe lain → dilewati.
+                $odataType             = $att['@odata.type'] ?? '';
+                $isItemAttachment      = str_contains($odataType, 'itemAttachment');
+                $isReferenceAttachment = str_contains($odataType, 'referenceAttachment');
+                if ($odataType
+                    && !str_contains($odataType, 'fileAttachment')
+                    && !$isItemAttachment
+                    && !$isReferenceAttachment) {
                     continue;
                 }
 
@@ -1404,6 +1417,47 @@ class EmailController extends Controller
                 $isInline     = $att['isInline'] ?? false;
                 $fileSize     = $att['size'] ?? 0;
                 $contentId    = $att['contentId'] ?? null;
+
+                // referenceAttachment: simpan link cloud sebagai record 'link'.
+                // graph_message_id sengaja NULL → public_url memakai link_url (buka langsung),
+                // graph_attachment_id tetap disimpan agar dedup bekerja.
+                if ($isReferenceAttachment) {
+                    if (TicketAttachment::where('graph_attachment_id', $graphAttId)->exists()) {
+                        continue;
+                    }
+                    $sourceUrl = $att['sourceUrl'] ?? null;
+                    if (!$sourceUrl) {
+                        // Tanpa link tak ada yang bisa ditampilkan — lewati (perilaku lama).
+                        continue;
+                    }
+                    TicketAttachment::create([
+                        'ticket_id'           => $ticketId,
+                        'message_id'          => $message->id,
+                        'uploaded_by_type'    => 'system',
+                        'uploaded_by_id'      => null,
+                        'attachment_type'     => 'link',
+                        'link_url'            => $sourceUrl,
+                        'link_title'          => $originalName,
+                        'file_name'           => $originalName,
+                        'file_size'           => $fileSize,
+                        'mime_type'           => $mimeType !== 'application/octet-stream' ? $mimeType : null,
+                        'is_inline'           => false,
+                        'graph_attachment_id' => $graphAttId,
+                        'content_id'          => null,
+                    ]);
+                    continue;
+                }
+
+                // Email yang dilampirkan: paksa mime message/rfc822 + ekstensi .eml agar
+                // bisa diunduh dan dibuka sebagai file email. Selalu non-inline.
+                if ($isItemAttachment) {
+                    $mimeType = 'message/rfc822';
+                    if (!preg_match('/\.eml$/i', $originalName)) {
+                        $originalName .= '.eml';
+                    }
+                    $isInline  = false;
+                    $contentId = null;
+                }
 
                 // Lewati jika sudah pernah disimpan berdasarkan graph_attachment_id
                 $existing = TicketAttachment::where('graph_attachment_id', $graphAttId)->first();
@@ -1548,6 +1602,7 @@ class EmailController extends Controller
 
     private function resolveAttachmentType(string $mimeType): string
     {
+        if ($mimeType === 'message/rfc822') return 'email';
         if (str_starts_with($mimeType, 'image/')) return 'image';
         if ($mimeType === 'application/pdf') return 'pdf';
         if (str_contains($mimeType, 'word') || str_contains($mimeType, 'document')) return 'document';

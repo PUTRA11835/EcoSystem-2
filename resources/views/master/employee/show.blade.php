@@ -164,6 +164,10 @@
     cursor: not-allowed !important;
 }
 .profile-readonly .custom-dd-btn { pointer-events: none !important; cursor: not-allowed !important; }
+/* Dropdown native yang di-enhance select-enhance.js (mis. alamat cascading). */
+.profile-readonly .se-btn,
+.profile-readonly .se-wrap { pointer-events: none !important; cursor: not-allowed !important; }
+.profile-readonly .se-btn { background: #f9fafb !important; color: #6b7280 !important; border-color: #e5e7eb !important; }
 .profile-readonly .js-section-action { display: none !important; }
 </style>
 @endif

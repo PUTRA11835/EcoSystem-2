@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,            // wajib: isi tabel employee_role (FK role_id)
             MenuSeeder::class,            // isi tabel menu + role_menu (permission matrix)
             HolidaySeeder::class,         // impor hari libur dari config ke tabel `holidays`
+            WilayahSeeder::class,         // referensi wilayah Indonesia (dropdown alamat)
             EmployeeSeeder::class,        // hanya akun ECI_ADMIN
             UserSystemRolesSeeder::class, // beri admin baris employee_role_assignment
 
