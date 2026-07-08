@@ -380,6 +380,8 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/assign-ticket-lead', [TicketController::class, 'assignTicketLead']);
         Route::patch('/{id}/pic', [TicketController::class, 'updatePic']);
         Route::put('/{id}', [TicketController::class, 'update']);
+        // POST alias untuk server yang memblokir method PUT/DELETE (ikuti pola /members/.../remove)
+        Route::post('/{id}/update', [TicketController::class, 'update']);
         Route::put('/{id}/update-status', [TicketController::class, 'updateTicketStatus']);
         Route::put('/{id}/update-mandays', [TicketController::class, 'updateManDays']);
         Route::post('/{id}/members', [TicketController::class, 'addMember']);

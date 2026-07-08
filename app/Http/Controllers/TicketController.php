@@ -1822,6 +1822,11 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
+        // Permission terpisah & configurable untuk edit Additional Info (name/no_hp/module/client).
+        // Diatur per-role via Manajemen → Roles/Permissions (slug ui.ticket.edit-additional-info).
+        $canEditAddInfo = \App\Models\Employee::find($sessionUser['id'] ?? 0)
+            ?->hasPermission('ui.ticket.edit-additional-info') ?? false;
+
         // External employee tidak boleh mengambil unassigned ticket maupun update apapun
         $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
         if ($isExternalEmployee && !$isAdmin) {
@@ -1831,7 +1836,8 @@ class TicketController extends Controller
             ], 403);
         }
 
-        // Employees other than admin/helpdesk may ONLY self-assign PIC on unassigned tickets.
+        // Employees other than admin/helpdesk may ONLY self-assign PIC on unassigned tickets,
+        // ATAU mengedit Additional Info saja bila punya permission ui.ticket.edit-additional-info.
         // All other fields require admin or helpdesk.
         $ticketForCheck = Ticket::find($id);
         $requestKeys    = array_keys($request->except(['_token', '_method']));
@@ -1840,7 +1846,13 @@ class TicketController extends Controller
             && $ticketForCheck
             && $ticketForCheck->ticket_lead_id === null;
 
-        if (!$isAdmin && !$isHelpdesk && !$isSelfAssignOnly) {
+        $addInfoKeys   = ['name', 'no_hp', 'module', 'client'];
+        $isAddInfoOnly = !$isAdmin && !$isHelpdesk
+            && $canEditAddInfo
+            && $requestKeys !== []
+            && count(array_diff($requestKeys, $addInfoKeys)) === 0;
+
+        if (!$isAdmin && !$isHelpdesk && !$isSelfAssignOnly && !$isAddInfoOnly) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only admin or helpdesk can update ticket'
@@ -1892,16 +1904,17 @@ class TicketController extends Controller
             if ($request->has('man_days') && $isAdmin) {
                 $updateData['man_days'] = $request->man_days;
             }
-            if ($request->has('name') && ($isAdmin || $isHelpdesk)) {
+            // Additional Info fields: admin/helpdesk ATAU pemegang ui.ticket.edit-additional-info
+            if ($request->has('name') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
                 $updateData['name'] = $request->name ?: null;
             }
-            if ($request->has('no_hp') && ($isAdmin || $isHelpdesk)) {
+            if ($request->has('no_hp') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
                 $updateData['no_hp'] = $request->no_hp ?: null;
             }
-            if ($request->has('module') && ($isAdmin || $isHelpdesk)) {
+            if ($request->has('module') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
                 $updateData['module'] = $request->module ?: null;
             }
-            if ($request->has('client') && ($isAdmin || $isHelpdesk)) {
+            if ($request->has('client') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
                 $updateData['client'] = $request->client ?: null;
             }
 
