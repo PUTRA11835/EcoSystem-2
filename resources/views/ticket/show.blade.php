@@ -3,22 +3,32 @@
 @section('title', 'Ticket ' . $ticket->ticket_number)
 @section('page-title', 'Support Ticket')
 @section('page-subtitle')
-#{{ $ticket->ticket_number }} - {{ Str::limit($ticket->description, 50) }}
-@if(isset($deliverySupport) && $deliverySupport)
-<span id="headbarTopDsBadge" class="inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-100 text-blue-700 align-middle">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" /></svg>
-    DS: {{ $deliverySupport->name }}@if($deliverySupport->type) <span class="opacity-70">({{ $deliverySupport->type }})</span>@endif
+{{-- Baris 1 = nomor+deskripsi + badge manager/admin di sampingnya; baris 2 = badge DS.
+     white-space:normal meng-override `truncate` dari layout dashboard agar bisa multi-baris. --}}
+<span id="headbarSubtitleCol" style="display:flex;flex-direction:column;gap:3px;white-space:normal;line-height:1.35;">
+    <span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;">
+        <span>#{{ $ticket->ticket_number }} - {{ Str::limit($ticket->description, 50) }}</span>
+        @if(isset($deliverySupport) && $deliverySupport)
+        @php
+            $managerLabel = $deliverySupport->support_manager_name ?: '<span class="italic opacity-50">Unassigned</span>';
+            $adminLabel   = $deliverySupport->support_admin_name   ?: '<span class="italic opacity-50">Unassigned</span>';
+            $hasAny = $deliverySupport->support_manager_name || $deliverySupport->support_admin_name;
+        @endphp
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold align-middle {{ $hasAny ? 'bg-gray-100 text-gray-600' : 'bg-yellow-50 text-yellow-600 border border-yellow-200' }}">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" /></svg>
+            {!! $managerLabel !!} / {!! $adminLabel !!}
+        </span>
+        @endif
+    </span>
+    <span id="headbarBadgeRow" style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px;">
+        @if(isset($deliverySupport) && $deliverySupport)
+        <span id="headbarTopDsBadge" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-100 text-blue-700 align-middle">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" /></svg>
+            DS: {{ $deliverySupport->name }}@if($deliverySupport->type) <span class="opacity-70">({{ $deliverySupport->type }})</span>@endif
+        </span>
+        @endif
+    </span>
 </span>
-@php
-    $managerLabel = $deliverySupport->support_manager_name ?: '<span class="italic opacity-50">Unassigned</span>';
-    $adminLabel   = $deliverySupport->support_admin_name   ?: '<span class="italic opacity-50">Unassigned</span>';
-    $hasAny = $deliverySupport->support_manager_name || $deliverySupport->support_admin_name;
-@endphp
-<span class="inline-flex items-center gap-1 ml-1 px-2 py-0.5 rounded-md text-xs font-semibold align-middle {{ $hasAny ? 'bg-gray-100 text-gray-600' : 'bg-yellow-50 text-yellow-600 border border-yellow-200' }}">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" /></svg>
-    {!! $managerLabel !!} / {!! $adminLabel !!}
-</span>
-@endif
 @endsection
 
 @section('page-actions')
@@ -307,6 +317,7 @@
 
                 <div class="relative">
                     <div class="bg-white border border-gray-300 rounded-lg">
+                        <div id="replyResizeHandle" class="reply-resize-handle" title="Tarik untuk mengubah ukuran editor"></div>
                         <div id="quillEditor" style="min-height: 80px;"></div>
                     </div>
                     {{-- @mention autocomplete dropdown — fixed so it's never clipped by overflow parents --}}
@@ -556,6 +567,9 @@
             </div>
             @php
                 $canEditProps  = $can('ui.ticket.edit-fields');
+                // Permission terpisah khusus Additional Info (Contact/Phone/Module/Client),
+                // dikonfigurasi per-role via Manajemen → Roles/Permissions.
+                $canEditAdditionalInfo = $can('ui.ticket.edit-additional-info');
                 $ddBtnCls      = 'custom-dd-btn w-full flex items-center justify-between gap-1 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white hover:border-gray-400 transition-all';
                 $roValCls      = 'text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 w-full block';
                 $statusLabels  = ['open'=>'Open','inprocess'=>'Inprocess','waiting_on_customer'=>'Waiting on Customer','waiting_on_3rd_party'=>'Waiting on 3rd Party','waiting_to_confirmation'=>'Waiting to Confirmation','hold'=>'Hold','cancelled'=>'Cancelled','closed'=>'Closed'];
@@ -848,7 +862,7 @@
                  onclick="toggleSidebarPanel('additionalInfoPanel', 'additionalInfoChevron')">
                 <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Additional Info</h4>
                 <div class="flex items-center gap-2">
-                    @if($canEditProps)
+                    @if($canEditAdditionalInfo)
                     <button id="additionalInfoSaveBtn" onclick="event.stopPropagation(); saveAdditionalInfo()"
                             class="inline-flex items-center px-2.5 py-1 primary-gradient text-white text-[10px] font-semibold rounded-md hover:opacity-90 transition-all duration-200">
                         Save
@@ -861,7 +875,7 @@
                 {{-- Contact Name --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Contact Name</label>
-                    @if($canEditProps)
+                    @if($canEditAdditionalInfo)
                     <input id="additionalInfoName" type="text" value="{{ $ticket->name ?: $ticket->submitted_by_name }}"
                            placeholder="Enter contact name..."
                            class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
@@ -872,7 +886,7 @@
                 {{-- Phone Number --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Phone Number</label>
-                    @if($canEditProps)
+                    @if($canEditAdditionalInfo)
                     <input id="additionalInfoNoHp" type="text" value="{{ $ticket->no_hp }}"
                            placeholder="Enter phone number..."
                            class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
@@ -890,7 +904,7 @@
                 {{-- Module --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Module</label>
-                    @if($canEditProps)
+                    @if($canEditAdditionalInfo)
                     <input id="additionalInfoModule" type="text" value="{{ $ticket->module }}"
                            placeholder="Enter module name..."
                            class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
@@ -901,7 +915,7 @@
                 {{-- Client --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Client</label>
-                    @if($canEditProps)
+                    @if($canEditAdditionalInfo)
                     <input id="additionalInfoClient" type="text" value="{{ $ticket->client }}"
                            placeholder="Enter client name..."
                            class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
@@ -947,7 +961,7 @@
     margin: 4px 0;
 }
 .email-html-body table { border-collapse: collapse; font-size: 12px; max-width: 100%; }
-.email-html-body td, .email-html-body th { border: 1px solid #e5e7eb; padding: 4px 8px; }
+.email-html-body td, .email-html-body th { border: 1px solid #000 !important; padding: 4px 8px; }
 
 /* Links di semua bubble (plain text, Quill HTML, internal note) */
 .message-content a { color: #2563eb !important; text-decoration: underline !important; word-break: break-all; cursor: pointer; }
@@ -1041,8 +1055,39 @@
     min-width: 200px;
 }
 .ql-container.ql-snow { border: none !important; font-size: 13px; }
-.ql-editor { min-height: 80px; max-height: 180px; overflow-y: auto; overflow-x: hidden; padding: 8px 12px; }
+.ql-editor { min-height: 80px; max-height: 180px; overflow-y: auto; overflow-x: auto; padding: 8px 12px; }
 .ql-editor.ql-blank::before { font-style: normal; color: #9ca3af; font-size: 13px; }
+
+/* Pasted-table block embed inside the editor — read-only, scrolls horizontally
+   when wide so it never pushes the editor out of shape. */
+.ql-editor .ql-table-embed { margin: 6px 0; overflow-x: auto; max-width: 100%; }
+.ql-editor .ql-table-embed table { border-collapse: collapse; font-size: 12px; }
+.ql-editor .ql-table-embed td, .ql-editor .ql-table-embed th {
+    border: 1px solid #000 !important; padding: 4px 8px; text-align: left; vertical-align: top;
+}
+
+/* Drag handle to resize the reply editor's height */
+.reply-resize-handle {
+    height: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: ns-resize;
+    user-select: none;
+    touch-action: none;
+}
+.reply-resize-handle::before {
+    content: '';
+    width: 32px;
+    height: 4px;
+    border-radius: 2px;
+    background: #e5e7eb;
+    transition: background .15s;
+}
+.reply-resize-handle:hover::before,
+.reply-resize-handle.is-resizing::before {
+    background: #9ca3af;
+}
 
 /* Images inside editor — fit width, cap height */
 .ql-editor img {
@@ -1238,6 +1283,11 @@
 .message-content ul { list-style-type: disc !important; list-style-position: inside !important; }
 .message-content li { display: list-item !important; }
 .message-content blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; }
+/* Pasted tables in the thread (internal notes / web replies use .message-content
+   without .email-html-body, so mirror the table border styling here). */
+.message-content table { border-collapse: collapse; font-size: 12px; max-width: 100%; margin: 4px 0; }
+.message-content td, .message-content th { border: 1px solid #000 !important; padding: 4px 8px; text-align: left; vertical-align: top; }
+.message-content .ql-table-embed { overflow-x: auto; max-width: 100%; }
 
 /* â"€â"€â"€ Sidebar resize handle hover glow â"€â"€â"€ */
 #sidebarResizeHandle:hover,
@@ -2272,6 +2322,65 @@
         if (iconUp)   iconUp.classList.toggle('hidden', !isExpanded);
     }
 
+    // ── Reply editor resize handle (drag to enlarge/shrink) ───────────────────
+    function initReplyEditorResize() {
+        const handle = document.getElementById('replyResizeHandle');
+        if (!handle) return;
+        const MIN_H = 80;
+        const MAX_H = 500;
+        const STORAGE_KEY = 'replyEditorHeight';
+        let dragging = false, startY = 0, startH = 0;
+
+        const getEditorEl = () => document.querySelector('#quillEditor .ql-editor');
+
+        function applyHeight(h) {
+            h = Math.max(MIN_H, Math.min(MAX_H, Math.round(h)));
+            const el = getEditorEl();
+            if (el) { el.style.height = h + 'px'; el.style.maxHeight = h + 'px'; }
+            return h;
+        }
+
+        const saved = parseInt(localStorage.getItem(STORAGE_KEY) || '', 10);
+        if (saved) applyHeight(saved);
+
+        function onMove(e) {
+            if (!dragging) return;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            // Handle is above the editor: dragging up (clientY decreases) grows it.
+            const h = applyHeight(startH + (startY - clientY));
+            localStorage.setItem(STORAGE_KEY, h);
+            e.preventDefault();
+        }
+        function onUp() {
+            if (!dragging) return;
+            dragging = false;
+            handle.classList.remove('is-resizing');
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend', onUp);
+        }
+        function onDown(e) {
+            const el = getEditorEl();
+            if (!el) return;
+            dragging = true;
+            startY = e.touches ? e.touches[0].clientY : e.clientY;
+            startH = el.getBoundingClientRect().height;
+            handle.classList.add('is-resizing');
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'ns-resize';
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+            document.addEventListener('touchmove', onMove, { passive: false });
+            document.addEventListener('touchend', onUp);
+            e.preventDefault();
+        }
+        handle.addEventListener('mousedown', onDown);
+        handle.addEventListener('touchstart', onDown, { passive: false });
+    }
+
     // Snapshot read-only recipient "To" tiket, dipakai untuk badge "To:" di bubble
     // chat (lihat renderRecipientBadge). Terpisah dari `toEmails` di bawah karena
     // itu adalah state MUTABLE composer reply — kalau dipakai langsung, bubble yang
@@ -2696,6 +2805,13 @@
     let mentionQuery      = null; // null = not in mention mode
     let mentionStartIndex = -1;   // character index where '@' was typed
     let mentionFetchTimer = null;
+    // Cache untuk menghilangkan delay: roles disimpan penuh (server balikan semua saat q kosong),
+    // employee di-cache per query. Bila sebuah query hasilnya "lengkap" (< limit server),
+    // query yang lebih spesifik cukup difilter di client → instan tanpa network.
+    const MENTION_EMP_LIMIT = 20;
+    let mentionAllRoles     = null;        // [{id, name}] — semua role
+    const mentionEmpCache   = new Map();   // q(lowercase) → { employees:[], complete:bool }
+    let mentionReqSeq       = 0;           // guard hasil fetch basi
     const MENTION_COLORS  = ['#1d4ed8', '#7c3aed'];
 
     function toggleSidebarPanel(panelId, chevronId) {
@@ -2712,8 +2828,83 @@
     let renderedMessageIds = new Set();
     const messageCache = new Map();
 
+    // ── Paste-table support (Quill 1.3.7) ─────────────────────────────────────
+    // Quill tidak mengenal <table> secara native, jadi tabel yang di-paste dari
+    // Excel/Word/Google Sheets biasanya hancur jadi teks. Kita daftarkan sebuah
+    // block-embed blot yang menyimpan tabel sebagai satu blok <table> HTML BERSIH
+    // (read-only di dalam editor). Karena yang tersimpan adalah <table> semantik
+    // standar, tampil rapi di thread maupun di email customer, dan lolos HTMLPurifier.
+    let _tableEmbedRegistered = false;
+    function registerTableEmbedBlot() {
+        if (_tableEmbedRegistered || !window.Quill) return;
+        const BlockEmbed = Quill.import('blots/block/embed');
+        class TableEmbedBlot extends BlockEmbed {
+            static create(value) {
+                const node = super.create();
+                node.setAttribute('contenteditable', 'false');
+                node.innerHTML = value || '';
+                return node;
+            }
+            static value(node) {
+                return node.innerHTML;
+            }
+        }
+        TableEmbedBlot.blotName  = 'tableEmbed';
+        TableEmbedBlot.tagName   = 'div';
+        TableEmbedBlot.className = 'ql-table-embed';
+        Quill.register(TableEmbedBlot, true);
+        _tableEmbedRegistered = true;
+    }
+
+    // Bersihkan tabel yang di-paste: buang atribut/junk (class, mso-*, dll) TAPI
+    // pertahankan colspan/rowspan + subset style aman (warna, alignment, border, lebar)
+    // agar tampilannya menyerupai sumber yang dicopy. Subset ini sama dengan yang
+    // di-whitelist HTMLPurifier di server, jadi tetap utuh setelah dikirim.
+    const _keepTableStyle = [
+        'background-color', 'background', 'color', 'text-align', 'vertical-align',
+        'font-weight', 'font-style', 'border', 'border-color', 'border-width',
+        'border-style', 'width', 'height', 'padding',
+    ];
+    function cleanPastedTable(tableEl) {
+        const clone   = tableEl.cloneNode(true);
+        const keepAttr = { colspan: true, rowspan: true };
+        const process = (el) => {
+            if (!el.attributes) return;
+            const styleVal = el.getAttribute('style');
+            Array.from(el.attributes).forEach(a => {
+                const n = a.name.toLowerCase();
+                if (n === 'style') return; // difilter di bawah
+                if (!keepAttr[n]) el.removeAttribute(a.name);
+            });
+            if (styleVal) {
+                const filtered = styleVal.split(';')
+                    .map(s => s.trim()).filter(Boolean)
+                    .filter(decl => _keepTableStyle.includes(decl.split(':')[0].trim().toLowerCase()));
+                if (filtered.length) el.setAttribute('style', filtered.join('; '));
+                else el.removeAttribute('style');
+            }
+        };
+        process(clone);
+        clone.querySelectorAll('*').forEach(process);
+        return clone.outerHTML;
+    }
+
+    // Pasang clipboard matcher: setiap <table> yang di-paste diganti dengan block embed.
+    function addTablePasteMatcher(quill) {
+        if (!quill || !quill.clipboard) return;
+        const Delta = Quill.import('delta');
+        quill.clipboard.addMatcher('TABLE', function (node) {
+            return new Delta()
+                .insert({ tableEmbed: cleanPastedTable(node) })
+                .insert('\n');
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
+        // Daftarkan blot tabel custom (read-only block) agar tabel yang di-paste dari
+        // Excel/Word/Google Sheets tetap utuh sebagai <table> HTML bersih.
+        registerTableEmbedBlot();
         // Initialize Quill
         quillEditor = new Quill('#quillEditor', {
             theme: 'snow',
@@ -2780,17 +2971,20 @@
         });
 
         // Saat teks disalin dari bubble lain (mis. internal note kuning) lalu ditempel,
-        // browser ikut menyalin computed style (background-color, color) sebagai inline style.
-        // Hilangkan agar warna bubble asal tidak terbawa ke pesan baru.
+        // browser ikut menyalin background bubble. Buang background agar warna latar
+        // bubble asal tidak terbawa — TAPI pertahankan warna teks (color) agar teks
+        // berwarna yang sengaja disalin tetap ikut.
         quillEditor.clipboard.addMatcher(Node.ELEMENT_NODE, function (node, delta) {
             delta.ops.forEach(op => {
                 if (op.attributes) {
                     delete op.attributes.background;
-                    delete op.attributes.color;
                 }
             });
             return delta;
         });
+
+        // Paste tabel (Excel/Word/Google Sheets) → simpan sebagai block embed <table> bersih
+        addTablePasteMatcher(quillEditor);
 
         // Handle image paste (Ctrl+V) — compress & resize before inserting
         quillEditor.root.addEventListener('paste', function (e) {
@@ -2858,6 +3052,8 @@
             toolbar.appendChild(attachGroup);
         }
 
+        initReplyEditorResize();
+
         // â"€â"€ @mention: detect @ in quill text-change â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         quillEditor.on('text-change', function (delta, oldDelta, source) {
             // Only react to direct user input — ignore API-triggered changes (e.g. from insertMention)
@@ -2866,24 +3062,13 @@
             const selection = quillEditor.getSelection();
             if (!selection) return;
 
-            const cursorPos = selection.index;
-            const text      = quillEditor.getText(0, cursorPos);
+            const m = detectMention(selection.index);
+            if (!m) { closeMentionDropdown(); return; }
 
-            // Find last '@' in text before cursor
-            const atIdx = text.lastIndexOf('@');
-            if (atIdx === -1) { closeMentionDropdown(); return; }
+            mentionQuery      = m.query;
+            mentionStartIndex = m.startIndex;
 
-            const query = text.slice(atIdx + 1);
-
-            // If there's a space after @, close dropdown
-            if (query.includes(' ')) { closeMentionDropdown(); return; }
-
-            mentionQuery      = query;
-            mentionStartIndex = atIdx;
-
-            // Debounce fetch
-            clearTimeout(mentionFetchTimer);
-            mentionFetchTimer = setTimeout(() => fetchMentionables(query), 200);
+            showMentions(m.query);
         });
 
         // â"€â"€ Auto-link: detect URL saat user ketik spasi/enter setelah URL â"€â"€â"€â"€â"€â"€
@@ -2971,6 +3156,11 @@
         switchSidebarView(canViewMyTicketTab ? 'my' : 'all');
         markMessagesRead();
         startMessagePolling();
+
+        // Warm-up cache mention (roles + 20 employee teratas) agar '@' pertama instan.
+        // Tidak me-render apa pun — hanya mengisi cache. Ditunda sedikit agar tidak
+        // bersaing dengan request awal loadMessages.
+        setTimeout(() => { try { fetchMentionables(''); } catch (_) {} }, 400);
     });
 
     // Jika dibuka dari notifikasi mention (#msg-123), scroll ke bubble pesan tsb
@@ -2980,20 +3170,98 @@
     }
 
     // ==================== @MENTION AUTOCOMPLETE ====================
+    // Deteksi mention berbasis INDEX DOKUMEN (bukan getText, yang mengabaikan embed
+    // gambar/tabel sehingga index meleset). Jalan mundur dari cursor mengumpulkan
+    // teks sampai ketemu '@'. Berhenti bila kena spasi/newline/embed → bukan mention.
+    // Return { startIndex, query } dalam koordinat dokumen Quill, atau null.
+    function detectMention(cursorPos) {
+        if (!cursorPos || cursorPos <= 0) return null;
+        const contents = quillEditor.getContents(0, cursorPos);
+        let docIndex = cursorPos;
+        let query = '';
+        const ops = contents.ops || [];
+        for (let i = ops.length - 1; i >= 0; i--) {
+            const op = ops[i];
+            if (typeof op.insert !== 'string') return null; // embed sebelum '@' → batal
+            const s = op.insert;
+            for (let j = s.length - 1; j >= 0; j--) {
+                docIndex--;
+                const ch = s[j];
+                if (ch === '@') return { startIndex: docIndex, query };
+                if (ch === ' ' || ch === '\n' || ch === '\t') return null;
+                query = ch + query;
+            }
+        }
+        return null;
+    }
+
+    // Gabungkan employees + roles jadi item dropdown
+    function buildMentionItems(employees, roles) {
+        const items = [];
+        (employees || []).forEach(e => items.push({ type: 'employee', id: e.id, display: e.display_name, sub: e.role_name }));
+        (roles     || []).forEach(r => items.push({ type: 'role',     id: r.id, display: '@' + r.name, sub: 'All in role' }));
+        return items;
+    }
+
+    // Filter roles dari cache lokal (semua role sudah di-cache) — instan.
+    function filterRoles(q) {
+        if (!mentionAllRoles) return [];
+        const ql = (q || '').toLowerCase();
+        return ql ? mentionAllRoles.filter(r => (r.name || '').toLowerCase().includes(ql)) : mentionAllRoles.slice();
+    }
+
+    // Coba dapatkan employees dari cache lokal: exact hit, atau filter dari hasil
+    // prefix yang sudah "lengkap". Return array bila bisa lokal, null bila harus fetch.
+    function localEmployees(q) {
+        const ql = (q || '').toLowerCase();
+        if (mentionEmpCache.has(ql)) return mentionEmpCache.get(ql).employees;
+        for (let i = ql.length - 1; i >= 0; i--) {
+            const pref = ql.slice(0, i);
+            const c = mentionEmpCache.get(pref);
+            if (c && c.complete) {
+                return c.employees.filter(e => (e.display_name || '').toLowerCase().includes(ql));
+            }
+        }
+        return null;
+    }
+
+    // Entry point: tampilkan dropdown mention untuk query q.
+    // Instan bila bisa dilayani dari cache; jika tidak, fetch (debounce pendek).
+    function showMentions(q) {
+        const roles    = filterRoles(q);
+        const localEmp = localEmployees(q);
+        if (localEmp !== null) {
+            renderMentionDropdown(buildMentionItems(localEmp, roles));
+            return;
+        }
+        // Belum ada di cache → fetch. Debounce pendek agar responsif tapi tidak spam.
+        clearTimeout(mentionFetchTimer);
+        mentionFetchTimer = setTimeout(() => fetchMentionables(q), 120);
+    }
+
     function fetchMentionables(q) {
-        fetch(`/api/employees/mentionable?q=${encodeURIComponent(q)}`, {
+        const seq = ++mentionReqSeq;
+        return fetch(`/api/employees/mentionable?q=${encodeURIComponent(q)}`, {
             credentials: 'same-origin',
             headers: { 'Accept': 'application/json' }
         })
         .then(r => r.json())
         .then(data => {
             if (!data.success) return;
-            const items = [];
-            (data.employees || []).forEach(e => items.push({ type: 'employee', id: e.id, display: e.display_name, sub: e.role_name }));
-            (data.roles     || []).forEach(r => items.push({ type: 'role',     id: r.id, display: r.name, sub: 'All in role' }));
-            renderMentionDropdown(items);
+            // Cache semua role sekali (server balikan semua saat q kosong)
+            if (mentionAllRoles === null || q === '') {
+                mentionAllRoles = (data.roles || []).map(r => ({ id: r.id, name: r.name }));
+            }
+            const employees = data.employees || [];
+            mentionEmpCache.set((q || '').toLowerCase(), {
+                employees,
+                complete: employees.length < MENTION_EMP_LIMIT,
+            });
+            if (seq !== mentionReqSeq) return;       // hasil basi — jangan render
+            if (mentionStartIndex < 0) return;       // warm-up / mention sudah ditutup — jangan render
+            renderMentionDropdown(buildMentionItems(employees, filterRoles(q)));
         })
-        .catch(() => closeMentionDropdown());
+        .catch(() => { if (seq === mentionReqSeq) closeMentionDropdown(); });
     }
 
     function renderMentionDropdown(items) {
@@ -3024,17 +3292,29 @@
             });
         });
 
-        // Position relative to the quill editor using fixed coords (avoids overflow clipping)
+        // Anchor tepat DI ATAS posisi '@' yang sedang diketik (bukan selebar editor).
         const editorEl = document.getElementById('quillEditor');
         if (editorEl) {
-            const rect = editorEl.getBoundingClientRect();
-            dropdown.style.left  = rect.left + 'px';
-            dropdown.style.width = rect.width + 'px';
-            // Appear above the editor; clamp max-height so it never goes off screen
-            const spaceAbove = rect.top - 8;
-            dropdown.style.maxHeight = Math.min(192, spaceAbove) + 'px';
-            dropdown.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
-            dropdown.style.top = 'auto';
+            const rect      = editorEl.getBoundingClientRect();
+            const anchorIdx = mentionStartIndex >= 0
+                ? mentionStartIndex
+                : (quillEditor.getSelection()?.index ?? 0);
+            let caretLeft = rect.left, caretTop = rect.top;
+            try {
+                const b = quillEditor.getBounds(anchorIdx);
+                caretLeft = rect.left + b.left;
+                caretTop  = rect.top + b.top;
+            } catch (_) {}
+
+            const DD_WIDTH = 260;
+            // Jaga agar tidak keluar tepi kanan viewport
+            const maxLeft = window.innerWidth - DD_WIDTH - 8;
+            dropdown.style.left   = Math.max(8, Math.min(caretLeft, maxLeft)) + 'px';
+            dropdown.style.width  = DD_WIDTH + 'px';
+            // Muncul tepat di atas baris caret
+            dropdown.style.bottom    = (window.innerHeight - caretTop + 4) + 'px';
+            dropdown.style.top       = 'auto';
+            dropdown.style.maxHeight = Math.min(220, caretTop - 8) + 'px';
         }
         dropdown.classList.remove('hidden');
     }
@@ -3051,15 +3331,22 @@
         // Delete the '@...' text
         quillEditor.deleteText(startIdx, replaceLen);
 
-        // Insert a leading space if the character immediately before the '@' wasn't whitespace
-        const textBefore      = quillEditor.getText(0, startIdx);
-        const needsLeadSpace  = startIdx > 0 && !/\s$/.test(textBefore);
+        // Insert a leading space if the character immediately before the '@' wasn't whitespace.
+        // Pakai getContents (bukan getText) agar embed gambar/tabel sebelum '@' dianggap
+        // batas dan tidak salah hitung.
+        let needsLeadSpace = false;
+        if (startIdx > 0) {
+            const prevOp = quillEditor.getContents(startIdx - 1, 1).ops[0];
+            needsLeadSpace = !!prevOp && typeof prevOp.insert === 'string' && !/\s$/.test(prevOp.insert);
+        }
         if (needsLeadSpace) {
             quillEditor.insertText(startIdx, ' ', { color: false, bold: false });
         }
 
         const chipPos = needsLeadSpace ? startIdx + 1 : startIdx;
-        const chip    = `@${display}`;
+        // Role sudah membawa '@' di display-nya (mis. "@Delivery Support User") —
+        // jangan tambah '@' lagi agar tidak jadi "@@...".
+        const chip    = display.startsWith('@') ? display : `@${display}`;
 
         // Insert chip with colour + bold, then trailing space with plain formatting
         quillEditor.insertText(chipPos, chip, {
@@ -4951,8 +5238,9 @@
         btn.disabled = true;
         btn.textContent = 'Saving…';
         try {
-            const res = await fetch(`/api/tickets/${ticketId}`, {
-                method: 'PUT',
+            // POST alias (/update) dipakai karena server memblokir method PUT/DELETE
+            const res = await fetch(`/api/tickets/${ticketId}/update`, {
+                method: 'POST',
                 headers: { ...getHeaders(), 'Content-Type': 'application/json' },
                 credentials: 'same-origin',
                 body: JSON.stringify({
@@ -5287,16 +5575,18 @@
         const svgPath = `M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z`;
         const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="${svgPath}" /></svg>`;
 
-        // 1. Top headbar badge
+        // 1. Top headbar badge — sisipkan ke baris badge (stack di bawah nomor+deskripsi)
         const existing = document.getElementById('headbarTopDsBadge');
         if (existing) existing.remove();
-        const subtitleEl = document.querySelector('.text-xs.text-gray-500');
-        if (subtitleEl) {
+        const badgeRow = document.getElementById('headbarBadgeRow')
+            || document.querySelector('.text-xs.text-gray-500');
+        if (badgeRow) {
             const badge = document.createElement('span');
             badge.id = 'headbarTopDsBadge';
-            badge.className = 'inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-100 text-blue-700 align-middle';
+            badge.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-100 text-blue-700 align-middle';
             badge.innerHTML = `${svgIcon}DS: ${dsName}${typeHtml}`;
-            subtitleEl.appendChild(badge);
+            // Taruh badge DS di depan (sebelum badge manager/admin bila ada)
+            badgeRow.insertBefore(badge, badgeRow.firstChild);
         }
 
         // 2. Properties panel
@@ -6910,6 +7200,8 @@
                     }
                 }
             });
+            // Pertahankan tabel yang di-paste di editor edit internal note juga
+            addTablePasteMatcher(editNoteQuill);
         }
 
         // Pre-fill content
