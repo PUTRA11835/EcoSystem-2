@@ -59,6 +59,9 @@
                 ?? ($notif->type === 'timesheet_submitted'
                     ? '/calendar/timesheets'
                     : ($notif->ticket_id ? '/ticket/' . $notif->ticket_id : null));
+            if ($navLink && $notif->message_id && !str_contains($navLink, '#')) {
+                $navLink .= '#msg-' . $notif->message_id;
+            }
             $iconBg     = $notif->is_read ? 'bg-gray-100' : ($leColor ? $leColor['bg'] : 'bg-red-100');
             $iconColor  = $notif->is_read ? 'text-gray-400' : ($leColor ? $leColor['icon'] : 'text-red-600');
             $iconClass  = $leInfo ? $leInfo['icon'] : ($notif->type === 'timesheet_submitted' ? 'fa-file-alt' : 'fa-at');
@@ -93,7 +96,7 @@
                             @else
                                 {{ $notif->from_name ?? 'Someone' }} mentioned you
                                 @if($notif->ticket_id)
-                                    in <a href="/ticket/{{ $notif->ticket_id }}" class="text-red-700 hover:underline">Ticket</a>
+                                    in <a href="{{ $navLink ?? ('/ticket/' . $notif->ticket_id) }}" class="text-red-700 hover:underline">Ticket</a>
                                 @endif
                             @endif
                         </p>

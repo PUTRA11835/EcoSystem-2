@@ -37,7 +37,8 @@ class TaskController extends Controller
                 ->whereIn('ticket.status', self::ACTIVE_STATUSES)
                 ->whereNull('ticket.deleted_at')
                 ->select([
-                    'ticket.ticket_id', 'ticket.ticket_number', 'ticket.subject',
+                    'ticket.ticket_id', 'ticket.ticket_number',
+                    DB::raw("COALESCE(NULLIF(ticket.subject, ''), ticket.description) as subject"),
                     'ticket.status', 'ticket.ticket_priority', 'ticket.ticket_type',
                     'ticket.man_days', 'ticket.progress_percentage', 'ticket.progress_note',
                     'ticket.last_progress_at', 'ticket.module', 'ticket.start_date', 'ticket.end_date',

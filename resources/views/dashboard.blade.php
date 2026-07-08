@@ -426,6 +426,14 @@
                             <span class="nav-text text-sm">MD Recap</span>
                         </a>
                         @endif
+                        @if($can('reporting.collection-outlook'))
+                        <a href="{{ route('reporting.collection-outlook') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/collection-outlook*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-hand-holding-usd text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Collection Outlook</span>
+                        </a>
+                        @endif
                     </div>
                 </div>
                 @endif
@@ -1544,10 +1552,15 @@
         }
 
         function getUrl(n) {
-            if (n.link) return n.link;
-            if (n.type === 'timesheet_submitted') return '/calendar/timesheets';
-            if (n.ticket_id) return '/ticket/' + n.ticket_id;
-            return '/notifications';
+            var base = n.link
+                ? n.link
+                : (n.type === 'timesheet_submitted'
+                    ? '/calendar/timesheets'
+                    : (n.ticket_id ? '/ticket/' + n.ticket_id : '/notifications'));
+            if (n.message_id && base.indexOf('#') === -1) {
+                base += '#msg-' + n.message_id;
+            }
+            return base;
         }
 
         /* ---- build one notification item using createElement (no Tailwind dependency) ---- */
