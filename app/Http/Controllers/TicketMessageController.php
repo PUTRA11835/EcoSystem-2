@@ -11,6 +11,7 @@ use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
+use App\Services\MessageHtmlSanitizerService;
 use App\Services\SlaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -222,7 +223,9 @@ class TicketMessageController extends Controller
             }
 
             // Tambahkan tanda tangan "-NickName" di akhir pesan untuk employee
-            $messageBody = $request->message_body ?? '';
+            // Sanitasi HTML dulu sebelum disimpan/dirender/dikirim ke email customer —
+            // ini satu-satunya titik masuk message_html untuk reply & internal note.
+            $messageBody = MessageHtmlSanitizerService::sanitize($request->message_body ?? '');
             if ($nickName && $request->message_type !== 'internal_note') {
                 $nick = htmlspecialchars($nickName, ENT_QUOTES, 'UTF-8');
                 $messageBody .= '<p style="margin-top:4px;color:#6b7280;font-style:italic;">-' . $nick . '</p>';
@@ -1296,7 +1299,7 @@ class TicketMessageController extends Controller
 
         try {
             DB::transaction(function () use ($request, $message, $ticketId, $sessionUser) {
-                $messageHtml  = $request->input('message_html', '');
+                $messageHtml  = MessageHtmlSanitizerService::sanitize($request->input('message_html', ''));
                 $messagePlain = trim(strip_tags($messageHtml));
 
                 $message->update([
