@@ -28,23 +28,37 @@ class AttachmentController extends Controller
 
         $attachment = TicketAttachment::findOrFail($id);
 
-        // Record lama: file disimpan lokal → redirect ke storage path
+        // Record lama: file disimpan lokal → stream dengan Content-Disposition agar nama file benar
         if (!$attachment->graph_message_id && $attachment->file_path) {
             $filePath = $attachment->file_path;
-            // Cegah path traversal: tolak path yang mengandung '..' atau dimulai dengan '/'
             abort_if(
                 str_contains($filePath, '..') || str_starts_with($filePath, '/') || str_starts_with($filePath, '\\'),
                 404,
                 'File tidak ditemukan.'
             );
             abort_if(!Storage::disk('public')->exists($filePath), 404, 'File tidak ditemukan.');
+
+            $filename  = $attachment->file_name ?? basename($filePath);
+            $mime      = $attachment->mime_type ?? Storage::disk('public')->mimeType($filePath) ?? 'application/octet-stream';
+            $asciiName = str_replace(['"', '\\', "\r", "\n"], '', preg_replace('/[^\x20-\x7E]/', '_', $filename));
+
             Log::info('AttachmentController: legacy file accessed', [
                 'attachment_id' => $id,
-                'file_name'     => $attachment->file_name ?? $filePath,
+                'file_name'     => $filename,
                 'ticket_id'     => $attachment->ticket_id ?? null,
                 'accessed_by'   => $sessionUser['eci'] ?? $sessionUser['name'] ?? $sessionUser['id'] ?? 'unknown',
             ]);
-            return redirect(Storage::disk('public')->url($filePath));
+
+            return response()->stream(function () use ($filePath) {
+                $stream = Storage::disk('public')->readStream($filePath);
+                fpassthru($stream);
+                fclose($stream);
+            }, 200, [
+                'Content-Type'        => $mime,
+                'Content-Disposition' => 'attachment; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($filename),
+                'Content-Length'      => Storage::disk('public')->size($filePath),
+                'Cache-Control'       => 'private, max-age=3600',
+            ]);
         }
 
         // Validasi: harus punya graph_message_id + graph_attachment_id
@@ -174,9 +188,11 @@ class AttachmentController extends Controller
             // Inline: tampilkan di browser (gambar, PDF). Attachment: paksa download.
             $disposition = $attachment->is_inline ? 'inline' : 'attachment';
 
+            $asciiName = str_replace(['"', '\\', "\r", "\n"], '', preg_replace('/[^\x20-\x7E]/', '_', $filename));
+
             return response($content, 200)
                 ->header('Content-Type', $mime)
-                ->header('Content-Disposition', $disposition . '; filename="' . rawurlencode($filename) . '"')
+                ->header('Content-Disposition', $disposition . '; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($filename))
                 ->header('Content-Length', strlen($content))
                 ->header('Cache-Control', 'private, max-age=3600');
 

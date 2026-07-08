@@ -172,8 +172,8 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         </div>
 
                         <div class="flex flex-col">
-                            <label class="text-xs font-semibold text-gray-600 mb-1">Nick Name</label>
-                            <input type="text" id="nickName" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Nick Name <span class="text-red-600">*</span></label>
+                            <input type="text" id="nickName" required class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
                         </div>
 
                         <div class="flex flex-col">
@@ -984,8 +984,8 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         if (!deleteEmployeeId) return;
 
         try {
-            const response = await fetch(`/api/employees/${deleteEmployeeId}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/employees/${deleteEmployeeId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',

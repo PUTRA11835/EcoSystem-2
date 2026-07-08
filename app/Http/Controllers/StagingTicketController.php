@@ -582,11 +582,12 @@ class StagingTicketController extends Controller
             $data         = $response->json();
             $contentBytes = base64_decode($data['contentBytes'] ?? '');
             $contentType  = $data['contentType'] ?? 'application/octet-stream';
-            $name         = $data['name'] ?? 'attachment';
+            $name      = $data['name'] ?? 'attachment';
+            $asciiName = str_replace(['"', '\\', "\r", "\n"], '', preg_replace('/[^\x20-\x7E]/', '_', $name));
 
             return response($contentBytes, 200, [
                 'Content-Type'        => $contentType,
-                'Content-Disposition' => 'inline; filename="' . $name . '"',
+                'Content-Disposition' => 'inline; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($name),
                 'Content-Length'      => strlen($contentBytes),
             ]);
         } catch (\Exception $e) {
@@ -641,11 +642,12 @@ class StagingTicketController extends Controller
             $data         = $response->json();
             $contentBytes = base64_decode($data['contentBytes'] ?? '');
             $contentType  = $data['contentType'] ?? 'application/octet-stream';
-            $name         = $data['name'] ?? 'attachment';
+            $name      = $data['name'] ?? 'attachment';
+            $asciiName = str_replace(['"', '\\', "\r", "\n"], '', preg_replace('/[^\x20-\x7E]/', '_', $name));
 
             return response($contentBytes, 200, [
                 'Content-Type'        => $contentType,
-                'Content-Disposition' => 'inline; filename="' . $name . '"',
+                'Content-Disposition' => 'inline; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($name),
                 'Content-Length'      => strlen($contentBytes),
             ]);
         } catch (\Exception $e) {

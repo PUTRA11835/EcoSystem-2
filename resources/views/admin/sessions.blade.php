@@ -200,8 +200,8 @@ document.getElementById('modalForceLogout').addEventListener('click', async () =
 document.getElementById('btnLogoutAll').addEventListener('click', async () => {
     if (!confirm('Force logout ALL other sessions? This cannot be undone.')) return;
     try {
-        const res = await fetch('/api/admin/sessions', {
-            method: 'DELETE',
+        const res = await fetch('/api/admin/sessions/delete-all', {
+            method: 'POST',
             credentials: 'same-origin',
             headers: { 'X-CSRF-TOKEN': CSRF },
         });
@@ -219,8 +219,8 @@ document.getElementById('btnLogoutAll').addEventListener('click', async () => {
 
 async function forceLogout(sessionId) {
     try {
-        const res = await fetch(`/api/admin/sessions/${sessionId}`, {
-            method: 'DELETE',
+        const res = await fetch(`/api/admin/sessions/${sessionId}/delete`, {
+            method: 'POST',
             credentials: 'same-origin',
             headers: { 'X-CSRF-TOKEN': CSRF },
         });

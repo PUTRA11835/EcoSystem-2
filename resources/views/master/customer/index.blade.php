@@ -806,8 +806,8 @@
         if (!deleteCustomerId) return;
 
         try {
-            const response = await fetch(`/api/customers/${deleteCustomerId}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/customers/${deleteCustomerId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',

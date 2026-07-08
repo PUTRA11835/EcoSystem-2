@@ -559,8 +559,8 @@
 
         try {
             
-            const response = await fetch(`/api/employees/${employeeId}/identifications/${deleteIdentificationId}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/employees/${employeeId}/identifications/${deleteIdentificationId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',

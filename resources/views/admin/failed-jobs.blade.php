@@ -243,8 +243,8 @@ async function retryJob(uuid) {
 async function deleteJob(uuid) {
     if (!confirm('Delete this failed job?')) return;
     try {
-        const res  = await fetch(`/api/admin/failed-jobs/${uuid}`, {
-            method: 'DELETE',
+        const res  = await fetch(`/api/admin/failed-jobs/${uuid}/delete`, {
+            method: 'POST',
             credentials: 'same-origin',
             headers: { 'X-CSRF-TOKEN': CSRF },
         });
@@ -275,8 +275,8 @@ document.getElementById('btnRetryAll').addEventListener('click', async () => {
 document.getElementById('btnClearAll').addEventListener('click', async () => {
     if (!confirm('Clear ALL failed jobs? This cannot be undone.')) return;
     try {
-        const res  = await fetch('/api/admin/failed-jobs', {
-            method: 'DELETE',
+        const res  = await fetch('/api/admin/failed-jobs/clear', {
+            method: 'POST',
             credentials: 'same-origin',
             headers: { 'X-CSRF-TOKEN': CSRF },
         });

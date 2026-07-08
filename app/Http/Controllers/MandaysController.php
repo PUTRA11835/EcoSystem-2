@@ -399,7 +399,7 @@ class MandaysController extends Controller
 
         // Selalu buat TicketMessage terlebih dahulu agar proposal tampil di chat
         $htmlBody  = $this->buildMandaysEmailHtml($proposal, $ticket, $senderName);
-        $plainText = 'Mandays proposal sent to customer. Total: ' . number_format((float) $proposal->total_mandays, 1) . ' mandays.';
+        $plainText = 'Mandays proposal sent to customer. Total: ' . $this->fmtMd((float) $proposal->total_mandays) . ' mandays.';
 
         $ticketMsg = TicketMessage::create([
             'ticket_id'           => $ticketId,
@@ -1355,6 +1355,15 @@ class MandaysController extends Controller
     }
 
     /**
+     * Format mandays value — up to 2 decimal places, trailing zeros stripped.
+     * 0.25 → "0.25", 0.5 → "0.5", 1.0 → "1"
+     */
+    private function fmtMd(float $val): string
+    {
+        return rtrim(rtrim(number_format($val, 2, '.', ''), '0'), '.');
+    }
+
+    /**
      * Build HTML email body untuk mandays proposal yang dikirim ke customer.
      */
     private function buildMandaysEmailHtml(CustomerMandays $proposal, Ticket $ticket, string $agentName): string
@@ -1362,7 +1371,7 @@ class MandaysController extends Controller
         $ticketNum = htmlspecialchars($ticket->ticket_number ?? '', ENT_QUOTES, 'UTF-8');
         $agent     = htmlspecialchars($agentName, ENT_QUOTES, 'UTF-8');
         $version   = $proposal->version ?? 1;
-        $total     = number_format((float) $proposal->total_mandays, 1);
+        $total     = $this->fmtMd((float) $proposal->total_mandays);
         $notes     = $proposal->notes ? '<p style="margin:8px 0;font-size:13px;color:#444;">' . nl2br(htmlspecialchars($proposal->notes, ENT_QUOTES, 'UTF-8')) . '</p>' : '';
 
         // Bangun kolom modul unik
@@ -1390,7 +1399,7 @@ class MandaysController extends Controller
             foreach ($modules as $mod) {
                 $val = $modValues[$mod] ?? 0;
                 $moduleTotals[$mod] += $val;
-                $rows .= '<td style="padding:7px 12px;border:1px solid #ddd;text-align:center;">' . ($val > 0 ? number_format($val, 1) : '-') . '</td>';
+                $rows .= '<td style="padding:7px 12px;border:1px solid #ddd;text-align:center;">' . ($val > 0 ? $this->fmtMd($val) : '-') . '</td>';
             }
             $rows .= '</tr>';
         }
@@ -1398,7 +1407,7 @@ class MandaysController extends Controller
         // Baris total
         $totalCols = '';
         foreach ($modules as $mod) {
-            $totalCols .= '<td style="padding:7px 12px;border:1px solid #ddd;text-align:center;font-weight:bold;">' . number_format($moduleTotals[$mod], 1) . '</td>';
+            $totalCols .= '<td style="padding:7px 12px;border:1px solid #ddd;text-align:center;font-weight:bold;">' . $this->fmtMd($moduleTotals[$mod]) . '</td>';
         }
 
         return <<<HTML

@@ -879,7 +879,7 @@ function closeDeletePeriodModal() {
 async function executeDeletePeriod() {
     const btn = document.getElementById('btnConfirmDeletePeriod');
     btn.disabled = true; btn.textContent = 'Deleting…';
-    const json = await api(`/api/periods/${_dpPeriodId}`, 'DELETE');
+    const json = await api(`/api/periods/${_dpPeriodId}/delete`, 'POST');
     btn.disabled = false; btn.textContent = 'Delete Period';
     closeDeletePeriodModal();
     if (json.success) { showNotification(json.message, 'success'); setTimeout(reloadPage, 800); }
