@@ -963,6 +963,14 @@
 .email-html-body table { border-collapse: collapse; font-size: 12px; max-width: 100%; }
 .email-html-body td, .email-html-body th { border: 1px solid #000 !important; padding: 4px 8px; }
 
+/* Deliverable card: bubble deliverable memakai tabel key-value tanpa border kotak
+   (border hitam paksaan `.email-html-body/.message-content td` di-reset). Layout jadi
+   bersih & tidak terpotong; padding/nowrap diatur via inline style di server. */
+.email-html-body table.deliv-card,
+.message-content table.deliv-card { border: none !important; }
+.email-html-body table.deliv-card td, .email-html-body table.deliv-card th,
+.message-content table.deliv-card td, .message-content table.deliv-card th { border: none !important; }
+
 /* Links di semua bubble (plain text, Quill HTML, internal note) */
 .message-content a { color: #2563eb !important; text-decoration: underline !important; word-break: break-all; cursor: pointer; }
 .message-content a:hover { color: #1d4ed8 !important; }
@@ -1589,12 +1597,12 @@
 @endif
 
 {{-- ── Send Status Modal ───────────────────────────────────────────────── --}}
-<div id="sendStatusModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="sendStatusModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-xs shadow-2xl flex flex-col">
         <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100">
             <div>
                 <h3 class="text-sm font-bold text-gray-900">Send &amp; Set Status</h3>
-                <p class="text-[11px] text-gray-400 mt-0.5">Pilih status setelah reply dikirim</p>
+                <p id="sendStatusSubtitle" class="text-[11px] text-gray-400 mt-0.5">Pilih status setelah reply dikirim</p>
             </div>
             <button onclick="closeSendStatusModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-red-700 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
@@ -4099,8 +4107,15 @@
         const rawCc  = msg.cc_emails;
         const ccList = Array.isArray(rawCc) ? rawCc
                      : (typeof rawCc === 'string' && rawCc ? ((() => { try { return JSON.parse(rawCc); } catch(e) { return []; } })()) : []);
+        // To PER-PESAN: API menurunkannya dari `email_recipients` pesan itu sendiri (minus CC),
+        // dengan fallback ke ticket.to_emails untuk pesan lama. Pakai ini — BUKAN snapshot
+        // ticket global — supaya badge "To" mencerminkan penerima aktual pesan tsb (mis. saat
+        // helpdesk mengganti alamat To sebelum kirim), bukan To composer saat halaman dibuka.
+        const rawTo  = msg.to_emails;
+        const toList = Array.isArray(rawTo) ? rawTo
+                     : (typeof rawTo === 'string' && rawTo ? ((() => { try { return JSON.parse(rawTo); } catch(e) { return []; } })()) : []);
         const toBadge = msg.channel === 'email'
-            ? renderRecipientBadge('to', 'To', ticketToEmailsInitial, msg.id, isEmployee)
+            ? renderRecipientBadge('to', 'To', (toList.length ? toList : ticketToEmailsInitial), msg.id, isEmployee)
             : '';
         const ccBadge = renderRecipientBadge('cc', 'Cc', ccList, msg.id, isEmployee);
 
@@ -4362,22 +4377,51 @@
 
     // ── Send Status Modal ─────────────────────────────────────────────────────
     let _pendingSendType = null;
+    // Modal status dipakai dua konteks: 'reply' (kirim balasan) & 'deliverable'
+    // (kirim dokumen deliverable ke customer). Mode menentukan aksi setelah status dipilih.
+    let _statusModalMode      = 'reply';
+    let _pendingDeliverableId = null;
+
+    function setStatusModalSubtitle(text) {
+        const el = document.getElementById('sendStatusSubtitle');
+        if (el) el.textContent = text;
+    }
 
     function openSendStatusModal(messageType) {
+        _statusModalMode = 'reply';
         _pendingSendType = messageType;
+        setStatusModalSubtitle('Pilih status setelah reply dikirim');
         // Reset ke default inprocess setiap kali modal dibuka
         const defaultRadio = document.querySelector('input[name="sendStatus"][value="inprocess"]');
         if (defaultRadio) defaultRadio.checked = true;
         document.getElementById('sendStatusModal').classList.remove('hidden');
     }
 
+    // Buka modal status untuk pengiriman dokumen deliverable. Helpdesk WAJIB memilih
+    // status tiket dulu; dokumen baru dikirim setelah status dipilih (lihat confirmSendWithStatus).
+    function openDeliverableStatusModal(id) {
+        _statusModalMode      = 'deliverable';
+        _pendingDeliverableId = id;
+        setStatusModalSubtitle('Pilih status tiket sebelum dokumen dikirim');
+        document.getElementById('sendStatusModal').classList.remove('hidden');
+    }
+
     function closeSendStatusModal() {
         document.getElementById('sendStatusModal').classList.add('hidden');
-        _pendingSendType = null;
+        _pendingSendType      = null;
+        _pendingDeliverableId = null;
+        _statusModalMode      = 'reply';
     }
 
     function confirmSendWithStatus(chosenStatus) {
         document.getElementById('sendStatusModal').classList.add('hidden');
+        if (_statusModalMode === 'deliverable') {
+            const id = _pendingDeliverableId;
+            _pendingDeliverableId = null;
+            _statusModalMode      = 'reply';
+            _doSendDeliverable(id, chosenStatus || 'inprocess');
+            return;
+        }
         openConfirmSendModal(chosenStatus || 'inprocess');
     }
 
@@ -7768,7 +7812,9 @@ function renderDeliverableTable(data) {
     }
 
     const rows = data.map(d => {
-        const statusCls = d.status === 'Sended'
+        // Toleransi data lama: baris sebelum migrasi masih bisa bernilai "Sended".
+        const isSent = d.status === 'Sent' || d.status === 'Sended';
+        const statusCls = isSent
             ? 'bg-green-100 text-green-700'
             : 'bg-orange-100 text-orange-700';
 
@@ -7778,20 +7824,20 @@ function renderDeliverableTable(data) {
                 : `<span class="text-gray-600 truncate max-w-[160px] block">${escHtmlD(d.file_name)}</span>`)
             : '<span class="text-gray-300">—</span>';
 
-        const editBtn = d.status !== 'Sended'
+        const editBtn = !isSent
             ? `<button onclick="editDeliverable(${d.id})"
                 class="text-[10px] text-amber-600 hover:text-amber-800 font-semibold border border-amber-200 px-1.5 py-0.5 rounded hover:bg-amber-50 transition">
                 Edit</button>`
             : '';
 
-        const sendBtn = d.status !== 'Sended'
+        const sendBtn = !isSent
             ? `<button onclick="sendDeliverable(${d.id})"
                 class="text-[10px] text-blue-600 hover:text-blue-800 font-semibold border border-blue-200 px-1.5 py-0.5 rounded hover:bg-blue-50 transition ml-1">
                 Send to Customer</button>`
             : '';
 
         // Dokumen yang sudah dikirim ke customer tidak boleh dihapus.
-        const delBtn = d.status !== 'Sended'
+        const delBtn = !isSent
             ? `<button onclick="deleteDeliverable(${d.id})"
                 class="text-[10px] text-red-500 hover:text-red-700 font-semibold border border-red-200 px-1.5 py-0.5 rounded hover:bg-red-50 transition ml-1">
                 Delete</button>`
@@ -7893,18 +7939,43 @@ async function submitNewDoc() {
     }
 }
 
-async function sendDeliverable(id) {
-    if (!await showConfirm('Mark this document as "Sended to Customer"?', 'Send to Customer')) return;
+// Klik "Send to Customer" → wajib pilih status tiket dulu lewat modal (mirror alur reply
+// yang mengirim pesan ke email). Dokumen baru dikirim setelah status dipilih.
+function sendDeliverable(id) {
+    openDeliverableStatusModal(id);
+}
+
+// Pengiriman sebenarnya, dipanggil oleh confirmSendWithStatus setelah status dipilih.
+async function _doSendDeliverable(id, chosenStatus) {
+    // Ambil To/Cc dari kolom composer reply (sama seperti kirim pesan biasa) agar dokumen
+    // dikirim ke alamat yang diisi user, BUKAN email ticket default. Commit dulu input yang
+    // belum ter-Enter supaya nilai terakhir yang diketik ikut terkirim.
+    if (typeof commitToInput === 'function') commitToInput();
+    if (typeof commitCcInput === 'function') commitCcInput();
+    const toList = (typeof toEmails !== 'undefined' && Array.isArray(toEmails)) ? toEmails : [];
+    const ccListSend = (typeof ccEmails !== 'undefined' && Array.isArray(ccEmails)) ? ccEmails : [];
+
     const overlay = document.getElementById('deliverableLoadingOverlay');
     if (overlay) overlay.classList.remove('hidden');
     try {
         const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/send`, {
             method: 'PATCH',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            headers: {
+                'X-CSRF-TOKEN': CSRF,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            },
             credentials: 'same-origin',
+            body: JSON.stringify({
+                ticket_status: chosenStatus || null,
+                to_emails: toList,
+                cc_emails: ccListSend,
+            }),
         });
         const json = await delivParseJson(res);
         if (!json.success) throw new Error(json.message);
+        // Sinkronkan badge/label status tiket (header, panel properties, sidebar) tanpa reload.
+        if (chosenStatus && typeof updateStatusUI === 'function') updateStatusUI(chosenStatus);
         await loadDeliverables();
         // Muat ulang chat agar bubble deliverable + status email (termasuk "Tidak terkirim") ikut update.
         if (typeof loadMessages === 'function') { try { await loadMessages(); } catch (_) {} }
