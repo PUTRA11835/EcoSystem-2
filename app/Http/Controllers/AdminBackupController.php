@@ -1877,27 +1877,33 @@ class AdminBackupController extends Controller
                 continue;
             }
 
-            // Validate customer existence if the column is present and filled
+            $updateData = [];
+
+            // Validate customer existence if the column is present and filled,
+            // and resolve it to customer_id so the update actually applies it.
             if (isset($colIndex['customer'])) {
                 $rawCustomer = trim($row[$colIndex['customer']] ?? '');
                 if ($rawCustomer !== '' && $rawCustomer !== '-') {
-                    $customerExists = DB::table('customer as c')
+                    $customerUpdate = DB::table('customer as c')
                         ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
                         ->where(function ($q) use ($rawCustomer) {
                             $q->where('c.customer_code', $rawCustomer)
                               ->orWhere('cbd.name_1', $rawCustomer);
                         })
-                        ->exists();
+                        ->select('c.customer_id')
+                        ->first();
 
-                    if (!$customerExists) {
+                    if (!$customerUpdate) {
                         $errors[] = "Row {$rowNum} (#{$ticketNumber}): Customer '{$rawCustomer}' tidak ditemukan di master customer — baris dilewati";
                         $skipped++;
                         continue;
                     }
+
+                    if ($customerUpdate->customer_id != $ticket->customer_id) {
+                        $updateData['customer_id'] = $customerUpdate->customer_id;
+                    }
                 }
             }
-
-            $updateData = [];
 
             if (isset($colIndex['description'])) {
                 $raw = trim($row[$colIndex['description']] ?? '');

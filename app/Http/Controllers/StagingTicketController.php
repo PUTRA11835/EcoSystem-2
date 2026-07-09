@@ -585,9 +585,15 @@ class StagingTicketController extends Controller
             $name      = $data['name'] ?? 'attachment';
             $asciiName = str_replace(['"', '\\', "\r", "\n"], '', preg_replace('/[^\x20-\x7E]/', '_', $name));
 
+            // Browser hanya punya viewer bawaan untuk image/PDF — tipe lain (docx, xlsx, zip, dst)
+            // yang dipaksa 'inline' membuat browser fallback ke auto-download tanpa menghormati
+            // nama file dari Content-Disposition, sehingga nama file berubah jadi acak/rusak.
+            $isInline    = $data['isInline'] ?? (str_starts_with($contentType, 'image/') || $contentType === 'application/pdf');
+            $disposition = $isInline ? 'inline' : 'attachment';
+
             return response($contentBytes, 200, [
                 'Content-Type'        => $contentType,
-                'Content-Disposition' => 'inline; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($name),
+                'Content-Disposition' => $disposition . '; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($name),
                 'Content-Length'      => strlen($contentBytes),
             ]);
         } catch (\Exception $e) {
@@ -645,9 +651,15 @@ class StagingTicketController extends Controller
             $name      = $data['name'] ?? 'attachment';
             $asciiName = str_replace(['"', '\\', "\r", "\n"], '', preg_replace('/[^\x20-\x7E]/', '_', $name));
 
+            // Browser hanya punya viewer bawaan untuk image/PDF — tipe lain (docx, xlsx, zip, dst)
+            // yang dipaksa 'inline' membuat browser fallback ke auto-download tanpa menghormati
+            // nama file dari Content-Disposition, sehingga nama file berubah jadi acak/rusak.
+            $isInline    = $data['isInline'] ?? (str_starts_with($contentType, 'image/') || $contentType === 'application/pdf');
+            $disposition = $isInline ? 'inline' : 'attachment';
+
             return response($contentBytes, 200, [
                 'Content-Type'        => $contentType,
-                'Content-Disposition' => 'inline; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($name),
+                'Content-Disposition' => $disposition . '; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($name),
                 'Content-Length'      => strlen($contentBytes),
             ]);
         } catch (\Exception $e) {

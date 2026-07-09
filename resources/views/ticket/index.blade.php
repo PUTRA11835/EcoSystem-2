@@ -852,9 +852,9 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                 allTickets = data.data.sort((a, b) => new Date(b.last_message_at || b.created_at) - new Date(a.last_message_at || a.created_at));
                 populateCustomerFilter();
                 populatePicFilter();
-                updateStats();
                 // applyAdvancedFilters (bukan getViewBase langsung) supaya search/filter yang
-                // sedang aktif tidak ke-reset setiap kali data di-refresh (mis. dari polling).
+                // sedang aktif tidak ke-reset setiap kali data di-refresh (mis. dari polling) —
+                // fungsi ini juga memanggil updateStats() dengan base yang sudah difilter kolom.
                 const pageBeforeRefresh = currentPage;
                 applyAdvancedFilters();
                 // Saat silent refresh, kembalikan ke halaman semula (bukan balik ke halaman 1)
@@ -887,8 +887,57 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         showNotification(message || "You don't have access to Tickets", 'error');
     }
 
-    function updateStats() {
-        const base = getViewBase();
+    // Angka di kartu status ("Open", "Closed", dst) mengikuti filter kolom yang sedang
+    // aktif (customer, PIC, priority, scale, type, date, keyword) — TAPI sengaja tidak
+    // ikut memfilter berdasarkan kartu status itu sendiri (currentFilter), supaya klik
+    // kartu "Closed" tidak membuat kartu lain menghitung ulang dari subset "closed" saja
+    // (yang akan membuat semuanya jadi 0 kecuali Closed). Base ini dipakai bareng oleh
+    // applyAdvancedFilters() untuk membangun `filteredTickets` tabel.
+    function getColumnFilteredBase() {
+        const colCustomer = (document.getElementById('colFilterCustomer')?.value || '').toLowerCase();
+        const colPic      = (document.getElementById('colFilterPic')?.value      || '').toLowerCase();
+        const colPriority = (document.getElementById('colFilterPriority')?.value || '').split(',').filter(Boolean);
+        const colScale    = (document.getElementById('colFilterScale')?.value    || '').split(',').filter(Boolean);
+        const colStatus   = (document.getElementById('colFilterStatus')?.value   || '').split(',').filter(Boolean);
+        const colType     = (document.getElementById('colFilterType')?.value     || '').split(',').filter(Boolean);
+
+        const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
+        const dateTo   = document.getElementById('dateFilterTo')?.value   || '';
+        const fromMs = dateFrom ? new Date(dateFrom + 'T00:00:00+07:00').getTime() : null;
+        const toMs   = dateTo   ? new Date(dateTo   + 'T23:59:59+07:00').getTime() : null;
+
+        const descKw   = (document.getElementById('descFilterInput')?.value  || '').trim().toLowerCase();
+        const ticketKw = (document.getElementById('ticketFilterInput')?.value || '').trim().toLowerCase();
+
+        return getViewBase().filter(ticket => {
+            const matchColCustomer = !colCustomer || (ticket.customer?.customer_name || '').toLowerCase() === colCustomer;
+            const matchColPic      = !colPic      || (ticket.employee?.employee_name || '').toLowerCase() === colPic;
+            const matchColPriority = !colPriority.length || colPriority.includes(ticket.ticket_priority);
+            const matchColScale    = !colScale.length    || colScale.includes(String(ticket.scale ?? ''));
+            const matchColStatus   = !colStatus.length   || colStatus.includes(ticket.status);
+            const matchColType     = !colType.length     || colType.includes(ticket.ticket_type);
+
+            let matchDate = true;
+            if (fromMs !== null || toMs !== null) {
+                const created = (ticket.start_date || ticket.created_at) ? new Date(ticket.start_date || ticket.created_at).getTime() : NaN;
+                if (Number.isNaN(created)) {
+                    matchDate = false;
+                } else {
+                    if (fromMs !== null && created < fromMs) matchDate = false;
+                    if (toMs   !== null && created > toMs)   matchDate = false;
+                }
+            }
+
+            const matchDesc   = !descKw   || (ticket.description   || '').toLowerCase().includes(descKw);
+            const matchTicket = !ticketKw || (ticket.ticket_number || '').toLowerCase().includes(ticketKw);
+
+            return matchColCustomer && matchColPic && matchColPriority && matchColScale
+                && matchColStatus && matchColType && matchDate && matchDesc && matchTicket;
+        });
+    }
+
+    function updateStats(base) {
+        base = base || getColumnFilteredBase();
         document.getElementById('totalCount').textContent          = base.length;
         document.getElementById('openCount').textContent           = base.filter(t => t.status === 'open').length;
         document.getElementById('inprocessCount').textContent      = base.filter(t => t.status === 'inprocess').length;
@@ -1348,56 +1397,14 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     }
 
     function applyAdvancedFilters() {
-        const colCustomer = (document.getElementById('colFilterCustomer')?.value || '').toLowerCase();
-        const colPic      = (document.getElementById('colFilterPic')?.value      || '').toLowerCase();
-        // Multi-select column filters — stored as comma-separated values in the hidden input.
-        const colPriority = (document.getElementById('colFilterPriority')?.value || '').split(',').filter(Boolean);
-        const colScale    = (document.getElementById('colFilterScale')?.value    || '').split(',').filter(Boolean);
-        const colStatus   = (document.getElementById('colFilterStatus')?.value   || '').split(',').filter(Boolean);
-        const colType     = (document.getElementById('colFilterType')?.value     || '').split(',').filter(Boolean);
+        const base = getColumnFilteredBase();
+        filteredTickets = base.filter(ticket => currentFilter === 'all' || ticket.status === currentFilter);
 
-        // Date range filter (from-to inclusive, based on ticket.start_date ?? ticket.created_at in Asia/Jakarta)
-        const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
-        const dateTo   = document.getElementById('dateFilterTo')?.value   || '';
-        const fromMs = dateFrom ? new Date(dateFrom + 'T00:00:00+07:00').getTime() : null;
-        const toMs   = dateTo   ? new Date(dateTo   + 'T23:59:59+07:00').getTime() : null;
-
-        // Description keyword (case-insensitive substring)
-        const descKw   = (document.getElementById('descFilterInput')?.value  || '').trim().toLowerCase();
-        const ticketKw = (document.getElementById('ticketFilterInput')?.value || '').trim().toLowerCase();
-
-        filteredTickets = getViewBase().filter(ticket => {
-            const matchesCard      = currentFilter === 'all' || ticket.status === currentFilter;
-            const matchColCustomer = !colCustomer || (ticket.customer?.customer_name || '').toLowerCase() === colCustomer;
-            const matchColPic      = !colPic      || (ticket.employee?.employee_name || '').toLowerCase() === colPic;
-            const matchColPriority = !colPriority.length || colPriority.includes(ticket.ticket_priority);
-            const matchColScale    = !colScale.length    || colScale.includes(String(ticket.scale ?? ''));
-            const matchColStatus   = !colStatus.length   || colStatus.includes(ticket.status);
-            const matchColType     = !colType.length     || colType.includes(ticket.ticket_type);
-
-            let matchDate = true;
-            if (fromMs !== null || toMs !== null) {
-                const created = (ticket.start_date || ticket.created_at) ? new Date(ticket.start_date || ticket.created_at).getTime() : NaN;
-                if (Number.isNaN(created)) {
-                    matchDate = false;
-                } else {
-                    if (fromMs !== null && created < fromMs) matchDate = false;
-                    if (toMs   !== null && created > toMs)   matchDate = false;
-                }
-            }
-
-            const matchDesc   = !descKw   || (ticket.description   || '').toLowerCase().includes(descKw);
-            const matchTicket = !ticketKw || (ticket.ticket_number || '').toLowerCase().includes(ticketKw);
-
-            return matchesCard
-                && matchColCustomer && matchColPic && matchColPriority && matchColScale
-                && matchColStatus && matchColType
-                && matchDate && matchDesc && matchTicket;
-        });
         updateColFilterIndicators();
         updateDateFilterIndicator();
         updateDescFilterIndicator();
         updateTicketFilterIndicator();
+        updateStats(base);
         currentPage = 1;
         renderTickets();
     }
