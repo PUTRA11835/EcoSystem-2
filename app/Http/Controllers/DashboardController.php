@@ -664,11 +664,14 @@ class DashboardController extends Controller
                     ->whereIn('t.ticket_id', $ticketIds)
                     ->leftJoin('customer as c', 't.customer_id', '=', 'c.customer_id')
                     ->leftJoin('customer_basic_data as cbd', 'c.customer_id', '=', 'cbd.customer_id')
+                    ->leftJoin('employee as e', 't.ticket_lead_id', '=', 'e.employee_id')
+                    ->leftJoin('employee_basic_data as ebd', 'e.employee_id', '=', 'ebd.employee_id')
                     ->leftJoin('ticket_sla as ts', 't.ticket_id', '=', 'ts.ticket_id')
                     ->select(
                         't.ticket_id', 't.ticket_number', 't.description',
                         't.status', 't.ticket_priority', 't.updated_at', 't.created_at',
                         'cbd.name_1 as customer_name',
+                        DB::raw("COALESCE(TRIM(CONCAT(COALESCE(ebd.first_name,''),' ',COALESCE(ebd.last_name,''))), 'Unassigned') as pic_name"),
                         DB::raw("IF(t.ticket_lead_id = {$employeeId}, 1, 0) as is_pic"),
                         'ts.resolution_status as sla_status',
                         'ts.resolution_due_at as sla_due_at',

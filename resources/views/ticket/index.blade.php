@@ -1131,7 +1131,12 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             {{-- Type --}}
             ${cell(ticket.ticket_type ? badge(typeLabel, typeCls) : '<span class="text-gray-300 text-xs">—</span>')}
             {{-- Assign Delivery --}}
-            ${dash()}
+            <td class="px-3 py-3 whitespace-nowrap">
+                ${ticket.delivery?.delivery_name
+                    ? `<span class="text-xs font-semibold text-gray-700" title="${(ticket.delivery.delivery_label||ticket.delivery.delivery_name).replace(/"/g,'&quot;')}">${ticket.delivery.delivery_name}</span>
+                       ${ticket.delivery.client_name ? `<span class="block text-[11px] text-gray-400 mt-0.5">${ticket.delivery.client_name}</span>` : ''}`
+                    : `<span class="text-xs text-gray-300 italic">Unassigned</span>`}
+            </td>
             {{-- Customer Mandays --}}
             ${cell(mandays !== '—' ? `<span class="font-semibold text-gray-700">${mandays}</span>` : '<span class="text-gray-300 text-xs">—</span>')}
             {{-- Progress --}}
