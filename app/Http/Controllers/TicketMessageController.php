@@ -1131,6 +1131,131 @@ class TicketMessageController extends Controller
     }
 
     /**
+     * Kirim reply dari Lite API (mobile) — alur email-first sama dengan store() versi
+     * web: kirim ke customer (To/CC dari ticket, atau override dari $ccOverride/$toList
+     * bila dikirim) via M365 Graph, fallback tersimpan sebagai pesan 'web' bila email
+     * gagal/tidak ada penerima, lalu update status tiket, notifikasi PIC/member, dan
+     * SLA event. Lite API belum punya endpoint upload attachment untuk chat, jadi
+     * reply di sini selalu tanpa lampiran.
+     *
+     * @param  array{id:int, name:string, nick_name?:string|null} $sender
+     * @param  array|null $ccOverride  Daftar CC baru (array string/objek {address,name}). null = pakai CC tiket saat ini.
+     * @param  array|null $toList      Daftar TO baru, item pertama jadi primary recipient, sisanya additional.
+     *                                 null = pakai resolveCustomerEmail() (perilaku lama/legacy).
+     *                                 [] (array kosong, eksplisit dikirim) = tidak ada primary TO (kirim CC-only jika ada CC).
+     * @return array{message: TicketMessage, email_failed: bool}
+     */
+    public function sendLiteReply(Ticket $ticket, array $sender, string $messageHtml, ?string $chosenStatus = null, ?array $ccOverride = null, ?array $toList = null): array
+    {
+        $ticketId = $ticket->ticket_id;
+        $senderId = (int) $sender['id'];
+
+        // Reply publik selalu tampil sebagai "Helpdesk Support" (email dikirim dari M365 shared inbox)
+        $senderName = 'Helpdesk Support';
+
+        $nickName = $sender['nick_name'] ?? null;
+        if (!$nickName) {
+            $nickName = DB::table('employee_basic_data')->where('employee_id', $senderId)->value('nick_name');
+        }
+        if (!$nickName) {
+            $nickName = explode(' ', $sender['name'] ?? 'Helpdesk')[0];
+        }
+
+        $messageBody = $messageHtml;
+        if ($nickName) {
+            $nick = htmlspecialchars($nickName, ENT_QUOTES, 'UTF-8');
+            $messageBody .= '<p style="margin-top:4px;color:#6b7280;font-style:italic;">-' . $nick . '</p>';
+        }
+
+        $ticket->loadMissing('members');
+
+        // Simpan CC/TO baru ke ticket (persist) agar reply berikutnya — dari web
+        // maupun mobile — ikut memakai daftar yang sama, sama seperti store() web.
+        if ($ccOverride !== null) {
+            $ticket->update(['cc_emails' => $ccOverride]);
+            $ticket->refresh();
+        }
+        if ($toList !== null) {
+            $ticket->update(['to_emails' => $toList]);
+            $ticket->refresh();
+        }
+
+        $toProvided       = $toList !== null;
+        $primaryTo         = $toProvided ? ($toList[0] ?? null) : null;
+        $additionalToList  = $toProvided && count($toList) > 1 ? array_slice($toList, 1) : [];
+
+        $message = $this->sendEmailThenSave($ticket, [
+            'sender_type'  => 'employee',
+            'sender_id'    => $senderId,
+            'sender_name'  => $senderName,
+            'message'      => trim(strip_tags($messageBody)),
+            'message_html' => $messageBody,
+        ], [], $ticketId, $senderId, $ccOverride, $primaryTo, $additionalToList, $toProvided);
+
+        if (!$message) {
+            // Fallback: tidak ada email customer, atau email GAGAL dikirim.
+            $failedReason = $this->lastEmailError;
+            $message = TicketMessage::create([
+                'ticket_id'               => $ticketId,
+                'sender_type'             => 'employee',
+                'sender_id'               => $senderId,
+                'sender_name'             => $senderName,
+                'message'                 => trim(strip_tags($messageBody)),
+                'message_html'            => $messageBody,
+                'is_internal_note'        => false,
+                'channel'                 => 'web',
+                'email_status'            => $failedReason ? 'failed' : null,
+                'email_error'             => $failedReason,
+                'email_failed_recipients' => !empty($this->lastEmailFailedRecipients) ? $this->lastEmailFailedRecipients : null,
+                'cc_emails'               => !empty($ccOverride) ? $ccOverride : null,
+                'is_read_by_customer'     => false,
+                'is_read_by_agent'        => true,
+            ]);
+        }
+
+        $ticketUpdateFields = ['last_agent_reply_at' => now(), 'last_message_at' => now()];
+        if ($chosenStatus) {
+            $ticketUpdateFields['status'] = $chosenStatus;
+        }
+        $ticket->update($ticketUpdateFields);
+        $this->markTicketReadForSender($ticketId, $senderId);
+
+        $replyPreview = mb_substr(strip_tags($messageBody), 0, 100);
+        $this->notifyTicketParticipants(
+            $ticket, $message, $senderId, $senderName,
+            'ticket_reply',
+            $senderName . ' replied: ' . ($replyPreview ?: '(reply)')
+        );
+
+        if ($ticket->customer_id) {
+            \App\Services\CustomerNotificationService::notify(
+                customerId: (int) $ticket->customer_id,
+                type:       'ticket_reply',
+                ticketId:   (int) $ticket->ticket_id,
+                fromName:   $senderName,
+                preview:    \Illuminate\Support\Str::limit(strip_tags($messageBody), 100),
+                link:       '/tickets/' . $ticket->ticket_id,
+            );
+        }
+
+        try {
+            $ticket->refresh();
+            app(SlaService::class)->recordMessageEvent($ticket, $message, 'employee', $chosenStatus ?? $ticket->status);
+        } catch (\Throwable $e) {
+            Log::warning('TicketMessageController@sendLiteReply: SLA record gagal (non-fatal)', [
+                'ticket_id'  => $ticketId,
+                'message_id' => $message->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
+
+        return [
+            'message'      => $message->fresh(['attachments', 'replyTo']),
+            'email_failed' => in_array($message->email_status, ['failed', 'partial'], true),
+        ];
+    }
+
+    /**
      * Kirim email sistem (mis. meeting invitation) ke customer menggunakan infrastruktur
      * yang SAMA dengan sendEmailThenSave — threading, resolve email, logging semuanya
      * seragam dengan reply biasa. Setelah TicketMessage tersimpan, message_type diupdate.

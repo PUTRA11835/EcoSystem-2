@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\Lite\LiteAuthController;
 use App\Http\Controllers\Lite\LiteDashboardController;
 use App\Http\Controllers\Lite\LiteTicketController;
@@ -47,7 +48,15 @@ Route::middleware(['web'])->prefix('lite')->group(function () {
             Route::patch('/{id}/status',           [LiteTicketController::class, 'updateStatus'])->name('update-status');
             Route::get('/{ticketId}/messages',     [LiteTicketController::class, 'getMessages'])->name('messages');
             Route::post('/{ticketId}/messages',    [LiteTicketController::class, 'addMessage'])->name('add-message');
+            Route::post('/{ticketId}/messages/{messageId}/internal-note',        [LiteTicketController::class, 'updateInternalNote'])->name('update-internal-note');
+            Route::delete('/{ticketId}/messages/{messageId}/internal-note',      [LiteTicketController::class, 'destroyInternalNote'])->name('delete-internal-note');
+            Route::post('/{ticketId}/messages/{messageId}/internal-note/delete', [LiteTicketController::class, 'destroyInternalNote'])->name('delete-internal-note-post');
         });
+
+        // Attachments (dipakai untuk menampilkan gambar/lampiran di bubble chat)
+        Route::get('/attachments/{id}', [AttachmentController::class, 'show'])
+            ->where('id', '[0-9]+')
+            ->name('lite.attachments.show');
 
         // Profile
         Route::prefix('profile')->name('lite.profile.')->group(function () {

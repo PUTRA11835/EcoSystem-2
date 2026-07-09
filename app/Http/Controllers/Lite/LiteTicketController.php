@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Lite;
 
 use App\Enums\RoleId;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\TicketMessageController;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
 use Illuminate\Http\Request;
@@ -35,7 +36,7 @@ class LiteTicketController extends Controller
             $priority   = $request->query('priority');
             $search     = $request->query('search');
 
-            $query = Ticket::with(['customer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+            $query = Ticket::with(['customer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'deliverySupportActivities.deliverySupport.client.basicData'])
                 ->whereNull('is_hidden');
 
             // ── Scope berdasarkan role ────────────────────────────────────────
@@ -108,6 +109,7 @@ class LiteTicketController extends Controller
                 'ticketLead.basicData',
                 'members.basicData',
                 'sla.policy',
+                'deliverySupportActivities.deliverySupport.client.basicData',
             ])->find($id);
 
             if (!$ticket) {
@@ -187,7 +189,9 @@ class LiteTicketController extends Controller
 
     /**
      * Tambah pesan ke tiket (internal note atau reply).
-     * Hanya mendukung pesan teks/HTML — tidak termasuk integrasi email.
+     * Reply dikirim email-first ke customer (via M365 Graph, sama seperti web) —
+     * lihat TicketMessageController::sendLiteReply(). Internal note tidak pernah
+     * dikirim ke email. Lite API belum mendukung lampiran untuk chat.
      *
      * POST /api/lite/tickets/{ticketId}/messages
      */
@@ -208,7 +212,12 @@ class LiteTicketController extends Controller
                 'message'          => 'required|string|min:1',
                 'message_type'     => 'nullable|in:reply,internal_note',
                 'is_internal_note' => 'nullable|boolean',
-                'reply_to_id'      => 'nullable|integer|exists:ticket_messages,id',
+                'reply_to_id'      => 'nullable|integer|exists:ticket_message,id',
+                'ticket_status'    => 'nullable|in:inprocess,waiting_on_customer,waiting_to_confirmation,waiting_on_3rd_party,hold',
+                // to_emails/cc_emails: hanya dipakai untuk message_type=reply. Boleh array
+                // objek {address,name}, array string, atau JSON string dari objek tsb.
+                'to_emails'        => 'nullable',
+                'cc_emails'        => 'nullable',
             ]);
 
             if ($validator->fails()) {
@@ -222,34 +231,221 @@ class LiteTicketController extends Controller
             $isInternalNote = $request->boolean('is_internal_note')
                 || $request->input('message_type') === 'internal_note';
 
-            $message = TicketMessage::create([
-                'ticket_id'        => $ticketId,
-                'sender_type'      => 'employee',
-                'sender_id'        => $user['id'],
-                'sender_name'      => $user['name'],
-                'sender_email'     => $user['email'] ?? null,
-                'message'          => strip_tags($request->message),
-                'message_html'     => $request->message,
-                'message_type'     => $isInternalNote ? 'internal_note' : 'reply',
-                'is_internal_note' => $isInternalNote,
-                'reply_to_id'      => $request->reply_to_id,
-                'channel'          => 'web',
-                'created_at'       => now(),
-                'updated_at'       => now(),
-            ]);
+            $emailFailed = false;
 
-            // Update last_message_at pada tiket
-            $ticket->update(['last_message_at' => now()]);
+            if ($isInternalNote) {
+                $message = TicketMessage::create([
+                    'ticket_id'           => $ticketId,
+                    'sender_type'         => 'employee',
+                    'sender_id'           => $user['id'],
+                    'sender_name'         => $user['name'],
+                    'sender_email'        => $user['email'] ?? null,
+                    'message'             => strip_tags($request->message),
+                    'message_html'        => $request->message,
+                    'message_type'        => 'internal_note',
+                    'is_internal_note'    => true,
+                    'reply_to_id'         => $request->reply_to_id,
+                    'channel'             => 'web',
+                    'is_read_by_customer' => false,
+                    'is_read_by_agent'    => true,
+                    'created_at'          => now(),
+                    'updated_at'          => now(),
+                ]);
+
+                $ticket->update([
+                    'last_message_at'              => now(),
+                    'last_internal_note_at'        => now(),
+                    'last_internal_note_sender_id' => $user['id'],
+                ]);
+            } else {
+                // Parse CC — array, atau JSON string berisi array. null = tidak dikirim
+                // (pakai CC tiket saat ini); [] eksplisit = hapus semua CC.
+                $requestCcRaw = $request->input('cc_emails');
+                $requestCc    = null;
+                if ($requestCcRaw !== null) {
+                    $requestCc = is_array($requestCcRaw) ? $requestCcRaw : (json_decode($requestCcRaw, true) ?? []);
+                }
+
+                // Parse TO — item pertama jadi primary recipient, sisanya additional.
+                // null = tidak dikirim (fallback ke resolveCustomerEmail/legacy).
+                $requestToRaw = $request->input('to_emails');
+                $requestTo    = null;
+                if ($requestToRaw !== null) {
+                    $decoded   = is_array($requestToRaw) ? $requestToRaw : (json_decode($requestToRaw, true) ?? []);
+                    $requestTo = array_values(array_filter(array_map(
+                        fn ($e) => is_string($e) ? trim($e) : (is_array($e) ? trim((string) ($e['address'] ?? '')) : ''),
+                        $decoded
+                    )));
+                }
+
+                // Reply — email-first ke customer (To/CC dari request bila dikirim,
+                // fallback ke To/CC tiket), fallback tersimpan internal bila email
+                // gagal/tidak ada penerima.
+                $result = app(TicketMessageController::class)->sendLiteReply(
+                    $ticket,
+                    [
+                        'id'        => (int) $user['id'],
+                        'name'      => $user['name'],
+                        'nick_name' => $user['nick_name'] ?? null,
+                    ],
+                    $request->message,
+                    $request->input('ticket_status'),
+                    $requestCc,
+                    $requestTo
+                );
+
+                $message     = $result['message'];
+                $emailFailed = $result['email_failed'];
+
+                if ($request->reply_to_id) {
+                    $message->update(['reply_to_id' => $request->reply_to_id]);
+                }
+            }
 
             return response()->json([
-                'success' => true,
-                'message' => 'Message sent successfully.',
-                'data'    => $this->formatMessage($message->fresh(['attachments', 'replyTo']), $ticket),
+                'success'      => true,
+                'message'      => 'Message sent successfully.',
+                'email_failed' => $emailFailed,
+                'email_status' => $message->email_status,
+                'email_error'  => $message->email_error,
+                'data'         => $this->formatMessage($message->fresh(['attachments', 'replyTo']), $ticket),
             ], 201);
 
         } catch (\Exception $e) {
             Log::error('LiteTicketController@addMessage error', ['error' => $e->getMessage(), 'ticket_id' => $ticketId]);
             return response()->json(['success' => false, 'message' => 'Failed to send message.'], 500);
+        }
+    }
+
+    /**
+     * Edit internal note milik sendiri (dalam 10 menit sejak dibuat) — Lite API.
+     * Aturan identik dengan TicketMessageController::updateInternalNote() (web):
+     * hanya sender sendiri, dalam window 10 menit, dan note belum dihapus.
+     *
+     * POST /api/lite/tickets/{ticketId}/messages/{messageId}/internal-note
+     */
+    public function updateInternalNote(Request $request, int $ticketId, int $messageId)
+    {
+        try {
+            $user = $this->resolveUser($request);
+            if (!$user) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+            }
+
+            $message = TicketMessage::where('ticket_id', $ticketId)
+                ->where('id', $messageId)
+                ->where('is_internal_note', true)
+                ->first();
+
+            if (!$message) {
+                return response()->json(['success' => false, 'message' => 'Note not found.'], 404);
+            }
+
+            if ((int) $message->sender_id !== (int) ($user['id'] ?? 0)) {
+                return response()->json(['success' => false, 'message' => 'You can only edit your own notes.'], 403);
+            }
+
+            if ($message->created_at->addMinutes(10)->isPast()) {
+                return response()->json(['success' => false, 'message' => 'Notes can only be edited within 10 minutes of posting.'], 403);
+            }
+
+            if ($message->is_deleted) {
+                return response()->json(['success' => false, 'message' => 'Cannot edit a deleted note.'], 422);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'message' => 'required|string|min:1',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $validator->errors()->first(),
+                    'errors'  => $validator->errors(),
+                ], 422);
+            }
+
+            $message->update([
+                'message'      => strip_tags($request->message),
+                'message_html' => $request->message,
+                'edited_at'    => now(),
+            ]);
+
+            $ticket = Ticket::find($ticketId);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Note updated.',
+                'data'    => $this->formatMessage($message->fresh(['attachments', 'replyTo']), $ticket),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('LiteTicketController@updateInternalNote error', [
+                'error'      => $e->getMessage(),
+                'ticket_id'  => $ticketId,
+                'message_id' => $messageId,
+            ]);
+            return response()->json(['success' => false, 'message' => 'Failed to update note.'], 500);
+        }
+    }
+
+    /**
+     * Soft-delete (unsend) internal note — Lite API.
+     * Aturan identik dengan TicketMessageController::destroyInternalNote() (web):
+     * sender sendiri dalam window 10 menit, atau admin (EC_ADMINISTRATOR) kapan saja.
+     *
+     * DELETE /api/lite/tickets/{ticketId}/messages/{messageId}/internal-note
+     */
+    public function destroyInternalNote(Request $request, int $ticketId, int $messageId)
+    {
+        try {
+            $user = $this->resolveUser($request);
+            if (!$user) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+            }
+
+            $message = TicketMessage::where('ticket_id', $ticketId)
+                ->where('id', $messageId)
+                ->where('is_internal_note', true)
+                ->first();
+
+            if (!$message) {
+                return response()->json(['success' => false, 'message' => 'Note not found.'], 404);
+            }
+
+            $roleIds = !empty($user['role_ids'])
+                ? array_map('intval', $user['role_ids'])
+                : DB::table('employee_role_assignment')
+                    ->where('employee_id', (int) ($user['id'] ?? 0))
+                    ->pluck('role_id')->map(fn ($id) => (int) $id)->toArray();
+
+            $isAdmin  = in_array(RoleId::EC_ADMINISTRATOR->value, $roleIds, true);
+            $isSender = $message->sender_id !== null
+                && (int) $message->sender_id === (int) ($user['id'] ?? 0);
+
+            if (!$isAdmin && !$isSender) {
+                return response()->json(['success' => false, 'message' => 'You can only delete your own notes.'], 403);
+            }
+
+            if (!$isAdmin && $message->created_at->addMinutes(10)->isPast()) {
+                return response()->json(['success' => false, 'message' => 'Notes can only be deleted within 10 minutes of posting.'], 403);
+            }
+
+            if ($message->is_deleted) {
+                return response()->json(['success' => false, 'message' => 'Note already deleted.'], 422);
+            }
+
+            $message->update(['is_deleted' => true]);
+
+            return response()->json(['success' => true, 'message' => 'Note deleted.']);
+
+        } catch (\Exception $e) {
+            Log::error('LiteTicketController@destroyInternalNote error', [
+                'error'      => $e->getMessage(),
+                'ticket_id'  => $ticketId,
+                'message_id' => $messageId,
+            ]);
+            return response()->json(['success' => false, 'message' => 'Failed to delete note.'], 500);
         }
     }
 
@@ -350,7 +546,7 @@ class LiteTicketController extends Controller
             $priority   = $request->query('priority');
             $search     = $request->query('search');
 
-            $query = Ticket::with(['customer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+            $query = Ticket::with(['customer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'deliverySupportActivities.deliverySupport.client.basicData'])
                 ->whereNull('is_hidden')
                 ->where(function ($q) use ($employeeId) {
                     $q->where('ticket_lead_id', $employeeId)
@@ -470,6 +666,29 @@ class LiteTicketController extends Controller
                 'resolution_due_at' => $ticket->sla->resolution_due_at,
                 'response_status'   => $ticket->sla->response_status,
             ] : null,
+            'delivery' => $this->formatDelivery($ticket),
+        ];
+    }
+
+    /** Delivery support tempat tiket ini ditangani (via delivery_support_activities) */
+    private function formatDelivery(Ticket $ticket): ?array
+    {
+        $deliverySupport = $ticket->deliverySupportActivities->first()?->deliverySupport;
+        if (!$deliverySupport) {
+            return null;
+        }
+
+        $clientName = $deliverySupport->client?->basicData?->name_1;
+
+        return [
+            'delivery_id'    => $deliverySupport->id,
+            'delivery_name'  => $deliverySupport->name,
+            'delivery_type'  => $deliverySupport->type,
+            'client_name'    => $clientName,
+            // Format sama dengan dropdown "Assign to Delivery Support" di web: "{name} ({client}), {type}"
+            'delivery_label' => trim($deliverySupport->name
+                . ($clientName ? " ({$clientName})" : '')
+                . ($deliverySupport->type ? ", {$deliverySupport->type}" : '')),
         ];
     }
 
@@ -486,6 +705,12 @@ class LiteTicketController extends Controller
             'last_agent_reply_at'      => $ticket->last_agent_reply_at,
             'end_customer_id'          => $ticket->end_customer_id,
             'end_customer_name'        => $ticket->endCustomer?->basicData?->name_1,
+            // Untuk pre-fill composer reply di mobile — nilai To/CC tersimpan
+            // terakhir (hasil reply sebelumnya dari web/mobile). Kirim balik field
+            // yang sama saat POST .../messages untuk mempertahankannya, atau kirim
+            // daftar baru untuk override (lihat POST /tickets/{ticketId}/messages).
+            'to_emails'                => $ticket->to_emails ?? [],
+            'cc_emails'                => $ticket->cc_emails ?? [],
             'sla_detail' => $ticket->sla ? [
                 'target_response_hours'   => $ticket->sla->policy?->response_hours,
                 'response_time_hours'     => $ticket->sla->validation_duration_hours,
@@ -524,15 +749,21 @@ class LiteTicketController extends Controller
             'reply_to_id'         => $message->reply_to_id,
             'reply_to_preview'    => $replyToPreview,
             'channel'             => $message->channel ?? 'web',
+            'email_status'        => $message->email_status,
+            'email_error'         => $message->email_error,
             'is_read_by_customer' => $message->is_read_by_customer,
             'is_read_by_agent'    => $message->is_read_by_agent,
             'is_deleted'          => (bool) $message->is_deleted,
+            'edited_at'           => $message->edited_at?->toIso8601String(),
             'is_highlighted'      => $highlightMessageId !== null && $message->id === $highlightMessageId,
             'attachments'         => $message->attachments?->map(fn ($att) => [
                 'id'        => $att->id,
                 'file_name' => $att->file_name,
                 'file_size' => $att->file_size,
                 'mime_type' => $att->mime_type,
+                // Selalu lewat proxy Lite API (Bearer token), bukan public_url (butuh session web).
+                'url'       => route('lite.attachments.show', $att->id),
+                'is_image'  => $att->is_image,
             ]) ?? [],
             'created_at' => $message->created_at,
         ];

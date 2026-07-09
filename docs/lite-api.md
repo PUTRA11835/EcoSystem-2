@@ -11,29 +11,31 @@
 1. [Mekanisme Autentikasi](#1-mekanisme-autentikasi)
 2. [Alur Penggunaan API](#2-alur-penggunaan-api)
 3. [Endpoint Auth](#3-endpoint-auth)
-   - [POST /auth/login](#31-post-authlogin)
-   - [POST /auth/logout](#32-post-authlogout)
-   - [GET /auth/me](#33-get-authme)
+    - [POST /auth/login](#31-post-authlogin)
+    - [POST /auth/logout](#32-post-authlogout)
+    - [GET /auth/me](#33-get-authme)
 4. [Endpoint Dashboard](#4-endpoint-dashboard)
-   - [GET /dashboard](#41-get-dashboard)
+    - [GET /dashboard](#41-get-dashboard)
 5. [Endpoint Tiket](#5-endpoint-tiket)
-   - [GET /tickets](#51-get-tickets)
-   - [GET /tickets/statistics](#52-get-ticketsstatistics)
-   - [GET /tickets/{id}](#53-get-ticketsid)
-   - [PATCH /tickets/{id}/status](#54-patch-ticketsidstatus)
-   - [GET /tickets/{ticketId}/messages](#55-get-ticketsticketidmessages)
-   - [POST /tickets/{ticketId}/messages](#56-post-ticketsticketidmessages)
-   - [GET /tickets/my](#57-get-ticketsmy)
+    - [GET /tickets](#51-get-tickets)
+    - [GET /tickets/statistics](#52-get-ticketsstatistics)
+    - [GET /tickets/{id}](#53-get-ticketsid)
+    - [PATCH /tickets/{id}/status](#54-patch-ticketsidstatus)
+    - [GET /tickets/{ticketId}/messages](#55-get-ticketsticketidmessages)
+    - [POST /tickets/{ticketId}/messages](#56-post-ticketsticketidmessages)
+    - [POST /tickets/{ticketId}/messages/{messageId}/internal-note](#57-post-ticketsticketidmessagesmessageidinternal-note)
+    - [DELETE /tickets/{ticketId}/messages/{messageId}/internal-note](#58-delete-ticketsticketidmessagesmessageidinternal-note)
+    - [GET /tickets/my](#59-get-ticketsmy)
 6. [Endpoint Profil](#6-endpoint-profil)
-   - [GET /profile](#61-get-profile)
-   - [PATCH /profile/change-password](#62-patch-profilechange-password)
+    - [GET /profile](#61-get-profile)
+    - [PATCH /profile/change-password](#62-patch-profilechange-password)
 7. [Endpoint Notifikasi](#7-endpoint-notifikasi)
-   - [GET /notifications](#71-get-notifications)
-   - [GET /notifications/unread-count](#72-get-notificationsunread-count)
-   - [PUT /notifications/{id}/read](#73-put-notificationsidread)
-   - [PUT /notifications/read-all](#74-put-notificationsread-all)
-   - [DELETE /notifications/{id}](#75-delete-notificationsid)
-   - [DELETE /notifications/bulk-delete](#76-delete-notificationsbulk-delete)
+    - [GET /notifications](#71-get-notifications)
+    - [GET /notifications/unread-count](#72-get-notificationsunread-count)
+    - [PUT /notifications/{id}/read](#73-put-notificationsidread)
+    - [PUT /notifications/read-all](#74-put-notificationsread-all)
+    - [DELETE /notifications/{id}](#75-delete-notificationsid)
+    - [DELETE /notifications/bulk-delete](#76-delete-notificationsbulk-delete)
 8. [Kode Status HTTP](#8-kode-status-http)
 9. [Daftar Nilai Enum](#9-daftar-nilai-enum)
 10. [Catatan Penting](#10-catatan-penting)
@@ -61,13 +63,14 @@ Browser akan otomatis menyimpan dan mengirim session cookie (`ecosystem-session`
 
 ### Endpoint Publik (Tidak perlu autentikasi)
 
-| Endpoint | Keterangan |
-|----------|-----------|
+| Endpoint                    | Keterangan                                      |
+| --------------------------- | ----------------------------------------------- |
 | `POST /api/lite/auth/login` | Login — satu-satunya endpoint tanpa autentikasi |
 
 ### Semua Endpoint Lain
 
 Wajib menyertakan salah satu dari:
+
 - Header `Authorization: Bearer <token>`, **atau**
 - Session cookie yang valid dari browser
 
@@ -108,25 +111,25 @@ Login ke sistem. Mengembalikan token dan data user.
 
 #### Request Headers
 
-| Header | Value | Wajib |
-|--------|-------|-------|
-| Content-Type | `application/json` | Ya |
+| Header       | Value              | Wajib |
+| ------------ | ------------------ | ----- |
+| Content-Type | `application/json` | Ya    |
 
 #### Request Body
 
-| Field | Type | Wajib | Deskripsi |
-|-------|------|-------|-----------|
-| `email` | `string` | Ya | Email, username (ECI), atau nomor telepon |
-| `password` | `string` | Ya | Password (min 6 karakter) |
-| `remember` | `boolean` | Tidak | Aktifkan remember-me cookie |
+| Field      | Type      | Wajib | Deskripsi                                 |
+| ---------- | --------- | ----- | ----------------------------------------- |
+| `email`    | `string`  | Ya    | Email, username (ECI), atau nomor telepon |
+| `password` | `string`  | Ya    | Password (min 6 karakter)                 |
+| `remember` | `boolean` | Tidak | Aktifkan remember-me cookie               |
 
 #### Contoh Request
 
 ```json
 {
-  "email": "john.doe@company.com",
-  "password": "secretpassword123",
-  "remember": false
+    "email": "john.doe@company.com",
+    "password": "secretpassword123",
+    "remember": false
 }
 ```
 
@@ -134,31 +137,29 @@ Login ke sistem. Mengembalikan token dan data user.
 
 ```json
 {
-  "success": true,
-  "message": "Login successful",
-  "data": {
-    "token": "RUNJTDE3fDE3NTExMjM0NTZ8ZW1wbG95ZWU=",
-    "user": {
-      "id": 42,
-      "type": "employee",
-      "employee_type": "Internal",
-      "eci": "ECI017",
-      "name": "John Doe",
-      "nick_name": "John",
-      "email": "john.doe@company.com",
-      "phone": "081234567890",
-      "position": "Consultant",
-      "department": "IT Services",
-      "role": {
-        "id": 2,
-        "name": "Delivery Support User"
-      },
-      "role_ids": [2],
-      "roles": [
-        { "id": 2, "name": "Delivery Support User" }
-      ]
+    "success": true,
+    "message": "Login successful",
+    "data": {
+        "token": "RUNJTDE3fDE3NTExMjM0NTZ8ZW1wbG95ZWU=",
+        "user": {
+            "id": 42,
+            "type": "employee",
+            "employee_type": "Internal",
+            "eci": "ECI017",
+            "name": "John Doe",
+            "nick_name": "John",
+            "email": "john.doe@company.com",
+            "phone": "081234567890",
+            "position": "Consultant",
+            "department": "IT Services",
+            "role": {
+                "id": 2,
+                "name": "Delivery Support User"
+            },
+            "role_ids": [2],
+            "roles": [{ "id": 2, "name": "Delivery Support User" }]
+        }
     }
-  }
 }
 ```
 
@@ -166,10 +167,10 @@ Login ke sistem. Mengembalikan token dan data user.
 
 ```json
 {
-  "success": true,
-  "require_password_change": true,
-  "message": "Please check your email to set up your new password.",
-  "email": "jo**@company.com"
+    "success": true,
+    "require_password_change": true,
+    "message": "Please check your email to set up your new password.",
+    "email": "jo**@company.com"
 }
 ```
 
@@ -179,8 +180,8 @@ Login ke sistem. Mengembalikan token dan data user.
 
 ```json
 {
-  "success": false,
-  "message": "Invalid email or password"
+    "success": false,
+    "message": "Invalid email or password"
 }
 ```
 
@@ -188,8 +189,8 @@ Login ke sistem. Mengembalikan token dan data user.
 
 ```json
 {
-  "success": false,
-  "message": "Your account does not have access to this system. Please contact your administrator."
+    "success": false,
+    "message": "Your account does not have access to this system. Please contact your administrator."
 }
 ```
 
@@ -197,12 +198,12 @@ Login ke sistem. Mengembalikan token dan data user.
 
 ```json
 {
-  "success": false,
-  "message": "The email field is required.",
-  "errors": {
-    "email": ["The email field is required."],
-    "password": ["The password field is required."]
-  }
+    "success": false,
+    "message": "The email field is required.",
+    "errors": {
+        "email": ["The email field is required."],
+        "password": ["The password field is required."]
+    }
 }
 ```
 
@@ -218,10 +219,10 @@ Logout dari sistem. Menghapus session dan mencatat aktivitas logout.
 
 #### Request Headers
 
-| Header | Value | Wajib |
-|--------|-------|-------|
-| Authorization | `Bearer <token>` | Ya (jika tidak pakai cookie) |
-| Content-Type | `application/json` | Ya |
+| Header        | Value              | Wajib                        |
+| ------------- | ------------------ | ---------------------------- |
+| Authorization | `Bearer <token>`   | Ya (jika tidak pakai cookie) |
+| Content-Type  | `application/json` | Ya                           |
 
 #### Contoh Request
 
@@ -234,8 +235,8 @@ Authorization: Bearer RUNJTDE3fDE3NTExMjM0NTZ8ZW1wbG95ZWU=
 
 ```json
 {
-  "success": true,
-  "message": "Logout successful"
+    "success": true,
+    "message": "Logout successful"
 }
 ```
 
@@ -243,8 +244,8 @@ Authorization: Bearer RUNJTDE3fDE3NTExMjM0NTZ8ZW1wbG95ZWU=
 
 ```json
 {
-  "success": false,
-  "message": "An error occurred during logout"
+    "success": false,
+    "message": "An error occurred during logout"
 }
 ```
 
@@ -260,35 +261,33 @@ Mengambil data user yang sedang login berdasarkan token atau session.
 
 #### Request Headers
 
-| Header | Value | Wajib |
-|--------|-------|-------|
+| Header        | Value            | Wajib                        |
+| ------------- | ---------------- | ---------------------------- |
 | Authorization | `Bearer <token>` | Ya (jika tidak pakai cookie) |
 
 #### Contoh Response Sukses (200)
 
 ```json
 {
-  "success": true,
-  "data": {
-    "id": 42,
-    "type": "employee",
-    "employee_type": "Internal",
-    "eci": "ECI017",
-    "name": "John Doe",
-    "nick_name": "John",
-    "email": "john.doe@company.com",
-    "phone": "081234567890",
-    "position": "Consultant",
-    "department": "IT Services",
-    "role": {
-      "id": 2,
-      "name": "Delivery Support User"
-    },
-    "role_ids": [2],
-    "roles": [
-      { "id": 2, "name": "Delivery Support User" }
-    ]
-  }
+    "success": true,
+    "data": {
+        "id": 42,
+        "type": "employee",
+        "employee_type": "Internal",
+        "eci": "ECI017",
+        "name": "John Doe",
+        "nick_name": "John",
+        "email": "john.doe@company.com",
+        "phone": "081234567890",
+        "position": "Consultant",
+        "department": "IT Services",
+        "role": {
+            "id": 2,
+            "name": "Delivery Support User"
+        },
+        "role_ids": [2],
+        "roles": [{ "id": 2, "name": "Delivery Support User" }]
+    }
 }
 ```
 
@@ -296,8 +295,8 @@ Mengambil data user yang sedang login berdasarkan token atau session.
 
 ```json
 {
-  "success": false,
-  "message": "Unauthenticated"
+    "success": false,
+    "message": "Unauthenticated"
 }
 ```
 
@@ -315,82 +314,82 @@ Mengambil data dashboard yang disesuaikan berdasarkan role user yang sedang logi
 
 #### Request Headers
 
-| Header | Value | Wajib |
-|--------|-------|-------|
+| Header        | Value            | Wajib                        |
+| ------------- | ---------------- | ---------------------------- |
 | Authorization | `Bearer <token>` | Ya (jika tidak pakai cookie) |
 
 #### Contoh Response Sukses (200) — EC Administrator
 
 ```json
 {
-  "success": true,
-  "data": {
-    "employee": 120,
-    "customers": 85,
-    "active_projects": 12,
-    "total_tickets": 450,
-    "ticket_stats": {
-      "total": 450,
-      "open": 40,
-      "inprocess": 60,
-      "waiting_on_customer": 15,
-      "waiting_on_3rd_party": 8,
-      "waiting_to_confirmation": 5,
-      "hold": 10,
-      "cancelled": 20,
-      "closed": 292
-    },
-    "ticket_chart": {
-      "labels": ["08 Jun", "09 Jun", "..."],
-      "data": [3, 5, 2, 8]
-    },
-    "recent_tickets": [
-      {
-        "ticket_id": 101,
-        "ticket_number": "TKT-2024-001",
-        "description": "Tidak bisa login ke sistem",
-        "status": "open",
-        "ticket_priority": "High",
-        "created_at": "2024-06-15T10:30:00.000000Z",
-        "customer_name": "PT. ABC Indonesia",
-        "pic_name": "Jane Smith"
-      }
-    ],
-    "team_load": [
-      {
-        "employee_id": 12,
-        "name": "Jane Smith",
-        "open_count": 8
-      }
-    ],
-    "staging_pending": 3,
-    "sla_summary": {
-      "total": 430,
-      "met": 380,
-      "breached": 20,
-      "compliance_rate": 95.0
+    "success": true,
+    "data": {
+        "employee": 120,
+        "customers": 85,
+        "active_projects": 12,
+        "total_tickets": 450,
+        "ticket_stats": {
+            "total": 450,
+            "open": 40,
+            "inprocess": 60,
+            "waiting_on_customer": 15,
+            "waiting_on_3rd_party": 8,
+            "waiting_to_confirmation": 5,
+            "hold": 10,
+            "cancelled": 20,
+            "closed": 292
+        },
+        "ticket_chart": {
+            "labels": ["08 Jun", "09 Jun", "..."],
+            "data": [3, 5, 2, 8]
+        },
+        "recent_tickets": [
+            {
+                "ticket_id": 101,
+                "ticket_number": "TKT-2024-001",
+                "description": "Tidak bisa login ke sistem",
+                "status": "open",
+                "ticket_priority": "High",
+                "created_at": "2024-06-15T10:30:00.000000Z",
+                "customer_name": "PT. ABC Indonesia",
+                "pic_name": "Jane Smith"
+            }
+        ],
+        "team_load": [
+            {
+                "employee_id": 12,
+                "name": "Jane Smith",
+                "open_count": 8
+            }
+        ],
+        "staging_pending": 3,
+        "sla_summary": {
+            "total": 430,
+            "met": 380,
+            "breached": 20,
+            "compliance_rate": 95.0
+        }
     }
-  }
 }
 ```
 
 #### Data Dashboard Per Role
 
-| Field | Admin | EC User | DS Head | Helpdesk | DS Manager | DS User |
-|-------|:-----:|:-------:|:-------:|:--------:|:----------:|:-------:|
-| `ticket_stats` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `ticket_chart` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `recent_tickets` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `team_load` | ✓ | ✓ | ✓ | - | ✓ | - |
-| `sla_summary` | ✓ | ✓ | ✓ | ✓ | ✓ | - |
-| `staging_pending` | ✓ | ✓ | - | ✓ | - | - |
-| `unassigned_count` | - | - | - | ✓ | ✓ | - |
-| `very_high_count` | - | - | - | ✓ | ✓ | ✓ |
-| `priority_breakdown` | - | - | - | ✓ | ✓ | ✓ |
-| `urgent_tickets` | - | - | - | ✓ | ✓ | ✓ |
-| `as_pic_count` | - | - | - | - | - | ✓ |
-| `active_count` | - | - | - | - | - | ✓ |
-| `timesheet_pending` | - | - | ✓ | - | - | - |
+| Field                | Admin | EC User | DS Head | Helpdesk | DS Manager | DS User |
+| -------------------- | :---: | :-----: | :-----: | :------: | :--------: | :-----: |
+| `ticket_stats`       |   ✓   |    ✓    |    ✓    |    ✓     |     ✓      |    ✓    |
+| `ticket_chart`       |   ✓   |    ✓    |    ✓    |    ✓     |     ✓      |    ✓    |
+| `recent_tickets`     |   ✓   |    ✓    |    ✓    |    ✓     |     ✓      |    ✓    |
+| `team_load`          |   ✓   |    ✓    |    ✓    |    -     |     ✓      |    -    |
+| `sla_summary`        |   ✓   |    ✓    |    ✓    |    ✓     |     ✓      |    -    |
+| `staging_pending`    |   ✓   |    ✓    |    -    |    ✓     |     -      |    -    |
+| `unassigned_count`   |   -   |    -    |    -    |    ✓     |     ✓      |    -    |
+| `very_high_count`    |   -   |    -    |    -    |    ✓     |     ✓      |    ✓    |
+| `priority_breakdown` |   -   |    -    |    -    |    ✓     |     ✓      |    ✓    |
+| `urgent_tickets`     |   -   |    -    |    -    |    ✓     |     ✓      |    ✓    |
+| `as_pic_count`       |   -   |    -    |    -    |    -     |     -      |    ✓    |
+| `active_count`       |   -   |    -    |    -    |    -     |     -      |    ✓    |
+| `timesheet_pending`  |   -   |    -    |    ✓    |    -     |     -      |    -    |
 
 ---
 
@@ -406,13 +405,13 @@ Mengambil daftar tiket dengan role-based filtering dan pagination.
 
 #### Query Parameters
 
-| Parameter | Type | Wajib | Deskripsi |
-|-----------|------|-------|-----------|
-| `page` | `integer` | Tidak | Nomor halaman (default: 1) |
-| `per_page` | `integer` | Tidak | Jumlah per halaman (default: 20, max: 100) |
-| `status` | `string` | Tidak | Filter berdasarkan status tiket |
-| `priority` | `string` | Tidak | Filter berdasarkan prioritas |
-| `search` | `string` | Tidak | Cari berdasarkan nomor atau deskripsi tiket |
+| Parameter  | Type      | Wajib | Deskripsi                                   |
+| ---------- | --------- | ----- | ------------------------------------------- |
+| `page`     | `integer` | Tidak | Nomor halaman (default: 1)                  |
+| `per_page` | `integer` | Tidak | Jumlah per halaman (default: 20, max: 100)  |
+| `status`   | `string`  | Tidak | Filter berdasarkan status tiket             |
+| `priority` | `string`  | Tidak | Filter berdasarkan prioritas                |
+| `search`   | `string`  | Tidak | Cari berdasarkan nomor atau deskripsi tiket |
 
 #### Contoh Request
 
@@ -425,59 +424,76 @@ Authorization: Bearer <token>
 
 ```json
 {
-  "success": true,
-  "data": [
-    {
-      "ticket_id": 101,
-      "ticket_number": "TKT-2024-001",
-      "description": "Tidak bisa login ke sistem",
-      "ticket_priority": "High",
-      "ticket_type": "Incident",
-      "status": "open",
-      "start_date": "2024-06-15",
-      "end_date": null,
-      "last_message_at": "2024-06-15T12:00:00.000000Z",
-      "created_at": "2024-06-15T10:30:00.000000Z",
-      "updated_at": "2024-06-15T12:00:00.000000Z",
-      "customer": {
-        "customer_id": 5,
-        "customer_name": "PT. ABC Indonesia",
-        "customer_code": "ABC001"
-      },
-      "pic": {
-        "employee_id": 12,
-        "employee_name": "Jane"
-      },
-      "members": [
-        { "employee_id": 15, "employee_name": "Bob" }
-      ],
-      "sla": {
-        "resolution_status": "pending",
-        "resolution_due_at": "2024-06-17T10:30:00.000000Z",
-        "response_status": "met"
-      }
+    "success": true,
+    "data": [
+        {
+            "ticket_id": 101,
+            "ticket_number": "TKT-2024-001",
+            "description": "Tidak bisa login ke sistem",
+            "ticket_priority": "High",
+            "ticket_type": "Incident",
+            "status": "open",
+            "start_date": "2024-06-15",
+            "end_date": null,
+            "last_message_at": "2024-06-15T12:00:00.000000Z",
+            "created_at": "2024-06-15T10:30:00.000000Z",
+            "updated_at": "2024-06-15T12:00:00.000000Z",
+            "customer": {
+                "customer_id": 5,
+                "customer_name": "PT. ABC Indonesia",
+                "customer_code": "ABC001"
+            },
+            "pic": {
+                "employee_id": 12,
+                "employee_name": "Jane"
+            },
+            "members": [{ "employee_id": 15, "employee_name": "Bob" }],
+            "sla": {
+                "resolution_status": "pending",
+                "resolution_due_at": "2024-06-17T10:30:00.000000Z",
+                "response_status": "met"
+            },
+            "delivery": {
+                "delivery_id": 7,
+                "delivery_name": "MO CR LPPNPI 2025 - 2027",
+                "delivery_type": "MO",
+                "client_name": "Airnav Indonesia",
+                "delivery_label": "MO CR LPPNPI 2025 - 2027 (Airnav Indonesia), MO"
+            }
+        }
+    ],
+    "meta": {
+        "current_page": 1,
+        "per_page": 20,
+        "total": 45,
+        "last_page": 3
     }
-  ],
-  "meta": {
-    "current_page": 1,
-    "per_page": 20,
-    "total": 45,
-    "last_page": 3
-  }
 }
 ```
 
+`delivery` berisi info delivery support tempat tiket ini ditangani (relasi
+via `delivery_support_activities`). Bernilai `null` jika tiket belum
+di-assign ke delivery manapun.
+
+| Field            | Deskripsi                                                                        |
+| ---------------- | --------------------------------------------------------------------------------- |
+| `delivery_id`    | ID delivery support (`delivery_support.id`)                                       |
+| `delivery_name`  | Nama delivery support (`delivery_support.name`)                                   |
+| `delivery_type`  | Tipe delivery support (`delivery_support.type`)                                   |
+| `client_name`    | Nama customer/client pemilik delivery support                                     |
+| `delivery_label` | Label gabungan siap-pakai untuk UI, format sama dengan dropdown "Assign to Delivery Support" di web: `"{delivery_name} ({client_name}), {delivery_type}"` |
+
 #### Perilaku Berdasarkan Role
 
-| Role | Tiket yang Ditampilkan |
-|------|----------------------|
-| EC Administrator | Semua tiket |
-| EC User | Semua tiket |
-| Delivery Support Head | Semua tiket |
-| Delivery Helpdesk | Semua tiket |
-| Delivery Support Manager | Semua tiket |
-| Delivery Support User | Hanya tiket yang belum di-assign (unassigned) |
-| External Employee | Hanya tiket di mana dia adalah PIC atau anggota |
+| Role                     | Tiket yang Ditampilkan                          |
+| ------------------------ | ----------------------------------------------- |
+| EC Administrator         | Semua tiket                                     |
+| EC User                  | Semua tiket                                     |
+| Delivery Support Head    | Semua tiket                                     |
+| Delivery Helpdesk        | Semua tiket                                     |
+| Delivery Support Manager | Semua tiket                                     |
+| Delivery Support User    | Hanya tiket yang belum di-assign (unassigned)   |
+| External Employee        | Hanya tiket di mana dia adalah PIC atau anggota |
 
 ---
 
@@ -493,18 +509,18 @@ Mengambil ringkasan jumlah tiket per status.
 
 ```json
 {
-  "success": true,
-  "data": {
-    "total": 450,
-    "open": 40,
-    "inprocess": 60,
-    "waiting_on_customer": 15,
-    "waiting_on_3rd_party": 8,
-    "waiting_to_confirmation": 5,
-    "hold": 10,
-    "cancelled": 20,
-    "closed": 292
-  }
+    "success": true,
+    "data": {
+        "total": 450,
+        "open": 40,
+        "inprocess": 60,
+        "waiting_on_customer": 15,
+        "waiting_on_3rd_party": 8,
+        "waiting_to_confirmation": 5,
+        "hold": 10,
+        "cancelled": 20,
+        "closed": 292
+    }
 }
 ```
 
@@ -514,15 +530,21 @@ Mengambil ringkasan jumlah tiket per status.
 
 Mengambil detail lengkap satu tiket berdasarkan ID.
 
+`to_emails` dan `cc_emails` adalah penerima email yang **tersimpan terakhir**
+di tiket ini (hasil reply sebelumnya, dari web maupun mobile) — dipakai untuk
+pre-fill composer reply. Kirim balik nilai yang sama (atau daftar baru) di
+`to_emails`/`cc_emails` saat `POST /tickets/{ticketId}/messages` untuk
+mempertahankan/mengubahnya — lihat [5.6](#56-post-ticketsticketidmessages).
+
 **Method:** `GET`  
 **URL:** `/api/lite/tickets/{id}`  
 **Auth:** Diperlukan
 
 #### Path Parameters
 
-| Parameter | Type | Deskripsi |
-|-----------|------|-----------|
-| `id` | `integer` | ID tiket |
+| Parameter | Type      | Deskripsi |
+| --------- | --------- | --------- |
+| `id`      | `integer` | ID tiket  |
 
 #### Contoh Request
 
@@ -535,55 +557,62 @@ Authorization: Bearer <token>
 
 ```json
 {
-  "success": true,
-  "data": {
-    "ticket_id": 101,
-    "ticket_number": "TKT-2024-001",
-    "description": "Tidak bisa login ke sistem",
-    "ticket_priority": "High",
-    "ticket_type": "Incident",
-    "status": "open",
-    "scale": "Small",
-    "channel": "web",
-    "man_days": 2,
-    "progress_percentage": 30.0,
-    "wait_close": false,
-    "start_date": "2024-06-15",
-    "end_date": null,
-    "last_message_at": "2024-06-15T12:00:00.000000Z",
-    "last_customer_reply_at": "2024-06-15T11:00:00.000000Z",
-    "last_agent_reply_at": "2024-06-15T12:00:00.000000Z",
-    "created_at": "2024-06-15T10:30:00.000000Z",
-    "updated_at": "2024-06-15T12:00:00.000000Z",
-    "customer": {
-      "customer_id": 5,
-      "customer_name": "PT. ABC Indonesia",
-      "customer_code": "ABC001"
-    },
-    "end_customer_id": null,
-    "end_customer_name": null,
-    "pic": {
-      "employee_id": 12,
-      "employee_name": "Jane"
-    },
-    "members": [
-      { "employee_id": 15, "employee_name": "Bob" }
-    ],
-    "sla": {
-      "resolution_status": "pending",
-      "resolution_due_at": "2024-06-17T10:30:00.000000Z",
-      "response_status": "met"
-    },
-    "sla_detail": {
-      "target_response_hours": 4,
-      "response_time_hours": 1.5,
-      "response_status": "met",
-      "target_resolution_hours": 48,
-      "resolution_due_at": "2024-06-17T10:30:00.000000Z",
-      "resolution_time_hours": null,
-      "resolution_status": "pending"
+    "success": true,
+    "data": {
+        "ticket_id": 101,
+        "ticket_number": "TKT-2024-001",
+        "description": "Tidak bisa login ke sistem",
+        "ticket_priority": "High",
+        "ticket_type": "Incident",
+        "status": "open",
+        "scale": "Small",
+        "channel": "web",
+        "man_days": 2,
+        "progress_percentage": 30.0,
+        "wait_close": false,
+        "start_date": "2024-06-15",
+        "end_date": null,
+        "last_message_at": "2024-06-15T12:00:00.000000Z",
+        "last_customer_reply_at": "2024-06-15T11:00:00.000000Z",
+        "last_agent_reply_at": "2024-06-15T12:00:00.000000Z",
+        "created_at": "2024-06-15T10:30:00.000000Z",
+        "updated_at": "2024-06-15T12:00:00.000000Z",
+        "customer": {
+            "customer_id": 5,
+            "customer_name": "PT. ABC Indonesia",
+            "customer_code": "ABC001"
+        },
+        "end_customer_id": null,
+        "end_customer_name": null,
+        "to_emails": ["customer@company.com"],
+        "cc_emails": [{ "address": "manager@company.com", "name": "Manager" }],
+        "pic": {
+            "employee_id": 12,
+            "employee_name": "Jane"
+        },
+        "members": [{ "employee_id": 15, "employee_name": "Bob" }],
+        "sla": {
+            "resolution_status": "pending",
+            "resolution_due_at": "2024-06-17T10:30:00.000000Z",
+            "response_status": "met"
+        },
+        "delivery": {
+            "delivery_id": 7,
+            "delivery_name": "MO CR LPPNPI 2025 - 2027",
+            "delivery_type": "MO",
+            "client_name": "Airnav Indonesia",
+            "delivery_label": "MO CR LPPNPI 2025 - 2027 (Airnav Indonesia), MO"
+        },
+        "sla_detail": {
+            "target_response_hours": 4,
+            "response_time_hours": 1.5,
+            "response_status": "met",
+            "target_resolution_hours": 48,
+            "resolution_due_at": "2024-06-17T10:30:00.000000Z",
+            "resolution_time_hours": null,
+            "resolution_status": "pending"
+        }
     }
-  }
 }
 ```
 
@@ -591,8 +620,8 @@ Authorization: Bearer <token>
 
 ```json
 {
-  "success": false,
-  "message": "Ticket not found."
+    "success": false,
+    "message": "Ticket not found."
 }
 ```
 
@@ -610,21 +639,21 @@ Mengubah status tiket. Hanya role tertentu yang diizinkan.
 
 #### Path Parameters
 
-| Parameter | Type | Deskripsi |
-|-----------|------|-----------|
-| `id` | `integer` | ID tiket |
+| Parameter | Type      | Deskripsi |
+| --------- | --------- | --------- |
+| `id`      | `integer` | ID tiket  |
 
 #### Request Body
 
-| Field | Type | Wajib | Deskripsi |
-|-------|------|-------|-----------|
-| `status` | `string` | Ya | Status baru tiket (lihat enum di bagian 8) |
+| Field    | Type     | Wajib | Deskripsi                                  |
+| -------- | -------- | ----- | ------------------------------------------ |
+| `status` | `string` | Ya    | Status baru tiket (lihat enum di bagian 8) |
 
 #### Contoh Request
 
 ```json
 {
-  "status": "inprocess"
+    "status": "inprocess"
 }
 ```
 
@@ -632,13 +661,13 @@ Mengubah status tiket. Hanya role tertentu yang diizinkan.
 
 ```json
 {
-  "success": true,
-  "message": "Ticket status updated successfully.",
-  "data": {
-    "ticket_id": 101,
-    "old_status": "open",
-    "new_status": "inprocess"
-  }
+    "success": true,
+    "message": "Ticket status updated successfully.",
+    "data": {
+        "ticket_id": 101,
+        "old_status": "open",
+        "new_status": "inprocess"
+    }
 }
 ```
 
@@ -646,8 +675,8 @@ Mengubah status tiket. Hanya role tertentu yang diizinkan.
 
 ```json
 {
-  "success": false,
-  "message": "You do not have permission to update ticket status."
+    "success": false,
+    "message": "You do not have permission to update ticket status."
 }
 ```
 
@@ -663,70 +692,73 @@ Mengambil semua pesan (percakapan) untuk satu tiket.
 
 #### Path Parameters
 
-| Parameter | Type | Deskripsi |
-|-----------|------|-----------|
-| `ticketId` | `integer` | ID tiket |
+| Parameter  | Type      | Deskripsi |
+| ---------- | --------- | --------- |
+| `ticketId` | `integer` | ID tiket  |
 
 #### Query Parameters
 
-| Parameter | Type | Deskripsi |
-|-----------|------|-----------|
+| Parameter              | Type      | Deskripsi                                                                                                                                                                                                                                                                                                                              |
+| ---------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `highlight_message_id` | `integer` | Opsional. Isi dengan `message_id` dari notifikasi (mis. saat user di-tag di internal note) agar backend menandai bubble pesan tsb dengan `is_highlighted: true`, sehingga frontend tinggal scroll ke pesan yang flag-nya `true` tanpa perlu mencari sendiri di array. Diabaikan (jadi `null`) jika pesan tidak ditemukan di tiket ini. |
 
 #### Contoh Response Sukses (200)
 
 ```json
 {
-  "success": true,
-  "data": [
-    {
-      "id": 500,
-      "ticket_id": 101,
-      "sender_type": "employee",
-      "sender_id": 12,
-      "sender_name": "Jane Smith",
-      "sender_email": "jane@company.com",
-      "message_body": "Selamat siang, kami sedang menginvestigasi masalah ini.",
-      "message_html": "<p>Selamat siang, kami sedang menginvestigasi masalah ini.</p>",
-      "message_type": "reply",
-      "reply_to_id": null,
-      "reply_to_preview": null,
-      "channel": "web",
-      "is_read_by_customer": true,
-      "is_read_by_agent": true,
-      "is_deleted": false,
-      "is_highlighted": false,
-      "attachments": [],
-      "created_at": "2024-06-15T11:00:00.000000Z"
-    },
-    {
-      "id": 501,
-      "ticket_id": 101,
-      "sender_type": "employee",
-      "sender_id": 12,
-      "sender_name": "Jane Smith",
-      "sender_email": "jane@company.com",
-      "message_body": "Catatan internal: perlu eskalasi ke tim database.",
-      "message_html": "<p>Catatan internal: perlu eskalasi ke tim database.</p>",
-      "message_type": "internal_note",
-      "reply_to_id": null,
-      "reply_to_preview": null,
-      "channel": "web",
-      "is_read_by_customer": false,
-      "is_read_by_agent": true,
-      "is_deleted": false,
-      "is_highlighted": true,
-      "attachments": [],
-      "created_at": "2024-06-15T12:00:00.000000Z"
+    "success": true,
+    "data": [
+        {
+            "id": 500,
+            "ticket_id": 101,
+            "sender_type": "employee",
+            "sender_id": 12,
+            "sender_name": "Jane Smith",
+            "sender_email": "jane@company.com",
+            "message_body": "Selamat siang, kami sedang menginvestigasi masalah ini.",
+            "message_html": "<p>Selamat siang, kami sedang menginvestigasi masalah ini.</p>",
+            "message_type": "reply",
+            "reply_to_id": null,
+            "reply_to_preview": null,
+            "channel": "web",
+            "is_read_by_customer": true,
+            "is_read_by_agent": true,
+            "is_deleted": false,
+            "edited_at": null,
+            "is_highlighted": false,
+            "attachments": [],
+            "created_at": "2024-06-15T11:00:00.000000Z"
+        },
+        {
+            "id": 501,
+            "ticket_id": 101,
+            "sender_type": "employee",
+            "sender_id": 12,
+            "sender_name": "Jane Smith",
+            "sender_email": "jane@company.com",
+            "message_body": "Catatan internal: perlu eskalasi ke tim database.",
+            "message_html": "<p>Catatan internal: perlu eskalasi ke tim database.</p>",
+            "message_type": "internal_note",
+            "reply_to_id": null,
+            "reply_to_preview": null,
+            "channel": "web",
+            "is_read_by_customer": false,
+            "is_read_by_agent": true,
+            "is_deleted": false,
+            "edited_at": null,
+            "is_highlighted": true,
+            "attachments": [],
+            "created_at": "2024-06-15T12:00:00.000000Z"
+        }
+    ],
+    "meta": {
+        "highlight_message_id": 501
     }
-  ],
-  "meta": {
-    "highlight_message_id": 501
-  }
 }
 ```
 
 **Alur pemakaian dari notifikasi:**
+
 1. `GET /notifications` mengembalikan tiap item dengan `ticket_id` dan `message_id`.
 2. Saat item notifikasi di-tap, frontend navigasi ke halaman tiket lalu memanggil
    `GET /tickets/{ticket_id}/messages?highlight_message_id={message_id}`.
@@ -739,68 +771,269 @@ Mengambil semua pesan (percakapan) untuk satu tiket.
 
 Menambah pesan baru ke tiket (reply atau internal note).
 
+Untuk `message_type: reply`, endpoint ini memakai alur **email-first** yang sama
+dengan web (`TicketMessageController::sendEmailThenSave`, dipanggil via method
+baru `sendLiteReply()`): email dikirim dulu ke customer lewat M365 Graph
+(penerima To/CC diambil dari `ticket.to_emails` / `ticket.cc_emails` — hasil
+reply terakhir dari web), baru pesan disimpan dengan `channel: email`. Nama
+pengirim yang tampil ke customer selalu **"Helpdesk Support"** (bukan nama
+employee), persis seperti reply dari web. Jika tidak ada penerima email sama
+sekali atau pengiriman gagal, pesan tetap tersimpan sebagai fallback dengan
+`channel: web` dan `email_status: failed` + `email_error` berisi alasannya —
+reply tidak pernah hilang, hanya tidak terkirim ke email. Reply juga memicu
+SLA event dan notifikasi ke PIC/member ticket, sama seperti web.
+
+`message_type: internal_note` **tidak pernah** dikirim ke email — perilaku ini tidak berubah, dan field `to_emails`/`cc_emails` diabaikan untuk internal note.
+
+**To/CC bisa di-set dari mobile** dengan mengirim field `to_emails` dan/atau
+`cc_emails` di request body (hanya berlaku untuk `message_type: reply`):
+- Jika field **tidak dikirim** (null) → pakai To/CC yang sudah tersimpan di
+  tiket saat ini (perilaku lama/legacy — tetap aman untuk klien yang belum
+  update).
+- Jika **dikirim** (termasuk array kosong `[]`) → menimpa To/CC tiket dengan
+  daftar baru sebelum email dikirim, persis seperti composer reply di web.
+  Item pertama di `to_emails` jadi primary recipient, sisanya jadi additional
+  recipient. To kosong (`[]`) + ada CC tetap terkirim (CC-only); To & CC
+  kosong-kosong berarti tidak ada penerima sama sekali → reply otomatis
+  fallback tersimpan sebagai `channel: web`.
+- Daftar To/CC yang dikirim akan **dipersist ke tiket** (`ticket.to_emails` /
+  `ticket.cc_emails`), jadi reply berikutnya — dari web maupun mobile — ikut
+  memakai daftar yang sama sampai diubah lagi.
+
+> **Keterbatasan saat ini:** Lite API belum punya endpoint upload lampiran
+> untuk chat, jadi reply dari mobile selalu terkirim **tanpa attachment** (baik
+> ke email maupun tersimpan lokal).
+
 **Method:** `POST`  
 **URL:** `/api/lite/tickets/{ticketId}/messages`  
 **Auth:** Diperlukan
 
 #### Path Parameters
 
-| Parameter | Type | Deskripsi |
-|-----------|------|-----------|
-| `ticketId` | `integer` | ID tiket |
+| Parameter  | Type      | Deskripsi |
+| ---------- | --------- | --------- |
+| `ticketId` | `integer` | ID tiket  |
 
 #### Request Body
 
-| Field | Type | Wajib | Deskripsi |
-|-------|------|-------|-----------|
-| `message` | `string` | Ya | Isi pesan (HTML diperbolehkan) |
-| `message_type` | `string` | Tidak | `reply` (default) atau `internal_note` |
-| `is_internal_note` | `boolean` | Tidak | `true` untuk internal note (alternatif dari `message_type`) |
-| `reply_to_id` | `integer` | Tidak | ID pesan yang dibalas |
+| Field              | Type            | Wajib | Deskripsi                                                    |
+| ------------------ | --------------- | ----- | ------------------------------------------------------------ |
+| `message`          | `string`        | Ya    | Isi pesan (HTML diperbolehkan)                                |
+| `message_type`     | `string`        | Tidak | `reply` (default) atau `internal_note`                        |
+| `is_internal_note` | `boolean`       | Tidak | `true` untuk internal note (alternatif dari `message_type`)   |
+| `reply_to_id`      | `integer`       | Tidak | ID pesan yang dibalas                                         |
+| `ticket_status`    | `string`        | Tidak | Ubah status tiket bersamaan reply — `inprocess`, `waiting_on_customer`, `waiting_to_confirmation`, `waiting_on_3rd_party`, atau `hold` |
+| `to_emails`        | `array<string\|object>` | Tidak | Hanya untuk `reply`. Override daftar TO — array string email, atau array objek `{"address": "...", "name": "..."}`. Item pertama = primary recipient. |
+| `cc_emails`        | `array<string\|object>` | Tidak | Hanya untuk `reply`. Override daftar CC — format sama seperti `to_emails`. |
 
 #### Contoh Request
 
 ```json
 {
-  "message": "<p>Masalah telah diselesaikan. Silakan coba login kembali.</p>",
-  "message_type": "reply",
-  "reply_to_id": null
+    "message": "<p>Masalah telah diselesaikan. Silakan coba login kembali.</p>",
+    "message_type": "reply",
+    "reply_to_id": null,
+    "to_emails": ["customer@company.com"],
+    "cc_emails": [{ "address": "manager@company.com", "name": "Manager" }]
 }
 ```
 
-#### Contoh Response Sukses (201)
+#### Contoh Response Sukses (201) — email terkirim
 
 ```json
 {
-  "success": true,
-  "message": "Message sent successfully.",
-  "data": {
-    "id": 502,
-    "ticket_id": 101,
-    "sender_type": "employee",
-    "sender_id": 12,
-    "sender_name": "Jane Smith",
-    "sender_email": "jane@company.com",
-    "message_body": "Masalah telah diselesaikan. Silakan coba login kembali.",
-    "message_html": "<p>Masalah telah diselesaikan. Silakan coba login kembali.</p>",
-    "message_type": "reply",
-    "reply_to_id": null,
-    "reply_to_preview": null,
-    "channel": "web",
-    "is_read_by_customer": false,
-    "is_read_by_agent": true,
-    "is_deleted": false,
-    "attachments": [],
-    "created_at": "2024-06-15T13:00:00.000000Z"
-  }
+    "success": true,
+    "message": "Message sent successfully.",
+    "email_failed": false,
+    "email_status": null,
+    "email_error": null,
+    "data": {
+        "id": 502,
+        "ticket_id": 101,
+        "sender_type": "employee",
+        "sender_id": 12,
+        "sender_name": "Helpdesk Support",
+        "sender_email": null,
+        "message_body": "Masalah telah diselesaikan. Silakan coba login kembali.",
+        "message_html": "<p>Masalah telah diselesaikan. Silakan coba login kembali.</p>",
+        "message_type": "reply",
+        "reply_to_id": null,
+        "reply_to_preview": null,
+        "channel": "email",
+        "email_status": null,
+        "email_error": null,
+        "is_read_by_customer": false,
+        "is_read_by_agent": true,
+        "is_deleted": false,
+        "attachments": [],
+        "created_at": "2024-06-15T13:00:00.000000Z"
+    }
 }
 ```
 
-> **Catatan:** Endpoint ini mengirim pesan via sistem internal (web), **tidak** mengirim email. Integrasi email tidak tersedia di Lite API.
+#### Contoh Response Sukses (201) — email gagal (fallback tersimpan)
+
+```json
+{
+    "success": true,
+    "message": "Message sent successfully.",
+    "email_failed": true,
+    "email_status": "failed",
+    "email_error": "Alamat email tujuan tidak valid.",
+    "data": {
+        "id": 503,
+        "channel": "web",
+        "email_status": "failed",
+        "email_error": "Alamat email tujuan tidak valid."
+    }
+}
+```
+
+> **Catatan:** `email_failed: true` berarti reply **tetap tersimpan** di tiket
+> tapi TIDAK terkirim (atau hanya sebagian terkirim, saat `email_status:
+> partial`) ke customer — frontend sebaiknya menampilkan indikator peringatan
+> pada bubble pesan tsb, mengikuti pola yang sama dengan web.
 
 ---
 
-### 5.7 GET /tickets/my
+### 5.7 POST /tickets/{ticketId}/messages/{messageId}/internal-note
+
+Edit isi **internal note** milik sendiri. Aturan identik dengan web
+(`TicketMessageController::updateInternalNote`):
+
+- Hanya bisa mengedit note milik sendiri (`sender_id` harus = user login) —
+  tidak ada pengecualian untuk admin di endpoint ini.
+- Hanya bisa diedit dalam **10 menit** sejak `created_at`. Setelah lewat,
+  request akan ditolak (`403`) meski pemilik note sendiri.
+- Note yang sudah dihapus (`is_deleted: true`) tidak bisa diedit.
+- Hanya berlaku untuk pesan bertipe `internal_note` — reply ke customer
+  **tidak bisa** diedit sama sekali (baik di web maupun Lite API), karena
+  sudah terkirim sebagai email nyata ke M365.
+- Setelah berhasil, `edited_at` terisi timestamp saat ini — gunakan field ini
+  di UI untuk menampilkan label "diedit".
+
+**Method:** `POST`  
+**URL:** `/api/lite/tickets/{ticketId}/messages/{messageId}/internal-note`  
+**Auth:** Diperlukan
+
+#### Path Parameters
+
+| Parameter   | Type      | Deskripsi            |
+| ----------- | --------- | --------------------- |
+| `ticketId`  | `integer` | ID tiket               |
+| `messageId` | `integer` | ID pesan (internal note) |
+
+#### Request Body
+
+| Field     | Type     | Wajib | Deskripsi                    |
+| --------- | -------- | ----- | ----------------------------- |
+| `message` | `string` | Ya    | Isi note baru (HTML diperbolehkan) |
+
+#### Contoh Request
+
+```json
+{
+    "message": "<p>Sudah dicek, menunggu konfirmasi customer.</p>"
+}
+```
+
+#### Contoh Response Sukses (200)
+
+```json
+{
+    "success": true,
+    "message": "Note updated.",
+    "data": {
+        "id": 504,
+        "ticket_id": 101,
+        "sender_type": "employee",
+        "sender_id": 12,
+        "sender_name": "John Doe",
+        "message_body": "Sudah dicek, menunggu konfirmasi customer.",
+        "message_html": "<p>Sudah dicek, menunggu konfirmasi customer.</p>",
+        "message_type": "internal_note",
+        "channel": "web",
+        "is_deleted": false,
+        "edited_at": "2024-06-15T13:05:00+00:00",
+        "attachments": [],
+        "created_at": "2024-06-15T13:00:00.000000Z"
+    }
+}
+```
+
+#### Contoh Response Gagal
+
+```json
+// 403 — bukan pemilik note
+{ "success": false, "message": "You can only edit your own notes." }
+
+// 403 — sudah lewat 10 menit
+{ "success": false, "message": "Notes can only be edited within 10 minutes of posting." }
+
+// 422 — note sudah dihapus
+{ "success": false, "message": "Cannot edit a deleted note." }
+
+// 404 — bukan internal note, atau tidak ditemukan di tiket ini
+{ "success": false, "message": "Note not found." }
+```
+
+---
+
+### 5.8 DELETE /tickets/{ticketId}/messages/{messageId}/internal-note
+
+Soft-delete ("unsend") **internal note**. Aturan identik dengan web
+(`TicketMessageController::destroyInternalNote`):
+
+- Bisa dilakukan oleh **pengirim sendiri** (dalam 10 menit sejak `created_at`)
+  atau **admin** (role `EC_ADMINISTRATOR`, tanpa batas waktu).
+- Note yang sudah dihapus tidak bisa dihapus ulang (`422`).
+- Ini soft-delete — hanya menandai `is_deleted: true`, data tidak benar-benar
+  dihapus dari database. FE Lite sebaiknya menampilkan placeholder ("Note ini
+  telah dihapus") mengikuti pola yang sama dengan web.
+- Hanya berlaku untuk `internal_note` — reply ke customer tidak bisa
+  di-unsend.
+
+> **Catatan client HTTP:** jika klien mobile tidak mendukung method `DELETE`
+> dengan body/header khusus, gunakan endpoint alternatif
+> `POST /tickets/{ticketId}/messages/{messageId}/internal-note/delete` yang
+> perilakunya identik.
+
+**Method:** `DELETE` (atau `POST .../internal-note/delete`)  
+**URL:** `/api/lite/tickets/{ticketId}/messages/{messageId}/internal-note`  
+**Auth:** Diperlukan
+
+#### Path Parameters
+
+| Parameter   | Type      | Deskripsi                |
+| ----------- | --------- | -------------------------- |
+| `ticketId`  | `integer` | ID tiket                    |
+| `messageId` | `integer` | ID pesan (internal note)    |
+
+#### Contoh Response Sukses (200)
+
+```json
+{ "success": true, "message": "Note deleted." }
+```
+
+#### Contoh Response Gagal
+
+```json
+// 403 — bukan pemilik note dan bukan admin
+{ "success": false, "message": "You can only delete your own notes." }
+
+// 403 — bukan admin, dan sudah lewat 10 menit
+{ "success": false, "message": "Notes can only be deleted within 10 minutes of posting." }
+
+// 422 — sudah dihapus sebelumnya
+{ "success": false, "message": "Note already deleted." }
+
+// 404 — bukan internal note, atau tidak ditemukan di tiket ini
+{ "success": false, "message": "Note not found." }
+```
+
+---
+
+### 5.9 GET /tickets/my
 
 Mengambil daftar tiket di mana user yang sedang login adalah **PIC** (`ticket_lead_id`) **atau anggota** (ada di `ticket_member`). Berlaku untuk semua role.
 
@@ -813,19 +1046,19 @@ Mengambil daftar tiket di mana user yang sedang login adalah **PIC** (`ticket_le
 
 #### Request Headers
 
-| Header | Value | Wajib |
-|--------|-------|-------|
+| Header        | Value            | Wajib                        |
+| ------------- | ---------------- | ---------------------------- |
 | Authorization | `Bearer <token>` | Ya (jika tidak pakai cookie) |
 
 #### Query Parameters
 
-| Parameter | Type | Wajib | Deskripsi |
-|-----------|------|-------|-----------|
-| `page` | `integer` | Tidak | Nomor halaman (default: 1) |
-| `per_page` | `integer` | Tidak | Jumlah per halaman (default: 20, max: 100) |
-| `status` | `string` | Tidak | Filter berdasarkan status tiket |
-| `priority` | `string` | Tidak | Filter berdasarkan prioritas |
-| `search` | `string` | Tidak | Cari berdasarkan nomor atau deskripsi tiket |
+| Parameter  | Type      | Wajib | Deskripsi                                   |
+| ---------- | --------- | ----- | ------------------------------------------- |
+| `page`     | `integer` | Tidak | Nomor halaman (default: 1)                  |
+| `per_page` | `integer` | Tidak | Jumlah per halaman (default: 20, max: 100)  |
+| `status`   | `string`  | Tidak | Filter berdasarkan status tiket             |
+| `priority` | `string`  | Tidak | Filter berdasarkan prioritas                |
+| `search`   | `string`  | Tidak | Cari berdasarkan nomor atau deskripsi tiket |
 
 #### Contoh Request
 
@@ -838,45 +1071,50 @@ Authorization: Bearer <token>
 
 ```json
 {
-  "success": true,
-  "data": [
-    {
-      "ticket_id": 101,
-      "ticket_number": "TKT-2024-001",
-      "description": "Tidak bisa login ke sistem",
-      "ticket_priority": "High",
-      "ticket_type": "Incident",
-      "status": "inprocess",
-      "start_date": "2024-06-15",
-      "end_date": null,
-      "last_message_at": "2024-06-15T12:00:00.000000Z",
-      "created_at": "2024-06-15T10:30:00.000000Z",
-      "updated_at": "2024-06-15T12:00:00.000000Z",
-      "customer": {
-        "customer_id": 5,
-        "customer_name": "PT. ABC Indonesia",
-        "customer_code": "ABC001"
-      },
-      "pic": {
-        "employee_id": 42,
-        "employee_name": "John"
-      },
-      "members": [
-        { "employee_id": 15, "employee_name": "Bob" }
-      ],
-      "sla": {
-        "resolution_status": "pending",
-        "resolution_due_at": "2024-06-17T10:30:00.000000Z",
-        "response_status": "met"
-      }
+    "success": true,
+    "data": [
+        {
+            "ticket_id": 101,
+            "ticket_number": "TKT-2024-001",
+            "description": "Tidak bisa login ke sistem",
+            "ticket_priority": "High",
+            "ticket_type": "Incident",
+            "status": "inprocess",
+            "start_date": "2024-06-15",
+            "end_date": null,
+            "last_message_at": "2024-06-15T12:00:00.000000Z",
+            "created_at": "2024-06-15T10:30:00.000000Z",
+            "updated_at": "2024-06-15T12:00:00.000000Z",
+            "customer": {
+                "customer_id": 5,
+                "customer_name": "PT. ABC Indonesia",
+                "customer_code": "ABC001"
+            },
+            "pic": {
+                "employee_id": 42,
+                "employee_name": "John"
+            },
+            "members": [{ "employee_id": 15, "employee_name": "Bob" }],
+            "sla": {
+                "resolution_status": "pending",
+                "resolution_due_at": "2024-06-17T10:30:00.000000Z",
+                "response_status": "met"
+            },
+            "delivery": {
+                "delivery_id": 7,
+                "delivery_name": "MO CR LPPNPI 2025 - 2027",
+                "delivery_type": "MO",
+                "client_name": "Airnav Indonesia",
+                "delivery_label": "MO CR LPPNPI 2025 - 2027 (Airnav Indonesia), MO"
+            }
+        }
+    ],
+    "meta": {
+        "current_page": 1,
+        "per_page": 20,
+        "total": 12,
+        "last_page": 1
     }
-  ],
-  "meta": {
-    "current_page": 1,
-    "per_page": 20,
-    "total": 12,
-    "last_page": 1
-  }
 }
 ```
 
@@ -905,44 +1143,42 @@ Authorization: Bearer <token>
 
 ```json
 {
-  "success": true,
-  "data": {
-    "id": 42,
-    "eci": "ECI017",
-    "is_active": true,
-    "title": "Mr.",
-    "first_name": "John",
-    "last_name": "Doe",
-    "nick_name": "John",
-    "gender": "Male",
-    "religion": "Islam",
-    "marital_status": "Married",
-    "birth_date": "1990-05-15",
-    "birth_place": "Jakarta",
-    "since_date": "2020-01-01",
-    "personnel_area": "Head Office",
-    "employee_group": "Permanent",
-    "employee_subgroup": "IT Department",
-    "position": "Senior Consultant",
-    "division": "Delivery",
-    "department": "IT Services",
-    "direct_supervision": "Manager A",
-    "manager": "Director B",
-    "employee_type": "Internal",
-    "country": "ID",
-    "region": "DKI Jakarta",
-    "city": "Jakarta Selatan",
-    "district": "Kebayoran Baru",
-    "street": "Jl. Sudirman No. 1",
-    "postal_code": "12190",
-    "cell_phone": "081234567890",
-    "telephone": null,
-    "email_personal": "john.personal@gmail.com",
-    "email_work": "john.doe@company.com",
-    "roles": [
-      { "id": 2, "name": "Delivery Support User" }
-    ]
-  }
+    "success": true,
+    "data": {
+        "id": 42,
+        "eci": "ECI017",
+        "is_active": true,
+        "title": "Mr.",
+        "first_name": "John",
+        "last_name": "Doe",
+        "nick_name": "John",
+        "gender": "Male",
+        "religion": "Islam",
+        "marital_status": "Married",
+        "birth_date": "1990-05-15",
+        "birth_place": "Jakarta",
+        "since_date": "2020-01-01",
+        "personnel_area": "Head Office",
+        "employee_group": "Permanent",
+        "employee_subgroup": "IT Department",
+        "position": "Senior Consultant",
+        "division": "Delivery",
+        "department": "IT Services",
+        "direct_supervision": "Manager A",
+        "manager": "Director B",
+        "employee_type": "Internal",
+        "country": "ID",
+        "region": "DKI Jakarta",
+        "city": "Jakarta Selatan",
+        "district": "Kebayoran Baru",
+        "street": "Jl. Sudirman No. 1",
+        "postal_code": "12190",
+        "cell_phone": "081234567890",
+        "telephone": null,
+        "email_personal": "john.personal@gmail.com",
+        "email_work": "john.doe@company.com",
+        "roles": [{ "id": 2, "name": "Delivery Support User" }]
+    }
 }
 ```
 
@@ -958,17 +1194,17 @@ Mengubah password user yang sedang login.
 
 #### Request Body
 
-| Field | Type | Wajib | Deskripsi |
-|-------|------|-------|-----------|
-| `password` | `string` | Ya | Password baru (min 8 karakter) |
-| `password_confirmation` | `string` | Ya | Konfirmasi password baru (harus sama dengan `password`) |
+| Field                   | Type     | Wajib | Deskripsi                                               |
+| ----------------------- | -------- | ----- | ------------------------------------------------------- |
+| `password`              | `string` | Ya    | Password baru (min 8 karakter)                          |
+| `password_confirmation` | `string` | Ya    | Konfirmasi password baru (harus sama dengan `password`) |
 
 #### Contoh Request
 
 ```json
 {
-  "password": "newSecurePassword123",
-  "password_confirmation": "newSecurePassword123"
+    "password": "newSecurePassword123",
+    "password_confirmation": "newSecurePassword123"
 }
 ```
 
@@ -976,8 +1212,8 @@ Mengubah password user yang sedang login.
 
 ```json
 {
-  "success": true,
-  "message": "Password changed successfully."
+    "success": true,
+    "message": "Password changed successfully."
 }
 ```
 
@@ -985,12 +1221,14 @@ Mengubah password user yang sedang login.
 
 ```json
 {
-  "success": false,
-  "message": "Password update data is invalid.",
-  "errors": {
-    "password": ["The password confirmation does not match."],
-    "password_confirmation": ["The password confirmation field is required."]
-  }
+    "success": false,
+    "message": "Password update data is invalid.",
+    "errors": {
+        "password": ["The password confirmation does not match."],
+        "password_confirmation": [
+            "The password confirmation field is required."
+        ]
+    }
 }
 ```
 
@@ -1014,23 +1252,23 @@ Mengambil 20 notifikasi terbaru milik user yang sedang login, beserta jumlah yan
 
 ```json
 {
-  "success": true,
-  "data": [
-    {
-      "id": 901,
-      "type": "ticket_reply",
-      "ticket_id": 101,
-      "ticket_number": "TKT-2024-001",
-      "customer_name": "ABC001",
-      "message_id": 502,
-      "from_name": "Jane Smith",
-      "preview": "Masalah telah diselesaikan. Silakan coba login kembali.",
-      "link": "/ticket/101#msg-502",
-      "is_read": false,
-      "created_at": "5 minutes ago"
-    }
-  ],
-  "unread_count": 3
+    "success": true,
+    "data": [
+        {
+            "id": 901,
+            "type": "ticket_reply",
+            "ticket_id": 101,
+            "ticket_number": "TKT-2024-001",
+            "customer_name": "ABC001",
+            "message_id": 502,
+            "from_name": "Jane Smith",
+            "preview": "Masalah telah diselesaikan. Silakan coba login kembali.",
+            "link": "/ticket/101#msg-502",
+            "is_read": false,
+            "created_at": "5 minutes ago"
+        }
+    ],
+    "unread_count": 3
 }
 ```
 
@@ -1048,9 +1286,9 @@ Endpoint ringan khusus untuk polling badge notifikasi (tanpa mengambil isi list)
 
 ```json
 {
-  "success": true,
-  "count": 3,
-  "message_sound_count": 1
+    "success": true,
+    "count": 3,
+    "message_sound_count": 1
 }
 ```
 
@@ -1130,15 +1368,15 @@ Menghapus semua notifikasi yang **sudah dibaca** milik user yang login.
 
 ## 8. Kode Status HTTP
 
-| Kode | Deskripsi |
-|------|-----------|
-| `200` | OK — Request berhasil |
-| `201` | Created — Resource berhasil dibuat |
-| `401` | Unauthorized — Token tidak valid atau belum login |
-| `403` | Forbidden — Tidak memiliki izin |
-| `404` | Not Found — Resource tidak ditemukan |
-| `422` | Unprocessable Entity — Validasi input gagal |
-| `429` | Too Many Requests — Rate limit tercapai |
+| Kode  | Deskripsi                                             |
+| ----- | ----------------------------------------------------- |
+| `200` | OK — Request berhasil                                 |
+| `201` | Created — Resource berhasil dibuat                    |
+| `401` | Unauthorized — Token tidak valid atau belum login     |
+| `403` | Forbidden — Tidak memiliki izin                       |
+| `404` | Not Found — Resource tidak ditemukan                  |
+| `422` | Unprocessable Entity — Validasi input gagal           |
+| `429` | Too Many Requests — Rate limit tercapai               |
 | `500` | Internal Server Error — Terjadi kesalahan pada server |
 
 ---
@@ -1147,56 +1385,56 @@ Menghapus semua notifikasi yang **sudah dibaca** milik user yang login.
 
 ### Status Tiket
 
-| Value | Deskripsi |
-|-------|-----------|
-| `open` | Tiket baru, belum ditangani |
-| `inprocess` | Sedang dalam proses penanganan |
-| `waiting_on_customer` | Menunggu respons dari customer |
-| `waiting_on_3rd_party` | Menunggu pihak ketiga |
+| Value                     | Deskripsi                        |
+| ------------------------- | -------------------------------- |
+| `open`                    | Tiket baru, belum ditangani      |
+| `inprocess`               | Sedang dalam proses penanganan   |
+| `waiting_on_customer`     | Menunggu respons dari customer   |
+| `waiting_on_3rd_party`    | Menunggu pihak ketiga            |
 | `waiting_to_confirmation` | Menunggu konfirmasi penyelesaian |
-| `hold` | Ditahan sementara |
-| `cancelled` | Dibatalkan |
-| `closed` | Selesai dan ditutup |
+| `hold`                    | Ditahan sementara                |
+| `cancelled`               | Dibatalkan                       |
+| `closed`                  | Selesai dan ditutup              |
 
 ### Prioritas Tiket
 
-| Value | Deskripsi |
-|-------|-----------|
+| Value       | Deskripsi       |
+| ----------- | --------------- |
 | `Very High` | Sangat mendesak |
-| `High` | Mendesak |
-| `Medium` | Normal |
-| `Low` | Tidak mendesak |
+| `High`      | Mendesak        |
+| `Medium`    | Normal          |
+| `Low`       | Tidak mendesak  |
 
 ### Jenis Pesan (message_type)
 
-| Value | Deskripsi |
-|-------|-----------|
-| `reply` | Balasan yang terlihat oleh semua pihak |
+| Value           | Deskripsi                                          |
+| --------------- | -------------------------------------------------- |
+| `reply`         | Balasan yang terlihat oleh semua pihak             |
 | `internal_note` | Catatan internal, hanya terlihat oleh tim internal |
 
 ### Role ID
 
-| ID | Nama |
-|----|------|
-| `1` | EC Administrator |
-| `2` | Delivery Support User |
-| `3` | EC User |
-| `4` | Delivery Project Head |
-| `5` | Delivery Support Head |
-| `6` | Delivery Helpdesk |
-| `7` | Delivery RPMO Head |
+| ID   | Nama                           |
+| ---- | ------------------------------ |
+| `1`  | EC Administrator               |
+| `2`  | Delivery Support User          |
+| `3`  | EC User                        |
+| `4`  | Delivery Project Head          |
+| `5`  | Delivery Support Head          |
+| `6`  | Delivery Helpdesk              |
+| `7`  | Delivery RPMO Head             |
 | `12` | Delivery Project Administrator |
-| `14` | Delivery Support Manager |
-| `15` | Delivery Project User |
+| `14` | Delivery Support Manager       |
+| `15` | Delivery Project User          |
 
 ### SLA Status
 
-| Value | Deskripsi |
-|-------|-----------|
-| `pending` | SLA masih berjalan |
-| `met` | SLA terpenuhi (tepat waktu) |
-| `breached` | SLA dilanggar (melewati deadline) |
-| `paused` | SLA sedang dijeda (misal: sedang meeting) |
+| Value      | Deskripsi                                 |
+| ---------- | ----------------------------------------- |
+| `pending`  | SLA masih berjalan                        |
+| `met`      | SLA terpenuhi (tepat waktu)               |
+| `breached` | SLA dilanggar (melewati deadline)         |
+| `paused`   | SLA sedang dijeda (misal: sedang meeting) |
 
 ---
 
@@ -1216,7 +1454,7 @@ Menghapus semua notifikasi yang **sudah dibaca** milik user yang login.
 
 ### Pesan (Messages)
 
-7. Endpoint `POST /tickets/{ticketId}/messages` **hanya mendukung pengiriman pesan via web** (channel: `web`). Pengiriman email terintegrasi tidak tersedia di Lite API.
+7. Endpoint `POST /tickets/{ticketId}/messages` untuk `message_type: reply` **mengirim email ke customer** (email-first, sama seperti web) — lihat detail di [5.6](#56-post-ticketsticketidmessages). Reply belum mendukung lampiran; hanya jatuh ke `channel: web` bila email gagal/tidak ada penerima.
 8. `internal_note` hanya terlihat oleh tim internal dan **tidak akan ditampilkan kepada customer**.
 
 ### Password
@@ -1232,4 +1470,4 @@ Menghapus semua notifikasi yang **sudah dibaca** milik user yang login.
 
 ---
 
-*Dokumentasi ini dibuat berdasarkan implementasi EcoSystem Lite API v1.0. Untuk pertanyaan lebih lanjut, hubungi tim backend.*
+_Dokumentasi ini dibuat berdasarkan implementasi EcoSystem Lite API v1.0. Untuk pertanyaan lebih lanjut, hubungi tim backend._

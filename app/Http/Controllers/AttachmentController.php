@@ -14,14 +14,15 @@ class AttachmentController extends Controller
      * Proxy: ambil file attachment dari Microsoft Graph dan stream ke browser.
      *
      * Route: GET /attachments/{id}  (CheckAuthToken middleware)
+     *       atau GET /api/lite/attachments/{id}  (lite.auth middleware — Bearer token)
      *
      * File TIDAK disimpan di server — setiap request diambil langsung dari Graph.
      * Ini menghemat storage server sambil tetap menjaga keamanan akses (user harus login).
      */
     public function show(int $id)
     {
-        // Wajib login
-        $sessionUser = session('user');
+        // Wajib login — via session web biasa ATAU Bearer token Lite API
+        $sessionUser = session('user') ?? request()->attributes->get('lite_user');
         if (!$sessionUser) {
             abort(401, 'Authentication required. Please log in to access this resource.');
         }
