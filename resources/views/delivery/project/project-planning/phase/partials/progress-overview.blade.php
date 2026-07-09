@@ -173,7 +173,12 @@
     {{-- Header - Mobile Optimized --}}
     <div class="px-3 sm:px-4 py-2 sm:py-3 bg-gradient-to-r from-blue-600 to-indigo-600 border-b border-indigo-700">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <h3 class="text-sm sm:text-base font-semibold text-white">📊 Project Progress Overview</h3>
+            <h3 class="inline-flex items-center gap-2 text-sm sm:text-base font-semibold text-white">
+                <svg class="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+                Project Progress Overview
+            </h3>
             <div class="flex items-center space-x-2">
                 <div class="px-2 sm:px-3 py-1 bg-white bg-opacity-20 rounded-full">
                     <span class="text-xs sm:text-sm font-bold text-white">{{ $overallProgress }}%</span>
@@ -249,13 +254,33 @@
                     Project Completed!
                 </span>
             @elseif($overallProgress >= 75)
-                <span class="text-blue-600 font-medium">🎯 Almost there! Final stretch</span>
+                <span class="inline-flex items-center text-blue-600 font-medium">
+                    <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Almost there! Final stretch
+                </span>
             @elseif($overallProgress >= 50)
-                <span class="text-indigo-600 font-medium">⚡ Making good progress</span>
+                <span class="inline-flex items-center text-indigo-600 font-medium">
+                    <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    Making good progress
+                </span>
             @elseif($overallProgress >= 25)
-                <span class="text-yellow-600 font-medium">🚀 Getting started</span>
+                <span class="inline-flex items-center text-yellow-600 font-medium">
+                    <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                    </svg>
+                    Getting started
+                </span>
             @else
-                <span class="text-gray-600">📋 Project in early stage</span>
+                <span class="inline-flex items-center text-gray-600">
+                    <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                    </svg>
+                    Project in early stage
+                </span>
             @endif
         </div>
     </div>

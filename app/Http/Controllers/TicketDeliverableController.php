@@ -185,7 +185,7 @@ class TicketDeliverableController extends Controller
 
     /**
      * PATCH /api/tickets/{ticketId}/deliverables/{delivId}
-     * Update body_text (only allowed while status is not "Sended").
+     * Update body_text (only allowed while status is not "Sent").
      */
     public function update(Request $request, $ticketId, $delivId)
     {
@@ -202,7 +202,7 @@ class TicketDeliverableController extends Controller
             ->where('ticket_id', $ticketId)
             ->firstOrFail();
 
-        if ($deliverable->status === 'Sended') {
+        if ($deliverable->status === 'Sent') {
             return response()->json([
                 'success' => false,
                 'message' => 'Cannot edit a document that has already been sent to customer.',
@@ -216,14 +216,23 @@ class TicketDeliverableController extends Controller
 
     /**
      * PATCH /api/tickets/{ticketId}/deliverables/{delivId}/send
-     * Mark a deliverable as "Sended", add to chat, and email the customer.
+     * Mark a deliverable as "Sent", add to chat, and email the customer.
+     *
+     * Mengikuti alur reply biasa: helpdesk wajib memilih status tiket lebih dulu
+     * (dikirim via `ticket_status`) sebelum dokumen benar-benar dikirim ke customer.
      */
-    public function send($ticketId, $delivId)
+    public function send(Request $request, $ticketId, $delivId)
     {
         $user = session('user');
         if (!$user) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
+
+        $request->validate([
+            'ticket_status' => 'nullable|in:inprocess,waiting_on_customer,waiting_to_confirmation,waiting_on_3rd_party,hold',
+            'to_emails'     => 'nullable',
+            'cc_emails'     => 'nullable',
+        ]);
 
         $deliverable = TicketDeliverable::where('id', $delivId)
             ->where('ticket_id', $ticketId)
@@ -231,7 +240,29 @@ class TicketDeliverableController extends Controller
 
         $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
 
-        $deliverable->update(['status' => 'Sended']);
+        $deliverable->update(['status' => 'Sent']);
+
+        // To/Cc diambil dari kolom composer reply (mirror reply biasa). Jika frontend
+        // mengirim daftar (walau kosong) → HORMATI apa adanya & persist ke ticket; jika
+        // field tidak dikirim (null) → fallback ke resolveCustomerEmail + ticket.cc_emails.
+        $requestTo = $this->parseEmailList($request->input('to_emails'));
+        $requestCc = $this->parseEmailList($request->input('cc_emails'));
+
+        // CC final: composer jika dikirim, else ticket.cc_emails.
+        $ccList = $requestCc !== null ? $requestCc : (
+            !empty($ticket->cc_emails)
+                ? (is_array($ticket->cc_emails) ? $ticket->cc_emails : (json_decode($ticket->cc_emails, true) ?? []))
+                : []
+        );
+
+        // TO final: primary + tambahan dari composer jika dikirim, else customer email default.
+        if ($requestTo !== null) {
+            $primaryTo        = $requestTo[0] ?? null;
+            $additionalToList = count($requestTo) > 1 ? array_slice($requestTo, 1) : [];
+        } else {
+            $primaryTo        = $this->resolveCustomerEmail($ticket);
+            $additionalToList = [];
+        }
 
         // Build message body
         // Chat bubble (EcoSystem/Jarvies) tetap tampil "Helpdesk Support" — konsisten
@@ -254,22 +285,35 @@ class TicketDeliverableController extends Controller
         if ($deliverable->body_text) $plainMsg .= ' — ' . $deliverable->body_text;
         if ($deliverable->file_name) $plainMsg .= ' (' . $deliverable->file_name . ')';
 
+        // Layout key-value 3 kolom: label | ":" | value. Kolom ":" dipisah agar titik dua
+        // SEJAJAR vertikal antar-baris (tabel otomatis melebarkan kolom label ke label
+        // terlebar, sehingga semua ":" mulai di posisi X yang sama). Kolom label
+        // `white-space:nowrap` biar "Description" tak terpotong; kolom nilai
+        // `overflow-wrap:anywhere` supaya nama file panjang membungkus rapi (bukan meluber).
+        // Class `deliv-card` dipakai untuk override border tabel paksaan `.email-html-body td`
+        // di chat bubble (lihat CSS di ticket/show.blade.php).
+        $labelTd = 'padding:4px 0;color:#6b7280;white-space:nowrap;vertical-align:top;';
+        $colonTd = 'padding:4px 10px;color:#6b7280;vertical-align:top;';
+        $valueTd = 'padding:4px 0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;';
+
+        $row = fn(string $label, string $value, string $valueExtra = '') =>
+            '<tr><td style="' . $labelTd . '">' . $label . '</td>'
+            . '<td style="' . $colonTd . '">:</td>'
+            . '<td style="' . $valueTd . $valueExtra . '">' . $value . '</td></tr>';
+
         $htmlMsg = '<p style="margin:0 0 8px"><strong>Deliverable Document</strong></p>'
-            . '<table style="border-collapse:collapse;font-size:13px">'
-            . '<tr><td style="padding:3px 10px 3px 0;color:#6b7280;white-space:nowrap">Doc Type</td>'
-            . '<td style="padding:3px 0;font-weight:600">' . htmlspecialchars($deliverable->doc_type) . '</td></tr>';
+            . '<table class="deliv-card" style="border-collapse:collapse;font-size:13px;width:100%;max-width:460px;">'
+            . $row('Doc Type', htmlspecialchars($deliverable->doc_type), 'font-weight:600;');
 
         if ($deliverable->body_text) {
-            $htmlMsg .= '<tr><td style="padding:3px 10px 3px 0;color:#6b7280">Description</td>'
-                . '<td style="padding:3px 0">' . nl2br(htmlspecialchars($deliverable->body_text)) . '</td></tr>';
+            $htmlMsg .= $row('Description', nl2br(htmlspecialchars($deliverable->body_text)));
         }
 
         if ($deliverable->file_name) {
             $fileCell = $deliverable->onedrive_file_url
-                ? '<a href="' . htmlspecialchars($deliverable->onedrive_file_url) . '" target="_blank" style="color:#2563eb">' . htmlspecialchars($deliverable->file_name) . '</a>'
+                ? '<a href="' . htmlspecialchars($deliverable->onedrive_file_url) . '" target="_blank" style="color:#2563eb;word-break:break-word;overflow-wrap:anywhere;">' . htmlspecialchars($deliverable->file_name) . '</a>'
                 : htmlspecialchars($deliverable->file_name);
-            $htmlMsg .= '<tr><td style="padding:3px 10px 3px 0;color:#6b7280">File</td>'
-                . '<td style="padding:3px 0">' . $fileCell . '</td></tr>';
+            $htmlMsg .= $row('File', $fileCell);
         }
         $htmlMsg .= '</table>';
 
@@ -286,22 +330,28 @@ class TicketDeliverableController extends Controller
             'channel'             => $channel,
             'is_internal_note'    => false,
             'is_read_by_customer' => false,
+            'cc_emails'           => !empty($ccList) ? $ccList : null,
         ]);
 
-        $ticket->update([
+        // Status tiket yang dipilih helpdesk di modal (mirror alur reply biasa).
+        // Sekaligus persist To/Cc composer ke ticket agar reply/pengiriman berikutnya
+        // memakai recipient yang sama (mirror TicketMessageController).
+        $chosenStatus = $request->input('ticket_status');
+        $ticketUpdate = [
             'last_message_at'     => now(),
             'last_agent_reply_at' => now(),
-        ]);
+        ];
+        if ($chosenStatus)       $ticketUpdate['status']    = $chosenStatus;
+        if ($requestTo !== null) $ticketUpdate['to_emails'] = $requestTo;
+        if ($requestCc !== null) $ticketUpdate['cc_emails'] = $requestCc;
+        $ticket->update($ticketUpdate);
 
-        // Send email to customer whenever they have an email address.
-        // Resolusi email mengikuti urutan prioritas yang sama dengan reply biasa
-        // (TicketMessageController::resolveCustomerEmail) agar selalu konsisten —
-        // customer.email (company email) sering kosong sehingga tidak bisa jadi sumber utama.
+        // Kirim email memakai To/Cc dari composer (mirror reply biasa). Kirim selama ada
+        // penerima: To utama TERISI atau minimal ada CC (kasus CC-only). $primaryTo/$ccList/
+        // $additionalToList sudah dihitung di atas dari request (fallback customer email).
         $emailError = null; // alasan gagal (untuk response → notifikasi frontend)
         try {
-            $customerEmail = $this->resolveCustomerEmail($ticket);
-
-            if ($customerEmail) {
+            if ($primaryTo || !empty($ccList)) {
                 // Subject HARUS identik dengan thread email ticket ("[JARVIES] #XXXX : desc")
                 // agar dokumen deliverable masuk ke thread yang sama, BUKAN membuat email baru.
                 // Format ini sama persis dengan email approval (StagingTicketController) dan
@@ -318,13 +368,6 @@ class TicketDeliverableController extends Controller
                     ->orderByDesc('created_at')
                     ->value('email_message_id');
 
-                $ccList = [];
-                if (!empty($ticket->cc_emails)) {
-                    $ccList = is_array($ticket->cc_emails)
-                        ? $ticket->cc_emails
-                        : (json_decode($ticket->cc_emails, true) ?? []);
-                }
-
                 // Bungkus tabel deliverable dengan footer. "Sent by" mengikuti user yang
                 // login & menekan Send (sama seperti email validate), bukan hardcode.
                 // Chat bubble tetap memakai $htmlMsg tanpa footer.
@@ -337,14 +380,17 @@ class TicketDeliverableController extends Controller
 
                 $emailController = new EmailController();
                 $result = $emailController->sendTicketReply(
-                    $customerEmail,
+                    $primaryTo ?? '',            // primary To (boleh kosong bila CC-only)
                     $subject,
                     $emailHtml,
                     $inReplyTo,
-                    [],
+                    [],                          // attachments
                     $ccList,
-                    true,
-                    $ticket->email_thread_id
+                    true,                        // noRePrefix
+                    $ticket->email_thread_id,    // conversationId fallback
+                    false,                       // forceNewDraft
+                    [],                          // rawAttachments
+                    $additionalToList            // additional To recipients (selain primary)
                 );
 
                 if (!empty($result['internet_message_id'])) {
@@ -411,7 +457,7 @@ class TicketDeliverableController extends Controller
             ->firstOrFail();
 
         // Dokumen yang sudah dikirim ke customer tidak boleh dihapus.
-        if ($deliverable->status === 'Sended') {
+        if ($deliverable->status === 'Sent') {
             return response()->json([
                 'success' => false,
                 'message' => 'Cannot delete a document that has already been sent to customer.',
@@ -471,6 +517,27 @@ class TicketDeliverableController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Normalisasi input daftar email dari request (composer To/Cc).
+     * - null (field tak dikirim)   → null  (caller fallback ke resolveCustomerEmail / ticket.cc_emails)
+     * - array / JSON string        → array alamat string ter-trim, entri kosong dibuang
+     * Menerima item string ("a@b.com") maupun objek ({address, name}).
+     */
+    private function parseEmailList($raw): ?array
+    {
+        if ($raw === null) {
+            return null;
+        }
+        $arr = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
+        if (!is_array($arr)) {
+            $arr = [];
+        }
+        return array_values(array_filter(array_map(
+            fn ($e) => is_string($e) ? trim($e) : (is_array($e) ? trim((string) ($e['address'] ?? '')) : ''),
+            $arr
+        )));
     }
 
     private function format(TicketDeliverable $d): array
