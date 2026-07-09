@@ -205,6 +205,7 @@ class TicketController extends Controller
             $deliverySupportMap = \App\Models\DeliverySupportActivity::with([
                 'deliverySupport.supportManagers.basicData',
                 'deliverySupport.supportAdmin.basicData',
+                'deliverySupport.client.basicData',
             ])
             ->whereIn('ticket_id', $ticketIds)
             ->whereNotNull('ticket_id')
@@ -212,9 +213,17 @@ class TicketController extends Controller
             ->keyBy('ticket_id')
             ->map(function ($activity) {
                 $ds = $activity->deliverySupport;
+                $clientName = $ds?->client?->basicData?->name_1;
                 return [
                     'support_manager_name' => $ds?->supportManagers->pluck('basicData.first_name')->filter()->implode(', '),
                     'support_admin_name'   => $ds?->supportAdmin?->basicData?->first_name,
+                    'delivery_id'          => $ds?->id,
+                    'delivery_name'        => $ds?->name,
+                    'delivery_type'        => $ds?->type,
+                    'delivery_client_name' => $clientName,
+                    'delivery_label'       => $ds ? trim($ds->name
+                        . ($clientName ? " ({$clientName})" : '')
+                        . ($ds->type ? ", {$ds->type}" : '')) : null,
                 ];
             });
 
@@ -307,6 +316,13 @@ class TicketController extends Controller
                     ] : null,
                     'support_manager' => $deliverySupportMap[$ticket->ticket_id]['support_manager_name'] ?? null,
                     'support_admin'   => $deliverySupportMap[$ticket->ticket_id]['support_admin_name'] ?? null,
+                    'delivery' => isset($deliverySupportMap[$ticket->ticket_id]) ? [
+                        'delivery_id'    => $deliverySupportMap[$ticket->ticket_id]['delivery_id'],
+                        'delivery_name'  => $deliverySupportMap[$ticket->ticket_id]['delivery_name'],
+                        'delivery_type'  => $deliverySupportMap[$ticket->ticket_id]['delivery_type'],
+                        'client_name'    => $deliverySupportMap[$ticket->ticket_id]['delivery_client_name'],
+                        'delivery_label' => $deliverySupportMap[$ticket->ticket_id]['delivery_label'],
+                    ] : null,
                     'created_at' => $ticket->created_at,
                     'updated_at' => $ticket->updated_at,
                 ];
@@ -1070,8 +1086,31 @@ class TicketController extends Controller
                 ->groupBy('ticket_id')
                 ->map(fn($group) => $group->first()->total_mandays);
 
+            // Batch load delivery support per ticket via delivery_support_activities
+            $myDeliverySupportMap = \App\Models\DeliverySupportActivity::with(['deliverySupport.client.basicData'])
+                ->whereIn('ticket_id', $myTicketIds)
+                ->whereNotNull('ticket_id')
+                ->get()
+                ->keyBy('ticket_id')
+                ->map(function ($activity) {
+                    $ds = $activity->deliverySupport;
+                    if (!$ds) {
+                        return null;
+                    }
+                    $clientName = $ds->client?->basicData?->name_1;
+                    return [
+                        'delivery_id'    => $ds->id,
+                        'delivery_name'  => $ds->name,
+                        'delivery_type'  => $ds->type,
+                        'client_name'    => $clientName,
+                        'delivery_label' => trim($ds->name
+                            . ($clientName ? " ({$clientName})" : '')
+                            . ($ds->type ? ", {$ds->type}" : '')),
+                    ];
+                });
+
             // ✅ Transform data dengan confirmation info
-            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadAtMap, $myCanReadFeature) {
+            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadAtMap, $myCanReadFeature, $myDeliverySupportMap) {
                 $myAllProgress = $myProgressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -1150,6 +1189,7 @@ class TicketController extends Controller
                         'resolution_time_hours'   => $ticket->sla->net_resolution_hours,
                         'resolution_status'       => $ticket->sla->resolution_status,
                     ] : null,
+                    'delivery' => $myDeliverySupportMap[$ticket->ticket_id] ?? null,
                     'created_at' => $ticket->created_at,
                     'updated_at' => $ticket->updated_at,
                 ];
