@@ -15,6 +15,7 @@ use App\Models\CustomerContact;
 use App\Models\DeliverySupportCustomerPic;
 use App\Models\Employee;
 use App\Models\Ticket;
+use App\Models\AuthUser;
 use App\Services\OneDriveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -1097,7 +1098,9 @@ class DeliverySupportController extends Controller
 
     /**
      * GET /delivery/support/{support}/customer-contacts
-     * Kembalikan semua customer contact milik client dari DS ini, untuk pilihan dropdown.
+     * Kembalikan customer contact milik client dari DS ini untuk pilihan dropdown PIC,
+     * kecuali contact yang sudah berstatus admin (can_view_all_tickets) — admin selalu
+     * bisa lihat semua ticket company, jadi tidak relevan dijadikan PIC yang scope-nya dibatasi.
      */
     public function getClientContacts(DeliverySupport $support)
     {
@@ -1105,8 +1108,14 @@ class DeliverySupportController extends Controller
             return response()->json(['success' => true, 'data' => []]);
         }
 
+        $adminContactIds = AuthUser::where('customer_id', $support->client_id)
+            ->where('can_view_all_tickets', true)
+            ->whereNotNull('contact_id')
+            ->pluck('contact_id');
+
         $contacts = CustomerContact::where('customer_id', $support->client_id)
             ->whereNotNull('email_work')
+            ->whereNotIn('contact_id', $adminContactIds)
             ->orderBy('full_name')
             ->get(['contact_id', 'full_name', 'position', 'department', 'email_work']);
 
@@ -1164,6 +1173,19 @@ class DeliverySupportController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Beberapa contact tidak termasuk dalam customer yang dipilih.',
+                ], 422);
+            }
+
+            // Contact yang berstatus admin (can_view_all_tickets) tidak boleh jadi PIC —
+            // scope PIC membatasi visibility ticket, sedangkan admin selalu lihat semua.
+            $adminCount = AuthUser::whereIn('contact_id', $contactIds)
+                ->where('can_view_all_tickets', true)
+                ->count();
+
+            if ($adminCount > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact yang berstatus admin (can_view_all_tickets) tidak dapat dijadikan PIC Customer.',
                 ], 422);
             }
         }

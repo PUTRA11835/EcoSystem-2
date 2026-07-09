@@ -818,11 +818,16 @@ function buildAttachmentsBlock(files, source = 'local') {
         const url      = escHtml(f.url || '#');
         const icon     = mimeIcon(mime);
         const isImage  = mime.startsWith('image/');
+        const isPdf    = mime === 'application/pdf';
         const preview  = isImage
             ? `<img src="${url}" alt="${name}" class="max-h-32 max-w-full rounded object-contain border border-gray-200 mt-2" onerror="this.remove()">`
             : '';
+        // Image/PDF: browser punya viewer bawaan, buka di tab baru. Tipe lain (docx, xlsx, zip, dst):
+        // browser tidak bisa render inline, jadi paksa download dengan nama file yang benar —
+        // tanpa atribut `download` ini, sebagian browser fallback ke nama dari URL (rusak/acak).
+        const linkAttrs = (isImage || isPdf) ? 'target="_blank" rel="noopener"' : `download="${name}"`;
         return `<div class="border-b border-gray-100 last:border-0">
-            <a href="${url}" target="_blank" rel="noopener"
+            <a href="${url}" ${linkAttrs}
                class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors group">
                 <i class="fas ${icon} text-gray-400 group-hover:text-red-500 text-base w-5 text-center flex-shrink-0"></i>
                 <span class="text-sm text-gray-800 truncate flex-1">${name}</span>

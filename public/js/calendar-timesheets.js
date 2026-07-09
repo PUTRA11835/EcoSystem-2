@@ -637,7 +637,7 @@ function handleTimesheetTypeChange() {
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">
                     Ticket <span class="text-red-500">*</span>
                 </label>
-                <div class="custom-dd w-full" data-fixed="true" data-onchange="onSupportTicketSelected">
+                <div class="custom-dd w-full" data-fixed="true" data-onchange="onSupportTicketSelected" data-searchable="true" data-search-placeholder="Search ticket number, customer, or description…">
                     <button type="button" class="custom-dd-btn w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-2">
                         <span class="custom-dd-label text-gray-500 truncate flex-1 text-left">Select a Ticket</span>
                         ${CHEVRON}
@@ -865,23 +865,35 @@ async function loadTicketsForDropdown() {
                 const allTickets = data.data;
                 myTicketsCache = allTickets;
 
-                if (allTickets.length === 0) {
-                    panel.innerHTML = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 cursor-default" data-value="">No tickets assigned to you</button>';
-                    return;
-                }
-
                 // Sort by ticket_id descending (newest first)
                 allTickets.sort((a, b) => b.ticket_id - a.ticket_id);
 
-                let html = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50" data-value="">Select a Ticket</button>';
-                allTickets.forEach(ticket => {
-                    const ticketLabel  = ticket.ticket_number || `#${ticket.ticket_id}`;
-                    const customerCode = ticket.customer?.customer_code || ticket.customer?.customer_name || '';
-                    const description  = ticket.description || '';
-                    const labelText    = `${ticketLabel} - ${customerCode} - ${description}`;
-                    html += `<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="${ticket.ticket_id}">${labelText}</button>`;
-                });
-                panel.innerHTML = html;
+                let itemsHtml;
+                if (allTickets.length === 0) {
+                    itemsHtml = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 cursor-default" data-value="">No tickets assigned to you</button>';
+                } else {
+                    itemsHtml = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50" data-value="">Select a Ticket</button>';
+                    allTickets.forEach(ticket => {
+                        const ticketLabel  = ticket.ticket_number || `#${ticket.ticket_id}`;
+                        const customerCode = ticket.customer?.customer_code || ticket.customer?.customer_name || '';
+                        const description  = ticket.description || '';
+                        const labelText    = `${ticketLabel} - ${customerCode} - ${description}`;
+                        itemsHtml += `<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="${ticket.ticket_id}">${labelText}</button>`;
+                    });
+                }
+
+                // Rebuild only the item buttons — a plain `panel.innerHTML = itemsHtml`
+                // would also wipe out the sticky search box + empty-state that
+                // _injectSearch() wired up at dropdown init, silently killing search
+                // the moment tickets finish loading. Preserve those nodes instead.
+                const searchWrap = panel.querySelector('.custom-dd-search-wrap');
+                const emptyEl    = panel.querySelector('.custom-dd-empty');
+                panel.innerHTML = '';
+                if (searchWrap) panel.appendChild(searchWrap);
+                panel.insertAdjacentHTML('beforeend', itemsHtml);
+                if (emptyEl) panel.appendChild(emptyEl);
+
+                if (allTickets.length === 0) return;
 
                 // Pre-select ticket if coming from editTimesheet()
                 if (_pendingTicketPreselect) {
