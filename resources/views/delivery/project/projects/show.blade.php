@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'Project Detail')
 @section('page-title', 'Project Detail')
-@section('page-subtitle', 'View complete project information')
+@section('page-subtitle', e($project->name))
 {{-- ✅ LOAD GANTT LIBRARIES --}}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.css">
