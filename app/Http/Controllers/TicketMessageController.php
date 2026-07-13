@@ -1271,8 +1271,14 @@ class TicketMessageController extends Controller
         string $senderName,
         string $htmlBody,
         string $plainBody,
-        string $messageType
+        string $messageType,
+        ?array $ccOverride = null,
+        ?array $toList = null
     ): ?TicketMessage {
+        $toProvided       = $toList !== null;
+        $primaryTo        = $toProvided ? ($toList[0] ?? null) : null;
+        $additionalToList = $toProvided && count($toList) > 1 ? array_slice($toList, 1) : [];
+
         $message = $this->sendEmailThenSave(
             $ticket,
             [
@@ -1284,7 +1290,11 @@ class TicketMessageController extends Controller
             ],
             [],
             $ticket->ticket_id,
-            $senderId
+            $senderId,
+            $ccOverride,
+            $primaryTo,
+            $additionalToList,
+            $toProvided
         );
 
         if ($message) {
