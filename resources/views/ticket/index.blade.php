@@ -16,26 +16,54 @@
         {{-- View toggles --}}
         @if($user->role->role_id === \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value && !($isExternalEmployee ?? false))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
+            @if($can('ticket.my-tickets.ds-user'))
             <button onclick="toggleView('my')" id="btnViewMy" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
                 <i class="fas fa-user text-[10px] mr-1"></i>My Tickets
             </button>
+            @endif
+            @if($can('ticket.all-tickets'))
             <button onclick="toggleView('all')" id="btnViewAll" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
                 <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
             </button>
+            @endif
+            @if($can('ticket.unassigned'))
+            <button onclick="toggleView('unassigned-tab')" id="btnViewUnassignedTab" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-user-clock text-[10px] mr-1"></i>Unassigned Ticket
+            </button>
+            @endif
         </div>
         @elseif($user->hasRole(\App\Enums\RoleId::DELIVERY_HELPDESK->value))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
+            @if($can('ticket.all-tickets'))
             <button onclick="toggleView('all')" id="btnViewAllHd" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
                 <i class="fas fa-list text-[10px] mr-1"></i>All Tickets
             </button>
+            @endif
+            @if($can('ticket.unassigned'))
             <button onclick="toggleView('unassigned')" id="btnViewUnassigned" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
                 <i class="fas fa-user-clock text-[10px] mr-1"></i>Unassigned
             </button>
+            @endif
         </div>
         @elseif($user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value))
         <div class="inline-flex bg-gray-100 rounded-xl p-1">
-            <button onclick="toggleView('my')" id="btnViewMy" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 active">My Tickets</button>
+            @if($can('ticket.my-tickets.ds-manager'))
+            <button onclick="toggleView('my')" id="btnViewMy" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">My Tickets</button>
+            @endif
+            @if($can('ticket.all-tickets'))
             <button onclick="toggleView('all')" id="btnViewAll" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">All Tickets</button>
+            @endif
+            @if($can('ticket.unassigned'))
+            <button onclick="toggleView('unassigned-tab')" id="btnViewUnassignedTab" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-user-clock text-[10px] mr-1"></i>Unassigned Ticket
+            </button>
+            @endif
+        </div>
+        @elseif($can('ticket.unassigned'))
+        <div class="inline-flex bg-gray-100 rounded-xl p-1">
+            <button onclick="toggleView('unassigned-tab')" id="btnViewUnassignedTab" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-user-clock text-[10px] mr-1"></i>Unassigned Ticket
+            </button>
         </div>
         @endif
 
@@ -665,6 +693,10 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     let currentEmployeeId             = {{ $currentEmployeeId ?? 'null' }};
     const CAN_VIEW_SLA_REPORT         = {{ $can('sla.report') ? 'true' : 'false' }};
     const CAN_HIDE_TICKET             = {{ $can('ticket.hide') ? 'true' : 'false' }};
+    const CAN_VIEW_UNASSIGNED_TICKET  = {{ $can('ticket.unassigned') ? 'true' : 'false' }};
+    const CAN_VIEW_ALL_TICKETS        = {{ $can('ticket.all-tickets') ? 'true' : 'false' }};
+    const CAN_VIEW_MY_TICKET_DS_USER    = {{ $can('ticket.my-tickets.ds-user') ? 'true' : 'false' }};
+    const CAN_VIEW_MY_TICKET_DS_MANAGER = {{ $can('ticket.my-tickets.ds-manager') ? 'true' : 'false' }};
     const IS_EXTERNAL_EMPLOYEE        = {{ ($isExternalEmployee ?? false) ? 'true' : 'false' }};
     const EC_ADMINISTRATOR_ROLE       = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
     const DELIVERY_SUPPORT_USER_ROLE  = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};
@@ -674,7 +706,30 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     const HEAD_ROLES                  = [{{ \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value }}, {{ \App\Enums\RoleId::DELIVERY_PROJECT_HEAD->value }}];
     // Roles that use the All/Unassigned toggle (Helpdesk only)
     const STAFF_TOGGLE_ROLES          = [HELPDESK_ROLE];
-    let currentView = (userRole === DELIVERY_SUPPORT_USER_ROLE || (IS_EXTERNAL_EMPLOYEE && userRole !== SUPPORT_MANAGER_ROLE && !HEAD_ROLES.includes(userRole))) ? 'my' : 'all';
+    // Pilih tab default berdasarkan tombol yang benar-benar tampil (permission-aware),
+    // supaya gak ada mismatch antara tombol yang di-highlight vs data yang di-fetch.
+    function computeDefaultView() {
+        if (IS_EXTERNAL_EMPLOYEE && userRole !== SUPPORT_MANAGER_ROLE && !HEAD_ROLES.includes(userRole)) return 'my';
+
+        if (userRole === DELIVERY_SUPPORT_USER_ROLE) {
+            if (CAN_VIEW_MY_TICKET_DS_USER) return 'my';
+            if (CAN_VIEW_ALL_TICKETS) return 'all';
+            if (CAN_VIEW_UNASSIGNED_TICKET) return 'unassigned-tab';
+            return 'my';
+        }
+        if (userRole === SUPPORT_MANAGER_ROLE) {
+            if (CAN_VIEW_ALL_TICKETS) return 'all';
+            if (CAN_VIEW_MY_TICKET_DS_MANAGER) return 'my';
+            if (CAN_VIEW_UNASSIGNED_TICKET) return 'unassigned-tab';
+            return 'all';
+        }
+        if (STAFF_TOGGLE_ROLES.includes(userRole)) {
+            return 'all';
+        }
+        if (userRole !== EC_ADMINISTRATOR_ROLE && CAN_VIEW_UNASSIGNED_TICKET) return 'unassigned-tab';
+        return 'all';
+    }
+    let currentView = computeDefaultView();
     let sortField = null; // 'last_update' | 'ticket_number' | 'date'
     let sortDir   = null; // 'desc' | 'asc'
 
@@ -690,7 +745,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
         loadTickets();
-        if (userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE || STAFF_TOGGLE_ROLES.includes(userRole) || userRole === SUPPORT_MANAGER_ROLE) updateViewToggle();
+        if (userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE || STAFF_TOGGLE_ROLES.includes(userRole) || userRole === SUPPORT_MANAGER_ROLE || CAN_VIEW_UNASSIGNED_TICKET) updateViewToggle();
         startEmailPolling();
     });
 
@@ -797,18 +852,20 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         if (userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE || userRole === SUPPORT_MANAGER_ROLE) {
             const btnAll = document.getElementById('btnViewAll');
             const btnMy  = document.getElementById('btnViewMy');
-            if (btnAll && btnMy) {
-                btnAll.classList.toggle('active', currentView === 'all');
-                btnMy.classList.toggle('active',  currentView === 'my');
-            }
+            if (btnAll) btnAll.classList.toggle('active', currentView === 'all');
+            if (btnMy)  btnMy.classList.toggle('active',  currentView === 'my');
         }
         if (STAFF_TOGGLE_ROLES.includes(userRole)) {
             const btnA = document.getElementById('btnViewAllHd');
             const btnU = document.getElementById('btnViewUnassigned');
-            if (btnA && btnU) {
-                btnA.classList.toggle('active', currentView === 'all');
-                btnU.classList.toggle('active', currentView === 'unassigned');
-            }
+            if (btnA) btnA.classList.toggle('active', currentView === 'all');
+            if (btnU) btnU.classList.toggle('active', currentView === 'unassigned');
+        }
+        // Unassigned Ticket tab — visibility driven by 'ticket.unassigned' menu permission
+        // (Role & Menu Access), independent of the hardcoded role toggles above.
+        const btnUt = document.getElementById('btnViewUnassignedTab');
+        if (btnUt) {
+            btnUt.classList.toggle('active', currentView === 'unassigned-tab');
         }
     }
 
@@ -823,6 +880,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             let endpoint = '/api/tickets';
             if (userRole === EC_USER_ROLE) endpoint = '/api/tickets/my';
             else if (IS_EXTERNAL_EMPLOYEE && userRole !== SUPPORT_MANAGER_ROLE && !HEAD_ROLES.includes(userRole)) endpoint = '/api/tickets/my';
+            else if (currentView === 'unassigned-tab') endpoint = '/api/tickets/unassigned';
             else if ((userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE) && currentView === 'my') endpoint = '/api/tickets/my';
             else if (userRole === SUPPORT_MANAGER_ROLE && currentView === 'my') endpoint = '/api/tickets/my';
 
