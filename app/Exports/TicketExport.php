@@ -17,8 +17,8 @@ class TicketExport implements
     WithStyles,
     ShouldAutoSize
 {
-    // Column count: A–T (20 columns, Jarvies Status column removed)
-    private const LAST_COL = 'T';
+    // Column count: A–U (21 columns, Jarvies Status column removed)
+    private const LAST_COL = 'U';
 
     protected Collection $rows;
 
@@ -55,6 +55,7 @@ class TicketExport implements
                 'scale'                    => $t['scale'] ?? '-',
                 'status'                   => $statusLabel,
                 'type'                     => $t['ticket_type'] ?? '-',
+                'module'                   => $t['module'] ?? '-',
                 'assign_delivery'          => '-',
                 'customer_mandays'         => $t['customer_mandays'] !== null
                     ? number_format((float) $t['customer_mandays'], 1)
@@ -88,6 +89,7 @@ class TicketExport implements
             'Scale',
             'Status',
             'Type',
+            'Module',
             'Assign Delivery',
             'Customer Mandays',
             'Progress',

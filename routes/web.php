@@ -109,12 +109,15 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/reporting/resolution-days/export',    [\App\Http\Controllers\ReportingController::class, 'exportResolutionDays'])->name('reporting.resolution-days.export');
     Route::get('/reporting/collection-outlook',        [\App\Http\Controllers\ReportingController::class, 'collectionOutlookIndex'])->name('reporting.collection-outlook')->middleware('menu:reporting.collection-outlook');
     Route::get('/reporting/ticketing-overview',        [\App\Http\Controllers\ReportingController::class, 'ticketingOverviewIndex'])->name('reporting.ticketing-overview')->middleware('menu:reporting.ticketing-overview');
+    Route::get('/reporting/ticket-by-module',           [\App\Http\Controllers\ReportingController::class, 'ticketByModuleIndex'])->name('reporting.ticket-by-module')->middleware('menu:reporting.ticket-by-module');
+    Route::get('/reporting/ticket-by-module/export',    [\App\Http\Controllers\ReportingController::class, 'exportTicketByModule'])->name('reporting.ticket-by-module.export')->middleware('menu:reporting.ticket-by-module');
 
     // ==================== MASTER ====================
     Route::prefix('master')->name('master.')->group(function () {
         // Employee routes
         Route::prefix('employee')->name('employee.')->group(function () {
             Route::get('/', [EmployeeController::class, 'index'])->name('index')->middleware('menu:master.employee');
+            Route::get('/export', [EmployeeController::class, 'exportToExcel'])->name('export');
             Route::get('/{id}', [EmployeeController::class, 'show'])->name('detail');
         });
         

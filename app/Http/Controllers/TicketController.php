@@ -95,12 +95,27 @@ class TicketController extends Controller
 
             $filterUnassigned  = $request->boolean('unassigned');
             $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+            $isRestrictedExternal = $isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value;
+
+            // "All Tickets" tab is gated by the 'ticket.all-tickets' menu permission in Role & Menu
+            // Access for every internal role (including Admin/Head/Helpdesk) — restricted external
+            // employees don't use this tab at all, they only ever see their own PIC/member tickets.
+            $employee = null;
+            if (!$isRestrictedExternal) {
+                $employee = Employee::find($sessionUser['id']);
+                if (!$employee || !$employee->hasMenuPermission('ticket.all-tickets')) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Access denied'
+                    ], 403);
+                }
+            }
 
             // External employee: hanya bisa lihat ticket yang dia handle (sebagai lead atau member)
-            if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
+            if ($isRestrictedExternal) {
                 Log::info('External employee viewing own tickets only', ['employee_id' => $sessionUser['id']]);
                 $employeeId = $sessionUser['id'];
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->where(function ($q) use ($employeeId) {
                         $q->where('ticket_lead_id', $employeeId)
@@ -113,7 +128,7 @@ class TicketController extends Controller
             } elseif ($sessionUser['role']['id'] === RoleId::EC_ADMINISTRATOR->value) {
                 Log::info('Admin viewing tickets', ['unassigned' => $filterUnassigned]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
                 if ($filterUnassigned) {
@@ -121,14 +136,19 @@ class TicketController extends Controller
                 }
                 $tickets = $query->get();
 
-            // Employee: tampilkan ticket unassigned (belum ada PIC) — frontend /api/tickets maps to "Unassign" tab
+            // Employee (DS User): "All Tickets" = semua tiket organisasi (sama seperti role lain),
+            // atau filter unassigned jika ?unassigned=1. Tab "Unassigned Ticket" terpisah (permission
+            // 'ticket.unassigned') menangani kasus khusus lihat tiket belum ada PIC.
             } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_USER->value) {
-                Log::info('Employee viewing unassigned tickets');
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                Log::info('Employee viewing all tickets', ['unassigned' => $filterUnassigned]);
+
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
                     ->whereNull('is_hidden')
-                    ->whereNull('ticket_lead_id')
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
-                    ->get();
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+                if ($filterUnassigned) {
+                    $query->whereNull('ticket_lead_id');
+                }
+                $tickets = $query->get();
 
             // Helpdesk, RPMO, Head of Project, Head of Support:
             // lihat semua ticket organisasi, atau filter unassigned jika ?unassigned=1
@@ -139,7 +159,7 @@ class TicketController extends Controller
             )) {
                 Log::info('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
                 if ($filterUnassigned) {
@@ -152,7 +172,7 @@ class TicketController extends Controller
             } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_MANAGER->value) {
                 Log::info('Support Manager viewing all tickets', ['employee_id' => $sessionUser['id']]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
 
@@ -162,9 +182,9 @@ class TicketController extends Controller
                 $tickets = $query->get();
 
             } else {
-                // Fallback: cek apakah role punya izin `tickets.inbox` di tabel role_menu.
-                // Ini memungkinkan custom role yang diberi akses lewat UI bisa melihat semua tiket.
-                $employee = Employee::find($sessionUser['id']);
+                // Fallback: cek apakah role punya izin `tickets.inbox` di tabel role_menu
+                // (di atas sudah dicek 'ticket.all-tickets'). Ini memungkinkan custom role yang
+                // diberi akses lewat UI bisa melihat semua tiket.
                 if (!$employee || !$employee->hasPermission('tickets.inbox')) {
                     return response()->json([
                         'success' => false,
@@ -177,7 +197,7 @@ class TicketController extends Controller
                     'employee_id' => $sessionUser['id'],
                 ]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
                 if ($filterUnassigned) {
@@ -259,6 +279,8 @@ class TicketController extends Controller
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
+                    'module' => $ticket->module_name,
+                    'module_id' => $ticket->module_id,
                     'scale' => $ticket->scale,
                     'status' => $ticket->status,
                     'channel' => $ticket->channel,
@@ -360,7 +382,7 @@ class TicketController extends Controller
             abort(403);
         }
 
-        $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData'])
+        $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'moduleMaster'])
             ->whereNull('is_hidden')
             ->orderBy('ticket_id', 'asc');
 
@@ -451,6 +473,7 @@ class TicketController extends Controller
                 'scale'                  => $ticket->scale,
                 'status'                 => $ticket->status,
                 'ticket_type'            => $ticket->ticket_type,
+                'module'                 => $ticket->module_name,
                 'customer_mandays'       => $customerMandaysMap[$ticket->ticket_id] ?? null,
                 'all_consultant_progress'=> $progressMap[$ticket->ticket_id] ?? (float)($ticket->progress_percentage ?? 0),
                 'end_date'               => $ticket->end_date,
@@ -478,6 +501,7 @@ class TicketController extends Controller
                 'name'            => 'nullable|string|max:255',
                 'no_hp'           => 'nullable|string|max:255',
                 'module'          => 'nullable|string|max:255',
+                'module_id'       => 'nullable|exists:modules,id',
                 'client'          => 'nullable|string|max:255',
                 'to_email'        => 'nullable|string|max:2000',
                 'cc_emails'       => 'nullable|string|max:2000',
@@ -554,6 +578,7 @@ class TicketController extends Controller
                         'name'               => $validated['name'] ?? null,
                         'no_hp'              => $validated['no_hp'] ?? null,
                         'module'             => $validated['module'] ?? null,
+                        'module_id'          => $validated['module_id'] ?? null,
                         'client'             => $validated['client'] ?? null,
                         'status'             => 'inprocess',
                         // channel 'email' agar composer To/CC selalu tersedia di halaman tiket,
@@ -680,6 +705,7 @@ class TicketController extends Controller
             'name'            => 'nullable|string|max:255',
             'no_hp'           => 'nullable|string|max:255',
             'module'          => 'nullable|string|max:255',
+            'module_id'       => 'nullable|exists:modules,id',
             'client'          => 'nullable|string|max:255',
             'body'            => 'nullable|string',
             'attachments'     => 'nullable|array',
@@ -764,6 +790,7 @@ class TicketController extends Controller
                     'name'               => $validated['name'] ?? null,
                     'no_hp'              => $validated['no_hp'] ?? null,
                     'module'             => $validated['module'] ?? null,
+                    'module_id'          => $validated['module_id'] ?? null,
                     'client'             => $validated['client'] ?? null,
                     'status'             => 'open',
                     // channel 'email' agar composer To/CC selalu tersedia di halaman tiket,
@@ -993,7 +1020,7 @@ class TicketController extends Controller
             if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
                 $employeeId = $sessionUser['id'];
                 Log::info('My Tickets - External employee', ['employee_id' => $employeeId]);
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->where(function ($query) use ($employeeId) {
                         $query->where('ticket.ticket_lead_id', $employeeId)
@@ -1002,65 +1029,50 @@ class TicketController extends Controller
                     ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
                     ->get();
 
-            // Employee / Helpdesk: tampilkan tiket dimana mereka PIC atau member
-            } elseif (in_array($sessionUser['role']['id'], array_merge([RoleId::DELIVERY_SUPPORT_USER->value], RoleId::HELPDESK_GROUP), true)) {
-                $employeeId = $sessionUser['id'];
-
-                Log::info('My Tickets - Filtering for employee/helpdesk', ['employee_id' => $employeeId]);
-
-                // Ticket yang employee handle sebagai PIC atau member
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
-                    ->whereNull('is_hidden')
-                    ->where(function($query) use ($employeeId) {
-                        $query->where('ticket.ticket_lead_id', $employeeId)
-                            ->orWhereHas('members', function($inner) use ($employeeId) {
-                                $inner->where('ticket_member.employee_id', $employeeId);
-                            });
-                    })
-                    ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
-                    ->get();
-
-            // Support Manager: tampilkan ticket dari delivery yang dia kelola
-            } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_MANAGER->value) {
-                $employeeId = $sessionUser['id'];
-
-                Log::info('My Tickets - Filtering for support manager', ['employee_id' => $employeeId]);
-
-                $managedDeliveryIds = DB::table('delivery_support_managers')
-                    ->where('employee_id', $employeeId)
-                    ->pluck('delivery_support_id');
-
-                $managedTicketIds = DB::table('delivery_support_activities')
-                    ->whereIn('delivery_support_id', $managedDeliveryIds)
-                    ->whereNotNull('ticket_id')
-                    ->pluck('ticket_id')
-                    ->unique()
-                    ->values();
-
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
-                    ->whereNull('is_hidden')
-                    ->whereIn('ticket_id', $managedTicketIds)
-                    ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
-                    ->get();
-
+            // Internal roles: query variant ditentukan oleh permission menu 'ticket.my-tickets.*'
+            // di Role & Menu Access (bukan lagi hardcode RoleId), supaya admin bisa pilih per role
+            // apakah "My Ticket" mereka bergaya DS Manager (delivery yang dikelola) atau DS User (PIC/member).
             } else {
-                // Fallback for roles configured via web (not hardcoded here):
-                // show tickets where the user is PIC or member.
                 $employeeId = $sessionUser['id'];
-                Log::info('My Tickets - Fallback for role', [
-                    'employee_id' => $employeeId,
-                    'role_id'     => $sessionUser['role']['id'] ?? null,
-                ]);
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
-                    ->whereNull('is_hidden')
-                    ->where(function ($query) use ($employeeId) {
-                        $query->where('ticket.ticket_lead_id', $employeeId)
-                            ->orWhereHas('members', function ($inner) use ($employeeId) {
-                                $inner->where('ticket_member.employee_id', $employeeId);
-                            });
-                    })
-                    ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
-                    ->get();
+                $employee   = Employee::find($employeeId);
+                $isDsManagerScope = $employee && $employee->hasMenuPermission('ticket.my-tickets.ds-manager');
+                $isDsUserScope    = $employee && $employee->hasMenuPermission('ticket.my-tickets.ds-user');
+
+                if ($isDsManagerScope) {
+                    Log::info('My Tickets - DS Manager scope', ['employee_id' => $employeeId]);
+
+                    $managedDeliveryIds = DB::table('delivery_support_managers')
+                        ->where('employee_id', $employeeId)
+                        ->pluck('delivery_support_id');
+
+                    $managedTicketIds = DB::table('delivery_support_activities')
+                        ->whereIn('delivery_support_id', $managedDeliveryIds)
+                        ->whereNotNull('ticket_id')
+                        ->pluck('ticket_id')
+                        ->unique()
+                        ->values();
+
+                    $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                        ->whereNull('is_hidden')
+                        ->whereIn('ticket_id', $managedTicketIds)
+                        ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
+                        ->get();
+                } else {
+                    // DS User scope (default fallback juga, untuk role custom tanpa permission eksplisit):
+                    // tiket dimana employee jadi PIC atau member.
+                    Log::info('My Tickets - DS User scope', ['employee_id' => $employeeId, 'explicit_permission' => $isDsUserScope]);
+
+                    $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                        ->whereNull('is_hidden')
+                        ->where(function ($query) use ($employeeId) {
+                            $query->where('ticket.ticket_lead_id', $employeeId)
+                                ->orWhereHas('members', function ($inner) use ($employeeId) {
+                                    $inner->where('ticket_member.employee_id', $employeeId);
+                                });
+                        })
+                        ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
+                        ->get();
+                }
             }
 
             Log::info('My Tickets fetched', ['count' => $tickets->count()]);
@@ -1134,6 +1146,8 @@ class TicketController extends Controller
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
+                    'module' => $ticket->module_name,
+                    'module_id' => $ticket->module_id,
                     'scale' => $ticket->scale,
                     'status' => $ticket->status,
                     'channel' => $ticket->channel,
@@ -1210,6 +1224,182 @@ class TicketController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve my tickets',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get unassigned tickets (no ticket lead yet) — its own tab/filter,
+     * separate from "My Ticket" and "All Ticket". Gated by the
+     * 'ticket.unassigned' menu permission in Role & Menu Access.
+     */
+    public function unassignedTickets()
+    {
+        try {
+            $sessionUser = session('user');
+
+            if (!$sessionUser) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 401);
+            }
+
+            $employee = Employee::find($sessionUser['id']);
+            if (!$employee || !$employee->hasMenuPermission('ticket.unassigned')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Access denied'
+                ], 403);
+            }
+
+            $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                ->whereNull('is_hidden')
+                ->whereNull('ticket_lead_id')
+                ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
+                ->get();
+
+            Log::info('Unassigned Tickets fetched', ['count' => $tickets->count(), 'employee_id' => $sessionUser['id']]);
+
+            $ticketIds   = $tickets->pluck('ticket_id')->toArray();
+            $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
+
+            $canReadFeature = (bool) $employee->hasPermission('ticket.read');
+            $readAtMap = $canReadFeature
+                ? DB::table('ticket_reads')
+                    ->where('employee_id', $sessionUser['id'])
+                    ->whereIn('ticket_id', $ticketIds)
+                    ->pluck('read_at', 'ticket_id')
+                : collect();
+
+            $customerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $ticketIds)
+                ->where('status', 'approved')
+                ->orderBy('version', 'desc')
+                ->get()
+                ->groupBy('ticket_id')
+                ->map(fn($group) => $group->first()->total_mandays);
+
+            $deliverySupportMap = \App\Models\DeliverySupportActivity::with(['deliverySupport.client.basicData'])
+                ->whereIn('ticket_id', $ticketIds)
+                ->whereNotNull('ticket_id')
+                ->get()
+                ->keyBy('ticket_id')
+                ->map(function ($activity) {
+                    $ds = $activity->deliverySupport;
+                    if (!$ds) {
+                        return null;
+                    }
+                    $clientName = $ds->client?->basicData?->name_1;
+                    return [
+                        'delivery_id'    => $ds->id,
+                        'delivery_name'  => $ds->name,
+                        'delivery_type'  => $ds->type,
+                        'client_name'    => $clientName,
+                        'delivery_label' => trim($ds->name
+                            . ($clientName ? " ({$clientName})" : '')
+                            . ($ds->type ? ", {$ds->type}" : '')),
+                    ];
+                });
+
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $readAtMap, $canReadFeature, $deliverySupportMap) {
+                $allProgress = $progressMap[$ticket->ticket_id]
+                    ?? (float) ($ticket->progress_percentage ?? 0);
+
+                $pendingCount = DB::table('ticket_confirmation')
+                    ->where('ticket_id', $ticket->ticket_id)
+                    ->where('status', 'pending')
+                    ->count();
+
+                $pendingConfirmation = DB::table('ticket_confirmation')
+                    ->where('ticket_id', $ticket->ticket_id)
+                    ->where('status', 'pending')
+                    ->first();
+
+                return [
+                    'ticket_id' => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'customer_id' => $ticket->customer_id,
+                    'ticket_lead_id' => $ticket->ticket_lead_id,
+                    'description' => $ticket->description,
+                    'ticket_priority' => $ticket->ticket_priority,
+                    'ticket_type' => $ticket->ticket_type,
+                    'scale' => $ticket->scale,
+                    'status' => $ticket->status,
+                    'channel' => $ticket->channel,
+                    'email_thread_id' => $ticket->email_thread_id,
+                    'folder' => $ticket->folder,
+                    'file_log' => $ticket->file_log,
+                    'start_date' => $ticket->start_date,
+                    'end_date' => $ticket->end_date,
+                    'man_days' => $ticket->man_days,
+                    'customer_mandays' => $customerMandaysMap[$ticket->ticket_id] ?? null,
+                    'progress_percentage' => (float) ($ticket->progress_percentage ?? 0),
+                    'all_consultant_progress' => $allProgress,
+                    'wait_close' => $ticket->wait_close,
+                    'last_message_at' => $ticket->last_message_at,
+                    'last_customer_reply_at' => $ticket->last_customer_reply_at,
+                    'last_agent_reply_at' => $ticket->last_agent_reply_at,
+                    'last_internal_note_at'        => $ticket->last_internal_note_at,
+                    'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
+                    'is_read' => !$canReadFeature || (
+                        $readAtMap->has($ticket->ticket_id)
+                        && (!$ticket->last_message_at || \Carbon\Carbon::parse($readAtMap->get($ticket->ticket_id))->gte($ticket->last_message_at))
+                    ),
+                    'customer' => $ticket->customer ? [
+                        'customer_id' => $ticket->customer->customer_id,
+                        'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
+                        'customer_code' => $ticket->customer->customer_code,
+                    ] : null,
+                    'end_customer_id'   => $ticket->end_customer_id,
+                    'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
+                    'employee' => $ticket->ticketLead ? [
+                        'employee_id' => $ticket->ticketLead->employee_id,
+                        'employee_name' => $ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown',
+                    ] : null,
+                    'members' => $ticket->members->map(function($member) {
+                        return [
+                            'employee_id' => $member->employee_id,
+                            'employee_name' => $member->basicData->nick_name ?? $member->basicData->first_name ?? 'Unknown',
+                        ];
+                    }),
+                    'member_ids' => $ticket->members->pluck('employee_id')->toArray(),
+                    'pending_confirmations_count' => $pendingCount,
+                    'confirmation' => $pendingConfirmation ? [
+                        'confirmation_id' => $pendingConfirmation->confirmation_id,
+                        'employee_id' => $pendingConfirmation->employee_id,
+                        'status' => $pendingConfirmation->status,
+                    ] : null,
+                    'sla' => $ticket->sla ? [
+                        'target_response_hours'   => $ticket->sla->policy?->response_hours,
+                        'response_time_hours'     => $ticket->sla->validation_duration_hours,
+                        'response_status'         => $ticket->sla->response_status,
+                        'target_resolution_hours' => $ticket->sla->policy?->resolution_hours,
+                        'resolution_due_at'       => $ticket->sla->resolution_due_at,
+                        'resolution_time_hours'   => $ticket->sla->net_resolution_hours,
+                        'resolution_status'       => $ticket->sla->resolution_status,
+                    ] : null,
+                    'delivery' => $deliverySupportMap[$ticket->ticket_id] ?? null,
+                    'created_at' => $ticket->created_at,
+                    'updated_at' => $ticket->updated_at,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $ticketsData,
+                'message' => 'Unassigned tickets retrieved successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching unassigned tickets:', [
+                'error' => $e->getMessage(),
+                'error_at' => $e->getFile() . ':' . $e->getLine()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve unassigned tickets',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -1886,7 +2076,7 @@ class TicketController extends Controller
             && $ticketForCheck
             && $ticketForCheck->ticket_lead_id === null;
 
-        $addInfoKeys   = ['name', 'no_hp', 'module', 'client'];
+        $addInfoKeys   = ['name', 'no_hp', 'module', 'module_id', 'client'];
         $isAddInfoOnly = !$isAdmin && !$isHelpdesk
             && $canEditAddInfo
             && $requestKeys !== []
@@ -1899,6 +2089,12 @@ class TicketController extends Controller
             ], 403);
         }
 
+        // Select kosong ("-- none --") dikirim sebagai string kosong; treat sebagai null
+        // supaya lolos rule nullable|exists dan bisa dipakai untuk clear module_id.
+        if ($request->has('module_id') && $request->input('module_id') === '') {
+            $request->merge(['module_id' => null]);
+        }
+
         $validator = Validator::make($request->all(), [
             'ticket_priority' => 'sometimes|string|in:Very High,High,Medium,Low',
             'ticket_type'    => 'sometimes|nullable|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult',
@@ -1908,6 +2104,7 @@ class TicketController extends Controller
             'name'           => 'sometimes|nullable|string|max:255',
             'no_hp'          => 'sometimes|nullable|string|max:255',
             'module'         => 'sometimes|nullable|string|max:255',
+            'module_id'      => 'sometimes|nullable|exists:modules,id',
             'client'         => 'sometimes|nullable|string|max:255',
         ]);
 
@@ -1953,6 +2150,9 @@ class TicketController extends Controller
             }
             if ($request->has('module') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
                 $updateData['module'] = $request->module ?: null;
+            }
+            if ($request->has('module_id') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
+                $updateData['module_id'] = $request->module_id ?: null;
             }
             if ($request->has('client') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
                 $updateData['client'] = $request->client ?: null;

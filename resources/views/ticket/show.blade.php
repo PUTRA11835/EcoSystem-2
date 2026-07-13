@@ -905,11 +905,18 @@
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Module</label>
                     @if($canEditAdditionalInfo)
-                    <input id="additionalInfoModule" type="text" value="{{ $ticket->module }}"
-                           placeholder="Enter module name..."
+                    <select id="additionalInfoModuleId"
                            class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                        <option value="">-- none --</option>
+                        @foreach ($modules as $moduleOption)
+                        <option value="{{ $moduleOption['id'] }}" @selected($ticket->module_id == $moduleOption['id'])>{{ $moduleOption['name'] }}</option>
+                        @endforeach
+                    </select>
+                    @if($ticket->module)
+                    <p class="text-[11px] text-gray-400 mt-1">Nilai lama (patokan): {{ $ticket->module }}</p>
+                    @endif
                     @else
-                    <span class="{{ $roValCls }}">{{ $ticket->module ?? '—' }}</span>
+                    <span class="{{ $roValCls }}">{{ $ticket->module_name ?? '—' }}</span>
                     @endif
                 </div>
                 {{-- Client --}}
@@ -5515,10 +5522,10 @@
                 headers: { ...getHeaders(), 'Content-Type': 'application/json' },
                 credentials: 'same-origin',
                 body: JSON.stringify({
-                    name:   document.getElementById('additionalInfoName').value.trim()   || null,
-                    no_hp:  document.getElementById('additionalInfoNoHp').value.trim()   || null,
-                    module: document.getElementById('additionalInfoModule').value.trim() || null,
-                    client: document.getElementById('additionalInfoClient').value.trim() || null,
+                    name:      document.getElementById('additionalInfoName').value.trim()   || null,
+                    no_hp:     document.getElementById('additionalInfoNoHp').value.trim()   || null,
+                    module_id: document.getElementById('additionalInfoModuleId').value || null,
+                    client:    document.getElementById('additionalInfoClient').value.trim() || null,
                 }),
             });
             const json = await res.json();

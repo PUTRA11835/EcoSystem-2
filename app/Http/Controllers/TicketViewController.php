@@ -7,6 +7,7 @@ use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\Customer;
 use App\Models\CustomerMandays;
+use App\Models\Module;
 use App\Models\TicketSlaPause;
 use App\Support\SessionUser;
 use Illuminate\Http\Request;
@@ -52,11 +53,14 @@ class TicketViewController extends Controller
 
         $isExternalEmployee = strtolower($user->employee_type ?? 'internal') === 'external';
 
+        $modules = Module::active()->orderBy('name')->get(['id', 'name'])->toArray();
+
         return view('ticket.index', [
             'user'               => $user,
             'customers'          => $customers,
             'currentEmployeeId'  => $user->id,
             'isExternalEmployee' => $isExternalEmployee,
+            'modules'            => $modules,
         ]);
     }
 
@@ -88,7 +92,7 @@ class TicketViewController extends Controller
         }
 
         // Load ticket with all relationships
-        $ticket = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'allMembers.basicData'])
+        $ticket = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'allMembers.basicData', 'moduleMaster'])
             ->findOrFail($id);
 
         // Tandai tiket sudah dibaca oleh employee ini (hanya jika role punya fungsi istimewa ticket.read)
@@ -207,6 +211,8 @@ class TicketViewController extends Controller
 
         $isExternalEmployee = strtolower($user->employee_type ?? 'internal') === 'external';
 
+        $modules = Module::active()->orderBy('name')->get(['id', 'name'])->toArray();
+
         return view('ticket.show', [
             'user'               => $user,
             'ticket'             => $ticket,
@@ -218,6 +224,7 @@ class TicketViewController extends Controller
             'customerEmail'      => $customerEmail,
             'inMeeting'          => $inMeeting,
             'isExternalEmployee' => $isExternalEmployee,
+            'modules'            => $modules,
         ]);
     }
 }

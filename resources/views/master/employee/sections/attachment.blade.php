@@ -180,6 +180,7 @@
             const size   = att.file_size ? formatFileSize(att.file_size) : '-';
             const date   = att.created_at ? new Date(att.created_at).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const fileUrl = `/storage/${att.file_path}`;
+            const downloadName = (att.file_name || '').replace(/"/g, '&quot;');
 
             return `
                 <tr class="hover:bg-gray-50 transition-colors cursor-pointer" onclick="selectAttachmentRow(${att.attachment_id}, event)">
@@ -203,7 +204,7 @@
                     <td class="px-4 py-3 text-sm text-gray-600">${date}</td>
                     <td class="px-4 py-3">
                         ${att.file_path ? `
-                        <a href="${fileUrl}" target="_blank" class="text-red-800 hover:text-red-900" title="Download">
+                        <a href="${fileUrl}" download="${downloadName}" class="text-red-800 hover:text-red-900" title="Download">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
                             </svg>

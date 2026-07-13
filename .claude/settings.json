@@ -66,7 +66,33 @@
       "Bash(php -l database/seeders/SlaSeeder.php)",
       "Bash(powershell -Command \"Get-Content 'c:\\\\EcoSystem-2\\\\storage\\\\logs\\\\laravel.log' -Tail 50\")",
       "Bash(nginx -v)",
-      "Bash(where nginx *)"
+      "Bash(where nginx *)",
+      "Bash(find storage/logs -type f)",
+      "Bash(ls storage *)",
+      "Bash(ls storage/logs)",
+      "Bash(grep -n -i \"VITE_API_URL\" .env*)",
+      "Bash(cat \"C:\\\\Tennis Artist Academy\\\\tennisartist_backend\\\\config\\\\cors.php\")",
+      "Bash(grep -n -i -E \"^APP_|^SANCTUM|^SESSION\" \"C:\\\\Tennis Artist Academy\\\\tennisartist_backend\\\\.env\")",
+      "Bash(node --check C:/Users/HP/AppData/Local/Temp/claude/c--EcoSystem-2/12cfbfbb-fe2b-4501-8241-df9c40d2467c/scratchpad/lupa_check.jsx)",
+      "Bash(php -l database/seeders/MenuSeeder.php)",
+      "Bash(php -l database/migrations/2026_07_13_000001_add_my_tickets_scope_menus.php)",
+      "Bash(php -l database/migrations/2026_07_13_000002_add_my_tickets_unassigned_menu.php)",
+      "Bash(php -l database/migrations/2026_07_13_000004_split_unassigned_ticket_from_my_ticket.php)",
+      "Bash(php -l resources/views/master/employee/sections/attachment.blade.php)",
+      "Bash(php -l resources/views/ticket/index.blade.php)",
+      "Bash(php -l database/migrations/2026_07_13_000005_grant_unassigned_ticket_to_helpdesk.php)",
+      "Bash(php -l database/migrations/2026_07_13_000006_add_all_tickets_menu_permission.php)",
+      "Bash(php -l resources/views/master/employee/index.blade.php)",
+      "Bash(php -l app/Http/Controllers/EmployeeController.php)",
+      "Bash(php -l app/Exports/EmployeeExport.php)"
+    ],
+    "additionalDirectories": [
+      "C:\\ecosystem-2\\database\\migrations",
+      "C:\\ecosystem-2\\database\\seeders",
+      "C:\\ecosystem-2\\resources\\views\\master\\employee\\sections",
+      "C:\\ecosystem-2\\resources\\views\\ticket",
+      "C:\\ecosystem-2\\resources\\views\\master\\employee",
+      "C:\\ecosystem-2\\app\\Exports"
     ]
   }
 }

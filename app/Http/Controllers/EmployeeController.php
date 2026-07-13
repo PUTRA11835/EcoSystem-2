@@ -9,8 +9,10 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Enums\RoleId;
+use App\Exports\EmployeeExport;
 use App\Models\Employee;
 use App\Models\EmployeeBasicData;
+use Maatwebsite\Excel\Facades\Excel;
 
 class EmployeeController extends Controller
 {
@@ -197,55 +199,14 @@ class EmployeeController extends Controller
                     'eb.employee_subgroup',
                     'eb.division',
                     'eb.department',
+                    'eb.home_base',
                     'eb.since_date',
                     'eb.employee_type',
                     'eb.block',
                     'eb.deletion_flag'
                 );
 
-            // Apply filters berdasarkan status.
-            // Pakai filled() (bukan has() + !== ''): middleware ConvertEmptyStringsToNull
-            // mengubah input kosong jadi null, sehingga "null !== ''" lolos dan filter
-            // telanjur jalan dengan nilai kosong. filled() false untuk null & ''.
-            if ($request->filled('status')) {
-                switch ($request->status) {
-                    case 'active':
-                        $query->where('eb.block', false)
-                              ->where('eb.deletion_flag', false);
-                        break;
-                    case 'blocked':
-                        $query->where('eb.block', true);
-                        break;
-                    case 'deleted':
-                        $query->where('eb.deletion_flag', true);
-                        break;
-                }
-                Log::info('Filter applied: status', ['status' => $request->status]);
-            }
-
-            // Filter by employee (ECI or name).
-            // Pisahkan jadi per-kata supaya pencarian "Dado Widagdo" cocok walau
-            // first_name & nick_name terpisah, dan setiap kata dicari di SEMUA
-            // kolom nama (termasuk nick_name + full name gabungan).
-            if ($request->filled('employee')) {
-                $this->applyNameSearch($query, $request->employee);
-                Log::info('Filter applied: employee', ['search' => $request->employee]);
-            }
-
-            // Filter by department.
-            // filled() mencegah filter jalan saat nilai null/'' — kalau tidak,
-            // "LIKE '%%'" akan MEMBUANG semua baris dengan department NULL (mis.
-            // hasil import yang kolom department-nya kosong).
-            if ($request->filled('department')) {
-                $query->where('eb.department', 'like', "%{$request->department}%");
-                Log::info('Filter applied: department', ['department' => $request->department]);
-            }
-
-            // Global search
-            if ($request->filled('search')) {
-                $this->applyNameSearch($query, $request->search, true);
-                Log::info('Global search applied', ['search' => $request->search]);
-            }
+            $this->applyEmployeeListFilters($query, $request);
 
             // Server-side pagination (mengikuti pola Master Customer)
             $perPage = max(1, min((int) $request->get('per_page', 200), 500));
@@ -277,8 +238,29 @@ class EmployeeController extends Controller
                 ]);
             }
 
-            // Transform status & attach roles
-            $employees = $employees->map(function($emp) use ($roleAssignments) {
+            // Fetch qualified modules for all employees via employee_qualification -> modules
+            // (isolated so missing table won't break employee list). Sama pattern dengan roles
+            // di atas, dan sama query-nya dengan MandaysController::getModules() — semua module
+            // dari kualifikasi employee, tanpa filter qualification_type.
+            $moduleAssignments = collect();
+            try {
+                if (!empty($employeeIds)) {
+                    $moduleAssignments = DB::table('employee_qualification as eq')
+                        ->join('modules as m', 'eq.module_id', '=', 'm.id')
+                        ->whereIn('eq.employee_id', $employeeIds)
+                        ->select('eq.employee_id', 'm.id as module_id', 'm.name as module_name')
+                        ->distinct()
+                        ->get()
+                        ->groupBy('employee_id');
+                }
+            } catch (\Exception $moduleEx) {
+                Log::warning('getData: gagal fetch module qualifications, lanjut tanpa modules', [
+                    'error' => $moduleEx->getMessage(),
+                ]);
+            }
+
+            // Transform status & attach roles + modules
+            $employees = $employees->map(function($emp) use ($roleAssignments, $moduleAssignments) {
                 if ($emp->deletion_flag) {
                     $emp->status = 'deleted';
                 } elseif ($emp->block) {
@@ -289,6 +271,10 @@ class EmployeeController extends Controller
 
                 $emp->roles = isset($roleAssignments[$emp->id])
                     ? $roleAssignments[$emp->id]->map(fn($r) => ['id' => $r->role_id, 'name' => $r->role_name])->values()
+                    : collect();
+
+                $emp->modules = isset($moduleAssignments[$emp->id])
+                    ? $moduleAssignments[$emp->id]->pluck('module_name')->unique()->sort()->values()
                     : collect();
 
                 return $emp;
@@ -329,6 +315,80 @@ class EmployeeController extends Controller
     }
 
     /**
+     * Export Master Employee list ke Excel — pakai filter yang sama persis dengan
+     * getData() (lewat applyEmployeeListFilters) supaya hasil export selalu match
+     * dengan apa yang sedang ditampilkan/difilter di layar, tanpa pagination.
+     */
+    public function exportToExcel(Request $request)
+    {
+        Log::info('=== API: EXPORTING EMPLOYEES ===', [
+            'filters' => $request->all(),
+            'user_ip' => $request->ip()
+        ]);
+
+        $query = DB::table('employee as e')
+            ->leftJoin('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
+            ->select(
+                'e.employee_id as id',
+                'e.eci',
+                'eb.first_name',
+                'eb.last_name',
+                'eb.position',
+                'eb.division',
+                'eb.department',
+                'eb.home_base',
+                'eb.since_date',
+                'eb.employee_type',
+                'eb.block',
+                'eb.deletion_flag'
+            );
+
+        $this->applyEmployeeListFilters($query, $request);
+
+        $employees = $query
+            ->orderByRaw("TRIM(CONCAT(COALESCE(eb.first_name,''), ' ', COALESCE(eb.last_name,''))) = '' asc")
+            ->orderByRaw("TRIM(CONCAT(COALESCE(eb.first_name,''), ' ', COALESCE(eb.last_name,''))) asc")
+            ->orderBy('e.eci', 'asc')
+            ->get();
+
+        // Module qualifications per employee (sama pattern dengan getData())
+        $moduleAssignments = collect();
+        $employeeIds = $employees->pluck('id')->all();
+        if (!empty($employeeIds)) {
+            $moduleAssignments = DB::table('employee_qualification as eq')
+                ->join('modules as m', 'eq.module_id', '=', 'm.id')
+                ->whereIn('eq.employee_id', $employeeIds)
+                ->select('eq.employee_id', 'm.name as module_name')
+                ->distinct()
+                ->get()
+                ->groupBy('employee_id');
+        }
+
+        $rows = $employees->map(function ($emp) use ($moduleAssignments) {
+            $status = $emp->deletion_flag ? 'Flagged for Deletion' : ($emp->block ? 'Inactive' : 'Active');
+            $modules = isset($moduleAssignments[$emp->id])
+                ? $moduleAssignments[$emp->id]->pluck('module_name')->unique()->sort()->values()->implode(', ')
+                : '';
+
+            return [
+                'eci'           => $emp->eci,
+                'full_name'     => trim(($emp->first_name ?? '') . ' ' . ($emp->last_name ?? '')) ?: '-',
+                'position'      => $emp->position ?? '-',
+                'module'        => $modules ?: '-',
+                'division'      => $emp->division ?? '-',
+                'department'    => $emp->department ?? '-',
+                'home_base'     => $emp->home_base ?? '-',
+                'since_date'    => $emp->since_date ?? '-',
+                'status'        => $status,
+            ];
+        });
+
+        $filename = 'EMPLOYEE MANAGEMENT ' . now()->timezone('Asia/Jakarta')->format('dmY') . '.xlsx';
+
+        return Excel::download(new EmployeeExport($rows), $filename);
+    }
+
+    /**
      * Terapkan pencarian nama ke query employee.
      *
      * Setiap kata pada $search harus cocok (AND antar-kata) di salah satu kolom
@@ -340,6 +400,86 @@ class EmployeeController extends Controller
      * @param  string  $search
      * @param  bool  $includeOrg  Sertakan kolom organisasi (position/division/dll) untuk global search
      */
+    /**
+     * Terapkan semua filter list Master Employee (status, employee, department,
+     * home_base, modules) ke query builder. Dipakai bersama oleh getData() (list)
+     * dan exportToExcel() supaya hasil export SELALU konsisten dengan filter yang
+     * sedang aktif di layar — satu-satunya tempat logic filter didefinisikan.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     */
+    private function applyEmployeeListFilters($query, Request $request): void
+    {
+        // Pakai filled() (bukan has() + !== ''): middleware ConvertEmptyStringsToNull
+        // mengubah input kosong jadi null, sehingga "null !== ''" lolos dan filter
+        // telanjur jalan dengan nilai kosong. filled() false untuk null & ''.
+        if ($request->filled('status')) {
+            switch ($request->status) {
+                case 'active':
+                    $query->where('eb.block', false)
+                          ->where('eb.deletion_flag', false);
+                    break;
+                case 'blocked':
+                    $query->where('eb.block', true);
+                    break;
+                case 'deleted':
+                    $query->where('eb.deletion_flag', true);
+                    break;
+            }
+            Log::info('Filter applied: status', ['status' => $request->status]);
+        }
+
+        // Filter by employee (ECI or name).
+        // Pisahkan jadi per-kata supaya pencarian "Dado Widagdo" cocok walau
+        // first_name & nick_name terpisah, dan setiap kata dicari di SEMUA
+        // kolom nama (termasuk nick_name + full name gabungan).
+        if ($request->filled('employee')) {
+            $this->applyNameSearch($query, $request->employee);
+            Log::info('Filter applied: employee', ['search' => $request->employee]);
+        }
+
+        // Filter by department.
+        // filled() mencegah filter jalan saat nilai null/'' — kalau tidak,
+        // "LIKE '%%'" akan MEMBUANG semua baris dengan department NULL (mis.
+        // hasil import yang kolom department-nya kosong).
+        if ($request->filled('department')) {
+            $query->where('eb.department', 'like', "%{$request->department}%");
+            Log::info('Filter applied: department', ['department' => $request->department]);
+        }
+
+        // Global search
+        if ($request->filled('search')) {
+            $this->applyNameSearch($query, $request->search, true);
+            Log::info('Global search applied', ['search' => $request->search]);
+        }
+
+        // Filter by home base (multi-select, comma-separated).
+        if ($request->filled('home_base')) {
+            $homeBases = array_filter(explode(',', $request->home_base));
+            if (!empty($homeBases)) {
+                $query->whereIn('eb.home_base', $homeBases);
+                Log::info('Filter applied: home_base', ['home_base' => $homeBases]);
+            }
+        }
+
+        // Filter by module qualification (multi-select, comma-separated).
+        // Employee cocok kalau punya minimal satu qualification dengan module
+        // yang dipilih (match ANY, bukan harus semua) — sama semantik dengan
+        // filter multi-select lain yang sudah ada di ticket list.
+        if ($request->filled('modules')) {
+            $moduleNames = array_filter(explode(',', $request->modules));
+            if (!empty($moduleNames)) {
+                $query->whereIn('e.employee_id', function ($sub) use ($moduleNames) {
+                    $sub->select('eq.employee_id')
+                        ->from('employee_qualification as eq')
+                        ->join('modules as m', 'eq.module_id', '=', 'm.id')
+                        ->whereIn('m.name', $moduleNames);
+                });
+                Log::info('Filter applied: modules', ['modules' => $moduleNames]);
+            }
+        }
+    }
+
     private function applyNameSearch($query, string $search, bool $includeOrg = false): void
     {
         $terms = preg_split('/\s+/', trim($search), -1, PREG_SPLIT_NO_EMPTY);

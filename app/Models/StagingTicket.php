@@ -36,6 +36,7 @@ class StagingTicket extends Model
         'name',
         'no_hp',
         'module',
+        'module_id',
         'client',
         'created_at',
         'updated_at',
@@ -106,6 +107,16 @@ class StagingTicket extends Model
     public function ticket(): BelongsTo
     {
         return $this->belongsTo(Ticket::class, 'ticket_id', 'ticket_id');
+    }
+
+    public function moduleMaster(): BelongsTo
+    {
+        return $this->belongsTo(Module::class, 'module_id', 'id');
+    }
+
+    public function getModuleNameAttribute(): ?string
+    {
+        return $this->moduleMaster?->name ?? $this->module;
     }
 
     public function attachments()
