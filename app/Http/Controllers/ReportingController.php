@@ -10,6 +10,7 @@ use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\CustomerMandays;
 use App\Models\ReportingPeriod;
+use App\Models\Ticket;
 use App\Services\PeriodService;
 use App\Support\SessionUser;
 use Carbon\Carbon;
@@ -731,6 +732,142 @@ class ReportingController extends Controller
         } catch (\Exception $e) {
             Log::error('collectionOutlook error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Failed to load collection outlook data. Please try again.'], 500);
+        }
+    }
+
+    // ── Web: Ticketing Overview page ────────────────────────────────────────
+
+    public function ticketingOverviewIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        return view('reporting.ticketing-overview', ['user' => session('user')]);
+    }
+
+    // ── API: Ticketing Overview data ────────────────────────────────────────
+    //
+    // Menampilkan jumlah tiket per customer, dikelompokkan ke dalam status:
+    // Open, In Process, Close, Wait Close (menunggu konfirmasi customer), dan
+    // Other (status lain: menunggu customer/pihak ketiga, hold, cancelled).
+
+    public function ticketingOverview(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.ticketing-overview')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            // Total mandays per customer = sum of total_mandays across all its delivery projects
+            $mandaysByCustomer = DB::table('delivery_projects')
+                ->select('client_id', DB::raw('SUM(COALESCE(total_mandays, 0)) as total_mandays'))
+                ->groupBy('client_id')
+                ->pluck('total_mandays', 'client_id');
+
+            $rows = DB::table('ticket')
+                ->join('customer', 'ticket.customer_id', '=', 'customer.customer_id')
+                ->leftJoin('customer_basic_data', 'customer.customer_id', '=', 'customer_basic_data.customer_id')
+                ->whereNull('ticket.deleted_at')
+                ->groupBy('ticket.customer_id', 'customer_basic_data.name_1')
+                ->select(
+                    'ticket.customer_id',
+                    DB::raw("COALESCE(customer_basic_data.name_1, '') as customer_name"),
+                    DB::raw("SUM(CASE WHEN ticket.status = 'open' THEN 1 ELSE 0 END) as open_tickets"),
+                    DB::raw("SUM(CASE WHEN ticket.status = 'inprocess' THEN 1 ELSE 0 END) as inprocess_tickets"),
+                    DB::raw("SUM(CASE WHEN ticket.status = 'closed' THEN 1 ELSE 0 END) as close_tickets"),
+                    DB::raw("SUM(CASE WHEN ticket.status = 'waiting_to_confirmation' THEN 1 ELSE 0 END) as wait_close_tickets"),
+                    DB::raw("SUM(CASE WHEN ticket.status IN ('waiting_on_customer','waiting_on_3rd_party','hold','cancelled') THEN 1 ELSE 0 END) as other_tickets")
+                )
+                ->orderByRaw('customer_name')
+                ->get();
+
+            $data = $rows->map(fn($r) => [
+                'customer_id'        => $r->customer_id,
+                'customer_name'      => $r->customer_name ?: '—',
+                'total_mandays'      => (int) ($mandaysByCustomer[$r->customer_id] ?? 0),
+                'open_tickets'       => (int) $r->open_tickets,
+                'inprocess_tickets'  => (int) $r->inprocess_tickets,
+                'close_tickets'      => (int) $r->close_tickets,
+                'other_tickets'      => (int) $r->other_tickets,
+                'wait_close_tickets' => (int) $r->wait_close_tickets,
+            ]);
+
+            return response()->json(['success' => true, 'data' => $data]);
+
+        } catch (\Exception $e) {
+            Log::error('ticketingOverview error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticketing overview data. Please try again.'], 500);
+        }
+    }
+
+    // ── Web: Ticket by Modul page ───────────────────────────────────────────
+
+    public function ticketByModuleIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        return view('reporting.ticket-by-module', ['user' => session('user')]);
+    }
+
+    // ── API: Ticket by Modul data ───────────────────────────────────────────
+    //
+    // Mengelompokkan tiket berdasarkan modul (module_id -> modules master,
+    // fallback ke kolom legacy `module`). Tiket tanpa modul dikumpulkan ke
+    // grup "No Modul Assign" yang selalu tampil paling akhir.
+
+    public function ticketByModule(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.ticket-by-module')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $tickets = Ticket::with(['ticketLead.basicData', 'moduleMaster'])
+                ->whereNull('deleted_at')
+                ->orderByDesc('created_at')
+                ->get();
+
+            $groups = $tickets->groupBy(fn (Ticket $ticket) => $ticket->module_name ?: 'No Modul Assign');
+
+            $data = $groups->map(function ($groupTickets, $moduleName) {
+                return [
+                    'module_name' => $moduleName,
+                    'tickets' => $groupTickets->map(fn (Ticket $ticket) => [
+                        'ticket_id'     => $ticket->ticket_id,
+                        'ticket_number' => $ticket->ticket_number,
+                        'description'   => $ticket->description,
+                        'lead_name'     => $ticket->ticketLead
+                            ? ($ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown')
+                            : null,
+                        'created_at'    => $ticket->created_at,
+                    ])->values(),
+                ];
+            })->values()
+                ->sortBy(fn ($group) => $group['module_name'] === 'No Modul Assign' ? 1 : 0)
+                ->values();
+
+            return response()->json(['success' => true, 'data' => $data]);
+
+        } catch (\Exception $e) {
+            Log::error('ticketByModule error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket by modul data. Please try again.'], 500);
         }
     }
 

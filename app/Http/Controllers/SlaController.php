@@ -510,7 +510,7 @@ class SlaController extends Controller
             ]);
         }
 
-        $query = TicketSla::with(['ticket.customer.basicData', 'ticket.ticketLead.basicData', 'policy'])
+        $query = TicketSla::with(['ticket.customer.basicData', 'ticket.ticketLead.basicData', 'ticket.moduleMaster', 'policy'])
             ->whereNotNull('ticket_id');
 
         if ($request->filled('customer_id')) {
@@ -928,7 +928,7 @@ class SlaController extends Controller
             'year'                   => $s->sla_start_at?->year ?? ($t?->created_at?->year),
             'customer_name'          => $customerName,
             'description'            => $t?->description ?? $staging?->description,
-            'module'                 => $t?->module,
+            'module'                 => $t?->module_name,
             'ticket_type'            => $t?->ticket_type ?? ($isPendingValidation ? 'Pending Validation' : null),
             'ticket_priority'        => $t?->ticket_priority ?? $staging?->ticket_priority,
             'scale'                  => $t?->scale,

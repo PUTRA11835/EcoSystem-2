@@ -730,7 +730,7 @@ class TicketMessageController extends Controller
             });
     }
 
-    private function createMentionNotifications(
+    public function createMentionNotifications(
         TicketMessage $message,
         Ticket $ticket,
         int $senderId,
