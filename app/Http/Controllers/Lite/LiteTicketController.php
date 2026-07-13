@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Lite;
 use App\Enums\RoleId;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\TicketMessageController;
+use App\Models\EmployeeBasicData;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
 use Illuminate\Http\Request;
@@ -171,7 +172,11 @@ class LiteTicketController extends Controller
                 $highlightMessageId = null;
             }
 
-            $formatted = $messages->map(fn ($msg) => $this->formatMessage($msg, $ticket, $highlightMessageId));
+            // Resolve nama employee yang di-mention sekali untuk semua pesan (hindari N+1).
+            $allMentionedIds = $messages->flatMap(fn ($msg) => $msg->mentioned_employee_ids ?? [])->unique()->values()->all();
+            $employeeNamesById = $this->resolveEmployeeNames($allMentionedIds);
+
+            $formatted = $messages->map(fn ($msg) => $this->formatMessage($msg, $ticket, $highlightMessageId, $employeeNamesById));
 
             return response()->json([
                 'success' => true,
@@ -209,15 +214,20 @@ class LiteTicketController extends Controller
             }
 
             $validator = Validator::make($request->all(), [
-                'message'          => 'required|string|min:1',
-                'message_type'     => 'nullable|in:reply,internal_note',
-                'is_internal_note' => 'nullable|boolean',
-                'reply_to_id'      => 'nullable|integer|exists:ticket_message,id',
-                'ticket_status'    => 'nullable|in:inprocess,waiting_on_customer,waiting_to_confirmation,waiting_on_3rd_party,hold',
+                'message'                  => 'required|string|min:1',
+                'message_type'             => 'nullable|in:reply,internal_note',
+                'is_internal_note'         => 'nullable|boolean',
+                'reply_to_id'              => 'nullable|integer|exists:ticket_message,id',
+                'ticket_status'            => 'nullable|in:inprocess,waiting_on_customer,waiting_to_confirmation,waiting_on_3rd_party,hold',
                 // to_emails/cc_emails: hanya dipakai untuk message_type=reply. Boleh array
                 // objek {address,name}, array string, atau JSON string dari objek tsb.
-                'to_emails'        => 'nullable',
-                'cc_emails'        => 'nullable',
+                'to_emails'                => 'nullable',
+                'cc_emails'                => 'nullable',
+                // mentioned_*: hanya dipakai untuk internal note (mention di reply customer belum didukung).
+                'mentioned_employee_ids'   => 'nullable|array',
+                'mentioned_employee_ids.*' => 'integer',
+                'mentioned_role_ids'       => 'nullable|array',
+                'mentioned_role_ids.*'     => 'integer',
             ]);
 
             if ($validator->fails()) {
@@ -234,22 +244,27 @@ class LiteTicketController extends Controller
             $emailFailed = false;
 
             if ($isInternalNote) {
+                $mentionedEmployeeIds = $request->input('mentioned_employee_ids', []);
+                $mentionedRoleIds     = $request->input('mentioned_role_ids', []);
+
                 $message = TicketMessage::create([
-                    'ticket_id'           => $ticketId,
-                    'sender_type'         => 'employee',
-                    'sender_id'           => $user['id'],
-                    'sender_name'         => $user['name'],
-                    'sender_email'        => $user['email'] ?? null,
-                    'message'             => strip_tags($request->message),
-                    'message_html'        => $request->message,
-                    'message_type'        => 'internal_note',
-                    'is_internal_note'    => true,
-                    'reply_to_id'         => $request->reply_to_id,
-                    'channel'             => 'web',
-                    'is_read_by_customer' => false,
-                    'is_read_by_agent'    => true,
-                    'created_at'          => now(),
-                    'updated_at'          => now(),
+                    'ticket_id'              => $ticketId,
+                    'sender_type'            => 'employee',
+                    'sender_id'              => $user['id'],
+                    'sender_name'            => $user['name'],
+                    'sender_email'           => $user['email'] ?? null,
+                    'message'                => strip_tags($request->message),
+                    'message_html'           => $request->message,
+                    'message_type'           => 'internal_note',
+                    'is_internal_note'       => true,
+                    'reply_to_id'            => $request->reply_to_id,
+                    'channel'                => 'web',
+                    'is_read_by_customer'    => false,
+                    'is_read_by_agent'       => true,
+                    'mentioned_employee_ids' => !empty($mentionedEmployeeIds) ? $mentionedEmployeeIds : null,
+                    'mentioned_role_ids'     => !empty($mentionedRoleIds) ? $mentionedRoleIds : null,
+                    'created_at'             => now(),
+                    'updated_at'             => now(),
                 ]);
 
                 $ticket->update([
@@ -257,6 +272,18 @@ class LiteTicketController extends Controller
                     'last_internal_note_at'        => now(),
                     'last_internal_note_sender_id' => $user['id'],
                 ]);
+
+                // Notifikasi mention (non-fatal) — reuse logic yang sama dengan web.
+                if (!empty($mentionedEmployeeIds) || !empty($mentionedRoleIds)) {
+                    app(TicketMessageController::class)->createMentionNotifications(
+                        $message,
+                        $ticket,
+                        (int) $user['id'],
+                        $user['name'],
+                        $mentionedEmployeeIds,
+                        $mentionedRoleIds
+                    );
+                }
             } else {
                 // Parse CC — array, atau JSON string berisi array. null = tidak dikirim
                 // (pakai CC tiket saat ini); [] eksplisit = hapus semua CC.
@@ -723,9 +750,31 @@ class LiteTicketController extends Controller
         ]);
     }
 
-    /** Format satu pesan tiket */
-    private function formatMessage(TicketMessage $message, Ticket $ticket, ?int $highlightMessageId = null): array
+    /** Resolve {employee_id: name} untuk sekumpulan id — dipakai untuk field `mentions` */
+    private function resolveEmployeeNames(array $employeeIds): array
     {
+        if (empty($employeeIds)) {
+            return [];
+        }
+
+        return EmployeeBasicData::whereIn('employee_id', $employeeIds)
+            ->get(['employee_id', 'first_name', 'last_name'])
+            ->mapWithKeys(fn ($bd) => [(int) $bd->employee_id => $bd->full_name])
+            ->all();
+    }
+
+    /** Format satu pesan tiket */
+    private function formatMessage(TicketMessage $message, Ticket $ticket, ?int $highlightMessageId = null, ?array $employeeNamesById = null): array
+    {
+        $mentionedEmployeeIds = $message->mentioned_employee_ids ?? [];
+        if ($employeeNamesById === null && !empty($mentionedEmployeeIds)) {
+            $employeeNamesById = $this->resolveEmployeeNames($mentionedEmployeeIds);
+        }
+        $mentions = collect($mentionedEmployeeIds)->map(fn ($id) => [
+            'employee_id' => (int) $id,
+            'name'        => $employeeNamesById[(int) $id] ?? null,
+        ])->values()->all();
+
         $replyToPreview = null;
         if ($message->reply_to_id && $message->replyTo) {
             $parent         = $message->replyTo;
@@ -756,6 +805,8 @@ class LiteTicketController extends Controller
             'is_deleted'          => (bool) $message->is_deleted,
             'edited_at'           => $message->edited_at?->toIso8601String(),
             'is_highlighted'      => $highlightMessageId !== null && $message->id === $highlightMessageId,
+            'mentions'            => $mentions,
+            'mentioned_role_ids'  => $message->mentioned_role_ids ?? [],
             'attachments'         => $message->attachments?->map(fn ($att) => [
                 'id'        => $att->id,
                 'file_name' => $att->file_name,

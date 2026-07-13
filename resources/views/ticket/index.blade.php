@@ -48,7 +48,7 @@
 
         @if($user->hasAnyRole([\App\Enums\RoleId::EC_ADMINISTRATOR->value, \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value, \App\Enums\RoleId::DELIVERY_HELPDESK->value]))
         <button onclick="exportWithFilters()"
-           class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all">
+            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all">
             <i class="fas fa-file-excel text-green-600 text-xs"></i>Export
         </button>
         @endif
@@ -59,12 +59,12 @@
 {{-- ── Status Cards ────────────────────────────────────────────────────────── --}}
 <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-4">
     <div id="filterAll" onclick="filterTickets('all')"
-         class="stat-card active-filter bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-gray-300">
+        class="stat-card active-filter bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-gray-300">
         <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Total</p>
         <p class="text-2xl font-bold text-gray-700 leading-none" id="totalCount">0</p>
     </div>
     <div id="filterOpen" onclick="filterTickets('open')"
-         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-blue-200">
+        class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-blue-200">
         <div class="flex items-center gap-1.5 mb-2">
             <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
             <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Open</p>
@@ -72,7 +72,7 @@
         <p class="text-2xl font-bold text-blue-600 leading-none" id="openCount">0</p>
     </div>
     <div id="filterInprocess" onclick="filterTickets('inprocess')"
-         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-yellow-200">
+        class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-yellow-200">
         <div class="flex items-center gap-1.5 mb-2">
             <span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
             <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">In Progress</p>
@@ -80,7 +80,7 @@
         <p class="text-2xl font-bold text-yellow-600 leading-none" id="inprocessCount">0</p>
     </div>
     <div id="filterWaitingCustomer" onclick="filterTickets('waiting_on_customer')"
-         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-amber-200">
+        class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-amber-200">
         <div class="flex items-center gap-1.5 mb-2">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
             <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Wait Customer</p>
@@ -88,7 +88,7 @@
         <p class="text-2xl font-bold text-amber-600 leading-none" id="waitingCustomerCount">0</p>
     </div>
     <div id="filterWaiting3rd" onclick="filterTickets('waiting_on_3rd_party')"
-         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-indigo-200">
+        class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-indigo-200">
         <div class="flex items-center gap-1.5 mb-2">
             <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
             <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Wait 3rd Party</p>
@@ -96,7 +96,7 @@
         <p class="text-2xl font-bold text-indigo-600 leading-none" id="waiting3rdCount">0</p>
     </div>
     <div id="filterWaitingConfirm" onclick="filterTickets('waiting_to_confirmation')"
-         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-teal-200">
+        class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-teal-200">
         <div class="flex items-center gap-1.5 mb-2">
             <span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
             <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Wait Confirm</p>
@@ -104,7 +104,7 @@
         <p class="text-2xl font-bold text-teal-600 leading-none" id="waitingConfirmCount">0</p>
     </div>
     <div id="filterClosed" onclick="filterTickets('closed')"
-         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-green-200">
+        class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-green-200">
         <div class="flex items-center gap-1.5 mb-2">
             <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
             <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Closed</p>
@@ -155,26 +155,30 @@
                         {{-- TIKET: sortable + keyword filter --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 sticky bg-gray-50 z-20" style="min-width:120px;left:110px;">
                             <button type="button" id="ticketFilterBtn" onclick="toggleTicketFilter(event)"
-                                    class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                 <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Tiket</span>
                                 <span id="sort-icon-ticket_number" class="sort-icon text-gray-300 font-normal normal-case tracking-normal text-xs">⇅</span>
-                                <svg id="ticketFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
-                                <svg id="ticketFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                                <svg id="ticketFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                </svg>
+                                <svg id="ticketFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                                </svg>
                             </button>
                             <div id="ticketFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
                                 <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search ticket number</label>
                                 <input type="text" id="ticketFilterInput" placeholder="e.g. TKT-2024-001…"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
-                                       oninput="onTicketFilterInput()">
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                    oninput="onTicketFilterInput()">
                                 <div class="border-t border-gray-100 mt-3 pt-3">
                                     <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Sort</label>
                                     <div class="flex gap-2">
                                         <button type="button" id="sort-btn-ticket_number-asc" onclick="sortTickets('ticket_number','asc'); closeTicketFilter();"
-                                                class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
+                                            class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
                                             ↑ Ascending
                                         </button>
                                         <button type="button" id="sort-btn-ticket_number-desc" onclick="sortTickets('ticket_number','desc'); closeTicketFilter();"
-                                                class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
+                                            class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
                                             ↓ Descending
                                         </button>
                                     </div>
@@ -187,17 +191,21 @@
                         {{-- DESCRIPTION: keyword search filter --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:260px;">
                             <button type="button" id="descFilterBtn" onclick="toggleDescFilter(event)"
-                                    class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                 <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Description</span>
                                 <span id="sort-icon-description" class="sort-icon text-gray-300 font-normal normal-case tracking-normal text-xs">⇅</span>
-                                <svg id="descFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
-                                <svg id="descFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                                <svg id="descFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                </svg>
+                                <svg id="descFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                                </svg>
                             </button>
                             <div id="descFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:260px;">
                                 <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search description</label>
                                 <input type="text" id="descFilterInput" placeholder="Type keyword (case-insensitive)…"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
-                                       oninput="onDescFilterInput()">
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                    oninput="onDescFilterInput()">
                                 <div class="flex justify-end gap-2 mt-3">
                                     <button type="button" onclick="clearDescFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
                                 </div>
@@ -206,23 +214,27 @@
                         {{-- DATE: from-to range filter (also supports sort) --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
                             <button type="button" id="dateFilterBtn" onclick="toggleDateFilter(event)"
-                                    class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                 <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Date</span>
                                 <span id="sort-icon-date" class="sort-icon text-gray-300 font-normal normal-case tracking-normal text-xs">⇅</span>
-                                <svg id="dateFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
-                                <svg id="dateFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                                <svg id="dateFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                </svg>
+                                <svg id="dateFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                                </svg>
                             </button>
                             <div id="dateFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:240px;">
                                 <div class="space-y-2">
                                     <div>
                                         <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">From</label>
                                         <input type="date" id="dateFilterFrom"
-                                               class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                            class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
                                     </div>
                                     <div>
                                         <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</label>
                                         <input type="date" id="dateFilterTo"
-                                               class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                            class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
                                     </div>
                                     <p id="dateFilterError" class="hidden text-xs text-red-500">"To" must be on/after "From".</p>
                                 </div>
@@ -230,11 +242,11 @@
                                     <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Sort</label>
                                     <div class="flex gap-2">
                                         <button type="button" id="sort-btn-date-asc" onclick="sortTickets('date','asc'); document.getElementById('dateFilterPanel').classList.add('hidden');"
-                                                class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
+                                            class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
                                             ↑ Ascending
                                         </button>
                                         <button type="button" id="sort-btn-date-desc" onclick="sortTickets('date','desc'); document.getElementById('dateFilterPanel').classList.add('hidden');"
-                                                class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
+                                            class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
                                             ↓ Descending
                                         </button>
                                     </div>
@@ -245,12 +257,41 @@
                                 </div>
                             </div>
                         </th>
+                        {{-- DAY ON CLOSE: sort filter (terbesar/terkecil) --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:110px;">
+                            <button type="button" id="dayOnCloseFilterBtn" onclick="toggleDayOnCloseFilter(event)"
+                                class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Day on Close</span>
+                                <span id="sort-icon-day_on_close" class="sort-icon text-gray-300 font-normal normal-case tracking-normal text-xs">⇅</span>
+                                <svg id="dayOnCloseFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div id="dayOnCloseFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:200px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Sort</label>
+                                <div class="flex gap-2">
+                                    <button type="button" id="sort-btn-day_on_close-desc" onclick="sortTickets('day_on_close','desc'); closeDayOnCloseFilter();"
+                                        class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
+                                        Terbesar
+                                    </button>
+                                    <button type="button" id="sort-btn-day_on_close-asc" onclick="sortTickets('day_on_close','asc'); closeDayOnCloseFilter();"
+                                        class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
+                                        Terkecil
+                                    </button>
+                                </div>
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearDayOnCloseFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
                         {{-- CUSTOMER: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:160px;">
                             <div class="custom-dd relative w-full" id="ddColFilterCustomer" data-fixed="true" data-onchange="applyColFilter" data-searchable="true">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Customer</span>
-                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                    </svg>
                                 </button>
                                 <input type="hidden" id="colFilterCustomer" value="">
                                 <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:200px;">
@@ -263,7 +304,9 @@
                             <div class="custom-dd relative w-full" id="ddColFilterPic" data-fixed="true" data-onchange="applyColFilter" data-searchable="true">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Ticket Lead</span>
-                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                    </svg>
                                 </button>
                                 <input type="hidden" id="colFilterPic" value="">
                                 <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:200px;">
@@ -276,15 +319,25 @@
                             <div class="custom-dd relative w-full" id="ddColFilterPriority" data-fixed="true" data-multi="true" data-onchange="applyColFilter">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Priority</span>
-                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                    </svg>
                                 </button>
                                 <input type="hidden" id="colFilterPriority" value="">
                                 <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:140px;">
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Very High"><span class="custom-dd-item-text">Very High</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="High"><span class="custom-dd-item-text">High</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Medium"><span class="custom-dd-item-text">Medium</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Low"><span class="custom-dd-item-text">Low</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Very High"><span class="custom-dd-item-text">Very High</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="High"><span class="custom-dd-item-text">High</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Medium"><span class="custom-dd-item-text">Medium</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Low"><span class="custom-dd-item-text">Low</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
                                 </div>
                             </div>
                         </th>
@@ -293,14 +346,22 @@
                             <div class="custom-dd relative w-full" id="ddColFilterScale" data-fixed="true" data-multi="true" data-onchange="applyColFilter">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Scale</span>
-                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                    </svg>
                                 </button>
                                 <input type="hidden" id="colFilterScale" value="">
                                 <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:120px;">
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Simple"><span class="custom-dd-item-text">Simple</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Medium"><span class="custom-dd-item-text">Medium</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Complex"><span class="custom-dd-item-text">Complex</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Simple"><span class="custom-dd-item-text">Simple</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Medium"><span class="custom-dd-item-text">Medium</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Complex"><span class="custom-dd-item-text">Complex</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
                                 </div>
                             </div>
                         </th>
@@ -309,19 +370,37 @@
                             <div class="custom-dd relative w-full" id="ddColFilterStatus" data-fixed="true" data-multi="true" data-onchange="applyColFilter">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Status</span>
-                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                    </svg>
                                 </button>
                                 <input type="hidden" id="colFilterStatus" value="">
                                 <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:200px;">
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="open"><span class="custom-dd-item-text">Open</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="inprocess"><span class="custom-dd-item-text">Inprocess</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="waiting_on_customer"><span class="custom-dd-item-text">Waiting on Customer</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="waiting_on_3rd_party"><span class="custom-dd-item-text">Waiting on 3rd Party</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="waiting_to_confirmation"><span class="custom-dd-item-text">Waiting to Confirmation</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="hold"><span class="custom-dd-item-text">Hold</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="cancelled"><span class="custom-dd-item-text">Cancelled</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="closed"><span class="custom-dd-item-text">Closed</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="open"><span class="custom-dd-item-text">Open</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="inprocess"><span class="custom-dd-item-text">Inprocess</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="waiting_on_customer"><span class="custom-dd-item-text">Waiting on Customer</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="waiting_on_3rd_party"><span class="custom-dd-item-text">Waiting on 3rd Party</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="waiting_to_confirmation"><span class="custom-dd-item-text">Waiting to Confirmation</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="hold"><span class="custom-dd-item-text">Hold</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="cancelled"><span class="custom-dd-item-text">Cancelled</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="closed"><span class="custom-dd-item-text">Closed</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
                                 </div>
                             </div>
                         </th>
@@ -330,17 +409,31 @@
                             <div class="custom-dd relative w-full" id="ddColFilterType" data-fixed="true" data-multi="true" data-onchange="applyColFilter">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Type</span>
-                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                    </svg>
                                 </button>
                                 <input type="hidden" id="colFilterType" value="">
                                 <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:170px;">
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Incident"><span class="custom-dd-item-text">Incident</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Change Request"><span class="custom-dd-item-text">Change Request</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Service Request"><span class="custom-dd-item-text">Service Request</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="EWA"><span class="custom-dd-item-text">EWA</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="RISE"><span class="custom-dd-item-text">RISE</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Consult"><span class="custom-dd-item-text">Consult</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Incident"><span class="custom-dd-item-text">Incident</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Change Request"><span class="custom-dd-item-text">Change Request</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Service Request"><span class="custom-dd-item-text">Service Request</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="EWA"><span class="custom-dd-item-text">EWA</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="RISE"><span class="custom-dd-item-text">RISE</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Consult"><span class="custom-dd-item-text">Consult</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
                                 </div>
                             </div>
                         </th>
@@ -424,7 +517,9 @@
                     <div class="custom-dd relative w-full" id="ddCreateCustomer" data-fixed="true" data-searchable="true" data-search-placeholder="Search customer...">
                         <button type="button" class="custom-dd-btn w-full flex items-center justify-between gap-2 px-4 py-2.5 border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-colors bg-white">
                             <span class="custom-dd-label text-gray-400">Select customer...</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
                         </button>
                         <input type="hidden" id="newCustomerId">
                         <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] overflow-y-auto" style="max-height:240px;">
@@ -574,88 +669,164 @@
 @endif
 
 <style>
-/* ── Sort column headers ── */
-thead th.th-sortable { user-select: none; }
-thead th.th-sortable:hover { background: #f1f5f9; }
-.sort-icon { font-style: normal; transition: color 0.15s; }
-.sort-icon.active { color: #111827; }
+    /* ── Sort column headers ── */
+    thead th.th-sortable {
+        user-select: none;
+    }
 
-/* ── Column filter dropdown active state ── */
-.custom-dd.col-dd-active .custom-dd-arrow { color: #dc2626; }
-.custom-dd.col-dd-active .custom-dd-btn > span { color: #dc2626; font-weight: 700; }
+    thead th.th-sortable:hover {
+        background: #f1f5f9;
+    }
 
-/* View Toggle */
-#btnViewAll, #btnViewMy,
-#btnViewAllHd, #btnViewUnassigned { background: transparent; color: #9ca3af; font-size: 12px; }
+    .sort-icon {
+        font-style: normal;
+        transition: color 0.15s;
+    }
 
-#btnViewAll.active, #btnViewMy.active,
-#btnViewAllHd.active, #btnViewUnassigned.active { background: white; color: #111827; font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+    .sort-icon.active {
+        color: #111827;
+    }
 
-/* Stat cards active state */
-.stat-card.active-filter {
-    border-left: 3px solid #dc2626 !important;
-    border-top-color: #fecaca !important;
-    border-right-color: #fecaca !important;
-    border-bottom-color: #fecaca !important;
-    background: #fff8f8 !important;
-    box-shadow: 0 2px 8px rgba(220,38,38,0.08) !important;
-}
+    /* ── Column filter dropdown active state ── */
+    .custom-dd.col-dd-active .custom-dd-arrow {
+        color: #dc2626;
+    }
 
-/* Table rows */
-#ticketsListBody tr { cursor: pointer; transition: background 0.1s; }
-#ticketsListBody tr:hover { background: #f8fafc; }
+    .custom-dd.col-dd-active .custom-dd-btn>span {
+        color: #dc2626;
+        font-weight: 700;
+    }
 
-/* ── Unread ticket row — blue (customer email) ── */
-#ticketsListBody tr.ticket-unread-customer { background: #f0f7ff; }
-#ticketsListBody tr.ticket-unread-customer:hover { background: #e6f0fd; }
-#ticketsListBody tr.ticket-unread-customer td:first-child {
-    border-left: 3px solid #93c5fd;
-    padding-left: 10px;
-}
-#ticketsListBody tr.ticket-unread-customer td:first-child,
-#ticketsListBody tr.ticket-unread-customer td:nth-child(2) { background: #f0f7ff; }
-#ticketsListBody tr.ticket-unread-customer:hover td:first-child,
-#ticketsListBody tr.ticket-unread-customer:hover td:nth-child(2) { background: #e6f0fd; }
+    /* View Toggle */
+    #btnViewAll,
+    #btnViewMy,
+    #btnViewAllHd,
+    #btnViewUnassigned {
+        background: transparent;
+        color: #9ca3af;
+        font-size: 12px;
+    }
 
-/* ── Unread ticket row — yellow (internal note) ── */
-#ticketsListBody tr.ticket-unread-internal { background: #fffbeb; }
-#ticketsListBody tr.ticket-unread-internal:hover { background: #fef3c7; }
-#ticketsListBody tr.ticket-unread-internal td:first-child {
-    border-left: 3px solid #fbbf24;
-    padding-left: 10px;
-}
-#ticketsListBody tr.ticket-unread-internal td:first-child,
-#ticketsListBody tr.ticket-unread-internal td:nth-child(2) { background: #fffbeb; }
-#ticketsListBody tr.ticket-unread-internal:hover td:first-child,
-#ticketsListBody tr.ticket-unread-internal:hover td:nth-child(2) { background: #fef3c7; }
+    #btnViewAll.active,
+    #btnViewMy.active,
+    #btnViewAllHd.active,
+    #btnViewUnassigned.active {
+        background: white;
+        color: #111827;
+        font-weight: 700;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    }
 
-/* ── Unread dots ── */
-.unread-dot {
-    display: inline-block;
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    vertical-align: middle;
-    margin-right: 5px;
-    flex-shrink: 0;
-}
-.unread-dot-blue { background: #3b82f6; box-shadow: 0 0 0 2px #dbeafe; }
-.unread-dot-yellow { background: #f59e0b; box-shadow: 0 0 0 2px #fde68a; }
+    /* Stat cards active state */
+    .stat-card.active-filter {
+        border-left: 3px solid #dc2626 !important;
+        border-top-color: #fecaca !important;
+        border-right-color: #fecaca !important;
+        border-bottom-color: #fecaca !important;
+        background: #fff8f8 !important;
+        box-shadow: 0 2px 8px rgba(220, 38, 38, 0.08) !important;
+    }
 
-/* Sticky columns */
-#ticketsListBody tr td:first-child,
-#ticketsListBody tr td:nth-child(2) {
-    z-index: 5;
-    box-shadow: 2px 0 4px rgba(0,0,0,0.04);
-}
-#ticketsListBody tr:hover td:first-child,
-#ticketsListBody tr:hover td:nth-child(2) { background: #f8fafc; }
+    /* Table rows */
+    #ticketsListBody tr {
+        cursor: pointer;
+        transition: background 0.1s;
+    }
+
+    #ticketsListBody tr:hover {
+        background: #f8fafc;
+    }
+
+    /* ── Unread ticket row — blue (customer email) ── */
+    #ticketsListBody tr.ticket-unread-customer {
+        background: #f0f7ff;
+    }
+
+    #ticketsListBody tr.ticket-unread-customer:hover {
+        background: #e6f0fd;
+    }
+
+    #ticketsListBody tr.ticket-unread-customer td:first-child {
+        border-left: 3px solid #93c5fd;
+        padding-left: 10px;
+    }
+
+    #ticketsListBody tr.ticket-unread-customer td:first-child,
+    #ticketsListBody tr.ticket-unread-customer td:nth-child(2) {
+        background: #f0f7ff;
+    }
+
+    #ticketsListBody tr.ticket-unread-customer:hover td:first-child,
+    #ticketsListBody tr.ticket-unread-customer:hover td:nth-child(2) {
+        background: #e6f0fd;
+    }
+
+    /* ── Unread ticket row — yellow (internal note) ── */
+    #ticketsListBody tr.ticket-unread-internal {
+        background: #fffbeb;
+    }
+
+    #ticketsListBody tr.ticket-unread-internal:hover {
+        background: #fef3c7;
+    }
+
+    #ticketsListBody tr.ticket-unread-internal td:first-child {
+        border-left: 3px solid #fbbf24;
+        padding-left: 10px;
+    }
+
+    #ticketsListBody tr.ticket-unread-internal td:first-child,
+    #ticketsListBody tr.ticket-unread-internal td:nth-child(2) {
+        background: #fffbeb;
+    }
+
+    #ticketsListBody tr.ticket-unread-internal:hover td:first-child,
+    #ticketsListBody tr.ticket-unread-internal:hover td:nth-child(2) {
+        background: #fef3c7;
+    }
+
+    /* ── Unread dots ── */
+    .unread-dot {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        vertical-align: middle;
+        margin-right: 5px;
+        flex-shrink: 0;
+    }
+
+    .unread-dot-blue {
+        background: #3b82f6;
+        box-shadow: 0 0 0 2px #dbeafe;
+    }
+
+    .unread-dot-yellow {
+        background: #f59e0b;
+        box-shadow: 0 0 0 2px #fde68a;
+    }
+
+    /* Sticky columns */
+    #ticketsListBody tr td:first-child,
+    #ticketsListBody tr td:nth-child(2) {
+        z-index: 5;
+        box-shadow: 2px 0 4px rgba(0, 0, 0, 0.04);
+    }
+
+    #ticketsListBody tr:hover td:first-child,
+    #ticketsListBody tr:hover td:nth-child(2) {
+        background: #f8fafc;
+    }
 </style>
 
 <script>
     let allTickets = [];
     let filteredTickets = [];
     let currentFilter = 'all';
-    let currentTicketSort = { key: 'last_update', dir: 'desc' };
+    let currentTicketSort = {
+        key: 'last_update',
+        dir: 'desc'
+    };
     let itemsPerPage = 200;
     let currentPage = 1;
     let totalItems = 0;
@@ -673,10 +844,10 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     const SUPPORT_MANAGER_ROLE        = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value }};
     const HEAD_ROLES                  = [{{ \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value }}, {{ \App\Enums\RoleId::DELIVERY_PROJECT_HEAD->value }}];
     // Roles that use the All/Unassigned toggle (Helpdesk only)
-    const STAFF_TOGGLE_ROLES          = [HELPDESK_ROLE];
+    const STAFF_TOGGLE_ROLES = [HELPDESK_ROLE];
     let currentView = (userRole === DELIVERY_SUPPORT_USER_ROLE || (IS_EXTERNAL_EMPLOYEE && userRole !== SUPPORT_MANAGER_ROLE && !HEAD_ROLES.includes(userRole))) ? 'my' : 'all';
     let sortField = null; // 'last_update' | 'ticket_number' | 'date'
-    let sortDir   = null; // 'desc' | 'asc'
+    let sortDir = null; // 'desc' | 'asc'
 
     function getViewBase() {
         if (STAFF_TOGGLE_ROLES.includes(userRole)) {
@@ -706,13 +877,15 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     // filter, sort, dan posisi halaman yang sedang aktif tetap dipertahankan.
     // -------------------------------------------------------------------------
     let _lastTicketUpdate = null;
-    let _isFirstPoll      = true;
+    let _isFirstPoll = true;
     const TICKET_POLL_INTERVAL_MS = 20000;
 
     async function checkTicketUpdates() {
         try {
             const res = await fetch('/ticket/latest-update', {
-                headers: { 'Accept': 'application/json' },
+                headers: {
+                    'Accept': 'application/json'
+                },
                 credentials: 'same-origin'
             });
             if (!res.ok) return;
@@ -748,32 +921,32 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             params.set('card_status', currentFilter);
         }
         // Filter kolom
-        const colStatus   = document.getElementById('colFilterStatus')?.value   || '';
+        const colStatus = document.getElementById('colFilterStatus')?.value || '';
         const colCustomer = document.getElementById('colFilterCustomer')?.value || '';
-        const colPic      = document.getElementById('colFilterPic')?.value      || '';
+        const colPic = document.getElementById('colFilterPic')?.value || '';
         const colPriority = document.getElementById('colFilterPriority')?.value || '';
-        const colScale    = document.getElementById('colFilterScale')?.value    || '';
-        const colType     = document.getElementById('colFilterType')?.value     || '';
-        if (colStatus)   params.set('status',   colStatus);
+        const colScale = document.getElementById('colFilterScale')?.value || '';
+        const colType = document.getElementById('colFilterType')?.value || '';
+        if (colStatus) params.set('status', colStatus);
         if (colCustomer) params.set('customer', colCustomer);
-        if (colPic)      params.set('pic',      colPic);
+        if (colPic) params.set('pic', colPic);
         if (colPriority) params.set('priority', colPriority);
-        if (colScale)    params.set('scale',    colScale);
-        if (colType)     params.set('type',     colType);
+        if (colScale) params.set('scale', colScale);
+        if (colType) params.set('type', colType);
 
         // Date range
         const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
-        const dateTo   = document.getElementById('dateFilterTo')?.value   || '';
+        const dateTo = document.getElementById('dateFilterTo')?.value || '';
         if (dateFrom) params.set('date_from', dateFrom);
-        if (dateTo)   params.set('date_to',   dateTo);
+        if (dateTo) params.set('date_to', dateTo);
 
         // Keyword filters
-        const descKw   = (document.getElementById('descFilterInput')?.value   || '').trim();
+        const descKw = (document.getElementById('descFilterInput')?.value || '').trim();
         const ticketKw = (document.getElementById('ticketFilterInput')?.value || '').trim();
-        if (descKw)   params.set('description',   descKw);
+        if (descKw) params.set('description', descKw);
         if (ticketKw) params.set('ticket_number', ticketKw);
 
-        const qs  = params.toString();
+        const qs = params.toString();
         window.location.href = '{{ route("ticket.export") }}' + (qs ? '?' + qs : '');
     }
 
@@ -783,7 +956,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         if (STAFF_TOGGLE_ROLES.includes(userRole)) {
             // Helpdesk: all tickets already loaded — filter client-side for unassigned, no re-fetch
             currentFilter = 'all';
-            currentPage   = 1;
+            currentPage = 1;
             filteredTickets = getViewBase();
             updateStats();
             renderTickets();
@@ -796,10 +969,10 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     function updateViewToggle() {
         if (userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE || userRole === SUPPORT_MANAGER_ROLE) {
             const btnAll = document.getElementById('btnViewAll');
-            const btnMy  = document.getElementById('btnViewMy');
+            const btnMy = document.getElementById('btnViewMy');
             if (btnAll && btnMy) {
                 btnAll.classList.toggle('active', currentView === 'all');
-                btnMy.classList.toggle('active',  currentView === 'my');
+                btnMy.classList.toggle('active', currentView === 'my');
             }
         }
         if (STAFF_TOGGLE_ROLES.includes(userRole)) {
@@ -827,7 +1000,11 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             else if (userRole === SUPPORT_MANAGER_ROLE && currentView === 'my') endpoint = '/api/tickets/my';
 
             const response = await fetch(endpoint, {
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
                 credentials: 'same-origin'
             });
 
@@ -835,11 +1012,13 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             // state khusus, bukan "Failed to load tickets" yang membingungkan.
             if (response.status === 403 || response.status === 401) {
                 let msg = '';
-                try { msg = (await response.json()).message || ''; } catch (e) {}
-                showAccessDenied(response.status === 401
-                    ? 'Your session has expired. Please sign in again to view tickets.'
-                    : (msg && msg !== 'Access denied' ? msg
-                        : "Your account role isn't permitted to view the Ticket module. Please sign in with an account that has ticket access (e.g. Admin, Helpdesk, or RPMO)."));
+                try {
+                    msg = (await response.json()).message || '';
+                } catch (e) {}
+                showAccessDenied(response.status === 401 ?
+                    'Your session has expired. Please sign in again to view tickets.' :
+                    (msg && msg !== 'Access denied' ? msg :
+                        "Your account role isn't permitted to view the Ticket module. Please sign in with an account that has ticket access (e.g. Admin, Helpdesk, or RPMO)."));
                 return;
             }
 
@@ -895,27 +1074,27 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     // applyAdvancedFilters() untuk membangun `filteredTickets` tabel.
     function getColumnFilteredBase() {
         const colCustomer = (document.getElementById('colFilterCustomer')?.value || '').toLowerCase();
-        const colPic      = (document.getElementById('colFilterPic')?.value      || '').toLowerCase();
+        const colPic = (document.getElementById('colFilterPic')?.value || '').toLowerCase();
         const colPriority = (document.getElementById('colFilterPriority')?.value || '').split(',').filter(Boolean);
-        const colScale    = (document.getElementById('colFilterScale')?.value    || '').split(',').filter(Boolean);
-        const colStatus   = (document.getElementById('colFilterStatus')?.value   || '').split(',').filter(Boolean);
-        const colType     = (document.getElementById('colFilterType')?.value     || '').split(',').filter(Boolean);
+        const colScale = (document.getElementById('colFilterScale')?.value || '').split(',').filter(Boolean);
+        const colStatus = (document.getElementById('colFilterStatus')?.value || '').split(',').filter(Boolean);
+        const colType = (document.getElementById('colFilterType')?.value || '').split(',').filter(Boolean);
 
         const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
-        const dateTo   = document.getElementById('dateFilterTo')?.value   || '';
+        const dateTo = document.getElementById('dateFilterTo')?.value || '';
         const fromMs = dateFrom ? new Date(dateFrom + 'T00:00:00+07:00').getTime() : null;
-        const toMs   = dateTo   ? new Date(dateTo   + 'T23:59:59+07:00').getTime() : null;
+        const toMs = dateTo ? new Date(dateTo + 'T23:59:59+07:00').getTime() : null;
 
-        const descKw   = (document.getElementById('descFilterInput')?.value  || '').trim().toLowerCase();
+        const descKw = (document.getElementById('descFilterInput')?.value || '').trim().toLowerCase();
         const ticketKw = (document.getElementById('ticketFilterInput')?.value || '').trim().toLowerCase();
 
         return getViewBase().filter(ticket => {
             const matchColCustomer = !colCustomer || (ticket.customer?.customer_name || '').toLowerCase() === colCustomer;
-            const matchColPic      = !colPic      || (ticket.employee?.employee_name || '').toLowerCase() === colPic;
+            const matchColPic = !colPic || (ticket.employee?.employee_name || '').toLowerCase() === colPic;
             const matchColPriority = !colPriority.length || colPriority.includes(ticket.ticket_priority);
-            const matchColScale    = !colScale.length    || colScale.includes(String(ticket.scale ?? ''));
-            const matchColStatus   = !colStatus.length   || colStatus.includes(ticket.status);
-            const matchColType     = !colType.length     || colType.includes(ticket.ticket_type);
+            const matchColScale = !colScale.length || colScale.includes(String(ticket.scale ?? ''));
+            const matchColStatus = !colStatus.length || colStatus.includes(ticket.status);
+            const matchColType = !colType.length || colType.includes(ticket.ticket_type);
 
             let matchDate = true;
             if (fromMs !== null || toMs !== null) {
@@ -924,27 +1103,27 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                     matchDate = false;
                 } else {
                     if (fromMs !== null && created < fromMs) matchDate = false;
-                    if (toMs   !== null && created > toMs)   matchDate = false;
+                    if (toMs !== null && created > toMs) matchDate = false;
                 }
             }
 
-            const matchDesc   = !descKw   || (ticket.description   || '').toLowerCase().includes(descKw);
+            const matchDesc = !descKw || (ticket.description || '').toLowerCase().includes(descKw);
             const matchTicket = !ticketKw || (ticket.ticket_number || '').toLowerCase().includes(ticketKw);
 
-            return matchColCustomer && matchColPic && matchColPriority && matchColScale
-                && matchColStatus && matchColType && matchDate && matchDesc && matchTicket;
+            return matchColCustomer && matchColPic && matchColPriority && matchColScale &&
+                matchColStatus && matchColType && matchDate && matchDesc && matchTicket;
         });
     }
 
     function updateStats(base) {
         base = base || getColumnFilteredBase();
-        document.getElementById('totalCount').textContent          = base.length;
-        document.getElementById('openCount').textContent           = base.filter(t => t.status === 'open').length;
-        document.getElementById('inprocessCount').textContent      = base.filter(t => t.status === 'inprocess').length;
+        document.getElementById('totalCount').textContent = base.length;
+        document.getElementById('openCount').textContent = base.filter(t => t.status === 'open').length;
+        document.getElementById('inprocessCount').textContent = base.filter(t => t.status === 'inprocess').length;
         document.getElementById('waitingCustomerCount').textContent = base.filter(t => t.status === 'waiting_on_customer').length;
-        document.getElementById('waiting3rdCount').textContent     = base.filter(t => t.status === 'waiting_on_3rd_party').length;
-        document.getElementById('waitingConfirmCount').textContent  = base.filter(t => t.status === 'waiting_to_confirmation').length;
-        document.getElementById('closedCount').textContent         = base.filter(t => t.status === 'closed').length;
+        document.getElementById('waiting3rdCount').textContent = base.filter(t => t.status === 'waiting_on_3rd_party').length;
+        document.getElementById('waitingConfirmCount').textContent = base.filter(t => t.status === 'waiting_to_confirmation').length;
+        document.getElementById('closedCount').textContent = base.filter(t => t.status === 'closed').length;
     }
 
     function renderTickets() {
@@ -988,101 +1167,151 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     }
 
     function relativeTime(date) {
-        const now     = new Date();
-        const diffMs  = now - date;
+        const now = new Date();
+        const diffMs = now - date;
         const diffSec = Math.floor(diffMs / 1000);
         const diffMin = Math.floor(diffSec / 60);
-        const diffHr  = Math.floor(diffMin / 60);
-        const diffDay = Math.floor(diffHr  / 24);
-        const diffWk  = Math.floor(diffDay / 7);
-        const diffMo  = Math.floor(diffDay / 30);
-        const diffYr  = Math.floor(diffDay / 365);
+        const diffHr = Math.floor(diffMin / 60);
+        const diffDay = Math.floor(diffHr / 24);
+        const diffWk = Math.floor(diffDay / 7);
+        const diffMo = Math.floor(diffDay / 30);
+        const diffYr = Math.floor(diffDay / 365);
 
-        if (diffSec < 60)  return 'Just now';
+        if (diffSec < 60) return 'Just now';
         if (diffMin === 1) return '1 minute ago';
-        if (diffMin < 60)  return `${diffMin} minutes ago`;
-        if (diffHr  === 1) return '1 hour ago';
-        if (diffHr  < 24)  return `${diffHr} hours ago`;
+        if (diffMin < 60) return `${diffMin} minutes ago`;
+        if (diffHr === 1) return '1 hour ago';
+        if (diffHr < 24) return `${diffHr} hours ago`;
         if (diffDay === 1) return 'Yesterday';
-        if (diffDay < 7)   return `${diffDay} days ago`;
-        if (diffWk  === 1) return '1 week ago';
-        if (diffWk  < 5)   return `${diffWk} weeks ago`;
-        if (diffMo  === 1) return '1 month ago';
-        if (diffMo  < 12)  return `${diffMo} months ago`;
-        if (diffYr  === 1) return '1 year ago';
+        if (diffDay < 7) return `${diffDay} days ago`;
+        if (diffWk === 1) return '1 week ago';
+        if (diffWk < 5) return `${diffWk} weeks ago`;
+        if (diffMo === 1) return '1 month ago';
+        if (diffMo < 12) return `${diffMo} months ago`;
+        if (diffYr === 1) return '1 year ago';
         return `${diffYr} years ago`;
     }
 
     function createTicketRow(ticket) {
         const customerName = ticket.customer?.customer_name || 'Unknown';
         const lastActivity = new Date(ticket.last_message_at || ticket.created_at);
-        const createdAt    = new Date(ticket.start_date || ticket.created_at);
-        const endDate      = ticket.end_date ? new Date(ticket.end_date) : null;
+        const createdAt = new Date(ticket.start_date || ticket.created_at);
+        const endDate = ticket.end_date ? new Date(ticket.end_date) : null;
 
-        const fmt    = d => d.toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' });
-        const fmtDT  = d => d.toLocaleString('en-GB',    { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+        const fmt = d => d.toLocaleDateString('en-GB', {
+            timeZone: 'Asia/Jakarta',
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+        });
+        const fmtDT = d => d.toLocaleString('en-GB', {
+            timeZone: 'Asia/Jakarta',
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
 
         const lastUpdateStr = relativeTime(lastActivity);
         const lastUpdateTitle = fmtDT(lastActivity);
-        const dateStr       = fmt(createdAt);
-        const endDateStr    = endDate ? fmt(endDate) : '—';
+        const dateStr = fmt(createdAt);
+        const endDateStr = endDate ? fmt(endDate) : '—';
 
         const agentName = ticket.employee?.employee_name || '<span class="text-gray-400">Unassigned</span>';
 
         const priorityColors = {
             'Very High': 'bg-red-50 text-red-700',
-            'High':      'bg-orange-50 text-orange-700',
-            'Medium':    'bg-yellow-50 text-yellow-700',
-            'Low':       'bg-blue-50 text-blue-700'
+            'High': 'bg-orange-50 text-orange-700',
+            'Medium': 'bg-yellow-50 text-yellow-700',
+            'Low': 'bg-blue-50 text-blue-700'
         };
         const priorityClass = priorityColors[ticket.ticket_priority] || 'bg-gray-100 text-gray-500';
         const priorityLabel = ticket.ticket_priority || '—';
 
         const statusMap = {
-            'open':                    { label: 'Open',                    cls: 'bg-blue-50 text-blue-700' },
-            'inprocess':               { label: 'Inprocess',               cls: 'bg-yellow-50 text-yellow-700' },
-            'waiting_on_customer':     { label: 'Waiting on Customer',     cls: 'bg-amber-50 text-amber-700' },
-            'waiting_on_3rd_party':    { label: 'Waiting on 3rd Party',    cls: 'bg-indigo-50 text-indigo-700' },
-            'waiting_to_confirmation': { label: 'Waiting to Confirmation', cls: 'bg-teal-50 text-teal-700' },
-            'hold':                    { label: 'Hold',                    cls: 'bg-orange-50 text-orange-700' },
-            'cancelled':               { label: 'Cancelled',               cls: 'bg-gray-100 text-gray-500' },
-            'closed':                  { label: 'Closed',                  cls: 'bg-green-50 text-green-700' },
+            'open': {
+                label: 'Open',
+                cls: 'bg-blue-50 text-blue-700'
+            },
+            'inprocess': {
+                label: 'Inprocess',
+                cls: 'bg-yellow-50 text-yellow-700'
+            },
+            'waiting_on_customer': {
+                label: 'Waiting on Customer',
+                cls: 'bg-amber-50 text-amber-700'
+            },
+            'waiting_on_3rd_party': {
+                label: 'Waiting on 3rd Party',
+                cls: 'bg-indigo-50 text-indigo-700'
+            },
+            'waiting_to_confirmation': {
+                label: 'Waiting to Confirmation',
+                cls: 'bg-teal-50 text-teal-700'
+            },
+            'hold': {
+                label: 'Hold',
+                cls: 'bg-orange-50 text-orange-700'
+            },
+            'cancelled': {
+                label: 'Cancelled',
+                cls: 'bg-gray-100 text-gray-500'
+            },
+            'closed': {
+                label: 'Closed',
+                cls: 'bg-green-50 text-green-700'
+            },
         };
         const typeColors = {
-            'Incident':        'bg-red-50 text-red-600',
-            'Change Request':  'bg-amber-50 text-amber-600',
+            'Incident': 'bg-red-50 text-red-600',
+            'Change Request': 'bg-amber-50 text-amber-600',
             'Service Request': 'bg-indigo-50 text-indigo-600',
-            'EWA':             'bg-orange-50 text-orange-600',
-            'RISE':            'bg-violet-50 text-violet-600',
-            'Consult':         'bg-teal-50 text-teal-600',
+            'EWA': 'bg-orange-50 text-orange-600',
+            'RISE': 'bg-violet-50 text-violet-600',
+            'Consult': 'bg-teal-50 text-teal-600',
         };
 
         const scaleColors = {
-            'Simple':  'bg-sky-50 text-sky-600',
-            'Medium':  'bg-amber-50 text-amber-600',
+            'Simple': 'bg-sky-50 text-sky-600',
+            'Medium': 'bg-amber-50 text-amber-600',
             'Complex': 'bg-rose-50 text-rose-600',
         };
 
-        const sInfo = statusMap[ticket.status] || { label: ticket.status || '—', cls: 'bg-gray-100 text-gray-500' };
+        const sInfo = statusMap[ticket.status] || {
+            label: ticket.status || '—',
+            cls: 'bg-gray-100 text-gray-500'
+        };
         const typeLabel = ticket.ticket_type || '—';
-        const typeCls   = typeColors[ticket.ticket_type] || 'bg-gray-100 text-gray-500';
+        const typeCls = typeColors[ticket.ticket_type] || 'bg-gray-100 text-gray-500';
 
         const mandays = ticket.customer_mandays != null ? parseFloat(ticket.customer_mandays).toFixed(1) : '—';
 
         // ── Priority dots ──
-        const prioDots = { 'Very High':'bg-red-500', 'High':'bg-orange-500', 'Medium':'bg-yellow-500', 'Low':'bg-blue-400' };
+        const prioDots = {
+            'Very High': 'bg-red-500',
+            'High': 'bg-orange-500',
+            'Medium': 'bg-yellow-500',
+            'Low': 'bg-blue-400'
+        };
 
         // ── Status dots ──
         const statusDots = {
-            'open':'bg-blue-500','inprocess':'bg-yellow-500','waiting_on_customer':'bg-amber-500',
-            'waiting_on_3rd_party':'bg-indigo-500','waiting_to_confirmation':'bg-teal-500',
-            'hold':'bg-orange-500','cancelled':'bg-gray-400','closed':'bg-green-500',
+            'open': 'bg-blue-500',
+            'inprocess': 'bg-yellow-500',
+            'waiting_on_customer': 'bg-amber-500',
+            'waiting_on_3rd_party': 'bg-indigo-500',
+            'waiting_to_confirmation': 'bg-teal-500',
+            'hold': 'bg-orange-500',
+            'cancelled': 'bg-gray-400',
+            'closed': 'bg-green-500',
         };
 
         // ── Unread detection ──
-        const lastCustomer   = ticket.last_customer_reply_at  ? new Date(ticket.last_customer_reply_at)  : null;
-        const lastInternal   = ticket.last_internal_note_at   ? new Date(ticket.last_internal_note_at)   : null;
-        const lastAgent      = ticket.last_agent_reply_at     ? new Date(ticket.last_agent_reply_at)     : null;
+        const lastCustomer = ticket.last_customer_reply_at ? new Date(ticket.last_customer_reply_at) : null;
+        const lastInternal = ticket.last_internal_note_at ? new Date(ticket.last_internal_note_at) : null;
+        const lastAgent = ticket.last_agent_reply_at ? new Date(ticket.last_agent_reply_at) : null;
         const lastNoteSender = ticket.last_internal_note_sender_id;
 
         const hasUnreadCustomer = lastCustomer && (!lastAgent || lastCustomer > lastAgent);
@@ -1093,17 +1322,20 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const customerTs = hasUnreadCustomer ? lastCustomer.getTime() : -Infinity;
         const internalTs = hasUnreadInternal ? lastInternal.getTime() : -Infinity;
 
-        let unreadCls = '', dot = '', timeColor = 'text-gray-400', numColor = 'text-gray-700';
+        let unreadCls = '',
+            dot = '',
+            timeColor = 'text-gray-400',
+            numColor = 'text-gray-700';
         if (internalTs >= customerTs && hasUnreadInternal) {
             unreadCls = 'ticket-unread-internal';
-            dot       = '<span class="unread-dot unread-dot-yellow" title="Ada internal note belum dibalas"></span>';
+            dot = '<span class="unread-dot unread-dot-yellow" title="Ada internal note belum dibalas"></span>';
             timeColor = 'text-amber-600 font-semibold';
-            numColor  = 'text-amber-700';
+            numColor = 'text-amber-700';
         } else if (hasUnreadCustomer) {
             unreadCls = 'ticket-unread-customer';
-            dot       = '<span class="unread-dot unread-dot-blue" title="Customer belum dibalas"></span>';
+            dot = '<span class="unread-dot unread-dot-blue" title="Customer belum dibalas"></span>';
             timeColor = 'text-blue-600 font-semibold';
-            numColor  = 'text-blue-700';
+            numColor = 'text-blue-700';
         }
 
         // ── Helpers ──
@@ -1119,9 +1351,9 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             `<td class="px-3 py-3 text-gray-300 whitespace-nowrap text-xs text-center">—</td>`;
 
         // ── Row bgColor (must match for sticky cells) ──
-        const rowBg = unreadCls === 'ticket-unread-internal' ? '#fffbeb'
-                    : unreadCls === 'ticket-unread-customer'  ? '#f0f7ff'
-                    : '#ffffff';
+        const rowBg = unreadCls === 'ticket-unread-internal' ? '#fffbeb' :
+            unreadCls === 'ticket-unread-customer' ? '#f0f7ff' :
+            '#ffffff';
 
         return `<tr class="${unreadCls} border-b border-gray-100" data-ticket-num="${(ticket.ticket_number||'').replace(/"/g,'')}" onclick="window.location='/ticket/${ticket.ticket_id}'" oncontextmenu="openTicketContextMenu(event,${ticket.ticket_id},this)">
             {{-- Last Update --}}
@@ -1143,6 +1375,15 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             {{-- Date --}}
             <td class="px-3 py-3 whitespace-nowrap">
                 <span class="text-xs text-gray-500">${dateStr}</span>
+            </td>
+            {{-- Day on Close --}}
+            <td class="px-3 py-3 whitespace-nowrap">
+                ${(function() {
+                    const created = ticket.start_date || ticket.created_at;
+                    if (!created) return '<span class="text-gray-300 text-xs">—</span>';
+                    const days = Math.max(0, Math.floor((Date.now() - new Date(created).getTime()) / 86400000));
+                    return `<span class="text-sm font-semibold text-gray-700">${days}</span>`;
+                })()}
             </td>
             {{-- Customer --}}
             <td class="px-3 py-3 whitespace-nowrap">
@@ -1272,8 +1513,19 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         document.getElementById('btnNextPage').disabled = currentPage >= totalPages;
     }
 
-    function previousPage() { if (currentPage > 1) { currentPage--; renderTickets(); } }
-    function nextPage() { if (currentPage < totalPages) { currentPage++; renderTickets(); } }
+    function previousPage() {
+        if (currentPage > 1) {
+            currentPage--;
+            renderTickets();
+        }
+    }
+
+    function nextPage() {
+        if (currentPage < totalPages) {
+            currentPage++;
+            renderTickets();
+        }
+    }
 
     function filterTickets(status) {
         currentFilter = status;
@@ -1285,13 +1537,13 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         });
 
         const filterMap = {
-            'all':                    'filterAll',
-            'open':                   'filterOpen',
-            'inprocess':              'filterInprocess',
-            'waiting_on_customer':    'filterWaitingCustomer',
-            'waiting_on_3rd_party':   'filterWaiting3rd',
-            'waiting_to_confirmation':'filterWaitingConfirm',
-            'closed':                 'filterClosed',
+            'all': 'filterAll',
+            'open': 'filterOpen',
+            'inprocess': 'filterInprocess',
+            'waiting_on_customer': 'filterWaitingCustomer',
+            'waiting_on_3rd_party': 'filterWaiting3rd',
+            'waiting_to_confirmation': 'filterWaitingConfirm',
+            'closed': 'filterClosed',
         };
         if (filterMap[status]) {
             const el = document.getElementById(filterMap[status]);
@@ -1318,7 +1570,10 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const names = [];
         allTickets.forEach(t => {
             const name = t.customer?.customer_name;
-            if (name && !seen.has(name)) { seen.add(name); names.push(name); }
+            if (name && !seen.has(name)) {
+                seen.add(name);
+                names.push(name);
+            }
         });
         names.sort((a, b) => a.localeCompare(b));
 
@@ -1353,7 +1608,10 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const names = [];
         allTickets.forEach(t => {
             const name = t.employee?.employee_name;
-            if (name && !seen.has(name)) { seen.add(name); names.push(name); }
+            if (name && !seen.has(name)) {
+                seen.add(name);
+                names.push(name);
+            }
         });
         names.sort((a, b) => a.localeCompare(b));
 
@@ -1378,11 +1636,11 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     function applyColFilter() {
         const colDdMap = {
             'ddColFilterCustomer': 'colFilterCustomer',
-            'ddColFilterPic':      'colFilterPic',
+            'ddColFilterPic': 'colFilterPic',
             'ddColFilterPriority': 'colFilterPriority',
-            'ddColFilterScale':    'colFilterScale',
-            'ddColFilterStatus':   'colFilterStatus',
-            'ddColFilterType':     'colFilterType',
+            'ddColFilterScale': 'colFilterScale',
+            'ddColFilterStatus': 'colFilterStatus',
+            'ddColFilterType': 'colFilterType',
         };
         Object.entries(colDdMap).forEach(([ddId, inputId]) => {
             updateColFilterActive(ddId, document.getElementById(inputId)?.value || '');
@@ -1413,21 +1671,27 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     function toggleDateFilter(ev) {
         ev?.stopPropagation();
         const panel = document.getElementById('dateFilterPanel');
-        const btn   = document.getElementById('dateFilterBtn');
-        const open  = !panel.classList.contains('hidden');
+        const btn = document.getElementById('dateFilterBtn');
+        const open = !panel.classList.contains('hidden');
         // close other popovers
         closeDescFilter();
         closeTicketFilter();
-        if (open) { panel.classList.add('hidden'); return; }
+        if (open) {
+            panel.classList.add('hidden');
+            return;
+        }
         positionPanelUnder(btn, panel);
         panel.classList.remove('hidden');
     }
 
     function applyDateFilter() {
         const from = document.getElementById('dateFilterFrom').value;
-        const to   = document.getElementById('dateFilterTo').value;
+        const to = document.getElementById('dateFilterTo').value;
         const errEl = document.getElementById('dateFilterError');
-        if (from && to && to < from) { errEl.classList.remove('hidden'); return; }
+        if (from && to && to < from) {
+            errEl.classList.remove('hidden');
+            return;
+        }
         errEl.classList.add('hidden');
         document.getElementById('dateFilterPanel').classList.add('hidden');
         applyAdvancedFilters();
@@ -1435,10 +1699,13 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
     function clearDateFilter() {
         document.getElementById('dateFilterFrom').value = '';
-        document.getElementById('dateFilterTo').value   = '';
+        document.getElementById('dateFilterTo').value = '';
         document.getElementById('dateFilterError').classList.add('hidden');
         if (currentTicketSort.key === 'date') {
-            currentTicketSort = { key: 'last_update', dir: 'desc' };
+            currentTicketSort = {
+                key: 'last_update',
+                dir: 'desc'
+            };
             updateTicketSortIcons();
         }
         applyAdvancedFilters();
@@ -1446,7 +1713,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
     function updateDateFilterIndicator() {
         const from = document.getElementById('dateFilterFrom')?.value || '';
-        const to   = document.getElementById('dateFilterTo')?.value   || '';
+        const to = document.getElementById('dateFilterTo')?.value || '';
         const icon = document.getElementById('dateFilterIcon');
         const active = !!(from || to);
         if (icon) icon.classList.toggle('text-red-500', active);
@@ -1455,15 +1722,19 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
     // ── Description Keyword Filter (debounced) ─────────────────────────
     let _descFilterTimer = null;
+
     function toggleDescFilter(ev) {
         ev?.stopPropagation();
         const panel = document.getElementById('descFilterPanel');
-        const btn   = document.getElementById('descFilterBtn');
-        const open  = !panel.classList.contains('hidden');
+        const btn = document.getElementById('descFilterBtn');
+        const open = !panel.classList.contains('hidden');
         // close other popovers
         document.getElementById('dateFilterPanel')?.classList.add('hidden');
         document.getElementById('ticketFilterPanel')?.classList.add('hidden');
-        if (open) { panel.classList.add('hidden'); return; }
+        if (open) {
+            panel.classList.add('hidden');
+            return;
+        }
         positionPanelUnder(btn, panel);
         panel.classList.remove('hidden');
         document.getElementById('descFilterInput')?.focus();
@@ -1486,7 +1757,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     }
 
     function updateDescFilterIndicator() {
-        const kw   = (document.getElementById('descFilterInput')?.value || '').trim();
+        const kw = (document.getElementById('descFilterInput')?.value || '').trim();
         const icon = document.getElementById('descFilterIcon');
         if (icon) icon.classList.toggle('text-red-500', kw !== '');
         if (icon) icon.classList.toggle('text-gray-300', kw === '');
@@ -1494,14 +1765,18 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
     // ── Ticket Number Keyword Filter (debounced) ──────────────────────────
     let _ticketFilterTimer = null;
+
     function toggleTicketFilter(ev) {
         ev?.stopPropagation();
         const panel = document.getElementById('ticketFilterPanel');
-        const btn   = document.getElementById('ticketFilterBtn');
-        const open  = !panel.classList.contains('hidden');
+        const btn = document.getElementById('ticketFilterBtn');
+        const open = !panel.classList.contains('hidden');
         document.getElementById('dateFilterPanel')?.classList.add('hidden');
         document.getElementById('descFilterPanel')?.classList.add('hidden');
-        if (open) { panel.classList.add('hidden'); return; }
+        if (open) {
+            panel.classList.add('hidden');
+            return;
+        }
         // Move to body to escape the sticky-th stacking context so clicks work
         if (panel.parentElement !== document.body) document.body.appendChild(panel);
         positionPanelUnder(btn, panel);
@@ -1522,24 +1797,61 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const input = document.getElementById('ticketFilterInput');
         if (input) input.value = '';
         if (currentTicketSort.key === 'ticket_number') {
-            currentTicketSort = { key: 'last_update', dir: 'desc' };
+            currentTicketSort = {
+                key: 'last_update',
+                dir: 'desc'
+            };
             updateTicketSortIcons();
         }
         applyAdvancedFilters();
     }
 
     function updateTicketFilterIndicator() {
-        const kw   = (document.getElementById('ticketFilterInput')?.value || '').trim();
+        const kw = (document.getElementById('ticketFilterInput')?.value || '').trim();
         const icon = document.getElementById('ticketFilterIcon');
         if (icon) icon.classList.toggle('text-red-500', kw !== '');
         if (icon) icon.classList.toggle('text-gray-300', kw === '');
+    }
+
+    // ── Day on Close Sort Filter ───────────────────────────────────────
+    function toggleDayOnCloseFilter(ev) {
+        ev?.stopPropagation();
+        const panel = document.getElementById('dayOnCloseFilterPanel');
+        const btn = document.getElementById('dayOnCloseFilterBtn');
+        const open = !panel.classList.contains('hidden');
+        document.getElementById('dateFilterPanel')?.classList.add('hidden');
+        closeDescFilter();
+        closeTicketFilter();
+        if (open) {
+            panel.classList.add('hidden');
+            return;
+        }
+        if (panel.parentElement !== document.body) document.body.appendChild(panel);
+        positionPanelUnder(btn, panel);
+        panel.classList.remove('hidden');
+    }
+
+    function closeDayOnCloseFilter() {
+        document.getElementById('dayOnCloseFilterPanel')?.classList.add('hidden');
+    }
+
+    function clearDayOnCloseFilter() {
+        if (currentTicketSort.key === 'day_on_close') {
+            currentTicketSort = {
+                key: 'last_update',
+                dir: 'desc'
+            };
+            updateTicketSortIcons();
+            renderTickets();
+        }
+        closeDayOnCloseFilter();
     }
 
     // Position floating panel right under the column header button (handles overflow:auto)
     function positionPanelUnder(btn, panel) {
         const rect = btn.getBoundingClientRect();
         panel.style.position = 'fixed';
-        panel.style.top  = (rect.bottom + 4) + 'px';
+        panel.style.top = (rect.bottom + 4) + 'px';
         panel.style.left = rect.left + 'px';
     }
 
@@ -1554,12 +1866,16 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const tp = document.getElementById('ticketFilterPanel');
         const tb = document.getElementById('ticketFilterBtn');
         if (tp && !tp.classList.contains('hidden') && !tp.contains(e.target) && !tb.contains(e.target)) tp.classList.add('hidden');
+        const cp = document.getElementById('dayOnCloseFilterPanel');
+        const cb = document.getElementById('dayOnCloseFilterBtn');
+        if (cp && !cp.classList.contains('hidden') && !cp.contains(e.target) && !cb.contains(e.target)) cp.classList.add('hidden');
     });
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             document.getElementById('dateFilterPanel')?.classList.add('hidden');
             document.getElementById('descFilterPanel')?.classList.add('hidden');
             document.getElementById('ticketFilterPanel')?.classList.add('hidden');
+            document.getElementById('dayOnCloseFilterPanel')?.classList.add('hidden');
         }
     });
 
@@ -1571,40 +1887,55 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         document.getElementById('dateFilterPanel')?.classList.add('hidden');
         document.getElementById('descFilterPanel')?.classList.add('hidden');
         document.getElementById('ticketFilterPanel')?.classList.add('hidden');
+        document.getElementById('dayOnCloseFilterPanel')?.classList.add('hidden');
     }
     window.addEventListener('scroll', (e) => {
         // Ignore scrolling that happens inside one of the open panels themselves.
         const t = e.target;
         if (t && t.nodeType === 1 && t.closest && (
-            t.closest('#dateFilterPanel') || t.closest('#descFilterPanel') || t.closest('#ticketFilterPanel'))) return;
+                t.closest('#dateFilterPanel') || t.closest('#descFilterPanel') || t.closest('#ticketFilterPanel'))) return;
         _closeTicketHeaderPanels();
     }, true);
     window.addEventListener('resize', _closeTicketHeaderPanels);
 
     function resetFilters() {
-        const colFilterIds   = ['colFilterCustomer','colFilterPic'];
-        const colFilterMultiIds = ['colFilterPriority','colFilterScale','colFilterStatus','colFilterType'];
-        const colDdIds     = ['ddColFilterCustomer','ddColFilterPic','ddColFilterPriority','ddColFilterScale','ddColFilterStatus','ddColFilterType'];
+        const colFilterIds = ['colFilterCustomer', 'colFilterPic'];
+        const colFilterMultiIds = ['colFilterPriority', 'colFilterScale', 'colFilterStatus', 'colFilterType'];
+        const colDdIds = ['ddColFilterCustomer', 'ddColFilterPic', 'ddColFilterPriority', 'ddColFilterScale', 'ddColFilterStatus', 'ddColFilterType'];
         if (typeof setCustomDropdownValue === 'function') {
             colFilterIds.forEach(id => setCustomDropdownValue(id, ''));
         } else {
-            colFilterIds.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            colFilterIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
         }
         if (typeof clearCustomDropdownMulti === 'function') {
             colFilterMultiIds.forEach(id => clearCustomDropdownMulti(id));
         } else {
-            colFilterMultiIds.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            colFilterMultiIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
         }
         colDdIds.forEach(id => updateColFilterActive(id, ''));
 
         // Clear date range + description keyword
-        const dFrom = document.getElementById('dateFilterFrom');  if (dFrom) dFrom.value = '';
-        const dTo   = document.getElementById('dateFilterTo');    if (dTo)   dTo.value   = '';
-        const dErr  = document.getElementById('dateFilterError'); if (dErr)  dErr.classList.add('hidden');
-        const desc   = document.getElementById('descFilterInput');   if (desc)   desc.value   = '';
-        const ticketF = document.getElementById('ticketFilterInput'); if (ticketF) ticketF.value = '';
+        const dFrom = document.getElementById('dateFilterFrom');
+        if (dFrom) dFrom.value = '';
+        const dTo = document.getElementById('dateFilterTo');
+        if (dTo) dTo.value = '';
+        const dErr = document.getElementById('dateFilterError');
+        if (dErr) dErr.classList.add('hidden');
+        const desc = document.getElementById('descFilterInput');
+        if (desc) desc.value = '';
+        const ticketF = document.getElementById('ticketFilterInput');
+        if (ticketF) ticketF.value = '';
 
-        currentTicketSort = { key: 'last_update', dir: 'desc' };
+        currentTicketSort = {
+            key: 'last_update',
+            dir: 'desc'
+        };
         updateTicketSortIcons();
 
         currentFilter = 'all';
@@ -1614,16 +1945,16 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     // ── Column Filter Indicators & Customer Populate ──────────────────
     const COL_FILTER_MAP = {
         customer: 'colFilterCustomer',
-        pic:      'colFilterPic',
+        pic: 'colFilterPic',
         priority: 'colFilterPriority',
-        scale:    'colFilterScale',
-        status:   'colFilterStatus',
-        type:     'colFilterType',
+        scale: 'colFilterScale',
+        status: 'colFilterStatus',
+        type: 'colFilterType',
     };
 
     function updateColFilterIndicators() {
         Object.entries(COL_FILTER_MAP).forEach(([col, inputId]) => {
-            const val  = document.getElementById(inputId)?.value || '';
+            const val = document.getElementById(inputId)?.value || '';
             const icon = document.getElementById(`col-filter-icon-${col}`);
             if (!icon) return;
             icon.classList.toggle('text-red-500', val !== '');
@@ -1632,24 +1963,42 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     }
 
     // ── Column Sort ────────────────────────────────────────────────────
-    const TICKET_SORT_KEYS = ['last_update', 'ticket_number', 'description', 'date', 'customer', 'priority', 'scale', 'status', 'type'];
-    const PRIORITY_RANK    = { 'Very High': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
-    const SCALE_RANK       = { 'Complex': 3, 'Medium': 2, 'Simple': 1 };
+    const TICKET_SORT_KEYS = ['last_update', 'ticket_number', 'description', 'date', 'day_on_close', 'customer', 'priority', 'scale', 'status', 'type'];
+    const PRIORITY_RANK = {
+        'Very High': 4,
+        'High': 3,
+        'Medium': 2,
+        'Low': 1
+    };
+    const SCALE_RANK = {
+        'Complex': 3,
+        'Medium': 2,
+        'Simple': 1
+    };
 
     function sortTickets(key, forcedDir) {
         if (forcedDir) {
-            currentTicketSort = { key, dir: forcedDir };
+            currentTicketSort = {
+                key,
+                dir: forcedDir
+            };
         } else if (currentTicketSort.key === key) {
             currentTicketSort.dir = currentTicketSort.dir === 'asc' ? 'desc' : 'asc';
         } else {
-            currentTicketSort = { key, dir: key === 'last_update' ? 'desc' : 'asc' };
+            currentTicketSort = {
+                key,
+                dir: key === 'last_update' ? 'desc' : 'asc'
+            };
         }
         updateTicketSortIcons();
         renderTickets();
     }
 
     function applyTicketSort(list) {
-        const { key, dir } = currentTicketSort;
+        const {
+            key,
+            dir
+        } = currentTicketSort;
         return [...list].sort((a, b) => {
             let va, vb;
             if (key === 'last_update') {
@@ -1662,6 +2011,13 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             } else if (key === 'date') {
                 va = new Date(a.start_date || a.created_at).getTime();
                 vb = new Date(b.start_date || b.created_at).getTime();
+            } else if (key === 'day_on_close') {
+                const daysOf = t => {
+                    const created = t.start_date || t.created_at;
+                    return created ? Math.floor((Date.now() - new Date(created).getTime()) / 86400000) : -Infinity;
+                };
+                va = daysOf(a);
+                vb = daysOf(b);
             } else if (key === 'description') {
                 va = (a.description || '').toLowerCase();
                 vb = (b.description || '').toLowerCase();
@@ -1706,10 +2062,10 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         });
 
         // Update Ascending/Descending button colors inside panels
-        const SORT_BTN_KEYS = ['ticket_number', 'description', 'date'];
-        const activeBase    = 'sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-semibold border rounded-md transition-colors';
-        const activeCls     = 'bg-red-50 border-red-300 text-red-700';
-        const inactiveCls   = 'text-gray-600 border-gray-200 hover:bg-gray-50';
+        const SORT_BTN_KEYS = ['ticket_number', 'description', 'date', 'day_on_close'];
+        const activeBase = 'sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-semibold border rounded-md transition-colors';
+        const activeCls = 'bg-red-50 border-red-300 text-red-700';
+        const inactiveCls = 'text-gray-600 border-gray-200 hover:bg-gray-50';
 
         SORT_BTN_KEYS.forEach(k => {
             ['asc', 'desc'].forEach(dir => {
@@ -1724,42 +2080,70 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     function formatTimeAgo(date) {
         const tz = 'Asia/Jakarta';
         const now = new Date();
-        const toDay = (d) => new Date(d.toLocaleDateString('en-CA', { timeZone: tz }));
-        const todayDate  = toDay(now);
+        const toDay = (d) => new Date(d.toLocaleDateString('en-CA', {
+            timeZone: tz
+        }));
+        const todayDate = toDay(now);
         const targetDate = toDay(date);
         const diffDays = Math.round((todayDate - targetDate) / 86400000);
 
         if (diffDays === 0) {
-            return date.toLocaleTimeString('id-ID', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false });
+            return date.toLocaleTimeString('id-ID', {
+                timeZone: tz,
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
         }
         if (diffDays === 1) return 'Yesterday';
         if (diffDays < 7) {
-            return date.toLocaleDateString('en-GB', { timeZone: tz, weekday: 'short' });
+            return date.toLocaleDateString('en-GB', {
+                timeZone: tz,
+                weekday: 'short'
+            });
         }
         if (date.getFullYear() === now.getFullYear()) {
-            return date.toLocaleDateString('en-GB', { timeZone: tz, day: '2-digit', month: 'short' });
+            return date.toLocaleDateString('en-GB', {
+                timeZone: tz,
+                day: '2-digit',
+                month: 'short'
+            });
         }
-        return date.toLocaleDateString('en-GB', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
+        return date.toLocaleDateString('en-GB', {
+            timeZone: tz,
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+        });
     }
 
 
     // ==================== HELPDESK: CREATE TICKET ====================
     // ==================== CREATE TICKET ====================
     let adminQuillEditor = null;
+
     function initAdminQuill() {
         if (adminQuillEditor) return;
         adminQuillEditor = new Quill('#adminBodyEditor', {
             theme: 'snow',
             placeholder: 'Write an initial message... (optional)',
-            modules: { toolbar: [
-                [{ header: [1, 2, false] }],
-                ['bold', 'italic', 'underline'],
-                [{ list: 'ordered' }, { list: 'bullet' }],
-                ['link', 'image'],
-                ['clean'],
-            ]},
+            modules: {
+                toolbar: [
+                    [{
+                        header: [1, 2, false]
+                    }],
+                    ['bold', 'italic', 'underline'],
+                    [{
+                        list: 'ordered'
+                    }, {
+                        list: 'bullet'
+                    }],
+                    ['link', 'image'],
+                    ['clean'],
+                ]
+            },
         });
-        adminQuillEditor.root.addEventListener('paste', function (e) {
+        adminQuillEditor.root.addEventListener('paste', function(e) {
             const items = e.clipboardData?.items || [];
             for (const item of items) {
                 if (item.type.startsWith('image/')) {
@@ -1775,11 +2159,13 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             }
         });
     }
+
     function openCreateTicketModal() {
         document.getElementById('createTicketModal').classList.remove('hidden');
         if (typeof initCustomDropdowns === 'function') initCustomDropdowns(document.getElementById('createTicketModal'));
         setTimeout(initAdminQuill, 50);
     }
+
     function closeCreateTicketModal() {
         document.getElementById('createTicketModal').classList.add('hidden');
         document.getElementById('createTicketForm').reset();
@@ -1790,16 +2176,21 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         if (ccEl) ccEl.value = '';
         document.getElementById('adminCreateError').classList.add('hidden');
         const btn = document.getElementById('btnCreateTicket');
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plus text-xs"></i>Create Ticket'; }
-        if (adminQuillEditor) { adminQuillEditor.setContents([]); }
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-plus text-xs"></i>Create Ticket';
+        }
+        if (adminQuillEditor) {
+            adminQuillEditor.setContents([]);
+        }
         const att = document.getElementById('newAttachments');
         if (att) att.value = '';
     }
 
     async function submitCreateTicket(e) {
         e.preventDefault();
-        const btn    = document.getElementById('btnCreateTicket');
-        const errEl  = document.getElementById('adminCreateError');
+        const btn = document.getElementById('btnCreateTicket');
+        const errEl = document.getElementById('adminCreateError');
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Creating…';
         errEl.classList.add('hidden');
@@ -1824,19 +2215,19 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
         const bodyHtml = adminQuillEditor ? adminQuillEditor.root.innerHTML : '';
         const form = new FormData();
-        form.append('description',     document.getElementById('newDescription').value);
+        form.append('description', document.getElementById('newDescription').value);
         form.append('ticket_priority', document.getElementById('newPriority').value);
-        form.append('customer_id',     document.getElementById('newCustomerId').value);
-        form.append('ticket_type',     ticketTypeVal);
-        form.append('to_email',        document.getElementById('newToEmail').value.trim() || '');
-        form.append('cc_emails',       document.getElementById('newCcEmails').value || '');
+        form.append('customer_id', document.getElementById('newCustomerId').value);
+        form.append('ticket_type', ticketTypeVal);
+        form.append('to_email', document.getElementById('newToEmail').value.trim() || '');
+        form.append('cc_emails', document.getElementById('newCcEmails').value || '');
         const scaleVal = document.getElementById('newScale').value;
         if (scaleVal) form.append('scale', scaleVal);
-        form.append('name',            document.getElementById('newName').value || '');
-        form.append('no_hp',           document.getElementById('newNoHp').value || '');
-        form.append('module',          document.getElementById('newModule').value || '');
-        form.append('client',          document.getElementById('newClient').value || '');
-        form.append('body',            bodyHtml || '');
+        form.append('name', document.getElementById('newName').value || '');
+        form.append('no_hp', document.getElementById('newNoHp').value || '');
+        form.append('module', document.getElementById('newModule').value || '');
+        form.append('client', document.getElementById('newClient').value || '');
+        form.append('body', bodyHtml || '');
         const files = document.getElementById('newAttachments').files;
         for (let i = 0; i < files.length; i++) form.append('attachments[]', files[i]);
         const isAdmin = userRole === EC_ADMINISTRATOR_ROLE;
@@ -1844,16 +2235,19 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         try {
             const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
                 credentials: 'same-origin',
                 body: form
             });
             const result = await response.json();
             if (result.success) {
-                const msg = isAdmin
-                    ? 'Ticket created successfully!'
-                    : `Ticket ${result.ticket_number} created${result.email_sent ? ' & email sent!' : ''}`;
+                const msg = isAdmin ?
+                    'Ticket created successfully!' :
+                    `Ticket ${result.ticket_number} created${result.email_sent ? ' & email sent!' : ''}`;
                 showNotification(msg, result.email_sent === false ? 'warning' : 'success');
                 closeCreateTicketModal();
                 loadTickets();
@@ -1872,7 +2266,9 @@ thead th.th-sortable:hover { background: #f1f5f9; }
     }
 
     // ==================== COLLAPSIBLE SECTIONS ====================
-    const _sectionOpen = { statsSection: true };
+    const _sectionOpen = {
+        statsSection: true
+    };
 
     function toggleSection(sectionId, chevronId) {
         const section = document.getElementById(sectionId);
@@ -1886,13 +2282,17 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             section.addEventListener('transitionend', function onEnd() {
                 section.style.maxHeight = 'none';
                 section.removeEventListener('transitionend', onEnd);
-            }, { once: true });
+            }, {
+                once: true
+            });
             if (chevron) chevron.style.transform = 'rotate(0deg)';
         } else {
             // Collapse: pin to current scrollHeight first so transition has a from-value
             section.style.maxHeight = section.scrollHeight + 'px';
             requestAnimationFrame(() => {
-                requestAnimationFrame(() => { section.style.maxHeight = '0px'; });
+                requestAnimationFrame(() => {
+                    section.style.maxHeight = '0px';
+                });
             });
             if (chevron) chevron.style.transform = 'rotate(-90deg)';
         }
@@ -1913,31 +2313,116 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
     // ── SLA Log Modal ─────────────────────────────────────────────────────────
     const STATUS_CFG_SLA = {
-        'pending_validation': { bg:'bg-gray-100',  text:'text-gray-500',  dot:'bg-gray-400',  label:'Pending'  },
-        'pending':            { bg:'bg-blue-50',   text:'text-blue-700',  dot:'bg-blue-500',  label:'Active'   },
-        'paused':             { bg:'bg-amber-50',  text:'text-amber-700', dot:'bg-amber-500', label:'Paused'   },
-        'met':                { bg:'bg-green-50',  text:'text-green-700', dot:'bg-green-500', label:'Met'      },
-        'breached':           { bg:'bg-red-50',    text:'text-red-700',   dot:'bg-red-500',   label:'Breached' },
+        'pending_validation': {
+            bg: 'bg-gray-100',
+            text: 'text-gray-500',
+            dot: 'bg-gray-400',
+            label: 'Pending'
+        },
+        'pending': {
+            bg: 'bg-blue-50',
+            text: 'text-blue-700',
+            dot: 'bg-blue-500',
+            label: 'Active'
+        },
+        'paused': {
+            bg: 'bg-amber-50',
+            text: 'text-amber-700',
+            dot: 'bg-amber-500',
+            label: 'Paused'
+        },
+        'met': {
+            bg: 'bg-green-50',
+            text: 'text-green-700',
+            dot: 'bg-green-500',
+            label: 'Met'
+        },
+        'breached': {
+            bg: 'bg-red-50',
+            text: 'text-red-700',
+            dot: 'bg-red-500',
+            label: 'Breached'
+        },
     };
     const EVENT_ROW_CFG_SLA = {
-        email_received:       { dot: '#6366f1', rowBg: '#fafaff', label: 'Email / Request Received'  },
-        ticket_validated:     { dot: '#16a34a', rowBg: '#f6fef7', label: 'Ticket Created'            },
-        agent_replied:        { dot: '#2563eb', rowBg: '#f5f9ff', label: 'Helpdesk Reply'            },
-        customer_replied:     { dot: '#ea580c', rowBg: '#fff8f4', label: 'Customer Reply'            },
-        resolution_sent:      { dot: '#0d9488', rowBg: '#f4fefc', label: 'Resolution Sent'           },
-        escalated_to_sap:     { dot: '#7c3aed', rowBg: '#faf7ff', label: 'Escalated to SAP'         },
-        escalated_to_support: { dot: '#6b7280', rowBg: '#f9fafb', label: 'Returned to Helpdesk'     },
-        sla_warning:          { dot: '#ca8a04', rowBg: '#fffdf0', label: 'SLA Warning'               },
-        sla_breached:         { dot: '#dc2626', rowBg: '#fff8f8', label: 'SLA Breached'              },
-        ticket_closed:        { dot: '#374151', rowBg: '#f9fafb', label: 'Ticket Closed'             },
-        meeting_started:      { dot: '#7c3aed', rowBg: '#faf7ff', label: 'Meeting Started'           },
-        meeting_ended:        { dot: '#7c3aed', rowBg: '#faf7ff', label: 'Meeting Ended'             },
+        email_received: {
+            dot: '#6366f1',
+            rowBg: '#fafaff',
+            label: 'Email / Request Received'
+        },
+        ticket_validated: {
+            dot: '#16a34a',
+            rowBg: '#f6fef7',
+            label: 'Ticket Created'
+        },
+        agent_replied: {
+            dot: '#2563eb',
+            rowBg: '#f5f9ff',
+            label: 'Helpdesk Reply'
+        },
+        customer_replied: {
+            dot: '#ea580c',
+            rowBg: '#fff8f4',
+            label: 'Customer Reply'
+        },
+        resolution_sent: {
+            dot: '#0d9488',
+            rowBg: '#f4fefc',
+            label: 'Resolution Sent'
+        },
+        escalated_to_sap: {
+            dot: '#7c3aed',
+            rowBg: '#faf7ff',
+            label: 'Escalated to SAP'
+        },
+        escalated_to_support: {
+            dot: '#6b7280',
+            rowBg: '#f9fafb',
+            label: 'Returned to Helpdesk'
+        },
+        sla_warning: {
+            dot: '#ca8a04',
+            rowBg: '#fffdf0',
+            label: 'SLA Warning'
+        },
+        sla_breached: {
+            dot: '#dc2626',
+            rowBg: '#fff8f8',
+            label: 'SLA Breached'
+        },
+        ticket_closed: {
+            dot: '#374151',
+            rowBg: '#f9fafb',
+            label: 'Ticket Closed'
+        },
+        meeting_started: {
+            dot: '#7c3aed',
+            rowBg: '#faf7ff',
+            label: 'Meeting Started'
+        },
+        meeting_ended: {
+            dot: '#7c3aed',
+            rowBg: '#faf7ff',
+            label: 'Meeting Ended'
+        },
     };
     const BALL_ICON_SLA = {
-        helpdesk: { icon: '▶', label: 'Helpdesk' },
-        customer: { icon: '⏸', label: 'Customer' },
-        sap:      { icon: '⏸', label: 'SAP'      },
-        meeting:  { icon: '⏸', label: 'Meeting'  },
+        helpdesk: {
+            icon: '▶',
+            label: 'Helpdesk'
+        },
+        customer: {
+            icon: '⏸',
+            label: 'Customer'
+        },
+        sap: {
+            icon: '⏸',
+            label: 'SAP'
+        },
+        meeting: {
+            icon: '⏸',
+            label: 'Meeting'
+        },
     };
 
     function _slaToHMM(hours) {
@@ -1946,6 +2431,7 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         const m = Math.round((hours - h) * 60);
         return `${h}:${String(m).padStart(2, '0')}`;
     }
+
     function _slaToHLabel(hours) {
         if (hours === null || hours === undefined) return null;
         const mins = Math.round(hours * 60);
@@ -1981,7 +2467,9 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
     async function _fetchSlaDetail(ticketId) {
         try {
-            const res  = await fetch('/api/tickets/' + ticketId + '/sla', { credentials: 'include' });
+            const res = await fetch('/api/tickets/' + ticketId + '/sla', {
+                credentials: 'include'
+            });
             const json = await res.json();
             if (!json.success || !json.data) {
                 document.getElementById('slaDetailContent').innerHTML =
@@ -1997,18 +2485,18 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
     function _renderSlaDetail(data) {
         const respSc = STATUS_CFG_SLA[data.response && data.response.status] || STATUS_CFG_SLA['pending'];
-        const resSc  = STATUS_CFG_SLA[data.resolution && data.resolution.status] || STATUS_CFG_SLA['pending'];
+        const resSc = STATUS_CFG_SLA[data.resolution && data.resolution.status] || STATUS_CFG_SLA['pending'];
 
-        document.getElementById('slaStatResponseVal').textContent   = data.response && data.response.actual_hours != null ? data.response.actual_hours + ' hrs' : '—';
-        document.getElementById('slaStatResponseStatus').innerHTML  = `<span class="${respSc.text} font-semibold">${respSc.label}</span><span class="text-slate-400"> / target ${data.response ? data.response.target_hours : '—'} hrs</span>`;
+        document.getElementById('slaStatResponseVal').textContent = data.response && data.response.actual_hours != null ? data.response.actual_hours + ' hrs' : '—';
+        document.getElementById('slaStatResponseStatus').innerHTML = `<span class="${respSc.text} font-semibold">${respSc.label}</span><span class="text-slate-400"> / target ${data.response ? data.response.target_hours : '—'} hrs</span>`;
         document.getElementById('slaStatResolutionVal').textContent = data.resolution && data.resolution.actual_hours != null ? data.resolution.actual_hours + ' hrs' : (data.sla_mode === 'response_only' ? 'N/A' : '—');
-        document.getElementById('slaStatResolutionStatus').innerHTML = data.resolution
-            ? `<span class="${resSc.text} font-semibold">${resSc.label}</span><span class="text-slate-400"> / target ${data.resolution.target_hours} hrs</span>`
-            : `<span class="text-slate-400">Response-only mode</span>`;
+        document.getElementById('slaStatResolutionStatus').innerHTML = data.resolution ?
+            `<span class="${resSc.text} font-semibold">${resSc.label}</span><span class="text-slate-400"> / target ${data.resolution.target_hours} hrs</span>` :
+            `<span class="text-slate-400">Response-only mode</span>`;
 
         const totalWait = data.total_waiting_hours != null ? data.total_waiting_hours : 0;
-        document.getElementById('slaStatWaitingVal').textContent   = totalWait > 0 ? totalWait.toFixed(2) + ' hrs' : '0 hrs';
-        document.getElementById('slaStatBallHolder').textContent   = data.ball_holder ? (data.ball_holder.charAt(0).toUpperCase() + data.ball_holder.slice(1)) : '—';
+        document.getElementById('slaStatWaitingVal').textContent = totalWait > 0 ? totalWait.toFixed(2) + ' hrs' : '0 hrs';
+        document.getElementById('slaStatBallHolder').textContent = data.ball_holder ? (data.ball_holder.charAt(0).toUpperCase() + data.ball_holder.slice(1)) : '—';
         document.getElementById('slaDetailStatsBar').classList.remove('hidden');
 
         const badgesEl = document.getElementById('slaDetailBadges');
@@ -2033,25 +2521,38 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
         let lastDate = null;
         const rows = data.events.map(function(e) {
-            const dt      = e.event_at ? new Date(e.event_at) : null;
-            const dateStr = dt ? dt.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
-            const timeStr = dt ? dt.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour:'2-digit', minute:'2-digit' }) : '—';
+            const dt = e.event_at ? new Date(e.event_at) : null;
+            const dateStr = dt ? dt.toLocaleDateString('id-ID', {
+                timeZone: 'Asia/Jakarta',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            }) : '—';
+            const timeStr = dt ? dt.toLocaleTimeString('id-ID', {
+                timeZone: 'Asia/Jakarta',
+                hour: '2-digit',
+                minute: '2-digit'
+            }) : '—';
             const showDate = dateStr !== lastDate;
             lastDate = dateStr;
-            const evCfg   = EVENT_ROW_CFG_SLA[e.event_type] || { dot: '#9ca3af', rowBg: '#fff', label: e.event_type };
+            const evCfg = EVENT_ROW_CFG_SLA[e.event_type] || {
+                dot: '#9ca3af',
+                rowBg: '#fff',
+                label: e.event_type
+            };
             const ballCfg = e.ball_after ? (BALL_ICON_SLA[e.ball_after] || null) : null;
             const waitCell = e.waiting_hours !== null && e.waiting_hours !== undefined ? `<span class="text-[11px] font-semibold text-amber-600 whitespace-nowrap">${_slaToHLabel(e.waiting_hours)}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
             const respCell = e.response_hours !== null && e.response_hours !== undefined ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_slaToHLabel(e.response_hours)}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
-            const resCell  = e.meeting_paused
-                ? `<span class="text-[10px] font-semibold text-purple-600 whitespace-nowrap">Paused (Meeting)</span>`
-                : (e.resolution_hours !== null && e.resolution_hours !== undefined ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_slaToHLabel(e.resolution_hours)}</span>` : `<span class="text-gray-300 text-xs">—</span>`);
+            const resCell = e.meeting_paused ?
+                `<span class="text-[10px] font-semibold text-purple-600 whitespace-nowrap">Paused (Meeting)</span>` :
+                (e.resolution_hours !== null && e.resolution_hours !== undefined ? `<span class="text-[11px] font-semibold text-gray-700 whitespace-nowrap">${_slaToHLabel(e.resolution_hours)}</span>` : `<span class="text-gray-300 text-xs">—</span>`);
             const statusCell = e.jarvis_status ? `<span class="text-[10px] text-gray-500 whitespace-nowrap">${e.jarvis_status.replace(/_/g,' ')}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
             const ballCell = ballCfg ? `<span class="text-[11px] font-semibold text-gray-600 whitespace-nowrap">${ballCfg.icon} ${ballCfg.label}</span>` : `<span class="text-gray-300 text-xs">—</span>`;
             const senderPrefix = e.sender_name ? `<span class="font-semibold text-gray-700">${e.sender_name}:</span> ` : '';
             const bodyText = e.message_preview || e.notes || null;
-            const msgText  = bodyText
-                ? `<span title="${(e.message_preview || '').replace(/"/g,'&quot;')}" class="text-gray-500 text-xs">${senderPrefix}${bodyText.substring(0, 80)}${bodyText.length > 80 ? '…' : ''}</span>`
-                : (e.sender_name ? `<span class="font-semibold text-gray-700 text-xs">${e.sender_name}</span>` : `<span class="text-gray-300 text-xs">—</span>`);
+            const msgText = bodyText ?
+                `<span title="${(e.message_preview || '').replace(/"/g,'&quot;')}" class="text-gray-500 text-xs">${senderPrefix}${bodyText.substring(0, 80)}${bodyText.length > 80 ? '…' : ''}</span>` :
+                (e.sender_name ? `<span class="font-semibold text-gray-700 text-xs">${e.sender_name}</span>` : `<span class="text-gray-300 text-xs">—</span>`);
             const dateSep = showDate ? `<tr><td colspan="9" style="background:#f3f4f6;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:4px 12px;"><span style="font-size:10px;font-weight:600;color:#6b7280;letter-spacing:0.04em;">${dt ? dt.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', weekday:'long', day:'numeric', month:'long', year:'numeric' }) : dateStr}</span></td></tr>` : '';
             return `${dateSep}<tr style="background:${evCfg.rowBg};border-left:3px solid ${evCfg.dot};" class="border-b border-gray-100/80 hover:brightness-[0.97] transition-all">
                 <td class="px-3 py-2.5 text-xs text-gray-400 whitespace-nowrap">${showDate ? dateStr : ''}</td>
@@ -2099,7 +2600,10 @@ thead th.th-sortable:hover { background: #f1f5f9; }
         try {
             const res = await fetch(`/api/tickets/${ticketId}/hide`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
             });
             const data = await res.json();
             if (data.success) {
@@ -2112,7 +2616,6 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             showNotification('Terjadi kesalahan. Coba lagi.', 'error');
         }
     }
-
 </script>
 
 {{-- SLA Log Modal --}}
@@ -2185,24 +2688,24 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 {{-- Load custom-dd component (sama dengan Employee/Customer Management).
      filemtime cache buster supaya production auto-invalidate setiap deploy. --}}
 @php
-    $customDdPath = public_path('js/custom-dropdown.js');
-    $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
+$customDdPath = public_path('js/custom-dropdown.js');
+$customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 @endphp
 <script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 
 {{-- Ticket row context menu --}}
 <div id="ticketContextMenu"
-     class="hidden fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl py-1 min-w-[190px]"
-     style="pointer-events:auto;">
+    class="hidden fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl py-1 min-w-[190px]"
+    style="pointer-events:auto;">
     <button type="button" id="ctxOpenNewTab"
-            class="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors text-left">
+        class="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors text-left">
         <i class="fas fa-external-link-alt text-gray-400 w-3.5"></i>
         Open in new tab
     </button>
     @if($can('ticket.activity-log'))
     <div class="border-t border-gray-100 my-1"></div>
     <button type="button" id="ctxActivityLog"
-            class="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors text-left">
+        class="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors text-left">
         <i class="fas fa-clipboard-list text-gray-400 w-3.5"></i>
         Log Ticket Activity
     </button>
@@ -2210,50 +2713,53 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 </div>
 
 <script>
-(function () {
-    let _ctxTicketId  = null;
-    let _ctxTicketNum = null;
-    const menu = document.getElementById('ticketContextMenu');
+    (function() {
+        let _ctxTicketId = null;
+        let _ctxTicketNum = null;
+        const menu = document.getElementById('ticketContextMenu');
 
-    window.openTicketContextMenu = function (e, ticketId, rowEl) {
-        e.preventDefault();
-        e.stopPropagation();
-        _ctxTicketId  = ticketId;
-        _ctxTicketNum = rowEl ? (rowEl.dataset.ticketNum || null) : null;
+        window.openTicketContextMenu = function(e, ticketId, rowEl) {
+            e.preventDefault();
+            e.stopPropagation();
+            _ctxTicketId = ticketId;
+            _ctxTicketNum = rowEl ? (rowEl.dataset.ticketNum || null) : null;
 
-        // Posisi tepat di kursor, jaga agar tidak keluar viewport
-        const vw = window.innerWidth, vh = window.innerHeight;
-        const mw = 180, mh = 44;
-        let x = e.clientX, y = e.clientY;
-        if (x + mw > vw) x = vw - mw - 8;
-        if (y + mh > vh) y = vh - mh - 8;
+            // Posisi tepat di kursor, jaga agar tidak keluar viewport
+            const vw = window.innerWidth,
+                vh = window.innerHeight;
+            const mw = 180,
+                mh = 44;
+            let x = e.clientX,
+                y = e.clientY;
+            if (x + mw > vw) x = vw - mw - 8;
+            if (y + mh > vh) y = vh - mh - 8;
 
-        menu.style.left = x + 'px';
-        menu.style.top  = y + 'px';
-        menu.classList.remove('hidden');
-    };
+            menu.style.left = x + 'px';
+            menu.style.top = y + 'px';
+            menu.classList.remove('hidden');
+        };
 
-    document.getElementById('ctxOpenNewTab').addEventListener('click', function () {
-        if (_ctxTicketId) window.open('/ticket/' + _ctxTicketId, '_blank');
-        menu.classList.add('hidden');
-        _ctxTicketId = null;
-    });
-
-    const ctxLog = document.getElementById('ctxActivityLog');
-    if (ctxLog) {
-        ctxLog.addEventListener('click', function () {
-            if (_ctxTicketId) openActivityLogModal(_ctxTicketId, _ctxTicketNum);
+        document.getElementById('ctxOpenNewTab').addEventListener('click', function() {
+            if (_ctxTicketId) window.open('/ticket/' + _ctxTicketId, '_blank');
             menu.classList.add('hidden');
-            _ctxTicketId  = null;
-            _ctxTicketNum = null;
+            _ctxTicketId = null;
         });
-    }
 
-    document.addEventListener('click', function () {
-        menu.classList.add('hidden');
-        _ctxTicketId = null;
-    });
-})();
+        const ctxLog = document.getElementById('ctxActivityLog');
+        if (ctxLog) {
+            ctxLog.addEventListener('click', function() {
+                if (_ctxTicketId) openActivityLogModal(_ctxTicketId, _ctxTicketNum);
+                menu.classList.add('hidden');
+                _ctxTicketId = null;
+                _ctxTicketNum = null;
+            });
+        }
+
+        document.addEventListener('click', function() {
+            menu.classList.add('hidden');
+            _ctxTicketId = null;
+        });
+    })();
 </script>
 
 @if($can('ticket.activity-log'))
@@ -2271,11 +2777,11 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             </div>
             <div class="flex items-center gap-2">
                 <button onclick="openAlForm(null)"
-                        class="flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold rounded-lg transition-all">
+                    class="flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold rounded-lg transition-all">
                     Add Activity
                 </button>
                 <button onclick="closeActivityLogModal()"
-                        class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all text-sm">✕</button>
+                    class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all text-sm">✕</button>
             </div>
         </div>
 
@@ -2293,7 +2799,9 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                     </tr>
                 </thead>
                 <tbody id="alTableBody">
-                    <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+                    <tr>
+                        <td colspan="6" class="px-4 py-8 text-center text-gray-400">Loading…</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -2313,20 +2821,20 @@ thead th.th-sortable:hover { background: #f1f5f9; }
             <div>
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Date <span class="text-red-500">*</span></label>
                 <input type="date" id="alFormDate" required
-                       class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-500">
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-500">
             </div>
 
             <div>
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Activity <span class="text-red-500">*</span></label>
                 <textarea id="alFormActivity" rows="4" required maxlength="5000"
-                          placeholder="Describe the activity…"
-                          class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-500 resize-y"></textarea>
+                    placeholder="Describe the activity…"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-500 resize-y"></textarea>
             </div>
 
             <div>
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">File Ref. — Link</label>
                 <input type="url" id="alFormUrl" placeholder="https://…"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-500">
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-500">
                 <p class="text-[10px] text-gray-400 mt-1">Paste a Google Drive, OneDrive, or other link</p>
             </div>
 
@@ -2349,75 +2857,78 @@ thead th.th-sortable:hover { background: #f1f5f9; }
 
             <div class="flex gap-3 pt-2">
                 <button type="button" onclick="closeAlForm()"
-                        class="flex-1 px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+                    class="flex-1 px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
                 <button type="submit" id="alFormSubmitBtn"
-                        class="flex-1 px-4 py-2 bg-red-700 text-white text-sm font-semibold rounded-lg hover:bg-red-800 transition-all">Save</button>
+                    class="flex-1 px-4 py-2 bg-red-700 text-white text-sm font-semibold rounded-lg hover:bg-red-800 transition-all">Save</button>
             </div>
         </form>
     </div>
 </div>
 
 <script>
-(function () {
-    const CSRF = () => document.querySelector('meta[name="csrf-token"]')?.content || '';
-    const ESC  = s  => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    const CURR_EMP_ID = {{ session('user.id', 0) }};
+    (function() {
+        const CSRF = () => document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const ESC = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const CURR_EMP_ID = {{ session('user.id', 0) }};
 
-    let _alTicketId   = null;
-    let _alTicketNum  = null;
-    let _alLogs       = [];
-    let _alEditId     = null;
+        let _alTicketId = null;
+        let _alTicketNum = null;
+        let _alLogs = [];
+        let _alEditId = null;
 
-    // ── Open / Close main modal ──────────────────────────────────────────────
-    window.openActivityLogModal = async function (ticketId, ticketNum) {
-        _alTicketId  = ticketId;
-        _alTicketNum = ticketNum || null;
-        document.getElementById('alModalTicketNum').textContent = ticketNum || `#${ticketId}`;
-        document.getElementById('activityLogModal').classList.remove('hidden');
-        document.getElementById('activityLogModal').classList.add('flex');
-        document.getElementById('alTableBody').innerHTML =
-            '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Loading…</td></tr>';
-        await loadAlLogs();
-    };
+        // ── Open / Close main modal ──────────────────────────────────────────────
+        window.openActivityLogModal = async function(ticketId, ticketNum) {
+            _alTicketId = ticketId;
+            _alTicketNum = ticketNum || null;
+            document.getElementById('alModalTicketNum').textContent = ticketNum || `#${ticketId}`;
+            document.getElementById('activityLogModal').classList.remove('hidden');
+            document.getElementById('activityLogModal').classList.add('flex');
+            document.getElementById('alTableBody').innerHTML =
+                '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Loading…</td></tr>';
+            await loadAlLogs();
+        };
 
-    window.closeActivityLogModal = function () {
-        document.getElementById('activityLogModal').classList.add('hidden');
-        document.getElementById('activityLogModal').classList.remove('flex');
-        closeAlForm();
-        _alTicketId = null;
-    };
+        window.closeActivityLogModal = function() {
+            document.getElementById('activityLogModal').classList.add('hidden');
+            document.getElementById('activityLogModal').classList.remove('flex');
+            closeAlForm();
+            _alTicketId = null;
+        };
 
-    // ── Load logs ────────────────────────────────────────────────────────────
-    async function loadAlLogs() {
-        try {
-            const res  = await fetch(`/api/tickets/${_alTicketId}/activity-logs`, {
-                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF() },
-                credentials: 'same-origin',
-            });
-            const data = await res.json();
-            if (data.success) {
-                _alLogs = data.data;
-                renderAlTable();
-            } else {
+        // ── Load logs ────────────────────────────────────────────────────────────
+        async function loadAlLogs() {
+            try {
+                const res = await fetch(`/api/tickets/${_alTicketId}/activity-logs`, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': CSRF()
+                    },
+                    credentials: 'same-origin',
+                });
+                const data = await res.json();
+                if (data.success) {
+                    _alLogs = data.data;
+                    renderAlTable();
+                } else {
+                    document.getElementById('alTableBody').innerHTML =
+                        `<tr><td colspan="6" class="px-4 py-6 text-center text-red-500">Failed to load</td></tr>`;
+                }
+            } catch (e) {
                 document.getElementById('alTableBody').innerHTML =
-                    `<tr><td colspan="6" class="px-4 py-6 text-center text-red-500">Failed to load</td></tr>`;
+                    `<tr><td colspan="6" class="px-4 py-6 text-center text-red-500">Error: ${ESC(e.message)}</td></tr>`;
             }
-        } catch (e) {
-            document.getElementById('alTableBody').innerHTML =
-                `<tr><td colspan="6" class="px-4 py-6 text-center text-red-500">Error: ${ESC(e.message)}</td></tr>`;
         }
-    }
 
-    function renderAlTable() {
-        if (_alLogs.length === 0) {
-            document.getElementById('alTableBody').innerHTML =
-                '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400 text-xs">No activity entries yet. Click "Add Activity" to start.</td></tr>';
-            return;
-        }
-        document.getElementById('alTableBody').innerHTML = _alLogs.map((log, idx) => {
-            const isOwner = log.employee_id == CURR_EMP_ID;
-            const fileHtml = buildFileRefHtml(log);
-            return `<tr class="border-b border-gray-100 hover:bg-gray-50 align-top">
+        function renderAlTable() {
+            if (_alLogs.length === 0) {
+                document.getElementById('alTableBody').innerHTML =
+                    '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400 text-xs">No activity entries yet. Click "Add Activity" to start.</td></tr>';
+                return;
+            }
+            document.getElementById('alTableBody').innerHTML = _alLogs.map((log, idx) => {
+                const isOwner = log.employee_id == CURR_EMP_ID;
+                const fileHtml = buildFileRefHtml(log);
+                return `<tr class="border-b border-gray-100 hover:bg-gray-50 align-top">
                 <td class="px-3 py-2.5 text-gray-400 font-mono">${idx + 1}</td>
                 <td class="px-3 py-2.5 text-gray-700 whitespace-nowrap">${ESC(log.activity_date)}</td>
                 <td class="px-3 py-2.5 text-gray-700 whitespace-nowrap">${ESC(log.pic)}</td>
@@ -2430,150 +2941,157 @@ thead th.th-sortable:hover { background: #f1f5f9; }
                     ` : '<span class="text-gray-300">—</span>'}
                 </td>
             </tr>`;
-        }).join('');
-    }
-
-    function buildFileRefHtml(log) {
-        const parts = [];
-        if (log.file_ref_url) {
-            parts.push(`<a href="${ESC(log.file_ref_url)}" target="_blank" rel="noopener" class="flex items-center gap-1 text-blue-500 hover:underline"><i class="fas fa-link text-[10px]"></i><span class="truncate max-w-[120px]">Link</span></a>`);
+            }).join('');
         }
-        if (log.file_ref_path) {
-            parts.push(`<a href="${ESC(log.file_ref_path)}" target="_blank" rel="noopener" class="flex items-center gap-1 text-blue-500 hover:underline"><i class="fas fa-paperclip text-[10px]"></i><span class="truncate max-w-[120px]">${ESC(log.file_ref_name || 'File')}</span></a>`);
-        }
-        return parts.length ? `<div class="space-y-0.5">${parts.join('')}</div>` : '<span class="text-gray-300">—</span>';
-    }
 
-    // ── Form ─────────────────────────────────────────────────────────────────
-    window.openAlForm = function (logId) {
-        _alEditId = logId;
-        document.getElementById('alFormTitle').textContent = logId ? 'Edit Activity' : 'Add Activity';
-        document.getElementById('alFormLogId').value = logId || '';
-        document.getElementById('alFormDate').value = '';
-        document.getElementById('alFormActivity').value = '';
-        document.getElementById('alFormUrl').value = '';
-        document.getElementById('alFormFile').value = '';
-        document.getElementById('alRemoveFile').value = '0';
-        document.getElementById('alCurrentFile').classList.add('hidden');
-        document.getElementById('alUploadLabel').textContent = 'Choose file (max 10 MB)';
-
-        if (logId) {
-            const log = _alLogs.find(l => l.id === logId);
-            if (log) {
-                document.getElementById('alFormDate').value     = log.activity_date || '';
-                document.getElementById('alFormActivity').value = log.activity || '';
-                document.getElementById('alFormUrl').value      = log.file_ref_url || '';
-                if (log.file_ref_name) {
-                    document.getElementById('alCurrentFileName').textContent = log.file_ref_name;
-                    document.getElementById('alCurrentFile').classList.remove('hidden');
-                    document.getElementById('alUploadLabel').textContent = 'Replace file';
-                }
+        function buildFileRefHtml(log) {
+            const parts = [];
+            if (log.file_ref_url) {
+                parts.push(`<a href="${ESC(log.file_ref_url)}" target="_blank" rel="noopener" class="flex items-center gap-1 text-blue-500 hover:underline"><i class="fas fa-link text-[10px]"></i><span class="truncate max-w-[120px]">Link</span></a>`);
             }
-        } else {
-            // default date = today
-            document.getElementById('alFormDate').value = new Date().toISOString().slice(0, 10);
+            if (log.file_ref_path) {
+                parts.push(`<a href="${ESC(log.file_ref_path)}" target="_blank" rel="noopener" class="flex items-center gap-1 text-blue-500 hover:underline"><i class="fas fa-paperclip text-[10px]"></i><span class="truncate max-w-[120px]">${ESC(log.file_ref_name || 'File')}</span></a>`);
+            }
+            return parts.length ? `<div class="space-y-0.5">${parts.join('')}</div>` : '<span class="text-gray-300">—</span>';
         }
 
-        document.getElementById('alFormModal').classList.remove('hidden');
-        document.getElementById('alFormModal').classList.add('flex');
-        document.getElementById('alFormDate').focus();
-    };
-
-    window.closeAlForm = function () {
-        document.getElementById('alFormModal').classList.add('hidden');
-        document.getElementById('alFormModal').classList.remove('flex');
-        _alEditId = null;
-    };
-
-    window.onAlFileChange = function (input) {
-        if (input.files && input.files[0]) {
-            document.getElementById('alCurrentFileName').textContent = input.files[0].name;
-            document.getElementById('alCurrentFile').classList.remove('hidden');
+        // ── Form ─────────────────────────────────────────────────────────────────
+        window.openAlForm = function(logId) {
+            _alEditId = logId;
+            document.getElementById('alFormTitle').textContent = logId ? 'Edit Activity' : 'Add Activity';
+            document.getElementById('alFormLogId').value = logId || '';
+            document.getElementById('alFormDate').value = '';
+            document.getElementById('alFormActivity').value = '';
+            document.getElementById('alFormUrl').value = '';
+            document.getElementById('alFormFile').value = '';
             document.getElementById('alRemoveFile').value = '0';
-            document.getElementById('alUploadLabel').textContent = 'Replace file';
-        }
-    };
+            document.getElementById('alCurrentFile').classList.add('hidden');
+            document.getElementById('alUploadLabel').textContent = 'Choose file (max 10 MB)';
 
-    window.removeAlFile = function () {
-        document.getElementById('alFormFile').value = '';
-        document.getElementById('alCurrentFile').classList.add('hidden');
-        document.getElementById('alRemoveFile').value = '1';
-        document.getElementById('alUploadLabel').textContent = 'Choose file (max 10 MB)';
-    };
-
-    window.submitAlForm = async function (e) {
-        e.preventDefault();
-        const btn = document.getElementById('alFormSubmitBtn');
-        btn.disabled = true;
-        btn.textContent = 'Saving…';
-
-        const logId    = document.getElementById('alFormLogId').value;
-        const formData = new FormData();
-        formData.append('activity_date', document.getElementById('alFormDate').value);
-        formData.append('activity',      document.getElementById('alFormActivity').value);
-        const url = document.getElementById('alFormUrl').value.trim();
-        if (url) formData.append('file_ref_url', url);
-
-        const fileInput = document.getElementById('alFormFile');
-        if (fileInput.files && fileInput.files[0]) {
-            formData.append('file_ref', fileInput.files[0]);
-        } else if (document.getElementById('alRemoveFile').value === '1') {
-            formData.append('remove_file', '1');
-        }
-
-        const endpoint = logId
-            ? `/api/tickets/${_alTicketId}/activity-logs/${logId}/update`
-            : `/api/tickets/${_alTicketId}/activity-logs`;
-
-        try {
-            const res  = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': CSRF(), 'Accept': 'application/json' },
-                credentials: 'same-origin',
-                body: formData,
-            });
-            const data = await res.json();
-            if (data.success) {
-                closeAlForm();
-                await loadAlLogs();
+            if (logId) {
+                const log = _alLogs.find(l => l.id === logId);
+                if (log) {
+                    document.getElementById('alFormDate').value = log.activity_date || '';
+                    document.getElementById('alFormActivity').value = log.activity || '';
+                    document.getElementById('alFormUrl').value = log.file_ref_url || '';
+                    if (log.file_ref_name) {
+                        document.getElementById('alCurrentFileName').textContent = log.file_ref_name;
+                        document.getElementById('alCurrentFile').classList.remove('hidden');
+                        document.getElementById('alUploadLabel').textContent = 'Replace file';
+                    }
+                }
             } else {
-                showNotification(data.message || 'Failed to save activity.', 'error');
+                // default date = today
+                document.getElementById('alFormDate').value = new Date().toISOString().slice(0, 10);
             }
-        } catch (err) {
-            showNotification('Error: ' + err.message, 'error');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Save';
-        }
-    };
 
-    window.deleteAlLog = async function (logId) {
-        if (!confirm('Delete this activity entry? This cannot be undone.')) return;
-        try {
-            const res  = await fetch(`/api/tickets/${_alTicketId}/activity-logs/${logId}/delete`, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': CSRF(), 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-            });
-            const data = await res.json();
-            if (data.success) {
-                await loadAlLogs();
-            } else {
-                showNotification(data.message || 'Failed to delete activity.', 'error');
+            document.getElementById('alFormModal').classList.remove('hidden');
+            document.getElementById('alFormModal').classList.add('flex');
+            document.getElementById('alFormDate').focus();
+        };
+
+        window.closeAlForm = function() {
+            document.getElementById('alFormModal').classList.add('hidden');
+            document.getElementById('alFormModal').classList.remove('flex');
+            _alEditId = null;
+        };
+
+        window.onAlFileChange = function(input) {
+            if (input.files && input.files[0]) {
+                document.getElementById('alCurrentFileName').textContent = input.files[0].name;
+                document.getElementById('alCurrentFile').classList.remove('hidden');
+                document.getElementById('alRemoveFile').value = '0';
+                document.getElementById('alUploadLabel').textContent = 'Replace file';
             }
-        } catch (err) {
-            showNotification('Error: ' + err.message, 'error');
-        }
-    };
+        };
 
-    // Close modals on backdrop click
-    document.getElementById('activityLogModal').addEventListener('click', function (e) {
-        if (e.target === this) closeActivityLogModal();
-    });
-    document.getElementById('alFormModal').addEventListener('click', function (e) {
-        if (e.target === this) closeAlForm();
-    });
-})();
+        window.removeAlFile = function() {
+            document.getElementById('alFormFile').value = '';
+            document.getElementById('alCurrentFile').classList.add('hidden');
+            document.getElementById('alRemoveFile').value = '1';
+            document.getElementById('alUploadLabel').textContent = 'Choose file (max 10 MB)';
+        };
+
+        window.submitAlForm = async function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('alFormSubmitBtn');
+            btn.disabled = true;
+            btn.textContent = 'Saving…';
+
+            const logId = document.getElementById('alFormLogId').value;
+            const formData = new FormData();
+            formData.append('activity_date', document.getElementById('alFormDate').value);
+            formData.append('activity', document.getElementById('alFormActivity').value);
+            const url = document.getElementById('alFormUrl').value.trim();
+            if (url) formData.append('file_ref_url', url);
+
+            const fileInput = document.getElementById('alFormFile');
+            if (fileInput.files && fileInput.files[0]) {
+                formData.append('file_ref', fileInput.files[0]);
+            } else if (document.getElementById('alRemoveFile').value === '1') {
+                formData.append('remove_file', '1');
+            }
+
+            const endpoint = logId ?
+                `/api/tickets/${_alTicketId}/activity-logs/${logId}/update` :
+                `/api/tickets/${_alTicketId}/activity-logs`;
+
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': CSRF(),
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: formData,
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeAlForm();
+                    await loadAlLogs();
+                } else {
+                    showNotification(data.message || 'Failed to save activity.', 'error');
+                }
+            } catch (err) {
+                showNotification('Error: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Save';
+            }
+        };
+
+        window.deleteAlLog = async function(logId) {
+            if (!confirm('Delete this activity entry? This cannot be undone.')) return;
+            try {
+                const res = await fetch(`/api/tickets/${_alTicketId}/activity-logs/${logId}/delete`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': CSRF(),
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                });
+                const data = await res.json();
+                if (data.success) {
+                    await loadAlLogs();
+                } else {
+                    showNotification(data.message || 'Failed to delete activity.', 'error');
+                }
+            } catch (err) {
+                showNotification('Error: ' + err.message, 'error');
+            }
+        };
+
+        // Close modals on backdrop click
+        document.getElementById('activityLogModal').addEventListener('click', function(e) {
+            if (e.target === this) closeActivityLogModal();
+        });
+        document.getElementById('alFormModal').addEventListener('click', function(e) {
+            if (e.target === this) closeAlForm();
+        });
+    })();
 </script>
 @endif
 
