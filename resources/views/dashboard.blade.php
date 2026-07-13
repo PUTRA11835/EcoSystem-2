@@ -434,6 +434,14 @@
                             <span class="nav-text text-sm">Collection Outlook</span>
                         </a>
                         @endif
+                        @if($can('reporting.ticketing-overview'))
+                        <a href="{{ route('reporting.ticketing-overview') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/ticketing-overview*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-headset text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Ticketing Overview</span>
+                        </a>
+                        @endif
                     </div>
                 </div>
                 @endif

@@ -3,9 +3,11 @@
 use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\Lite\LiteAuthController;
 use App\Http\Controllers\Lite\LiteDashboardController;
+use App\Http\Controllers\Lite\LiteEmployeeController;
 use App\Http\Controllers\Lite\LiteTicketController;
 use App\Http\Controllers\Lite\LiteProfileController;
 use App\Http\Controllers\Lite\LiteNotificationController;
+use App\Http\Controllers\Lite\LitePushSubscriptionController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -53,6 +55,9 @@ Route::middleware(['web'])->prefix('lite')->group(function () {
             Route::post('/{ticketId}/messages/{messageId}/internal-note/delete', [LiteTicketController::class, 'destroyInternalNote'])->name('delete-internal-note-post');
         });
 
+        // Employees (autocomplete @mention di internal note)
+        Route::get('/employees/mentionable', [LiteEmployeeController::class, 'mentionable'])->name('lite.employees.mentionable');
+
         // Attachments (dipakai untuk menampilkan gambar/lampiran di bubble chat)
         Route::get('/attachments/{id}', [AttachmentController::class, 'show'])
             ->where('id', '[0-9]+')
@@ -73,5 +78,8 @@ Route::middleware(['web'])->prefix('lite')->group(function () {
             Route::delete('/bulk-delete',  [LiteNotificationController::class, 'bulkDelete'])->name('bulk-delete');
             Route::delete('/{id}',         [LiteNotificationController::class, 'deleteOne'])->name('delete');
         });
+
+        // Web Push subscriptions (untuk notifikasi saat PWA tertutup/layar terkunci)
+        Route::post('/push-subscriptions', [LitePushSubscriptionController::class, 'subscribe'])->name('lite.push-subscriptions.store');
     });
 });

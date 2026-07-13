@@ -15,7 +15,7 @@ class WebPushService
     {
         $auth = [
             'VAPID' => [
-                'subject'    => config('app.url'),
+                'subject'    => config('webpush.vapid_subject'),
                 'publicKey'  => config('webpush.vapid_public_key'),
                 'privateKey' => config('webpush.vapid_private_key'),
             ],
@@ -45,7 +45,10 @@ class WebPushService
                         'auth'   => $sub->auth_token,
                     ],
                 ]);
-                $this->webPush->queueNotification($subscription, $json);
+                // Urgency "high" tells FCM/Android to wake the device promptly even
+                // under Doze/battery optimization, instead of batching delivery for
+                // whenever the device is next active (e.g. app opened).
+                $this->webPush->queueNotification($subscription, $json, ['urgency' => 'high']);
             } catch (\Throwable $e) {
                 Log::warning('WebPush: failed to queue for employee ' . $employeeId, ['error' => $e->getMessage()]);
             }

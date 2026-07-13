@@ -500,6 +500,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/close-period',     [\App\Http\Controllers\ReportingController::class, 'closePeriod']);
         Route::get('/md-recap',          [\App\Http\Controllers\ReportingController::class, 'mdRecap']);
         Route::get('/collection-outlook', [\App\Http\Controllers\ReportingController::class, 'collectionOutlook']);
+        Route::get('/ticketing-overview', [\App\Http\Controllers\ReportingController::class, 'ticketingOverview']);
     });
 
     // ==================== NOTIFICATION ROUTES ====================

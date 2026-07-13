@@ -26,6 +26,7 @@
     - [POST /tickets/{ticketId}/messages/{messageId}/internal-note](#57-post-ticketsticketidmessagesmessageidinternal-note)
     - [DELETE /tickets/{ticketId}/messages/{messageId}/internal-note](#58-delete-ticketsticketidmessagesmessageidinternal-note)
     - [GET /tickets/my](#59-get-ticketsmy)
+    - [GET /employees/mentionable](#510-get-employeesmentionable)
 6. [Endpoint Profil](#6-endpoint-profil)
     - [GET /profile](#61-get-profile)
     - [PATCH /profile/change-password](#62-patch-profilechange-password)
@@ -726,6 +727,8 @@ Mengambil semua pesan (percakapan) untuk satu tiket.
             "is_deleted": false,
             "edited_at": null,
             "is_highlighted": false,
+            "mentions": [],
+            "mentioned_role_ids": [],
             "attachments": [],
             "created_at": "2024-06-15T11:00:00.000000Z"
         },
@@ -736,8 +739,8 @@ Mengambil semua pesan (percakapan) untuk satu tiket.
             "sender_id": 12,
             "sender_name": "Jane Smith",
             "sender_email": "jane@company.com",
-            "message_body": "Catatan internal: perlu eskalasi ke tim database.",
-            "message_html": "<p>Catatan internal: perlu eskalasi ke tim database.</p>",
+            "message_body": "@Ahmad Rizki perlu eskalasi ke tim database.",
+            "message_html": "@Ahmad Rizki perlu eskalasi ke tim database.",
             "message_type": "internal_note",
             "reply_to_id": null,
             "reply_to_preview": null,
@@ -747,6 +750,10 @@ Mengambil semua pesan (percakapan) untuk satu tiket.
             "is_deleted": false,
             "edited_at": null,
             "is_highlighted": true,
+            "mentions": [
+                { "employee_id": 45, "name": "Ahmad Rizki" }
+            ],
+            "mentioned_role_ids": [],
             "attachments": [],
             "created_at": "2024-06-15T12:00:00.000000Z"
         }
@@ -825,6 +832,10 @@ SLA event dan notifikasi ke PIC/member ticket, sama seperti web.
 | `ticket_status`    | `string`        | Tidak | Ubah status tiket bersamaan reply — `inprocess`, `waiting_on_customer`, `waiting_to_confirmation`, `waiting_on_3rd_party`, atau `hold` |
 | `to_emails`        | `array<string\|object>` | Tidak | Hanya untuk `reply`. Override daftar TO — array string email, atau array objek `{"address": "...", "name": "..."}`. Item pertama = primary recipient. |
 | `cc_emails`        | `array<string\|object>` | Tidak | Hanya untuk `reply`. Override daftar CC — format sama seperti `to_emails`. |
+| `mentioned_employee_ids` | `array<integer>` | Tidak | **Hanya untuk `internal_note`.** Daftar `employee_id` yang di-@mention di note ini (dari hasil pilihan autocomplete [`GET /employees/mentionable`](#510-get-employeesmentionable)). Tiap id yang dimasukkan akan menerima notifikasi tipe `mention` (kecuali diri sendiri). Diabaikan untuk `reply`. |
+| `mentioned_role_ids`     | `array<integer>` | Tidak | **Hanya untuk `internal_note`.** Daftar `role_id` yang di-@mention (mis. `@Delivery Support Head`) — backend otomatis fan-out notifikasi ke semua employee aktif yang punya role tsb. Diabaikan untuk `reply`. |
+
+> **Catatan tentang mention:** mention **tidak** disisipkan sebagai markup khusus (mis. `@[Nama](id)`) di `message`/`message_html` — teks tetap apa adanya yang diketik user (mis. `"@Jane Smith tolong cek"`). ID mention dikirim **terpisah** lewat `mentioned_employee_ids`/`mentioned_role_ids`, dan hasilnya dikembalikan di field `mentions` pada response (lihat contoh di bawah serta di [5.5](#55-get-ticketsticketidmessages)) — frontend tidak perlu parsing ulang teks untuk tahu siapa yang di-mention.
 
 #### Contoh Request
 
@@ -835,6 +846,17 @@ SLA event dan notifikasi ke PIC/member ticket, sama seperti web.
     "reply_to_id": null,
     "to_emails": ["customer@company.com"],
     "cc_emails": [{ "address": "manager@company.com", "name": "Manager" }]
+}
+```
+
+#### Contoh Request — internal note dengan mention
+
+```json
+{
+    "message": "@Jane Smith tolong cek log server, ada error 500 berulang.",
+    "message_type": "internal_note",
+    "mentioned_employee_ids": [12],
+    "mentioned_role_ids": []
 }
 ```
 
@@ -893,6 +915,46 @@ SLA event dan notifikasi ke PIC/member ticket, sama seperti web.
 > tapi TIDAK terkirim (atau hanya sebagian terkirim, saat `email_status:
 > partial`) ke customer — frontend sebaiknya menampilkan indikator peringatan
 > pada bubble pesan tsb, mengikuti pola yang sama dengan web.
+
+#### Contoh Response Sukses (201) — internal note dengan mention
+
+```json
+{
+    "success": true,
+    "message": "Message sent successfully.",
+    "email_failed": false,
+    "email_status": null,
+    "email_error": null,
+    "data": {
+        "id": 504,
+        "ticket_id": 101,
+        "sender_type": "employee",
+        "sender_id": 12,
+        "sender_name": "Jane Smith",
+        "message_body": "@Jane Smith tolong cek log server, ada error 500 berulang.",
+        "message_html": "@Jane Smith tolong cek log server, ada error 500 berulang.",
+        "message_type": "internal_note",
+        "channel": "web",
+        "is_read_by_customer": false,
+        "is_read_by_agent": true,
+        "is_deleted": false,
+        "mentions": [
+            { "employee_id": 12, "name": "Jane Smith" }
+        ],
+        "mentioned_role_ids": [],
+        "attachments": [],
+        "created_at": "2024-06-15T13:05:00.000000Z"
+    }
+}
+```
+
+> **Catatan:** setiap id di `mentioned_employee_ids` (dan setiap employee aktif
+> yang punya role di `mentioned_role_ids`) otomatis dibuatkan baris notifikasi
+> tipe `mention` di [`GET /notifications`](#71-get-notifications), lengkap
+> dengan `message_id` — cocok dipakai dengan `highlight_message_id` di
+> [5.5](#55-get-ticketsticketidmessages) untuk auto-scroll saat notifikasi
+> di-tap. Sender tidak pernah menerima notifikasi mention dari pesannya
+> sendiri.
 
 ---
 
@@ -1122,6 +1184,76 @@ Authorization: Bearer <token>
 
 ---
 
+### 5.10 GET /employees/mentionable
+
+Autocomplete untuk fitur **@mention** di composer internal note (lihat
+`mentioned_employee_ids`/`mentioned_role_ids` di
+[5.6](#56-post-ticketsticketidmessages)). Mirror dari
+`GET /api/employees/mentionable` di aplikasi web utama, diadaptasi ke
+autentikasi Lite (session atau Bearer token).
+
+> **Catatan:** endpoint ini berada di path `/api/lite/employees/...`, bukan
+> `/api/lite/tickets/...` — didokumentasikan di sini karena kegunaannya
+> khusus untuk fitur mention di chat tiket.
+
+**Method:** `GET`  
+**URL:** `/api/lite/employees/mentionable`  
+**Auth:** Diperlukan
+
+#### Query Parameters
+
+| Parameter | Type     | Wajib | Deskripsi                                                                                          |
+| --------- | -------- | ----- | --------------------------------------------------------------------------------------------------- |
+| `q`       | `string` | Tidak | Keyword pencarian — cocok terhadap nama lengkap atau nickname employee, dan nama role. Kosongkan untuk daftar default (tanpa filter). |
+
+Hasil selalu mengecualikan user yang sedang login, dan hanya employee yang
+`is_active` serta tidak `block`/`deletion_flag`. Employee dibatasi **10 hasil**
+(role tidak dibatasi — biasanya jumlahnya sedikit).
+
+#### Contoh Request
+
+```
+GET /api/lite/employees/mentionable?q=jane
+Authorization: Bearer <token>
+```
+
+#### Contoh Response Sukses (200)
+
+```json
+{
+    "success": true,
+    "data": {
+        "employees": [
+            {
+                "id": 12,
+                "name": "Jane Smith",
+                "email": "jane.smith@company.com",
+                "avatar_url": null,
+                "role_name": "Delivery Support User"
+            }
+        ],
+        "roles": [
+            { "id": 5, "name": "Delivery Support Head", "type": "role" }
+        ]
+    }
+}
+```
+
+> **Catatan:** `avatar_url` saat ini selalu `null` — belum ada kolom
+> foto/avatar employee di database. Field ini tetap disertakan di kontrak
+> response agar frontend forward-compatible bila kolom tsb ditambahkan nanti.
+> Memilih hasil dari `roles` mengisi `mentioned_role_ids` (bukan
+> `mentioned_employee_ids`) saat mengirim pesan — backend otomatis fan-out
+> notifikasi ke semua employee aktif yang memegang role tsb.
+
+#### Contoh Response Error (401)
+
+```json
+{ "success": false, "message": "Unauthorized" }
+```
+
+---
+
 ## 6. Endpoint Profil
 
 ### 6.1 GET /profile
@@ -1292,7 +1424,7 @@ Endpoint ringan khusus untuk polling badge notifikasi (tanpa mengambil isi list)
 }
 ```
 
-> `message_sound_count` adalah subset dari `count` khusus tipe `ticket_reply` / `ticket_internal_note` — dipakai jika ingin membedakan bunyi notifikasi chat dari notifikasi umum lainnya.
+> `message_sound_count` adalah subset dari `count` khusus tipe `ticket_reply` / `ticket_internal_note` / `mention` — dipakai jika ingin membedakan bunyi notifikasi chat (termasuk saat di-mention) dari notifikasi umum lainnya.
 
 ---
 

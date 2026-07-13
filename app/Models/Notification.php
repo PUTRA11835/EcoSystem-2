@@ -86,6 +86,7 @@ class Notification extends Model
             'ticket_member_reactivated'    => $from . ' re-added you to a ticket',
             'ticket_internal_note'         => $from . ' added an internal note',
             'ticket_reply'                 => $from . ' replied to a ticket',
+            'mention'                      => $from . ' mentioned you',
             default                        => $from . ' sent you a notification',
         };
     }
