@@ -6,6 +6,7 @@ use App\Http\Controllers\Lite\LiteDashboardController;
 use App\Http\Controllers\Lite\LiteTicketController;
 use App\Http\Controllers\Lite\LiteProfileController;
 use App\Http\Controllers\Lite\LiteNotificationController;
+use App\Http\Controllers\Lite\LitePushSubscriptionController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -73,5 +74,8 @@ Route::middleware(['web'])->prefix('lite')->group(function () {
             Route::delete('/bulk-delete',  [LiteNotificationController::class, 'bulkDelete'])->name('bulk-delete');
             Route::delete('/{id}',         [LiteNotificationController::class, 'deleteOne'])->name('delete');
         });
+
+        // Web Push subscriptions (untuk notifikasi saat PWA tertutup/layar terkunci)
+        Route::post('/push-subscriptions', [LitePushSubscriptionController::class, 'subscribe'])->name('lite.push-subscriptions.store');
     });
 });

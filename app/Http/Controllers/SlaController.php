@@ -628,6 +628,10 @@ class SlaController extends Controller
             'meeting_link'        => 'nullable|url|max:2048',
             'meeting_start_time'  => 'nullable|date',
             'meeting_end_time'    => 'nullable|date',
+            'to_emails'           => 'nullable|array',
+            'to_emails.*'         => 'email',
+            'cc_emails'           => 'nullable|array',
+            'cc_emails.*'         => 'email',
         ]);
 
         if ($v->fails()) {
@@ -642,6 +646,26 @@ class SlaController extends Controller
         $meetingLink      = $request->input('meeting_link');
         $meetingStartTime = $request->filled('meeting_start_time') ? Carbon::parse($request->meeting_start_time) : null;
         $meetingEndTime   = $request->filled('meeting_end_time')   ? Carbon::parse($request->meeting_end_time)   : null;
+
+        // To/CC: modal mengirim key ini terus-menerus (prefilled dari toEmails/ccEmails
+        // di UI), jadi yang menentukan adalah isinya, bukan sekadar ada/tidaknya key.
+        // Daftar baru yang tidak kosong disimpan sebagai default ticket (sama seperti
+        // reply biasa) supaya konsisten dipakai lagi di reply/meeting berikutnya. Kalau
+        // dikirim kosong (agent hapus semua chip), jangan override — biarkan
+        // sendSystemReplyEmail jatuh ke fallback lama (to_emails/cc_emails ticket yang
+        // sudah tersimpan, atau resolveCustomerEmail() jika tiket belum pernah punya sama sekali).
+        $toEmailsInput = array_values(array_filter((array) $request->input('to_emails', [])));
+        $ccEmailsInput = array_values(array_filter((array) $request->input('cc_emails', [])));
+
+        if (!empty($toEmailsInput) || !empty($ccEmailsInput)) {
+            $ticket->update([
+                'to_emails' => $toEmailsInput ?: $ticket->to_emails,
+                'cc_emails' => $ccEmailsInput ?: $ticket->cc_emails,
+            ]);
+        }
+
+        $toEmails = !empty($toEmailsInput) ? $toEmailsInput : (!empty($ticket->to_emails) ? (array) $ticket->to_emails : null);
+        $ccEmails = !empty($ccEmailsInput) ? $ccEmailsInput : null;
 
         if ($meetingStartTime && $meetingEndTime && !$meetingEndTime->gt($meetingStartTime)) {
             return response()->json(['success' => false, 'message' => 'Waktu selesai meeting harus setelah waktu mulai'], 422);
@@ -673,7 +697,9 @@ class SlaController extends Controller
                 $senderName,
                 $html,
                 $plainBody,
-                'meeting_started'
+                'meeting_started',
+                $ccEmails,
+                $toEmails
             );
 
             // Fallback: jika tidak ada customer email atau email gagal, simpan sebagai pesan internal

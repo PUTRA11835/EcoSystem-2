@@ -963,6 +963,14 @@
 .email-html-body table { border-collapse: collapse; font-size: 12px; max-width: 100%; }
 .email-html-body td, .email-html-body th { border: 1px solid #000 !important; padding: 4px 8px; }
 
+/* Deliverable card: bubble deliverable memakai tabel key-value tanpa border kotak
+   (border hitam paksaan `.email-html-body/.message-content td` di-reset). Layout jadi
+   bersih & tidak terpotong; padding/nowrap diatur via inline style di server. */
+.email-html-body table.deliv-card,
+.message-content table.deliv-card { border: none !important; }
+.email-html-body table.deliv-card td, .email-html-body table.deliv-card th,
+.message-content table.deliv-card td, .message-content table.deliv-card th { border: none !important; }
+
 /* Links di semua bubble (plain text, Quill HTML, internal note) */
 .message-content a { color: #2563eb !important; text-decoration: underline !important; word-break: break-all; cursor: pointer; }
 .message-content a:hover { color: #1d4ed8 !important; }
@@ -1589,12 +1597,12 @@
 @endif
 
 {{-- ── Send Status Modal ───────────────────────────────────────────────── --}}
-<div id="sendStatusModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="sendStatusModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-xs shadow-2xl flex flex-col">
         <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100">
             <div>
                 <h3 class="text-sm font-bold text-gray-900">Send &amp; Set Status</h3>
-                <p class="text-[11px] text-gray-400 mt-0.5">Pilih status setelah reply dikirim</p>
+                <p id="sendStatusSubtitle" class="text-[11px] text-gray-400 mt-0.5">Pilih status setelah reply dikirim</p>
             </div>
             <button onclick="closeSendStatusModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-red-700 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
@@ -2119,6 +2127,43 @@
                     </div>
                     <p class="mt-1 text-xs text-gray-400">Waktu dan link akan dikirim via email ke customer</p>
                 </div>
+
+                {{-- To / CC undangan meeting — chip input, sama gaya dengan kolom pesan --}}
+                <div class="mt-3">
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">To</label>
+                    <div id="meetingToDropZone"
+                         class="flex flex-wrap items-center gap-1 min-h-[38px] border border-gray-300 rounded-xl bg-white px-2.5 py-1.5 cursor-text focus-within:ring-2 focus-within:ring-purple-300 transition-all"
+                         onclick="document.getElementById('meetingToInput').focus()">
+                        <div id="meetingToTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
+                        <div class="relative flex-1 min-w-[150px]">
+                            <input type="text" id="meetingToInput"
+                                   placeholder="Tambah email lalu tekan Enter…"
+                                   class="text-sm border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
+                                   onkeydown="handleMeetingRecipientKeydown(event,'to')"
+                                   onblur="handleMeetingRecipientBlur('to')"
+                                   onpaste="handleMeetingRecipientPaste(event,'to')">
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                        CC <span class="text-gray-400 font-normal">(opsional)</span>
+                    </label>
+                    <div id="meetingCcDropZone"
+                         class="flex flex-wrap items-center gap-1 min-h-[38px] border border-gray-300 rounded-xl bg-white px-2.5 py-1.5 cursor-text focus-within:ring-2 focus-within:ring-purple-300 transition-all"
+                         onclick="document.getElementById('meetingCcInput').focus()">
+                        <div id="meetingCcTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
+                        <div class="relative flex-1 min-w-[150px]">
+                            <input type="text" id="meetingCcInput"
+                                   placeholder="Tambah email lalu tekan Enter…"
+                                   class="text-sm border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
+                                   onkeydown="handleMeetingRecipientKeydown(event,'cc')"
+                                   onblur="handleMeetingRecipientBlur('cc')"
+                                   onpaste="handleMeetingRecipientPaste(event,'cc')">
+                        </div>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-400">Otomatis terisi sama seperti To/CC yang dipakai terakhir kali pada tiket ini.</p>
+                </div>
             </div>
 
             <div>
@@ -2156,6 +2201,56 @@
 </div>
 @endif
 {{-- ===== END MEETING MODAL ===== --}}
+
+{{-- ===== CONFIRM MEETING MODAL — review sebelum undangan benar-benar dikirim ===== --}}
+@if($can('ticket.meeting'))
+<div id="confirmMeetingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
+        <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
+            <div>
+                <h3 class="text-sm font-bold text-gray-900">Konfirmasi Undangan Meeting</h3>
+                <p class="text-[11px] text-gray-400 mt-0.5">Periksa kembali sebelum mengirim</p>
+            </div>
+            <button onclick="closeConfirmMeetingModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-red-700 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="px-5 py-4 flex-1 overflow-y-auto space-y-3">
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</span>
+                <p id="confirmMeetingTo" class="text-xs text-gray-800 break-words">-</p>
+            </div>
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Cc</span>
+                <p id="confirmMeetingCc" class="text-xs text-gray-800 break-words">-</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Mulai</span>
+                    <p id="confirmMeetingStart" class="text-xs text-gray-800">-</p>
+                </div>
+                <div>
+                    <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Selesai</span>
+                    <p id="confirmMeetingEnd" class="text-xs text-gray-800">-</p>
+                </div>
+            </div>
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Link Meeting</span>
+                <p id="confirmMeetingLink" class="text-xs text-purple-600 break-all">-</p>
+            </div>
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Pesan / Catatan</span>
+                <div id="confirmMeetingNotes" class="text-xs text-gray-800 border border-gray-200 rounded-lg px-3 py-2 max-h-40 overflow-y-auto bg-gray-50 whitespace-pre-wrap">-</div>
+            </div>
+        </div>
+        <div class="px-5 py-4 border-t border-gray-100 flex justify-end gap-2 flex-shrink-0">
+            <button onclick="closeConfirmMeetingModal()" class="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all">Edit</button>
+            <button id="confirmMeetingSendBtn" onclick="finalizeMeetingSend()" class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-all">Kirim Undangan</button>
+        </div>
+    </div>
+</div>
+@endif
+{{-- ===== END CONFIRM MEETING MODAL ===== --}}
 
 <script>
     const ticketId                    = {{ $ticket->ticket_id }};
@@ -4099,8 +4194,15 @@
         const rawCc  = msg.cc_emails;
         const ccList = Array.isArray(rawCc) ? rawCc
                      : (typeof rawCc === 'string' && rawCc ? ((() => { try { return JSON.parse(rawCc); } catch(e) { return []; } })()) : []);
+        // To PER-PESAN: API menurunkannya dari `email_recipients` pesan itu sendiri (minus CC),
+        // dengan fallback ke ticket.to_emails untuk pesan lama. Pakai ini — BUKAN snapshot
+        // ticket global — supaya badge "To" mencerminkan penerima aktual pesan tsb (mis. saat
+        // helpdesk mengganti alamat To sebelum kirim), bukan To composer saat halaman dibuka.
+        const rawTo  = msg.to_emails;
+        const toList = Array.isArray(rawTo) ? rawTo
+                     : (typeof rawTo === 'string' && rawTo ? ((() => { try { return JSON.parse(rawTo); } catch(e) { return []; } })()) : []);
         const toBadge = msg.channel === 'email'
-            ? renderRecipientBadge('to', 'To', ticketToEmailsInitial, msg.id, isEmployee)
+            ? renderRecipientBadge('to', 'To', (toList.length ? toList : ticketToEmailsInitial), msg.id, isEmployee)
             : '';
         const ccBadge = renderRecipientBadge('cc', 'Cc', ccList, msg.id, isEmployee);
 
@@ -4362,22 +4464,51 @@
 
     // ── Send Status Modal ─────────────────────────────────────────────────────
     let _pendingSendType = null;
+    // Modal status dipakai dua konteks: 'reply' (kirim balasan) & 'deliverable'
+    // (kirim dokumen deliverable ke customer). Mode menentukan aksi setelah status dipilih.
+    let _statusModalMode      = 'reply';
+    let _pendingDeliverableId = null;
+
+    function setStatusModalSubtitle(text) {
+        const el = document.getElementById('sendStatusSubtitle');
+        if (el) el.textContent = text;
+    }
 
     function openSendStatusModal(messageType) {
+        _statusModalMode = 'reply';
         _pendingSendType = messageType;
+        setStatusModalSubtitle('Pilih status setelah reply dikirim');
         // Reset ke default inprocess setiap kali modal dibuka
         const defaultRadio = document.querySelector('input[name="sendStatus"][value="inprocess"]');
         if (defaultRadio) defaultRadio.checked = true;
         document.getElementById('sendStatusModal').classList.remove('hidden');
     }
 
+    // Buka modal status untuk pengiriman dokumen deliverable. Helpdesk WAJIB memilih
+    // status tiket dulu; dokumen baru dikirim setelah status dipilih (lihat confirmSendWithStatus).
+    function openDeliverableStatusModal(id) {
+        _statusModalMode      = 'deliverable';
+        _pendingDeliverableId = id;
+        setStatusModalSubtitle('Pilih status tiket sebelum dokumen dikirim');
+        document.getElementById('sendStatusModal').classList.remove('hidden');
+    }
+
     function closeSendStatusModal() {
         document.getElementById('sendStatusModal').classList.add('hidden');
-        _pendingSendType = null;
+        _pendingSendType      = null;
+        _pendingDeliverableId = null;
+        _statusModalMode      = 'reply';
     }
 
     function confirmSendWithStatus(chosenStatus) {
         document.getElementById('sendStatusModal').classList.add('hidden');
+        if (_statusModalMode === 'deliverable') {
+            const id = _pendingDeliverableId;
+            _pendingDeliverableId = null;
+            _statusModalMode      = 'reply';
+            _doSendDeliverable(id, chosenStatus || 'inprocess');
+            return;
+        }
         openConfirmSendModal(chosenStatus || 'inprocess');
     }
 
@@ -4925,6 +5056,85 @@
     // ==================== MEETING ====================
     const MEETING_ICON_SVG = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>`;
 
+    // ── Meeting To/CC chip input — sama gaya visual dengan kolom To/CC composer
+    // reply biasa, tapi state terpisah (meetingToEmails/meetingCcEmails) karena
+    // daftar undangan meeting bisa diedit tanpa mengubah To/CC reply yang sedang diketik.
+    let meetingToEmails = [];
+    let meetingCcEmails = [];
+
+    function renderMeetingRecipientTags(field) {
+        const list      = field === 'to' ? meetingToEmails : meetingCcEmails;
+        const container = document.getElementById(field === 'to' ? 'meetingToTagsContainer' : 'meetingCcTagsContainer');
+        if (!container) return;
+        const isTo    = field === 'to';
+        const pillCls = isTo
+            ? 'bg-green-50 border-green-200 text-green-700'
+            : 'bg-blue-50 border-blue-200 text-blue-700';
+        const closeCls = isTo ? 'text-green-300' : 'text-blue-300';
+        container.innerHTML = list.map((email, i) => `
+            <span class="inline-flex items-center gap-1 border ${pillCls} text-[11px] rounded-full px-2 py-0.5 max-w-[220px] select-none">
+                <span class="truncate">${escHtmlCC(email)}</span>
+                <button type="button" onclick="removeMeetingRecipientTag('${field}',${i})" class="${closeCls} hover:text-red-500 transition-colors flex-shrink-0 leading-none ml-0.5">&times;</button>
+            </span>`
+        ).join('');
+    }
+
+    function renderMeetingToTags() { renderMeetingRecipientTags('to'); }
+    function renderMeetingCcTags()  { renderMeetingRecipientTags('cc'); }
+
+    function removeMeetingRecipientTag(field, index) {
+        (field === 'to' ? meetingToEmails : meetingCcEmails).splice(index, 1);
+        renderMeetingRecipientTags(field);
+    }
+
+    function commitMeetingRecipientInput(field) {
+        const input = document.getElementById(field === 'to' ? 'meetingToInput' : 'meetingCcInput');
+        if (!input) return;
+        const list          = field === 'to' ? meetingToEmails : meetingCcEmails;
+        const parts         = input.value.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+        const lowerExisting = new Set(list.map(e => String(e).toLowerCase()));
+        const invalid       = [];
+        let added = false;
+        for (const email of parts) {
+            if (!RECIPIENT_EMAIL_RE.test(email)) { invalid.push(email); continue; }
+            if (lowerExisting.has(email.toLowerCase())) continue;
+            list.push(email);
+            lowerExisting.add(email.toLowerCase());
+            saveEmailToHistory(email);
+            added = true;
+        }
+        if (added) renderMeetingRecipientTags(field);
+
+        if (invalid.length) {
+            input.value = invalid.join(', ');
+            input.classList.add('recipient-invalid');
+            setTimeout(() => input.classList.remove('recipient-invalid'), 1500);
+        } else {
+            input.value = '';
+        }
+    }
+
+    function handleMeetingRecipientKeydown(e, field) {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            commitMeetingRecipientInput(field);
+        } else if (e.key === 'Backspace' && e.target.value === '') {
+            const list = field === 'to' ? meetingToEmails : meetingCcEmails;
+            if (list.length > 0) { list.pop(); renderMeetingRecipientTags(field); }
+        }
+    }
+
+    function handleMeetingRecipientBlur(field) {
+        setTimeout(() => commitMeetingRecipientInput(field), 150);
+    }
+
+    function handleMeetingRecipientPaste(e, field) {
+        e.preventDefault();
+        const text  = (e.clipboardData || window.clipboardData).getData('text');
+        const input = document.getElementById(field === 'to' ? 'meetingToInput' : 'meetingCcInput');
+        if (input) { input.value = text; commitMeetingRecipientInput(field); }
+    }
+
     function openMeetingPanel() {
         const modal      = document.getElementById('meetingModal');
         const notesArea  = document.getElementById('meetingNotes');
@@ -4933,6 +5143,21 @@
 
         notesArea.value = '';
         if (linkInput) linkInput.value = '';
+
+        // Prefill To/CC dengan daftar yang terakhir dipakai pada tiket ini (state
+        // toEmails/ccEmails yang sama dengan dipakai composer reply biasa), supaya
+        // undangan meeting konsisten dengan penerima sebelumnya.
+        const normalizeEmails = (list) => (Array.isArray(list) ? list : [])
+            .map(e => (typeof e === 'string' ? e : e?.address))
+            .filter(Boolean);
+        meetingToEmails = normalizeEmails(typeof toEmails !== 'undefined' ? toEmails : []);
+        meetingCcEmails = normalizeEmails(typeof ccEmails !== 'undefined' ? ccEmails : []);
+        const meetingToInputEl = document.getElementById('meetingToInput');
+        const meetingCcInputEl = document.getElementById('meetingCcInput');
+        if (meetingToInputEl) meetingToInputEl.value = '';
+        if (meetingCcInputEl) meetingCcInputEl.value = '';
+        renderMeetingToTags();
+        renderMeetingCcTags();
 
         // Reset pilihan template & form "simpan sebagai template" setiap kali modal dibuka
         setCustomDropdownValue('meetingTemplateSelect', '');
@@ -5081,8 +5306,12 @@
         }
     }
 
-    async function confirmMeeting() {
-        const btn    = document.getElementById('meetingConfirmBtn');
+    // Payload meeting yang sedang direview di confirmMeetingModal — diisi oleh
+    // confirmMeeting(), dipakai ulang oleh finalizeMeetingSend() supaya tidak perlu
+    // membaca ulang form (yang sudah tersembunyi saat modal review terbuka).
+    let _pendingMeetingPayload = null;
+
+    function confirmMeeting() {
         const notes     = document.getElementById('meetingNotes')?.value?.trim() || null;
         const link      = document.getElementById('meetingLink')?.value?.trim() || null;
         const startDate = document.getElementById('meetingStartDate')?.value || null;
@@ -5091,7 +5320,6 @@
         const endH      = document.getElementById('meetingEndHour')?.value || null;
         const startTime = startDate && startH ? `${startDate}T${startH}` : null;
         const endTime   = endDate   && endH   ? `${endDate}T${endH}`     : null;
-        if (!btn) return;
 
         if (!startTime || !endTime) {
             showNotification('Waktu mulai dan selesai meeting wajib diisi', 'error');
@@ -5102,15 +5330,58 @@
             return;
         }
 
-        btn.disabled = true;
-        const origText = btn.textContent;
-        btn.textContent = 'Memproses…';
+        // Commit sisa teks yang belum di-Enter di kolom To/CC sebelum direview
+        commitMeetingRecipientInput('to');
+        commitMeetingRecipientInput('cc');
 
-        const endpoint = `/api/tickets/${ticketId}/sla/meeting/start`;
-        const payload  = { notes, meeting_link: link, meeting_start_time: startTime, meeting_end_time: endTime };
+        if (!meetingToEmails.length && !meetingCcEmails.length) {
+            showNotification('Isi minimal satu penerima (To atau CC) sebelum mengirim undangan', 'error');
+            return;
+        }
+
+        _pendingMeetingPayload = {
+            notes, meeting_link: link, meeting_start_time: startTime, meeting_end_time: endTime,
+            to_emails: meetingToEmails.slice(), cc_emails: meetingCcEmails.slice(),
+        };
+
+        openConfirmMeetingModal(_pendingMeetingPayload);
+    }
+
+    function openConfirmMeetingModal(payload) {
+        const fmt = (iso) => {
+            if (!iso) return '-';
+            const d = new Date(iso);
+            return isNaN(d) ? iso : d.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+        };
+
+        document.getElementById('confirmMeetingTo').textContent    = payload.to_emails.length ? payload.to_emails.join(', ') : '-';
+        document.getElementById('confirmMeetingCc').textContent    = payload.cc_emails.length ? payload.cc_emails.join(', ') : '-';
+        document.getElementById('confirmMeetingStart').textContent = fmt(payload.meeting_start_time);
+        document.getElementById('confirmMeetingEnd').textContent   = fmt(payload.meeting_end_time);
+        document.getElementById('confirmMeetingLink').textContent  = payload.meeting_link || '-';
+        document.getElementById('confirmMeetingNotes').textContent = payload.notes || '(tidak ada catatan)';
+
+        document.getElementById('confirmMeetingModal').classList.remove('hidden');
+    }
+
+    function closeConfirmMeetingModal() {
+        document.getElementById('confirmMeetingModal').classList.add('hidden');
+    }
+
+    document.getElementById('confirmMeetingModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closeConfirmMeetingModal();
+    });
+
+    async function finalizeMeetingSend() {
+        const payload = _pendingMeetingPayload;
+        if (!payload) return;
+
+        const sendBtn = document.getElementById('confirmMeetingSendBtn');
+        const btn     = document.getElementById('meetingConfirmBtn');
+        if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Mengirim…'; }
 
         try {
-            const res  = await fetch(endpoint, {
+            const res  = await fetch(`/api/tickets/${ticketId}/sla/meeting/start`, {
                 method: 'POST',
                 headers: getHeaders(),
                 credentials: 'same-origin',
@@ -5119,20 +5390,20 @@
             const data = await res.json();
 
             if (data.success) {
+                closeConfirmMeetingModal();
                 closeMeetingPanel();
                 showNotification(data.message, 'success');
-                btn.disabled = false;
-                await saveMeetingTemplateIfRequested(link, notes);
+                await saveMeetingTemplateIfRequested(payload.meeting_link, payload.notes);
                 try { await loadMessages(); } catch (_) {}
             } else {
                 showNotification(data.message || 'Gagal', 'error');
-                btn.textContent = origText;
-                btn.disabled = false;
             }
         } catch {
             showNotification('Terjadi kesalahan jaringan', 'error');
-            btn.textContent = origText;
-            btn.disabled = false;
+        } finally {
+            if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Kirim Undangan'; }
+            if (btn)     { btn.disabled = false; }
+            _pendingMeetingPayload = null;
         }
     }
 
@@ -7768,7 +8039,9 @@ function renderDeliverableTable(data) {
     }
 
     const rows = data.map(d => {
-        const statusCls = d.status === 'Sended'
+        // Toleransi data lama: baris sebelum migrasi masih bisa bernilai "Sended".
+        const isSent = d.status === 'Sent' || d.status === 'Sended';
+        const statusCls = isSent
             ? 'bg-green-100 text-green-700'
             : 'bg-orange-100 text-orange-700';
 
@@ -7778,20 +8051,20 @@ function renderDeliverableTable(data) {
                 : `<span class="text-gray-600 truncate max-w-[160px] block">${escHtmlD(d.file_name)}</span>`)
             : '<span class="text-gray-300">—</span>';
 
-        const editBtn = d.status !== 'Sended'
+        const editBtn = !isSent
             ? `<button onclick="editDeliverable(${d.id})"
                 class="text-[10px] text-amber-600 hover:text-amber-800 font-semibold border border-amber-200 px-1.5 py-0.5 rounded hover:bg-amber-50 transition">
                 Edit</button>`
             : '';
 
-        const sendBtn = d.status !== 'Sended'
+        const sendBtn = !isSent
             ? `<button onclick="sendDeliverable(${d.id})"
                 class="text-[10px] text-blue-600 hover:text-blue-800 font-semibold border border-blue-200 px-1.5 py-0.5 rounded hover:bg-blue-50 transition ml-1">
                 Send to Customer</button>`
             : '';
 
         // Dokumen yang sudah dikirim ke customer tidak boleh dihapus.
-        const delBtn = d.status !== 'Sended'
+        const delBtn = !isSent
             ? `<button onclick="deleteDeliverable(${d.id})"
                 class="text-[10px] text-red-500 hover:text-red-700 font-semibold border border-red-200 px-1.5 py-0.5 rounded hover:bg-red-50 transition ml-1">
                 Delete</button>`
@@ -7893,18 +8166,43 @@ async function submitNewDoc() {
     }
 }
 
-async function sendDeliverable(id) {
-    if (!await showConfirm('Mark this document as "Sended to Customer"?', 'Send to Customer')) return;
+// Klik "Send to Customer" → wajib pilih status tiket dulu lewat modal (mirror alur reply
+// yang mengirim pesan ke email). Dokumen baru dikirim setelah status dipilih.
+function sendDeliverable(id) {
+    openDeliverableStatusModal(id);
+}
+
+// Pengiriman sebenarnya, dipanggil oleh confirmSendWithStatus setelah status dipilih.
+async function _doSendDeliverable(id, chosenStatus) {
+    // Ambil To/Cc dari kolom composer reply (sama seperti kirim pesan biasa) agar dokumen
+    // dikirim ke alamat yang diisi user, BUKAN email ticket default. Commit dulu input yang
+    // belum ter-Enter supaya nilai terakhir yang diketik ikut terkirim.
+    if (typeof commitToInput === 'function') commitToInput();
+    if (typeof commitCcInput === 'function') commitCcInput();
+    const toList = (typeof toEmails !== 'undefined' && Array.isArray(toEmails)) ? toEmails : [];
+    const ccListSend = (typeof ccEmails !== 'undefined' && Array.isArray(ccEmails)) ? ccEmails : [];
+
     const overlay = document.getElementById('deliverableLoadingOverlay');
     if (overlay) overlay.classList.remove('hidden');
     try {
         const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/send`, {
             method: 'PATCH',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            headers: {
+                'X-CSRF-TOKEN': CSRF,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            },
             credentials: 'same-origin',
+            body: JSON.stringify({
+                ticket_status: chosenStatus || null,
+                to_emails: toList,
+                cc_emails: ccListSend,
+            }),
         });
         const json = await delivParseJson(res);
         if (!json.success) throw new Error(json.message);
+        // Sinkronkan badge/label status tiket (header, panel properties, sidebar) tanpa reload.
+        if (chosenStatus && typeof updateStatusUI === 'function') updateStatusUI(chosenStatus);
         await loadDeliverables();
         // Muat ulang chat agar bubble deliverable + status email (termasuk "Tidak terkirim") ikut update.
         if (typeof loadMessages === 'function') { try { await loadMessages(); } catch (_) {} }

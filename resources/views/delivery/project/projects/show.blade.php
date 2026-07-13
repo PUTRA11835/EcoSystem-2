@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'Project Detail')
 @section('page-title', 'Project Detail')
-@section('page-subtitle', 'View complete project information')
+@section('page-subtitle', e($project->name))
 {{-- ✅ LOAD GANTT LIBRARIES --}}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.css">
@@ -2828,11 +2828,25 @@
         const wrap = document.getElementById('planCostSummaryCards');
         if (!wrap) return;
 
-        function card(label, value, colorClass, icon) {
+        // Inline SVG (heroicons-outline) — jangan pakai emoji literal (mojibake via HTTP).
+        const icon = (path) =>
+            `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">`
+            + `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${path}"/></svg>`;
+
+        // Path ikon per kartu.
+        const ICONS = {
+            budget:  'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
+            release: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12',
+            actual:  'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z',
+            check:   'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+            chart:   'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+        };
+
+        function card(label, value, colorClass, iconPath, iconTint) {
             return `
             <div class="bg-white rounded-lg border border-gray-200 p-4 flex flex-col gap-1 shadow-sm">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="text-lg">${icon}</span>
+                    <span class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${iconTint}">${icon(iconPath)}</span>
                     <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">${label}</span>
                 </div>
                 <span class="text-base font-bold ${colorClass} font-mono">Rp ${fmt(value ?? 0)}</span>
@@ -2840,11 +2854,11 @@
         }
 
         wrap.innerHTML =
-            card('Total Budget',        s.total_budget,        'text-gray-800',   '📋') +
-            card('Total Release',       s.total_release,       'text-blue-700',   '📤') +
-            card('Total Actual',        s.total_actual,        'text-orange-600', '💸') +
-            card('Avail. Budget',       s.total_avail_budget,  s.total_avail_budget  < 0 ? 'text-red-600' : 'text-green-700', '✅') +
-            card('Avail. Release',      s.total_avail_release, s.total_avail_release < 0 ? 'text-red-600' : 'text-teal-700',  '📊');
+            card('Total Budget',   s.total_budget,   'text-gray-800',   ICONS.budget,  'bg-gray-100 text-gray-600') +
+            card('Total Release',  s.total_release,  'text-blue-700',   ICONS.release, 'bg-blue-100 text-blue-600') +
+            card('Total Actual',   s.total_actual,   'text-orange-600', ICONS.actual,  'bg-orange-100 text-orange-600') +
+            card('Avail. Budget',  s.total_avail_budget,  s.total_avail_budget  < 0 ? 'text-red-600' : 'text-green-700', ICONS.check, 'bg-green-100 text-green-600') +
+            card('Avail. Release', s.total_avail_release, s.total_avail_release < 0 ? 'text-red-600' : 'text-teal-700',  ICONS.chart, 'bg-teal-100 text-teal-600');
 
         // Keep Delivery Information → Actual Cost / GP / % in sync with the
         // Plan Cost "Total Actual" (no page reload needed).
