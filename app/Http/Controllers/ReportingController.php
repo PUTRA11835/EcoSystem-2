@@ -907,7 +907,7 @@ class ReportingController extends Controller
                             ? ($ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown')
                             : 'Unassigned',
                         'created_at'    => $createdAt ? $createdAt->timezone('Asia/Jakarta')->format('d/m/Y') : '',
-                        'day_on_close'  => $createdAt ? $createdAt->diffInDays(now()) : '',
+                        'day_on_close'  => $createdAt ? (int) ceil($createdAt->diffInDays(now())) : '',
                     ]);
                 }
                 $exportGroups->put($moduleName, $rows);

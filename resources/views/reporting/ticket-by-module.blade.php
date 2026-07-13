@@ -160,7 +160,7 @@ function ticketRow(ticket, moduleName) {
     const created = ticket.created_at;
     const dateStr = created ? new Date(created).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
     const dayOnClose = created
-        ? Math.max(0, Math.floor((Date.now() - new Date(created).getTime()) / 86400000))
+        ? Math.max(0, Math.ceil((Date.now() - new Date(created).getTime()) / 86400000))
         : null;
 
     return `
