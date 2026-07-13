@@ -43,6 +43,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'reporting.md-recap',           'name' => 'MD Recap',                'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.md-recap',           'icon' => null,                   'order_seq' => 2],
             ['slug' => 'reporting.collection-outlook', 'name' => 'Collection Outlook',      'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.collection-outlook', 'icon' => null,                   'order_seq' => 3],
             ['slug' => 'reporting.ticketing-overview', 'name' => 'Ticketing Overview',      'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.ticketing-overview', 'icon' => null,                   'order_seq' => 4],
+            ['slug' => 'reporting.ticket-by-module',   'name' => 'Ticket by Modul',         'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.ticket-by-module',   'icon' => null,                   'order_seq' => 5],
 
             // ── Master ────────────────────────────────────────────────────────────
             ['slug' => 'master',                       'name' => 'Master',                  'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-database',          'order_seq' => 4],
@@ -213,6 +214,7 @@ class MenuSeeder extends Seeder
             'reporting.md-recap'          => [self::ADMIN=>$vced, self::HOS=>$vce],
             'reporting.collection-outlook' => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
             'reporting.ticketing-overview' => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOP=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            'reporting.ticket-by-module'   => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOP=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             // Master
             'master'                      => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::HOP=>$v,      self::HOS=>$v],
             'master.employee'             => [self::ADMIN=>$vced, self::EMPLOYEE=>$ve,  self::HOP=>$v,      self::HOS=>$v],

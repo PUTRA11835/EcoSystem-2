@@ -10,6 +10,7 @@ use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\CustomerMandays;
 use App\Models\ReportingPeriod;
+use App\Models\Ticket;
 use App\Services\PeriodService;
 use App\Support\SessionUser;
 use Carbon\Carbon;
@@ -804,6 +805,69 @@ class ReportingController extends Controller
         } catch (\Exception $e) {
             Log::error('ticketingOverview error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Failed to load ticketing overview data. Please try again.'], 500);
+        }
+    }
+
+    // ── Web: Ticket by Modul page ───────────────────────────────────────────
+
+    public function ticketByModuleIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        return view('reporting.ticket-by-module', ['user' => session('user')]);
+    }
+
+    // ── API: Ticket by Modul data ───────────────────────────────────────────
+    //
+    // Mengelompokkan tiket berdasarkan modul (module_id -> modules master,
+    // fallback ke kolom legacy `module`). Tiket tanpa modul dikumpulkan ke
+    // grup "No Modul Assign" yang selalu tampil paling akhir.
+
+    public function ticketByModule(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.ticket-by-module')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $tickets = Ticket::with(['ticketLead.basicData', 'moduleMaster'])
+                ->whereNull('deleted_at')
+                ->orderByDesc('created_at')
+                ->get();
+
+            $groups = $tickets->groupBy(fn (Ticket $ticket) => $ticket->module_name ?: 'No Modul Assign');
+
+            $data = $groups->map(function ($groupTickets, $moduleName) {
+                return [
+                    'module_name' => $moduleName,
+                    'tickets' => $groupTickets->map(fn (Ticket $ticket) => [
+                        'ticket_id'     => $ticket->ticket_id,
+                        'ticket_number' => $ticket->ticket_number,
+                        'description'   => $ticket->description,
+                        'lead_name'     => $ticket->ticketLead
+                            ? ($ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown')
+                            : null,
+                        'created_at'    => $ticket->created_at,
+                    ])->values(),
+                ];
+            })->values()
+                ->sortBy(fn ($group) => $group['module_name'] === 'No Modul Assign' ? 1 : 0)
+                ->values();
+
+            return response()->json(['success' => true, 'data' => $data]);
+
+        } catch (\Exception $e) {
+            Log::error('ticketByModule error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket by modul data. Please try again.'], 500);
         }
     }
 

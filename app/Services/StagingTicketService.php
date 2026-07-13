@@ -83,6 +83,7 @@ class StagingTicketService
             'name'               => $data['name'] ?? null,
             'no_hp'              => $data['no_hp'] ?? null,
             'module'             => $data['module'] ?? null,
+            'module_id'          => $data['module_id'] ?? null,
             'client'             => $data['client'] ?? null,
         ]);
 
@@ -268,6 +269,7 @@ class StagingTicketService
                 'name'               => $staging->name,
                 'no_hp'              => $staging->no_hp,
                 'module'             => $staging->module,
+                'module_id'          => $staging->module_id,
                 'client'             => $staging->client,
                 'submitted_by_email' => $staging->submitted_by_email,
                 'submitted_by_name'  => $staging->sender_name,
@@ -479,9 +481,9 @@ class StagingTicketService
             $rows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Phone</td>'
                    . '<td>: ' . e($staging->no_hp) . '</td></tr>';
         }
-        if (!empty($staging->module)) {
+        if (!empty($staging->module_name)) {
             $rows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Module</td>'
-                   . '<td>: ' . e($staging->module) . '</td></tr>';
+                   . '<td>: ' . e($staging->module_name) . '</td></tr>';
         }
         if (!empty($staging->client)) {
             $rows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Client</td>'

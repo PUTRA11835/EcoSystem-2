@@ -437,6 +437,7 @@
                                 </div>
                             </div>
                         </th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Module</th>
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Assign Delivery</th>
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:140px;">Customer Mandays</th>
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:160px;">Progress</th>
@@ -622,9 +623,13 @@
                         </div>
                         <div>
                             <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Module</label>
-                            <input type="text" id="newModule" maxlength="255"
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                                placeholder="Related module">
+                            <select id="newModuleId"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                                <option value="">Select module</option>
+                                @foreach ($modules as $moduleOption)
+                                    <option value="{{ $moduleOption['id'] }}">{{ $moduleOption['name'] }}</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div>
                             <label class="text-xs font-semibold text-gray-600 mb-1.5 block uppercase tracking-wide">Client</label>
@@ -1420,6 +1425,8 @@
             </td>
             {{-- Type --}}
             ${cell(ticket.ticket_type ? badge(typeLabel, typeCls) : '<span class="text-gray-300 text-xs">—</span>')}
+            {{-- Module --}}
+            ${cell(ticket.module ? `<span class="text-sm text-gray-700">${ticket.module}</span>` : '<span class="text-gray-300 text-xs">—</span>')}
             {{-- Assign Delivery --}}
             <td class="px-3 py-3 whitespace-nowrap">
                 ${ticket.delivery?.delivery_name
@@ -2225,7 +2232,8 @@
         if (scaleVal) form.append('scale', scaleVal);
         form.append('name', document.getElementById('newName').value || '');
         form.append('no_hp', document.getElementById('newNoHp').value || '');
-        form.append('module', document.getElementById('newModule').value || '');
+        const moduleIdVal = document.getElementById('newModuleId').value;
+        if (moduleIdVal) form.append('module_id', moduleIdVal);
         form.append('client', document.getElementById('newClient').value || '');
         form.append('body', bodyHtml || '');
         const files = document.getElementById('newAttachments').files;

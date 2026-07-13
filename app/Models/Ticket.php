@@ -41,6 +41,7 @@ class Ticket extends Model
         'name',
         'no_hp',
         'module',
+        'module_id',
         'client',
         'submitted_by_email',
         'submitted_by_name',
@@ -82,6 +83,20 @@ class Ticket extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class, 'customer_id', 'customer_id');
+    }
+
+    // Relasi ke tabel modules (master). Nama relasi sengaja beda dari kolom
+    // string `module` (legacy free text) supaya keduanya bisa diakses terpisah.
+    public function moduleMaster()
+    {
+        return $this->belongsTo(Module::class, 'module_id', 'id');
+    }
+
+    // Nama modul untuk ditampilkan: prioritaskan modul master (module_id),
+    // fallback ke teks lama (module) untuk tiket yang belum diassign manual.
+    public function getModuleNameAttribute(): ?string
+    {
+        return $this->moduleMaster?->name ?? $this->module;
     }
 
     public function endCustomer()

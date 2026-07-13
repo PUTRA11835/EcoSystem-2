@@ -100,7 +100,7 @@ class TicketController extends Controller
             if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
                 Log::info('External employee viewing own tickets only', ['employee_id' => $sessionUser['id']]);
                 $employeeId = $sessionUser['id'];
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->where(function ($q) use ($employeeId) {
                         $q->where('ticket_lead_id', $employeeId)
@@ -113,7 +113,7 @@ class TicketController extends Controller
             } elseif ($sessionUser['role']['id'] === RoleId::EC_ADMINISTRATOR->value) {
                 Log::info('Admin viewing tickets', ['unassigned' => $filterUnassigned]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
                 if ($filterUnassigned) {
@@ -124,7 +124,7 @@ class TicketController extends Controller
             // Employee: tampilkan ticket unassigned (belum ada PIC) — frontend /api/tickets maps to "Unassign" tab
             } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_USER->value) {
                 Log::info('Employee viewing unassigned tickets');
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->whereNull('ticket_lead_id')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
@@ -139,7 +139,7 @@ class TicketController extends Controller
             )) {
                 Log::info('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
                 if ($filterUnassigned) {
@@ -152,7 +152,7 @@ class TicketController extends Controller
             } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_MANAGER->value) {
                 Log::info('Support Manager viewing all tickets', ['employee_id' => $sessionUser['id']]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
 
@@ -177,7 +177,7 @@ class TicketController extends Controller
                     'employee_id' => $sessionUser['id'],
                 ]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
                 if ($filterUnassigned) {
@@ -259,6 +259,8 @@ class TicketController extends Controller
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
+                    'module' => $ticket->module_name,
+                    'module_id' => $ticket->module_id,
                     'scale' => $ticket->scale,
                     'status' => $ticket->status,
                     'channel' => $ticket->channel,
@@ -360,7 +362,7 @@ class TicketController extends Controller
             abort(403);
         }
 
-        $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData'])
+        $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'moduleMaster'])
             ->whereNull('is_hidden')
             ->orderBy('ticket_id', 'asc');
 
@@ -451,6 +453,7 @@ class TicketController extends Controller
                 'scale'                  => $ticket->scale,
                 'status'                 => $ticket->status,
                 'ticket_type'            => $ticket->ticket_type,
+                'module'                 => $ticket->module_name,
                 'customer_mandays'       => $customerMandaysMap[$ticket->ticket_id] ?? null,
                 'all_consultant_progress'=> $progressMap[$ticket->ticket_id] ?? (float)($ticket->progress_percentage ?? 0),
                 'end_date'               => $ticket->end_date,
@@ -478,6 +481,7 @@ class TicketController extends Controller
                 'name'            => 'nullable|string|max:255',
                 'no_hp'           => 'nullable|string|max:255',
                 'module'          => 'nullable|string|max:255',
+                'module_id'       => 'nullable|exists:modules,id',
                 'client'          => 'nullable|string|max:255',
                 'to_email'        => 'nullable|string|max:2000',
                 'cc_emails'       => 'nullable|string|max:2000',
@@ -554,6 +558,7 @@ class TicketController extends Controller
                         'name'               => $validated['name'] ?? null,
                         'no_hp'              => $validated['no_hp'] ?? null,
                         'module'             => $validated['module'] ?? null,
+                        'module_id'          => $validated['module_id'] ?? null,
                         'client'             => $validated['client'] ?? null,
                         'status'             => 'inprocess',
                         // channel 'email' agar composer To/CC selalu tersedia di halaman tiket,
@@ -680,6 +685,7 @@ class TicketController extends Controller
             'name'            => 'nullable|string|max:255',
             'no_hp'           => 'nullable|string|max:255',
             'module'          => 'nullable|string|max:255',
+            'module_id'       => 'nullable|exists:modules,id',
             'client'          => 'nullable|string|max:255',
             'body'            => 'nullable|string',
             'attachments'     => 'nullable|array',
@@ -764,6 +770,7 @@ class TicketController extends Controller
                     'name'               => $validated['name'] ?? null,
                     'no_hp'              => $validated['no_hp'] ?? null,
                     'module'             => $validated['module'] ?? null,
+                    'module_id'          => $validated['module_id'] ?? null,
                     'client'             => $validated['client'] ?? null,
                     'status'             => 'open',
                     // channel 'email' agar composer To/CC selalu tersedia di halaman tiket,
@@ -993,7 +1000,7 @@ class TicketController extends Controller
             if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
                 $employeeId = $sessionUser['id'];
                 Log::info('My Tickets - External employee', ['employee_id' => $employeeId]);
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->where(function ($query) use ($employeeId) {
                         $query->where('ticket.ticket_lead_id', $employeeId)
@@ -1009,7 +1016,7 @@ class TicketController extends Controller
                 Log::info('My Tickets - Filtering for employee/helpdesk', ['employee_id' => $employeeId]);
 
                 // Ticket yang employee handle sebagai PIC atau member
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->where(function($query) use ($employeeId) {
                         $query->where('ticket.ticket_lead_id', $employeeId)
@@ -1037,7 +1044,7 @@ class TicketController extends Controller
                     ->unique()
                     ->values();
 
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->whereIn('ticket_id', $managedTicketIds)
                     ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
@@ -1051,7 +1058,7 @@ class TicketController extends Controller
                     'employee_id' => $employeeId,
                     'role_id'     => $sessionUser['role']['id'] ?? null,
                 ]);
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('is_hidden')
                     ->where(function ($query) use ($employeeId) {
                         $query->where('ticket.ticket_lead_id', $employeeId)
@@ -1134,6 +1141,8 @@ class TicketController extends Controller
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
+                    'module' => $ticket->module_name,
+                    'module_id' => $ticket->module_id,
                     'scale' => $ticket->scale,
                     'status' => $ticket->status,
                     'channel' => $ticket->channel,
@@ -1886,7 +1895,7 @@ class TicketController extends Controller
             && $ticketForCheck
             && $ticketForCheck->ticket_lead_id === null;
 
-        $addInfoKeys   = ['name', 'no_hp', 'module', 'client'];
+        $addInfoKeys   = ['name', 'no_hp', 'module', 'module_id', 'client'];
         $isAddInfoOnly = !$isAdmin && !$isHelpdesk
             && $canEditAddInfo
             && $requestKeys !== []
@@ -1899,6 +1908,12 @@ class TicketController extends Controller
             ], 403);
         }
 
+        // Select kosong ("-- none --") dikirim sebagai string kosong; treat sebagai null
+        // supaya lolos rule nullable|exists dan bisa dipakai untuk clear module_id.
+        if ($request->has('module_id') && $request->input('module_id') === '') {
+            $request->merge(['module_id' => null]);
+        }
+
         $validator = Validator::make($request->all(), [
             'ticket_priority' => 'sometimes|string|in:Very High,High,Medium,Low',
             'ticket_type'    => 'sometimes|nullable|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult',
@@ -1908,6 +1923,7 @@ class TicketController extends Controller
             'name'           => 'sometimes|nullable|string|max:255',
             'no_hp'          => 'sometimes|nullable|string|max:255',
             'module'         => 'sometimes|nullable|string|max:255',
+            'module_id'      => 'sometimes|nullable|exists:modules,id',
             'client'         => 'sometimes|nullable|string|max:255',
         ]);
 
@@ -1953,6 +1969,9 @@ class TicketController extends Controller
             }
             if ($request->has('module') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
                 $updateData['module'] = $request->module ?: null;
+            }
+            if ($request->has('module_id') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
+                $updateData['module_id'] = $request->module_id ?: null;
             }
             if ($request->has('client') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
                 $updateData['client'] = $request->client ?: null;
