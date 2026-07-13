@@ -114,6 +114,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         // Employee routes
         Route::prefix('employee')->name('employee.')->group(function () {
             Route::get('/', [EmployeeController::class, 'index'])->name('index')->middleware('menu:master.employee');
+            Route::get('/export', [EmployeeController::class, 'exportToExcel'])->name('export');
             Route::get('/{id}', [EmployeeController::class, 'show'])->name('detail');
         });
         
