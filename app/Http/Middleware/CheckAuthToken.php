@@ -16,6 +16,7 @@ class CheckAuthToken
     {
         // ── 1. Session masih valid (jalur normal) ────────────────────────────
         if (session()->has('auth_token')) {
+            $this->hydratePreferences($request);
             return $next($request);
         }
 
@@ -53,6 +54,44 @@ class CheckAuthToken
         }
 
         return $redirect;
+    }
+
+    /**
+     * Muat preferensi user dari DB ke session sekali per session (bila belum ada).
+     * Ini menjaga tema/warna/dll tetap konsisten setelah login baru atau restore
+     * remember-me — bukan hanya setelah membuka halaman Settings.
+     *
+     * Dibungkus try/catch: kegagalan load preferensi TIDAK boleh men-crash request;
+     * cukup lewati dan biarkan view memakai default-nya.
+     */
+    private function hydratePreferences(Request $request): void
+    {
+        if (session()->has('user_preferences')) {
+            return;
+        }
+
+        try {
+            $user = session('user');
+            if (!$user || empty($user['id'])) {
+                return;
+            }
+
+            $column = ($user['type'] ?? 'employee') === 'customer' ? 'customer_id' : 'employee_id';
+
+            $raw = DB::table('auth_users')->where($column, $user['id'])->value('preferences');
+            if (!$raw) {
+                return;
+            }
+
+            $prefs = is_array($raw) ? $raw : json_decode($raw, true);
+            if (is_array($prefs) && $prefs) {
+                session(['user_preferences' => $prefs]);
+            }
+        } catch (Throwable $e) {
+            Log::warning('CheckAuthToken: hydrate preferences gagal', [
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
