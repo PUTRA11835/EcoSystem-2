@@ -15,7 +15,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 
     <!-- Filter Section -->
     <div class="bg-gray-50 rounded-lg p-5 mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Status</label>
                 <div class="custom-dd relative" data-onchange="applyFilters">
@@ -39,6 +39,36 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Department</label>
                 <input type="text" id="filterDepartment" placeholder="Search department..." oninput="debouncedApplyFilters()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
             </div>
+            <div class="flex flex-col">
+                <label class="text-sm font-semibold text-gray-700 mb-1.5">Module</label>
+                <div class="custom-dd relative" id="ddFilterModules" data-multi="true" data-onchange="applyFilters">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">All Modules</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="filterModules" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Modules</button>
+                        <!-- Module items populated dynamically from /api/modules -->
+                    </div>
+                </div>
+            </div>
+            <div class="flex flex-col">
+                <label class="text-sm font-semibold text-gray-700 mb-1.5">Home Base</label>
+                <div class="custom-dd relative" id="ddFilterHomeBase" data-multi="true" data-onchange="applyFilters">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">All Home Base</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="filterHomeBase" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Home Base</button>
+                        @foreach(\App\Enums\HomeBase::options() as $hb)
+                        <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $hb }}"><span class="custom-dd-item-text">{{ $hb }}</span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
         </div>
         <div class="flex gap-3 justify-end">
             <button onclick="applyFilters()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
@@ -53,23 +83,36 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     <!-- Table Section -->
     <div class="mt-6">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-            <h3 class="text-lg font-semibold text-gray-900">Employee List</h3>
-            @if($can('master.employee.create'))
-            <button onclick="openCreateModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Create Employee
-            </button>
-            @endif
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900">Employee List</h3>
+                <span id="employeeShowingText" class="text-xs text-gray-500"></span>
+            </div>
+            <div class="flex items-center gap-2.5">
+                <button onclick="exportEmployees()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-green-600">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                    Export Excel
+                </button>
+                @if($can('master.employee.create'))
+                <button onclick="openCreateModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    Create Employee
+                </button>
+                @endif
+            </div>
         </div>
 
-        <div class="overflow-x-auto border border-gray-200 rounded-lg">
-            <table class="w-full">
+        <div id="employeeTableWrapper" class="overflow-x-auto border border-gray-200 rounded-lg">
+            <table class="w-full" style="min-width:1350px;">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">ECI</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Full Name</th>
+                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:100px;">ECI</th>
+                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:200px;">Full Name</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Position</th>
+                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Module</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Division</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Department</th>
+                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Home Base</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Since Date</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Status</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Actions</th>
@@ -82,7 +125,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         </div>
 
         <!-- Pagination -->
-        <div id="employeePagination" class="flex items-center justify-between mt-4 px-1 min-h-[36px]"></div>
+        <div id="employeePagination" class="flex items-center justify-end mt-4 px-1 min-h-[36px]"></div>
     </div>
 </div>
 
@@ -490,9 +533,39 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     
     .employee-row:hover {
         background-color: #fef2f2 !important;
-        transform: scale(1.002);
     }
-    
+
+    /* Locked (sticky) columns: ECI + Full Name stay pinned while the table scrolls horizontally */
+    #employeeTableWrapper table th:nth-child(1),
+    #employeeTableWrapper table td:nth-child(1) {
+        position: sticky;
+        left: 0;
+        z-index: 5;
+        background: inherit;
+        box-shadow: 2px 0 4px rgba(0,0,0,0.04);
+    }
+    #employeeTableWrapper table th:nth-child(2),
+    #employeeTableWrapper table td:nth-child(2) {
+        position: sticky;
+        left: 100px;
+        z-index: 5;
+        background: inherit;
+        box-shadow: 2px 0 4px rgba(0,0,0,0.04);
+    }
+    #employeeTableWrapper thead th:nth-child(1),
+    #employeeTableWrapper thead th:nth-child(2) {
+        background: #f9fafb;
+        z-index: 6;
+    }
+    #employeeTableWrapper tbody tr td:nth-child(1),
+    #employeeTableWrapper tbody tr td:nth-child(2) {
+        background: #fff;
+    }
+    .employee-row:hover td:nth-child(1),
+    .employee-row:hover td:nth-child(2) {
+        background-color: #fef2f2;
+    }
+
     /* Mencegah text selection saat double click */
     .employee-row {
         user-select: none;
@@ -581,12 +654,19 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 
     function renderPagination() {
         const el = document.getElementById('employeePagination');
+        const showingEl = document.getElementById('employeeShowingText');
         if (!el || !paginationMeta) return;
 
         const { total, current_page, last_page, from, to } = paginationMeta;
 
+        if (showingEl) {
+            showingEl.textContent = last_page <= 1
+                ? `Showing ${total} employee${total !== 1 ? 's' : ''}`
+                : `Showing ${from}–${to} of ${total} employees`;
+        }
+
         if (last_page <= 1) {
-            el.innerHTML = `<span class="text-xs text-gray-500">Showing ${total} employee${total !== 1 ? 's' : ''}</span>`;
+            el.innerHTML = '';
             return;
         }
 
@@ -623,7 +703,6 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         ).join('');
 
         el.innerHTML = `
-            <span class="text-xs text-gray-500">Showing ${from}–${to} of ${total} employees</span>
             <div class="flex items-center gap-1">
                 ${btn('&lsaquo;', current_page - 1, current_page === 1)}
                 ${pageButtons}
@@ -637,6 +716,8 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             status: document.getElementById('filterStatus').value,
             employee: document.getElementById('filterEmployee').value,
             department: document.getElementById('filterDepartment').value,
+            modules: document.getElementById('filterModules').value,
+            home_base: document.getElementById('filterHomeBase').value,
         };
     }
 
@@ -651,9 +732,22 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         if (event.target.closest('.action-buttons')) {
             return; // Jangan navigate jika klik tombol action
         }
-        
+
+        // Simpan filter + halaman aktif — dipulihkan lagi kalau user balik dari
+        // halaman detail ini (lihat DOMContentLoaded handler di bawah).
+        saveEmployeeFilterState();
+
         // Navigate ke halaman detail
         window.location.href = `/master/employee/${employeeId}`;
+    }
+
+    const EMP_FILTER_STORAGE_KEY = 'employeeManagementFilters';
+
+    function saveEmployeeFilterState() {
+        sessionStorage.setItem(EMP_FILTER_STORAGE_KEY, JSON.stringify({
+            ...getCurrentFilters(),
+            page: currentPage,
+        }));
     }
 
     // Map untuk menyimpan data employee — hindari embedding data di HTML onclick attribute
@@ -666,7 +760,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         if (data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="9" class="px-4 py-16 text-center">
+                    <td colspan="10" class="px-4 py-16 text-center">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-300">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                         </svg>
@@ -701,11 +795,13 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 
             return `
             <tr class="employee-row" onclick="navigateToDetail(${emp.id}, event)">
-                <td class="px-4 py-3.5 text-sm"><strong class="font-semibold text-gray-900">${emp.eci || '-'}</strong></td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${fullName}${emp.employee_type === 'External' ? ' <span class="inline-block ml-1.5 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 align-middle">External</span>' : ''}</td>
+                <td class="px-4 py-3.5 text-sm" style="min-width:100px;"><strong class="font-semibold text-gray-900">${emp.eci || '-'}</strong></td>
+                <td class="px-4 py-3.5 text-sm text-gray-600" style="min-width:200px;">${fullName}${emp.employee_type === 'External' ? ' <span class="inline-block ml-1.5 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 align-middle">External</span>' : ''}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.position || '-'}</td>
+                <td class="px-4 py-3.5 text-sm text-gray-600">${(emp.modules && emp.modules.length) ? emp.modules.join(', ') : '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.division || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.employee_subgroup || '-'}</td>
+                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.home_base || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.since_date || '-'}</td>
                 <td class="px-4 py-3.5 text-sm">
                     <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full ${statusInfo.class}">
@@ -1013,6 +1109,17 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         fetchEmployees(getCurrentFilters());
     }
 
+    // Export Excel — filter yang dikirim persis sama dengan getCurrentFilters() yang
+    // dipakai fetchEmployees(), jadi hasil export selalu konsisten dengan filter aktif.
+    function exportEmployees() {
+        const params = new URLSearchParams();
+        Object.entries(getCurrentFilters()).forEach(([key, value]) => {
+            if (value) params.set(key, value);
+        });
+        const qs = params.toString();
+        window.location.href = '{{ route("master.employee.export") }}' + (qs ? '?' + qs : '');
+    }
+
     let _employeeSearchTimer;
     function debouncedApplyFilters() {
         clearTimeout(_employeeSearchTimer);
@@ -1027,6 +1134,13 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         }
         document.getElementById('filterEmployee').value = '';
         document.getElementById('filterDepartment').value = '';
+        if (typeof clearCustomDropdownMulti === 'function') {
+            clearCustomDropdownMulti('filterModules');
+            clearCustomDropdownMulti('filterHomeBase');
+        } else {
+            document.getElementById('filterModules').value = '';
+            document.getElementById('filterHomeBase').value = '';
+        }
         currentPage = 1;
         fetchEmployees({});
     }
@@ -1263,14 +1377,84 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         }
     });
 
-    // Initialize on page load
-    document.addEventListener('DOMContentLoaded', function() {
+    // Initialize on page load.
+    // Filter dipulihkan HANYA kalau user balik dari halaman detail employee (dicek
+    // lewat document.referrer) — supaya klik salah satu baris → lihat detail → balik
+    // tetap mempertahankan filter, tapi pindah ke menu lain lalu balik lagi ke
+    // Employee Management dari sidebar/link lain akan selalu mulai fresh (tanpa filter).
+    document.addEventListener('DOMContentLoaded', async function() {
+        const cameFromDetail = /\/master\/employee\/\d+(?:[/?].*)?$/.test(document.referrer);
+        let restored = null;
+        if (cameFromDetail) {
+            const saved = sessionStorage.getItem(EMP_FILTER_STORAGE_KEY);
+            if (saved) {
+                try { restored = JSON.parse(saved); } catch (e) { restored = null; }
+            }
+        } else {
+            sessionStorage.removeItem(EMP_FILTER_STORAGE_KEY);
+        }
+
+        // Set hidden input values SEBELUM initCustomDropdowns() supaya Home Base
+        // (multi-select statis) langsung ke-sync visual/label-nya saat init jalan.
+        if (restored) {
+            document.getElementById('filterEmployee').value   = restored.employee   || '';
+            document.getElementById('filterDepartment').value = restored.department || '';
+            document.getElementById('filterHomeBase').value   = restored.home_base  || '';
+            document.getElementById('filterModules').value    = restored.modules    || '';
+            if (restored.page) currentPage = restored.page;
+        }
+
         if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
-        fetchEmployees();
+
+        // Status: single-select, label-nya perlu di-set eksplisit (tidak auto-sync saat init).
+        if (restored && restored.status && typeof setCustomDropdownValue === 'function') {
+            setCustomDropdownValue('filterStatus', restored.status);
+        }
+
+        // Module: item panel-nya baru ada setelah fetch /api/modules selesai,
+        // jadi visual checked-state-nya baru bisa di-sync ulang sesudah ini.
+        await loadModuleFilterOptions();
+        if (restored && restored.modules) {
+            const ddModules = document.getElementById('ddFilterModules');
+            if (ddModules && typeof _syncMultiVisualState === 'function') _syncMultiVisualState(ddModules);
+        }
+
+        fetchEmployees(getCurrentFilters(), currentPage);
+
         // Teleport menu ke body agar tidak ter-clip oleh overflow-x-hidden pada <main>
         const menu = document.getElementById('floatingEmpMenu');
         if (menu) document.body.appendChild(menu);
     });
+
+    // Populate Module filter panel dari /api/modules — dinamis karena daftar module
+    // bisa berubah kapan saja lewat Master Module, jadi tidak di-hardcode di blade.
+    // Item ditambahkan setelah initCustomDropdowns() jalan; klik tetap kepegang karena
+    // custom-dropdown.js pakai event delegation di level panel (lihat custom-dropdown.js).
+    async function loadModuleFilterOptions() {
+        try {
+            const response = await fetch('/api/modules?is_active=1', {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+            if (!data.success) return;
+
+            const panel = document.querySelector('#ddFilterModules .custom-dd-panel');
+            if (!panel) return;
+
+            data.data.forEach(mod => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors';
+                btn.dataset.value = mod.name;
+                btn.innerHTML = `<span class="custom-dd-item-text"></span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>`;
+                btn.querySelector('.custom-dd-item-text').textContent = mod.name;
+                panel.appendChild(btn);
+            });
+        } catch (err) {
+            console.warn('[Employee Filter] failed to load modules:', err.message);
+        }
+    }
 
     let _empMenuId = null, _empMenuName = null, _empMenuRoles = null;
 

@@ -361,6 +361,7 @@ Route::middleware(['web'])->group(function () {
         // Static routes first
         Route::get('/', [TicketController::class, 'index']);
         Route::get('/my', [TicketController::class, 'myTickets']);
+        Route::get('/unassigned', [TicketController::class, 'unassignedTickets']);
         Route::get('/hidden', [TicketController::class, 'hiddenIndex']);
         Route::get('/latest-update', [TicketController::class, 'latestUpdate']);
         Route::get('/statistics', [TicketController::class, 'statistics']);
