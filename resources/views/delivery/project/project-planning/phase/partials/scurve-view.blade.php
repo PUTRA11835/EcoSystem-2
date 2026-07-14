@@ -433,7 +433,7 @@
                             usePointStyle: true,
                             padding: 20,
                             font: { size: 13, weight: 'bold' },
-                            color: '#374151'
+                            color: '{{ (session('user_preferences')['theme'] ?? 'light') === 'dark' ? '#e5e7eb' : '#374151' }}'
                         }
                     },
                     tooltip: {
@@ -457,11 +457,11 @@
                     y: {
                         beginAtZero: true,
                         max: 110,
-                        grid: { color: 'rgba(0, 0, 0, 0.05)', drawBorder: false },
+                        grid: { color: '{{ (session('user_preferences')['theme'] ?? 'light') === 'dark' ? 'rgba(255,255,255,0.09)' : 'rgba(0, 0, 0, 0.05)' }}', drawBorder: false },
                         ticks: {
                             callback: function(value) { return value + '%'; },
                             font: { size: 12, weight: 'bold' },
-                            color: '#6b7280'
+                            color: '{{ (session('user_preferences')['theme'] ?? 'light') === 'dark' ? '#9ca3af' : '#6b7280' }}'
                         }
                     },
                     x: {
@@ -470,7 +470,7 @@
                             maxRotation: 45,
                             minRotation: 0,
                             font: { size: 11, weight: 'bold' },
-                            color: '#6b7280'
+                            color: '{{ (session('user_preferences')['theme'] ?? 'light') === 'dark' ? '#9ca3af' : '#6b7280' }}'
                         }
                     }
                 }
@@ -653,7 +653,7 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: true, position: 'top', labels: { padding: 20, font: { size: 13, weight: 'bold' } } },
+                    legend: { display: true, position: 'top', labels: { padding: 20, font: { size: 13, weight: 'bold' }, color: '{{ (session('user_preferences')['theme'] ?? 'light') === 'dark' ? '#e5e7eb' : '#374151' }}' } },
                     tooltip: {
                         backgroundColor: 'rgba(0, 0, 0, 0.8)',
                         padding: 12,
@@ -665,10 +665,10 @@
                 scales: {
                     y: {
                         beginAtZero: true,
-                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
-                        ticks: { callback: function(val) { return val + '%'; }, font: { weight: 'bold' } }
+                        grid: { color: '{{ (session('user_preferences')['theme'] ?? 'light') === 'dark' ? 'rgba(255,255,255,0.09)' : 'rgba(0, 0, 0, 0.05)' }}' },
+                        ticks: { callback: function(val) { return val + '%'; }, font: { weight: 'bold' }, color: '{{ (session('user_preferences')['theme'] ?? 'light') === 'dark' ? '#9ca3af' : '#6b7280' }}' }
                     },
-                    x: { grid: { display: false }, ticks: { font: { weight: 'bold' } } }
+                    x: { grid: { display: false }, ticks: { font: { weight: 'bold' }, color: '{{ (session('user_preferences')['theme'] ?? 'light') === 'dark' ? '#9ca3af' : '#6b7280' }}' } }
                 }
             }
         });

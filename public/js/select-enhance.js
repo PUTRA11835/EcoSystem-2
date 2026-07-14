@@ -238,6 +238,7 @@
         if (panel._seSearch) return;
 
         const searchWrap = document.createElement('div');
+        searchWrap.className = 'se-search-head';
         searchWrap.style.cssText = 'position:sticky;top:0;background:#fff;border-bottom:1px solid #f3f4f6;padding:0.375rem 0.5rem;z-index:1;';
 
         const input = document.createElement('input');

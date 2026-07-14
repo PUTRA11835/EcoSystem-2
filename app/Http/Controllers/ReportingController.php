@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\RoleId;
 use App\Exports\MdRecapExport;
 use App\Exports\ResolutionDaysExport;
+use App\Exports\TicketByModuleExport;
 use App\Exports\TimesheetReportExport;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
@@ -868,6 +869,57 @@ class ReportingController extends Controller
         } catch (\Exception $e) {
             Log::error('ticketByModule error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Failed to load ticket by modul data. Please try again.'], 500);
+        }
+    }
+
+    // ── Web: Ticket by Modul export ─────────────────────────────────────────
+
+    public function exportTicketByModule(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return redirect()->route('login');
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.ticket-by-module')) {
+                abort(403, 'Access denied.');
+            }
+
+            $tickets = Ticket::with(['ticketLead.basicData', 'moduleMaster'])
+                ->whereNull('deleted_at')
+                ->orderByDesc('created_at')
+                ->get();
+
+            $groups = $tickets->groupBy(fn (Ticket $ticket) => $ticket->module_name ?: 'No Modul Assign')
+                ->sortBy(fn ($groupTickets, $moduleName) => $moduleName === 'No Modul Assign' ? 1 : 0);
+
+            $exportGroups = collect();
+            foreach ($groups as $moduleName => $groupTickets) {
+                $rows = collect();
+                foreach ($groupTickets as $ticket) {
+                    $createdAt = $ticket->created_at;
+                    $rows->push([
+                        'ticket_number' => $ticket->ticket_number,
+                        'description'   => $ticket->description,
+                        'lead_name'     => $ticket->ticketLead
+                            ? ($ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown')
+                            : 'Unassigned',
+                        'created_at'    => $createdAt ? $createdAt->timezone('Asia/Jakarta')->format('d/m/Y') : '',
+                        'day_on_close'  => $createdAt ? (int) ceil($createdAt->diffInDays(now())) : '',
+                    ]);
+                }
+                $exportGroups->put($moduleName, $rows);
+            }
+
+            $filename = 'Ticket_by_Modul_Export_' . now()->timezone('Asia/Jakarta')->format('dmY') . '.xlsx';
+
+            return Excel::download(new TicketByModuleExport($exportGroups), $filename);
+
+        } catch (\Exception $e) {
+            Log::error('exportTicketByModule error: ' . $e->getMessage());
+            abort(500, $e->getMessage());
         }
     }
 

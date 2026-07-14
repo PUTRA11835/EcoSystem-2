@@ -11,6 +11,9 @@
             <h2 class="text-2xl font-bold text-gray-900">Ticket by Modul</h2>
             <p class="text-sm text-gray-500 mt-0.5">Tickets grouped by modul, including tickets with no modul assigned</p>
         </div>
+        <a href="{{ route('reporting.ticket-by-module.export') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-red-800 hover:bg-red-900 text-white text-sm font-semibold rounded-lg transition-colors">
+            <i class="fas fa-file-excel"></i> Export
+        </a>
     </div>
 
     {{-- Summary bar --}}
@@ -157,7 +160,7 @@ function ticketRow(ticket, moduleName) {
     const created = ticket.created_at;
     const dateStr = created ? new Date(created).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
     const dayOnClose = created
-        ? Math.max(0, Math.floor((Date.now() - new Date(created).getTime()) / 86400000))
+        ? Math.max(0, Math.ceil((Date.now() - new Date(created).getTime()) / 86400000))
         : null;
 
     return `

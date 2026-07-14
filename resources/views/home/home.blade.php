@@ -385,7 +385,7 @@
                 },
                 scales: {
                     x: { grid: { display: false }, ticks: { font: { size: 11 }, maxTicksLimit: 10, color: '#9ca3af' } },
-                    y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { stepSize: 1, precision: 0, color: '#9ca3af', font: { size: 11 } } }
+                    y: { beginAtZero: true, grid: { color: '{{ (session('user_preferences')['theme'] ?? 'light') === 'dark' ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.04)' }}' }, ticks: { stepSize: 1, precision: 0, color: '#9ca3af', font: { size: 11 } } }
                 }
             }
         });

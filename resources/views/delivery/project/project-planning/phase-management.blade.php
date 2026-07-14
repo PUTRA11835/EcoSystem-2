@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 
 @section('content')
-<div class="min-h-screen bg-gray-50 pb-20 sm:pb-6" data-project-id="{{ $project->id }}">
+<div class="phase-mgmt-page min-h-screen bg-gray-50 pb-20 sm:pb-6" data-project-id="{{ $project->id }}">
     <script>
         window.currentProjectId = {{ $project->id }};
         // Contract window — used to constrain planning (activity) date pickers.

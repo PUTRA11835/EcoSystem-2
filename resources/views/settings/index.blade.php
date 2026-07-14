@@ -100,7 +100,7 @@
                             <p class="text-xs text-gray-400 mt-1 leading-relaxed">Used for buttons and active states</p>
                         </div>
                         <div class="flex flex-wrap gap-2.5">
-                            @foreach(['#c62828'=>'Red','#1976d2'=>'Blue','#388e3c'=>'Green','#f57c00'=>'Orange',
+                            @foreach(['#991b1b'=>'Default','#c62828'=>'Red','#1976d2'=>'Blue','#388e3c'=>'Green','#f57c00'=>'Orange',
                                       '#7b1fa2'=>'Purple','#0097a7'=>'Teal','#5d4037'=>'Brown','#455a64'=>'Slate']
                                      as $hex=>$label)
                             <button type="button" onclick="selectColor('{{ $hex }}')" title="{{ $label }}"
