@@ -400,6 +400,12 @@
         /* Custom dropdown — public/js/custom-dropdown.js (.custom-dd-*) */
         .custom-dd-panel   { background: #1f2937 !important; border-color: #374151 !important; }
         .custom-dd-btn     { background: #374151 !important; border-color: #4b5563 !important; color: #e5e7eb !important; }
+        /* Filter kolom di HEADER tabel juga memakai `.custom-dd-btn`, tapi di sana
+           harus TRANSPARAN mengikuti latar header (bg-gray-50 → #0b1120) — jika
+           tidak, sel header berdropdown (Customer…Type) tampak lebih terang &
+           belang dibanding sel header lain. Hover tetap ditangani utilitas
+           `hover:bg-gray-*`. */
+        thead .custom-dd-btn { background: transparent !important; }
         .custom-dd-item    { color: #d1d5db !important; }
         .custom-dd-item:hover,
         .custom-dd-item.is-active,
@@ -516,23 +522,28 @@
         #ticketsListBody tr:hover { background: #374151 !important; }
         /* Dua kolom sticky (Last Update & Ticket#) memakai background PUTIH inline
            (style="background:#ffffff") pada tiap baris — timpa jadi gelap. Baris
-           unread punya selector lebih spesifik di bawah sehingga tetap menang. */
+           unread punya selector lebih spesifik di bawah sehingga tetap menang.
+           PENTING: kolom sticky di-FREEZE dan mengambang di atas kolom lain yang
+           di-scroll horizontal, jadi latarnya WAJIB OPAQUE — jika translucent
+           (rgba), konten kolom di belakang akan tembus. Tint unread karena itu
+           dipakai sebagai warna SOLID hasil blend di atas permukaan #1f2937,
+           bukan rgba. */
         #ticketsListBody tr td:first-child,
         #ticketsListBody tr td:nth-child(2) { background: #1f2937 !important; }
         #ticketsListBody tr:hover td:first-child,
         #ticketsListBody tr:hover td:nth-child(2) { background: #374151 !important; }
         #ticketsListBody tr.ticket-unread-customer,
         #ticketsListBody tr.ticket-unread-customer td:first-child,
-        #ticketsListBody tr.ticket-unread-customer td:nth-child(2) { background: rgba(59,130,246,.13) !important; }
+        #ticketsListBody tr.ticket-unread-customer td:nth-child(2) { background: #233550 !important; }
         #ticketsListBody tr.ticket-unread-customer:hover,
         #ticketsListBody tr.ticket-unread-customer:hover td:first-child,
-        #ticketsListBody tr.ticket-unread-customer:hover td:nth-child(2) { background: rgba(59,130,246,.22) !important; }
+        #ticketsListBody tr.ticket-unread-customer:hover td:nth-child(2) { background: #253d61 !important; }
         #ticketsListBody tr.ticket-unread-internal,
         #ticketsListBody tr.ticket-unread-internal td:first-child,
-        #ticketsListBody tr.ticket-unread-internal td:nth-child(2) { background: rgba(251,191,36,.12) !important; }
+        #ticketsListBody tr.ticket-unread-internal td:nth-child(2) { background: #393b35 !important; }
         #ticketsListBody tr.ticket-unread-internal:hover,
         #ticketsListBody tr.ticket-unread-internal:hover td:first-child,
-        #ticketsListBody tr.ticket-unread-internal:hover td:nth-child(2) { background: rgba(251,191,36,.20) !important; }
+        #ticketsListBody tr.ticket-unread-internal:hover td:nth-child(2) { background: #4b4733 !important; }
 
         /* Calendar → Timesheet: stat cards (Total/Draft/Submitted/Approved/Rejected).
            Semua pakai `bg-white`, tapi ditegaskan lewat ID (spesifisitas tertinggi)
