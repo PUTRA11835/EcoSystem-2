@@ -777,6 +777,11 @@ class ReportingController extends Controller
                 ->join('customer', 'ticket.customer_id', '=', 'customer.customer_id')
                 ->leftJoin('customer_basic_data', 'customer.customer_id', '=', 'customer_basic_data.customer_id')
                 ->whereNull('ticket.deleted_at')
+                ->whereNull('ticket.is_hidden')
+                ->where(function ($query) {
+                    $query->whereNull('ticket.ticket_type')
+                        ->orWhere('ticket.ticket_type', '!=', 'EWA');
+                })
                 ->groupBy('ticket.customer_id', 'customer_basic_data.name_1')
                 ->select(
                     'ticket.customer_id',
@@ -842,6 +847,7 @@ class ReportingController extends Controller
 
             $tickets = Ticket::with(['ticketLead.basicData', 'moduleMaster'])
                 ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
                 ->orderByDesc('created_at')
                 ->get();
 
@@ -854,6 +860,8 @@ class ReportingController extends Controller
                         'ticket_id'     => $ticket->ticket_id,
                         'ticket_number' => $ticket->ticket_number,
                         'description'   => $ticket->description,
+                        'status'        => $ticket->status,
+                        'status_label'  => $ticket->status_label,
                         'lead_name'     => $ticket->ticketLead
                             ? ($ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown')
                             : null,
@@ -889,6 +897,7 @@ class ReportingController extends Controller
 
             $tickets = Ticket::with(['ticketLead.basicData', 'moduleMaster'])
                 ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
                 ->orderByDesc('created_at')
                 ->get();
 
@@ -907,7 +916,7 @@ class ReportingController extends Controller
                             ? ($ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown')
                             : 'Unassigned',
                         'created_at'    => $createdAt ? $createdAt->timezone('Asia/Jakarta')->format('d/m/Y') : '',
-                        'day_on_close'  => $createdAt ? $createdAt->diffInDays(now()) : '',
+                        'day_on_close'  => $createdAt ? (int) ceil($createdAt->diffInDays(now())) : '',
                     ]);
                 }
                 $exportGroups->put($moduleName, $rows);

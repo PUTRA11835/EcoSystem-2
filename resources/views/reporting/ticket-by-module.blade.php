@@ -20,6 +20,17 @@
     <div id="tbmSummary" class="flex items-center justify-between gap-3 mb-4 text-sm text-gray-500">
         <span id="tbmSummaryText">Loading...</span>
         <div class="flex items-center gap-3">
+            <select id="tbmStatusFilter" onchange="applyTbmStatusFilter()" class="text-xs font-medium text-gray-700 border border-gray-200 rounded-lg pl-2.5 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-300">
+                <option value="">All Status</option>
+                <option value="open">Open</option>
+                <option value="inprocess">Inprocess</option>
+                <option value="waiting_on_customer">Waiting on Customer</option>
+                <option value="waiting_on_3rd_party">Waiting on 3rd Party</option>
+                <option value="waiting_to_confirmation">Waiting to Confirmation</option>
+                <option value="hold">Hold</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="closed">Closed</option>
+            </select>
             <button type="button" onclick="setAllTbmCards(true)" class="text-xs font-semibold text-red-800 hover:underline">Expand All</button>
             <button type="button" onclick="setAllTbmCards(false)" class="text-xs font-semibold text-gray-500 hover:underline">Collapse All</button>
         </div>
@@ -65,6 +76,8 @@
 <script>
 document.addEventListener('DOMContentLoaded', loadTicketByModule);
 
+let tbmAllGroups = [];
+
 async function loadTicketByModule() {
     const cards   = document.getElementById('tbmCards');
     const empty   = document.getElementById('tbmEmpty');
@@ -79,7 +92,8 @@ async function loadTicketByModule() {
         const json = await res.json();
         if (!json.success) throw new Error(json.message || 'Failed to load data');
 
-        renderTicketByModule(json.data || []);
+        tbmAllGroups = json.data || [];
+        renderTicketByModule(tbmAllGroups);
     } catch (e) {
         console.error(e);
         summary.textContent = 'Failed to load data.';
@@ -87,6 +101,24 @@ async function loadTicketByModule() {
             <i class="fas fa-exclamation-circle text-xl block mb-2"></i>${escHtml(e.message)}
         </div>`;
     }
+}
+
+function applyTbmStatusFilter() {
+    const status = document.getElementById('tbmStatusFilter').value;
+
+    if (!status) {
+        renderTicketByModule(tbmAllGroups);
+        return;
+    }
+
+    const filtered = tbmAllGroups
+        .map(group => ({
+            module_name: group.module_name,
+            tickets: group.tickets.filter(t => t.status === status),
+        }))
+        .filter(group => group.tickets.length > 0);
+
+    renderTicketByModule(filtered);
 }
 
 function renderTicketByModule(groups) {
@@ -97,7 +129,8 @@ function renderTicketByModule(groups) {
     if (!groups.length) {
         cards.innerHTML = '';
         empty.classList.remove('hidden');
-        summary.textContent = 'No modules found.';
+        const statusFilter = document.getElementById('tbmStatusFilter')?.value;
+        summary.textContent = statusFilter ? 'No tickets match the selected status.' : 'No modules found.';
         return;
     }
     empty.classList.add('hidden');
@@ -129,11 +162,13 @@ function renderTicketByModule(groups) {
                     <table class="w-full">
                         <thead>
                             <tr>
+                                <th class="tbm-th text-left">No Tiket</th>
                                 <th class="tbm-th text-left">Description</th>
+                                <th class="tbm-th text-left">Status</th>
                                 <th class="tbm-th text-left">Ticket Lead</th>
                                 <th class="tbm-th text-left">Modul</th>
                                 <th class="tbm-th text-left">Created At</th>
-                                <th class="tbm-th text-right">Day on Close</th>
+                                <th class="tbm-th text-right">Day not Close</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -156,16 +191,30 @@ function setAllTbmCards(expand) {
     document.querySelectorAll('.tbm-chevron').forEach(el => el.classList.toggle('is-collapsed', !expand));
 }
 
+const TBM_STATUS_MAP = {
+    'open':                     { label: 'Open',                     cls: 'bg-blue-50 text-blue-700' },
+    'inprocess':                { label: 'Inprocess',                cls: 'bg-yellow-50 text-yellow-700' },
+    'waiting_on_customer':      { label: 'Waiting on Customer',      cls: 'bg-amber-50 text-amber-700' },
+    'waiting_on_3rd_party':     { label: 'Waiting on 3rd Party',     cls: 'bg-indigo-50 text-indigo-700' },
+    'waiting_to_confirmation':  { label: 'Waiting to Confirmation',  cls: 'bg-teal-50 text-teal-700' },
+    'hold':                     { label: 'Hold',                     cls: 'bg-orange-50 text-orange-700' },
+    'cancelled':                { label: 'Cancelled',                cls: 'bg-gray-100 text-gray-500' },
+    'closed':                   { label: 'Closed',                   cls: 'bg-green-50 text-green-700' },
+};
+
 function ticketRow(ticket, moduleName) {
     const created = ticket.created_at;
     const dateStr = created ? new Date(created).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
     const dayOnClose = created
-        ? Math.max(0, Math.floor((Date.now() - new Date(created).getTime()) / 86400000))
+        ? Math.max(0, Math.ceil((Date.now() - new Date(created).getTime()) / 86400000))
         : null;
+    const sInfo = TBM_STATUS_MAP[ticket.status] || { label: ticket.status_label || ticket.status || '—', cls: 'bg-gray-100 text-gray-500' };
 
     return `
-    <tr>
+    <tr class="cursor-pointer hover:bg-gray-50" onclick="window.location='/ticket/${ticket.ticket_id}'">
+        <td class="tbm-td text-sm font-semibold text-gray-700">${escHtml(ticket.ticket_number || '—')}</td>
         <td class="tbm-td tbm-td-desc text-sm text-gray-700">${escHtml(ticket.description || '—')}</td>
+        <td class="tbm-td"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${sInfo.cls}">${escHtml(sInfo.label)}</span></td>
         <td class="tbm-td text-sm text-gray-700">${ticket.lead_name ? escHtml(ticket.lead_name) : '<span class="text-gray-300 italic">Unassigned</span>'}</td>
         <td class="tbm-td text-sm text-gray-700">${escHtml(moduleName)}</td>
         <td class="tbm-td text-xs text-gray-500">${dateStr}</td>
