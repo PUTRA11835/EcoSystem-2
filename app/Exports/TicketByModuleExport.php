@@ -31,7 +31,7 @@ class TicketByModuleExport implements FromArray, WithEvents, ShouldAutoSize
 
     public function array(): array
     {
-        $rows = [['Ticket Number', 'Description', 'Ticket Lead', 'Created At', 'Day on Close']];
+        $rows = [['Ticket Number', 'Description', 'Ticket Lead', 'Created At', 'Day not Close']];
         $rowNumber = 1;
 
         foreach ($this->groups as $moduleName => $tickets) {
