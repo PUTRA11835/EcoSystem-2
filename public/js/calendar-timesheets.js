@@ -85,11 +85,11 @@ const _CUST_TEXT_PANEL = `<div id="tsTextPanel_Customer" class="hidden absolute 
     </div>
 </div>`;
 
-function _mkStatusDd() { return `<div class="custom-dd relative w-full" id="ddColFilterTsStatus" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Status</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsStatus" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5" style="max-height:220px;min-width:150px;">${_STATUS_DD_ITEMS}</div></div>`; }
-function _mkMonthDd()  { return `<div class="custom-dd relative w-full" id="ddColFilterTsMonth" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Month</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsMonth" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5" style="max-height:240px;min-width:120px;">${_MONTH_DD_ITEMS}</div></div>`; }
+function _mkStatusDd() { return `<div class="custom-dd relative w-full" id="ddColFilterTsStatus" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Status</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsStatus" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:150px;">${_STATUS_DD_ITEMS}</div></div>`; }
+function _mkMonthDd()  { return `<div class="custom-dd relative w-full" id="ddColFilterTsMonth" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Month</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsMonth" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:120px;">${_MONTH_DD_ITEMS}</div></div>`; }
 // Year dropdown: panel items are filled dynamically from the loaded data
 // (years vary by dataset, unlike Month's fixed 12-item list) — see _populateTsYearDd().
-function _mkYearDd()   { return `<div class="custom-dd relative w-full" id="ddColFilterTsYear" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Year</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsYear" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5" style="max-height:240px;min-width:100px;"><button type="button" class="${DD_ITEM}" data-value="">All</button></div></div>`; }
+function _mkYearDd()   { return `<div class="custom-dd relative w-full" id="ddColFilterTsYear" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Year</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsYear" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:100px;"><button type="button" class="${DD_ITEM}" data-value="">All</button></div></div>`; }
 function _mkActivityTextTh() { return `<th class="${TH_FILT}" style="min-width:130px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'ActivityType')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Activity</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_ActivityType')}</button>${_ACT_TEXT_PANEL}</th>`; }
 
 // Date range filter panel — pola sama dengan view ticket (From/To + Clear/Apply).
@@ -135,7 +135,7 @@ let currentFilters = {
 };
 let tsSortKey = 'date';
 let tsSortDir = 'desc';
-let itemsPerPage = 20;
+let itemsPerPage = 200;
 let currentPage = 1;
 
 const activityTypeIcons = {
@@ -239,6 +239,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     updateBulkActionButtons();
                 });
             }
+            // Re-init custom-dd dropdowns (Month/Year/Status) — the initCustomDropdowns()
+            // call above ran before this innerHTML swap, so those handlers were lost.
+            if (typeof initCustomDropdowns === 'function') initCustomDropdowns(thead);
         }
     }
 

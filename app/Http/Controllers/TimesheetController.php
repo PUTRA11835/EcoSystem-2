@@ -150,10 +150,10 @@ class TimesheetController extends Controller
      */
     public function exportToExcel(Request $request)
     {
-        $user   = session('user');
-        $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
+        $sessionUser = SessionUser::fromSession(session('user'));
+        // Checked against ALL assigned roles, not just whichever role is "primary"
         $allowed = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
-        if (!in_array($roleId, $allowed, true)) {
+        if (!$sessionUser || !$sessionUser->hasAnyRole($allowed)) {
             abort(403);
         }
 
@@ -945,12 +945,12 @@ class TimesheetController extends Controller
     {
         try {
             $user = session('user');
-            // Role is stored as nested array: $user['role']['id']
-            $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
+            $sessionUser = SessionUser::fromSession($user);
 
-            // Admin, Head of Project, Head of Support, and RPMO can approve
+            // Admin, Head of Project, Head of Support, and RPMO can approve (checked
+            // against ALL assigned roles, not just whichever role is "primary")
             $approvalRoles = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
-            if (!in_array($roleId, $approvalRoles, true)) {
+            if (!$sessionUser || !$sessionUser->hasAnyRole($approvalRoles)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized: Only managers can approve timesheets'
@@ -994,12 +994,12 @@ class TimesheetController extends Controller
     {
         try {
             $user = session('user');
-            // Role is stored as nested array: $user['role']['id']
-            $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
+            $sessionUser = SessionUser::fromSession($user);
 
-            // Admin, Head of Project, Head of Support, and RPMO can reject
+            // Admin, Head of Project, Head of Support, and RPMO can reject (checked
+            // against ALL assigned roles, not just whichever role is "primary")
             $approvalRoles = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
-            if (!in_array($roleId, $approvalRoles, true)) {
+            if (!$sessionUser || !$sessionUser->hasAnyRole($approvalRoles)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized: Only managers can reject timesheets'

@@ -84,7 +84,11 @@
       "Bash(php -l database/migrations/2026_07_13_000006_add_all_tickets_menu_permission.php)",
       "Bash(php -l resources/views/master/employee/index.blade.php)",
       "Bash(php -l app/Http/Controllers/EmployeeController.php)",
-      "Bash(php -l app/Exports/EmployeeExport.php)"
+      "Bash(php -l app/Exports/EmployeeExport.php)",
+      "Bash(php -l app/Http/Controllers/TimesheetController.php)",
+      "Bash(php -l app/Http/Controllers/CalendarController.php)",
+      "Bash(node -e \"require\\('fs'\\).readFileSync\\('public/js/calendar-timesheets.js','utf8'\\)\")",
+      "Bash(node --check public/js/calendar-timesheets.js)"
     ],
     "additionalDirectories": [
       "C:\\ecosystem-2\\database\\migrations",

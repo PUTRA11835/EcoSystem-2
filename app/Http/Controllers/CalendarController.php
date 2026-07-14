@@ -35,12 +35,12 @@ class CalendarController extends Controller
         $roleId     = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
         $employeeId = $user['id'] ?? null;
 
-        $isHead  = in_array($roleId, RoleId::HEAD_GROUP, true)
-                || $roleId === RoleId::DELIVERY_RPMO_HEAD->value
-                || $roleId === RoleId::EC_ADMINISTRATOR->value;
-        $isAdmin = $roleId === RoleId::EC_ADMINISTRATOR->value;
-
         // ── Collect ALL role IDs (primary + pivot assignments) ────────────────
+        // "Primary" role in session is just whichever pivot row the DB returns
+        // first (no ORDER BY at login) — an employee holding both Delivery
+        // Support Head and a lower-id role can end up with the wrong role as
+        // "primary". So every check below must look at the full role set, not
+        // just $roleId.
         $allRoleIds = collect([$roleId])->filter();
         if ($employeeId) {
             $pivotRoles = DB::table('employee_role_assignment')
@@ -49,13 +49,19 @@ class CalendarController extends Controller
             $allRoleIds = $allRoleIds->merge($pivotRoles)->unique()->map(fn($id) => (int) $id);
         }
 
+        $isHead  = $allRoleIds->intersect(RoleId::HEAD_GROUP)->isNotEmpty()
+                || $allRoleIds->contains(RoleId::DELIVERY_RPMO_HEAD->value)
+                || $allRoleIds->contains(RoleId::EC_ADMINISTRATOR->value);
+        $isAdmin = $allRoleIds->contains(RoleId::EC_ADMINISTRATOR->value);
+        $isHoS   = $allRoleIds->contains(RoleId::DELIVERY_SUPPORT_HEAD->value);
+
         // ── Map each role to the timesheet type(s) it allows ─────────────────
         // Heads and RPMO are locked to their approval domain regardless of extra roles.
-        $headLock = match($roleId) {
-            RoleId::DELIVERY_SUPPORT_HEAD->value => 'support',
-            RoleId::DELIVERY_PROJECT_HEAD->value => 'project',
-            RoleId::DELIVERY_RPMO_HEAD->value            => 'office',
-            default                        => null,
+        $headLock = match(true) {
+            $allRoleIds->contains(RoleId::DELIVERY_SUPPORT_HEAD->value) => 'support',
+            $allRoleIds->contains(RoleId::DELIVERY_PROJECT_HEAD->value) => 'project',
+            $allRoleIds->contains(RoleId::DELIVERY_RPMO_HEAD->value)    => 'office',
+            default                                                    => null,
         };
 
         if ($headLock !== null) {
@@ -93,6 +99,7 @@ class CalendarController extends Controller
             'user'         => $user,
             'isHead'       => $isHead,
             'isAdmin'      => $isAdmin,
+            'isHoS'        => $isHoS,
             'roleId'       => $roleId,
             'lockedType'   => $lockedType,
             'allowedTypes' => $allowedTypes,
